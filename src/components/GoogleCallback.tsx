@@ -1,62 +1,67 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 const GoogleCallback: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { googleAuth, clearError } = useAuth();
+  const { googleAuth, clearError, error } = useAuth();
+  
+  // Prevent multiple executions
+  const hasProcessed = useRef(false);
 
   useEffect(() => {
+    // Prevent multiple executions
+    if (hasProcessed.current) {
+      console.log('GoogleCallback: Already processed, skipping...');
+      return;
+    }
+
     const handleGoogleCallback = async () => {
       const code = searchParams.get('code');
-      const error = searchParams.get('error');
+      const errorParam = searchParams.get('error');
 
-      console.log('GoogleCallback loaded with:', { 
-        hasCode: !!code, 
-        error,
-        fullUrl: window.location.href 
+      console.log('GoogleCallback: Processing callback', {
+        hasCode: !!code,
+        hasError: !!errorParam,
+        url: window.location.href
       });
 
-      if (error) {
-        console.error('OAuth error from URL:', error);
-        navigate('/landing?error=oauth_failed');
+      if (errorParam) {
+        console.error('OAuth error from URL:', errorParam);
+        navigate('/landing?error=oauth_failed', { replace: true });
         return;
       }
 
       if (!code) {
         console.error('No authorization code received');
-        navigate('/landing?error=no_code');
+        navigate('/landing?error=no_code', { replace: true });
         return;
       }
 
+      // Mark as processed immediately to prevent duplicate processing
+      hasProcessed.current = true;
+      
       try {
-        console.log('Processing Google auth with code...');
-        clearError(); // Clear any previous errors
+        clearError();
+        console.log('GoogleCallback: Calling googleAuth...');
         
         await googleAuth(code);
-        console.log('Google auth successful, redirecting to dashboard...');
         
-        // Small delay to ensure auth state is updated
-        setTimeout(() => {
-          navigate('/dashboard');
-        }, 100);
+        console.log('GoogleCallback: Success! Redirecting to dashboard...');
+        navigate('/dashboard', { replace: true });
         
       } catch (error: any) {
-        console.error('Google auth failed:', error);
+        console.error('GoogleCallback: Authentication failed:', error);
         
-        // Clear any stored auth data on failure
-        localStorage.removeItem('auth_tokens');
-        localStorage.removeItem('auth_user');
-        
-        // Navigate with specific error message
-        const errorMessage = error.response?.data?.message || error.message || 'oauth_failed';
-        navigate(`/landing?error=${encodeURIComponent(errorMessage)}`);
+        // Navigate to landing with error message
+        const errorMessage = error.message || 'Authentication failed';
+        navigate(`/landing?error=${encodeURIComponent(errorMessage)}`, { replace: true });
       }
     };
 
     handleGoogleCallback();
-  }, [searchParams, googleAuth, navigate, clearError]);
+  }, []); // Empty dependencies - run only once
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -64,6 +69,9 @@ const GoogleCallback: React.FC = () => {
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto mb-4"></div>
         <p className="text-gray-600">Completing Google authentication...</p>
         <p className="text-gray-500 text-sm mt-2">Please wait while we redirect you...</p>
+        {error && (
+          <p className="text-red-500 text-sm mt-2">{error}</p>
+        )}
       </div>
     </div>
   );

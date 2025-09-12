@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useRef, useEffect } from 'react';
 import { authAPI } from '../services/authAPI';
 
 interface User {
@@ -9,63 +9,129 @@ interface User {
   emailVerified: boolean;
 }
 
-interface AuthTokens {
+interface Tokens {
   accessToken: string;
   refreshToken: string;
 }
 
 interface AuthContextType {
   user: User | null;
-  tokens: AuthTokens | null;
+  tokens: Tokens | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string, confirmPassword: string) => Promise<void>;
-  googleAuth: (code: string) => Promise<void>;
-  logout: () => Promise<void>;
-  refreshToken: () => Promise<void>;
-  getGoogleAuthUrl: () => Promise<string>;
-  clearError: () => void;
   error: string | null;
+  googleAuth: (code: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  register: (data: any) => Promise<void>;
+  logout: () => void;
+  clearError: () => void;
+  getGoogleAuthUrl: () => Promise<string>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-interface AuthProviderProps {
-  children: ReactNode;
-}
-
-export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [tokens, setTokens] = useState<AuthTokens | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [tokens, setTokens] = useState<Tokens | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Use ref to prevent concurrent requests without causing re-renders
+  const isAuthenticating = useRef(false);
+  const authAbortController = useRef<AbortController | null>(null);
 
-  // Initialize auth state from localStorage
+  // Check if user is authenticated
+  const isAuthenticated = !!(user && tokens);
+
+  // Initialize auth state on mount
   useEffect(() => {
+    const initializeAuth = () => {
+      try {
+        const storedTokens = localStorage.getItem('auth_tokens');
+        const storedUser = localStorage.getItem('auth_user');
+        
+        if (storedTokens && storedUser) {
+          setTokens(JSON.parse(storedTokens));
+          setUser(JSON.parse(storedUser));
+        }
+      } catch (error) {
+        console.error('Failed to initialize auth state:', error);
+        // Clear invalid stored data
+        localStorage.removeItem('auth_tokens');
+        localStorage.removeItem('auth_user');
+      }
+    };
+
     initializeAuth();
   }, []);
 
-  const initializeAuth = async () => {
+  const clearError = () => setError(null);
+
+  const googleAuth = async (code: string): Promise<void> => {
+    // Prevent concurrent authentication requests
+    if (isAuthenticating.current) {
+      console.log('Authentication already in progress, skipping duplicate request');
+      return;
+    }
+
+    // Cancel any previous auth request
+    if (authAbortController.current) {
+      authAbortController.current.abort();
+    }
+
+    // Create new abort controller for this request
+    authAbortController.current = new AbortController();
+
     try {
-      const savedTokens = localStorage.getItem('auth_tokens');
-      if (savedTokens) {
-        const parsedTokens = JSON.parse(savedTokens);
-        setTokens(parsedTokens);
-        
-        // Verify token and get user data
-        const userData = await authAPI.getCurrentUser(parsedTokens.accessToken);
-        setUser(userData.user);
+      isAuthenticating.current = true;
+      setIsLoading(true);
+      setError(null);
+      
+      console.log('AuthContext: Starting Google authentication');
+      
+      const response = await authAPI.googleAuth({ 
+        code 
+      }, { 
+        signal: authAbortController.current.signal 
+      });
+      
+      console.log('AuthContext: Google authentication successful');
+      
+      // Update state
+      setUser(response.user);
+      setTokens(response.tokens);
+      
+      // Persist to localStorage
+      localStorage.setItem('auth_tokens', JSON.stringify(response.tokens));
+      localStorage.setItem('auth_user', JSON.stringify(response.user));
+      
+    } catch (err: any) {
+      // Don't handle aborted requests as errors
+      if (err.name === 'AbortError') {
+        console.log('AuthContext: Google auth request was cancelled');
+        return;
       }
-    } catch (error) {
-      console.error('Auth initialization failed:', error);
+      
+      console.error('AuthContext: Google authentication failed:', err);
+      
+      // Clear any stored auth data on failure
       localStorage.removeItem('auth_tokens');
+      localStorage.removeItem('auth_user');
+      setUser(null);
+      setTokens(null);
+      
+      const errorMessage = err.response?.data?.message || err.message || 'Google authentication failed';
+      setError(errorMessage);
+      
+      throw new Error(errorMessage);
     } finally {
       setIsLoading(false);
+      isAuthenticating.current = false;
+      authAbortController.current = null;
     }
   };
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<void> => {
     try {
       setIsLoading(true);
       setError(null);
@@ -75,104 +141,81 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(response.user);
       setTokens(response.tokens);
       localStorage.setItem('auth_tokens', JSON.stringify(response.tokens));
+      localStorage.setItem('auth_user', JSON.stringify(response.user));
+      
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Login failed');
-      throw err;
+      const errorMessage = err.response?.data?.message || 'Login failed';
+      setError(errorMessage);
+      throw new Error(errorMessage);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const register = async (name: string, email: string, password: string, confirmPassword: string) => {
+  const register = async (registerData: any): Promise<void> => {
     try {
       setIsLoading(true);
       setError(null);
       
-      const response = await authAPI.register({
-        fullName: name,
-        email,
-        password,
-        confirmPassword
-      });
+      const response = await authAPI.register(registerData);
       
       setUser(response.user);
       setTokens(response.tokens);
       localStorage.setItem('auth_tokens', JSON.stringify(response.tokens));
+      localStorage.setItem('auth_user', JSON.stringify(response.user));
+      
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Registration failed');
-      throw err;
+      const errorMessage = err.response?.data?.message || 'Registration failed';
+      setError(errorMessage);
+      throw new Error(errorMessage);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const googleAuth = async (code: string) => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      const response = await authAPI.googleAuth({ code });
-      
-      setUser(response.user);
-      setTokens(response.tokens);
-      localStorage.setItem('auth_tokens', JSON.stringify(response.tokens));
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'Google authentication failed');
-      throw err;
-    } finally {
-      setIsLoading(false);
+  const logout = () => {
+    // Cancel any ongoing auth request
+    if (authAbortController.current) {
+      authAbortController.current.abort();
     }
-  };
-
-  const logout = async () => {
-    try {
-      if (tokens) {
-        await authAPI.logout(tokens.accessToken);
-      }
-    } catch (error) {
-      console.error('Logout API call failed:', error);
-    } finally {
-      setUser(null);
-      setTokens(null);
-      localStorage.removeItem('auth_tokens');
-    }
-  };
-
-  const refreshToken = async () => {
-    try {
-      if (!tokens?.refreshToken) throw new Error('No refresh token available');
-      
-      const response = await authAPI.refreshToken(tokens.refreshToken);
-      const newTokens = response.tokens;
-      
-      setTokens(newTokens);
-      localStorage.setItem('auth_tokens', JSON.stringify(newTokens));
-    } catch (error) {
-      console.error('Token refresh failed:', error);
-      logout(); // Force logout on refresh failure
-    }
+    
+    // Clear state
+    setUser(null);
+    setTokens(null);
+    setError(null);
+    isAuthenticating.current = false;
+    
+    // Clear localStorage
+    localStorage.removeItem('auth_tokens');
+    localStorage.removeItem('auth_user');
+    
+    console.log('AuthContext: User logged out');
   };
 
   const getGoogleAuthUrl = async (): Promise<string> => {
-    const response = await authAPI.getGoogleAuthUrl();
-    return response.authUrl;
+    try {
+      setError(null);
+      const response = await authAPI.getGoogleAuthUrl();
+      return response.authUrl;
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.message || 'Failed to get Google auth URL';
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    }
   };
 
-  const clearError = () => setError(null);
-
-  const value = {
+  const value: AuthContextType = {
     user,
     tokens,
     isLoading,
-    isAuthenticated: !!user && !!tokens, // Real authentication check
+    isAuthenticated,
+    error,
+    googleAuth,
     login,
     register,
-    googleAuth,
     logout,
-    refreshToken,
-    getGoogleAuthUrl,
     clearError,
-    error
+    getGoogleAuthUrl
   };
 
   return (
@@ -182,7 +225,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   );
 };
 
-export const useAuth = () => {
+export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
