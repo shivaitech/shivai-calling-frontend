@@ -49,11 +49,14 @@ const Landing: React.FC = () => {
   const [selectedVoice, setSelectedVoice] = useState('Sarah - Professional');
   const [demoText, setDemoText] = useState('Hi! I\'m your AI assistant. How can I help you today?');
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
   
   // Form State
   const [formData, setFormData] = useState({
     email: '',
     password: '',
+    confirmPassword: '', // Add this
     name: ''
   });
 
@@ -86,14 +89,30 @@ const Landing: React.FC = () => {
     
     try {
       if (authMode === 'signup') {
-        await register(formData.name, formData.email, formData.password, formData.password);
+        await register(formData.name, formData.email, formData.password, formData.confirmPassword);
       } else {
         await login(formData.email, formData.password);
       }
       setShowAuthModal(false);
       navigate('/dashboard');
-    } catch (error) {
+    } catch (error:any) {
       console.error('Authentication failed:', error);
+          if (error.response?.data?.errors) {
+      const errors = error.response.data.errors;
+      
+      // If errors is an array (from express-validator)
+           if (Array.isArray(errors)) {
+        const fieldErrorsObj: Record<string, string> = {};
+        errors.forEach((err: any) => {
+          fieldErrorsObj[err.field as string] = err.message;
+        });
+        setFieldErrors(fieldErrorsObj);
+      }
+      // If errors is an object (grouped by field)
+      else if (typeof errors === 'object') {
+        setFieldErrors(errors);
+      }
+    }
     }
   };
 
@@ -111,7 +130,7 @@ const Landing: React.FC = () => {
   // Reset form when modal closes
   useEffect(() => {
     if (!showAuthModal) {
-      setFormData({ email: '', password: '', name: '' });
+      setFormData({ email: '', password: '', name: '', confirmPassword:'' });
       clearError();
     }
   }, [showAuthModal, clearError]);
@@ -849,76 +868,125 @@ const Landing: React.FC = () => {
               </div>
 
               {/* Email Form */}
-              <form onSubmit={handleAuth} className="space-y-4">
-                {authMode === 'signup' && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Full Name
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                      placeholder="Enter your full name"
-                      required
-                      disabled={isLoading}
-                    />
-                  </div>
-                )}
+<form onSubmit={handleAuth} className="space-y-4">
+  {authMode === 'signup' && (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-2">
+        Full Name
+      </label>
+      <input
+        type="text"
+        value={formData.name}
+        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+        className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent ${
+          fieldErrors.fullName ? 'border-red-500' : 'border-gray-300'
+        }`}
+        placeholder="Enter your full name"
+        required
+        disabled={isLoading}
+      />
+      {fieldErrors.fullName && (
+        <p className="mt-1 text-sm text-red-600">{fieldErrors.fullName}</p>
+      )}
+    </div>
+  )}
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Email Address
-                  </label>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                    placeholder="Enter your email"
-                    required
-                    disabled={isLoading}
-                  />
-                </div>
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-2">
+      Email Address
+    </label>
+    <input
+      type="email"
+      value={formData.email}
+      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+      className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent ${
+        fieldErrors.email ? 'border-red-500' : 'border-gray-300'
+      }`}
+      placeholder="Enter your email"
+      required
+      disabled={isLoading}
+    />
+    {fieldErrors.email && (
+      <p className="mt-1 text-sm text-red-600">{fieldErrors.email}</p>
+    )}
+  </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Password
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={formData.password}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-                      placeholder="Enter your password"
-                      required
-                      disabled={isLoading}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                      disabled={isLoading}
-                    >
-                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
-                  </div>
-                </div>
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-2">
+      Password
+    </label>
+    <div className="relative">
+      <input
+        type={showPassword ? 'text' : 'password'}
+        value={formData.password}
+        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+        className={`w-full px-4 py-3 pr-12 border rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent ${
+          fieldErrors.password ? 'border-red-500' : 'border-gray-300'
+        }`}
+        placeholder="Enter your password"
+        required
+        disabled={isLoading}
+      />
+      <button
+        type="button"
+        onClick={() => setShowPassword(!showPassword)}
+        className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+        disabled={isLoading}
+      >
+        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+      </button>
+    </div>
+    {fieldErrors.password && (
+      <p className="mt-1 text-sm text-red-600">{fieldErrors.password}</p>
+    )}
+  </div>
 
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full px-4 py-3 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                >
-                  {isLoading ? (
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                  ) : (
-                    authMode === 'signup' ? 'Create Account' : 'Sign In'
-                  )}
-                </button>
-              </form>
+  {/* Add Confirm Password field for signup */}
+  {authMode === 'signup' && (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-2">
+        Confirm Password
+      </label>
+      <div className="relative">
+        <input
+          type={showPassword ? 'text' : 'password'}
+          value={formData.confirmPassword}
+          onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+          className={`w-full px-4 py-3 pr-12 border rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent ${
+            fieldErrors.confirmPassword ? 'border-red-500' : 'border-gray-300'
+          }`}
+          placeholder="Confirm your password"
+          required
+          disabled={isLoading}
+        />
+        <button
+          type="button"
+          onClick={() => setShowPassword(!showPassword)}
+          className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+          disabled={isLoading}
+        >
+          {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+        </button>
+      </div>
+      {fieldErrors.confirmPassword && (
+        <p className="mt-1 text-sm text-red-600">{fieldErrors.confirmPassword}</p>
+      )}
+    </div>
+  )}
+
+  <button
+    type="submit"
+    disabled={isLoading}
+    className="w-full px-4 py-3 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+  >
+    {isLoading ? (
+      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+    ) : (
+      authMode === 'signup' ? 'Create Account' : 'Sign In'
+    )}
+  </button>
+</form>
+
 
               <div className="mt-6 text-center">
                 <p className="text-gray-600">
