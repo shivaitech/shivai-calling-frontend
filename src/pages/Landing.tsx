@@ -83,39 +83,42 @@ const Landing: React.FC = () => {
   }, []);
 
   // Authentication handlers
-  const handleAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    clearError();
+const handleAuth = async (e: React.FormEvent) => {
+  e.preventDefault();
+  clearError();
+  setFieldErrors({});
+  
+  try {
+    if (authMode === 'signup') {
+      await register(formData.name, formData.email, formData.password, formData.confirmPassword);
+    } else {
+      await login(formData.email, formData.password);
+    }
+    setShowAuthModal(false);
+    navigate('/dashboard');
+  } catch (error: any) {
+    console.error('Authentication failed:', error);
     
-    try {
-      if (authMode === 'signup') {
-        await register(formData.name, formData.email, formData.password, formData.confirmPassword);
-      } else {
-        await login(formData.email, formData.password);
-      }
-      setShowAuthModal(false);
-      navigate('/dashboard');
-    } catch (error:any) {
-      console.error('Authentication failed:', error);
-          if (error.response?.data?.errors) {
+    // Handle the exact error format from your backend
+    if (error.response?.status === 422 && error.response?.data?.errors) {
       const errors = error.response.data.errors;
       
-      // If errors is an array (from express-validator)
-           if (Array.isArray(errors)) {
-        const fieldErrorsObj: Record<string, string> = {};
-        errors.forEach((err: any) => {
-          fieldErrorsObj[err.field as string] = err.message;
-        });
-        setFieldErrors(fieldErrorsObj);
-      }
-      // If errors is an object (grouped by field)
-      else if (typeof errors === 'object') {
-        setFieldErrors(errors);
-      }
+      // Convert array of error objects to field mapping
+      const fieldErrorsObj: Record<string, string> = {};
+      errors.forEach((err: any) => {
+        fieldErrorsObj[err.field] = err.message;
+      });
+      
+      setFieldErrors(fieldErrorsObj);
+      
+      // Also set a general error message
+      setError('Please fix the validation errors below');
+    } else {
+      // Handle other types of errors
+      setError(error.response?.data?.message || error.message || 'Registration failed');
     }
-    }
-  };
-
+  }
+};
   const handleSocialAuth = async (provider: string) => {
     if (provider === 'google') {
       try {
@@ -1021,3 +1024,7 @@ const Landing: React.FC = () => {
 };
 
 export default Landing;
+function setError(arg0: any) {
+  throw new Error('Function not implemented.');
+}
+
