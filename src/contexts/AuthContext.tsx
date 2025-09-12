@@ -22,7 +22,7 @@ interface AuthContextType {
   error: string | null;
   googleAuth: (code: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
-  register: (data: any) => Promise<void>;
+  register: (name: string, email: string, password: string, confirmPassword: string) => Promise<void>;
   logout: () => void;
   clearError: () => void;
   getGoogleAuthUrl: () => Promise<string>;
@@ -152,10 +152,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const register = async (registerData: any): Promise<void> => {
+  const register = async (name: string, email: string, password: string, confirmPassword: string): Promise<void> => {
     try {
       setIsLoading(true);
       setError(null);
+      
+      const registerData = {
+        fullName: name,
+        email,
+        password,
+        confirmPassword
+      };
       
       const response = await authAPI.register(registerData);
       
