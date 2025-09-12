@@ -1,6 +1,6 @@
 import axios, { AxiosResponse } from 'axios';
 
-const API_BASE_URL = 'http://localhost:3000/api/v1';
+const API_BASE_URL = 'https://shivai-com-backend.onrender.com/api/v1';
 
 interface LoginRequest {
   email: string;
