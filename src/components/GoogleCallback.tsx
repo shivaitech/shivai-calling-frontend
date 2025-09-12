@@ -5,40 +5,58 @@ import { useAuth } from '../contexts/AuthContext';
 const GoogleCallback: React.FC = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { googleAuth } = useAuth();
+  const { googleAuth, clearError } = useAuth();
 
   useEffect(() => {
     const handleGoogleCallback = async () => {
       const code = searchParams.get('code');
       const error = searchParams.get('error');
 
-      console.log('Google callback received, code:', code); // Debug log
+      console.log('GoogleCallback loaded with:', { 
+        hasCode: !!code, 
+        error,
+        fullUrl: window.location.href 
+      });
 
       if (error) {
-        console.error('Google OAuth error:', error);
+        console.error('OAuth error from URL:', error);
         navigate('/landing?error=oauth_failed');
         return;
       }
 
-      if (code) {
-        try {
-          console.log('Processing Google auth...');
-          await googleAuth(code);
-          console.log('Google auth successful, redirecting...');
-          
-          // Force redirect to dashboard
-          window.location.href = '/dashboard';
-        } catch (error) {
-          console.error('Google auth failed:', error);
-          navigate('/landing?error=oauth_failed');
-        }
-      } else {
-        navigate('/landing');
+      if (!code) {
+        console.error('No authorization code received');
+        navigate('/landing?error=no_code');
+        return;
+      }
+
+      try {
+        console.log('Processing Google auth with code...');
+        clearError(); // Clear any previous errors
+        
+        await googleAuth(code);
+        console.log('Google auth successful, redirecting to dashboard...');
+        
+        // Small delay to ensure auth state is updated
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 100);
+        
+      } catch (error: any) {
+        console.error('Google auth failed:', error);
+        
+        // Clear any stored auth data on failure
+        localStorage.removeItem('auth_tokens');
+        localStorage.removeItem('auth_user');
+        
+        // Navigate with specific error message
+        const errorMessage = error.response?.data?.message || error.message || 'oauth_failed';
+        navigate(`/landing?error=${encodeURIComponent(errorMessage)}`);
       }
     };
 
     handleGoogleCallback();
-  }, [searchParams, googleAuth, navigate]);
+  }, [searchParams, googleAuth, navigate, clearError]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
