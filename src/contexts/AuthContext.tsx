@@ -152,33 +152,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const register = async (name: string, email: string, password: string, confirmPassword: string): Promise<void> => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      const registerData = {
-        fullName: name,
-        email,
-        password,
-        confirmPassword
-      };
-      
-      const response = await authAPI.register(registerData);
-      
-      setUser(response.user);
-      setTokens(response.tokens);
-      localStorage.setItem('auth_tokens', JSON.stringify(response.tokens));
-      localStorage.setItem('auth_user', JSON.stringify(response.user));
-      
-    } catch (err: any) {
-      const errorMessage = err.response?.data?.message || 'Registration failed';
+const register = async (name: string, email: string, password: string, confirmPassword: string): Promise<void> => {
+  try {
+    setIsLoading(true);
+    setError(null);
+    
+    const registerData = {
+      fullName: name,
+      email,
+      password,
+      confirmPassword
+    };
+    
+    const response = await authAPI.register(registerData);
+    
+    setUser(response.user);
+    setTokens(response.tokens);
+    localStorage.setItem('auth_tokens', JSON.stringify(response.tokens));
+    localStorage.setItem('auth_user', JSON.stringify(response.user));
+    
+  } catch (err: any) {
+    console.error('Registration error details:', err.response);
+    
+    // Handle different error types
+    if (err.response?.status === 422) {
+      // Don't set general error for validation - let Landing component handle field errors
+      const errorMessage = err.response?.data?.message || err.message || 'Registration failed';
       setError(errorMessage);
-      throw new Error(errorMessage);
-    } finally {
-      setIsLoading(false);
+    } else {
+      const errorMessage = err.response?.data?.message || err.message || 'Registration failed';
+      setError(errorMessage);
     }
-  };
+    
+    // Always throw to let Landing component handle detailed errors
+    throw err;
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const logout = () => {
     // Cancel any ongoing auth request

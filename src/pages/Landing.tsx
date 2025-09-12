@@ -97,28 +97,32 @@ const handleAuth = async (e: React.FormEvent) => {
     setShowAuthModal(false);
     navigate('/dashboard');
   } catch (error: any) {
-    console.error('Authentication failed:', error);
+    console.error('Authentication failed:', error.response.data.errors);
     
-    // Handle the exact error format from your backend
+    // Handle your specific 422 validation error format
     if (error.response?.status === 422 && error.response?.data?.errors) {
-      const errors = error.response.data.errors;
+      const backendErrors = error.response.data.errors;
       
-      // Convert array of error objects to field mapping
+      // Convert backend error format to field mapping
       const fieldErrorsObj: Record<string, string> = {};
-      errors.forEach((err: any) => {
+      backendErrors.forEach((err: any) => {
         fieldErrorsObj[err.field] = err.message;
       });
       
       setFieldErrors(fieldErrorsObj);
       
-      // Also set a general error message
-      setError('Please fix the validation errors below');
-    } else {
-      // Handle other types of errors
-      setError(error.response?.data?.message || error.message || 'Registration failed');
+      // Set a helpful general message
+      const errorCount = backendErrors.length;
+      setError(`Please fix ${errorCount} validation error${errorCount > 1 ? 's' : ''} below`);
+    } 
+    // Handle other error types
+    else {
+      const errorMessage = error.response?.data?.message || error.message || 'Authentication failed';
+      setError(errorMessage);
     }
   }
 };
+
   const handleSocialAuth = async (provider: string) => {
     if (provider === 'google') {
       try {
