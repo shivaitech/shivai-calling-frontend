@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import GlassCard from '../components/GlassCard';
 import { useAgent } from '../contexts/AgentContext';
+import { useAuth } from '../contexts/AuthContext'; // Add this import
 import { 
   Bot, 
   TrendingUp, 
@@ -15,7 +16,28 @@ import {
 
 const Overview = () => {
   const { agents } = useAgent();
+  const { user } = useAuth(); // Get user from AuthContext
   const navigate = useNavigate();
+  
+  // Add welcome message state
+  const [welcomeMessage, setWelcomeMessage] = useState('');
+
+  // Check if first time user or returning user
+  useEffect(() => {
+    if (user) {
+      const userName = user.fullName || 'User';
+
+      console.log("user details",user)
+      
+      if (user.lastLoginAt === null) {
+        // First time login (lastLoginAt is null)
+        setWelcomeMessage(`Welcome, ${userName}! 🎉`);
+      } else {
+        // Returning user (lastLoginAt has a value)
+        setWelcomeMessage(`Welcome back, ${userName}! 👋`);
+      }
+    }
+  }, [user]);
 
   const stats = [
     {
@@ -60,13 +82,14 @@ const Overview = () => {
     <div className="space-y-4 sm:space-y-6 w-full">
       <div className="mb-4 sm:mb-6">
         <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-800 dark:text-white mb-2 break-words max-w-full">
-          Welcome back, John! 👋
+          {welcomeMessage || 'Loading...'}
         </h1>
         <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 break-words max-w-full">
           Here's what's happening with your AI agents today.
         </p>
       </div>
 
+      {/* Rest of your existing UI remains unchanged */}
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
         {stats.map((stat, index) => (
