@@ -1,5 +1,11 @@
-import React, { createContext, useContext, useState, useRef, useEffect } from 'react';
-import { authAPI } from '../services/authAPI';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useRef,
+  useEffect,
+} from "react";
+import { authAPI } from "../services/authAPI";
 
 interface User {
   id: string;
@@ -22,7 +28,13 @@ interface AuthContextType {
   error: string | null;
   googleAuth: (code: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string, confirmPassword: string) => Promise<void>;
+  register: (
+    name: string,
+    email: string,
+    password: string,
+    confirmPassword: string
+  ) => Promise<void>;
+  checkUserEmailPass: (email: string, password: string) => Promise<void>;
   logout: () => void;
   clearError: () => void;
   getGoogleAuthUrl: () => Promise<string>;
@@ -30,12 +42,14 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [user, setUser] = useState<User | null>(null);
   const [tokens, setTokens] = useState<Tokens | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Use ref to prevent concurrent requests without causing re-renders
   const isAuthenticating = useRef(false);
   const authAbortController = useRef<AbortController | null>(null);
@@ -47,18 +61,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const initializeAuth = () => {
       try {
-        const storedTokens = localStorage.getItem('auth_tokens');
-        const storedUser = localStorage.getItem('auth_user');
-        
+        const storedTokens = localStorage.getItem("auth_tokens");
+        const storedUser = localStorage.getItem("auth_user");
+
         if (storedTokens && storedUser) {
           setTokens(JSON.parse(storedTokens));
           setUser(JSON.parse(storedUser));
         }
       } catch (error) {
-        console.error('Failed to initialize auth state:', error);
+        console.error("Failed to initialize auth state:", error);
         // Clear invalid stored data
-        localStorage.removeItem('auth_tokens');
-        localStorage.removeItem('auth_user');
+        localStorage.removeItem("auth_tokens");
+        localStorage.removeItem("auth_user");
       }
     };
 
@@ -70,7 +84,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const googleAuth = async (code: string): Promise<void> => {
     // Prevent concurrent authentication requests
     if (isAuthenticating.current) {
-      console.log('Authentication already in progress, skipping duplicate request');
+      console.log(
+        "Authentication already in progress, skipping duplicate request"
+      );
       return;
     }
 
@@ -86,43 +102,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isAuthenticating.current = true;
       setIsLoading(true);
       setError(null);
-      
-      console.log('AuthContext: Starting Google authentication');
-      
-      const response = await authAPI.googleAuth({ 
-        code 
-      }, { 
-        signal: authAbortController.current.signal 
+
+      console.log("AuthContext: Starting Google authentication");
+
+      const response = await authAPI.googleAuth({
+        code,
+        // signal: authAbortController.current.signal
       });
-      
-      console.log('AuthContext: Google authentication successful');
-      
+
+      console.log("AuthContext: Google authentication successful");
+
       // Update state
       setUser(response.user);
       setTokens(response.tokens);
-      
+
       // Persist to localStorage
-      localStorage.setItem('auth_tokens', JSON.stringify(response.tokens));
-      localStorage.setItem('auth_user', JSON.stringify(response.user));
-      
+      localStorage.setItem("auth_tokens", JSON.stringify(response.tokens));
+      localStorage.setItem("auth_user", JSON.stringify(response.user));
     } catch (err: any) {
       // Don't handle aborted requests as errors
-      if (err.name === 'AbortError') {
-        console.log('AuthContext: Google auth request was cancelled');
+      if (err.name === "AbortError") {
+        console.log("AuthContext: Google auth request was cancelled");
         return;
       }
-      
-      console.error('AuthContext: Google authentication failed:', err);
-      
+
+      console.error("AuthContext: Google authentication failed:", err);
+
       // Clear any stored auth data on failure
-      localStorage.removeItem('auth_tokens');
-      localStorage.removeItem('auth_user');
+      localStorage.removeItem("auth_tokens");
+      localStorage.removeItem("auth_user");
       setUser(null);
       setTokens(null);
-      
-      const errorMessage = err.response?.data?.message || err.message || 'Google authentication failed';
+
+      const errorMessage =
+        err.response?.data?.message ||
+        err.message ||
+        "Google authentication failed";
       setError(errorMessage);
-      
+
       throw new Error(errorMessage);
     } finally {
       setIsLoading(false);
@@ -135,16 +152,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setIsLoading(true);
       setError(null);
-      
+
       const response = await authAPI.login({ email, password });
-      
+
       setUser(response.user);
       setTokens(response.tokens);
-      localStorage.setItem('auth_tokens', JSON.stringify(response.tokens));
-      localStorage.setItem('auth_user', JSON.stringify(response.user));
-      
+      localStorage.setItem("auth_tokens", JSON.stringify(response.tokens));
+      localStorage.setItem("auth_user", JSON.stringify(response.user));
     } catch (err: any) {
-      const errorMessage = err.response?.data?.message || 'Login failed';
+      const errorMessage = err.response?.data?.message || "Login failed";
       setError(errorMessage);
       throw new Error(errorMessage);
     } finally {
@@ -152,62 +168,99 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-const register = async (name: string, email: string, password: string, confirmPassword: string): Promise<void> => {
-  try {
-    setIsLoading(true);
-    setError(null);
-    
-    const registerData = {
-      fullName: name,
-      email,
-      password,
-      confirmPassword
-    };
-    
-    const response = await authAPI.register(registerData);
-    
-    setUser(response.user);
-    setTokens(response.tokens);
-    localStorage.setItem('auth_tokens', JSON.stringify(response.tokens));
-    localStorage.setItem('auth_user', JSON.stringify(response.user));
-    
-  } catch (err: any) {
-    console.error('Registration error details:', err.response);
-    
-    // Handle different error types
-    if (err.response?.status === 422) {
-      // Don't set general error for validation - let Landing component handle field errors
-      const errorMessage = err.response?.data?.message || err.message || 'Registration failed';
+  const checkUserEmailPass = async (
+    email: string,
+    password: string
+  ): Promise<void> => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await authAPI.checkUser({
+        email,
+        password,
+        // fullName: "",
+        // confirmPassword: password // Or provide correct confirmPassword
+      });
+      setUser(response.user);
+      setTokens(response.tokens);
+      localStorage.setItem("auth_tokens", JSON.stringify(response.tokens));
+      localStorage.setItem("auth_user", JSON.stringify(response.user));
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.message || "User check failed";
       setError(errorMessage);
-    } else {
-      const errorMessage = err.response?.data?.message || err.message || 'Registration failed';
-      setError(errorMessage);
+      setUser(null);
+      setTokens(null);
+      localStorage.removeItem("auth_tokens");
+
+      localStorage.removeItem("auth_user");
+      throw new Error(errorMessage);
+    } finally {
+      setIsLoading(false);
     }
-    
-    // Always throw to let Landing component handle detailed errors
-    throw err;
-  } finally {
-    setIsLoading(false);
-  }
-};
+  };
+
+  const register = async (
+    name: string,
+    email: string,
+    password: string,
+    confirmPassword: string
+  ): Promise<void> => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const registerData = {
+        fullName: name,
+        email,
+        password,
+        confirmPassword,
+      };
+
+      const response = await authAPI.register(registerData);
+
+      setUser(response.user);
+      setTokens(response.tokens);
+      localStorage.setItem("auth_tokens", JSON.stringify(response.tokens));
+      localStorage.setItem("auth_user", JSON.stringify(response.user));
+    } catch (err: any) {
+      console.error("Registration error details:", err.response);
+
+      // Handle different error types
+      if (err.response?.status === 422) {
+        // Don't set general error for validation - let Landing component handle field errors
+        const errorMessage =
+          err.response?.data?.message || err.message || "Registration failed";
+        setError(errorMessage);
+      } else {
+        const errorMessage =
+          err.response?.data?.message || err.message || "Registration failed";
+        setError(errorMessage);
+      }
+
+      // Always throw to let Landing component handle detailed errors
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const logout = () => {
     // Cancel any ongoing auth request
     if (authAbortController.current) {
       authAbortController.current.abort();
     }
-    
+
     // Clear state
     setUser(null);
     setTokens(null);
     setError(null);
     isAuthenticating.current = false;
-    
+
     // Clear localStorage
-    localStorage.removeItem('auth_tokens');
-    localStorage.removeItem('auth_user');
-    
-    console.log('AuthContext: User logged out');
+    localStorage.removeItem("auth_tokens");
+    localStorage.removeItem("auth_user");
+
+    console.log("AuthContext: User logged out");
   };
 
   const getGoogleAuthUrl = async (): Promise<string> => {
@@ -216,7 +269,8 @@ const register = async (name: string, email: string, password: string, confirmPa
       const response = await authAPI.getGoogleAuthUrl();
       return response.authUrl;
     } catch (err: any) {
-      const errorMessage = err.response?.data?.message || 'Failed to get Google auth URL';
+      const errorMessage =
+        err.response?.data?.message || "Failed to get Google auth URL";
       setError(errorMessage);
       throw new Error(errorMessage);
     }
@@ -233,20 +287,17 @@ const register = async (name: string, email: string, password: string, confirmPa
     register,
     logout,
     clearError,
-    getGoogleAuthUrl
+    getGoogleAuthUrl,
+    checkUserEmailPass,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 };
