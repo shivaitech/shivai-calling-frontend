@@ -74,7 +74,7 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 overflow-hidden relative">
+    <div className="min-h-[90vh] bg-gray-50 overflow-hidden relative">
       <div className="relative px-4 sm:px-6 lg:px-8">
         {/* Left vertical divider and label (desktop) */}
         <div className="hidden lg:block absolute left-20 top-28 bottom-24">
@@ -97,18 +97,18 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
         >
           <div className="max-w-7xl mx-auto">
             {/* Mobile Layout */}
-            <div className="lg:hidden relative min-h-screen">
+            <div className="lg:hidden relative min-h-[80vh] ">
               {/* Left vertical sidebar text */}
               <div className="absolute left-2 top-0 bottom-0 w-6">
-                <div className="h-full flex flex-col justify-center">
-                  <div className="w-px h-[40vh] bg-[#d1d1d1] relative left-5 -top-[4%]" />
+                <div className="h-full flex gap-4 flex-col justify-center">
+                  <div className="w-px h-[30vh] bg-[#d1d1d1] relative left-5 -top-[2%]" />
 
-                  <div className="absolute -left-12 top-16 -rotate-90 origin-center">
+                  <div className="absolute -left-12 top-24 -rotate-90 origin-center">
                     <span className="text-xs text-[#888] tracking-[0.15em] font-light whitespace-nowrap">
                       AI Voice teammates
                     </span>
                   </div>
-                  <div className="absolute left-0 bottom-1/4 -rotate-90 origin-center">
+                  <div className="absolute left-0 top-[70%] -rotate-90 origin-center">
                     <span className="text-xs text-[#888] tracking-[0.15em] font-light whitespace-nowrap">
                       2025
                     </span>
@@ -214,7 +214,7 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
                 </motion.div>
 
                 <motion.div
-                  className="absolute -left-20 w-[125vw] mx-auto bottom-20"
+                  className="absolute -left-[26%] w-[125vw] mx-auto top-[39dvh] border-t border-white opacity-90"
                   whileHover={{ scale: 1.02 }}
                   transition={{ duration: 0.6, ease: "easeOut" }}
                 >
