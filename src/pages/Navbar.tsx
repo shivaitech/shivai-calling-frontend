@@ -18,16 +18,27 @@ const Navbar: React.FC<NavbarProps> = ({
   setShowMobileMenu,
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const navigationItems = ["Demo", "Features", "Pricing", "Customers"];
+
+  React.useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 10);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   return (
     <div className="relative">
       <motion.nav
-        // initial={{ opacity: 0, y: -20 }}
+        initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, delay: 0.2 }}
-        className="fixed top-0 left-0 right-0 z-50 bg-[#F0F0F0] backdrop-blur-sm "
-      >
+        className={`fixed top-0 left-0 right-0 z-50  ${
+          scrolled ? "backdrop-blur-md shadow-md" : "backdrop-blur-sm bg-[#F0F0F0]"
+        }`}
+          >
         <div className=" mx-auto px-6 sm:px-8 lg:px-8 py-2.5 sm:py-3 lg:py-4">
           <div className="flex items-center justify-between h-10 sm:h-12 lg:h-14">
             {/* Logo */}

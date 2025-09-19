@@ -186,7 +186,7 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
                     animate="visible"
                     className="mb-6 text-start relative"
                   >
-                    <div className="mb-2 inline-block ml-1">
+                    <div className="mb-2 inline-block ml-1 mt-2">
                       <TextAnimations isMobile={true} />
                     </div>
 

@@ -7,16 +7,13 @@ import { cn } from "../lib/utils";
 // Array of "Hello" in different languages with optimized sizing
 const greetings = [
   { text: "Hello", language: "English" },
-  { text: "Hola", language: "Spanish" },
-  { text: "Bonjour", language: "French" },
-  { text: "Hallo", language: "German" },
   { text: "Ciao", language: "Italian" },
-  { text: "Olá", language: "Portuguese" },
   { text: "नमस्ते", language: "Hindi" },
-
-  //   { text: "Привет", language: "Russian" },
-  //   { text: "你好", language: "Chinese" },
-  //   { text: "السلام عليكم", language: "Arabic" },
+  { text: "Olá", language: "Portuguese" },
+  { text: "السلام عليكم", language: "Arabic" },
+  { text: "Hallo", language: "German" },
+  { text: "Hola", language: "Spanish" },
+  { text: "你好", language: "Chinese" },
 ];
 
 // StaggeredFade Animation Component for Main Words
@@ -115,35 +112,41 @@ export function TextAnimations({
     return () => clearTimeout(timeout);
   }, [isMounted, currentLanguageIndex]);
 
-  // Dynamic text size based on text length
+  // Dynamic text size with consistent height approach
   const getTextSize = (text: string, isMobile: boolean) => {
     const textLength = text.length;
+    const isArabic = /[\u0600-\u06FF]/.test(text);
 
     if (isMobile) {
-      // Mobile sizes - optimized for readability
-      if (textLength <= 5) return "text-[120px]"; // Short text like "Hello", "Ciao"
-      if (textLength <= 8) return "text-[80px]"; // Medium text like "Bonjour", "Привет"
-      if (textLength <= 12) return "text-[60px]"; // Long text like "こんにちは", "नमस्ते"
-      return "text-[50px]"; // Very long text like "السلام عليكم"
+      // Mobile sizes - more consistent sizing to prevent height jumps
+      if (isArabic) return "text-[46px]"; // Special handling for Arabic
+      if (textLength <= 5) return "text-[100px]"; // Short text like "Hello", "Ciao"
+      if (textLength <= 8) return "text-[90px]"; // Medium text like "Bonjour", "नमस्ते"
+      if (textLength <= 12) return "text-[80px]"; // Long text like "你好"
+      return "text-[50px]"; // Very long text
     } else {
-      // Desktop sizes - responsive and scalable
-      if (textLength <= 5) return "text-[clamp(7rem,12vw,12rem)]"; // Short text
-      if (textLength <= 8) return "text-[clamp(5rem,10vw,10rem)]"; // Medium text
-      if (textLength <= 12) return "text-[clamp(4rem,8vw,8rem)]"; // Long text
-      return "text-[clamp(3rem,6vw,6rem)]"; // Very long text
+      // Desktop sizes - more consistent scaling
+      if (isArabic) return "text-[clamp(3rem,5vw,5rem)]"; // Special handling for Arabic
+      if (textLength <= 5) return "text-[clamp(6rem,10vw,10rem)]"; // Short text
+      if (textLength <= 8) return "text-[clamp(5.5rem,9vw,9rem)]"; // Medium text
+      if (textLength <= 12) return "text-[clamp(5rem,8vw,8rem)]"; // Long text
+      return "text-[clamp(4.5rem,7vw,7rem)]"; // Very long text
     }
   };
 
   const textSizeClass = getTextSize(displayText, isMobile);
+  
+  // Calculate consistent container height based on mobile/desktop
+  const containerHeight = isMobile ? "h-[120px]" : "h-[clamp(6rem,10vw,10rem)]";
 
   return (
-    <div className="relative inline-block">
+    <div className={cn("relative flex items-center overflow-hidden", containerHeight)}>
       <AnimatePresence mode="wait">
-        <div key={currentLanguageIndex}>
+        <div key={currentLanguageIndex} className="flex items-center max-w-full">
           <StaggeredFade
             text={displayText}
             className={cn(
-              "font-light text-[#333333] leading-none whitespace-nowrap m-0 p-0",
+              "font-light text-[#333333] leading-none m-0 p-0",
               textSizeClass,
               className
             )}
