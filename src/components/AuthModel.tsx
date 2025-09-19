@@ -347,7 +347,7 @@ const AuthModel: React.FC<AuthModelProps> = ({
                 </div>
                 {passwordValidation.error && authMode === "signin" && (
                   <p className="mt-1 text-xs text-red-600">
-                    {AUTH_MESSAGES.error.signin_generic}
+                    {AUTH_MESSAGES.error.signin_generic2}
                   </p>
                 )}
                 {authMode === "signup" && (

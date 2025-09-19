@@ -320,7 +320,7 @@ const Landing: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-white overflow-hidden">
+    <div className="min-h-screen bg-[#F0F0F0] overflow-hidden">
       {/* <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${scrollY > 50
           ? 'bg-white/95 backdrop-blur-xl border-b border-gray-100/50 shadow-lg shadow-gray-900/5'
           : 'bg-transparent'
@@ -483,8 +483,7 @@ const Landing: React.FC = () => {
         setShowAuthModal={setShowAuthModal}
       />
 
-      {/* Interactive Voice Demo */}
-      <section id="demo" className="py-2 px-6 lg:px-8 bg-gray-50">
+      <section id="demo" className="py-2 px-6 lg:px-8 bg-[#F0F0F0]">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl lg:text-4xl font-bold text-gray-900 mb-4">

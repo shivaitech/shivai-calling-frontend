@@ -4,7 +4,9 @@ import React, { useEffect, useState } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { ChevronDown } from "lucide-react";
 import HeroImage from "../resources/images/HeroAI.svg";
-
+import HeroImage2 from "../resources/images/HeroChar.png";
+import RightArrow from "../resources/images/rightArr.svg";
+import { TextAnimations } from "../components/TextAnimations";
 interface HeroProps {
   setAuthMode?: (mode: "signin" | "signup") => void;
   setShowAuthModal?: (show: boolean) => void;
@@ -12,6 +14,7 @@ interface HeroProps {
 
 const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
   const [isMounted, setIsMounted] = useState(false);
+
   const { scrollY } = useScroll();
 
   // Parallax effects
@@ -20,7 +23,7 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
 
   useEffect(() => {
     setIsMounted(true);
-  }, []); // Animation variants with proper typing
+  }, []);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -74,42 +77,44 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
   }
 
   return (
-    <div className="min-h-[90vh] bg-gray-50 overflow-hidden relative">
+    <div className="min-h-[80vh] bg-[#F0F0F0] overflow-hidden relative mb-8 mt-14">
       <div className="relative px-4 sm:px-6 lg:px-8">
         {/* Left vertical divider and label (desktop) */}
         <div className="hidden lg:block absolute left-20 top-28 bottom-24">
-          <div className="w-px h-[45vh] bg-[#d1d1d1] relative top-[29%]" />
-          <div className="absolute -left-[74px] -top-5 -rotate-90">
+          <div className="w-px h-[42vh] bg-[#d1d1d1] relative top-[32%]" />
+          <div className="absolute -left-[78px] -top-2 -rotate-90">
             <span className="text-xs text-[#828282]  tracking-[0.2em] font-normal whitespace-nowrap">
               AI Voice teammates
             </span>
           </div>
-          <div className="absolute -left-[20px] top-[60vh] -rotate-90">
+          <div className="absolute -left-[20px] top-[58vh] -rotate-90">
             <span className="text-xs text-[#828282]  tracking-[0.2em] font-normal whitespace-nowrap">
               2025
             </span>
           </div>
         </div>
         {/* Main Content */}
+
         <motion.div
           // style={{ y: yText, opacity }}
-          className="relative z-10 pt-4 sm:pt-6 lg:pt-6"
+          className="relative z-10 pt-1 sm:pt-4 lg:pt-6"
         >
           <div className="max-w-7xl mx-auto">
             {/* Mobile Layout */}
             <div className="lg:hidden relative min-h-[80vh] ">
               {/* Left vertical sidebar text */}
-              <div className="absolute left-2 top-0 bottom-0 w-6">
+              <div className="absolute left-0 top-0 bottom-0 w-6">
                 <div className="h-full flex gap-4 flex-col justify-center">
-                  <div className="w-px h-[30vh] bg-[#d1d1d1] relative left-5 -top-[2%]" />
+                  <div className="w-px h-[30vh] bg-[#d1d1d1] relative left-[20px] -top-[1%]" />
 
-                  <div className="absolute -left-12 top-24 -rotate-90 origin-center">
-                    <span className="text-xs text-[#888] tracking-[0.15em] font-light whitespace-nowrap">
+                  <div className="absolute -left-[52px] top-24 -rotate-90 origin-center">
+                    <span className="text-xs text-[#828282] tracking-[0.15em] font-light whitespace-nowrap">
                       AI Voice teammates
                     </span>
                   </div>
+
                   <div className="absolute left-0 top-[70%] -rotate-90 origin-center">
-                    <span className="text-xs text-[#888] tracking-[0.15em] font-light whitespace-nowrap">
+                    <span className="text-xs text-[#828282] tracking-[0.15em] font-light whitespace-nowrap">
                       2025
                     </span>
                   </div>
@@ -117,139 +122,146 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
               </div>
 
               {/* Main content area */}
-              <div className="ml-12 pt-8 pb-8 ">
-                {/* Statistics - Mobile */}
-                <motion.div
-                  variants={containerVariants}
-                  initial="hidden"
-                  animate="visible"
-                  className="flex gap-12 mb-2 justify-center"
-                >
-                  <motion.div variants={statsVariants} className="text-center">
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{
-                        duration: 1,
-                        delay: 0.8,
-                        type: "spring",
-                        stiffness: 100,
-                      }}
-                      className="text-2xl font-light text-[#333] mb-1"
-                    >
-                      +1M
-                    </motion.div>
-                    <motion.div
-                      variants={itemVariants}
-                      className="text-xs text-[#666] leading-tight"
-                    >
-                      Conversations
-                      <br />
-                      Powered
-                    </motion.div>
-                  </motion.div>
-
-                  <motion.div variants={statsVariants} className="text-left">
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{
-                        duration: 1,
-                        delay: 1,
-                        type: "spring",
-                        stiffness: 100,
-                      }}
-                      className="text-2xl font-light text-[#333] mb-1"
-                    >
-                      +100
-                    </motion.div>
-                    <motion.div
-                      variants={itemVariants}
-                      className="text-xs text-[#666] leading-tight"
-                    >
-                      Industries
-                      <br />
-                      Usable
-                    </motion.div>
-                  </motion.div>
-                </motion.div>
-
-                {/* Main Heading with dotted border - Mobile */}
-                <motion.div
-                  variants={itemVariants}
-                  initial="hidden"
-                  animate="visible"
-                  className="mb-6 text-center relative"
-                >
-                  <div className=" p-4 mb-2 inline-block">
-                    <motion.h1
-                      className="font-normal text-[#333] tracking-tight leading-none text-[5.5rem]"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ duration: 1.2, delay: 0.6 }}
-                    >
-                      <motion.span
-                        initial={{ y: 50, opacity: 0 }}
-                        animate={{ y: 0, opacity: 1 }}
-                        transition={{
-                          duration: 0.8,
-                          delay: 0.8,
-                          ease: "easeOut",
-                        }}
-                        className="block"
-                      >
-                        Hello
-                      </motion.span>
-                    </motion.h1>
-                  </div>
-
-                  <motion.p
-                    variants={itemVariants}
-                    className=" relative text-xs text-[#666] font-normal leading-relaxed w-[80vw] -top-4"
+              <div className="relative  min-h-[80vh] ">
+                <div className="ml-14 pt-8 pb-8  px-2">
+                  {/* Statistics - Mobile */}
+                  <motion.div
+                    variants={containerVariants}
+                    initial="hidden"
+                    animate="visible"
+                    className="flex gap-8 mb-2 justify-start"
                   >
-                    —ShivAI: your first AI employee Sell,
-                    <br />
-                    Support, Book, 24/7.
-                  </motion.p>
-                </motion.div>
+                    <motion.div
+                      variants={statsVariants}
+                      className="text-start relative -left-[6px]"
+                    >
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{
+                          duration: 1,
+                          delay: 0.8,
+                          type: "spring",
+                          stiffness: 100,
+                        }}
+                        className="text-3xl font-extralight text-[#333] mb-1"
+                      >
+                        +1M
+                      </motion.div>
+                      <motion.div
+                        variants={itemVariants}
+                        className="text-[11px] text-[#666]  text-nowrap font-extralight relative -top-2 left-[15px]"
+                      >
+                        Conversations Powered
+                      </motion.div>
+                    </motion.div>
+
+                    <motion.div variants={statsVariants} className="text-left">
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{
+                          duration: 1,
+                          delay: 1,
+                          type: "spring",
+                          stiffness: 100,
+                        }}
+                        className="text-3xl font-extralight text-[#333] mb-1"
+                      >
+                        +100
+                      </motion.div>
+                      <motion.div
+                        variants={itemVariants}
+                        className="text-[11px] text-[#666]  text-nowrap font-extralight relative -top-2 left-[15.5px]"
+                      >
+                        Industries Usable
+                      </motion.div>
+                    </motion.div>
+                  </motion.div>
+
+                  {/* Main Heading with dotted border - Mobile */}
+                  <motion.div
+                    variants={itemVariants}
+                    initial="hidden"
+                    animate="visible"
+                    className="mb-6 text-start relative"
+                  >
+                    <div className="mb-2 inline-block ml-1">
+                      <TextAnimations isMobile={true} />
+                    </div>
+
+                    <motion.p
+                      variants={itemVariants}
+                      className="left-2 relative text-[11px] text-[#333333] font-normal leading-relaxed w-[80vw] -top-2"
+                    >
+                      ShivAI: your first AI employee Sell, Support, Book, 24/7.
+                    </motion.p>
+                  </motion.div>
+                </div>
 
                 <motion.div
-                  className="absolute -left-[26%] w-[125vw] mx-auto top-[39dvh] border-t border-white opacity-90"
+                  className="absolute -left-[44%] w-[140vw]  mx-auto border-none opacity-100 bottom-0"
                   whileHover={{ scale: 1.02 }}
                   transition={{ duration: 0.6, ease: "easeOut" }}
                 >
                   <img
-                    src={HeroImage}
-                    alt="Professional AI Assistant"
-                    className=" w-[600px]"
+                    src={HeroImage2}
+                    alt={HeroImage}
+                    className=" w-[700px] "
                   />
-                </motion.div>
+                  <div className="w-[320px] mx-auto absolute left-[32vw] right-0 bottom-0 mb-4">
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.8, delay: 1.2 }}
+                      className="mt-8 px-2 "
+                    >
+                      <div className="bg-white/98 backdrop-blur-sm rounded-full p-2 border border-white/20 shadow-2xl">
+                        <div className="flex gap-2">
+                          <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => {
+                              if (setAuthMode && setShowAuthModal) {
+                                setAuthMode("signup");
+                                setShowAuthModal(true);
+                              }
+                            }}
+                            className="text-[14px] flex items-center justify-center gap-2 bg-white text-[#333333] px-8 py-2 rounded-full  font-medium shadow-lg hover:bg-[#1d4ed8] transition-all duration-300 "
+                          >
+                            <span>Try it now</span>
+                            <div className="flex gap-1">
+                              <img
+                                src={RightArrow}
+                                alt="Right Arrow"
+                                className="w-3 h-3"
+                              />
+                            </div>
+                          </motion.button>
 
-                {/* <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.8, delay: 1.2 }}
-                  className="flex justify-center"
-                >
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => {
-                      if (setAuthMode && setShowAuthModal) {
-                        setAuthMode("signup");
-                        setShowAuthModal(true);
-                      }
-                    }}
-                    className="bg-blue-600 text-white px-12 py-3.5 rounded-full text-base font-medium shadow-lg hover:bg-blue-700 transition-all duration-300"
-                  >
-                    Start a Free Trial
-                  </motion.button>
-                </motion.div> */}
+                          <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => {
+                              if (setAuthMode && setShowAuthModal) {
+                                setAuthMode("signin");
+                                setShowAuthModal(true);
+                              }
+                            }}
+                            className=" text-[14px] flex items-center justify-center bg-white text-[#333] px-2 py-1 rounded-full  font-medium hover:bg-gray-50 transition-all duration-300 flex-1"
+                          >
+                            Get Started
+                          </motion.button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  </div>
+                </motion.div>
               </div>
             </div>
 
             {/* Desktop Layout */}
-            <div className="hidden lg:grid grid-cols-2 gap-16 items-center min-h-[70vh] lg:px-10 px-2 xl:px-14  2xl:px-0 ">
+            <div className="hidden lg:grid grid-cols-2 gap-16 items-center min-h-[70vh] lg:px-10 px-2 xl:px-14  2xl:px-0 w-[100vw] overflow-hidden">
               {/* Left Column - Desktop */}
               <motion.div
                 variants={containerVariants}
@@ -309,25 +321,9 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
 
                 {/* Main Heading - Desktop */}
                 <motion.div variants={itemVariants} className="ml-16 text-left">
-                  <motion.h1
-                    className="font-normal text-[#333333] tracking-[-0.04em] leading-[0.85] text-[clamp(6rem,12vw,12rem)] mb-6"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ duration: 1.2, delay: 0.6 }}
-                  >
-                    <motion.span
-                      initial={{ y: 100, opacity: 0 }}
-                      animate={{ y: 0, opacity: 1 }}
-                      transition={{
-                        duration: 0.8,
-                        delay: 0.8,
-                        ease: "easeOut",
-                      }}
-                      className="block"
-                    >
-                      Hello
-                    </motion.span>
-                  </motion.h1>
+                  <div className="mb-6">
+                    <TextAnimations isMobile={false} />
+                  </div>
 
                   <motion.p
                     variants={itemVariants}
@@ -347,7 +343,7 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
                 transition={{ duration: 1 }}
                 className="flex"
               >
-                <div className="absolute top-0 lg:top-20 xl:top-2 w-[60vw] max-w-[80vw] -right-10 ">
+                <div className="absolute -bottom- xl:-bottom-30 w-[60vw] max-w-[80vw] md:-bottom-20 md:w-[53vw] -right-5 ">
                   <motion.div
                     className="relative overflow-hidden"
                     whileHover={{ scale: 1.02 }}

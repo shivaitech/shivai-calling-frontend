@@ -10,6 +10,7 @@ interface AuthMessages {
     email_already_registered: string;
     email_not_registered: string;
     signin_generic: string;
+    signin_generic2: string;
     signin_too_many_attempts: string;
     password_too_short: string;
     password_requirements: string;
@@ -42,7 +43,8 @@ export const AUTH_MESSAGES: AuthMessages = {
     email_disposable: "Please use a personal or work email.",
     email_already_registered: "That email is already registered. Sign in or reset your password.",
     email_not_registered: "Email is not registered", // Specific message for signin when email not found
-    signin_generic: "Check your email and password!.",
+    signin_generic: "Invalid or Incorrect Email.",
+    signin_generic2: "Invalid or Incorrect Password.",
     signin_too_many_attempts: "Too many attempts. Try again in 30 seconds.",
     password_too_short: "Use at least 8 characters",
     password_requirements: "Password must include a letter and a number",

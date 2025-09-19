@@ -5,17 +5,17 @@ import Logo from "../resources/images/ShivaiLogo.svg";
 import bar from "../resources/images/appMenu.svg";
 
 interface NavbarProps {
-  setAuthMode?: (mode: 'signin' | 'signup') => void;
+  setAuthMode?: (mode: "signin" | "signup") => void;
   setShowAuthModal?: (show: boolean) => void;
   showMobileMenu?: boolean;
   setShowMobileMenu?: (show: boolean) => void;
 }
 
-const Navbar: React.FC<NavbarProps> = ({ 
+const Navbar: React.FC<NavbarProps> = ({
   setAuthMode,
   setShowAuthModal,
   showMobileMenu,
-  setShowMobileMenu
+  setShowMobileMenu,
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const navigationItems = ["Demo", "Features", "Pricing", "Customers"];
@@ -23,15 +23,19 @@ const Navbar: React.FC<NavbarProps> = ({
   return (
     <div className="relative">
       <motion.nav
-        initial={{ opacity: 0, y: -20 }}
+        // initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, delay: 0.2 }}
-        className=" top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm "
+        className="fixed top-0 left-0 right-0 z-50 bg-[#F0F0F0] backdrop-blur-sm "
       >
-        <div className=" mx-auto px-4 sm:px-6 lg:px-8 py-2.5 sm:py-3 lg:py-4">
+        <div className=" mx-auto px-6 sm:px-8 lg:px-8 py-2.5 sm:py-3 lg:py-4">
           <div className="flex items-center justify-between h-10 sm:h-12 lg:h-14">
             {/* Logo */}
             <motion.div
+              onClick={() => {
+                window.location.href = "/";
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               className="flex items-center flex-shrink-0"
@@ -39,12 +43,12 @@ const Navbar: React.FC<NavbarProps> = ({
               <img
                 src={Logo}
                 alt="ShivAi Logo"
-                className="h-5 w-auto sm:h-6 lg:h-8 xl:h-10"
+                className="h-5 w-auto sm:h-[22px] lg:h-8 xl:h-10"
               />
             </motion.div>
 
             {/* Desktop Navigation */}
-            <div className="hidden lg:flex items-center space-x-6 xl:space-x-8">
+            <div className="hidden lg:flex items-start space-x-6 xl:space-x-8">
               {navigationItems.map((item, index) => (
                 <motion.a
                   key={item}
@@ -71,7 +75,7 @@ const Navbar: React.FC<NavbarProps> = ({
                 whileTap={{ scale: 0.95 }}
                 onClick={() => {
                   if (setAuthMode && setShowAuthModal) {
-                    setAuthMode('signin');
+                    setAuthMode("signin");
                     setShowAuthModal(true);
                   }
                 }}
@@ -97,13 +101,15 @@ const Navbar: React.FC<NavbarProps> = ({
               className="lg:hidden p-1.5 -mr-1.5 rounded-lg text-[#333333] hover:text-[#000000] hover:bg-gray-50 transition-all duration-300 flex-shrink-0 touch-manipulation"
               aria-label="Toggle mobile menu"
             >
-              {(showMobileMenu !== undefined ? showMobileMenu : isMobileMenuOpen) ? (
+              {(
+                showMobileMenu !== undefined ? showMobileMenu : isMobileMenuOpen
+              ) ? (
                 <X className="w-5 h-5" />
               ) : (
                 <img
                   src={bar}
                   alt="Menu"
-                  className="w-5 h-5 object-contain"
+                  className="w-5 h-[24px] object-contain"
                 />
               )}
             </motion.button>
@@ -143,7 +149,7 @@ const Navbar: React.FC<NavbarProps> = ({
                   </motion.a>
                 ))}
               </div>
-              
+
               <motion.div
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -153,7 +159,7 @@ const Navbar: React.FC<NavbarProps> = ({
                 <motion.button
                   onClick={() => {
                     if (setAuthMode && setShowAuthModal) {
-                      setAuthMode('signin');
+                      setAuthMode("signin");
                       setShowAuthModal(true);
                     }
                     if (setShowMobileMenu) {
@@ -172,7 +178,7 @@ const Navbar: React.FC<NavbarProps> = ({
           </motion.div>
         )}
       </AnimatePresence>
-      
+
       {/* Spacer to prevent content from being hidden behind fixed navbar */}
     </div>
   );
