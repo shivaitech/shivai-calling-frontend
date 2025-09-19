@@ -7,12 +7,12 @@ import { cn } from "../lib/utils";
 // Array of "Hello" in different languages with optimized sizing
 const greetings = [
   { text: "Hello", language: "English" },
-//   { text: "Hola", language: "Spanish" },
-//   { text: "Bonjour", language: "French" },
-//   { text: "Hallo", language: "German" },
-//   { text: "Ciao", language: "Italian" },
-//   { text: "Olá", language: "Portuguese" },
-//   { text: "नमस्ते", language: "Hindi" },
+  { text: "Hola", language: "Spanish" },
+  { text: "Bonjour", language: "French" },
+  { text: "Hallo", language: "German" },
+  { text: "Ciao", language: "Italian" },
+  { text: "Olá", language: "Portuguese" },
+  { text: "नमस्ते", language: "Hindi" },
 
   //   { text: "Привет", language: "Russian" },
   //   { text: "你好", language: "Chinese" },
