@@ -8,8 +8,10 @@ import {
 import { AuthProvider } from "./contexts/AuthContext"; // Add AuthProvider
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { AgentProvider } from "./contexts/AgentContext";
+import ScrollToTop from "./components/ScrollToTop";
 
 import Landing from "./pages/Landing";
+import Onboarding from "./pages/Onboarding";
 import PublicRoute from "./components/PublicRoute";
 import ProtectedRoute from "./components/ProtectedRoute";
 import GoogleCallback from "./components/GoogleCallback";
@@ -31,10 +33,11 @@ function AppContent() {
     location.pathname === "/landing" || location.pathname === "/";
   const isAuthCallback = location.pathname === "/auth/google/callback";
   const isResetPassword = location.pathname.startsWith("/reset-password");
+  const isOnboarding = location.pathname === "/onboarding" || location.pathname === "/onBoarding";
 
   return (
     <div className="min-h-screen">
-      {isLandingPage || isAuthCallback || isResetPassword ? (
+      {isLandingPage || isAuthCallback || isResetPassword || isOnboarding ? (
         <Routes>
           <Route
             path="/"
@@ -49,6 +52,22 @@ function AppContent() {
             element={
               <PublicRoute>
                 <Landing />
+              </PublicRoute>
+            }
+          />
+          <Route
+            path="/onboarding"
+            element={
+              <PublicRoute>
+                <Onboarding />
+              </PublicRoute>
+            }
+          />
+          <Route
+            path="/onBoarding"
+            element={
+              <PublicRoute>
+                <Onboarding />
               </PublicRoute>
             }
           />
@@ -122,6 +141,7 @@ function App() {
       <ThemeProvider>
         <AgentProvider>
           <Router>
+            <ScrollToTop />
             <AppContent />
           </Router>
         </AgentProvider>

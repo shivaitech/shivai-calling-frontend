@@ -77,9 +77,8 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
   }
 
   return (
-    <div className="min-h-[80vh] bg-[#F0F0F0] overflow-hidden relative mb-8 mt-14">
+    <div className="min-h-screen lg:min-h-screen sm:min-h-[80vh] bg-[#F0F0F0] overflow-hidden relative mb-8 sm:mb-2 mt-14">
       <div className="relative px-4 sm:px-6 lg:px-8">
-        {/* Left vertical divider and label (desktop) */}
         <div className="hidden lg:block absolute left-20 top-28 bottom-24">
           <div className="w-px h-[42vh] bg-[#d1d1d1] relative top-[32%]" />
           <div className="absolute -left-[78px] -top-2 -rotate-90">
@@ -93,15 +92,12 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
             </span>
           </div>
         </div>
-        {/* Main Content */}
 
         <motion.div
-          // style={{ y: yText, opacity }}
           className="relative z-10 pt-1 sm:pt-4 lg:pt-6"
         >
           <div className="max-w-7xl mx-auto">
-            {/* Mobile Layout */}
-            <div className="lg:hidden relative min-h-[80vh] ">
+            <div className="lg:hidden md:hidden relative min-h-[80vh] ">
               {/* Left vertical sidebar text */}
               <div className="absolute left-0 top-0 bottom-0 w-6">
                 <div className="h-full flex gap-4 flex-col justify-center">
@@ -260,8 +256,122 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
               </div>
             </div>
 
+            {/* Medium Screen Layout (Tablet) */}
+            <div className="hidden md:block lg:hidden relative min-h-[85vh]">
+              {/* Left vertical sidebar text for medium screens */}
+              <div className="absolute left-0 top-0 bottom-0 w-8">
+                <div className="h-full flex gap-4 flex-col justify-center">
+                  <div className="w-px h-[35vh] bg-[#d1d1d1] relative left-[24px] top-[5%]" />
+
+                  <div className="absolute -left-[60px] top-32 -rotate-90 origin-center">
+                    <span className="text-sm text-[#828282] tracking-[0.15em] font-light whitespace-nowrap">
+                      AI Voice teammates
+                    </span>
+                  </div>
+
+                  <div className="absolute -left-[8px] top-[75%] -rotate-90 origin-center">
+                    <span className="text-sm text-[#828282] tracking-[0.15em] font-light whitespace-nowrap">
+                      2025
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Main content area for medium screens */}
+              <div className="rela
+              tive min-h-[85vh] flex flex-col">
+                <div className="ml-20 pt-12 pb-8 px-4 flex-1">
+                  {/* Statistics - Medium */}
+                  <motion.div
+                    variants={containerVariants}
+                    initial="hidden"
+                    animate="visible"
+                    className="flex gap-12 mb-6 justify-start"
+                  >
+                    <motion.div variants={statsVariants} className="text-start">
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{
+                          duration: 1,
+                          delay: 0.8,
+                          type: "spring",
+                          stiffness: 100,
+                        }}
+                        className="text-4xl font-extralight text-[#333] mb-2"
+                      >
+                        +1M
+                      </motion.div>
+                      <motion.div
+                        variants={itemVariants}
+                        className="text-sm text-[#666] font-extralight"
+                      >
+                        Conversations Powered
+                      </motion.div>
+                    </motion.div>
+
+                    <motion.div variants={statsVariants} className="text-left">
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{
+                          duration: 1,
+                          delay: 1,
+                          type: "spring",
+                          stiffness: 100,
+                        }}
+                        className="text-4xl font-extralight text-[#333] mb-2"
+                      >
+                        +100
+                      </motion.div>
+                      <motion.div
+                        variants={itemVariants}
+                        className="text-sm text-[#666] font-extralight"
+                      >
+                        Industries Usable
+                      </motion.div>
+                    </motion.div>
+                  </motion.div>
+
+                  {/* Main Heading - Medium */}
+                  <motion.div
+                    variants={itemVariants}
+                    initial="hidden"
+                    animate="visible"
+                    className="mb-8 text-start relative"
+                  >
+                    <div className="mb-4 inline-block">
+                      <TextAnimations isMobile={false} />
+                    </div>
+
+                    <motion.p
+                      variants={itemVariants}
+                      className="text-base text-[#333333] font-normal leading-relaxed max-w-2xl"
+                    >
+                      ShivAI: your first AI employee Sell, Support, Book, 24/7.
+                    </motion.p>
+                  </motion.div>
+
+                
+                </div>
+
+                {/* Hero Image for medium screens */}
+                <motion.div
+                  className="absolute -right-[10%] w-[70vw] bottom-0"
+                  whileHover={{ scale: 1.02 }}
+                  transition={{ duration: 0.6, ease: "easeOut" }}
+                >
+                  <img
+                    src={HeroImage2}
+                    alt="Professional AI Assistant"
+                    className="w-full h-auto"
+                  />
+                </motion.div>
+              </div>
+            </div>
+
             {/* Desktop Layout */}
-            <div className="hidden lg:grid grid-cols-2 gap-16 items-center min-h-[70vh] lg:px-10 px-2 xl:px-14  2xl:px-0 w-[100vw] overflow-hidden">
+            <div className="hidden lg:grid  grid-cols-2 gap-16 items-center min-h-[80vh] lg:px-10 px-2 xl:px-14  2xl:px-0 w-[100vw] overflow-hidden">
               {/* Left Column - Desktop */}
               <motion.div
                 variants={containerVariants}
@@ -343,7 +453,7 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
                 transition={{ duration: 1 }}
                 className="flex"
               >
-                <div className="absolute -bottom- xl:-bottom-30 w-[60vw] max-w-[80vw] md:-bottom-20 md:w-[53vw] -right-5 ">
+                <div className="absolute -bottom- xl:-bottom-30 w-[70vw] max-w-[80vw] md:-bottom-20 md:w-[58vw] -right-5 ">
                   <motion.div
                     className="relative overflow-hidden"
                     whileHover={{ scale: 1.02 }}
@@ -367,7 +477,7 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
               className="hidden lg:block absolute left-28 -bottom-10"
             >
               <motion.div
-                animate={{ y: [0, 10, 0] }}
+                animate={{ y: [0, 10, 0] }} 
                 transition={{
                   duration: 2,
                   repeat: Infinity,

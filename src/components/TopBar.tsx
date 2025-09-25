@@ -16,6 +16,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
   const [selectedRegion] = useState('IN');
 
   const tenants = ['ShivAI Tech', 'TechStart Inc', 'Global Solutions'];
+
   const regions = {
     IN: 'India',
     UAE: 'UAE',
