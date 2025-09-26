@@ -1,9 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import integration from "../resources/images/01.svg";
-import voice from "../resources/images/02.svg";
-import language from "../resources/images/03.svg";
-import security from "../resources/images/04.svg";
+import integration from "../resources/images/02.svg";
+import voice from "../resources/images/03.svg";
+import language from "../resources/images/04.svg";
+import security from "../resources/images/01.svg";
 import learning from "../resources/images/05.svg";
 
 const features = [
@@ -75,7 +74,7 @@ export const WhatShivaiDo = () => {
       }
 
       return (
-        <div className="w-full h-full ">
+        <div className="w-full h-full max-h-[220px] max-w-screen-sm flex items-center justify-center rounded-sm">
           <img
             src={src}
             alt={type}
@@ -183,8 +182,8 @@ export const WhatShivaiDo = () => {
         {/* Mobile View - Simple Single Card */}
         <div className="md:hidden">
           <div className="space-y-6">
-            <div className="bg-white rounded-2xl overflow-hidden shadow-2xl border border-gray-200 py-4 px-4">
-              <div className="w-full ">
+            <div className="bg-white rounded-2xl overflow-hidden shadow-2xl border border-gray-200 py-6 pt-7 px-4">
+              <div className="w-full h-full max-h-[40vh] flex items-center justify-center">
                 {getIllustration(infiniteFeatures[currentSlide].illustration)}
               </div>
               <div className="p-6 text-center">
@@ -274,13 +273,13 @@ export const WhatShivaiDo = () => {
                     }}
                   >
                     <div
-                      className={`bg-[#F0F0F0] rounded-2xl overflow-hidden transition-all duration-300 ease-out will-change-transform ${
+                      className={`bg-white rounded-2xl w-full overflow-hidden transition-all duration-300 ease-out will-change-transform ${
                         isCenter
-                          ? "shadow-2xl shadow-blue-500/20  transform scale-105"
+                          ? "shadow-2xl shadow-blue-500/20  transform scale-105  "
                           : distance === 1
-                          ? "shadow-xl shadow-gray-400/30 border border-gray-200"
+                          ? "shadow-xl shadow-gray-400/30 border border-gray-200 "
                           : "shadow-lg shadow-gray-400/20 border border-gray-100"
-                      } h-[420px] p-3`}
+                      } h-content p-3`}
                     >
                       {/* Card Illustration Area */}
                       <div className=" relative ">
@@ -288,11 +287,11 @@ export const WhatShivaiDo = () => {
                       </div>
 
                       {/* Card Content */}
-                      <div className="px-6 pt-4 text-center">
-                        <h3 className="text-[22px] font-semibold text-[#000000] mb-2">
+                      <div className="px-2 pt-4 text-center">
+                        <h3 className="text-[20px] font-semibold text-[#000000] mb-2">
                           {feature.title}
                         </h3>
-                        <p className="text-[13px] leading-relaxed">
+                        <p className="text-[10px] leading-relaxed mb-4">
                           {feature.description}
                         </p>
                       </div>

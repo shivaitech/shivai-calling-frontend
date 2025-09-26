@@ -98,10 +98,10 @@ const industries = [
 
 export const WhatWeWork = () => {
   return (
-    <div className="w-full py- lg:py-0 pt-0 lg:pt-6">
+    <div className="w-full py-0 lg:py-0 pt-0 lg:pt-6 relative -top-8% lg:top-0 ">
       <div className="max-w-7xl mx-auto px-0 sm:px-6 lg:px-0">
         <div className="text-center mb-4">
-          <h2 className="text-[36px] lg:text-[64px] font-semibold text-[#333333] tracking-tight mb-4 text-nowrap">
+          <h2 className="text-[36px] lg:text-[64px] font-semibold text-[#333333] tracking-tight mb-6 text-nowrap">
             Where ShivAI Works
           </h2>
         </div>
@@ -127,7 +127,7 @@ export const WhatWeWork = () => {
 
                 {/* Content */}
                 <div>
-                  <h3 className="text-[22px] lg:text-[28px] font-semibold text-[#000000] mb-2">
+                  <h3 className="text-[22px] lg:text-[26px] font-semibold text-[#000000] mb-2">
                     {industry.title}
                   </h3>
                   <p
@@ -137,7 +137,7 @@ export const WhatWeWork = () => {
                       verticalAlign: "middle",
                       color: "#6E6E6E",
                     }}
-                    className="font-light text-[14px] lg:text-[18px] leading-relaxed"
+                    className="font-light text-[14px] lg:text-[16px] leading-relaxed"
                   >
                     {industry.description}
                   </p>

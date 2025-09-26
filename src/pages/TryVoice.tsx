@@ -7,14 +7,23 @@ interface PhoneFormData {
 
 export default function TryVoice() {
   const handlePhoneSubmit = useCallback(async (data: PhoneFormData) => {
-    // TODO: Implement actual phone call functionality
-    console.log("Making call to:", data.phoneNumber);
+    try {
+      // TODO: Implement actual phone call functionality
+      console.log("Making call to:", data.phoneNumber);
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-
-    // Here you would integrate with your calling service
-    alert(`Demo call initiated to ${data.phoneNumber}`);
+      // Simulate API call - this would be your actual calling service integration
+      // For example: await callService.initiateCall(data.phoneNumber);
+      
+      // Simulate demo call experience
+      console.log(`Demo call initiated to ${data.phoneNumber}`);
+      
+      // You can add analytics tracking here
+      // analytics.track('demo_call_started', { phoneNumber: data.phoneNumber });
+      
+    } catch (error) {
+      console.error("Failed to initiate call:", error);
+      // You could show an error notification here
+    }
   }, []);
 
   return (
@@ -37,7 +46,7 @@ export default function TryVoice() {
         />
 
         {/* Main Content */}
-        <div className="relative z-10 flex flex-col items-center justify-center h-auto px-6 py-8 sm:px-8 md:px-12 lg:px-8 sm:py-2 lg:py-16 space-y-6 sm:space-y-2 md:space-y-12 lg:space-y-16">
+        <div className="relative z-10 flex flex-col items-center justify-center h-auto px-4 py-8 sm:px-6 md:px-8 lg:px-8 sm:py-4 lg:py-16 space-y-6 sm:space-y-4 md:space-y-8 lg:space-y-16 min-h-[60vh]">
           <header className="flex flex-col items-center text-center max-w-4xl">
             {/* Main Title */}
             <h1
@@ -55,10 +64,10 @@ export default function TryVoice() {
 
             {/* Subtitle */}
             <p
-              className="text-[#333] text-wrap lg:text-nowrap text-[14px] sm:text-[12px] md:text-[20px] lg:text-2xl font-normal leading-relaxed max-w-2xl px-2 mb-4 lg:mb-2"
+              className="text-[#333] text-wrap lg:text-nowrap text-[14px] sm:text-[16px] md:text-[20px] lg:text-2xl font-normal leading-relaxed max-w-2xl px-2 mb-4 lg:mb-2"
               style={{ fontFamily: "Poppins, sans-serif" }}
             >
-              Enter your number. One click, one call, with AI Employee.
+              Enter your number. One click, one call, experience your AI Employee.
             </p>
           </header>
 

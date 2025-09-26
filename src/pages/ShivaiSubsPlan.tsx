@@ -25,6 +25,7 @@ const subscriptionPlans = [
     roiFeatures: [
       "3 calls/day coverage",
       "Even 1 extra booking/day @ $20-30 = $600-900/month",
+      "12–18x monthly; 20x+ annual.",
     ],
     additionalInfo: "ROI Snapshot",
   },
@@ -46,7 +47,11 @@ const subscriptionPlans = [
       "Custom voice branding",
       "Advanced analytics",
     ],
-    roiFeatures: ["10 calls/day coverage"],
+    roiFeatures: [
+      "10 calls/day coverage",
+      "At 10% conversion → 1 deal/day @ $50 = $1,500/month",
+      "10x+ monthly; 15–18x annual",
+    ],
     additionalInfo: "ROI Snapshot",
   },
   {
@@ -67,7 +72,11 @@ const subscriptionPlans = [
       "Premium integrations (ERP, call centers)",
       "Regional / on-prem deployment option",
     ],
-    roiFeatures: ["30 calls/day coverage"],
+    roiFeatures: [
+      "30 calls/day coverage",
+      "5 new deals/week @ $100 = $2,000/month",
+      "6–7x monthly; 10x+ annual",
+    ],
     additionalInfo: "ROI Snapshot",
   },
   {
@@ -97,13 +106,13 @@ export const ShivaiSubsPlan = () => {
   );
 
   return (
-    <div className="w-full py-0  lg:py-24">
+    <div className="w-full py-0  lg:py-0">
       <div className="max-w-8xl mx-auto px-0 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="text-center mb-12">
+        <div className="text-center mb-2 lg:mb-12">
           <h2
             style={{ letterSpacing: "-5%" }}
-            className="text-[34px] lg:text-5xl font-bold text-[#333333] mb-4"
+            className="text-[34px] lg:text-[64px] font-semibold text-[#333333] tracking-tight mb-2 lg:mb-6 "
           >
             Call ShivAI Subscription Plans
           </h2>
@@ -130,11 +139,15 @@ export const ShivaiSubsPlan = () => {
             >
               Annual
             </button>
-            <span className="ml-3 text-sm text-gray-600">
+          </div>
+        </div>
+        {billingCycle === "annual" && (
+          <div className="flex justify-center mb-2">
+            <span className="text-sm text-gray-600">
               Save 16%. Setup Waived. +1 Month Free
             </span>
           </div>
-        </div>
+        )}
 
         {/* Plans Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
@@ -143,171 +156,188 @@ export const ShivaiSubsPlan = () => {
               key={plan.id}
               className={`relative rounded-2xl transition-all duration-300 hover:shadow-lg ${
                 plan.popular
-                  ? "shadow-2xl scale-105 bg-gradient-to-br from-blue-500 via-purple-500 to-cyan-400 p-6"
+                  ? "shadow-2xl scale-105 p-1 border-1 border"
                   : "bg-white border-gray-200 hover:border-gray-300 border-2 p-6"
               }`}
+              style={
+                plan.popular
+                  ? {
+                      background:
+                        "linear-gradient(135deg, #00CEDB 0%, #1192BB 50%, #A233FF 100%)",
+
+                      borderRadius: "16px",
+                    }
+                  : {}
+              }
             >
-              {plan.popular && (
-                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-20">
-                  <div className="bg-white text-blue-600 px-4 py-1 rounded-full text-sm font-semibold shadow-lg">
-                    Most Popular
-                  </div>
-                </div>
-              )}
-
-              {/* Plan Icon */}
-              <div className="mb-4">
-                <div
-                  className={`w-[48px] h-[48px] rounded-full flex items-center justify-center ${
-                    plan.id === "starter"
-                      ? "bg-gray-800"
-                      : plan.id === "business"
-                      ? "bg-gray-800"
-                      : plan.id === "custom"
-                      ? "bg-gray-800"
-                      : ""
-                  }`}
-                >
-                  <span>
-                    <img
-                      src={
-                        plan.id === "starter"
-                          ? blackHeart
-                          : plan.id === "professional"
-                          ? blueHeart
-                          : plan.id === "business"
-                          ? blackHeart
-                          : custom
-                      }
-                      alt={plan.id}
-                      className="w-[24px] h-[24px]"
-                    />
-                  </span>
-                </div>
-              </div>
-
-              {/* Plan Name & Subtitle */}
-              <div className="mb-4">
-                <h3
-                  className={`text-xl font-bold mb-1 ${
-                    plan.popular ? "text-white" : "text-gray-900"
-                  }`}
-                >
-                  {plan.name}
-                </h3>
-                <p
-                  className={`text-sm ${
-                    plan.popular ? "text-white/80" : "text-gray-600"
-                  }`}
-                >
-                  {plan.subtitle}
-                </p>
-              </div>
-
-              {/* Price */}
-              <div className="mb-6">
-                <div className="flex items-baseline">
-                  <span
-                    className={`text-3xl font-bold ${
-                      plan.popular ? "text-white" : "text-gray-900"
-                    }`}
-                  >
-                    {typeof plan.price === "number"
-                      ? `$${plan.price}`
-                      : plan.price}
-                  </span>
-                  {plan.period && (
-                    <span
-                      className={`ml-1 text-sm ${
-                        plan.popular ? "text-white/80" : "text-gray-600"
-                      }`}
-                    >
-                      {plan.period}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Get Started Button */}
-              <button
-                className={`w-full py-3 px-4 rounded-lg font-medium transition-all mb-6 ${
+              <div
+                className={
                   plan.popular
-                    ? "bg-black text-white hover:bg-gray-800"
-                    : "bg-gray-100 text-gray-900 hover:bg-gray-200"
-                }`}
+                    ? "bg-gradient-to-b from-white/95 via-white/90 to-white/85 rounded-2xl p-6 h-full relative"
+                    : "h-full"
+                }
               >
-                {plan.buttonText}
-              </button>
+                {plan.popular && (
+                  <div
+                    className="absolute top-0 left-0 right-0 h-20 rounded-t-2xl"
+                    style={{
+                      background:
+                        "linear-gradient(180deg, rgba(255,255,255,0.8) 0%, rgba(240,248,255,0.6) 50%, transparent 100%)",
+                    }}
+                  ></div>
+                )}
 
-              {/* What you will get */}
-              <div className="mb-6">
-                <h4
-                  className={`text-sm font-semibold mb-3 ${
-                    plan.popular ? "text-white" : "text-gray-900"
-                  }`}
-                >
-                  What you will get
-                </h4>
-                <ul className="space-y-2 mb-4">
-                  {plan.features.map((feature, index) => (
-                    <li
-                      key={index}
-                      className={`flex items-start text-sm ${
-                        plan.popular ? "text-white/90" : "text-gray-600"
+                <div className="relative z-10">
+                  {plan.popular && (
+                    <div
+                      style={{
+                        background:
+                          "linear-gradient(253.64deg, #1192BB 24.86%, #A233FF 46.26%, #00CEDB 54.91%)",
+                        borderRadius: "9999px",
+                      }}
+                      className="absolute  right-2 z-20"
+                    >
+                      <div className=" text-white px-4 py-1.5 rounded-full text-sm font-semibold shadow-lg">
+                        Most popular
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Plan Icon */}
+                  <div className="mb-4">
+                    <div
+                      className={`w-[48px] h-[48px] rounded-full flex items-center justify-center ${
+                        plan.popular
+                          ? ""
+                          : plan.id === "starter"
+                          ? "bg-gray-800"
+                          : plan.id === "business"
+                          ? "bg-gray-800"
+                          : plan.id === "custom"
+                          ? "bg-gray-800"
+                          : "bg-gray-800"
                       }`}
                     >
                       <img
-                        src={circleCheck}
-                        alt={plan.id}
-                        className="w-4 h-4 text-green-500 mr-2 mt-0.5 flex-shrink-0"
-                        style={
-                          plan.popular
-                            ? { filter: "brightness(0) invert(1)" }
-                            : {}
+                        src={
+                          plan.id === "starter"
+                            ? blackHeart
+                            : plan.id === "professional"
+                            ? blueHeart
+                            : plan.id === "business"
+                            ? blackHeart
+                            : blackHeart
                         }
+                        alt={plan.id}
+                        className={` ${
+                          plan.popular
+                            ? "w-[42px] h-[42px]"
+                            : "w-[24px] h-[24px]"
+                        }`}
                       />
-                      <span>{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+                    </div>
+                  </div>
 
-              {/* ROI Snapshot Section */}
-              {plan.additionalInfo && (
-                <div className="mb-4">
-                  <h4
-                    className={`text-sm font-semibold mb-3 ${
-                      plan.popular ? "text-white" : "text-gray-900"
+                  {/* Plan Name & Subtitle */}
+                  <div className="mb-4">
+                    <h3 className="text-xl font-bold mb-1 text-gray-900">
+                      {plan.name}
+                    </h3>
+                    <p className="text-sm text-gray-600">{plan.subtitle}</p>
+                  </div>
+
+                  {/* Price */}
+                  <div className="mb-6">
+                    <div className="flex items-baseline">
+                      <span className="text-3xl font-bold text-gray-900">
+                        {typeof plan.price === "number"
+                          ? `$${plan.price}`
+                          : plan.price}
+                      </span>
+                      {plan.period && (
+                        <span className="ml-1 text-sm text-gray-600">
+                          {plan.period}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Get Started Button */}
+                  <button
+                    style={
+                      plan.popular
+                        ? {
+                            background:
+                              "linear-gradient(0deg, #0A0A0A 0%, #000000 100%)",
+                            boxShadow:
+                              "0px 12.4px 18.6px -9.3px #00000040, 0px -6.2px 9.3px 0px #171717 inset, 0px 3.49px 0.77px 0px #5E5E5E inset, 0px 1.55px 0.77px 0px #33332F inset",
+                            opacity: 1,
+                            borderRadius: "1549.79px",
+                          }
+                        : {
+                            background:
+                              "linear-gradient(151.44deg, #FFFFFF -62.65%, #FBFBFE 83.01%)",
+                            borderRadius: "1549.79px",
+                          }
+                    }
+                    className={`w-full py-3 px-4 rounded-lg font-medium transition-all mb-6 ${
+                      plan.popular
+                        ? "bg-gradient-to-r from-cyan-400 to-blue-500 text-white hover:from-cyan-500 hover:to-blue-600"
+                        : "bg-gray-100 text-gray-900 hover:bg-gray-200 border border-gray-300 hover:border-gray-400"
                     }`}
                   >
-                    {plan.additionalInfo}
-                  </h4>
-                  {plan.roiFeatures && plan.roiFeatures.length > 0 && (
-                    <ul className="space-y-2">
-                      {plan.roiFeatures.map((feature, index) => (
+                    {plan.buttonText}
+                  </button>
+
+                  {/* What you will get */}
+                  <div className="mb-6">
+                    <h4 className="text-sm font-semibold mb-3 text-gray-900">
+                      What you will get
+                    </h4>
+                    <ul className="space-y-2 mb-4">
+                      {plan.features.map((feature, index) => (
                         <li
-                          key={`roi-${index}`}
-                          className={`flex items-start text-sm ${
-                            plan.popular ? "text-white/90" : "text-gray-600"
-                          }`}
+                          key={index}
+                          className="flex items-start text-sm text-gray-600"
                         >
                           <img
                             src={circleCheck}
                             alt={plan.id}
                             className="w-4 h-4 text-green-500 mr-2 mt-0.5 flex-shrink-0"
-                            style={
-                              plan.popular
-                                ? { filter: "brightness(0) invert(1)" }
-                                : {}
-                            }
                           />
                           <span>{feature}</span>
                         </li>
                       ))}
                     </ul>
+                  </div>
+
+                  {/* ROI Snapshot Section */}
+                  {plan.additionalInfo && (
+                    <div className="mb-4">
+                      <h4 className="text-sm font-semibold mb-3 text-gray-900">
+                        {plan.additionalInfo}
+                      </h4>
+                      {plan.roiFeatures && plan.roiFeatures.length > 0 && (
+                        <ul className="space-y-2">
+                          {plan.roiFeatures.map((feature, index) => (
+                            <li
+                              key={`roi-${index}`}
+                              className="flex items-start text-sm text-gray-600"
+                            >
+                              <img
+                                src={circleCheck}
+                                alt={plan.id}
+                                className="w-4 h-4 text-green-500 mr-2 mt-0.5 flex-shrink-0"
+                              />
+                              <span>{feature}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
                   )}
                 </div>
-              )}
+              </div>
             </div>
           ))}
         </div>

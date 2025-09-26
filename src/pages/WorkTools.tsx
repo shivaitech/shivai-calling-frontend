@@ -2,6 +2,19 @@ import React from "react";
 
 // Define the integrations data based on the image
 import bgImage from "../resources/images/bg2.svg";
+// Import SVG icons
+import whatsappIcon from "../resources/Icon/whatsapp.svg";
+import zohoIcon from "../resources/Icon/zoho.svg";
+import odooIcon from "../resources/Icon/odoo.svg";
+import hubspotIcon from "../resources/Icon/hubspot.svg";
+import freshworkIcon from "../resources/Icon/freshwork.svg";
+import googleDriveIcon from "../resources/Icon/googleDrive.svg";
+import calendlyIcon from "../resources/Icon/calendly.svg";
+import shopifyIcon from "../resources/Icon/shopify.svg";
+import stripeIcon from "../resources/Icon/stripe.svg";
+import twilioIcon from "../resources/Icon/twilio.svg";
+import zendeskIcon from "../resources/Icon/zendesk.svg";
+import quickbooksIcon from "../resources/Icon/quickbooks.svg";
 const integrations = [
   {
     id: 1,
@@ -104,25 +117,25 @@ const integrations = [
 export const WorkTools = () => {
   const getServiceIcon = (iconName: string) => {
     const iconMap: { [key: string]: string } = {
-      whatsapp: "WA",
-      zoho: "Z",
-      odoo: "O",
-      hubspot: "H",
-      freshworks: "F",
-      googledrive: "GD",
-      calendly: "C",
-      shopify: "S",
-      stripe: "ST",
-      twilio: "T",
-      zendesk: "ZD",
-      quickbooks: "QB",
+      whatsapp: whatsappIcon,
+      zoho: zohoIcon,
+      odoo: odooIcon,
+      hubspot: hubspotIcon,
+      freshworks: freshworkIcon,
+      googledrive: googleDriveIcon,
+      calendly: calendlyIcon,
+      shopify: shopifyIcon,
+      stripe: stripeIcon,
+      twilio: twilioIcon,
+      zendesk: zendeskIcon,
+      quickbooks: quickbooksIcon,
     };
-    return iconMap[iconName] || "?";
+    return iconMap[iconName] || whatsappIcon; // fallback to whatsapp icon
   };
 
   return (
     <div
-      className="w-full py-16 lg:py-10 relative -top-5% "
+      className="w-full py-16 lg:py-16 relative -top-5% "
       style={{
         backgroundImage: `url(${bgImage})`,
         backgroundRepeat: "no-repeat",
@@ -131,10 +144,11 @@ export const WorkTools = () => {
     >
       <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-12">
-          <h2 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-4">
+          <h2 className="text-[36px] lg:text-[64px] font-semibold text-[#333333] tracking-tight mb-6  ">
             ShivAI Works With Your Tools
           </h2>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-12">
+
+          <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-6 lg:mb-12">
             Integrates into your stack. Extends your superpowers.
           </p>
         </div>
@@ -152,11 +166,11 @@ export const WorkTools = () => {
                 <div
                   className={`w-10 h-10 rounded-lg ${integration.bgColor} flex items-center justify-center flex-shrink-0`}
                 >
-                  <span
-                    className={`text-sm font-bold ${integration.iconColor}`}
-                  >
-                    {getServiceIcon(integration.icon)}
-                  </span>
+                  <img
+                    src={getServiceIcon(integration.icon)}
+                    alt={integration.name}
+                    className="w-6 h-6 object-contain"
+                  />
                 </div>
                 <div className="flex-1">
                   <h3 className="font-semibold text-gray-900 text-lg">

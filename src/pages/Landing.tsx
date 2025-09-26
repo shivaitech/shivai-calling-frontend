@@ -344,20 +344,20 @@ const Landing: React.FC = () => {
       <section id="features" className="py-0 px-6 lg:px-0">
         <WhatShivaiDo />
       </section>
-      <section id="features" className="py-2 px-6 lg:px-0">
+      <section id="features" className="py-0 px-6 lg:px-0">
         <WhatWeWork />
       </section>
-      <section id="features" className="py-2 px-6 lg:px-0">
+      <section id="features" className="py-0 px-6 lg:px-0">
         <WorkTools />
       </section>
-      <section id="features" className="py-2 px-6 lg:px-0">
+      <section id="features" className="py-0 px-6 lg:px-0">
         <ShivaiSubsPlan />
       </section>
-      <section id="features" className="py-2 px-6 lg:px-0">
+      <section id="features" className="py-0 px-6 lg:px-0">
         <FAQ />
       </section>
 
-      <section id="features" className="py-2 px-6 lg:px-0">
+      <section id="features" className="relative w-[100vw] py-0 px-0 lg:px-0 ">
         <Footer />
       </section>
 
