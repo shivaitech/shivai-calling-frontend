@@ -101,7 +101,7 @@ export const WhatWeWork = () => {
     <div className="w-full py-0 lg:py-0 pt-0 lg:pt-6 relative -top-8% lg:top-0 ">
       <div className="max-w-7xl mx-auto px-0 sm:px-6 lg:px-0">
         <div className="text-center mb-4">
-          <h2 className="text-[36px] lg:text-[64px] font-semibold text-[#333333] tracking-tight mb-6 text-nowrap">
+          <h2 className="text-[30px] lg:text-[64px] font-semibold text-[#333333] tracking-tight mb-6 text-nowrap">
             Where ShivAI Works
           </h2>
         </div>

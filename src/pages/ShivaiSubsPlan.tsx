@@ -112,7 +112,7 @@ export const ShivaiSubsPlan = () => {
         <div className="text-center mb-2 lg:mb-12">
           <h2
             style={{ letterSpacing: "-5%" }}
-            className="text-[34px] lg:text-[64px] font-semibold text-[#333333] tracking-tight mb-2 lg:mb-6 "
+            className="text-[30px] lg:text-[64px] font-semibold text-[#333333] tracking-tight mb-2 lg:mb-6 "
           >
             Call ShivAI Subscription Plans
           </h2>

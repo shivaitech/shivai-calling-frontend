@@ -74,7 +74,7 @@ export const WhatShivaiDo = () => {
       }
 
       return (
-        <div className="w-full h-full max-h-[220px] max-w-screen-sm flex items-center justify-center rounded-sm">
+        <div className="h-[60%] w-[90%] lg:w-full lg:h-full max-w-screen-sm flex items-center justify-center  mt-4 lg:mt-1">
           <img
             src={src}
             alt={type}
@@ -174,15 +174,15 @@ export const WhatShivaiDo = () => {
       <div className="max-w-8xl mx-auto px-0 sm:px lg:px-0">
         {/* Title */}
         <div className="text-center mb-4">
-          <h2 className="text-[36px] lg:text-[64px] font-semibold text-[#333333] tracking-tight mb-4 text-nowrap">
+          <h2 className="text-[30px] lg:text-[64px] font-semibold text-[#333333] tracking-tight mb-4 ">
             What ShivAI Can Do
           </h2>
         </div>
 
         {/* Mobile View - Simple Single Card */}
-        <div className="md:hidden">
-          <div className="space-y-6">
-            <div className="bg-white rounded-2xl overflow-hidden shadow-2xl border border-gray-200 py-6 pt-7 px-4">
+        <div className="md:hidden ">
+          <div className="space-y-6 p-4">
+            <div className="bg-white rounded-2xl overflow-hidden shadow-2xl border border-gray-200">
               <div className="w-full h-full max-h-[40vh] flex items-center justify-center">
                 {getIllustration(infiniteFeatures[currentSlide].illustration)}
               </div>
@@ -214,8 +214,8 @@ export const WhatShivaiDo = () => {
         </div>
 
         {/* Desktop View - Horizontal Slider with Blur Effect */}
-        <div className="hidden md:block relative">
-          <div className="relative overflow-hidden py-8 ">
+        <div className="hidden md:block relative py-8 space-y-6">
+          <div className="relative overflow-hidden pb-10">
             {/* Left Blur Overlay - Gradient Spread */}
             <div className="absolute left-0 top-0 w-20 lg:w-44 xl:w-55 h-full z-10 pointer-events-none">
               <div
@@ -259,10 +259,10 @@ export const WhatShivaiDo = () => {
                     key={`${feature.id}-${index}`}
                     className={`flex-none w-80 transition-all duration-300 ease-out cursor-pointer will-change-transform ${
                       isCenter
-                        ? "opacity-100 z-20"
+                        ? "opacity-100 z-20 pt-2 "
                         : distance === 1
-                        ? "opacity-85 z-10"
-                        : "opacity-50 z-0"
+                        ? "opacity-85 z-10 w-72 pt-6"
+                        : "opacity-50 z-0 w-68 pt-10"
                     }`}
                     onClick={() => {
                       if (!isAnimating) {

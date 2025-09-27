@@ -80,13 +80,13 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
     <div className="min-h-screen lg:min-h-screen sm:min-h-[80vh] bg-[#F0F0F0] overflow-hidden relative mb-8 sm:mb-2 mt-14">
       <div className="relative px-4 sm:px-6 lg:px-8">
         <div className="hidden lg:block absolute left-20 top-28 bottom-24">
-          <div className="w-px h-[42vh] bg-[#d1d1d1] relative top-[32%]" />
-          <div className="absolute -left-[78px] -top-2 -rotate-90">
+          <div className="w-px h-[42vh] bg-[#d1d1d1] relative top-[28%]" />
+          <div className="absolute -left-[83px] -top-2 -rotate-90">
             <span className="text-xs text-[#828282]  tracking-[0.2em] font-normal whitespace-nowrap">
               AI Voice teammates
             </span>
           </div>
-          <div className="absolute -left-[20px] top-[58vh] -rotate-90">
+          <div className="absolute -left-[20px] top-[60vh] -rotate-90">
             <span className="text-xs text-[#828282]  tracking-[0.2em] font-normal whitespace-nowrap">
               2025
             </span>

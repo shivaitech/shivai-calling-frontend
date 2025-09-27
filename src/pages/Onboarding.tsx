@@ -13,6 +13,8 @@ import {
   Crown,
   X,
   Bot,
+  Globe,
+  Phone,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import logo from "../resources/images/ShivaiLogo.svg";
@@ -332,81 +334,7 @@ const agentTemplates = [
   },
 ];
 
-const callVolumeOptions = [
-  { value: "1-100", label: "1-100 calls/month" },
-  { value: "101-500", label: "101-500 calls/month" },
-  { value: "501-1000", label: "501-1000 calls/month" },
-  { value: "1001-5000", label: "1001-5000 calls/month" },
-  { value: "5000+", label: "5000+ calls/month" },
-];
-
-const personalityOptions = [
-  { value: "professional", label: "Professional & Formal" },
-  { value: "friendly", label: "Friendly & Casual" },
-  { value: "enthusiastic", label: "Enthusiastic & Energetic" },
-  { value: "calm", label: "Calm & Patient" },
-  { value: "authoritative", label: "Authoritative & Direct" },
-];
-
-const responseStyleOptions = [
-  { value: "concise", label: "Concise & Brief" },
-  { value: "detailed", label: "Detailed & Thorough" },
-  { value: "conversational", label: "Conversational & Engaging" },
-  { value: "structured", label: "Structured & Step-by-step" },
-];
-
-const languageOptions = [
-  { value: "english", label: "English" },
-  { value: "french", label: "French" },
-  { value: "german", label: "German" },
-  { value: "italian", label: "Italian" },
-  { value: "portuguese", label: "Portuguese" },
-  { value: "spanish", label: "Spanish" },
-];
-
-const escalationOptions = [
-  { value: "always", label: "Always escalate complex queries" },
-  { value: "smart", label: "Smart escalation (confidence-based)" },
-  { value: "shivai-first", label: "AI Employee first, escalate if needed" },
-  {
-    value: "minimal",
-    label: "Minimal escalation (AI Employee handles majority)",
-  },
-  { value: "no-escalation", label: "No escalation (AI Employee only)" },
-  { value: "custom", label: "Custom escalation rules" },
-];
-
-const voiceOptions = [
-  { value: "alloy", label: "Alloy - Natural & Clear" },
-  { value: "echo", label: "Echo - Warm & Professional" },
-  { value: "fable", label: "Fable - Friendly & Approachable" },
-  { value: "onyx", label: "Onyx - Deep & Authoritative" },
-  { value: "nova", label: "Nova - Bright & Energetic" },
-  { value: "shimmer", label: "Shimmer - Smooth & Calm" },
-];
-
-const genderOptions = [
-  { value: "neutral", label: "Gender Neutral" },
-  { value: "male", label: "Male" },
-  { value: "female", label: "Female" },
-];
-
-const behaviorOptions = [
-  { value: "proactive", label: "Proactive - Takes initiative" },
-  { value: "reactive", label: "Reactive - Responds to queries" },
-  { value: "consultative", label: "Consultative - Advisory approach" },
-  { value: "supportive", label: "Supportive - Helpful & understanding" },
-  { value: "analytical", label: "Analytical - Data-driven responses" },
-];
-
-const voiceStyleOptions = [
-  { value: "natural", label: "Natural - Human-like flow" },
-  { value: "formal", label: "Formal - Business appropriate" },
-  { value: "casual", label: "Casual - Relaxed & friendly" },
-  { value: "enthusiastic", label: "Enthusiastic - High energy" },
-  { value: "calm", label: "Calm - Steady & reassuring" },
-  { value: "empathetic", label: "Empathetic - Understanding tone" },
-];
+// These option arrays are now moved to Step3.tsx component
 
 const Onboarding: React.FC = () => {
   const navigate = useNavigate();
@@ -424,73 +352,27 @@ const Onboarding: React.FC = () => {
     Record<number, boolean>
   >({});
   const [showIndustryDropdown, setShowIndustryDropdown] = useState(false);
-  const [showRegionDropdown, setShowRegionDropdown] = useState(false);
-  const [showCallVolumeDropdown, setShowCallVolumeDropdown] = useState<
-    Record<number, boolean>
-  >({});
-  const [showPersonalityDropdown, setShowPersonalityDropdown] = useState<
-    Record<number, boolean>
-  >({});
-  const [showResponseStyleDropdown, setShowResponseStyleDropdown] = useState<
-    Record<number, boolean>
-  >({});
-  const [showEscalationDropdown, setShowEscalationDropdown] = useState<
-    Record<number, boolean>
-  >({});
-  const [showVoiceDropdown, setShowVoiceDropdown] = useState<
-    Record<number, boolean>
-  >({});
-  const [showGenderDropdown, setShowGenderDropdown] = useState<
-    Record<number, boolean>
-  >({});
-  const [showBehaviorDropdown, setShowBehaviorDropdown] = useState<
-    Record<number, boolean>
-  >({});
-  const [showVoiceStyleDropdown, setShowVoiceStyleDropdown] = useState<
-    Record<number, boolean>
-  >({});
-  const [showLanguageDropdown, setShowLanguageDropdown] = useState<
-    Record<number, boolean>
-  >({});
   const [industrySearch, setIndustrySearch] = useState("");
-  const [regionSearch, setRegionSearch] = useState("");
-  const [callVolumeSearch, setCallVolumeSearch] = useState<
-    Record<number, string>
-  >({});
-  const [personalitySearch, setPersonalitySearch] = useState<
-    Record<number, string>
-  >({});
-  const [responseStyleSearch, setResponseStyleSearch] = useState<
-    Record<number, string>
-  >({});
-  const [escalationSearch, setEscalationSearch] = useState<
-    Record<number, string>
-  >({});
-  const [voiceSearch, setVoiceSearch] = useState<Record<number, string>>({});
-  const [genderSearch, setGenderSearch] = useState<Record<number, string>>({});
-  const [behaviorSearch, setBehaviorSearch] = useState<Record<number, string>>(
-    {}
-  );
-  const [voiceStyleSearch, setVoiceStyleSearch] = useState<
-    Record<number, string>
-  >({});
-  const [languageSearch, setLanguageSearch] = useState<Record<number, string>>(
-    {}
-  );
 
-  const { register, handleSubmit, watch, setValue } =
-    useForm<OnboardingFormData>({
-      defaultValues: {
-        companyName: "",
-        industry: [],
-        businessProcesses: "",
-        website: "",
-        primaryRegion: "",
-        plan: "",
-        agentCount: 1,
-        agents: [],
-      },
-    });
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    formState: { errors },
+  } = useForm<OnboardingFormData>({
+    mode: "onChange",
+    defaultValues: {
+      companyName: "",
+      industry: [],
+      businessProcesses: "",
+      website: "",
+      primaryRegion: "",
+      plan: "",
+      agentCount: 1,
+      agents: [],
+    },
+  });
 
   const totalSteps = 3;
 
@@ -515,7 +397,7 @@ const Onboarding: React.FC = () => {
   }, [agentCount, setValue, watch]);
 
   const nextStep = () => {
-    if (currentStep < totalSteps) {
+    if (currentStep < totalSteps && validateStep(currentStep)) {
       setCurrentStep(currentStep + 1);
     }
   };
@@ -528,18 +410,8 @@ const Onboarding: React.FC = () => {
 
   // Helper function to close all dropdowns
   const closeAllDropdowns = () => {
-    setShowCallVolumeDropdown({});
-    setShowPersonalityDropdown({});
-    setShowResponseStyleDropdown({});
-    setShowEscalationDropdown({});
-    setShowVoiceDropdown({});
-    setShowGenderDropdown({});
-    setShowBehaviorDropdown({});
-    setShowVoiceStyleDropdown({});
-    setShowLanguageDropdown({});
     setShowUseCaseDropdown({});
     setShowIndustryDropdown(false);
-    setShowRegionDropdown(false);
   };
 
   // Global click outside handler and focus handler to close dropdowns
@@ -588,8 +460,37 @@ const Onboarding: React.FC = () => {
     };
   }, []);
 
+  const validateStep = (step: number): boolean => {
+    switch (step) {
+      case 1:
+        return !!(watch("companyName") && watch("website"));
+      case 2:
+        return !!watch("plan");
+      case 3:
+        const agents = watch("agents") || [];
+        return (
+          agents.length >= 1 &&
+          agents.every(
+            (agent) =>
+              agent.agentName &&
+              agent.agentType &&
+              agent.preferredLanguage &&
+              agent.voiceGender
+          )
+        );
+      default:
+        return true;
+    }
+  };
+
   const onSubmit = async (data: OnboardingFormData) => {
     if (currentStep !== totalSteps) return;
+
+    // Final validation before submission
+    if (!validateStep(1) || !validateStep(2) || !validateStep(3)) {
+      console.error("Form validation failed");
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -660,79 +561,206 @@ const Onboarding: React.FC = () => {
                 <input
                   {...register("companyName", {
                     required: "Company name is required",
+                    minLength: {
+                      value: 2,
+                      message: "Company name must be at least 2 characters",
+                    },
                   })}
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className={`w-full px-3 py-2.5 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                    errors.companyName
+                      ? "border-red-500 bg-red-50"
+                      : "border-gray-300"
+                  }`}
                   placeholder="Enter your company name"
                 />
+                {errors.companyName && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {errors.companyName.message}
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Website
+                    Website *
                   </label>
-                  <input
-                    {...register("website")}
-                    type="url"
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="https://your-company.com"
-                  />
+                  <div className="relative">
+                    <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      {...register("website", {
+                        required: "Website URL is required",
+                        pattern: {
+                          value: /^(https?:\/\/)?([\w\-]+\.)+[\w\-]+(\/.*)?$/,
+                          message:
+                            "Please enter a valid website (e.g., facebook.com or https://example.com)",
+                        },
+                      })}
+                      type="text"
+                      className={`w-full pl-10 pr-3 py-2.5 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
+                        errors.website
+                          ? "border-red-500 bg-red-50"
+                          : "border-gray-300 hover:border-gray-400"
+                      }`}
+                      placeholder="facebook.com or https://your-company.com"
+                    />
+                  </div>
+                  {errors.website && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {errors.website.message}
+                    </p>
+                  )}
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Primary Region
+                    Company Size
                   </label>
-                  <div className="relative" data-dropdown-trigger>
-                    <input
-                      value={regionSearch}
-                      onChange={(e) => {
-                        setRegionSearch(e.target.value);
-                        setValue("primaryRegion", e.target.value);
-                      }}
-                      onFocus={() => setShowRegionDropdown(true)}
-                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="Select your primary region"
-                    />
-                    <ChevronDown
-                      className={`absolute right-3 top-3 w-4 h-4 text-gray-400 transition-transform cursor-pointer ${
-                        showRegionDropdown ? "rotate-180" : ""
-                      }`}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setShowRegionDropdown(!showRegionDropdown);
-                      }}
-                    />
+                  <select
+                    {...register("companySize")}
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none cursor-pointer transition-all hover:border-gray-400"
+                    style={{
+                      backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                      backgroundPosition: "right 0.5rem center",
+                      backgroundRepeat: "no-repeat",
+                      backgroundSize: "1.5em 1.5em",
+                      paddingRight: "2.5rem",
+                    }}
+                  >
+                    <option value="">Select company size</option>
+                    <option value="1-10">1-10 employees</option>
+                    <option value="11-50">11-50 employees</option>
+                    <option value="51-200">51-200 employees</option>
+                    <option value="201-1000">201-1000 employees</option>
+                    <option value="1000+">1000+ employees</option>
+                  </select>
+                </div>
+              </div>
 
-                    {showRegionDropdown && (
-                      <div
-                        className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"
-                        data-dropdown
-                      >
-                        {regionOptions
-                          .filter((option) =>
-                            option.label
-                              .toLowerCase()
-                              .includes(regionSearch.toLowerCase())
-                          )
-                          .map((option) => (
-                            <div
-                              key={option.value}
-                              onClick={() => {
-                                setValue("primaryRegion", option.value);
-                                setRegionSearch(option.label);
-                                setShowRegionDropdown(false);
-                              }}
-                              className="px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                            >
-                              {option.label}
-                            </div>
-                          ))}
-                      </div>
-                    )}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Company Email
+                  </label>
+                  <div className="relative">
+                    <svg
+                      className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207"
+                      />
+                    </svg>
+                    <input
+                      {...register("companyEmail", {
+                        pattern: {
+                          value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                          message: "Please enter a valid email address",
+                        },
+                      })}
+                      type="email"
+                      className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all hover:border-gray-400"
+                      placeholder="info@company.com"
+                    />
+                  </div>
+                  {errors.companyEmail && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {errors.companyEmail.message}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Company Phone
+                  </label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      {...register("companyPhone")}
+                      type="tel"
+                      className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all hover:border-gray-400"
+                      placeholder="+1 (555) 123-4567"
+                    />
                   </div>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Founded Year
+                  </label>
+                  <select
+                    {...register("foundedYear")}
+                    defaultValue=""
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none cursor-pointer transition-all hover:border-gray-400"
+                    style={{
+                      backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                      backgroundPosition: "right 0.5rem center",
+                      backgroundRepeat: "no-repeat",
+                      backgroundSize: "1.5em 1.5em",
+                      paddingRight: "2.5rem",
+                    }}
+                  >
+                    <option value="">Select year</option>
+                    {Array.from({ length: 226 }, (_, i) => 1800 + i)
+                      .reverse()
+                      .map((year) => (
+                        <option key={year} value={year}>
+                          {year}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  LinkedIn Profile (Optional)
+                </label>
+                <div className="relative">
+                  <svg
+                    className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+                  </svg>
+                  <input
+                    {...register("linkedinUrl", {
+                      pattern: {
+                        value: /^(https?:\/\/)?([\w\-]+\.)*linkedin\.com\/.*$/,
+                        message: "Please enter a valid LinkedIn URL",
+                      },
+                    })}
+                    type="text"
+                    className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all hover:border-gray-400"
+                    placeholder="linkedin.com/company/your-company"
+                  />
+                </div>
+                {errors.linkedinUrl && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {errors.linkedinUrl.message}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Company Description
+                </label>
+                <textarea
+                  {...register("companyDescription")}
+                  rows={3}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition-all hover:border-gray-400"
+                  placeholder="Brief description of what your company does, your mission, and key services..."
+                />
               </div>
 
               <div>
@@ -742,7 +770,7 @@ const Onboarding: React.FC = () => {
                 <textarea
                   {...register("businessProcesses")}
                   rows={3}
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition-all hover:border-gray-400"
                   placeholder="Describe your main business processes (e.g., lead generation, customer support, appointment booking...)"
                 />
               </div>
@@ -863,6 +891,67 @@ const Onboarding: React.FC = () => {
                   )}
                 </div>
               </div>
+
+              {/* Region of Business Section */}
+              <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 rounded-xl p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
+                    <Globe className="w-4 h-4 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold text-gray-900">
+                      Region of Business
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      Where does your company operate?
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Countries
+                    </label>
+                    <input
+                      {...register("businessCountries")}
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all hover:border-gray-400"
+                      placeholder="e.g., USA, Canada, UK"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Separate multiple countries with commas
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      States/Provinces
+                    </label>
+                    <input
+                      {...register("businessStates")}
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all hover:border-gray-400"
+                      placeholder="e.g., California, Texas, Ontario"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Separate multiple states with commas
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Key Cities
+                    </label>
+                    <input
+                      {...register("businessCities")}
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all hover:border-gray-400"
+                      placeholder="e.g., New York, Los Angeles, Toronto"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Separate multiple cities with commas
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </motion.div>
         );
@@ -890,6 +979,10 @@ const Onboarding: React.FC = () => {
             </div>
 
             {/* Plan Selection */}
+            <input
+              {...register("plan", { required: "Please select a plan" })}
+              type="hidden"
+            />
             <div className="grid md:grid-cols-2 gap-6 mb-8">
               {planOptions.map((plan) => {
                 const isSelected = watch("plan") === plan.id;
@@ -897,7 +990,9 @@ const Onboarding: React.FC = () => {
                   <div
                     key={plan.id}
                     onClick={() => {
-                      setValue("plan", plan.id as "base" | "advanced");
+                      setValue("plan", plan.id as "base" | "advanced", {
+                        shouldValidate: true,
+                      });
                       // Reset agent count based on plan
                       setValue("agentCount", 1);
                     }}
@@ -939,6 +1034,15 @@ const Onboarding: React.FC = () => {
                 );
               })}
             </div>
+
+            {/* Plan Selection Error */}
+            {errors.plan && (
+              <div className="text-center mb-4">
+                <p className="text-red-600 text-sm">
+                  Please select a plan to continue
+                </p>
+              </div>
+            )}
 
             {/* AI Employee Count Selection */}
             {watch("plan") && (
@@ -988,6 +1092,188 @@ const Onboarding: React.FC = () => {
                 </div>
               </div>
             )}
+
+            {/* Billing Information Section */}
+            {watch("plan") && (
+              <div className="border-t border-gray-200 pt-6">
+                <div className="text-center mb-6">
+                  <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">
+                    Billing Information
+                  </h3>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Choose your billing preference
+                  </p>
+                </div>
+
+                {/* Offline Billing Option */}
+                <div className="max-w-2xl mx-auto mb-6">
+                  <div className="flex items-center justify-center space-x-3 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200">
+                    <input
+                      {...register("offlineBilling")}
+                      type="checkbox"
+                      id="offlineBilling"
+                      className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                    />
+                    <label
+                      htmlFor="offlineBilling"
+                      className="text-sm font-medium text-gray-700 cursor-pointer"
+                    >
+                      📄 Prefer offline billing (invoices sent manually)
+                    </label>
+                  </div>
+                </div>
+
+                {/* Show billing form only if offline billing is not selected */}
+                {!watch("offlineBilling") && (
+                  <div className="max-w-2xl mx-auto space-y-6">
+                    {/* Billing Contact */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Billing Contact Name *
+                        </label>
+                        <input
+                          {...register("billingContactName", {
+                            required: "Billing contact name is required",
+                          })}
+                          className={`w-full px-3 py-2.5 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                            errors.billingContactName
+                              ? "border-red-500 bg-red-50"
+                              : "border-gray-300"
+                          }`}
+                          placeholder="John Smith"
+                        />
+                        {errors.billingContactName && (
+                          <p className="mt-1 text-sm text-red-600">
+                            {errors.billingContactName.message}
+                          </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Billing Email *
+                        </label>
+                        <input
+                          {...register("billingContactEmail", {
+                            required: "Billing email is required",
+                            pattern: {
+                              value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                              message: "Please enter a valid email address",
+                            },
+                          })}
+                          type="email"
+                          className={`w-full px-3 py-2.5 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                            errors.billingContactEmail
+                              ? "border-red-500 bg-red-50"
+                              : "border-gray-300"
+                          }`}
+                          placeholder="billing@company.com"
+                        />
+                        {errors.billingContactEmail && (
+                          <p className="mt-1 text-sm text-red-600">
+                            {errors.billingContactEmail.message}
+                          </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Phone Number
+                        </label>
+                        <input
+                          {...register("billingContactPhone")}
+                          type="tel"
+                          className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder="+1 (555) 123-4567"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Company Name (if different)
+                        </label>
+                        <input
+                          {...register("billingCompanyName")}
+                          className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder="Billing Company Name"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Billing Address */}
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Billing Address
+                        </label>
+                        <input
+                          {...register("billingAddress")}
+                          className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder="123 Main Street, Suite 100"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            City
+                          </label>
+                          <input
+                            {...register("billingCity")}
+                            className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="New York"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            State/Province
+                          </label>
+                          <input
+                            {...register("billingState")}
+                            className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="NY"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            ZIP/Postal
+                          </label>
+                          <input
+                            {...register("billingZip")}
+                            className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="10001"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Country
+                        </label>
+                        <select
+                          {...register("billingCountry")}
+                          className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                          <option value="">Select Country</option>
+                          <option value="US">United States</option>
+                          <option value="CA">Canada</option>
+                          <option value="GB">United Kingdom</option>
+                          <option value="AU">Australia</option>
+                          <option value="DE">Germany</option>
+                          <option value="FR">France</option>
+                          <option value="IN">India</option>
+                          <option value="JP">Japan</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </motion.div>
         );
 
@@ -997,6 +1283,7 @@ const Onboarding: React.FC = () => {
             register={register}
             watch={watch}
             setValue={setValue}
+            errors={errors}
             agentCount={agentCount}
             stepVariants={stepVariants}
             activeAgentTab={activeAgentTab}
@@ -1028,40 +1315,49 @@ const Onboarding: React.FC = () => {
 
             {/* Progress bar */}
             <div className="flex items-center space-x-2">
-              {Array.from({ length: totalSteps }, (_, i) => (
-                <div
-                  key={i}
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                    i + 1 < currentStep
-                      ? "bg-blue-500 text-white"
-                      : i + 1 === currentStep
-                      ? "bg-blue-100 text-blue-600 border-2 border-blue-500"
-                      : "bg-gray-200 text-gray-600"
-                  }`}
-                >
-                  {i + 1 < currentStep ? (
-                    <CheckCircle className="w-5 h-5" />
-                  ) : (
-                    i + 1
-                  )}
-                </div>
-              ))}
+              {Array.from({ length: totalSteps }, (_, i) => {
+                const stepNumber = i + 1;
+                const isCompleted = stepNumber < currentStep;
+                const isCurrent = stepNumber === currentStep;
+                const isValid = validateStep(stepNumber);
+
+                return (
+                  <div
+                    key={i}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-all ${
+                      isCompleted
+                        ? "bg-green-500 text-white"
+                        : isCurrent
+                        ? isValid
+                          ? "bg-blue-500 text-white"
+                          : "bg-yellow-500 text-white animate-pulse"
+                        : "bg-gray-200 text-gray-600"
+                    }`}
+                  >
+                    {isCompleted ? (
+                      <CheckCircle className="w-5 h-5" />
+                    ) : (
+                      stepNumber
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 ">
+      <div className="max-w-5xl mx-auto px-2 sm:px-4 lg:px-8 py-2 sm:py-4 lg:py-8 ">
         <AnimatePresence mode="wait">{renderStep()}</AnimatePresence>
 
         {/* Navigation */}
-        <div className="mt-4 mb-8 flex flex-row justify-between gap-3 sm:gap-4">
+        <div className="mt-3 sm:mt-4 mb-6 sm:mb-8 flex flex-row justify-between gap-2 sm:gap-3 lg:gap-4">
           <button
             type="button"
             onClick={prevStep}
             disabled={currentStep === 1}
-            className={`flex items-center justify-center px-4 sm:px-8 py-3 flex-1 sm:flex-none sm:min-w-[120px] rounded-xl font-semibold text-sm sm:text-base transition-all touch-manipulation ${
+            className={`flex items-center justify-center px-3 sm:px-4 lg:px-8 py-2 sm:py-3 flex-1 sm:flex-none sm:min-w-[120px] rounded-xl font-semibold text-xs sm:text-sm lg:text-base transition-all touch-manipulation ${
               currentStep === 1
                 ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                 : "bg-gray-200 text-gray-700 hover:bg-gray-300 active:bg-gray-400"
@@ -1075,7 +1371,12 @@ const Onboarding: React.FC = () => {
             <button
               type="button"
               onClick={nextStep}
-              className="flex items-center justify-center px-4 sm:px-8 py-3 flex-1 sm:flex-none sm:min-w-[120px] bg-blue-600 text-white rounded-xl hover:bg-blue-700 active:bg-blue-800 font-semibold text-sm sm:text-base transition-all touch-manipulation"
+              disabled={!validateStep(currentStep)}
+              className={`flex items-center justify-center px-4 sm:px-8 py-3 flex-1 sm:flex-none sm:min-w-[120px] rounded-xl font-semibold text-sm sm:text-base transition-all touch-manipulation ${
+                validateStep(currentStep)
+                  ? "bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800"
+                  : "bg-gray-300 text-gray-500 cursor-not-allowed"
+              }`}
             >
               Next
               <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 ml-1 sm:ml-2" />

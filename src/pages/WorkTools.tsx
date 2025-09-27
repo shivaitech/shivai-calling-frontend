@@ -143,8 +143,8 @@ export const WorkTools = () => {
       }}
     >
       <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-12">
-          <h2 className="text-[36px] lg:text-[64px] font-semibold text-[#333333] tracking-tight mb-6  ">
+        <div className="text-center mb-4">
+          <h2 className="text-[30px] lg:text-[64px] font-semibold text-[#333333] tracking-tight mb-2  ">
             ShivAI Works With Your Tools
           </h2>
 
