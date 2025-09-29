@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import logo from "../resources/images/ShivaiLogo.svg";
-import Step3, { AgentConfig, OnboardingFormData } from "../components/Step3";
+import Step3, { OnboardingFormData } from "../components/Step3";
 
 const industryOptions = [
   { value: "technology-it", label: "Technology / IT Services" },
@@ -74,267 +74,34 @@ const planOptions = [
     maxAgents: 3,
     features: [
       "Up to 3 AI Employees",
+      "Call recording & transcripts",
+      "Email transcript opt-in",
       "Advanced call routing",
       "Premium integrations",
       "Priority support",
-      "Custom workflows",
     ],
     price: "$299/month",
+  },
+  {
+    id: "custom",
+    name: "Custom Plan",
+    description: "Tailor your AI workforce to your exact needs",
+    maxAgents: 4,
+    features: [
+      "Up to 4 AI Employees",
+      "Call recording & transcripts",
+      "Email transcript opt-in",
+      "Fully customizable workflows",
+      "All premium integrations",
+      "24/7 priority support",
+      "Dedicated account manager",
+    ],
+    price: "Custom pricing",
   },
 ];
 
 // Use case options
-const useCaseOptions = [
-  {
-    value: "sales-business-development",
-    label: "Sales & Business Development",
-    description: "Lead qualification, product demos, follow-ups, upselling",
-  },
-  {
-    value: "customer-support-service",
-    label: "Customer Support & Service",
-    description: "Complaints handling, FAQs, issue resolution, escalations",
-  },
-  {
-    value: "appointment-scheduling",
-    label: "Appointment & Scheduling",
-    description: "Bookings, reminders, confirmations, cancellations",
-  },
-  {
-    value: "order-billing",
-    label: "Order Management & Billing",
-    description: "Order taking, payment support, billing queries, refunds",
-  },
-  {
-    value: "product-service-explainers",
-    label: "Product / Service Explainers",
-    description: "Guided walkthroughs, feature education, onboarding help",
-  },
-  {
-    value: "feedback-engagement",
-    label: "Feedback & Engagement",
-    description: "Surveys, NPS collection, post-service follow-ups",
-  },
-  {
-    value: "custom-workflows",
-    label: "Custom Workflows",
-    description: "Any business-specific processes not covered above",
-  },
-];
-
-// AI Employee templates
-const agentTemplates = [
-  {
-    id: "sales-agent",
-    name: "Sales AI Employee",
-    description: "Focused on lead generation and qualification",
-    triggerCases: ["sales-business-development"],
-    agentName: "Sales AI Employee",
-    personality: "enthusiastic",
-    responseStyle: "conversational",
-    escalationRules: "smart",
-    languages: ["english"],
-    agentVoice: "nova",
-    agentGender: "neutral",
-    agentBehavior: "proactive",
-    voiceStyle: "enthusiastic",
-    specialInstructions:
-      "Focus on understanding customer needs and qualifying leads effectively.",
-    features: [
-      "Lead scoring and qualification",
-      "Product recommendation engine",
-      "Follow-up scheduling",
-      "CRM integration",
-    ],
-  },
-  {
-    id: "support-agent",
-    name: "Customer Support AI Employee",
-    description: "Handles general customer inquiries and support",
-    triggerCases: ["customer-support-service"],
-    agentName: "Support AI Employee",
-    personality: "friendly",
-    responseStyle: "detailed",
-    escalationRules: "shivai-first",
-    languages: ["english"],
-    agentVoice: "echo",
-    agentGender: "neutral",
-    agentBehavior: "supportive",
-    voiceStyle: "empathetic",
-    specialInstructions:
-      "Always try to resolve issues before escalating to human staff.",
-    features: [
-      "Ticket creation and tracking",
-      "Knowledge base integration",
-      "Multi-language support",
-      "Escalation management",
-    ],
-  },
-  {
-    id: "service-agent",
-    name: "Service AI Employee",
-    description: "Manages appointments, orders, and billing",
-    triggerCases: ["appointment-scheduling", "order-billing"],
-    agentName: "Service AI Employee",
-    personality: "professional",
-    responseStyle: "structured",
-    escalationRules: "smart",
-    languages: ["english"],
-    agentVoice: "alloy",
-    agentGender: "neutral",
-    agentBehavior: "analytical",
-    voiceStyle: "formal",
-    specialInstructions: "Be precise with scheduling and order details.",
-    features: [
-      "Calendar integration",
-      "Payment processing",
-      "Order management",
-      "Billing inquiry handling",
-    ],
-  },
-  {
-    id: "feedback-agent",
-    name: "Feedback & Survey AI Employee",
-    description: "Collects customer feedback and conducts surveys",
-    triggerCases: ["feedback-engagement"],
-    agentName: "Feedback AI Employee",
-    personality: "friendly",
-    responseStyle: "conversational",
-    escalationRules: "no-escalation",
-    languages: ["english"],
-    agentVoice: "fable",
-    agentGender: "neutral",
-    agentBehavior: "consultative",
-    voiceStyle: "casual",
-    specialInstructions:
-      "Be encouraging and make surveys feel like conversations.",
-    features: [
-      "Dynamic survey generation",
-      "Sentiment analysis",
-      "Response tracking",
-      "Report generation",
-    ],
-  },
-  {
-    id: "complaints-agent",
-    name: "Complaints Handler AI Employee",
-    description: "Specialized in handling customer complaints and issues",
-    triggerCases: ["customer-support-service"],
-    agentName: "Resolution AI Employee",
-    personality: "calm",
-    responseStyle: "detailed",
-    escalationRules: "shivai-first",
-    languages: ["english"],
-    agentVoice: "shimmer",
-    agentGender: "neutral",
-    agentBehavior: "supportive",
-    voiceStyle: "calm",
-    specialInstructions: "Listen actively, empathize, and focus on resolution.",
-    features: [
-      "Complaint classification",
-      "Resolution tracking",
-      "Compensation logic",
-      "Follow-up automation",
-    ],
-  },
-  {
-    id: "retention-agent",
-    name: "Customer Retention AI Employee",
-    description: "Focuses on customer retention and loyalty",
-    triggerCases: ["sales-business-development", "feedback-engagement"],
-    agentName: "Retention AI Employee",
-    personality: "enthusiastic",
-    responseStyle: "conversational",
-    escalationRules: "smart",
-    languages: ["english"],
-    agentVoice: "nova",
-    agentGender: "neutral",
-    agentBehavior: "proactive",
-    voiceStyle: "enthusiastic",
-    specialInstructions:
-      "Focus on building long-term relationships and identifying upsell opportunities.",
-    features: [
-      "Churn prediction",
-      "Loyalty program management",
-      "Upsell identification",
-      "Relationship scoring",
-    ],
-  },
-  {
-    id: "technical-agent",
-    name: "Technical Support AI Employee",
-    description: "Advanced technical support and troubleshooting",
-    triggerCases: ["customer-support-service"],
-    agentName: "Tech Support AI Employee",
-    personality: "professional",
-    responseStyle: "structured",
-    escalationRules: "always",
-    languages: ["english"],
-    agentVoice: "onyx",
-    agentGender: "neutral",
-    agentBehavior: "analytical",
-    voiceStyle: "formal",
-    specialInstructions:
-      "Provide step-by-step technical guidance and diagnostic help.",
-    features: [
-      "Diagnostic workflows",
-      "Technical documentation access",
-      "Remote assistance integration",
-      "Issue escalation protocols",
-    ],
-  },
-  {
-    id: "multilingual-agent",
-    name: "Multilingual Support AI Employee",
-    description: "Provides support in multiple languages",
-    triggerCases: ["customer-support-service", "order-billing"],
-    agentName: "Global Support AI Employee",
-    personality: "friendly",
-    responseStyle: "conversational",
-    escalationRules: "shivai-first",
-    languages: ["english", "spanish", "french"],
-    agentVoice: "echo",
-    agentGender: "neutral",
-    agentBehavior: "supportive",
-    voiceStyle: "natural",
-    specialInstructions:
-      "Automatically detect language and respond appropriately.",
-    features: [
-      "Auto-language detection",
-      "Multi-language responses",
-      "Cultural awareness",
-      "Translation capabilities",
-    ],
-  },
-  {
-    id: "custom-multi-purpose",
-    name: "Custom Multi-Purpose AI Employee",
-    description:
-      "Advanced AI Employee capable of handling multiple use cases with intelligent context switching",
-    triggerCases: [], // Will be shown when 3+ use cases are selected
-    agentName: "Multi-Purpose AI Employee",
-    personality: "professional",
-    responseStyle: "detailed",
-    escalationRules: "shivai-first",
-    languages: ["english"],
-    agentVoice: "alloy",
-    agentGender: "neutral",
-    agentBehavior: "consultative",
-    voiceStyle: "natural",
-    specialInstructions:
-      "Handle multiple types of inquiries with context switching. Maintain conversation flow across different use cases. Escalate when tasks require specialized human support.",
-    features: [
-      "Multi-context handling",
-      "Advanced conversation flow",
-      "Intelligent escalation",
-      "Cross-use case learning",
-      "Dynamic response adaptation",
-      "Context switching capabilities",
-    ],
-  },
-];
-
-// These option arrays are now moved to Step3.tsx component
+// Template and use case definitions are now consolidated in Step3.tsx component
 
 const Onboarding: React.FC = () => {
   const navigate = useNavigate();
@@ -348,9 +115,7 @@ const Onboarding: React.FC = () => {
   const [showTemplateFeatures, setShowTemplateFeatures] = useState<
     Record<number, boolean>
   >({});
-  const [showUseCaseDropdown, setShowUseCaseDropdown] = useState<
-    Record<number, boolean>
-  >({});
+
   const [showIndustryDropdown, setShowIndustryDropdown] = useState(false);
   const [industrySearch, setIndustrySearch] = useState("");
 
@@ -399,18 +164,21 @@ const Onboarding: React.FC = () => {
   const nextStep = () => {
     if (currentStep < totalSteps && validateStep(currentStep)) {
       setCurrentStep(currentStep + 1);
+      // Scroll to top smoothly when moving to next step
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
   const prevStep = () => {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
+      // Scroll to top smoothly when moving to previous step
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
   // Helper function to close all dropdowns
   const closeAllDropdowns = () => {
-    setShowUseCaseDropdown({});
     setShowIndustryDropdown(false);
   };
 
@@ -463,7 +231,7 @@ const Onboarding: React.FC = () => {
   const validateStep = (step: number): boolean => {
     switch (step) {
       case 1:
-        return !!(watch("companyName") && watch("website"));
+        return !!(watch("companyName"));
       case 2:
         return !!watch("plan");
       case 3:
@@ -583,13 +351,13 @@ const Onboarding: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Website *
+                    Website
                   </label>
                   <div className="relative">
                     <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input
                       {...register("website", {
-                        required: "Website URL is required",
+                        required: false,
                         pattern: {
                           value: /^(https?:\/\/)?([\w\-]+\.)+[\w\-]+(\/.*)?$/,
                           message:
@@ -691,34 +459,7 @@ const Onboarding: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Founded Year
-                  </label>
-                  <select
-                    {...register("foundedYear")}
-                    defaultValue=""
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none cursor-pointer transition-all hover:border-gray-400"
-                    style={{
-                      backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
-                      backgroundPosition: "right 0.5rem center",
-                      backgroundRepeat: "no-repeat",
-                      backgroundSize: "1.5em 1.5em",
-                      paddingRight: "2.5rem",
-                    }}
-                  >
-                    <option value="">Select year</option>
-                    {Array.from({ length: 226 }, (_, i) => 1800 + i)
-                      .reverse()
-                      .map((year) => (
-                        <option key={year} value={year}>
-                          {year}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-              </div>
+             
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -763,17 +504,7 @@ const Onboarding: React.FC = () => {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Business Processes
-                </label>
-                <textarea
-                  {...register("businessProcesses")}
-                  rows={3}
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition-all hover:border-gray-400"
-                  placeholder="Describe your main business processes (e.g., lead generation, customer support, appointment booking...)"
-                />
-              </div>
+             
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -983,14 +714,14 @@ const Onboarding: React.FC = () => {
               {...register("plan", { required: "Please select a plan" })}
               type="hidden"
             />
-            <div className="grid md:grid-cols-2 gap-6 mb-8">
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
               {planOptions.map((plan) => {
                 const isSelected = watch("plan") === plan.id;
                 return (
                   <div
                     key={plan.id}
                     onClick={() => {
-                      setValue("plan", plan.id as "base" | "advanced", {
+                      setValue("plan", plan.id as "base" | "advanced" | "custom", {
                         shouldValidate: true,
                       });
                       // Reset agent count based on plan
@@ -998,26 +729,49 @@ const Onboarding: React.FC = () => {
                     }}
                     className={`relative p-6 rounded-xl border-2 cursor-pointer transition-all ${
                       isSelected
-                        ? "border-blue-500 bg-blue-50 shadow-lg"
+                        ? plan.id === "custom"
+                          ? "border-purple-500 bg-gradient-to-br from-purple-50 to-blue-50 shadow-lg"
+                          : "border-blue-500 bg-blue-50 shadow-lg"
+                        : plan.id === "custom"
+                        ? "border-purple-300 bg-gradient-to-br from-purple-25 to-blue-25 hover:border-purple-400 hover:shadow-lg"
                         : "border-gray-200 hover:border-gray-300 hover:shadow-md"
                     }`}
                   >
                     {isSelected && (
-                      <div className="absolute -top-3 -right-3 w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                      <div className={`absolute -top-3 -right-3 w-8 h-8 rounded-full flex items-center justify-center ${
+                        plan.id === "custom" ? "bg-purple-500" : "bg-blue-500"
+                      }`}>
                         <Check className="w-5 h-5 text-white" />
                       </div>
                     )}
 
+                    {plan.id === "custom" && (
+                      <div className="absolute -top-2 -left-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg">
+                        PREMIUM
+                      </div>
+                    )}
+
                     <div className="text-center mb-4">
-                      <h3 className="text-xl font-bold text-gray-900 mb-2">
+                      <h3 className={`text-xl font-bold mb-2 ${
+                        plan.id === "custom" ? "text-purple-800" : "text-gray-900"
+                      }`}>
                         {plan.name}
                       </h3>
                       <p className="text-gray-600 text-sm mb-3">
                         {plan.description}
                       </p>
-                      <div className="text-2xl font-bold text-blue-600">
+                      <div className={`text-2xl font-bold ${
+                        plan.id === "custom" 
+                          ? "bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent"
+                          : "text-blue-600"
+                      }`}>
                         {plan.price}
                       </div>
+                      {plan.id === "custom" && (
+                        <p className="text-xs text-purple-600 mt-1 font-medium">
+                          Contact us for personalized pricing
+                        </p>
+                      )}
                     </div>
 
                     <div className="space-y-3">
@@ -1054,41 +808,89 @@ const Onboarding: React.FC = () => {
                   <p className="text-sm text-gray-600 mb-4">
                     {watch("plan") === "base"
                       ? "Base plan includes 1 AI Employee"
-                      : "Advanced plan supports up to 3 AI Employees"}
+                      : watch("plan") === "advanced"
+                      ? "Advanced plan supports up to 3 AI Employees"
+                      : "Custom plan allows up to 4 AI Employees with full customization"}
                   </p>
                 </div>
 
                 <div className="flex justify-center">
-                  <div className="flex flex-wrap gap-3 justify-center">
-                    {(() => {
-                      const selectedPlan = planOptions.find(
-                        (p) => p.id === watch("plan")
-                      );
-                      const maxAgents = selectedPlan?.maxAgents || 1;
-                      return Array.from(
-                        { length: maxAgents },
-                        (_, i) => i + 1
-                      ).map((count) => (
-                        <label
-                          key={count}
-                          className={`px-6 py-3 rounded-lg cursor-pointer transition-all font-medium text-sm flex items-center justify-center min-w-[120px] ${
-                            watch("agentCount") === count
-                              ? "bg-blue-600 text-white shadow-lg"
-                              : "bg-gray-100 text-gray-700 hover:bg-blue-50 border border-gray-200"
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            value={count}
-                            checked={watch("agentCount") === count}
-                            onChange={() => setValue("agentCount", count)}
-                            className="sr-only"
-                          />
-                          {count} {count === 1 ? "AI Employee" : "AI Employees"}
-                        </label>
-                      ));
-                    })()}
-                  </div>
+                  {watch("plan") === "custom" ? (
+                    <div className="w-full max-w-md space-y-4">
+                      <div className="text-center mb-4">
+                        <p className="text-sm text-purple-600 font-medium">
+                          Choose your AI workforce size
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Each AI Employee can handle different tasks simultaneously
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        {Array.from({ length: 4 }, (_, i) => i + 1).map((count) => (
+                          <label
+                            key={count}
+                            className={`px-4 py-6 rounded-xl cursor-pointer transition-all font-medium text-sm flex flex-col items-center justify-center space-y-2 ${
+                              watch("agentCount") === count
+                                ? "bg-gradient-to-br from-purple-500 to-blue-500 text-white shadow-lg transform scale-105"
+                                : "bg-gradient-to-br from-purple-50 to-blue-50 text-gray-700 hover:from-purple-100 hover:to-blue-100 border border-purple-200"
+                            }`}
+                          >
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                              watch("agentCount") === count
+                                ? "bg-white bg-opacity-20"
+                                : "bg-purple-200"
+                            }`}>
+                              <Bot className={`w-5 h-5 ${
+                                watch("agentCount") === count ? "text-white" : "text-purple-600"
+                              }`} />
+                            </div>
+                            <input
+                              type="radio"
+                              value={count}
+                              checked={watch("agentCount") === count}
+                              onChange={() => setValue("agentCount", count)}
+                              className="sr-only"
+                            />
+                            <span className="text-2xl font-bold">{count}</span>
+                            <span className="text-xs text-center">
+                              {count === 1 ? "AI Employee" : "AI Employees"}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-3 justify-center">
+                      {(() => {
+                        const selectedPlan = planOptions.find(
+                          (p) => p.id === watch("plan")
+                        );
+                        const maxAgents = selectedPlan?.maxAgents || 1;
+                        return Array.from(
+                          { length: maxAgents },
+                          (_, i) => i + 1
+                        ).map((count) => (
+                          <label
+                            key={count}
+                            className={`px-6 py-3 rounded-lg cursor-pointer transition-all font-medium text-sm flex items-center justify-center min-w-[120px] ${
+                              watch("agentCount") === count
+                                ? "bg-blue-600 text-white shadow-lg"
+                                : "bg-gray-100 text-gray-700 hover:bg-blue-50 border border-gray-200"
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              value={count}
+                              checked={watch("agentCount") === count}
+                              onChange={() => setValue("agentCount", count)}
+                              className="sr-only"
+                            />
+                            {count} {count === 1 ? "AI Employee" : "AI Employees"}
+                          </label>
+                        ));
+                      })()}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1100,32 +902,14 @@ const Onboarding: React.FC = () => {
                   <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">
                     Billing Information
                   </h3>
-                  <p className="text-sm text-gray-600 mb-4">
-                    Choose your billing preference
-                  </p>
+                
                 </div>
 
-                {/* Offline Billing Option */}
-                <div className="max-w-2xl mx-auto mb-6">
-                  <div className="flex items-center justify-center space-x-3 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200">
-                    <input
-                      {...register("offlineBilling")}
-                      type="checkbox"
-                      id="offlineBilling"
-                      className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
-                    />
-                    <label
-                      htmlFor="offlineBilling"
-                      className="text-sm font-medium text-gray-700 cursor-pointer"
-                    >
-                      📄 Prefer offline billing (invoices sent manually)
-                    </label>
-                  </div>
-                </div>
+              
 
                 {/* Show billing form only if offline billing is not selected */}
                 {!watch("offlineBilling") && (
-                  <div className="max-w-2xl mx-auto space-y-6">
+                  <div className="max-w-4xl mx-auto space-y-6">
                     {/* Billing Contact */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
@@ -1292,8 +1076,7 @@ const Onboarding: React.FC = () => {
             setSelectedTemplates={setSelectedTemplates}
             showTemplateFeatures={showTemplateFeatures}
             setShowTemplateFeatures={setShowTemplateFeatures}
-            showUseCaseDropdown={showUseCaseDropdown}
-            setShowUseCaseDropdown={setShowUseCaseDropdown}
+
           />
         );
 
@@ -1413,14 +1196,13 @@ const Onboarding: React.FC = () => {
             <h3 className="text-2xl font-bold text-gray-900 mb-3">Success!</h3>
             <div className="space-y-3 text-left bg-gray-50 p-4 rounded-lg mb-6">
               <p className="text-gray-800 font-medium">
-                Your requirements have been submitted.
+                Your AI Employee is being set up.
               </p>
               <p className="text-gray-700">
-                Your AI Employee is being configured. Please check back shortly
-                – you'll soon be able to test, refine, and go live with ShivAI.
+               You’ll soon be able to test, refine, and go live with ShivAI.
               </p>
               <p className="text-gray-700">
-                We'll notify you the moment it's ready to take calls.
+               We’ll notify you as soon as it’s ready to take calls.
               </p>
             </div>
             <button

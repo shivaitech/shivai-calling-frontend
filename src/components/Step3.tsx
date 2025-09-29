@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   UseFormRegister,
   UseFormWatch,
@@ -19,6 +19,7 @@ import {
   Monitor,
   Users,
   Phone,
+  Crown,
 } from "lucide-react";
 
 // Individual AI Employee Configuration
@@ -65,6 +66,26 @@ export interface AgentConfig {
   consentNotes?: string;
 }
 
+// Template interface
+interface AgentTemplate {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  agentName: string;
+  personality: string;
+  responseStyle: string;
+  escalationRules: string;
+  languages: string[];
+  agentVoice: string;
+  agentGender: string;
+  agentBehavior: string;
+  voiceStyle: string;
+  specialInstructions: string;
+  features: string[];
+  triggerCases: string[];
+}
+
 // Form data interface
 export interface OnboardingFormData {
   companyName: string;
@@ -84,7 +105,7 @@ export interface OnboardingFormData {
   businessStates?: string[];
   businessCities?: string[];
   // Plan information
-  plan: "base" | "advanced" | "";
+  plan: "base" | "advanced" | "custom" | "";
   agentCount: number;
   agents: AgentConfig[];
   // Billing information
@@ -121,12 +142,6 @@ interface Step3Props {
       | Record<number, boolean>
       | ((prev: Record<number, boolean>) => Record<number, boolean>)
   ) => void;
-  showUseCaseDropdown: Record<number, boolean>;
-  setShowUseCaseDropdown: (
-    dropdown:
-      | Record<number, boolean>
-      | ((prev: Record<number, boolean>) => Record<number, boolean>)
-  ) => void;
 }
 
 const agentTypeOptions = [
@@ -136,6 +151,7 @@ const agentTypeOptions = [
 ];
 
 const languageOptions = [
+  { value: "All", label: "Multilingual" },
   { value: "english", label: "English" },
   { value: "french", label: "French" },
   { value: "german", label: "German" },
@@ -186,50 +202,13 @@ const voiceStyleOptions = [
   { value: "confident", label: "Confident & Assertive" },
 ];
 
-const useCaseOptions = [
+// Template system - Direct template selection without use case step
+const agentTemplates: AgentTemplate[] = [
   {
-    value: "sales-business-development",
-    label: "Sales & Business Development",
+    id: "sales-business-development",
+    name: "Sales & Business Development",
     description: "Lead qualification, product demos, follow-ups, upselling",
-  },
-  {
-    value: "customer-support-service",
-    label: "Customer Support & Service",
-    description: "Complaints handling, FAQs, issue resolution, escalations",
-  },
-  {
-    value: "appointment-scheduling",
-    label: "Appointment & Scheduling",
-    description: "Bookings, reminders, confirmations, cancellations",
-  },
-  {
-    value: "order-billing",
-    label: "Order Management & Billing",
-    description: "Order taking, payment support, billing queries, refunds",
-  },
-  {
-    value: "product-service-explainers",
-    label: "Product / Service Explainers",
-    description: "Guided walkthroughs, feature education, onboarding help",
-  },
-  {
-    value: "feedback-engagement",
-    label: "Feedback & Engagement",
-    description: "Surveys, NPS collection, post-service follow-ups",
-  },
-  {
-    value: "custom-workflows",
-    label: "Custom Workflows",
-    description: "Any business-specific processes not covered above",
-  },
-];
-
-const agentTemplates = [
-  {
-    id: "sales-agent",
-    name: "Sales AI Employee",
-    description: "Focused on lead generation and qualification",
-    triggerCases: ["sales-business-development"],
+    icon: "📈",
     agentName: "Sales AI Employee",
     personality: "enthusiastic",
     responseStyle: "conversational",
@@ -247,12 +226,13 @@ const agentTemplates = [
       "Follow-up scheduling",
       "CRM integration",
     ],
+    triggerCases: ["sales-business-development"],
   },
   {
-    id: "support-agent",
-    name: "Customer Support AI Employee",
-    description: "Handles general customer inquiries and support",
-    triggerCases: ["customer-support-service"],
+    id: "customer-support-service",
+    name: "Customer Support & Service",
+    description: "Complaints handling, FAQs, issue resolution, escalations",
+    icon: "🎧",
     agentName: "Support AI Employee",
     personality: "friendly",
     responseStyle: "detailed",
@@ -270,13 +250,14 @@ const agentTemplates = [
       "Multi-language support",
       "Escalation management",
     ],
+    triggerCases: ["customer-support-service"],
   },
   {
-    id: "service-agent",
-    name: "Service AI Employee",
-    description: "Manages appointments, orders, and billing",
-    triggerCases: ["appointment-scheduling", "order-billing"],
-    agentName: "Service AI Employee",
+    id: "appointment-scheduling",
+    name: "Appointment & Scheduling",
+    description: "Bookings, reminders, confirmations, cancellations",
+    icon: "📅",
+    agentName: "Scheduling AI Employee",
     personality: "professional",
     responseStyle: "structured",
     escalationRules: "smart",
@@ -284,29 +265,79 @@ const agentTemplates = [
     agentVoice: "alloy",
     agentGender: "neutral",
     agentBehavior: "analytical",
-    voiceStyle: "natural",
-    specialInstructions: "Be precise with scheduling and order details.",
+    voiceStyle: "formal",
+    specialInstructions:
+      "Be precise with scheduling details and always confirm appointments.",
     features: [
       "Calendar integration",
-      "Payment processing",
-      "Order management",
-      "Billing inquiry handling",
+      "Automated reminders",
+      "Booking confirmations",
+      "Cancellation management",
     ],
+    triggerCases: ["appointment-scheduling"],
   },
   {
-    id: "feedback-agent",
-    name: "Feedback & Survey AI Employee",
-    description: "Collects customer feedback and conducts surveys",
-    triggerCases: ["feedback-engagement"],
-    agentName: "Feedback AI Employee",
+    id: "order-billing",
+    name: "Order Management & Billing",
+    description: "Order taking, payment support, billing queries, refunds",
+    icon: "💳",
+    agentName: "Order Management AI Employee",
+    personality: "professional",
+    responseStyle: "structured",
+    escalationRules: "smart",
+    languages: ["english"],
+    agentVoice: "onyx",
+    agentGender: "neutral",
+    agentBehavior: "analytical",
+    voiceStyle: "formal",
+    specialInstructions:
+      "Be accurate with order details and payment information.",
+    features: [
+      "Order processing",
+      "Payment integration",
+      "Billing inquiries",
+      "Refund handling",
+    ],
+    triggerCases: ["order-billing"],
+  },
+  {
+    id: "product-service-explainers",
+    name: "Product / Service Explainers",
+    description: "Guided walkthroughs, feature education, onboarding help",
+    icon: "📚",
+    agentName: "Product Expert AI Employee",
     personality: "friendly",
     responseStyle: "conversational",
-    escalationRules: "no-escalation",
+    escalationRules: "smart",
     languages: ["english"],
     agentVoice: "fable",
     agentGender: "neutral",
     agentBehavior: "consultative",
     voiceStyle: "natural",
+    specialInstructions:
+      "Make complex information easy to understand and engaging.",
+    features: [
+      "Interactive tutorials",
+      "Feature demonstrations",
+      "Onboarding guides",
+      "Documentation access",
+    ],
+    triggerCases: ["product-service-explainers"],
+  },
+  {
+    id: "feedback-engagement",
+    name: "Feedback & Engagement",
+    description: "Surveys, NPS collection, post-service follow-ups",
+    icon: "📊",
+    agentName: "Feedback AI Employee",
+    personality: "friendly",
+    responseStyle: "conversational",
+    escalationRules: "no-escalation",
+    languages: ["english"],
+    agentVoice: "shimmer",
+    agentGender: "neutral",
+    agentBehavior: "consultative",
+    voiceStyle: "casual",
     specialInstructions:
       "Be encouraging and make surveys feel like conversations.",
     features: [
@@ -315,6 +346,31 @@ const agentTemplates = [
       "Response tracking",
       "Report generation",
     ],
+    triggerCases: ["feedback-engagement"],
+  },
+  {
+    id: "custom-workflows",
+    name: "Custom Workflows",
+    description: "Any business-specific processes not covered above",
+    icon: "🎯",
+    agentName: "Custom AI Employee",
+    personality: "professional",
+    responseStyle: "adaptable",
+    escalationRules: "smart",
+    languages: ["english"],
+    agentVoice: "alloy",
+    agentGender: "neutral",
+    agentBehavior: "consultative",
+    voiceStyle: "natural",
+    specialInstructions:
+      "Adapt to different conversation types and handle custom business processes.",
+    features: [
+      "Flexible workflow handling",
+      "Custom process automation",
+      "Adaptive responses",
+      "Business-specific logic",
+    ],
+    triggerCases: ["custom-workflows"],
   },
 ];
 
@@ -331,8 +387,6 @@ const Step3: React.FC<Step3Props> = ({
   setSelectedTemplates,
   showTemplateFeatures,
   setShowTemplateFeatures,
-  showUseCaseDropdown,
-  setShowUseCaseDropdown,
 }) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
   // UI state for modern always-visible sections
@@ -350,6 +404,41 @@ const Step3: React.FC<Step3Props> = ({
   );
 
   // State for simplified form management
+
+  // Plan-based consent preselection effect
+  useEffect(() => {
+    const currentPlan = watch("plan");
+    const currentAgent = watch(`agents.${activeAgentTab}`);
+
+    if (currentPlan && currentAgent) {
+      // Plan feature mapping - Advanced and Custom plans get privacy features
+      if (currentPlan === "advanced" || currentPlan === "custom") {
+        // Preselect features for Advanced/Custom plans
+        setValue(`agents.${activeAgentTab}.recordingEnabled`, true);
+        setValue(`agents.${activeAgentTab}.transcriptEmailOptIn`, true);
+
+        // Set advanced consent notes
+        if (!currentAgent.consentNotes) {
+          setValue(
+            `agents.${activeAgentTab}.consentNotes`,
+            "Advanced privacy features enabled. Call recording and transcript services available with proper user consent as per plan features."
+          );
+        }
+      } else if (currentPlan === "base") {
+        // Force disable for Basic plan
+        setValue(`agents.${activeAgentTab}.recordingEnabled`, false);
+        setValue(`agents.${activeAgentTab}.transcriptEmailOptIn`, false);
+
+        // Set basic consent notes
+        if (!currentAgent.consentNotes) {
+          setValue(
+            `agents.${activeAgentTab}.consentNotes`,
+            "Basic privacy compliance. Standard call handling without recording. Upgrade to Advanced plan to enable call recording and transcript features."
+          );
+        }
+      }
+    }
+  }, [watch("plan"), activeAgentTab, setValue, watch]);
 
   // Helper functions for managing dynamic arrays (website management removed for simplicity)
 
@@ -482,388 +571,209 @@ const Step3: React.FC<Step3Props> = ({
       </div>
 
       {/* Comprehensive Template Selection Section */}
-      <div className="space-y-3 sm:space-y-4">
-        <div>
-          <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-2">
-            Select Use Cases for AI Employee {activeAgentTab + 1}
-          </h3>
-          <p className="text-xs sm:text-sm text-gray-600 mb-3">
-            Choose what this AI Employee will help with. Select multiple use
-            cases for a versatile AI Employee.
-          </p>
-
-          <div className="relative" data-dropdown-trigger>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowUseCaseDropdown((prev) => ({
-                  ...prev,
-                  [activeAgentTab]: !prev[activeAgentTab],
-                }));
-              }}
-              className="w-full px-3 sm:px-4 py-2 sm:py-3 text-left border border-gray-300 rounded-lg bg-white flex items-center justify-between focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-            >
-              <div className="flex flex-wrap gap-1">
-                {(() => {
-                  const selectedUseCases =
-                    watch(`agents.${activeAgentTab}.useCases`) || [];
-                  if (selectedUseCases.length === 0) {
-                    return (
-                      <span className="text-gray-500">Select use cases...</span>
-                    );
-                  }
-                  if (selectedUseCases.length <= 2) {
-                    return selectedUseCases.map((value) => {
-                      const option = useCaseOptions.find(
-                        (opt) => opt.value === value
-                      );
-                      return (
-                        <span
-                          key={value}
-                          className="bg-blue-100 text-blue-800 px-2 py-1 rounded-md text-sm"
-                        >
-                          {option?.label}
-                        </span>
-                      );
-                    });
-                  }
-                  return (
-                    <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-md text-sm">
-                      {selectedUseCases.length} use cases selected
-                    </span>
-                  );
-                })()}
-              </div>
-              <ChevronDown
-                className={`w-5 h-5 text-gray-400 transition-transform ${
-                  showUseCaseDropdown[activeAgentTab] ? "rotate-180" : ""
-                }`}
-              />
-            </button>
-
-            {showUseCaseDropdown[activeAgentTab] && (
-              <div
-                className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-80 overflow-y-auto"
-                data-dropdown
-              >
-                {useCaseOptions.map((option) => {
-                  const isSelected =
-                    watch(`agents.${activeAgentTab}.useCases`)?.includes(
-                      option.value
-                    ) || false;
-                  return (
-                    <label
-                      key={option.value}
-                      className="flex items-start px-3 sm:px-4 py-2 sm:py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={(e) => {
-                          const currentUseCases =
-                            watch(`agents.${activeAgentTab}.useCases`) || [];
-                          if (e.target.checked) {
-                            setValue(`agents.${activeAgentTab}.useCases`, [
-                              ...currentUseCases,
-                              option.value,
-                            ]);
-                          } else {
-                            setValue(
-                              `agents.${activeAgentTab}.useCases`,
-                              currentUseCases.filter(
-                                (uc) => uc !== option.value
-                              )
-                            );
-                          }
-                        }}
-                        className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 mr-3 mt-0.5"
-                      />
-                      <div className="flex-1">
-                        <div className="text-sm font-medium text-gray-900">
-                          {option.label}
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          {option.description}
-                        </div>
-                      </div>
-                    </label>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Primary Use Case Display */}
-        {(() => {
-          const selectedUseCases =
-            watch(`agents.${activeAgentTab}.useCases`) || [];
-          const primaryUseCase = watch(
-            `agents.${activeAgentTab}.primaryUseCase`
-          );
-
-          if (selectedUseCases.length > 0) {
-            return (
-              <div className="bg-gray-50 p-3 rounded-lg">
-                <h4 className="text-sm font-medium text-gray-900 mb-2">
-                  Primary Use Case
-                </h4>
-                <p className="text-xs text-gray-600 mb-2">
-                  This AI Employee's main focus:
-                </p>
-                {selectedUseCases.length === 1 ? (
-                  <div className="flex items-center justify-between">
-                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
-                      {
-                        useCaseOptions.find(
-                          (opt) => opt.value === selectedUseCases[0]
-                        )?.label
-                      }
-                    </span>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <select
-                      value={primaryUseCase || selectedUseCases[0]}
-                      onChange={(e) =>
-                        setValue(
-                          `agents.${activeAgentTab}.primaryUseCase`,
-                          e.target.value
-                        )
-                      }
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      {selectedUseCases.map((useCase) => {
-                        const option = useCaseOptions.find(
-                          (opt) => opt.value === useCase
-                        );
-                        return (
-                          <option key={useCase} value={useCase}>
-                            {option?.label || useCase}
-                          </option>
-                        );
-                      })}
-                    </select>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-500">
-                        Secondary:{" "}
-                        {selectedUseCases
-                          .filter(
-                            (uc) =>
-                              uc !== (primaryUseCase || selectedUseCases[0])
-                          )
-                          .map(
-                            (uc) =>
-                              useCaseOptions.find((opt) => opt.value === uc)
-                                ?.label || uc
-                          )
-                          .join(", ")}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          }
-          return null;
-        })()}
-      </div>
-
-      {/* Template Selection */}
+      {/* Template Selection - Simplified to direct selection */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-3">
-          Choose a Template (Optional)
+        <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-2 sm:mb-3">
+          Choose a Template for AI Employee {activeAgentTab + 1}
         </h3>
-        <p className="text-sm text-gray-600 mb-4">
-          Start with a pre-configured template based on your selected use cases,
-          or configure manually.
+        <p className="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">
+          Select a pre-configured template that matches your business needs, or
+          start from scratch.
         </p>
 
-        {(() => {
-          const selectedUseCases =
-            watch(`agents.${activeAgentTab}.useCases`) || [];
-          if (selectedUseCases.length === 0) {
-            return (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                <p className="text-blue-800 text-sm">
-                  💡 Select use cases above to see recommended templates for
-                  your AI Employee.
-                </p>
-              </div>
-            );
-          }
-          return null;
-        })()}
-
-        {/* Template Slider */}
+        {/* Template Grid */}
         <div className="relative">
           <div
-            className="flex overflow-x-auto gap-4 pb-4"
+            className="flex overflow-x-auto gap-3 sm:gap-4 pb-4 px-1"
             style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
           >
-            {(() => {
-              const agentUseCases =
-                watch(`agents.${activeAgentTab}.useCases`) || [];
+            {agentTemplates.map((template) => {
+              const isSelected =
+                selectedTemplates[activeAgentTab] === template.id;
 
-              // Sort templates to show recommended ones first
-              const sortedTemplates = [...agentTemplates].sort((a, b) => {
-                // If 3+ use cases selected, show custom template first
-                if (agentUseCases.length >= 3) {
-                  if (a.id === "custom-multi-purpose") return -1;
-                  if (b.id === "custom-multi-purpose") return 1;
-                }
+              return (
+                <div
+                  key={template.id}
+                  className={`flex-shrink-0 w-64 sm:w-72 border rounded-lg p-3 sm:p-4 cursor-pointer transition-all ${
+                    isSelected
+                      ? "border-blue-500 bg-blue-50 shadow-md"
+                      : "border-gray-200 hover:border-gray-300"
+                  }`}
+                  onClick={() => {
+                    // Core agent identity
+                    setValue(
+                      `agents.${activeAgentTab}.agentName`,
+                      template.agentName
+                    );
+                    setValue(
+                      `agents.${activeAgentTab}.selectedTemplate`,
+                      template.id
+                    );
+                    setValue(
+                      `agents.${activeAgentTab}.templateFeatures`,
+                      template.features
+                    );
 
-                const aMatches = a.triggerCases.filter((trigger) =>
-                  agentUseCases.includes(trigger)
-                ).length;
-                const bMatches = b.triggerCases.filter((trigger) =>
-                  agentUseCases.includes(trigger)
-                ).length;
-                return bMatches - aMatches; // Sort by match count descending
-              });
+                    // Agent type based on template (matching dropdown values)
+                    const agentType = template.id.includes("sales")
+                      ? "sales"
+                      : template.id.includes("support")
+                      ? "support"
+                      : template.id.includes("appointment")
+                      ? "appointment"
+                      : "support";
+                    setValue(`agents.${activeAgentTab}.agentType`, agentType);
 
-              return sortedTemplates.map((template) => {
-                const matchCount = template.triggerCases.filter((trigger) =>
-                  agentUseCases.includes(trigger)
-                ).length;
-                const isRecommended =
-                  matchCount > 0 ||
-                  (template.id === "custom-multi-purpose" &&
-                    agentUseCases.length >= 3);
-                const isSelected =
-                  selectedTemplates[activeAgentTab] === template.id;
+                    // Personality and behavior
+                    setValue(
+                      `agents.${activeAgentTab}.agentPersonality`,
+                      template.personality
+                    );
+                    setValue(
+                      `agents.${activeAgentTab}.responseStyle`,
+                      template.responseStyle
+                    );
+                    setValue(
+                      `agents.${activeAgentTab}.agentBehavior`,
+                      template.agentBehavior
+                    );
 
-                return (
-                  <div
-                    key={template.id}
-                    className={`flex-shrink-0 w-72 border rounded-lg p-4 cursor-pointer transition-all ${
-                      isSelected
-                        ? "border-blue-500 bg-blue-50 shadow-md"
-                        : isRecommended
-                        ? "border-green-300 bg-green-50"
-                        : "border-gray-200 hover:border-gray-300"
-                    }`}
-                    onClick={() => {
-                      setValue(
-                        `agents.${activeAgentTab}.agentName`,
-                        template.agentName
-                      );
-                      setValue(
-                        `agents.${activeAgentTab}.agentPersonality`,
-                        template.personality
-                      );
-                      setValue(
-                        `agents.${activeAgentTab}.responseStyle`,
-                        template.responseStyle
-                      );
-                      setValue(
-                        `agents.${activeAgentTab}.escalationRules`,
-                        template.escalationRules
-                      );
-                      setValue(
-                        `agents.${activeAgentTab}.specialInstructions`,
-                        template.specialInstructions
-                      );
-                      setValue(
-                        `agents.${activeAgentTab}.languages`,
-                        template.languages
-                      );
-                      setValue(
-                        `agents.${activeAgentTab}.agentVoice`,
-                        template.agentVoice
-                      );
-                      setValue(
-                        `agents.${activeAgentTab}.agentGender`,
-                        template.agentGender
-                      );
-                      setValue(
-                        `agents.${activeAgentTab}.agentBehavior`,
-                        template.agentBehavior
-                      );
-                      setValue(
-                        `agents.${activeAgentTab}.voiceStyle`,
-                        template.voiceStyle
-                      );
+                    // Communication settings
+                    setValue(
+                      `agents.${activeAgentTab}.escalationRules`,
+                      template.escalationRules
+                    );
+                    setValue(
+                      `agents.${activeAgentTab}.specialInstructions`,
+                      template.specialInstructions
+                    );
 
-                      // Set primary use case based on template's main trigger case
-                      if (template.triggerCases.length > 0) {
-                        setValue(
-                          `agents.${activeAgentTab}.primaryUseCase`,
-                          template.triggerCases[0]
-                        );
-                      }
+                    // Language and voice settings
+                    setValue(
+                      `agents.${activeAgentTab}.languages`,
+                      template.languages
+                    );
+                    setValue(
+                      `agents.${activeAgentTab}.preferredLanguage`,
+                      template.languages[0] || "english"
+                    );
+                    setValue(
+                      `agents.${activeAgentTab}.agentVoice`,
+                      template.agentVoice
+                    );
+                    setValue(
+                      `agents.${activeAgentTab}.agentGender`,
+                      template.agentGender
+                    );
+                    setValue(
+                      `agents.${activeAgentTab}.voiceGender`,
+                      template.agentGender
+                    );
+                    setValue(
+                      `agents.${activeAgentTab}.voiceStyle`,
+                      template.voiceStyle
+                    );
 
-                      // Template values are now directly set via setValue
+                    // Set primary use case based on template's main trigger case
+                    if (template.triggerCases.length > 0) {
+                      setValue(
+                        `agents.${activeAgentTab}.primaryUseCase`,
+                        template.triggerCases[0]
+                      );
+                      setValue(
+                        `agents.${activeAgentTab}.useCases`,
+                        template.triggerCases
+                      );
+                    }
 
-                      setSelectedTemplates((prev) => ({
-                        ...prev,
-                        [activeAgentTab]: template.id,
-                      }));
-                      setShowTemplateFeatures((prev) => ({
-                        ...prev,
-                        [activeAgentTab]: true,
-                      }));
-                    }}
-                  >
-                    <div className="flex justify-between items-start mb-3">
-                      {isRecommended && (
-                        <div
-                          className={`text-xs px-2 py-1 rounded-full ${
-                            template.id === "custom-multi-purpose" &&
-                            agentUseCases.length >= 3
-                              ? "bg-purple-100 text-purple-800"
-                              : matchCount > 0
-                              ? "bg-green-100 text-green-800"
-                              : "bg-blue-100 text-blue-800"
-                          }`}
-                        >
-                          {template.id === "custom-multi-purpose" &&
-                          agentUseCases.length >= 3
-                            ? `🎯 Best for ${agentUseCases.length} Use Cases`
-                            : matchCount > 0
-                            ? `⭐ Matches ${matchCount} Use Case${
-                                matchCount > 1 ? "s" : ""
-                              }`
-                            : "💡 Alternative Option"}
-                        </div>
-                      )}
-                      {isSelected && (
-                        <div className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-                          ✓ Selected
-                        </div>
-                      )}
-                    </div>
+                    // Set default success metrics based on template type
+                    const defaultMetrics = template.id.includes("sales")
+                      ? [
+                          "Lead conversion rate",
+                          "Meeting bookings",
+                          "Follow-up completion",
+                        ]
+                      : template.id.includes("support")
+                      ? [
+                          "Issue resolution time",
+                          "Customer satisfaction",
+                          "First call resolution",
+                        ]
+                      : template.id.includes("appointment")
+                      ? [
+                          "Booking completion rate",
+                          "No-show reduction",
+                          "Calendar efficiency",
+                        ]
+                      : [
+                          "Task completion rate",
+                          "User engagement",
+                          "Process efficiency",
+                        ];
 
-                    <h4 className="font-semibold text-gray-900 mb-2">
-                      {template.name}
-                    </h4>
-                    <p className="text-sm text-gray-600 mb-3">
-                      {template.description}
-                    </p>
+                    setValue(
+                      `agents.${activeAgentTab}.successMetrics`,
+                      defaultMetrics
+                    );
 
-                    <div className="text-xs text-gray-500 border-t pt-2 space-y-1">
-                      <p>
-                        <strong>Style:</strong>{" "}
-                        {
-                          responseStyleOptions.find(
-                            (s) => s.value === template.responseStyle
-                          )?.label
-                        }
-                      </p>
-                      <p>
-                        <strong>Escalation:</strong>{" "}
-                        {
-                          escalationOptions.find(
-                            (e) => e.value === template.escalationRules
-                          )?.label
-                        }
-                      </p>
-                    </div>
+                    // Set default call volume expectation
+                    setValue(
+                      `agents.${activeAgentTab}.expectedCallVolume`,
+                      "medium"
+                    );
+
+                    // Template selection complete
+
+                    setSelectedTemplates((prev) => ({
+                      ...prev,
+                      [activeAgentTab]: template.id,
+                    }));
+                    setShowTemplateFeatures((prev) => ({
+                      ...prev,
+                      [activeAgentTab]: true,
+                    }));
+
+                    // Automatically show advanced configuration when template is selected
+                    setShowAdvanced(true);
+                  }}
+                >
+                  <div className="flex justify-between items-start mb-2 sm:mb-3">
+                    <div className="text-xl sm:text-2xl">{template.icon}</div>
+                    {isSelected && (
+                      <div className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                        ✓ Selected
+                      </div>
+                    )}
                   </div>
-                );
-              });
-            })()}
+
+                  <h4 className="font-semibold text-gray-900 mb-1 sm:mb-2 text-sm sm:text-base">
+                    {template.name}
+                  </h4>
+                  <p className="text-xs sm:text-sm text-gray-600 mb-2 sm:mb-3 leading-relaxed">
+                    {template.description}
+                  </p>
+
+                  <div className="text-xs text-gray-500 border-t pt-2 space-y-1">
+                    <p>
+                      <strong>Style:</strong>{" "}
+                      {
+                        responseStyleOptions.find(
+                          (s) => s.value === template.responseStyle
+                        )?.label
+                      }
+                    </p>
+                    <p>
+                      <strong>Escalation:</strong>{" "}
+                      {
+                        escalationOptions.find(
+                          (e) => e.value === template.escalationRules
+                        )?.label
+                      }
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           {/* Scroll indicators */}
@@ -952,6 +862,25 @@ const Step3: React.FC<Step3Props> = ({
                     {selectedTemplate.specialInstructions}
                   </p>
                 </div>
+
+                <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center mb-2">
+                    <span className="text-green-500 mr-2">✓</span>
+                    <h5 className="font-medium text-green-900">
+                      Configuration Applied Successfully
+                    </h5>
+                  </div>
+                  <p className="text-sm text-green-700">
+                    Basic agent configuration has been automatically filled
+                    based on this template. You can review and customize the
+                    settings in the sections below.
+                  </p>
+                  <div className="mt-2 text-xs text-green-600">
+                    <strong>Auto-configured:</strong> Agent name, voice
+                    settings, personality, response style, escalation rules,
+                    success metrics, and language preferences.
+                  </div>
+                </div>
               </div>
             );
           })()}
@@ -987,7 +916,7 @@ const Step3: React.FC<Step3Props> = ({
                       message: "Name must be at least 2 characters",
                     },
                   })}
-                  className={`w-full px-3 py-2.5 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all hover:border-gray-400 ${
+                  className={`w-full px-3 sm:px-3 py-3 sm:py-2.5 text-base sm:text-sm border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all hover:border-gray-400 ${
                     errors?.agents?.[activeAgentTab]?.agentName
                       ? "border-red-500 bg-red-50"
                       : "border-gray-300"
@@ -1114,11 +1043,11 @@ const Step3: React.FC<Step3Props> = ({
             </div>
 
             {/* Advanced Configuration Toggle */}
-            <div className="border-t pt-6">
+            <div className="border-t pt-4 sm:pt-6">
               <button
                 type="button"
                 onClick={() => setShowAdvanced(!showAdvanced)}
-                className="flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors"
+                className="flex items-center gap-2 text-sm sm:text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors w-full justify-center sm:justify-start py-2 sm:py-0"
               >
                 <ChevronDown
                   className={`w-4 h-4 transition-transform ${
@@ -1637,53 +1566,149 @@ const Step3: React.FC<Step3Props> = ({
 
         <div className="bg-white rounded-lg p-3 sm:p-4 shadow-sm">
           <div className="space-y-4 sm:space-y-6">
-            {/* Recording Options */}
-            <div>
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  {...register(`agents.${activeAgentTab}.recordingEnabled`)}
-                  className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                />
-                <span className="ml-2 text-sm font-medium text-gray-700">
-                  Enable call recording
-                </span>
-              </label>
-              <p className="text-xs text-gray-500 mt-1 ml-6">
-                Record conversations for quality and training purposes
-              </p>
-            </div>
+            {(() => {
+              const currentPlan = watch("plan");
+              const isBasicPlan = currentPlan === "base";
 
-            {/* Transcript Email Opt-in */}
-            <div>
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  {...register(`agents.${activeAgentTab}.transcriptEmailOptIn`)}
-                  className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                />
-                <span className="ml-2 text-sm font-medium text-gray-700">
-                  Enable transcript email opt-in
-                </span>
-              </label>
-              <p className="text-xs text-gray-500 mt-1 ml-6">
-                Allow users to opt-in to receive conversation transcripts via
-                email
-              </p>
-            </div>
+              return (
+                <>
+                  {/* Recording Options */}
+                  <div className={`${isBasicPlan ? "opacity-60" : ""}`}>
+                    <label
+                      className={`flex items-start p-2 sm:p-3 rounded-lg transition-colors ${
+                        isBasicPlan
+                          ? "cursor-not-allowed"
+                          : "cursor-pointer hover:bg-gray-50"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        {...register(
+                          `agents.${activeAgentTab}.recordingEnabled`
+                        )}
+                        disabled={isBasicPlan}
+                        className={`h-5 w-5 sm:h-4 sm:w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 mt-0.5 flex-shrink-0 ${
+                          isBasicPlan ? "cursor-not-allowed" : ""
+                        }`}
+                      />
+                      <div className="ml-3 sm:ml-2">
+                        <span className="text-sm sm:text-sm font-medium text-gray-700 block">
+                          Enable call recording
+                          {isBasicPlan && (
+                            <span className="ml-2 text-xs text-orange-600 font-normal">
+                              (Advanced Plan Required)
+                            </span>
+                          )}
+                        </span>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Record conversations for quality and training purposes
+                        </p>
+                        {isBasicPlan && (
+                          <p className="text-xs text-orange-600 mt-1 font-medium">
+                            You need Advanced plan or Custom to enable this
+                            feature
+                          </p>
+                        )}
+                      </div>
+                    </label>
+                  </div>
+
+                  {/* Transcript Email Opt-in */}
+                  <div className={`${isBasicPlan ? "opacity-60" : ""}`}>
+                    <label
+                      className={`flex items-start p-2 sm:p-3 rounded-lg transition-colors ${
+                        isBasicPlan
+                          ? "cursor-not-allowed"
+                          : "cursor-pointer hover:bg-gray-50"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        {...register(
+                          `agents.${activeAgentTab}.transcriptEmailOptIn`
+                        )}
+                        disabled={isBasicPlan}
+                        className={`h-5 w-5 sm:h-4 sm:w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 mt-0.5 flex-shrink-0 ${
+                          isBasicPlan ? "cursor-not-allowed" : ""
+                        }`}
+                      />
+                      <div className="ml-3 sm:ml-2">
+                        <span className="text-sm sm:text-sm font-medium text-gray-700 block">
+                          Enable transcript email opt-in
+                          {isBasicPlan && (
+                            <span className="ml-2 text-xs text-orange-600 font-normal">
+                              (Advanced Plan Required)
+                            </span>
+                          )}
+                        </span>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Allow users to opt-in to receive conversation
+                          transcripts via email
+                        </p>
+                        {isBasicPlan && (
+                          <p className="text-xs text-orange-600 mt-1 font-medium">
+                            You need Advanced plan or Custom to enable this
+                            feature
+                          </p>
+                        )}
+                      </div>
+                    </label>
+                  </div>
+                </>
+              );
+            })()}
 
             {/* Consent Notes */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
                 Privacy & Consent Notes
               </label>
               <textarea
                 {...register(`agents.${activeAgentTab}.consentNotes`)}
                 rows={3}
-                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                className="w-full px-3 sm:px-3 py-3 sm:py-2.5 text-base sm:text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                 placeholder="Additional privacy policies, consent requirements, or compliance notes..."
               />
             </div>
+
+            {/* Plan Upgrade Notice for Basic Plan */}
+            {(() => {
+              const currentPlan = watch("plan");
+              if (currentPlan === "base") {
+                return (
+                  <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-lg p-4">
+                    <div className="flex items-start space-x-3">
+                      <div className="flex-shrink-0">
+                        <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center">
+                          <Crown className="w-4 h-4 text-white" />
+                        </div>
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="text-sm font-semibold text-orange-900 mb-1">
+                          Unlock Advanced Privacy Features
+                        </h4>
+                        <p className="text-xs text-orange-700 mb-2">
+                          Upgrade to Advanced or Custom plan to access call
+                          recording and transcript email opt-in features.
+                        </p>
+                        <div className="flex flex-wrap gap-2 text-xs">
+                          <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded">
+                            ✓ Call Recording
+                          </span>
+                          <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded">
+                            ✓ Email Transcripts
+                          </span>
+                          <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded">
+                            ✓ Advanced Compliance
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
           </div>
         </div>
       </div>
@@ -1755,16 +1780,7 @@ const Step3: React.FC<Step3Props> = ({
                                   Use Cases: {agent.useCases.length} selected
                                 </div>
                               )}
-                              {agent.primaryUseCase && (
-                                <div className="text-xs text-purple-600">
-                                  Primary:{" "}
-                                  {
-                                    useCaseOptions.find(
-                                      (uc) => uc.value === agent.primaryUseCase
-                                    )?.label
-                                  }
-                                </div>
-                              )}
+
                               {agent.knowledgeWebsiteUrl && (
                                 <div className="text-xs text-green-600">
                                   Knowledge URL configured

@@ -29,27 +29,50 @@ export default function CountrySelector({
   );
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
         setSearchTerm("");
       }
     };
 
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsOpen(false);
+        setSearchTerm("");
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("touchstart", handleClickOutside);
+      document.addEventListener("keydown", handleEscape);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     setCustomDialCode(selectedCountry.dialCode);
   }, [selectedCountry]);
 
   const handleCountrySelect = (country: Country) => {
-    setCustomDialCode(country.dialCode);
-    setEditingDialCode(false);
-    onCountryChange?.(country);
-    setIsOpen(false);
-    setSearchTerm("");
+    try {
+      setCustomDialCode(country.dialCode);
+      setEditingDialCode(false);
+      onCountryChange?.(country);
+      setIsOpen(false);
+      setSearchTerm("");
+    } catch (error) {
+      console.error('Error selecting country:', error);
+      // Fallback to close dropdown
+      setIsOpen(false);
+      setSearchTerm("");
+    }
   };
 
   const handleDialCodeEdit = () => {
@@ -122,16 +145,22 @@ export default function CountrySelector({
             onChange={handleDialCodeChange}
             onKeyDown={handleDialCodeSubmit}
             onBlur={handleDialCodeBlur}
-            className="w-[60px] sm:w-[70px] md:w-[80px] h-[32px] sm:h-[40px] md:h-[48px] lg:h-14 px-1 sm:px-2 text-[10px] sm:text-xs md:text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-full text-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-[60px] sm:w-[70px] md:w-[80px] h-[38px] sm:h-[44px] md:h-[54px] lg:h-12 px-1 sm:px-2 text-[10px] sm:text-xs md:text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-full text-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             placeholder="+1"
           />
         ) : (
           <button
             type="button"
-            onClick={() => setIsOpen(!isOpen)}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setIsOpen(!isOpen);
+            }}
             onDoubleClick={handleDialCodeEdit}
-            className={`flex items-center justify-center gap-0.5 sm:gap-1 w-[60px] sm:w-[70px] md:w-[80px] h-[32px] sm:h-[40px] md:h-[48px] lg:h-14 bg-white rounded-full border border-gray-300 flex-shrink-0 hover:bg-gray-50 hover:border-gray-400 transition-all duration-150 ${isOpen ? 'ring-2 ring-blue-500 border-blue-500 bg-blue-50' : ''}`}
+            className={`flex items-center justify-center gap-0.5 sm:gap-1 w-[60px] sm:w-[70px] md:w-[80px] h-[38px] sm:h-[44px] md:h-[54px] lg:h-12 bg-white rounded-full border border-gray-300 flex-shrink-0 hover:bg-gray-50 hover:border-gray-400 transition-all duration-150 relative ${isOpen ? 'ring-2 ring-blue-500 border-blue-500 bg-blue-50' : ''}`}
             title="Click to select country, double-click to edit"
+            aria-expanded={isOpen}
+            aria-haspopup="listbox"
           >
             {selectedCountry.code === "US" ? (
               <USFlag className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
@@ -148,8 +177,12 @@ export default function CountrySelector({
 
       {isOpen && !editingDialCode && (
         <>
-          <div className="fixed inset-0 bg-black/20 z-[9990] sm:hidden" onClick={() => setIsOpen(false)} />
-          <div className="absolute top-0 left-0 right-0 mx-4 mt-16 sm:mx-0 sm:mt-1 sm:top-full sm:left-0 sm:right-auto w-auto sm:w-64 md:w-72 bg-white border border-gray-200 rounded-lg shadow-xl max-h-64 overflow-hidden z-[9999]">
+          <div 
+            className="fixed inset-0 bg-black/20 z-[99998] sm:hidden" 
+            onClick={() => setIsOpen(false)} 
+            onTouchStart={() => setIsOpen(false)}
+          />
+          <div className="absolute top-full left-0 right-0 sm:right-auto mt-2 w-full sm:w-64 md:w-72 bg-white border border-gray-200 rounded-lg shadow-xl max-h-64 overflow-hidden z-[99999]">
             <div className="p-2 sm:p-3 border-b border-gray-100">
               <input
                 type="text"
@@ -160,6 +193,12 @@ export default function CountrySelector({
                   if (e.key === 'Escape') {
                     setIsOpen(false);
                     setSearchTerm("");
+                  } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    // Select first filtered country if any
+                    if (filteredCountries.length > 0) {
+                      handleCountrySelect(filteredCountries[0]);
+                    }
                   }
                 }}
                 className="w-full px-2 py-1.5 text-xs sm:text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
@@ -167,16 +206,22 @@ export default function CountrySelector({
               />
             </div>
 
-            <div className="max-h-48 overflow-y-auto">
+            <div className="max-h-48 overflow-y-auto" role="listbox">
               {filteredCountries.length > 0 ? (
                 filteredCountries.slice(0, 12).map((country) => (
                   <button
                     key={country.code}
                     type="button"
-                    onClick={() => handleCountrySelect(country)}
-                    className={`w-full flex items-center gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-left hover:bg-blue-50 transition-all duration-150 ${
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleCountrySelect(country);
+                    }}
+                    className={`w-full flex items-center gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-left hover:bg-blue-50 active:bg-blue-100 transition-all duration-150 ${
                       selectedCountry.code === country.code ? 'bg-blue-50 border-r-2 border-blue-500' : ''
                     }`}
+                    role="option"
+                    aria-selected={selectedCountry.code === country.code}
                   >
                     {country.code === "US" ? (
                       <USFlag className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />

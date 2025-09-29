@@ -1,10 +1,11 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { motion, AnimatePresence } from "framer-motion";
-import CountrySelector from "./CountrySelector";
 import PhoneIcon from "./icons/PhoneIcon";
+import USFlag from "./icons/USFlag";
+import ChevronDown from "./icons/ChevronDown";
 import { formatPhoneNumber, validatePhoneNumber } from "../lib/phoneUtils";
-import { Country } from "../types/country";
+import { Country, defaultCountries } from "../types/country";
 
 interface PhoneFormData {
   phoneNumber: string;
@@ -27,6 +28,14 @@ export default function PhoneInputForm({ onSubmit, className = "" }: PhoneInputF
     dialCode: "+1"
   });
   
+  // Country selector state
+  const [isCountryDropdownOpen, setIsCountryDropdownOpen] = useState(false);
+  const [countrySearchTerm, setCountrySearchTerm] = useState("");
+  const [editingDialCode, setEditingDialCode] = useState(false);
+  const [customDialCode, setCustomDialCode] = useState(selectedCountry.dialCode);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const dialCodeInputRef = useRef<HTMLInputElement>(null);
+  
   const {
     register,
     handleSubmit,
@@ -40,6 +49,50 @@ export default function PhoneInputForm({ onSubmit, className = "" }: PhoneInputF
   });
 
   const phoneNumber = watch("phoneNumber");
+
+  // Filter countries based on search
+  const filteredCountries = defaultCountries.filter(
+    country =>
+      country.name.toLowerCase().includes(countrySearchTerm.toLowerCase()) ||
+      country.dialCode.includes(countrySearchTerm) ||
+      country.code.toLowerCase().includes(countrySearchTerm.toLowerCase())
+  );
+
+  // Update custom dial code when selected country changes
+  useEffect(() => {
+    setCustomDialCode(selectedCountry.dialCode);
+  }, [selectedCountry]);
+
+
+
+  // Handle click outside dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsCountryDropdownOpen(false);
+        setCountrySearchTerm("");
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsCountryDropdownOpen(false);
+        setCountrySearchTerm("");
+      }
+    };
+
+    if (isCountryDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("touchstart", handleClickOutside);
+      document.addEventListener("keydown", handleEscape);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [isCountryDropdownOpen]);
 
   // Timer effect for call duration
   useEffect(() => {
@@ -66,9 +119,79 @@ export default function PhoneInputForm({ onSubmit, className = "" }: PhoneInputF
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleCountryChange = useCallback((country: Country) => {
-    setSelectedCountry(country);
+  // Country selector functions
+  const handleCountrySelect = useCallback((country: Country) => {
+    try {
+      setCustomDialCode(country.dialCode);
+      setEditingDialCode(false);
+      setSelectedCountry(country);
+      setIsCountryDropdownOpen(false);
+      setCountrySearchTerm("");
+    } catch (error) {
+      console.error('Error selecting country:', error);
+      setIsCountryDropdownOpen(false);
+      setCountrySearchTerm("");
+    }
   }, []);
+
+  const handleDialCodeEdit = useCallback(() => {
+    setEditingDialCode(true);
+    setIsCountryDropdownOpen(false);
+    setTimeout(() => {
+      dialCodeInputRef.current?.focus();
+      dialCodeInputRef.current?.select();
+    }, 0);
+  }, []);
+
+  const handleDialCodeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value;
+    
+    if (!value.startsWith('+')) {
+      value = '+' + value.replace(/^\+*/, '');
+    }
+    
+    value = '+' + value.slice(1).replace(/\D/g, '');
+    setCustomDialCode(value);
+  }, []);
+
+  const handleDialCodeSubmit = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      setEditingDialCode(false);
+      
+      const matchingCountry = defaultCountries.find(c => c.dialCode === customDialCode);
+      if (matchingCountry) {
+        setSelectedCountry(matchingCountry);
+      } else {
+        const customCountry: Country = {
+          code: "XX",
+          name: "Custom",
+          flag: "🌐",
+          dialCode: customDialCode
+        };
+        setSelectedCountry(customCountry);
+      }
+    } else if (e.key === 'Escape') {
+      setEditingDialCode(false);
+      setCustomDialCode(selectedCountry.dialCode);
+    }
+  }, [customDialCode, selectedCountry]);
+
+  const handleDialCodeBlur = useCallback(() => {
+    setEditingDialCode(false);
+    
+    const matchingCountry = defaultCountries.find(c => c.dialCode === customDialCode);
+    if (matchingCountry) {
+      setSelectedCountry(matchingCountry);
+    } else {
+      const customCountry: Country = {
+        code: "XX",
+        name: "Custom",
+        flag: "🌐",
+        dialCode: customDialCode
+      };
+      setSelectedCountry(customCountry);
+    }
+  }, [customDialCode]);
 
   const formatPhoneWithCountry = useCallback((phoneNumber: string) => {
     if (selectedCountry.dialCode === "+1") {
@@ -157,15 +280,9 @@ export default function PhoneInputForm({ onSubmit, className = "" }: PhoneInputF
   return (
     <div className={`flex flex-col items-center w-full max-w-4xl relative ${className}`}>
       {/* Disclaimer */}
-      <div className="text-center mb-6 sm:mb-8 px-4">
+      <div className="text-center mb-4 sm:mb-6 px-2 sm:px-4">
         <p 
-          className="text-gray-500 text-[14px] sm:text-[16px] md:text-[18px] lg:text-lg font-normal leading-relaxed mb-2" 
-          style={{ fontFamily: 'Poppins, sans-serif' }}
-        >
-          We'll only use this once for your demo call, no spam
-        </p>
-        <p 
-          className="text-gray-400 text-[12px] sm:text-[14px] md:text-[16px] font-normal" 
+          className="text-gray-400 text-[11px] sm:text-[13px] md:text-[15px] lg:text-base font-normal leading-snug" 
           style={{ fontFamily: 'Poppins, sans-serif' }}
         >
           💡 Double-click the country code to type a custom one
@@ -181,17 +298,140 @@ export default function PhoneInputForm({ onSubmit, className = "" }: PhoneInputF
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.3 }}
             onSubmit={handleSubmit(onFormSubmit)} 
-            className="w-full max-w-3xl px-4 sm:px-0"
+            className="w-full max-w-4xl px-2 sm:px-4 lg:px-0 "
           >
-            <div className="w-full h-[56px] sm:h-[64px] md:h-[72px] lg:h-24 bg-white rounded-full border border-gray-200 shadow-lg relative overflow-hidden">
-              <div className="flex items-center justify-between h-full px-3 sm:px-4 lg:px-6">
+            <div className=" w-full h-[50px] sm:h-[60px] md:h-[70px] lg:h-20 bg-white rounded-full border border-gray-300 shadow-lg relative">
+              <div className="flex items-center justify-between h-full px-2 sm:px-3 md:px-4 lg:px-6">
                 {/* Country Selector & Phone Input */}
                 <div className="flex items-center flex-1 gap-2 sm:gap-3 lg:gap-4 min-w-0">
-                  <div className="flex-shrink-0">
-                    <CountrySelector 
-                      selectedCountry={selectedCountry}
-                      onCountryChange={handleCountryChange}
-                    />
+                  <div className="flex-shrink-0 relative z-[100]" ref={dropdownRef}>
+                    <div className="flex items-center">
+                      {editingDialCode ? (
+                        <input
+                          ref={dialCodeInputRef}
+                          type="text"
+                          value={customDialCode}
+                          onChange={handleDialCodeChange}
+                          onKeyDown={handleDialCodeSubmit}
+                          onBlur={handleDialCodeBlur}
+                          className="w-[60px] sm:w-[70px] md:w-[80px] h-[38px] sm:h-[44px] md:h-[54px] lg:h-12 px-1 sm:px-2 text-[10px] sm:text-xs md:text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-full text-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="+1"
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setIsCountryDropdownOpen(!isCountryDropdownOpen);
+                          }}
+                          onDoubleClick={handleDialCodeEdit}
+                          className={`flex items-center justify-center gap-0.5 sm:gap-1 w-[60px] sm:w-[70px] md:w-[80px] h-[38px] sm:h-[44px] md:h-[54px] lg:h-12 bg-white rounded-full border border-gray-300 flex-shrink-0 hover:bg-gray-50 hover:border-gray-400 transition-all duration-150 relative ${isCountryDropdownOpen ? 'ring-2 ring-blue-500 border-blue-500 bg-blue-50' : ''}`}
+                          title="Click to select country, double-click to edit"
+                          aria-expanded={isCountryDropdownOpen}
+                          aria-haspopup="listbox"
+                        >
+                          {selectedCountry.code === "US" ? (
+                            <USFlag className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+                          ) : (
+                            <span className="text-[10px] sm:text-xs flex-shrink-0">{selectedCountry.flag}</span>
+                          )}
+                          <span className="text-[8px] sm:text-[10px] md:text-xs font-medium text-gray-700 truncate max-w-[24px] sm:max-w-[32px]">
+                            {customDialCode.replace('+', '')}
+                          </span>
+                          <ChevronDown className={`w-2 h-2 sm:w-3 sm:h-3 text-gray-400 transition-transform ${isCountryDropdownOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Country Dropdown */}
+                    {isCountryDropdownOpen && !editingDialCode && (
+                      <>
+                        <div
+                          className="fixed inset-0 bg-black bg-opacity-10 z-50"
+                          onClick={() => setIsCountryDropdownOpen(false)}
+                          onTouchStart={() => setIsCountryDropdownOpen(false)}
+                        />
+                        <div className="absolute top-full left-0 mt-2 w-80 max-w-[90vw] bg-white border border-gray-200 rounded-lg shadow-xl max-h-96 overflow-hidden z-[60]">
+                          <div className="p-2 sm:p-3 border-b border-gray-100">
+                            <input
+                              type="text"
+                              placeholder="Search countries..."
+                              value={countrySearchTerm}
+                              onChange={(e) => setCountrySearchTerm(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Escape') {
+                                  setIsCountryDropdownOpen(false);
+                                  setCountrySearchTerm("");
+                                } else if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  if (filteredCountries.length > 0) {
+                                    handleCountrySelect(filteredCountries[0]);
+                                  }
+                                }
+                              }}
+                              className="w-full px-2 py-1.5 text-xs sm:text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                              autoFocus
+                            />
+                          </div>
+                          <div className="max-h-64 overflow-y-auto">
+                            {filteredCountries.length > 0 ? (
+                              filteredCountries.slice(0, 12).map((country) => (
+                                <button
+                                  key={country.code}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleCountrySelect(country);
+                                  }}
+                                  className={`w-full flex items-center gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-left hover:bg-blue-50 active:bg-blue-100 transition-all duration-150 ${
+                                    selectedCountry.code === country.code ? 'bg-blue-50 border-r-2 border-blue-500' : ''
+                                  }`}
+                                  role="option"
+                                  aria-selected={selectedCountry.code === country.code}
+                                >
+                                  {country.code === "US" ? (
+                                    <USFlag className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                                  ) : (
+                                    <span className="text-sm sm:text-base flex-shrink-0">{country.flag}</span>
+                                  )}
+                                  <div className="flex-1 min-w-0 flex items-center justify-between">
+                                    <p className="text-xs sm:text-sm font-medium text-gray-900 truncate pr-2">
+                                      {country.name}
+                                    </p>
+                                    <span className="text-xs sm:text-sm font-medium text-gray-600 flex-shrink-0">
+                                      {country.dialCode}
+                                    </span>
+                                  </div>
+                                </button>
+                              ))
+                            ) : (
+                              <div className="px-3 py-4 text-center text-xs sm:text-sm text-gray-500">
+                                No countries found
+                              </div>
+                            )}
+                            {filteredCountries.length > 12 && (
+                              <div className="px-2 sm:px-3 py-2 text-center text-xs text-gray-400 border-t border-gray-100">
+                                {filteredCountries.length - 12} more results...
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="border-t border-gray-100 p-2">
+                            <button
+                              type="button"
+                              onClick={handleDialCodeEdit}
+                              className="w-full flex items-center gap-1.5 text-left text-xs sm:text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2 py-1.5 rounded transition-colors"
+                            >
+                              <span className="text-sm">🌐</span>
+                              <span>Custom code</span>
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  
                   </div>
 
                   {/* Phone Number Input */}
@@ -204,32 +444,34 @@ export default function PhoneInputForm({ onSubmit, className = "" }: PhoneInputF
                       },
                     })}
                     type="tel"
-                    placeholder="Enter Phone Number"
-                    className="flex-1 text-[14px] sm:text-[16px] md:text-[18px] lg:text-xl font-normal text-gray-900 placeholder:text-gray-400 bg-transparent border-none outline-none min-w-0 focus:ring-0"
+                    placeholder="Enter your number"
+                    className="flex-1 text-[13px] sm:text-[15px] md:text-[17px] lg:text-lg font-normal text-gray-900 placeholder:text-gray-500 bg-transparent border-none outline-none min-w-0 focus:ring-0"
                     style={{ fontFamily: 'Poppins, sans-serif' }}
                     aria-invalid={errors.phoneNumber ? "true" : "false"}
                     aria-describedby={errors.phoneNumber ? "phone-error" : undefined}
                   />
                 </div>
 
-                {/* Call Button - Improved mobile visibility */}
+                {/* Call Button - Optimized for mobile */}
                 <motion.button
                   type="submit"
                   disabled={!isValid || !phoneNumber?.trim()}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  className="flex items-center justify-center gap-1 sm:gap-2 lg:gap-3 h-[40px] sm:h-[48px] md:h-[56px] lg:h-14 px-2 sm:px-3 md:px-4 lg:px-6 bg-black rounded-full hover:bg-gray-900 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex-shrink-0 min-w-[60px] sm:min-w-[80px] md:min-w-[100px]"
+                  className="flex items-center justify-center gap-1 sm:gap-2 h-[38px] sm:h-[44px] md:h-[54px] lg:h-12 px-3 sm:px-4 md:px-5 lg:px-6 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 rounded-full disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed transition-all duration-200 flex-shrink-0 min-w-[70px] sm:min-w-[90px] shadow-lg"
                   aria-label="Call now"
                 >
-                  <PhoneIcon />
+                  <PhoneIcon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                   <span 
-                    className="text-white text-[10px] sm:text-[12px] md:text-[14px] lg:text-lg font-normal whitespace-nowrap" 
+                    className="text-white text-[11px] sm:text-[13px] md:text-[15px] lg:text-base font-medium whitespace-nowrap" 
                     style={{ fontFamily: 'Poppins, sans-serif' }}
                   >
                     Call
                   </span>
                 </motion.button>
               </div>
+
+
             </div>
             
             {/* Error Message */}
