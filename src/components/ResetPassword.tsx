@@ -9,14 +9,13 @@ import {
   XCircle,
 } from "lucide-react";
 import { FORGOT_PASSWORD_MESSAGES } from "../constants/forgotPassword";
-import { authAPI } from "../services/authAPI";
 import axios from "axios";
+import "./AuthModel.css";
 
 interface ResetPasswordProps {
   token?: string;
   onSuccess?: () => void;
   onRequestNewLink?: () => void;
-  onSubmit?: (token: string, password: string) => Promise<void>;
 }
 
 interface PasswordRequirements {
@@ -29,7 +28,6 @@ const ResetPassword: React.FC<ResetPasswordProps> = ({
   token: propToken,
   onSuccess,
   onRequestNewLink,
-  onSubmit,
 }) => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -172,13 +170,13 @@ const ResetPassword: React.FC<ResetPasswordProps> = ({
     }
   };
 
-  const handleRequestNewLink = () => {
-    if (onRequestNewLink) {
-      onRequestNewLink();
-    } else {
-      window.location.href = "/forgot-password";
-    }
-  };
+  // const handleRequestNewLink = () => {
+  //   if (onRequestNewLink) {
+  //     onRequestNewLink();
+  //   } else {
+  //     window.location.href = "/forgot-password";
+  //   }
+  // };
 
   // Success state
   if (isSuccess) {
@@ -228,7 +226,7 @@ const ResetPassword: React.FC<ResetPasswordProps> = ({
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="auth-label">
                 {FORGOT_PASSWORD_MESSAGES.reset.password_label}
               </label>
               <div className="relative">
@@ -236,12 +234,12 @@ const ResetPassword: React.FC<ResetPasswordProps> = ({
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className={`w-full px-3 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm pr-20 ${
+                  className={`auth-input pr-20 ${
                     password && !isPasswordValid
                       ? "border-red-500"
                       : password && isPasswordValid
-                      ? "border-emerald-500"
-                      : "border-gray-300"
+                      ? "border-black"
+                      : ""
                   }`}
                   placeholder={
                     FORGOT_PASSWORD_MESSAGES.reset.password_placeholder
@@ -260,7 +258,7 @@ const ResetPassword: React.FC<ResetPasswordProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                   disabled={isLoading}
                 >
                   {showPassword ? (
@@ -286,7 +284,7 @@ const ResetPassword: React.FC<ResetPasswordProps> = ({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="auth-label">
                 {FORGOT_PASSWORD_MESSAGES.reset.confirm_label}
               </label>
               <div className="relative">
@@ -294,12 +292,12 @@ const ResetPassword: React.FC<ResetPasswordProps> = ({
                   type={showPassword ? "text" : "password"}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className={`w-full px-3 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm pr-10 ${
+                  className={`auth-input pr-10 ${
                     confirmPassword && !doPasswordsMatch
                       ? "border-red-500"
                       : confirmPassword && doPasswordsMatch
-                      ? "border-emerald-500"
-                      : "border-gray-300"
+                      ? "border-black"
+                      : ""
                   }`}
                   placeholder={
                     FORGOT_PASSWORD_MESSAGES.reset.confirm_placeholder
@@ -316,7 +314,7 @@ const ResetPassword: React.FC<ResetPasswordProps> = ({
                 </div>
               </div>
               {confirmPassword && !doPasswordsMatch && (
-                <p className="mt-1 text-xs text-red-600">
+                <p className="auth-error">
                   {FORGOT_PASSWORD_MESSAGES.reset.errors.mismatch}
                 </p>
               )}
@@ -331,7 +329,7 @@ const ResetPassword: React.FC<ResetPasswordProps> = ({
                 !isPasswordValid ||
                 !doPasswordsMatch
               }
-              className="w-full px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+              className="auth-button auth-button-primary"
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -344,7 +342,7 @@ const ResetPassword: React.FC<ResetPasswordProps> = ({
               <button
                 type="button"
                 onClick={() => (window.location.href = "/")}
-                className="w-full flex items-center justify-center space-x-2 px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all duration-200"
+                className="auth-button auth-button-secondary"
                 disabled={isLoading}
               >
                 <ArrowLeft className="w-4 h-4" />

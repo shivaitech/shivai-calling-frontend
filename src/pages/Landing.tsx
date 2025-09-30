@@ -337,11 +337,10 @@ const Landing: React.FC = () => {
         setShowMobileMenu={setShowMobileMenu}
       />
       <Hero setAuthMode={setAuthMode} setShowAuthModal={setShowAuthModal} />
-      <section id="demo">
+      <section id="demo" className="py-0 px-3 lg:px-0">
         <TryVoice />
       </section>
-      {/* Features Section */}
-      <section id="features" className="py-0 px-6 lg:px-0">
+      <section id="features" className="py-0 px-2 lg:px-0">
         <WhatShivaiDo />
       </section>
       <section id="features" className="py-0 px-6 lg:px-0">
@@ -350,14 +349,14 @@ const Landing: React.FC = () => {
       <section id="features" className="py-0 px-6 lg:px-0">
         <WorkTools />
       </section>
-      <section id="features" className="py-0 px-6 lg:px-0">
+      <section id="pricing" className="py-0 px-6 lg:px-0">
         <ShivaiSubsPlan />
       </section>
       <section id="features" className="py-0 px-6 lg:px-0">
         <FAQ />
       </section>
 
-      <section id="features" className="relative w-[100vw] py-0 px-0 lg:px-0 ">
+      <section id="footer" className="relative w-[100vw] py-0 px-0 lg:px-0 ">
         <Footer />
       </section>
 

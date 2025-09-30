@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { motion, useScroll, useTransform } from "framer-motion";
+import { motion } from "framer-motion";
 import { ChevronDown } from "lucide-react";
 import HeroImage from "../resources/images/HeroAI.svg";
 import HeroImage2 from "../resources/images/HeroChar.png";
@@ -12,14 +12,87 @@ interface HeroProps {
   setShowAuthModal?: (show: boolean) => void;
 }
 
+interface LazyImageProps {
+  src: string;
+  alt: string;
+  className?: string;
+  placeholder?: string;
+}
+
+const LazyImage: React.FC<LazyImageProps> = ({ 
+  src, 
+  alt, 
+  className = "", 
+  placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect width='100%25' height='100%25' fill='%23f0f0f0'/%3E%3C/svg%3E"
+}) => {
+  const [imageSrc, setImageSrc] = useState(placeholder);
+  const [imageRef, setImageRef] = useState<HTMLImageElement | null>(null);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    let observer: IntersectionObserver;
+    
+    if (imageRef && imageSrc === placeholder) {
+      observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              setImageSrc(src);
+              observer.unobserve(imageRef);
+            }
+          });
+        },
+        { threshold: 0.1, rootMargin: '50px' }
+      );
+      observer.observe(imageRef);
+    }
+
+    return () => {
+      if (observer && imageRef) {
+        observer.unobserve(imageRef);
+      }
+    };
+  }, [imageRef, imageSrc, placeholder, src]);
+
+  const handleLoad = () => {
+    setIsLoaded(true);
+    setHasError(false);
+  };
+
+  const handleError = () => {
+    setHasError(true);
+    setIsLoaded(true);
+  };
+
+  if (hasError) {
+    return (
+      <div className={`bg-gray-200 flex items-center justify-center ${className}`}>
+        <span className="text-gray-500 text-sm">Failed to load image</span>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      ref={setImageRef}
+      src={imageSrc}
+      alt={alt}
+      className={`transition-all duration-300 ${
+        isLoaded ? 'opacity-100' : 'opacity-0'
+      } ${className}`}
+      onLoad={handleLoad}
+      onError={handleError}
+      loading="lazy"
+      decoding="async"
+    />
+  );
+};
+
 const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
   const [isMounted, setIsMounted] = useState(false);
 
-  const { scrollY } = useScroll();
 
-  // Parallax effects
-  const yText = useTransform(scrollY, [0, 300], [0, -50]);
-  const opacity = useTransform(scrollY, [0, 300], [1, 0.3]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -103,7 +176,7 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
                 <div className="h-full flex gap-4 flex-col justify-center">
                   <div className="w-px h-[30vh] bg-[#d1d1d1] relative left-[20px] -top-[1%]" />
 
-                  <div className="absolute -left-[52px] top-24 -rotate-90 origin-center">
+                  <div className="absolute -left-[57px] top-[87px] -rotate-90 origin-center">
                     <span className="text-xs text-[#828282] tracking-[0.15em] font-light whitespace-nowrap">
                       AI Voice teammates
                     </span>
@@ -202,7 +275,7 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
                 >
                   <img
                     src={HeroImage2}
-                    alt={HeroImage}
+                    alt={""}
                     className=" w-[700px] "
                   />
                   <div className="w-[320px] mx-auto absolute left-[32vw] right-0 bottom-0 mb-4">
@@ -227,7 +300,7 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
                           >
                             <span>Try it now</span>
                             <div className="flex gap-1">
-                              <img
+                              <LazyImage
                                 src={RightArrow}
                                 alt="Right Arrow"
                                 className="w-3 h-3"
@@ -361,7 +434,7 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
                   whileHover={{ scale: 1.02 }}
                   transition={{ duration: 0.6, ease: "easeOut" }}
                 >
-                  <img
+                  <LazyImage
                     src={HeroImage2}
                     alt="Professional AI Assistant"
                     className="w-full h-auto"
@@ -459,7 +532,7 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
                     whileHover={{ scale: 1.02 }}
                     transition={{ duration: 0.6, ease: "easeOut" }}
                   >
-                    <img
+                    <LazyImage
                       src={HeroImage}
                       alt="Professional AI Assistant"
                       className="w-full h-full object-cover"

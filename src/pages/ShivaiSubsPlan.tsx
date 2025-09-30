@@ -107,7 +107,10 @@ export const ShivaiSubsPlan = () => {
 
   return (
     <div className="w-full py-0  lg:py-0">
-      <div className="max-w-8xl mx-auto px-0 sm:px-6 lg:px-8">
+      <div
+        id="pricing-content"
+        className="max-w-8xl mx-auto px-0 sm:px-6 lg:px-8"
+      >
         {/* Header */}
         <div className="text-center mb-2 lg:mb-12">
           <h2

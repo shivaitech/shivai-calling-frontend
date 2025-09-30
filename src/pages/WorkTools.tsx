@@ -18,8 +18,8 @@ import quickbooksIcon from "../resources/Icon/quickbooks.svg";
 const integrations = [
   {
     id: 1,
-    name: "WhatsApp Business API",
-    description: "Sync contacts, conversations, identity, and workflows",
+    name: "WhatsApp Business",
+    description: "Sync contacts & chats instantly",
     icon: "whatsapp",
     bgColor: "bg-green-50",
     iconColor: "text-green-600",
@@ -27,7 +27,7 @@ const integrations = [
   {
     id: 2,
     name: "Zoho CRM",
-    description: "Capture leads, update contacts, and log calls",
+    description: "Capture leads & log calls",
     icon: "zoho",
     bgColor: "bg-orange-50",
     iconColor: "text-orange-600",
@@ -35,7 +35,7 @@ const integrations = [
   {
     id: 3,
     name: "Odoo",
-    description: "Sync orders, invoices, and CRM workflows",
+    description: "Sync orders & CRM data",
     icon: "odoo",
     bgColor: "bg-purple-50",
     iconColor: "text-purple-600",
@@ -43,7 +43,7 @@ const integrations = [
   {
     id: 4,
     name: "HubSpot",
-    description: "Capture and qualify new leads",
+    description: "Qualify & capture new leads",
     icon: "hubspot",
     bgColor: "bg-orange-50",
     iconColor: "text-orange-600",
@@ -51,7 +51,7 @@ const integrations = [
   {
     id: 5,
     name: "Freshworks",
-    description: "Log support automatically",
+    description: "Auto-log support tickets",
     icon: "freshworks",
     bgColor: "bg-blue-50",
     iconColor: "text-blue-600",
@@ -59,7 +59,7 @@ const integrations = [
   {
     id: 6,
     name: "Google Drive",
-    description: "Save to Google & cloud",
+    description: "Save files to cloud easily",
     icon: "googledrive",
     bgColor: "bg-blue-50",
     iconColor: "text-blue-600",
@@ -75,7 +75,7 @@ const integrations = [
   {
     id: 8,
     name: "Shopify",
-    description: "Manage orders via voice",
+    description: "Manage orders by voice",
     icon: "shopify",
     bgColor: "bg-green-50",
     iconColor: "text-green-600",
@@ -83,7 +83,7 @@ const integrations = [
   {
     id: 9,
     name: "Stripe",
-    description: "Collect secure payments during",
+    description: "Collect secure payments",
     icon: "stripe",
     bgColor: "bg-blue-50",
     iconColor: "text-blue-600",
@@ -91,7 +91,7 @@ const integrations = [
   {
     id: 10,
     name: "Twilio",
-    description: "Power voice and voice calls",
+    description: "Power voice & SMS calls",
     icon: "twilio",
     bgColor: "bg-red-50",
     iconColor: "text-red-600",
@@ -107,7 +107,7 @@ const integrations = [
   {
     id: 12,
     name: "QuickBooks Online",
-    description: "Record invoices & payment confirmations",
+    description: "Record invoices & payments",
     icon: "quickbooks",
     bgColor: "bg-green-50",
     iconColor: "text-green-600",
@@ -135,7 +135,7 @@ export const WorkTools = () => {
 
   return (
     <div
-      className="w-full py-16 lg:py-16 relative -top-5% "
+      className="w-full py-12 lg:py-16 relative -top-15% "
       style={{
         backgroundImage: `url(${bgImage})`,
         backgroundRepeat: "no-repeat",
@@ -158,7 +158,7 @@ export const WorkTools = () => {
           {integrations.map((integration) => (
             <div
               key={integration.id}
-              className="bg-white rounded-2xl px-6 py-3 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 border border-gray-100"
+              className="bg-white rounded-2xl px-4 lg:px-6 py-3 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1 border border-gray-100"
             >
               {/* Icon and Name Row */}
               <div className="flex items-center space-x-4 ">
@@ -176,7 +176,7 @@ export const WorkTools = () => {
                   <h3 className="font-semibold text-gray-900 text-lg">
                     {integration.name}
                   </h3>
-                  <p className="text-gray-600 text-sm leading-relaxed text-wrap lg:text-nowrap">
+                  <p className="text-gray-600 text-sm lg:text-sm leading-relaxed text-wrap lg:text-nowrap">
                     {integration.description}
                   </p>
                 </div>

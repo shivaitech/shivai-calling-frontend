@@ -12,17 +12,16 @@ import { FORGOT_PASSWORD_MESSAGES } from "../constants/forgotPassword";
 import { authAPI } from "../services/authAPI";
 import { debounce } from "lodash";
 import axios from "axios";
+import "./AuthModel.css";
 
 interface ForgotPasswordProps {
   onBack: () => void;
   onClose: () => void;
-  onSubmit: (email: string) => Promise<void>;
 }
 
 const ForgotPassword: React.FC<ForgotPasswordProps> = ({
   onBack,
   onClose,
-  onSubmit,
 }) => {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -157,7 +156,7 @@ const ForgotPassword: React.FC<ForgotPasswordProps> = ({
 
             <button
               onClick={onBack}
-              className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 text-emerald-600 border border-emerald-600 rounded-lg hover:bg-emerald-50 transition-all duration-200"
+              className="auth-button auth-button-secondary"
             >
               <ArrowLeft className="w-4 h-4" />
               <span>{FORGOT_PASSWORD_MESSAGES.request.back_to_signin}</span>
@@ -202,7 +201,7 @@ const ForgotPassword: React.FC<ForgotPasswordProps> = ({
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="auth-label">
                 {FORGOT_PASSWORD_MESSAGES.request.email_label}
               </label>
               <div className="relative">
@@ -210,15 +209,15 @@ const ForgotPassword: React.FC<ForgotPasswordProps> = ({
                   type="email"
                   value={email}
                   onChange={(e) => handleEmailChange(e.target.value)}
-                  className={`w-full px-3 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm pr-10 ${
+                  className={`auth-input pr-10 ${
                     error || emailValidationError
                       ? "border-red-500"
                       : email &&
                         isValidEmail(email) &&
                         !emailValidationError &&
                         !isValidatingEmail
-                      ? "border-emerald-500"
-                      : "border-gray-300"
+                      ? "border-black"
+                      : ""
                   }`}
                   placeholder={
                     FORGOT_PASSWORD_MESSAGES.request.email_placeholder
@@ -243,7 +242,7 @@ const ForgotPassword: React.FC<ForgotPasswordProps> = ({
 
               {/* Show validation error if exists */}
               {emailValidationError && email && (
-                <p className="mt-1 text-xs text-red-600">
+                <p className="auth-error">
                   {emailValidationError}
                 </p>
               )}
@@ -258,7 +257,7 @@ const ForgotPassword: React.FC<ForgotPasswordProps> = ({
                 isValidatingEmail ||
                 emailValidationError !== null
               }
-              className="w-full px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-semibold hover:bg-emerald-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+              className="auth-button auth-button-primary"
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -275,7 +274,7 @@ const ForgotPassword: React.FC<ForgotPasswordProps> = ({
             <button
               type="button"
               onClick={onBack}
-              className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-all duration-200"
+              className=" auth-button-secondary"
               disabled={isLoading}
             >
               <ArrowLeft className="w-4 h-4" />

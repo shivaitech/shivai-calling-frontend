@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import integration from "../resources/images/02.svg";
 import voice from "../resources/images/03.svg";
 import language from "../resources/images/04.svg";
@@ -43,81 +43,88 @@ const features = [
   },
 ];
 
-export const WhatShivaiDo = () => {
-  const infiniteFeatures = [...features, ...features, ...features];
+export const WhatShivaiDo = React.memo(() => {
+  // Memoize infinite features array to prevent recreation on every render
+  const infiniteFeatures = useMemo(() => [...features, ...features, ...features], []);
+  
   const [currentSlide, setCurrentSlide] = useState(features.length + 1);
   const [isAnimating, setIsAnimating] = useState(false);
   const sliderRef = useRef<HTMLDivElement>(null);
+  const intervalRef = useRef<number | null>(null);
 
-  const getIllustration = (type: string) => {
+  // Memoize illustration mapping to prevent recalculation
+  const illustrationMap = useMemo(() => ({
+    integration,
+    voice,
+    language,
+    security,
+    learning
+  }), []);
+
+  // Preload images for better performance
+  useEffect(() => {
+    const preloadImages = () => {
+      Object.values(illustrationMap).forEach((src) => {
+        const img = new Image();
+        img.src = src;
+      });
+    };
+    
+    // Preload images after component mounts
+    const timeoutId = setTimeout(preloadImages, 100);
+    return () => clearTimeout(timeoutId);
+  }, [illustrationMap]);
+
+  const getIllustration = useCallback((type: string) => {
     try {
-      let src;
-      switch (type) {
-        case "integration":
-          src = integration;
-          break;
-        case "voice":
-          src = voice;
-          break;
-        case "language":
-          src = language;
-          break;
-        case "security":
-          src = security;
-          break;
-        case "learning":
-          src = learning;
-          break;
-        default:
-          src = voice; // fallback
-          break;
-      }
+      const src = illustrationMap[type as keyof typeof illustrationMap] || voice;
 
       return (
-        <div className="h-[60%] w-[90%] lg:w-full lg:h-full max-w-screen-sm flex items-center justify-center  mt-4 lg:mt-1">
+        <div className="h-[60%] w-[90%] lg:w-full lg:h-full max-w-screen-sm flex items-center justify-center mt-4 lg:mt-1">
           <img
             src={src}
             alt={type}
             className="w-full h-full object-contain"
             draggable={false}
+            loading="eager"
+            decoding="async"
+            style={{ imageRendering: 'auto' }}
           />
         </div>
       );
     } catch {
       return null;
     }
-  };
+  }, [illustrationMap]);
 
-  // Handle seamless transitions for infinite loop
+  // Track if we need seamless transition
+  const [needsSeamlessJump, setNeedsSeamlessJump] = useState(false);
+
+  // Handle seamless transitions for infinite loop with reduced DOM manipulation
   useEffect(() => {
-    if (sliderRef.current) {
-      // Disable transition temporarily for seamless jumps
-      if (
-        currentSlide >= features.length * 2 ||
-        currentSlide < features.length
-      ) {
-        const slider = sliderRef.current;
-        slider.style.transition = "none";
+    if (
+      currentSlide >= features.length * 2 ||
+      currentSlide < features.length
+    ) {
+      setNeedsSeamlessJump(true);
+      // Re-enable smooth transition after a brief delay
+      const timeoutId = setTimeout(() => {
+        setNeedsSeamlessJump(false);
+      }, 50);
 
-        // Re-enable transition after a brief delay
-        setTimeout(() => {
-          slider.style.transition = "transform 300ms ease-out";
-        }, 50);
-      }
+      return () => clearTimeout(timeoutId);
     }
   }, [currentSlide]);
 
-  // Auto-scroll functionality
-  useEffect(() => {
-    const interval = setInterval(() => {
-      handleNext();
-    }, 4000); // Change slide every 4 seconds
-
-    return () => clearInterval(interval);
-  }, []);
-
-  const handleNext = () => {
+  // Throttled handleNext to prevent performance issues
+  const handleNext = useCallback(() => {
     if (isAnimating) return;
+    
+    // Clear any existing interval to prevent multiple timers
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+    
     setIsAnimating(true);
 
     setCurrentSlide((prev) => {
@@ -134,47 +141,113 @@ export const WhatShivaiDo = () => {
     });
 
     setTimeout(() => setIsAnimating(false), 300);
-  };
+  }, [isAnimating]);
 
-  const handlePrev = () => {
+  // Auto-scroll functionality with proper cleanup
+  useEffect(() => {
+    intervalRef.current = setInterval(() => {
+      handleNext();
+    }, 4000) as unknown as number;
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [handleNext]);
+
+
+
+
+
+  // Debounced click handler to prevent rapid clicking
+  const debouncedSlideClick = useCallback((index: number) => {
     if (isAnimating) return;
     setIsAnimating(true);
-
-    setCurrentSlide((prev) => {
-      const prevSlide = prev - 1;
-
-      // If we're at the start of the first set, seamlessly jump to end of second set
-      if (prevSlide < features.length) {
-        setTimeout(() => {
-          setCurrentSlide(features.length * 2 - 1);
-        }, 200);
-      }
-
-      return prevSlide;
-    });
-
+    setCurrentSlide(index);
     setTimeout(() => setIsAnimating(false), 300);
-  };
+  }, [isAnimating]);
 
-  const goToSlide = (index: number) => {
+  const goToSlide = useCallback((index: number) => {
     if (isAnimating) return;
     setIsAnimating(true);
     // Map the feature index to the middle set of infinite array
     setCurrentSlide(index + features.length);
     setTimeout(() => setIsAnimating(false), 300);
-  };
+  }, [isAnimating]);
 
   // Helper function to get the actual feature index from infinite array position
-  const getFeatureIndex = (slideIndex: number) => {
+  const getFeatureIndex = useCallback((slideIndex: number) => {
     return slideIndex % features.length;
-  };
+  }, []);
+
+  // Memoize transform calculation to prevent recalculation on every render
+  const transformStyle = useMemo(() => ({
+    transition: needsSeamlessJump
+      ? "none" 
+      : isAnimating
+      ? "transform 0.3s cubic-bezier(0.4,0,0.2,1)"
+      : "none",
+    transform: `translate3d(calc(-${
+      currentSlide * 344
+    }px + 50vw - 172px), 0, 0)`,
+  }), [currentSlide, isAnimating, needsSeamlessJump]);
+
+  // Memoized card component to prevent unnecessary re-renders
+  const FeatureCard = React.memo(({ 
+    feature, 
+    isCenter, 
+    distance, 
+    onClick 
+  }: { 
+    feature: typeof features[0]; 
+    isCenter: boolean; 
+    distance: number; 
+    onClick: () => void; 
+  }) => (
+    <div
+      className={`flex-none w-80 transition-all duration-300 ease-out cursor-pointer will-change-transform ${
+        isCenter
+          ? "opacity-100 z-20 pt-2 "
+          : distance === 1
+          ? "opacity-85 z-10 w-72 pt-6"
+          : "opacity-50 z-0 w-68 pt-10"
+      }`}
+      onClick={onClick}
+    >
+      <div
+        className={`bg-white rounded-2xl w-full overflow-hidden transition-all duration-300 ease-out will-change-transform ${
+          isCenter
+            ? "shadow-2xl shadow-blue-500/20  transform scale-105  "
+            : distance === 1
+            ? "shadow-xl shadow-gray-400/30 border border-gray-200 "
+            : "shadow-lg shadow-gray-400/20 border border-gray-100"
+        } h-content p-3`}
+      >
+        {/* Card Illustration Area */}
+        <div className=" relative ">
+          {getIllustration(feature.illustration)}
+        </div>
+
+        {/* Card Content */}
+        <div className="px-2 pt-4 text-center">
+          <h3 className="text-[20px] font-semibold text-[#000000] mb-2">
+            {feature.title}
+          </h3>
+          <p className="text-[10px] leading-relaxed mb-4">
+            {feature.description}
+          </p>
+        </div>
+      </div>
+    </div>
+  ));
 
   return (
-    <div className="w-full py-0 lg:py-0 pt-0 lg:pt-20 relative -top-[10vh] lg:top-0">
-      <div className="max-w-8xl mx-auto px-0 sm:px lg:px-0">
+    <div className="w-full py-0 lg:py-0 pt-0 lg:pt-20 relative -top-[12vh] lg:top-0">
+      <div className="max-w-8xl mx-auto px-0  lg:px-0">
         {/* Title */}
-        <div className="text-center mb-4">
-          <h2 className="text-[30px] lg:text-[64px] font-semibold text-[#333333] tracking-tight mb-4 ">
+        <div className="text-center mb-2 lg:mb-4">
+          <h2 className="text-[30px] lg:text-[64px] font-semibold text-[#333333] tracking-tight ">
             What ShivAI Can Do
           </h2>
         </div>
@@ -241,62 +314,20 @@ export const WhatShivaiDo = () => {
             <div
               ref={sliderRef}
               className="flex gap-6 will-change-transform"
-              style={{
-                transition: isAnimating
-                  ? "transform 0.3s cubic-bezier(0.4,0,0.2,1)"
-                  : "none",
-                transform: `translate3d(calc(-${
-                  currentSlide * 344
-                }px + 50vw - 172px), 0, 0)`,
-              }}
+              style={transformStyle}
             >
               {infiniteFeatures.map((feature, index) => {
                 const isCenter = index === currentSlide;
                 const distance = Math.abs(index - currentSlide);
 
                 return (
-                  <div
+                  <FeatureCard
                     key={`${feature.id}-${index}`}
-                    className={`flex-none w-80 transition-all duration-300 ease-out cursor-pointer will-change-transform ${
-                      isCenter
-                        ? "opacity-100 z-20 pt-2 "
-                        : distance === 1
-                        ? "opacity-85 z-10 w-72 pt-6"
-                        : "opacity-50 z-0 w-68 pt-10"
-                    }`}
-                    onClick={() => {
-                      if (!isAnimating) {
-                        setIsAnimating(true);
-                        setCurrentSlide(index);
-                        setTimeout(() => setIsAnimating(false), 300);
-                      }
-                    }}
-                  >
-                    <div
-                      className={`bg-white rounded-2xl w-full overflow-hidden transition-all duration-300 ease-out will-change-transform ${
-                        isCenter
-                          ? "shadow-2xl shadow-blue-500/20  transform scale-105  "
-                          : distance === 1
-                          ? "shadow-xl shadow-gray-400/30 border border-gray-200 "
-                          : "shadow-lg shadow-gray-400/20 border border-gray-100"
-                      } h-content p-3`}
-                    >
-                      {/* Card Illustration Area */}
-                      <div className=" relative ">
-                        {getIllustration(feature.illustration)}
-                      </div>
-
-                      {/* Card Content */}
-                      <div className="px-2 pt-4 text-center">
-                        <h3 className="text-[20px] font-semibold text-[#000000] mb-2">
-                          {feature.title}
-                        </h3>
-                        <p className="text-[10px] leading-relaxed mb-4">
-                          {feature.description}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
+                    feature={feature}
+                    isCenter={isCenter}
+                    distance={distance}
+                    onClick={() => debouncedSlideClick(index)}
+                  />
                 );
               })}
             </div>
@@ -338,4 +369,4 @@ export const WhatShivaiDo = () => {
       </div>
     </div>
   );
-};
+});

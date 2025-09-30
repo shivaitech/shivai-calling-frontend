@@ -44,15 +44,6 @@ const industryOptions = [
   },
 ];
 
-const regionOptions = [
-  { value: "north-america", label: "North America" },
-  { value: "europe", label: "Europe" },
-  { value: "asia-pacific", label: "Asia Pacific" },
-  { value: "latin-america", label: "Latin America" },
-  { value: "middle-east-africa", label: "Middle East & Africa" },
-  { value: "global", label: "Global" },
-];
-
 const planOptions = [
   {
     id: "base",

@@ -11,17 +11,17 @@ const Footer = () => {
     <footer className="relative bg-black text-white py-12 px-6 overflow-hidden min-h-screen">
       {/* Main Content */}
       <div className="max-w-7xl mx-auto relative z-10">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-8 mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-8 mb-12">
           {/* Logo and Description */}
           <div className="md:col-span-2">
-            <div className="mb-6">
+            <div className="mb-4">
               <img
                 src={ShivAi}
                 alt="ShivAI Logo"
                 className="h-10 w-auto"
                 style={{ filter: "brightness(0) invert(1)" }}
               />
-              <p className="text-[#ffffff]/60 text-sm lg:text-[18px] leading-relaxed mt-4">
+              <p className="text-[#ffffff]/60 text-[15px] lg:text-[18px] font-[400] leading-relaxed mt-4">
                 The leading voice AI platform for businesses worldwide.
               </p>
             </div>
@@ -72,8 +72,8 @@ const Footer = () => {
 
           {/* Product Column */}
           <div>
-            <h4 className="font-semibold text-white mb-4">Product</h4>
-            <ul className="space-y-3 text-sm text-gray-300">
+            <h4 className="font-[400] text-white mb-4">Product</h4>
+            <ul className="space-y-2  font-[400] text-[16px] lg:text-sm text-[#FFFFFF99]/60">
               <li>
                 <a href="#" className="hover:text-white transition-colors">
                   Features
@@ -99,8 +99,8 @@ const Footer = () => {
 
           {/* Company Column */}
           <div>
-            <h4 className="font-semibold text-white mb-4">Company</h4>
-            <ul className="space-y-3 text-sm text-gray-300">
+            <h4 className="font-[400] text-white mb-4">Company</h4>
+            <ul className="space-y-2  font-[400] text-[16px] lg:text-sm text-[#FFFFFF99]/60">
               <li>
                 <a href="#" className="hover:text-white transition-colors">
                   About
@@ -126,8 +126,8 @@ const Footer = () => {
 
           {/* Support Column */}
           <div>
-            <h4 className="font-semibold text-white mb-4">Support</h4>
-            <ul className="space-y-3 text-sm text-gray-300">
+            <h4 className="font-[400] text-white mb-4">Support</h4>
+            <ul className="space-y-2  font-[400] text-[16px] lg:text-sm text-[#FFFFFF99]/60">
               <li>
                 <a href="#" className="hover:text-white transition-colors">
                   Help Center
@@ -150,10 +150,46 @@ const Footer = () => {
               </li>
             </ul>
           </div>
+
+          {/* Office Locations Column */}
+          <div>
+            <h4 className="font-[400] text-white mb-4">Our Offices</h4>
+            <div className="space-y-4 font-[400] text-[14px] lg:text-sm text-[#FFFFFF99]/60">
+              {/* USA Office */}
+              <div>
+                <h5 className="text-white font-medium mb-1">United States</h5>
+                <p className="leading-relaxed">
+                  1234 Innovation Drive<br />
+                  San Francisco, CA 94105<br />
+                  +1 (555) 123-4567
+                </p>
+              </div>
+
+              {/* India Office */}
+              <div>
+                <h5 className="text-white font-medium mb-1">India</h5>
+                <p className="leading-relaxed">
+                  Tech Park, Block A<br />
+                  Bangalore, Karnataka 560001<br />
+                  +91 80 1234 5678
+                </p>
+              </div>
+
+              {/* UK Office */}
+              <div>
+                <h5 className="text-white font-medium mb-1">United Kingdom</h5>
+                <p className="leading-relaxed">
+                  25 Finsbury Square<br />
+                  London EC2A 1DX<br />
+                  +44 20 7123 4567
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Bottom Section */}
-        <div className="flex flex-col md:flex-row justify-between items-center pt-2 mb-12 mt-2 lg:mt-8 border-t border-gray-800">
+        <div className="flex flex-col md:flex-row justify-between items-center pt-2 mb-20 mt-2 lg:mt-8 border-t border-gray-800">
           <p className="text-gray-400 text-sm mb-2 md:mb-0">
             © 2025 ShivAI. All rights reserved.
           </p>
@@ -169,11 +205,11 @@ const Footer = () => {
       </div>
 
       {/* Large Background Logo */}
-      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 flex justify-center w-full opacity-110 pointer-events-none">
+      <div className="absolute px-4 bottom-0 left-1/2 -translate-x-1/2 flex justify-center w-full opacity-110 pointer-events-none ">
         <img
           src={Shivlogo}
           alt="ShivAI Background"
-          className="mx-auto w-[1270px] object-contain"
+          className="mx-auto w-[400px] lg:w-[1220px] object-contain"
         />
       </div>
     </footer>
