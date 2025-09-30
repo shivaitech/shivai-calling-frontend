@@ -5,6 +5,9 @@ import twitterIcon from "../resources/Icon/twitter.svg";
 import fbIcon from "../resources/Icon/fb.svg";
 import instaIcon from "../resources/Icon/insta.svg";
 import linkedinIcon from "../resources/Icon/linkin.svg";
+import uaeFlag from "../resources/Icon/uae-flag.svg";
+import indiaFlag from "../resources/Icon/india-flag.svg";
+import usaFlag from "../resources/Icon/usa-flag.svg";
 
 const Footer = () => {
   return (
@@ -154,37 +157,32 @@ const Footer = () => {
           {/* Office Locations Column */}
           <div>
             <h4 className="font-[400] text-white mb-4">Our Offices</h4>
-            <div className="space-y-4 font-[400] text-[14px] lg:text-sm text-[#FFFFFF99]/60">
-              {/* USA Office */}
-              <div>
-                <h5 className="text-white font-medium mb-1">United States</h5>
-                <p className="leading-relaxed">
-                  1234 Innovation Drive<br />
-                  San Francisco, CA 94105<br />
-                  +1 (555) 123-4567
-                </p>
-              </div>
-
-              {/* India Office */}
-              <div>
-                <h5 className="text-white font-medium mb-1">India</h5>
-                <p className="leading-relaxed">
-                  Tech Park, Block A<br />
-                  Bangalore, Karnataka 560001<br />
-                  +91 80 1234 5678
-                </p>
-              </div>
-
-              {/* UK Office */}
-              <div>
-                <h5 className="text-white font-medium mb-1">United Kingdom</h5>
-                <p className="leading-relaxed">
-                  25 Finsbury Square<br />
-                  London EC2A 1DX<br />
-                  +44 20 7123 4567
-                </p>
-              </div>
-            </div>
+            <ul className="space-y-2 font-[400] text-[16px] lg:text-sm text-[#FFFFFF99]/60">
+              <li className="flex items-center gap-3 hover:text-white transition-colors">
+                <img
+                  src={uaeFlag}
+                  alt="UAE Flag"
+                  className="w-6 h-4 object-cover rounded-sm border border-gray-600"
+                />
+                United Arab Emirates
+              </li>
+              <li className="flex items-center gap-3 hover:text-white transition-colors">
+                <img
+                  src={indiaFlag}
+                  alt="India Flag"
+                  className="w-6 h-4 object-cover rounded-sm border border-gray-600"
+                />
+                India
+              </li>
+              <li className="flex items-center gap-3 hover:text-white transition-colors">
+                <img
+                  src={usaFlag}
+                  alt="USA Flag"
+                  className="w-6 h-4 object-cover rounded-sm border border-gray-600"
+                />
+                United States
+              </li>
+            </ul>
           </div>
         </div>
 
