@@ -67,8 +67,8 @@ const Navbar: React.FC<NavbarProps> = ({
         } else if (sectionId === "pricing") {
           additionalOffset = 30;
         } else if (sectionId === "features") {
-          additionalOffset = 30;
-        }
+          additionalOffset = 20;
+        } 
 
         const targetPosition =
           targetElement.offsetTop - navbarHeight - additionalOffset;
