@@ -68,7 +68,7 @@ export default function PhoneInputForm({
     setCustomDialCode(selectedCountry.dialCode);
   }, [selectedCountry]);
 
-  // Handle click outside dropdown
+  // Handle click outside dropdown and body scroll prevention
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent | TouchEvent) => {
       if (
@@ -88,16 +88,34 @@ export default function PhoneInputForm({
     };
 
     if (isCountryDropdownOpen) {
+      // Prevent body scrolling when dropdown is open
+      const originalOverflow = document.body.style.overflow;
+      const originalPosition = document.body.style.position;
+      const scrollY = window.scrollY;
+      
+      // Prevent scrolling on both desktop and mobile
+      document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.width = '100%';
+      
       document.addEventListener("mousedown", handleClickOutside);
       document.addEventListener("touchstart", handleClickOutside);
       document.addEventListener("keydown", handleEscape);
-    }
 
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("touchstart", handleClickOutside);
-      document.removeEventListener("keydown", handleEscape);
-    };
+      return () => {
+        // Restore original styles and scroll position when dropdown closes
+        document.body.style.overflow = originalOverflow;
+        document.body.style.position = originalPosition;
+        document.body.style.top = '';
+        document.body.style.width = '';
+        window.scrollTo(0, scrollY);
+        
+        document.removeEventListener("mousedown", handleClickOutside);
+        document.removeEventListener("touchstart", handleClickOutside);
+        document.removeEventListener("keydown", handleEscape);
+      };
+    }
   }, [isCountryDropdownOpen]);
 
   // Timer effect for call duration
@@ -338,7 +356,7 @@ export default function PhoneInputForm({
                       onChange={handleDialCodeChange}
                       onKeyDown={handleDialCodeSubmit}
                       onBlur={handleDialCodeBlur}
-                      className="w-[60px] sm:w-[70px] md:w-[80px] lg:w-[90px] xl:w-[100px] h-[38px] sm:h-[44px] md:h-[54px] lg:h-12 xl:h-14 px-1 sm:px-2 md:px-3 text-[10px] sm:text-xs md:text-sm lg:text-base xl:text-lg font-medium text-gray-900 bg-white border border-gray-300 rounded-full text-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="w-[90px]  md:w-[80px] lg:w-[90px] xl:w-[100px] h-[38px] sm:h-[44px] md:h-[54px] lg:h-12 xl:h-14 px-1 sm:px-2 md:px-3 text-[10px] sm:text-xs md:text-sm lg:text-base xl:text-lg font-medium text-gray-900 bg-white border border-gray-300 rounded-full text-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                     ) : (
                     <button
@@ -349,7 +367,7 @@ export default function PhoneInputForm({
                       setIsCountryDropdownOpen(!isCountryDropdownOpen);
                       }}
                       onDoubleClick={handleDialCodeEdit}
-                      className={`flex items-center justify-center gap-0.5 sm:gap-1 md:gap-1.5 lg:gap-2 w-[60px] sm:w-[70px] md:w-[80px] lg:w-[90px] xl:w-[100px] h-[38px] sm:h-[44px] md:h-[54px] lg:h-12 xl:h-14 bg-white rounded-full border border-gray-300 flex-shrink-0 hover:bg-gray-50 hover:border-gray-400 transition-all duration-150 relative ${
+                      className={`flex items-center justify-center gap-1 sm:gap-1 md:gap-1.5 lg:gap-2 w-[60px] sm:w-[70px] md:w-[80px] lg:w-[90px] xl:w-[100px] h-[38px] sm:h-[44px] md:h-[54px] lg:h-12 xl:h-14 bg-white rounded-full border border-gray-300 flex-shrink-0 hover:bg-gray-50 hover:border-gray-400 transition-all duration-150 relative ${
                       isCountryDropdownOpen
                         ? "ring-2 ring-blue-500 border-blue-500 bg-blue-50"
                         : ""
@@ -359,9 +377,9 @@ export default function PhoneInputForm({
                       aria-haspopup="listbox"
                     >
                       {selectedCountry.code === "US" ? (
-                      <USFlag className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+                      <USFlag className="w-4 h-4 sm:w-4 sm:h-4 flex-shrink-0" />
                       ) : (
-                      <span className="text-[10px] sm:text-xs flex-shrink-0">
+                      <span className="text-[11px] sm:text-xs flex-shrink-0">
                         {selectedCountry.flag}
                       </span>
                       )}
@@ -369,7 +387,7 @@ export default function PhoneInputForm({
                       {customDialCode.replace("+", "")}
                       </span>
                       <ChevronDown
-                      className={`w-2 h-2 sm:w-3 sm:h-3 text-gray-400 transition-transform ${
+                      className={`w-4 h-4 sm:w-3 sm:h-3 text-gray-400 transition-transform ${
                         isCountryDropdownOpen ? "rotate-180" : ""
                       }`}
                       />
@@ -380,73 +398,73 @@ export default function PhoneInputForm({
                   {/* Country Dropdown */}
                   {isCountryDropdownOpen && !editingDialCode && (
                     <>
-                    <div
-                      className="fixed inset-0  z-1000"
-                      onClick={() => setIsCountryDropdownOpen(false)}
-                      onTouchStart={() => setIsCountryDropdownOpen(false)}
-                    />
-                    <div className="absolute top-full lg:top-[130%] left-0 mt-2 w-[50vw] lg:w-[30vw] max-w-[90vw] h-[100px] lg:h-[220px] bg-white border border-gray-200 rounded-lg shadow-xl max-h-96 overflow-hidden z-[60]">
-                      <div className="max-h-64 overflow-y-auto">
-                      {filteredCountries.length > 0 ? (
-                        filteredCountries.slice(0, 12).map((country) => (
-                        <button
-                          key={country.code}
-                          type="button"
-                          onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          handleCountrySelect(country);
-                          }}
-                          className={`w-full flex items-center gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-left hover:bg-blue-50 active:bg-blue-100 transition-all duration-150 ${
-                          selectedCountry.code === country.code
-                            ? "bg-blue-50 border-r-2 border-blue-500"
-                            : ""
-                          }`}
-                          role="option"
-                          aria-selected={
-                          selectedCountry.code === country.code
-                          }
-                        >
-                          {country.code === "US" ? (
-                          <USFlag className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                      {/* Prevent website scroll when dropdown is open */}
+                   
+                      <div
+                        className="fixed inset-0 z-1000"
+                        onClick={() => setIsCountryDropdownOpen(false)}
+                        onTouchStart={() => setIsCountryDropdownOpen(false)}
+                      />
+                      <div className="absolute top-full lg:top-[130%] left-0 mt-2 w-[50vw] lg:w-[30vw] max-w-[90vw] h-[100px] lg:h-[220px] bg-white border border-gray-200 rounded-lg shadow-xl max-h-96 overflow-hidden z-[60] ">
+                        <div className="max-h-64 overflow-y-scroll scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
+                          {filteredCountries.length > 0 ? (
+                            filteredCountries.map((country) => (
+                              <button
+                                key={country.code}
+                                type="button"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  handleCountrySelect(country);
+                                }}
+                                className={`w-full flex items-center gap-2 px-2 sm:px-3 py-1.5 sm:py-2 text-left hover:bg-blue-50 active:bg-blue-100 transition-all duration-150 ${
+                                  selectedCountry.code === country.code
+                                    ? "bg-blue-50 border-r-2 border-blue-500"
+                                    : ""
+                                }`}
+                                role="option"
+                                aria-selected={selectedCountry.code === country.code}
+                              >
+                                {country.code === "US" ? (
+                                  <USFlag className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                                ) : (
+                                  <span className="text-sm sm:text-base flex-shrink-0">
+                                    {country.flag}
+                                  </span>
+                                )}
+                                <div className="flex-1 min-w-0 flex items-center justify-between">
+                                  <p className="text-xs sm:text-sm font-medium text-gray-900 truncate pr-2">
+                                    {country.name}
+                                  </p>
+                                  <span className="text-xs sm:text-sm font-medium text-gray-600 flex-shrink-0">
+                                    {country.dialCode}
+                                  </span>
+                                </div>
+                              </button>
+                            ))
                           ) : (
-                          <span className="text-sm sm:text-base flex-shrink-0">
-                            {country.flag}
-                          </span>
+                            <div className="px-3 py-4 text-center text-xs sm:text-sm text-gray-500">
+                              No countries found
+                            </div>
                           )}
-                          <div className="flex-1 min-w-0 flex items-center justify-between">
-                          <p className="text-xs sm:text-sm font-medium text-gray-900 truncate pr-2">
-                            {country.name}
-                          </p>
-                          <span className="text-xs sm:text-sm font-medium text-gray-600 flex-shrink-0">
-                            {country.dialCode}
-                          </span>
-                          </div>
-                        </button>
-                        ))
-                      ) : (
-                        <div className="px-3 py-4 text-center text-xs sm:text-sm text-gray-500">
-                        No countries found
+                          {filteredCountries.length > 12 && (
+                            <div className="px-2 sm:px-3 py-2 text-center text-xs text-gray-400 border-t border-gray-100">
+                              {filteredCountries.length - 12} more results...
+                            </div>
+                          )}
                         </div>
-                      )}
-                      {filteredCountries.length > 12 && (
-                        <div className="px-2 sm:px-3 py-2 text-center text-xs text-gray-400 border-t border-gray-100">
-                        {filteredCountries.length - 12} more results...
-                        </div>
-                      )}
-                      </div>
 
-                      <div className="border-t border-gray-100 p-2">
-                      <button
-                        type="button"
-                        onClick={handleDialCodeEdit}
-                        className="w-full flex items-center gap-1.5 text-left text-xs sm:text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2 py-1.5 rounded transition-colors"
-                      >
-                        <span className="text-sm">🌐</span>
-                        <span>Custom code</span>
-                      </button>
+                        <div className="border-t border-gray-100 p-2">
+                          <button
+                            type="button"
+                            onClick={handleDialCodeEdit}
+                            className="w-full flex items-center gap-1.5 text-left text-xs sm:text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2 py-1.5 rounded transition-colors"
+                          >
+                            <span className="text-sm">🌐</span>
+                            <span>Custom code</span>
+                          </button>
+                        </div>
                       </div>
-                    </div>
                     </>
                   )}
                   </div>
@@ -459,9 +477,13 @@ export default function PhoneInputForm({
                   type="tel"
                   inputMode="tel"
                   autoComplete="tel"
-                  placeholder="Enter your number"
-                  className="flex-1 text-[13px] sm:text-[15px] md:text-[17px] lg:text-lg xl:text-xl font-normal text-gray-900 placeholder:text-gray-500 bg-transparent border-none outline-none min-w-0 focus:ring-0"
-                  style={{ fontFamily: "Poppins, sans-serif" }}
+                  placeholder="Enter Phone Number"
+                  className="flex-1 phone-input-custom bg-transparent border-none outline-none min-w-0 focus:ring-0 text-black text-[10px] md:text-[20px] lg:text-[22px] xl:text-[24px]"
+                  style={{ 
+                    fontFamily: "Poppins, sans-serif",
+                    fontWeight: 400,
+                    letterSpacing: "1.2px"
+                  }}
                   />
                 </div>
 

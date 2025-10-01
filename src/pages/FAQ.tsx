@@ -1,34 +1,77 @@
 import { useState } from "react";
 import { Plus, Minus } from "lucide-react";
-
-// FAQ data matching the Figma design
+import bgImage from "../resources/images/lines.svg";
+import bgImage2 from "../resources/images/curved.svg";
+// FAQ data for ShivAI
 const faqData = [
   {
     id: 1,
-    question: "What services does Triloe offer?",
+    question: "Is ShivAI a chatbot or a live agent?",
     answer:
-      "We offer branding, digital marketing, performance campaigns, and content strategy tailored to your business goals",
-    isOpen: true, // First item is open by default as shown in Figma
+      "Unlike chatbots, ShivAI uses real-time voice AI to hold natural conversations, capture intent, and take actions.",
+    isOpen: true, // First item is open by default
   },
   {
     id: 2,
-    question: "How does the process work?",
+    question: "Can ShivAI handle multiple callers at once?",
     answer:
-      "Our process starts with understanding your business needs, followed by strategy development, implementation, and continuous optimization to ensure the best results for your campaigns.",
+      "Yes. Your AI Employee scales infinitely managing thousands of calls simultaneously without wait times.",
     isOpen: false,
   },
   {
     id: 3,
-    question: "Who are your ideal clients?",
+    question: "Do I need special hardware or phone systems?",
     answer:
-      "We work with small to medium businesses, startups, and established companies looking to enhance their digital presence and achieve measurable growth through strategic marketing initiatives.",
+      "No. ShivAI runs fully on the cloud. You can add it to your website, app, social pages, or any digital footprint in minutes.",
     isOpen: false,
   },
   {
     id: 4,
-    question: "How long does a project usually take?",
+    question: "How does ShivAI learn my business?",
     answer:
-      "Project timelines vary depending on scope and complexity. Typical projects range from 2-12 weeks, with ongoing campaigns and optimization continuing as needed to meet your business objectives.",
+      "We train it with your FAQs, workflows, and product/service details. It continuously improves with every call.",
+    isOpen: false,
+  },
+  {
+    id: 5,
+    question: "Can ShivAI work alongside my human team?",
+    answer:
+      "Absolutely. ShivAI answers and qualifies first, then escalates complex calls to your staff when needed.",
+    isOpen: false,
+  },
+  {
+    id: 6,
+    question: "What happens if a caller speaks an unsupported language?",
+    answer:
+      "ShivAI politely acknowledges, notes the language, and routes/escalates while also flagging it for your team.",
+    isOpen: false,
+  },
+  {
+    id: 7,
+    question: "Does ShivAI work for inbound and outbound calls?",
+    answer:
+      "Inbound is live now; outbound campaigns (reminders, promotions, renewals) can be activated in upcoming phases.",
+    isOpen: false,
+  },
+  {
+    id: 8,
+    question: "How does ShivAI ensure caller trust?",
+    answer:
+      "By using human-like natural speech, introducing itself clearly, and always asking for consent before collecting sensitive data.",
+    isOpen: false,
+  },
+  {
+    id: 9,
+    question: "Can I brand the AI Employee with my company's name?",
+    answer:
+      "Yes. ShivAI can greet callers with your brand identity, making it feel like your employee, not a generic bot.",
+    isOpen: false,
+  },
+  {
+    id: 10,
+    question: "What support do I get after going live?",
+    answer:
+      "You get ongoing training updates, analytics dashboards, and human support to refine workflows as your needs evolve.",
     isOpen: false,
   },
 ];
@@ -43,16 +86,27 @@ export const FAQ = () => {
   };
 
   return (
-    <div className="w-full">
+    <div
+      style={{
+        backgroundImage: `url('${bgImage}')`,
+        backgroundPosition: "center",
+      }}
+      className="w-full px-6 lg:px-0"
+    >
       {/* FAQ Section */}
       <div className="px-2 py-8 md:py-16 lg:py-24">
-        <div className="max-w-7xl mx-auto">
+        <div
+          className="max-w-7xl mx-auto
+      
+      
+      "
+        >
           {/* Header */}
           <div className="mb-8 md:mb-12 flex lg:flex-row flex-col items-center  justify-between">
-            <h2 className="text-3xl md:text-4xl lg:text-6xl font-[500] text-balance text-gray-900 mb-4 leading-tight">
+            <h2 className="text-[38px] font-[600] md:text-4xl lg:text-6xl text-center lg:text-start  text-balance text-[#333] mb-6 leading-tight">
               Frequently Asked Question
             </h2>
-            <p className="text-gray-600 text-sm md:text-base font-light lg:text-lg max-w-2xl">
+            <p className="text-[#5A5A59] text-[14px] text-center lg:text-start  md:text-base font-light lg:text-lg max-w-2xl">
               Find quick answers to the most common questions about our
               services, process, and support.
             </p>
@@ -73,11 +127,11 @@ export const FAQ = () => {
                   <h3 className="text-base md:text-lg font-semibold text-gray-900 pr-4">
                     {faq.question}
                   </h3>
-                  <div className="flex-shrink-0">
+                  <div className="flex-shrink-0 border rounded-full p-[6px] hover:bg-gray-100 transition-colors duration-200">
                     {faq.isOpen ? (
-                      <Minus className="w-5 h-5 text-gray-600" />
+                      <Minus className="w-4 h-4 text-gray-600" />
                     ) : (
-                      <Plus className="w-5 h-5 text-gray-600" />
+                      <Plus className="w-4 h-4 text-gray-600" />
                     )}
                   </div>
                 </button>
@@ -99,64 +153,21 @@ export const FAQ = () => {
       </div>
 
       {/* CTA Section */}
-      <div className="px-4 pb-8 md:pb-16 lg:pb-24">
+      <div className="px-2 pb-8 md:pb-16 lg:pb-24">
         <div className="max-w-7xl mx-auto">
-          <div className="bg-black rounded-2xl flex justify-center md:rounded-3xl px-6 py-8 md:px-12 md:py-16 lg:px-16 lg:py-20 text-center relative overflow-hidden">
+          <div className="bg-[#000] rounded-[16px] flex justify-center md:rounded-3xl px-6 py-8 md:px-12 md:py-16 lg:px-16 lg:py-20 text-center relative overflow-hidden">
             {/* Background Pattern/Decoration */}
-            <div className="absolute inset-0 opacity-30">
+            <div className="absolute inset-0 ">
               {/* Flowing curved organic shapes */}
-              <svg 
-                className="absolute top-0 left-0 w-full h-full" 
-                viewBox="0 0 800 400" 
-                preserveAspectRatio="none"
-              >
-                {/* Left flowing curved shape */}
-                <path
-                  d="M-50,0 C50,80 20,160 80,240 C140,320 100,400 0,400 L-50,400 Z"
-                  fill="rgba(255,255,255,0.15)"
-                  stroke="rgba(255,255,255,0.25)"
-                  strokeWidth="2"
-                />
-                
-                {/* Right flowing curved shape */}
-                <path
-                  d="M850,0 C750,80 780,160 720,240 C660,320 700,400 800,400 L850,400 Z"
-                  fill="rgba(255,255,255,0.15)"
-                  stroke="rgba(255,255,255,0.25)"
-                  strokeWidth="2"
-                />
-                
-                {/* Center flowing element */}
-                <path
-                  d="M200,50 C300,100 500,80 600,150 C700,220 500,280 400,350 C300,320 250,200 200,50 Z"
-                  fill="rgba(255,255,255,0.08)"
-                  stroke="rgba(255,255,255,0.2)"
-                  strokeWidth="1.5"
-                />
-                
-                {/* Additional organic shapes */}
-                <ellipse
-                  cx="150"
-                  cy="300"
-                  rx="80"
-                  ry="40"
-                  fill="rgba(255,255,255,0.06)"
-                  transform="rotate(-20 150 300)"
-                />
-                
-                <ellipse
-                  cx="650"
-                  cy="100"
-                  rx="60"
-                  ry="30"
-                  fill="rgba(255,255,255,0.06)"
-                  transform="rotate(25 650 100)"
-                />
-              </svg>
+              <img
+                src={bgImage2}
+                alt="Background Decoration"
+                className="w-full h-full object-fill"
+              />
             </div>
 
             {/* Content */}
-            <div className="relative z-10 max-w-5xl">
+            <div className="relative z-10 flex flex-col items-center max-w-3xl">
               <h2
                 style={{
                   fontFamily: "Poppins, sans-serif",
@@ -169,14 +180,14 @@ export const FAQ = () => {
                 Ready to transform your customer experience?
               </h2>
               <p className="text-gray-300 text-sm md:text-base lg:text-lg mb-6 md:mb-8 max-w-2xl mx-auto">
-                Join thousands of businesses already using ShivAI to create
-                natural voice conversations.
+                ShivAI is the new frontline. Own it now before your competition
+                does.
               </p>
 
               {/* CTA Button */}
-              <button className="bg-white text-black px-6 py-3 md:px-12 md:py-4 rounded-[60px] font-semibold hover:bg-gray-100 transition-colors duration-200 text-sm md:text-base">
+              <button className="bwhiteBgGradient bg-white  px-6 py-3 md:px-12 md:py-4 rounded-[60px]  hover:bg-gray-100 transition-colors duration-200 ">
                 Start Free Trial
-              </button>
+              </button> 
 
               {/* No Credit Card Text */}
               <div className="flex items-center justify-center mt-4 text-gray-400 text-xs md:text-sm">

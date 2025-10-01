@@ -10,6 +10,78 @@ import indiaFlag from "../resources/Icon/india-flag.svg";
 import usaFlag from "../resources/Icon/usa-flag.svg";
 
 const Footer = () => {
+  // Enhanced smooth scroll function (same as navbar)
+  const smoothScrollToSection = (sectionId: string) => {
+    try {
+      let targetElement = document.getElementById(sectionId);
+
+      if (sectionId === "features") {
+        const featuresContent = document.getElementById("work-content");
+        if (featuresContent) {
+          targetElement = featuresContent;
+        }
+      } else if (sectionId === "pricing") {
+        const pricingContent = document.getElementById("pricing-content");
+        if (pricingContent) {
+          targetElement = pricingContent;
+        }
+      }
+
+      if (!targetElement) {
+        console.warn(`Section with id "${sectionId}" not found`);
+        return;
+      }
+
+      if (targetElement) {
+        const navbarHeight = 80;
+        let additionalOffset = 60; // Default offset
+
+        if (sectionId === "pricing") {
+          additionalOffset = 100; // Increased offset for pricing to prevent going too far up
+        } else if (sectionId === "features") {
+          additionalOffset = 20;
+        } 
+
+        const targetPosition =
+          targetElement.offsetTop - navbarHeight - additionalOffset;
+
+        // Enhanced smooth scrolling with custom easing
+        const startPosition = window.pageYOffset;
+        const distance = targetPosition - startPosition;
+        const duration = Math.min(1200, Math.abs(distance) * 0.5); // Dynamic duration based on distance
+        let startTime: number | null = null;
+
+        const easeInOutCubic = (t: number): number => {
+          return t < 0.5
+            ? 4 * t * t * t
+            : (t - 1) * (2 * t - 2) * (2 * t - 2) + 1;
+        };
+
+        const animation = (currentTime: number) => {
+          if (startTime === null) startTime = currentTime;
+          const timeElapsed = currentTime - startTime;
+          const progress = Math.min(timeElapsed / duration, 1);
+          const easedProgress = easeInOutCubic(progress);
+
+          window.scrollTo(0, startPosition + distance * easedProgress);
+
+          if (progress < 1) {
+            requestAnimationFrame(animation);
+          }
+        };
+
+        requestAnimationFrame(animation);
+      }
+    } catch (error) {
+      console.error("Error during smooth scroll:", error);
+      // Fallback to basic scroll
+      const targetElement = document.getElementById(sectionId);
+      if (targetElement) {
+        targetElement.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }
+  };
+
   return (
     <footer className="relative bg-black text-white py-12 px-6 overflow-hidden min-h-screen">
       {/* Main Content */}
@@ -78,22 +150,36 @@ const Footer = () => {
             <h4 className="font-[400] text-white mb-4">Product</h4>
             <ul className="space-y-2  font-[400] text-[16px] lg:text-sm text-[#FFFFFF99]/60">
               <li>
-                <a href="#" className="hover:text-white transition-colors">
+                <a 
+                  href="#features" 
+                  className="hover:text-white transition-colors cursor-pointer"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    smoothScrollToSection('features');
+                  }}
+                >
                   Features
                 </a>
               </li>
               <li>
-                <a href="#" className="hover:text-white transition-colors">
+                <a 
+                  href="#pricing" 
+                  className="hover:text-white transition-colors cursor-pointer"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    smoothScrollToSection('pricing');
+                  }}
+                >
                   Pricing
                 </a>
               </li>
               <li>
-                <a href="#" className="hover:text-white transition-colors">
+                <a href="/api" className="hover:text-white transition-colors">
                   API
                 </a>
               </li>
               <li>
-                <a href="#" className="hover:text-white transition-colors">
+                <a href="/documentation" className="hover:text-white transition-colors">
                   Documentation
                 </a>
               </li>
@@ -105,22 +191,22 @@ const Footer = () => {
             <h4 className="font-[400] text-white mb-4">Company</h4>
             <ul className="space-y-2  font-[400] text-[16px] lg:text-sm text-[#FFFFFF99]/60">
               <li>
-                <a href="#" className="hover:text-white transition-colors">
+                <a href="/about" className="hover:text-white transition-colors">
                   About
                 </a>
               </li>
               <li>
-                <a href="#" className="hover:text-white transition-colors">
+                <a href="/blog" className="hover:text-white transition-colors">
                   Blog
                 </a>
               </li>
               <li>
-                <a href="#" className="hover:text-white transition-colors">
+                <a href="/careers" className="hover:text-white transition-colors">
                   Careers
                 </a>
               </li>
               <li>
-                <a href="#" className="hover:text-white transition-colors">
+                <a href="/contact" className="hover:text-white transition-colors">
                   Contact
                 </a>
               </li>
@@ -132,22 +218,22 @@ const Footer = () => {
             <h4 className="font-[400] text-white mb-4">Support</h4>
             <ul className="space-y-2  font-[400] text-[16px] lg:text-sm text-[#FFFFFF99]/60">
               <li>
-                <a href="#" className="hover:text-white transition-colors">
+                <a href="/help" className="hover:text-white transition-colors">
                   Help Center
                 </a>
               </li>
               <li>
-                <a href="#" className="hover:text-white transition-colors">
+                <a href="/community" className="hover:text-white transition-colors">
                   Community
                 </a>
               </li>
               <li>
-                <a href="#" className="hover:text-white transition-colors">
+                <a href="/privacy" className="hover:text-white transition-colors">
                   Privacy
                 </a>
               </li>
               <li>
-                <a href="#" className="hover:text-white transition-colors">
+                <a href="/terms" className="hover:text-white transition-colors">
                   Terms
                 </a>
               </li>
@@ -157,32 +243,87 @@ const Footer = () => {
           {/* Office Locations Column */}
           <div>
             <h4 className="font-[400] text-white mb-4">Our Offices</h4>
-            <ul className="space-y-2 font-[400] text-[16px] lg:text-sm text-[#FFFFFF99]/60">
-              <li className="flex items-center gap-3 hover:text-white transition-colors">
-                <img
-                  src={uaeFlag}
-                  alt="UAE Flag"
-                  className="w-6 h-4 object-cover rounded-sm border border-gray-600"
-                />
-                United Arab Emirates
-              </li>
-              <li className="flex items-center gap-3 hover:text-white transition-colors">
-                <img
-                  src={indiaFlag}
-                  alt="India Flag"
-                  className="w-6 h-4 object-cover rounded-sm border border-gray-600"
-                />
-                India
-              </li>
-              <li className="flex items-center gap-3 hover:text-white transition-colors">
-                <img
-                  src={usaFlag}
-                  alt="USA Flag"
-                  className="w-6 h-4 object-cover rounded-sm border border-gray-600"
-                />
-                United States
-              </li>
-            </ul>
+            <div className="space-y-4 font-[400] text-[14px] lg:text-[14px] text-[#FFFFFF99]/60">
+              
+              {/* UAE Office */}
+              <div className="hover:text-white transition-colors">
+                <div className="flex items-center gap-2 mb-1">
+                  <img
+                    src={uaeFlag}
+                    alt="UAE Flag"
+                    className="w-6 h-4 object-cover rounded-sm border border-gray-600"
+                  />
+                  <span className="text-white font-[500] text-[14px]">🌍 United Arab Emirates</span>
+                </div>
+                <div className="ml-8 space-y-1">
+                  <a 
+                    href="tel:+971xxxxxxxxx" 
+                    className="block hover:text-white transition-colors text-[14px]"
+                  >
+                    📞 +971-xxx-xxx-xxxx (Call/WhatsApp)
+                  </a>
+                  <a 
+                    href="mailto:uae@shivai.com" 
+                    className="block hover:text-white transition-colors text-[14px]"
+                  >
+                    ✉️ uae@shivai.com
+                  </a>
+                </div>
+              </div>
+
+              {/* India Office */}
+              <div className="hover:text-white transition-colors">
+                <div className="flex items-center gap-2 mb-1">
+                  <img
+                    src={indiaFlag}
+                    alt="India Flag"
+                    className="w-6 h-4 object-cover rounded-sm border border-gray-600"
+                  />
+                  <span className="text-white font-[500] text-[14px]">🇮🇳 India</span>
+                </div>
+                <div className="ml-8 space-y-1">
+                  <a 
+                    href="tel:+91xxxxxxxxxx" 
+                    className="block hover:text-white transition-colors text-[14px]"
+                  >
+                    📞 +91-xxx-xxx-xxxx (Call/WhatsApp)
+                  </a>
+                  <a 
+                    href="mailto:india@shivai.com" 
+                    className="block hover:text-white transition-colors text-[14px]"
+                  >
+                    ✉️ india@shivai.com
+                  </a>
+                </div>
+              </div>
+
+              {/* USA Office */}
+              <div className="hover:text-white transition-colors">
+                <div className="flex items-center gap-2 mb-1">
+                  <img
+                    src={usaFlag}
+                    alt="USA Flag"
+                    className="w-6 h-4 object-cover rounded-sm border border-gray-600"
+                  />
+                  <span className="text-white font-[500] text-[14px]">🇺🇸 United States</span>
+                </div>
+                <div className="ml-8 space-y-1">
+                  <a 
+                    href="tel:+1xxxxxxxxxx" 
+                    className="block hover:text-white transition-colors text-[14px]"
+                  >
+                    📞 +1-xxx-xxx-xxxx (Call/WhatsApp)
+                  </a>
+                  <a 
+                    href="mailto:usa@shivai.com" 
+                    className="block hover:text-white transition-colors text-[14px]"
+                  >
+                    ✉️ usa@shivai.com
+                  </a>
+                </div>
+              </div>
+
+            </div>
           </div>
         </div>
 

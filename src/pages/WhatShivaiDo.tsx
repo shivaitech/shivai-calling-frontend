@@ -47,10 +47,16 @@ export const WhatShivaiDo = React.memo(() => {
   // Memoize infinite features array to prevent recreation on every render
   const infiniteFeatures = useMemo(() => [...features, ...features, ...features], []);
   
-  const [currentSlide, setCurrentSlide] = useState(features.length + 1);
+  const [currentSlide, setCurrentSlide] = useState(features.length);
   const [isAnimating, setIsAnimating] = useState(false);
   const sliderRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<number | null>(null);
+  
+  // Enhanced swipe state for better feel
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState(0);
 
   // Memoize illustration mapping to prevent recalculation
   const illustrationMap = useMemo(() => ({
@@ -143,18 +149,18 @@ export const WhatShivaiDo = React.memo(() => {
     setTimeout(() => setIsAnimating(false), 300);
   }, [isAnimating]);
 
-  // Auto-scroll functionality with proper cleanup
-  useEffect(() => {
-    intervalRef.current = setInterval(() => {
-      handleNext();
-    }, 4000) as unknown as number;
+  // Auto-scroll disabled for better user control
+  // useEffect(() => {
+  //   intervalRef.current = setInterval(() => {
+  //     handleNext();
+  //   }, 4000) as unknown as number;
 
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, [handleNext]);
+  //   return () => {
+  //     if (intervalRef.current) {
+  //       clearInterval(intervalRef.current);
+  //     }
+  //   };
+  // }, [handleNext]);
 
 
 
@@ -180,6 +186,62 @@ export const WhatShivaiDo = React.memo(() => {
   const getFeatureIndex = useCallback((slideIndex: number) => {
     return slideIndex % features.length;
   }, []);
+
+  // Enhanced swipe handlers with visual feedback
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+    setIsDragging(true);
+    setDragOffset(0);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStart || !isDragging) return;
+    
+    const touchCurrent = e.targetTouches[0].clientX;
+    setTouchEnd(touchCurrent);
+    
+    // Calculate drag offset for visual feedback - full responsiveness for carousel
+    const offset = touchCurrent - touchStart;
+    const dampedOffset = offset * 0.4; // Moderate damping for smooth carousel feel
+    setDragOffset(dampedOffset);
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStart || !touchEnd || !isDragging) {
+      setIsDragging(false);
+      setDragOffset(0);
+      return;
+    }
+    
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > 50; // Optimized threshold for card sliding
+    const isRightSwipe = distance < -50;
+
+    // Reset drag state
+    setIsDragging(false);
+    setDragOffset(0);
+
+    if (isLeftSwipe) {
+      handleNext();
+    } else if (isRightSwipe) {
+      // Previous slide logic
+      if (isAnimating) return;
+      setIsAnimating(true);
+      setCurrentSlide((prev) => {
+        const prevSlide = prev - 1;
+        if (prevSlide < features.length) {
+          setTimeout(() => setCurrentSlide(features.length * 2 - 1), 400);
+        }
+        return prevSlide;
+      });
+      setTimeout(() => setIsAnimating(false), 400);
+    }
+
+    // Reset touch state
+    setTouchStart(null);
+    setTouchEnd(null);
+  };
 
   // Memoize transform calculation to prevent recalculation on every render
   const transformStyle = useMemo(() => ({
@@ -242,6 +304,11 @@ export const WhatShivaiDo = React.memo(() => {
     </div>
   ));
 
+  // Safety check to prevent crashes
+  if (!infiniteFeatures || infiniteFeatures.length === 0) {
+    return <div className="w-full py-20 text-center">Loading...</div>;
+  }
+
   return (
     <div className="w-full py-0 lg:py-0 pt-0 lg:pt-20 relative -top-[12vh] lg:top-0">
       <div className="max-w-8xl mx-auto px-0  lg:px-0">
@@ -252,37 +319,48 @@ export const WhatShivaiDo = React.memo(() => {
           </h2>
         </div>
 
-        {/* Mobile View - Simple Single Card */}
-        <div className="md:hidden ">
+        {/* Mobile View - Simple Card Display */}
+        <div className="md:hidden">
           <div className="space-y-6 p-4">
-            <div className="bg-white rounded-2xl overflow-hidden shadow-2xl border border-gray-200">
+            <div 
+              className="bg-white rounded-2xl overflow-hidden shadow-2xl border border-gray-200 transition-transform duration-200"
+              style={{
+                transform: isDragging 
+                  ? `translateX(${dragOffset}px) scale(0.98)` 
+                  : 'translateX(0px) scale(1)'
+              }}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+            >
               <div className="w-full h-full max-h-[40vh] flex items-center justify-center">
-                {getIllustration(infiniteFeatures[currentSlide].illustration)}
+                {getIllustration(infiniteFeatures[currentSlide]?.illustration || 'voice')}
               </div>
               <div className="p-6 text-center">
                 <h3 className="text-xl font-bold text-gray-900 mb-3">
-                  {infiniteFeatures[currentSlide].title}
+                  {infiniteFeatures[currentSlide]?.title || 'Loading...'}
                 </h3>
                 <p className="text-gray-600 text-sm leading-relaxed">
-                  {infiniteFeatures[currentSlide].description}
+                  {infiniteFeatures[currentSlide]?.description || 'Loading...'}
                 </p>
               </div>
             </div>
-
-            {/* Mobile Navigation Dots */}
-            <div className="flex justify-center space-x-2">
-              {features.map((_, index) => (
-                <button
-                  key={index}
-                  onClick={() => goToSlide(index)}
-                  className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                    getFeatureIndex(currentSlide) === index
-                      ? "bg-gray-900 scale-125"
-                      : "bg-gray-300 hover:bg-gray-400"
-                  }`}
-                />
-              ))}
-            </div>
+          </div>
+          
+          {/* Mobile Navigation Dots */}
+          <div className="flex justify-center space-x-3 mt-8 pb-4">
+            {features.map((_, index) => (
+              <button
+                key={index}
+                onClick={() => goToSlide(index)}
+                disabled={isAnimating}
+                className={`transition-all duration-300 rounded-full disabled:cursor-not-allowed ${
+                  getFeatureIndex(currentSlide) === index
+                    ? "w-8 h-3 bg-gray-900"
+                    : "w-3 h-3 bg-gray-300 hover:bg-gray-400"
+                }`}
+              />
+            ))}
           </div>
         </div>
 

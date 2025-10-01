@@ -19,11 +19,11 @@ interface LazyImageProps {
   placeholder?: string;
 }
 
-const LazyImage: React.FC<LazyImageProps> = ({ 
-  src, 
-  alt, 
-  className = "", 
-  placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect width='100%25' height='100%25' fill='%23f0f0f0'/%3E%3C/svg%3E"
+const LazyImage: React.FC<LazyImageProps> = ({
+  src,
+  alt,
+  className = "",
+  placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect width='100%25' height='100%25' fill='%23f0f0f0'/%3E%3C/svg%3E",
 }) => {
   const [imageSrc, setImageSrc] = useState(placeholder);
   const [imageRef, setImageRef] = useState<HTMLImageElement | null>(null);
@@ -32,7 +32,7 @@ const LazyImage: React.FC<LazyImageProps> = ({
 
   useEffect(() => {
     let observer: IntersectionObserver;
-    
+
     if (imageRef && imageSrc === placeholder) {
       observer = new IntersectionObserver(
         (entries) => {
@@ -43,7 +43,7 @@ const LazyImage: React.FC<LazyImageProps> = ({
             }
           });
         },
-        { threshold: 0.1, rootMargin: '50px' }
+        { threshold: 0.1, rootMargin: "50px" }
       );
       observer.observe(imageRef);
     }
@@ -67,7 +67,9 @@ const LazyImage: React.FC<LazyImageProps> = ({
 
   if (hasError) {
     return (
-      <div className={`bg-gray-200 flex items-center justify-center ${className}`}>
+      <div
+        className={`bg-gray-200 flex items-center justify-center ${className}`}
+      >
         <span className="text-gray-500 text-sm">Failed to load image</span>
       </div>
     );
@@ -79,7 +81,7 @@ const LazyImage: React.FC<LazyImageProps> = ({
       src={imageSrc}
       alt={alt}
       className={`transition-all duration-300 ${
-        isLoaded ? 'opacity-100' : 'opacity-0'
+        isLoaded ? "opacity-100" : "opacity-0"
       } ${className}`}
       onLoad={handleLoad}
       onError={handleError}
@@ -91,8 +93,6 @@ const LazyImage: React.FC<LazyImageProps> = ({
 
 const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
   const [isMounted, setIsMounted] = useState(false);
-
-
 
   useEffect(() => {
     setIsMounted(true);
@@ -156,7 +156,7 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
           <div className="w-px h-[42vh] bg-[#d1d1d1] relative top-[28%]" />
           <div className="absolute -left-[83px] -top-2 -rotate-90">
             <span className="text-xs text-[#828282]  tracking-[0.2em] font-normal whitespace-nowrap">
-              AI Voice teammates
+              The New Frontline
             </span>
           </div>
           <div className="absolute -left-[20px] top-[60vh] -rotate-90">
@@ -166,19 +166,17 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
           </div>
         </div>
 
-        <motion.div
-          className="relative z-10 pt-1 sm:pt-4 lg:pt-6"
-        >
+        <motion.div className="relative z-10 pt-1 sm:pt-4 lg:pt-6">
           <div className="max-w-7xl mx-auto">
             <div className="lg:hidden md:hidden relative min-h-[80vh] ">
               {/* Left vertical sidebar text */}
               <div className="absolute left-0 top-0 bottom-0 w-6">
                 <div className="h-full flex gap-4 flex-col justify-center">
-                  <div className="w-px h-[30vh] bg-[#d1d1d1] relative left-[20px] -top-[1%]" />
+                  <div className="w-px h-[30vh] bg-[#d1d1d1] relative left-[18px] -top-[1%]" />
 
-                  <div className="absolute -left-[57px] top-[87px] -rotate-90 origin-center">
+                  <div className="absolute -left-[50px] top-[93px] -rotate-90 origin-center">
                     <span className="text-xs text-[#828282] tracking-[0.15em] font-light whitespace-nowrap">
-                      AI Voice teammates
+                      The New Frontline
                     </span>
                   </div>
 
@@ -273,11 +271,7 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
                   whileHover={{ scale: 1.02 }}
                   transition={{ duration: 0.6, ease: "easeOut" }}
                 >
-                  <img
-                    src={HeroImage2}
-                    alt={""}
-                    className=" w-[700px] "
-                  />
+                  <img src={HeroImage2} alt={""} className=" w-[700px] " />
                   <div className="w-[320px] mx-auto absolute left-[32vw] right-0 bottom-0 mb-4">
                     <motion.div
                       initial={{ opacity: 0, y: 20 }}
@@ -351,8 +345,10 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
               </div>
 
               {/* Main content area for medium screens */}
-              <div className="rela
-              tive min-h-[85vh] flex flex-col">
+              <div
+                className="rela
+              tive min-h-[85vh] flex flex-col"
+              >
                 <div className="ml-20 pt-12 pb-8 px-4 flex-1">
                   {/* Statistics - Medium */}
                   <motion.div
@@ -424,8 +420,6 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
                       ShivAI: your first AI employee Sell, Support, Book, 24/7.
                     </motion.p>
                   </motion.div>
-
-                
                 </div>
 
                 {/* Hero Image for medium screens */}
@@ -550,7 +544,7 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
               className="hidden lg:block absolute left-28 -bottom-10"
             >
               <motion.div
-                animate={{ y: [0, 10, 0] }} 
+                animate={{ y: [0, 10, 0] }}
                 transition={{
                   duration: 2,
                   repeat: Infinity,

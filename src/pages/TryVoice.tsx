@@ -3,6 +3,8 @@ import PhoneInputForm from "../components/PhoneInputForm";
 import blackAi from "../resources/AiImages/blackAI.png";
 import baldAi from "../resources/AiImages/baldAi.png";
 import WhiteAi from "../resources/AiImages/whiteAi.png";
+import bgNew from "../resources/AiImages/bg.svg";
+import voiceIcon from "../resources/AiImages/Animation.png";
 import { motion, AnimatePresence } from "framer-motion";
 interface PhoneFormData {
   phoneNumber: string;
@@ -73,45 +75,107 @@ export default function TryVoice() {
         aria-labelledby="main-heading"
       >
         <div
-          className="absolute inset-0 opacity-80 pointer-events-none"
+          className="absolute inset-0  pointer-events-none"
           style={{
-            background:
-              "linear-gradient(106deg, rgba(23, 183, 234, 0.22) 24.86%, rgba(215, 167, 255, 0.22) 39.56%, rgba(175, 250, 255, 0.22) 54.91%)",
-            filter: "blur(60px)",
-            transform: "translateY(60%)",
+            background: `url(${bgNew})`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
           }}
           aria-hidden="true"
         />
 
         {/* Main Content */}
-        <div className="relative z-10 flex flex-col gap-5 justify-center items-center h-auto px-4 py-2 sm:px-6 md:px-8 lg:px-12 xl:px-16  md:py-12 lg:py-10 xl:py-20 space-y-4  md:space-y-8 lg:space-y-12 xl:space-y-16 min-h-[44vh] md:min-h-[40vh] lg:min-h-[40vh] xl:min-h-[50vh]">
+        <div className="relative z-10 flex flex-col gap-5 justify-center items-center h-auto px-4 py-2 sm:px-6 md:px-8 lg:px-12 xl:px-16  md:py-12 lg:py-10 xl:py-20 space-y-0  md:space-y-8 lg:space-y-12 xl:space-y-16 min-h-[44vh] md:min-h-[40vh] lg:min-h-[40vh] xl:min-h-[50vh]">
+          <div className="relative flex items-center justify-center mb-0 sm:mb-0 md:mb-8 z-20">
+            <img
+              src={voiceIcon}
+              alt="AI fallback"
+              className="w-20 h-20 sm:w-20 sm:h-20 md:w-24 md:h-24 lg:w-28 lg:h-28"
+              style={{ filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.18))" }}
+            />
+          </div>
           <header className="flex flex-col items-center text-center max-w-4xl md:max-w-5xl lg:max-w-6xl xl:max-w-7xl">
             {/* Main Title */}
             <h1
               id="main-heading"
-              className="text-[#333] text-wrap lg:text-nowrap font-normal text-[26px] sm:text-[32px] md:text-[42px] lg:text-5xl xl:text-6xl 2xl:text-7xl mb-4 sm:mb-6 md:mb-8 lg:mb-10 xl:mb-12 px-2 md:px-4 lg:px-6"
+              className="text-white text-wrap lg:text-nowrap text-[32px] sm:text-[36px] md:text-[44px] lg:text-[56px] xl:text-[64px] mb-4 sm:mb-6 md:mb-8 lg:mb-10 xl:mb-12 px-2 md:px-4 lg:px-6"
               style={{
                 fontFamily: "Poppins, sans-serif",
-                lineHeight: "1.1",
-                letterSpacing: "-0.5px",
+                lineHeight: "normal",
+                letterSpacing: "-1px",
                 fontWeight: 600,
+                color: "#FFF",
               }}
             >
               Talk to ShivAI in Your Language
             </h1>
 
-            {/* Subtitle */}
-            <p
-              className="text-[#666] text-wrap text-[12px] sm:text-[16px] md:text-[18px] lg:text-xl xl:text-2xl font-normal leading-relaxed max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-5xl px-2 md:px-4 lg:px-6"
-              style={{ fontFamily: "Poppins, sans-serif" }}
-            >
-              Enter your number to try the demo here no spam, just experience
-              your AI Employee live.
-            </p>
+            {/* Subtitle with action buttons */}
+            <div className="flex flex-col items-center gap-4 sm:gap-6 md:gap-8">
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 md:gap-6 mb-4">
+                <div
+                  className="flex items-center justify-center px-[14px] sm:px-[18px] py-[8px] sm:py-[10px] gap-[8px] sm:gap-[10px] "
+                  style={{
+                    display: "flex",
+                    padding: "8px 12px",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    gap: "8px",
+                    borderRadius: "29.89px",
+                    border: "0.57px solid #1192bb",
+                    backgroundImage: "rgba(255, 255, 255, 0.10)",
+                    boxShadow:
+                      "0 1.14px 2.28px 0 rgba(74, 58, 255, 0.15), 0 -2.28px 1.14px 0 rgba(0, 66, 137, 0.07) inset, 0 1.14px 1.14px 0 rgba(255, 255, 255, 0.35) inset, 0 3.42px 4.56px 0 rgba(223, 238, 255, 0.3) inset",
+                  }}
+                >
+                  <span className="text-xs sm:text-sm md:text-base lg:text-lg text-white font-medium">
+                    Enter your number.
+                  </span>
+                </div>
+
+                <div className="text-white text-base sm:text-lg md:text-xl lg:text-2xl">
+                  <span className="block sm:hidden">↓</span>
+                  <span className="hidden sm:block">→</span>
+                </div>
+
+                <div
+                  className="flex items-center justify-center px-[12px] sm:px-[15px] py-[8px] sm:py-[10px] gap-[8px] sm:gap-[10px] rounded-full bg-gray-800/20 border border-gray-600/30"
+                  style={{
+                    display: "flex",
+                    padding: "8px 12px",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    gap: "8px",
+                    borderRadius: "29.89px",
+                    border: "0.57px solid #1192bb",
+                    backgroundImage: "rgba(255, 255, 255, 0.10)",
+                    boxShadow:
+                      "0 1.14px 2.28px 0 rgba(74, 58, 255, 0.15), 0 -2.28px 1.14px 0 rgba(0, 66, 137, 0.07) inset, 0 1.14px 1.14px 0 rgba(255, 255, 255, 0.35) inset, 0 3.42px 4.56px 0 rgba(223, 238, 255, 0.3) inset",
+                  }}
+                >
+                  <span className="text-xs sm:text-sm md:text-base lg:text-lg text-white font-medium">
+                    One click, one call, with AI Employee.
+                  </span>
+                </div>
+              </div>
+
+              <p
+                className="text-center text-[11px] sm:text-[16px] md:text-[17px] lg:text-[18px] font-normal max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-5xl px-2 md:px-4 lg:px-6"
+                style={{
+                  fontFamily: "Poppins, sans-serif",
+                  color: "rgba(210, 210, 210, 0.50)",
+                  textAlign: "center",
+                  fontStyle: "normal",
+                  fontWeight: 400,
+                  lineHeight: "157.3%",
+                }}
+              >
+                We'll only use this once for your demo call, no spam
+              </p>
+            </div>
           </header>
 
-          {/* AI Image Carousel */}
-          {/* <AiImageCarousel /> */}
+          {/* Animated Video Icon */}
 
           {/* Phone Input Form */}
           <PhoneInputForm onSubmit={handlePhoneSubmit} />
@@ -125,18 +189,25 @@ export default function TryVoice() {
               ShivAI Features
             </h2>
             <p
-              className="text-gray-700 text-[13px] sm:text-[16px] md:text-[18px] lg:text-xl xl:text-2xl leading-relaxed md:leading-relaxed lg:leading-relaxed xl:leading-loose"
-              style={{ fontFamily: "Poppins, sans-serif" }}
+              className="text-white text-center text-[14px] md:text-[20px] lg:text-[22px] xl:text-[24px]"
+              style={{
+                fontFamily: "Poppins, sans-serif",
+                color: "#FFF",
+                textAlign: "center",
+                fontStyle: "normal",
+                fontWeight: 400,
+                lineHeight: "157.3%",
+              }}
             >
               ShivAI will ask your{" "}
-              <strong className="font-bold text-blue-600">language</strong> of
+              <strong className="font-bold text-white">language</strong> of
               choice and{" "}
-              <strong className="font-bold text-purple-600">switch</strong>{" "}
+              <strong className="font-bold text-white">switch</strong>{" "}
               instantly. It{" "}
-              <strong className="font-bold text-green-600">sells</strong>,{" "}
-              <strong className="font-bold text-orange-600">supports</strong>,
-              and <strong className="font-bold text-pink-600">books</strong>{" "}
-              like your real teammate.
+              <strong className="font-bold text-white">sells</strong>,{" "}
+              <strong className="font-bold text-white">supports</strong>, and{" "}
+              <strong className="font-bold text-white">books</strong> like your
+              real teammate.
             </p>
           </section>
         </div>

@@ -43,7 +43,6 @@ const Navbar: React.FC<NavbarProps> = ({
           targetElement = pricingContent;
         }
       }
-      // If "contact us" is clicked, scroll to footer and show it if hidden
       if (sectionId === "contact us") {
         const footer = document.getElementById("footer");
         if (footer) {
@@ -65,7 +64,7 @@ const Navbar: React.FC<NavbarProps> = ({
         if (sectionId === "demo") {
           additionalOffset = 35; // Reduced offset for demo for better positioning
         } else if (sectionId === "pricing") {
-          additionalOffset = 30;
+          additionalOffset = 35;
         } else if (sectionId === "features") {
           additionalOffset = 20;
         } 
@@ -136,7 +135,6 @@ const Navbar: React.FC<NavbarProps> = ({
       setScrolled(window.scrollY > 10);
     };
 
-    // Throttle scroll events for better performance
     let ticking = false;
     const throttledHandleScroll = () => {
       if (!ticking) {

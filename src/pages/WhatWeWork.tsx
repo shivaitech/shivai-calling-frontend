@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 
 // Import SVG icons
 import heartIcon from "../resources/Icon/heart.svg";
@@ -44,25 +44,17 @@ const industries = [
     id: 4,
     title: "Finance & Fintech",
     description:
-      "Assist with transactions, loan applications, regulatory compliance, and always secure, always compliant.",
+      "Handle transactions, KYC, compliance, and customer queries with secure multilingual voice support.",
     icon: financeIcon,
     color: "bg-blue-50 hover:bg-blue-100",
     iconColor: "text-blue-600",
   },
-  {
-    id: 5,
-    title: "Talent & Hiring",
-    description:
-      "Screen candidates with adaptive questioning, process resumes, coordinate interviews and automate recruiting processes anytime.",
-    icon: talentIcon,
-    color: "bg-gray-50 hover:bg-gray-100",
-    iconColor: "text-gray-600",
-  },
+
   {
     id: 6,
     title: "EdTech & Learning",
     description:
-      "Guide students through coursework and provide education and support credentialed anytime.",
+      "Support enrolments, admissions, and coursework guidance for learners & parents using EdTech platforms, schools, and universities worldwide.",
     icon: edTechIcon,
     color: "bg-teal-50 hover:bg-teal-100",
     iconColor: "text-teal-600",
@@ -80,7 +72,7 @@ const industries = [
     id: 8,
     title: "Real Estate & Property",
     description:
-      "Qualify and schedule key property leads, local markets and schedule appointments with agents/brokers, and serve follow up on new property preferences.",
+      "Qualify leads, schedule property visits, assist with broker coordination, and follow-up on buyer preferences.",
     icon: realStateIcon,
     color: "bg-orange-50 hover:bg-orange-100",
     iconColor: "text-orange-600",
@@ -89,7 +81,7 @@ const industries = [
     id: 9,
     title: "Custom",
     description:
-      "Enterprise-class customizations for any industry you need. Call us discuss to experience and tailor voice agents tailored to your specific needs.",
+      "Enterprise-ready customizations enabling ShivAI to fit your workflows and deliver outcomes. Schedule a call to explore.",
     icon: customIcon,
     color: "bg-gray-50 hover:bg-gray-100",
     iconColor: "text-gray-600",
@@ -97,10 +89,12 @@ const industries = [
 ];
 
 export const WhatWeWork = () => {
+  const [showMore, setShowMore] = useState(false);
+
   return (
     <div
       id="work-content"
-      className="w-full py-0 lg:py-0 pt-0 lg:pt-6 relative -top-[10vh] lg:top-0 "
+      className="w-full py-0 lg:py-0 pt-0 lg:pt-6 relative -top-[10vh] lg:top-0 px-6 lg:px-0"
     >
       <div className="max-w-7xl mx-auto px-0 sm:px-6 lg:px-0">
         <div className="text-center mb-4">
@@ -110,46 +104,78 @@ export const WhatWeWork = () => {
         </div>
 
         {/* Industry Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
-          {industries?.map((industry) => {
-            return (
-              <div
-                key={industry.id}
-                className={`bg-white rounded-2xl p-8 transition-all duration-300 hover:shadow-xl hover:scale-105 cursor-pointer border border-gray-200 hover:border-gray-300`}
-              >
-                {/* Icon */}
-                <div className="mb-6">
-                  <div className="w-16 h-16 rounded-2xl bg-[#F0F0F0] flex items-center justify-center shadow-md">
-                    <img
-                      src={industry.icon}
-                      alt={industry.title}
-                      className="w-12 h-12 object-contain"
-                    />
+        <div
+          className={`relative ${
+            !showMore ? "max-h-[850px] lg:max-h-full overflow-hidden" : ""
+          }`}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
+            {industries?.map((industry) => {
+              return (
+                <div
+                  key={industry.id}
+                  className={`bg-white opacity-[0.9] rounded-2xl p-8 transition-all duration-300 hover:shadow-xl  cursor-pointer border border-gray-200 hover:border-gray-300`}
+                >
+                  {/* Icon */}
+                  <div className="mb-6">
+                    <div className="w-16 h-16 rounded-2xl bg-[#F0F0F0] flex items-center justify-center shadow-md">
+                      <img
+                        src={industry.icon}
+                        alt={industry.title}
+                        className="w-12 h-12 object-contain"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Content */}
+                  <div>
+                    <h3 className="text-[22px] lg:text-[26px] font-semibold text-[#000000] mb-2">
+                      {industry.title}
+                    </h3>
+                    <p
+                      style={{
+                        fontFamily: "Poppins, sans-serif",
+                        fontWeight: 400,
+                        verticalAlign: "middle",
+                        color: "#6E6E6E",
+                      }}
+                      className="font-light text-[14px] lg:text-[16px] leading-relaxed"
+                    >
+                      {industry.description}
+                    </p>
                   </div>
                 </div>
-
-                {/* Content */}
-                <div>
-                  <h3 className="text-[22px] lg:text-[26px] font-semibold text-[#000000] mb-2">
-                    {industry.title}
-                  </h3>
-                  <p
-                    style={{
-                      fontFamily: "Poppins, sans-serif",
-                      fontWeight: 400,
-                      verticalAlign: "middle",
-                      color: "#6E6E6E",
-                    }}
-                    className="font-light text-[14px] lg:text-[16px] leading-relaxed"
-                  >
-                    {industry.description}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
+      {!showMore && (
+        <div className="absolute inset-x-0 top-[97%] h-10 bg-gradient-to-b from-[#]/80 via-white/60 to-transparent backdrop-blur-[3px] z-10 pointer-events-none lg:hidden" />
+      )}
+      {!showMore && (
+        <div className="absolute inset-x-0 -bottom-14 flex items-end justify-center pb-4 lg:hidden z-10">
+          <button
+            onClick={() => setShowMore(true)}
+            style={{
+              color: "#000",
+              fontFamily: "Poppins",
+              fontSize: "16px",
+              fontStyle: "normal",
+              fontWeight: 400,
+              lineHeight: "normal",
+              textDecorationLine: "underline",
+              textDecorationStyle: "solid",
+              textDecorationSkipInk: "auto",
+              textDecorationThickness: "auto",
+              textUnderlineOffset: "auto",
+              textUnderlinePosition: "from-font",
+            }}
+          >
+            Show More
+          </button>
+        </div>
+      )}
     </div>
   );
 };
