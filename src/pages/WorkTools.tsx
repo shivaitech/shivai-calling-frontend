@@ -137,7 +137,7 @@ export const WorkTools = () => {
   };
 
   return (
-    <div className="w-full py-12 lg:py-16 relative -top-15% ">
+    <div className="w-full py-12 lg:py-16 mt-4 lg:mt-2 relative ">
       <div className="mx-auto px-0 lg:px-0">
         <div
           style={{
@@ -163,7 +163,7 @@ export const WorkTools = () => {
         <div className="max-w-7xl mx-auto px-6 relative -top-[30px] lg:top-0 lg:px-0">
           <div
             className={`relative ${
-              !showMore ? "max-h-[240px] lg:max-h-[400px] overflow-hidden" : ""
+              !showMore ? "max-h-[290px] lg:max-h-full overflow-hidden" : ""
             }`}
           >
             {/* Blur effect overlay for mobile */}
@@ -188,7 +188,7 @@ export const WorkTools = () => {
                       <img
                         src={getServiceIcon(integration.icon)}
                         alt={integration.name}
-                        className="w-6 h-6 "
+                        className="w-8 h-8 "
                       />
                     </div>
                     <div className="flex-1 bg-white px-4 lg:px-6 py-3 lg:py-4 rounded-r-2xl">

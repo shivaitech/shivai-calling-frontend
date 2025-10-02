@@ -78,8 +78,8 @@ export default function TryVoice() {
           className="absolute inset-0  pointer-events-none"
           style={{
             background: `url(${bgNew})`,
-            backgroundSize: "cover",
             backgroundPosition: "center",
+            backgroundRepeat: "no-repeat",
           }}
           aria-hidden="true"
         />
@@ -90,7 +90,7 @@ export default function TryVoice() {
             <img
               src={voiceIcon}
               alt="AI fallback"
-              className="w-20 h-20 sm:w-20 sm:h-20 md:w-24 md:h-24 lg:w-28 lg:h-28"
+              className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 lg:w-28 lg:h-28"
               style={{ filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.18))" }}
             />
           </div>
@@ -98,10 +98,9 @@ export default function TryVoice() {
             {/* Main Title */}
             <h1
               id="main-heading"
-              className="text-white text-wrap lg:text-nowrap text-[32px] sm:text-[36px] md:text-[44px] lg:text-[56px] xl:text-[64px] mb-4 sm:mb-6 md:mb-8 lg:mb-10 xl:mb-12 px-2 md:px-4 lg:px-6"
+              className="text-white text-wrap leading-[36px] lg:leading:[normal] lg:text-nowrap text-[32px] sm:text-[36px] md:text-[44px] lg:text-[56px] xl:text-[64px] mb-4 sm:mb-6 md:mb-8 lg:mb-10 xl:mb-12 px-2 md:px-4 lg:px-6"
               style={{
                 fontFamily: "Poppins, sans-serif",
-                lineHeight: "normal",
                 letterSpacing: "-1px",
                 fontWeight: 600,
                 color: "#FFF",
@@ -111,21 +110,16 @@ export default function TryVoice() {
             </h1>
 
             {/* Subtitle with action buttons */}
-            <div className="flex flex-col items-center gap-4 sm:gap-6 md:gap-8">
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 md:gap-6 mb-4">
+            <div className="flex flex-col items-center gap-2 sm:gap-6 md:gap-8">
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4 md:gap-6 mb-4">
                 <div
-                  className="flex items-center justify-center px-[14px] sm:px-[18px] py-[8px] sm:py-[10px] gap-[8px] sm:gap-[10px] "
+                  className="flex items-center justify-center px-[12px] sm:px-[15px] py-[8px] sm:py-[10px] gap-[8px] sm:gap-[10px] rounded-full bg-gray-800/20 border border-gray-600/30"
                   style={{
                     display: "flex",
                     padding: "8px 12px",
                     justifyContent: "center",
                     alignItems: "center",
                     gap: "8px",
-                    borderRadius: "29.89px",
-                    border: "0.57px solid #1192bb",
-                    backgroundImage: "rgba(255, 255, 255, 0.10)",
-                    boxShadow:
-                      "0 1.14px 2.28px 0 rgba(74, 58, 255, 0.15), 0 -2.28px 1.14px 0 rgba(0, 66, 137, 0.07) inset, 0 1.14px 1.14px 0 rgba(255, 255, 255, 0.35) inset, 0 3.42px 4.56px 0 rgba(223, 238, 255, 0.3) inset",
                   }}
                 >
                   <span className="text-xs sm:text-sm md:text-base lg:text-lg text-white font-medium">
@@ -146,11 +140,6 @@ export default function TryVoice() {
                     justifyContent: "center",
                     alignItems: "center",
                     gap: "8px",
-                    borderRadius: "29.89px",
-                    border: "0.57px solid #1192bb",
-                    backgroundImage: "rgba(255, 255, 255, 0.10)",
-                    boxShadow:
-                      "0 1.14px 2.28px 0 rgba(74, 58, 255, 0.15), 0 -2.28px 1.14px 0 rgba(0, 66, 137, 0.07) inset, 0 1.14px 1.14px 0 rgba(255, 255, 255, 0.35) inset, 0 3.42px 4.56px 0 rgba(223, 238, 255, 0.3) inset",
                   }}
                 >
                   <span className="text-xs sm:text-sm md:text-base lg:text-lg text-white font-medium">
@@ -160,7 +149,7 @@ export default function TryVoice() {
               </div>
 
               <p
-                className="text-center text-[11px] sm:text-[16px] md:text-[17px] lg:text-[18px] font-normal max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-5xl px-2 md:px-4 lg:px-6"
+                className="text-center text-[#c8c8c8] text-[11px] sm:text-[16px] md:text-[17px] lg:text-[18px] font-normal max-w-2xl md:max-w-3xl lg:max-w-4xl xl:max-w-5xl px-2 md:px-4 lg:px-6"
                 style={{
                   fontFamily: "Poppins, sans-serif",
                   color: "rgba(210, 210, 210, 0.50)",
@@ -189,7 +178,7 @@ export default function TryVoice() {
               ShivAI Features
             </h2>
             <p
-              className="text-white text-center text-[14px] md:text-[20px] lg:text-[22px] xl:text-[24px]"
+              className="text-white text-center text-[12px] md:text-[20px] lg:text-[22px] xl:text-[24px]"
               style={{
                 fontFamily: "Poppins, sans-serif",
                 color: "#FFF",

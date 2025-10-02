@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import Slider from "react-slick";
 import integration from "../resources/images/02.svg";
 import voice from "../resources/images/03.svg";
 import language from "../resources/images/04.svg";
@@ -49,14 +50,12 @@ export const WhatShivaiDo = React.memo(() => {
   
   const [currentSlide, setCurrentSlide] = useState(features.length);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [currentMobileSlide, setCurrentMobileSlide] = useState(0);
   const sliderRef = useRef<HTMLDivElement>(null);
+  const mobileSliderRef = useRef<any>(null);
   const intervalRef = useRef<number | null>(null);
   
-  // Enhanced swipe state for better feel
-  const [touchStart, setTouchStart] = useState<number | null>(null);
-  const [touchEnd, setTouchEnd] = useState<number | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragOffset, setDragOffset] = useState(0);
+
 
   // Memoize illustration mapping to prevent recalculation
   const illustrationMap = useMemo(() => ({
@@ -174,6 +173,7 @@ export const WhatShivaiDo = React.memo(() => {
     setTimeout(() => setIsAnimating(false), 300);
   }, [isAnimating]);
 
+  // Keep goToSlide for desktop functionality
   const goToSlide = useCallback((index: number) => {
     if (isAnimating) return;
     setIsAnimating(true);
@@ -186,62 +186,6 @@ export const WhatShivaiDo = React.memo(() => {
   const getFeatureIndex = useCallback((slideIndex: number) => {
     return slideIndex % features.length;
   }, []);
-
-  // Enhanced swipe handlers with visual feedback
-  const handleTouchStart = (e: React.TouchEvent) => {
-    setTouchEnd(null);
-    setTouchStart(e.targetTouches[0].clientX);
-    setIsDragging(true);
-    setDragOffset(0);
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!touchStart || !isDragging) return;
-    
-    const touchCurrent = e.targetTouches[0].clientX;
-    setTouchEnd(touchCurrent);
-    
-    // Calculate drag offset for visual feedback - full responsiveness for carousel
-    const offset = touchCurrent - touchStart;
-    const dampedOffset = offset * 0.4; // Moderate damping for smooth carousel feel
-    setDragOffset(dampedOffset);
-  };
-
-  const handleTouchEnd = () => {
-    if (!touchStart || !touchEnd || !isDragging) {
-      setIsDragging(false);
-      setDragOffset(0);
-      return;
-    }
-    
-    const distance = touchStart - touchEnd;
-    const isLeftSwipe = distance > 50; // Optimized threshold for card sliding
-    const isRightSwipe = distance < -50;
-
-    // Reset drag state
-    setIsDragging(false);
-    setDragOffset(0);
-
-    if (isLeftSwipe) {
-      handleNext();
-    } else if (isRightSwipe) {
-      // Previous slide logic
-      if (isAnimating) return;
-      setIsAnimating(true);
-      setCurrentSlide((prev) => {
-        const prevSlide = prev - 1;
-        if (prevSlide < features.length) {
-          setTimeout(() => setCurrentSlide(features.length * 2 - 1), 400);
-        }
-        return prevSlide;
-      });
-      setTimeout(() => setIsAnimating(false), 400);
-    }
-
-    // Reset touch state
-    setTouchStart(null);
-    setTouchEnd(null);
-  };
 
   // Memoize transform calculation to prevent recalculation on every render
   const transformStyle = useMemo(() => ({
@@ -313,54 +257,153 @@ export const WhatShivaiDo = React.memo(() => {
     <div className="w-full py-0 lg:py-0 pt-0 lg:pt-20 relative -top-[12vh] lg:top-0">
       <div className="max-w-8xl mx-auto px-0  lg:px-0">
         {/* Title */}
-        <div className="text-center mb-2 lg:mb-4">
+        <div className="text-center mb-4 lg:mb-4">
           <h2 className="text-[30px] lg:text-[64px] font-semibold text-[#333333] tracking-tight ">
             What ShivAI Can Do
           </h2>
         </div>
 
-        {/* Mobile View - Simple Card Display */}
+        {/* Mobile View - React Slick Carousel */}
         <div className="md:hidden">
-          <div className="space-y-6 p-4">
-            <div 
-              className="bg-white rounded-2xl overflow-hidden shadow-2xl border border-gray-200 transition-transform duration-200"
-              style={{
-                transform: isDragging 
-                  ? `translateX(${dragOffset}px) scale(0.98)` 
-                  : 'translateX(0px) scale(1)'
+          <div className="px-4">
+            <Slider
+              ref={mobileSliderRef}
+              dots={false}
+              infinite={true}
+              speed={500}
+              slidesToShow={1}
+              slidesToScroll={1}
+              swipeToSlide={true}
+              touchThreshold={10}
+              swipe={true}
+              arrows={false}
+              autoplay={false}
+              pauseOnHover={true}
+              className="mobile-carousel"
+              beforeChange={(current, next) => {
+                // With infinite scroll, normalize the index to match our features array
+                const normalizedIndex = next % features.length;
+                console.log('Carousel changing from', current, 'to', next, 'normalized:', normalizedIndex);
+                setCurrentMobileSlide(normalizedIndex);
               }}
-              onTouchStart={handleTouchStart}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
+              afterChange={(index) => {
+                // With infinite scroll, normalize the index to match our features array
+                const normalizedIndex = index % features.length;
+                console.log('Carousel changed to index:', index, 'normalized:', normalizedIndex);
+                setCurrentMobileSlide(normalizedIndex);
+                // Update current slide for consistency with desktop
+                setCurrentSlide(normalizedIndex + features.length);
+              }}
+              responsive={[
+                {
+                  breakpoint: 480,
+                  settings: {
+                    slidesToShow: 1,
+                    slidesToScroll: 1,
+                    swipeToSlide: true,
+                    touchThreshold: 8,
+                  }
+                }
+              ]}
             >
-              <div className="w-full h-full max-h-[40vh] flex items-center justify-center">
-                {getIllustration(infiniteFeatures[currentSlide]?.illustration || 'voice')}
+              {features.map((feature) => (
+                <div key={feature.id} className="px-2">
+                  <div className="bg-white rounded-[20px] overflow-hidden shadow-lg">
+                    <div className="w-full h-full max-h-[40vh] flex items-center justify-center rounded-[18px]">
+                      {getIllustration(feature.illustration)}
+                    </div>
+                    <div className="p-6 text-center">
+                      <h3 className="text-xl font-bold text-gray-900 mb-3">
+                        {feature.title}
+                      </h3>
+                      <p className="text-gray-600 text-sm leading-relaxed">
+                        {feature.description}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </Slider>
+            
+            {/* Swipe Indicator */}
+            <div className="flex justify-between items-center mt-4 px-6">
+              {/* Left swipe hint */}
+              <div 
+                className={`flex items-center space-x-2 transition-opacity duration-300 cursor-pointer ${
+                  currentMobileSlide > 0 ? 'opacity-70 hover:opacity-100' : 'opacity-30'
+                }`}
+                onClick={() => {
+                  if (currentMobileSlide > 0 && mobileSliderRef.current) {
+                    mobileSliderRef.current.slickPrev();
+                  }
+                }}
+              >
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  className="text-gray-600"
+                >
+                  <path
+                    d="M15 18l-6-6 6-6"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                <span className="text-xs text-gray-600 font-medium">Swipe</span>
               </div>
-              <div className="p-6 text-center">
-                <h3 className="text-xl font-bold text-gray-900 mb-3">
-                  {infiniteFeatures[currentSlide]?.title || 'Loading...'}
-                </h3>
-                <p className="text-gray-600 text-sm leading-relaxed">
-                  {infiniteFeatures[currentSlide]?.description || 'Loading...'}
-                </p>
+
+              {/* Progress indicators */}
+              <div className="flex items-center space-x-1">
+                {features.map((_, index) => (
+                  <div
+                    key={index}
+                    className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${
+                      index === currentMobileSlide
+                        ? 'w-8 bg-gray-900'
+                        : 'w-2 bg-gray-300 hover:bg-gray-400'
+                    }`}
+                    onClick={() => {
+                      if (mobileSliderRef.current) {
+                        mobileSliderRef.current.slickGoTo(index);
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+
+              {/* Right swipe hint */}
+              <div 
+                className={`flex items-center space-x-2 transition-opacity duration-300 cursor-pointer ${
+                  currentMobileSlide < features.length - 1 ? 'opacity-70 hover:opacity-100' : 'opacity-30'
+                }`}
+                onClick={() => {
+                  if (currentMobileSlide < features.length - 1 && mobileSliderRef.current) {
+                    mobileSliderRef.current.slickNext();
+                  }
+                }}
+              >
+                <span className="text-xs text-gray-600 font-medium">Swipe</span>
+                <svg
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  className="text-gray-600"
+                >
+                  <path
+                    d="M9 18l6-6-6-6"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
               </div>
             </div>
-          </div>
-          
-          {/* Mobile Navigation Dots */}
-          <div className="flex justify-center space-x-3 mt-8 pb-4">
-            {features.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => goToSlide(index)}
-                disabled={isAnimating}
-                className={`transition-all duration-300 rounded-full disabled:cursor-not-allowed ${
-                  getFeatureIndex(currentSlide) === index
-                    ? "w-8 h-3 bg-gray-900"
-                    : "w-3 h-3 bg-gray-300 hover:bg-gray-400"
-                }`}
-              />
-            ))}
           </div>
         </div>
 

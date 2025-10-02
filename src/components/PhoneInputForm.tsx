@@ -477,8 +477,8 @@ export default function PhoneInputForm({
                   type="tel"
                   inputMode="tel"
                   autoComplete="tel"
-                  placeholder="Enter Phone Number"
-                  className="flex-1 phone-input-custom bg-transparent border-none outline-none min-w-0 focus:ring-0 text-black text-[10px] md:text-[20px] lg:text-[22px] xl:text-[24px]"
+                  placeholder="e.g:123-456-7890"
+                  className="flex-1 phone-input-custom bg-transparent border-none outline-none min-w-0 focus:ring-0 text-black text-[12px] md:text-[20px] lg:text-[22px] xl:text-[24px]"
                   style={{ 
                     fontFamily: "Poppins, sans-serif",
                     fontWeight: 400,

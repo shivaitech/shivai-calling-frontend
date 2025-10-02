@@ -94,11 +94,11 @@ export const WhatWeWork = () => {
   return (
     <div
       id="work-content"
-      className="w-full py-0 lg:py-0 pt-0 lg:pt-6 relative -top-[10vh] lg:top-0 px-6 lg:px-0"
+      className="w-full py-0 lg:py-0 pt-0 lg:pt-6 relative -top-[7vh] lg:top-0 px-6 lg:px-0"
     >
       <div className="max-w-7xl mx-auto px-0 sm:px-6 lg:px-0">
-        <div className="text-center mb-4">
-          <h2 className="text-[30px] lg:text-[64px] font-semibold text-[#333333] tracking-tight mb-6 text-nowrap">
+        <div className="text-center mb-7">
+          <h2 className="text-[30px] lg:text-[64px] font-semibold text-[#333333] tracking-tight  text-nowrap">
             Where ShivAI Works
           </h2>
         </div>
@@ -106,7 +106,7 @@ export const WhatWeWork = () => {
         {/* Industry Grid */}
         <div
           className={`relative ${
-            !showMore ? "max-h-[850px] lg:max-h-full overflow-hidden" : ""
+            !showMore ? "max-h-[920px] lg:max-h-full overflow-hidden" : ""
           }`}
         >
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">

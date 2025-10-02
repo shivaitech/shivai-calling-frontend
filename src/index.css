@@ -1,5 +1,9 @@
 @import url("https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap");
 
+/* Slick Carousel CSS */
+@import "slick-carousel/slick/slick.css";
+@import "slick-carousel/slick/slick-theme.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -138,7 +142,7 @@ body {
   color: rgba(0, 0, 0, 0.40);
   text-align: start;
   font-family: Poppins, sans-serif;
-  font-size: 10px;
+  font-size: 12px;
   font-style: normal;
   font-weight: 400;
   line-height: 24px;
@@ -167,4 +171,62 @@ body {
     line-height: 30.606px;
     letter-spacing: 1.391px;
   }
+}
+
+/* Mobile Carousel Styles */
+.mobile-carousel .slick-track {
+  display: flex;
+  align-items: center;
+}
+
+.mobile-carousel .slick-slide {
+  outline: none;
+}
+
+.mobile-carousel .slick-slide > div {
+  height: 100%;
+}
+
+.mobile-carousel .mobile-dots {
+  bottom: -5px;
+  text-align: center;
+}
+
+.mobile-carousel .mobile-dots li {
+  width: 12px;
+  height: 12px;
+  margin: 0 6px;
+}
+
+.mobile-carousel .mobile-dots li button {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: #d1d5db;
+  border: none;
+  font-size: 0;
+  transition: all 0.3s ease;
+}
+
+.mobile-carousel .mobile-dots li button:before {
+  display: none;
+}
+
+.mobile-carousel .mobile-dots li.slick-active button {
+  background-color: #111827;
+  transform: scale(1.25);
+  width: 34px;
+  border-radius: 6px;
+}
+
+.mobile-carousel .mobile-dots li button:hover {
+  background-color: #111827;
+}
+
+.mobile-carousel .slick-slide {
+  padding: 0 4px;
+}
+
+.mobile-carousel .slick-list {
+  margin: 0 -4px;
 }
