@@ -262,99 +262,159 @@ const AgentManagement = () => {
   // MAIN AGENT LIST PAGE
   if (isList) {
     return (
-      <div className="space-y-6 w-full">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="min-w-0 flex-1">
-            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-800 dark:text-white mb-2 break-words max-w-full overflow-hidden">
-              Agent Management 🤖
-            </h1>
-            <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 break-words max-w-full">
-              Create, manage, and monitor your AI agents
-            </p>
+      <div className="space-y-4 sm:space-y-6 w-full max-w-full overflow-hidden">
+        {/* Mobile-First Header */}
+        <div className="px-1">
+          <div className="flex flex-col gap-3 sm:gap-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <h1 className="text-lg sm:text-xl lg:text-2xl xl:text-3xl font-bold text-slate-800 dark:text-white mb-1 sm:mb-2 break-words leading-tight">
+                  Agent Management 🤖
+                </h1>
+                <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 break-words">
+                  Create, manage, and monitor your AI agents
+                </p>
+              </div>
+              
+              {/* Mobile Create Button */}
+              <button
+                onClick={() => navigate('/agents/create')}
+                className="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all duration-200 text-sm sm:text-base font-medium shadow-sm hover:shadow-md transform hover:scale-[1.02] active:scale-[0.98]"
+              >
+                <Plus className="w-4 h-4" />
+                <span className="hidden sm:inline">Create</span>
+              </button>
+            </div>
+            
+            {/* Stats Row - Mobile Only */}
+            <div className="grid grid-cols-3 gap-2 sm:hidden">
+              <div className="bg-white/50 dark:bg-slate-800/50 rounded-lg p-2 text-center">
+                <p className="text-lg font-bold text-slate-800 dark:text-white">{agents.length}</p>
+                <p className="text-xs text-slate-600 dark:text-slate-400">Agents</p>
+              </div>
+              <div className="bg-white/50 dark:bg-slate-800/50 rounded-lg p-2 text-center">
+                <p className="text-lg font-bold text-green-600 dark:text-green-400">
+                  {agents.filter(a => a.status === 'Published').length}
+                </p>
+                <p className="text-xs text-slate-600 dark:text-slate-400">Live</p>
+              </div>
+              <div className="bg-white/50 dark:bg-slate-800/50 rounded-lg p-2 text-center">
+                <p className="text-lg font-bold text-yellow-600 dark:text-yellow-400">
+                  {agents.filter(a => a.status === 'Training').length}
+                </p>
+                <p className="text-xs text-slate-600 dark:text-slate-400">Training</p>
+              </div>
+            </div>
           </div>
-          
-          <button
-            onClick={() => navigate('/agents/create')}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Create Agent
-          </button>
         </div>
 
-        {/* Search and Filter */}
+        {/* Search and Filter Row */}
         <GlassCard>
-          <div className="p-4 sm:p-6">
-            <div className="flex flex-col sm:flex-row gap-4">
+          <div className="p-3 sm:p-4 lg:p-6">
+            <div className="flex items-center gap-3">
+              {/* Search Input */}
               <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 z-10" />
                 <input
                   type="text"
                   placeholder="Search agents..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-white"
+                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/20 text-slate-800 dark:text-white text-sm transition-all duration-200"
                 />
               </div>
               
-              <div className="flex items-center gap-3">
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-white"
+              {/* Status Filter */}
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="px-3 py-2.5 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-white text-sm min-w-[120px] cursor-pointer"
+              >
+                <option value="all">All Status</option>
+                <option value="published">Published</option>
+                <option value="draft">Draft</option>
+                <option value="training">Training</option>
+              </select>
+              
+              {/* Filter Button */}
+              <button className="flex items-center justify-center px-3 py-2.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors duration-200 active:scale-95">
+                <Filter className="w-4 h-4" />
+              </button>
+            </div>
+            
+            {/* Active Filters Display */}
+            {(searchTerm || statusFilter !== 'all') && (
+              <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
+                <span className="text-xs text-slate-500 dark:text-slate-400">Active filters:</span>
+                {searchTerm && (
+                  <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-xs flex items-center gap-1">
+                    "{searchTerm}"
+                    <button onClick={() => setSearchTerm('')} className="hover:bg-blue-200 dark:hover:bg-blue-800/50 rounded-full p-0.5">
+                      ✕
+                    </button>
+                  </span>
+                )}
+                {statusFilter !== 'all' && (
+                  <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs flex items-center gap-1">
+                    Status: {statusFilter}
+                    <button onClick={() => setStatusFilter('all')} className="hover:bg-green-200 dark:hover:bg-green-800/50 rounded-full p-0.5">
+                      ✕
+                    </button>
+                  </span>
+                )}
+                <button 
+                  onClick={() => { setSearchTerm(''); setStatusFilter('all'); }}
+                  className="text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 underline"
                 >
-                  <option value="all">All Status</option>
-                  <option value="published">Published</option>
-                  <option value="draft">Draft</option>
-                  <option value="training">Training</option>
-                </select>
-                
-                <button className="flex items-center gap-2 px-3 py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors">
-                  <Filter className="w-4 h-4" />
-                  Filter
+                  Clear all
                 </button>
               </div>
-            </div>
+            )}
           </div>
         </GlassCard>
 
-        {/* Agent Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        {/* Mobile-First Agent Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
           {filteredAgents.map((agent) => (
             <GlassCard key={agent.id} hover>
-              <div className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-                      <Bot className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-slate-800 dark:text-white">
-                        {agent.name}
-                      </h3>
-                      <p className="text-sm text-slate-500 dark:text-slate-400">
-                        {agent.language} • {agent.persona}
-                      </p>
+              <div className="p-4 sm:p-5 lg:p-6">
+                {/* Agent Header - Mobile Optimized */}
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="w-10 sm:w-12 h-10 sm:h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <Bot className="w-5 sm:w-6 h-5 sm:h-6 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-semibold text-slate-800 dark:text-white text-sm sm:text-base truncate">
+                          {agent.name}
+                        </h3>
+                        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 truncate">
+                          {agent.language} • {agent.persona}
+                        </p>
+                      </div>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium flex-shrink-0 ${
+                        agent.status === 'Published' 
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400'
+                          : agent.status === 'Training'
+                          ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400'
+                          : 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
+                      }`}>
+                        {agent.status}
+                      </span>
                     </div>
                   </div>
-                  
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    agent.status === 'Published' 
-                      ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400'
-                      : agent.status === 'Training'
-                      ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400'
-                      : 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
-                  }`}>
-                    {agent.status}
-                  </span>
                 </div>
 
-                <div className="space-y-3 mb-6">
-                  <div className="flex justify-between text-sm">
+                {/* Agent Details - Compact for Mobile */}
+                <div className="space-y-2 mb-4 sm:mb-5">
+                  <div className="flex justify-between text-xs sm:text-sm">
                     <span className="text-slate-600 dark:text-slate-400">Voice:</span>
-                    <span className="text-slate-800 dark:text-white">{agent.voice}</span>
+                    <span className="text-slate-800 dark:text-white truncate ml-2 text-right">
+                      {agent.voice}
+                    </span>
                   </div>
-                  <div className="flex justify-between text-sm">
+                  <div className="flex justify-between text-xs sm:text-sm">
                     <span className="text-slate-600 dark:text-slate-400">Created:</span>
                     <span className="text-slate-800 dark:text-white">
                       {agent.createdAt.toLocaleDateString()}
@@ -362,10 +422,11 @@ const AgentManagement = () => {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                {/* Primary Actions - Properly Aligned */}
+                <div className="flex items-center gap-2 mb-3">
                   <button
                     onClick={() => navigate(`/agents/${agent.id}`)}
-                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm"
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-all duration-200 text-sm font-medium active:scale-[0.98]"
                   >
                     <Eye className="w-4 h-4" />
                     View
@@ -373,7 +434,7 @@ const AgentManagement = () => {
                   
                   <button
                     onClick={() => navigate(`/agents/${agent.id}/edit`)}
-                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-sm"
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-all duration-200 text-sm font-medium active:scale-[0.98]"
                   >
                     <Edit className="w-4 h-4" />
                     Edit
@@ -381,18 +442,19 @@ const AgentManagement = () => {
                   
                   <button
                     onClick={() => navigate(`/agents/${agent.id}/train`)}
-                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors text-sm"
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-all duration-200 text-sm font-medium active:scale-[0.98]"
                   >
                     <Zap className="w-4 h-4" />
                     Train
                   </button>
                 </div>
 
-                <div className="flex items-center gap-2 mt-3">
+                {/* Secondary Actions */}
+                <div className="flex items-center gap-2">
                   {agent.status === 'Published' ? (
                     <button
                       onClick={() => handlePause(agent.id)}
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors text-sm"
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-all duration-200 text-sm font-medium active:scale-[0.98]"
                     >
                       <Pause className="w-4 h-4" />
                       Pause
@@ -400,18 +462,18 @@ const AgentManagement = () => {
                   ) : (
                     <button
                       onClick={() => handlePublish(agent.id)}
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm"
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all duration-200 text-sm font-medium active:scale-[0.98]"
                     >
                       <Play className="w-4 h-4" />
                       Publish
                     </button>
                   )}
                   
-                  <button className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+                  <button className="p-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-95">
                     <Copy className="w-4 h-4" />
                   </button>
                   
-                  <button className="p-2 text-slate-400 hover:text-red-500 transition-colors">
+                  <button className="p-2.5 text-slate-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 active:scale-95">
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
@@ -420,24 +482,38 @@ const AgentManagement = () => {
           ))}
         </div>
 
+        {/* Mobile-Optimized Empty State */}
         {filteredAgents.length === 0 && (
-          <div className="text-center py-16">
-            <Bot className="w-20 h-20 text-slate-300 dark:text-slate-600 mx-auto mb-6" />
-            <h3 className="text-xl font-medium text-slate-600 dark:text-slate-400 mb-3">
+          <div className="text-center py-8 sm:py-12 lg:py-16 px-4">
+            <Bot className="w-16 sm:w-20 h-16 sm:h-20 text-slate-300 dark:text-slate-600 mx-auto mb-4 sm:mb-6" />
+            <h3 className="text-lg sm:text-xl font-medium text-slate-600 dark:text-slate-400 mb-2 sm:mb-3">
               {searchTerm || statusFilter !== 'all' ? 'No agents found' : 'No agents created yet'}
             </h3>
-            <p className="text-slate-500 dark:text-slate-500 max-w-md mx-auto mb-6">
+            <p className="text-sm sm:text-base text-slate-500 dark:text-slate-500 max-w-sm sm:max-w-md mx-auto mb-4 sm:mb-6 leading-relaxed">
               {searchTerm || statusFilter !== 'all' 
-                ? 'Try adjusting your search or filter criteria'
-                : 'Create your first AI agent to get started with automated conversations'
+                ? 'Try adjusting your search or filter criteria to find what you\'re looking for'
+                : 'Create your first AI agent to get started with automated conversations and boost your business efficiency'
               }
             </p>
             {!searchTerm && statusFilter === 'all' && (
+              <div className="space-y-3">
+                <button
+                  onClick={() => navigate('/agents/create')}
+                  className="w-full sm:w-auto px-6 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-all duration-200 font-medium shadow-sm hover:shadow-md transform hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  Create Your First Agent
+                </button>
+                <p className="text-xs sm:text-sm text-slate-400 dark:text-slate-500">
+                  Get started in just 2 minutes ⚡
+                </p>
+              </div>
+            )}
+            {(searchTerm || statusFilter !== 'all') && (
               <button
-                onClick={() => navigate('/agents/create')}
-                className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                onClick={() => { setSearchTerm(''); setStatusFilter('all'); }}
+                className="w-full sm:w-auto px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
               >
-                Create Your First Agent
+                Clear Filters
               </button>
             )}
           </div>
@@ -796,57 +872,67 @@ Content-Type: application/json
     );
   }
 
-  // EDIT/CREATE MODE
+  // EDIT/CREATE MODE - Mobile-First
   return (
-    <div className="space-y-6 w-full">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigate(isCreate ? '/agents' : `/agents/${id}`)}
-            className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5 text-slate-600 dark:text-slate-300" />
-          </button>
-          <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-slate-800 dark:text-white">
-              {isCreate ? 'Create New Agent' : `Edit ${currentAgent?.name}`}
-            </h1>
-            <p className="text-slate-600 dark:text-slate-400">
-              {isCreate ? 'Set up your AI agent with custom personality and capabilities' : 'Modify agent settings and configuration'}
-            </p>
+    <div className="space-y-4 sm:space-y-6 w-full max-w-full overflow-hidden">
+      {/* Mobile-First Header */}
+      <div className="px-1">
+        <div className="flex flex-col gap-3 sm:gap-0 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
+            <button
+              onClick={() => navigate(isCreate ? '/agents' : `/agents/${id}`)}
+              className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex-shrink-0 active:scale-95"
+            >
+              <ArrowLeft className="w-4 sm:w-5 h-4 sm:h-5 text-slate-600 dark:text-slate-300" />
+            </button>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-lg sm:text-xl lg:text-2xl xl:text-3xl font-bold text-slate-800 dark:text-white truncate">
+                {isCreate ? 'Create New Agent' : `Edit ${currentAgent?.name}`}
+              </h1>
+              <p className="text-xs sm:text-sm lg:text-base text-slate-600 dark:text-slate-400 leading-tight">
+                {isCreate ? 'Set up your AI agent with custom personality and capabilities' : 'Modify agent settings and configuration'}
+              </p>
+            </div>
           </div>
-        </div>
-        
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate(isCreate ? '/agents' : `/agents/${id}`)}
-            className="px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            className="flex items-center gap-2 px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-          >
-            <Save className="w-4 h-4" />
-            {isCreate ? 'Create Agent' : 'Save Changes'}
-          </button>
+          
+          {/* Action Buttons */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              onClick={() => navigate(isCreate ? '/agents' : `/agents/${id}`)}
+              className="flex-1 sm:flex-none px-3 sm:px-4 py-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors text-sm sm:text-base active:scale-95"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 sm:px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all duration-200 text-sm sm:text-base font-medium shadow-sm hover:shadow-md transform hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <Save className="w-4 h-4" />
+              <span className="hidden xs:inline">{isCreate ? 'Create Agent' : 'Save Changes'}</span>
+              <span className="xs:hidden">{isCreate ? 'Create' : 'Save'}</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="xl:col-span-2 space-y-6">
-          {/* Identity Section */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6">
+        <div className="xl:col-span-2 space-y-4 sm:space-y-6">
+          {/* Identity Section - Mobile Optimized */}
           <GlassCard>
-            <div className="p-6">
-              <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4">
-                Identity
-              </h3>
-              <p className="text-slate-600 dark:text-slate-400 mb-6">
+            <div className="p-4 sm:p-5 lg:p-6">
+              <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
+                  <Bot className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                </div>
+                <h3 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
+                  Identity
+                </h3>
+              </div>
+              <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mb-4 sm:mb-6">
                 Define your agent's basic identity and personality
               </p>
 
-              <div className="space-y-6">
+              <div className="space-y-4 sm:space-y-6">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                     Agent Name <span className="text-red-500">*</span>
@@ -856,9 +942,9 @@ Content-Type: application/json
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="Enter a descriptive name for your agent"
-                    className="w-full px-4 py-3 bg-white/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-white"
+                    className="w-full px-4 py-3 sm:py-3 bg-white/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/20 text-slate-800 dark:text-white text-base sm:text-sm transition-all duration-200"
                   />
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                     Choose a clear, descriptive name that reflects your agent's purpose
                   </p>
                 </div>
@@ -953,7 +1039,7 @@ Content-Type: application/json
                                       {template.description}
                                     </p>
                                     <div className="flex flex-wrap gap-2">
-                                      {template.features.map((feature, index) => (
+                                      {template.features.map((feature: string, index: number) => (
                                         <span
                                           key={index}
                                           className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-xs"
@@ -1015,7 +1101,7 @@ Content-Type: application/json
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
                     Persona <span className="text-red-500">*</span>
                   </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
                     {[
                       { value: 'Friendly', label: 'Friendly', desc: 'Warm and approachable' },
                       { value: 'Formal', label: 'Formal', desc: 'Professional and structured' },
@@ -1027,22 +1113,22 @@ Content-Type: application/json
                       <button
                         key={persona.value}
                         onClick={() => setFormData({ ...formData, persona: persona.value })}
-                        className={`p-3 text-left border-2 rounded-xl transition-all ${
+                        className={`p-3 text-left border-2 rounded-xl transition-all duration-200 active:scale-[0.98] ${
                           formData.persona === persona.value
-                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                            : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-sm'
+                            : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800/50'
                         }`}
                       >
                         <div className="font-medium text-slate-800 dark:text-white text-sm">
                           {persona.label}
                         </div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-tight">
                           {persona.desc}
                         </div>
                       </button>
                     ))}
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
                     Select the personality style that best fits your agent's role
                   </p>
                 </div>
@@ -1050,17 +1136,22 @@ Content-Type: application/json
             </div>
           </GlassCard>
 
-          {/* Voice & Language */}
+          {/* Voice & Language - Mobile Optimized */}
           <GlassCard>
-            <div className="p-6">
-              <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4">
-                Voice & Language
-              </h3>
-              <p className="text-slate-600 dark:text-slate-400 mb-6">
+            <div className="p-4 sm:p-5 lg:p-6">
+              <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center">
+                  <MessageSquare className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                </div>
+                <h3 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
+                  Voice & Language
+                </h3>
+              </div>
+              <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mb-4 sm:mb-6">
                 Configure how your agent communicates
               </p>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                     Language <span className="text-red-500">*</span>
@@ -1174,18 +1265,23 @@ Content-Type: application/json
           </GlassCard>
         </div>
 
-        {/* Sidebar */}
-        <div className="space-y-6">
+        {/* Sidebar - Mobile Stacked */}
+        <div className="space-y-4 sm:space-y-6">
           <GlassCard>
-            <div className="p-6">
-              <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4">
-                Guardrails Level
+            <div className="p-4 sm:p-5 lg:p-6">
+              <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                <div className="w-8 h-8 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">
+                  <Shield className="w-4 h-4 text-green-600 dark:text-green-400" />
+                </div>
+                <h3 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
+                  Guardrails Level
+                </h3>
                 <Tooltip content="Guardrails control how strictly the agent follows guidelines and handles sensitive topics. Higher levels provide more restrictions but may limit flexibility.">
-                  <Info className="w-4 h-4 text-slate-400 ml-2 cursor-help" />
+                  <Info className="w-4 h-4 text-slate-400 cursor-help" />
                 </Tooltip>
-              </h3>
+              </div>
 
-              <div className="space-y-3">
+              <div className="space-y-2 sm:space-y-3">
                 {[
                   { value: 'Low', label: 'Low', desc: 'Minimal restrictions, maximum flexibility' },
                   { value: 'Medium', label: 'Medium', desc: 'Balanced approach with reasonable limits' },
@@ -1194,16 +1290,16 @@ Content-Type: application/json
                   <button
                     key={level.value}
                     onClick={() => setFormData({ ...formData, guardrailsLevel: level.value })}
-                    className={`w-full p-3 text-left border-2 rounded-xl transition-all ${
+                    className={`w-full p-3 text-left border-2 rounded-xl transition-all duration-200 active:scale-[0.98] ${
                       formData.guardrailsLevel === level.value
-                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                        : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-sm'
+                        : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800/50'
                     }`}
                   >
                     <div className="font-medium text-slate-800 dark:text-white text-sm">
                       {level.label}
                     </div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-tight">
                       {level.desc}
                     </div>
                   </button>
@@ -1213,10 +1309,15 @@ Content-Type: application/json
           </GlassCard>
 
           <GlassCard>
-            <div className="p-6">
-              <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4">
-                Quick Tips
-              </h3>
+            <div className="p-4 sm:p-5 lg:p-6">
+              <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                <div className="w-8 h-8 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg flex items-center justify-center">
+                  <Lightbulb className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
+                </div>
+                <h3 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
+                  Quick Tips
+                </h3>
+              </div>
               <div className="space-y-3">
                 <div className="flex items-start gap-3">
                   <div className="w-6 h-6 bg-blue-100 dark:bg-blue-900/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -1226,7 +1327,7 @@ Content-Type: application/json
                     <p className="text-sm font-medium text-slate-800 dark:text-white">
                       Choose a descriptive name
                     </p>
-                    <p className="text-xs text-slate-600 dark:text-slate-400">
+                    <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
                       Make it clear what your agent does
                     </p>
                   </div>
@@ -1239,7 +1340,7 @@ Content-Type: application/json
                     <p className="text-sm font-medium text-slate-800 dark:text-white">
                       Match persona to purpose
                     </p>
-                    <p className="text-xs text-slate-600 dark:text-slate-400">
+                    <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
                       Sales agents should be persuasive, support agents empathetic
                     </p>
                   </div>
@@ -1252,7 +1353,7 @@ Content-Type: application/json
                     <p className="text-sm font-medium text-slate-800 dark:text-white">
                       Test before publishing
                     </p>
-                    <p className="text-xs text-slate-600 dark:text-slate-400">
+                    <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
                       Use training mode to validate responses
                     </p>
                   </div>

@@ -81,7 +81,10 @@ export const FAQ = () => {
 
   const toggleFAQ = (id: number) => {
     setFaqs(
-      faqs.map((faq) => (faq.id === id ? { ...faq, isOpen: !faq.isOpen } : faq))
+      faqs.map((faq) => ({
+        ...faq,
+        isOpen: faq.id === id ? !faq.isOpen : false
+      }))
     );
   };
 

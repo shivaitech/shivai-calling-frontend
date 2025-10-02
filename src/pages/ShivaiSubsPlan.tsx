@@ -125,7 +125,7 @@ export const ShivaiSubsPlan = () => {
   );
 
   return (
-    <div className="w-full py-0  lg:py-0 top-[20px] lg:top-[60px] relative">
+    <div className="w-full py-0  lg:py-0 -top-[15px] lg:top-[60px] relative">
       <div
         id="pricing-content"
         className="max-w-8xl mx-auto px-0 sm:px-6 lg:px-8"

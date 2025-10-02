@@ -18,21 +18,13 @@ import {
   Copy,
   Settings,
   Bot,
-  Save,
   Edit,
-  CheckCircle,
   AlertCircle,
-  ArrowRight,
   X,
   Pause,
   Eye,
-  Filter,
-  Search,
   Link,
-  Router,
   Database,
-  Shield,
-  Users,
   Move
 } from 'lucide-react';
 
@@ -64,7 +56,7 @@ interface Workflow {
 
 const Workflows = () => {
   const { agents } = useAgent();
-  const [activeTab, setActiveTab] = useState('canvas');
+  const [activeTab, setActiveTab] = useState<'canvas' | 'workflows' | 'runs'>('canvas');
   const [selectedAgent, setSelectedAgent] = useState('');
   const [workflowName, setWorkflowName] = useState('');
   const [nodes, setNodes] = useState<WorkflowNode[]>([]);
@@ -275,9 +267,9 @@ const Workflows = () => {
   ]);
 
   const tabs = [
-    { id: 'canvas', label: 'Canvas Builder', icon: Zap },
-    { id: 'workflows', label: 'My Workflows', icon: Settings },
-    { id: 'runs', label: 'Execution Log', icon: Play }
+    { id: 'canvas' as const, label: 'Canvas Builder', icon: Zap },
+    { id: 'workflows' as const, label: 'My Workflows', icon: Settings },
+    { id: 'runs' as const, label: 'Execution Log', icon: Play }
   ];
 
   const handleDragStart = (e: React.DragEvent, item: any, type: 'trigger' | 'action' | 'condition') => {
@@ -422,51 +414,66 @@ const Workflows = () => {
   };
 
   return (
-    <div className="space-y-6 w-full">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-slate-800 dark:text-white mb-2">
-          Workflows ⚡
-        </h1>
-        <p className="text-slate-600 dark:text-slate-400">
-          Automate actions when specific events happen in your calls
-        </p>
+    <div className="space-y-4 sm:space-y-6 w-full px-2 sm:px-0">
+      {/* Mobile-First Header */}
+      <div className="space-y-4 sm:space-y-6">
+        <div className="text-center sm:text-left space-y-3 sm:space-y-2">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-800 dark:text-white">
+            Workflows ⚡
+          </h1>
+          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 max-w-2xl mx-auto sm:mx-0">
+            Automate actions when specific events happen in your calls
+          </p>
+        </div>
       </div>
 
-      {/* Tab Navigation */}
-      <GlassCard>
-        <div className="p-6">
-          <div className="flex space-x-1 bg-slate-100/50 dark:bg-slate-800/50 rounded-xl p-1">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-200 ${
-                  activeTab === tab.id
-                    ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-                }`}
-              >
-                <tab.icon className="w-4 h-4" />
-                <span className="text-sm font-medium">{tab.label}</span>
-              </button>
-            ))}
+      {/* Enhanced Mobile-First Tab Navigation */}
+      <div className=" ">
+        <GlassCard>
+          <div className="p-4 sm:p-6">
+            <div className="relative">
+              {/* Tab Navigation */}
+              <div className="flex space-x-1 bg-slate-100/50 dark:bg-slate-800/50 rounded-xl p-1.5 overflow-x-auto scrollbar-hide">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg transition-all duration-200 whitespace-nowrap text-sm sm:text-base font-medium min-w-fit touch-manipulation ${
+                      activeTab === tab.id
+                        ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-lg scale-[1.02] border border-blue-200/50 dark:border-blue-500/30'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-700/50'
+                    }`}
+                  >
+                    <tab.icon className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                    <span className="hidden xs:inline sm:inline text-xs sm:text-sm">
+                      {tab.label}
+                    </span>
+                    <span className="xs:hidden sm:hidden text-xs">
+                      {tab.label.split(' ')[0]}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              
+            
+            </div>
           </div>
-        </div>
-      </GlassCard>
+        </GlassCard>
+      </div>
 
       {/* Canvas Builder */}
       {activeTab === 'canvas' && (
-        <div className="space-y-6">
+        <div className=" space-y-4 sm:space-y-6">
           {/* Workflow Setup */}
           <GlassCard>
-            <div className="p-6">
-              <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-6">
+            <div className="p-4 sm:p-6">
+              <h3 className="text-lg sm:text-xl font-semibold text-slate-800 dark:text-white mb-4 sm:mb-6">
                 Workflow Setup
               </h3>
               
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-6">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
                     Workflow Name <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -474,22 +481,22 @@ const Workflows = () => {
                     value={workflowName}
                     onChange={(e) => setWorkflowName(e.target.value)}
                     placeholder="e.g., Lead Qualification Flow"
-                    className="w-full px-4 py-3 bg-white/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-white"
+                    className="w-full px-4 py-3 bg-white/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-white text-sm sm:text-base touch-manipulation"
                     required
                   />
                   {!workflowName.trim() && (
-                    <p className="text-xs text-red-500 mt-1">Workflow name is required</p>
+                    <p className="text-xs text-red-500 mt-2">Workflow name is required</p>
                   )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
                     Assign to Agent <span className="text-red-500">*</span>
                   </label>
                   <select
                     value={selectedAgent}
                     onChange={(e) => setSelectedAgent(e.target.value)}
-                    className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-white"
+                    className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-white text-sm sm:text-base touch-manipulation"
                     style={{ zIndex: 50 }}
                     required
                   >
@@ -501,7 +508,7 @@ const Workflows = () => {
                     ))}
                   </select>
                   {!selectedAgent && (
-                    <p className="text-xs text-red-500 mt-1">Agent selection is required</p>
+                    <p className="text-xs text-red-500 mt-2">Agent selection is required</p>
                   )}
                 </div>
               </div>
@@ -526,19 +533,19 @@ const Workflows = () => {
             </div>
           </GlassCard>
 
-          {/* Main Workflow Builder - Make.com Style with Equal Heights */}
-          <div className="grid grid-cols-12 gap-6">
+          {/* Mobile-First Workflow Builder */}
+          <div className="flex flex-col lg:grid lg:grid-cols-12 gap-4 sm:gap-6">
             {/* Triggers Panel */}
-            <div className="col-span-12 lg:col-span-3">
-              <GlassCard className="h-[600px]">
-                <div className="p-4 h-full flex flex-col">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-slate-800 dark:text-white">
+            <div className="lg:col-span-3">
+              <GlassCard className="h-[400px] lg:h-[600px]">
+                <div className="p-3 sm:p-4 h-full flex flex-col">
+                  <div className="flex items-center justify-between mb-3 sm:mb-4">
+                    <h3 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
                       Triggers
                     </h3>
                     <button
                       onClick={() => setIsCreatingTrigger(true)}
-                      className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                      className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors touch-manipulation"
                       title="Add Custom Trigger"
                     >
                       <Plus className="w-4 h-4" />
@@ -551,14 +558,30 @@ const Workflows = () => {
                         key={trigger.id}
                         draggable
                         onDragStart={(e) => handleDragStart(e, trigger, 'trigger')}
-                        className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600 cursor-move transition-all duration-200 bg-white/80 dark:bg-slate-800/80 hover:shadow-md"
+                        className="p-2.5 sm:p-3 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600 cursor-move transition-all duration-200 bg-white/80 dark:bg-slate-800/80 hover:shadow-md touch-manipulation"
                       >
-                        <div className="flex items-center gap-2">
-                          <div className={`p-1.5 rounded-md bg-${trigger.color}-100 dark:bg-${trigger.color}-900/20`}>
-                            <trigger.icon className={`w-4 h-4 text-${trigger.color}-600 dark:text-${trigger.color}-400`} />
+                        <div className="flex items-center gap-2 sm:gap-3">
+                          <div className={`p-1.5 rounded-md flex-shrink-0 ${
+                            trigger.color === 'green' ? 'bg-green-100 dark:bg-green-900/20' :
+                            trigger.color === 'blue' ? 'bg-blue-100 dark:bg-blue-900/20' :
+                            trigger.color === 'purple' ? 'bg-purple-100 dark:bg-purple-900/20' :
+                            trigger.color === 'orange' ? 'bg-orange-100 dark:bg-orange-900/20' :
+                            trigger.color === 'emerald' ? 'bg-emerald-100 dark:bg-emerald-900/20' :
+                            trigger.color === 'red' ? 'bg-red-100 dark:bg-red-900/20' :
+                            'bg-slate-100 dark:bg-slate-900/20'
+                          }`}>
+                            <trigger.icon className={`w-3 h-3 sm:w-4 sm:h-4 ${
+                              trigger.color === 'green' ? 'text-green-600 dark:text-green-400' :
+                              trigger.color === 'blue' ? 'text-blue-600 dark:text-blue-400' :
+                              trigger.color === 'purple' ? 'text-purple-600 dark:text-purple-400' :
+                              trigger.color === 'orange' ? 'text-orange-600 dark:text-orange-400' :
+                              trigger.color === 'emerald' ? 'text-emerald-600 dark:text-emerald-400' :
+                              trigger.color === 'red' ? 'text-red-600 dark:text-red-400' :
+                              'text-slate-600 dark:text-slate-400'
+                            }`} />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium text-slate-800 dark:text-white text-sm truncate">
+                            <p className="font-medium text-slate-800 dark:text-white text-xs sm:text-sm truncate">
                               {trigger.name}
                             </p>
                             <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
@@ -573,12 +596,12 @@ const Workflows = () => {
               </GlassCard>
             </div>
 
-            {/* Canvas Area - Make.com Style */}
-            <div className="col-span-12 lg:col-span-6">
-              <GlassCard className="h-[600px]">
-                <div className="p-4 h-full flex flex-col">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-slate-800 dark:text-white">
+            {/* Canvas Area - Mobile Optimized */}
+            <div className="lg:col-span-6">
+              <GlassCard className="h-[500px] lg:h-[600px]">
+                <div className="p-3 sm:p-4 h-full flex flex-col">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 sm:mb-4 gap-3 sm:gap-2">
+                    <h3 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
                       Workflow Canvas
                     </h3>
                     <div className="flex gap-2">
@@ -591,16 +614,16 @@ const Workflows = () => {
                           alert('Workflow test initiated! Check the execution log for results.');
                         }}
                         disabled={nodes.length === 0}
-                        className="px-3 py-2 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex-1 sm:flex-none px-3 py-2 text-xs sm:text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
                       >
-                        Test Run
+                        Test
                       </button>
                       <button
                         onClick={handleSaveWorkflow}
                         disabled={!workflowName.trim() || !selectedAgent || nodes.length === 0}
-                        className="px-3 py-2 text-sm bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex-1 sm:flex-none px-3 py-2 text-xs sm:text-sm bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
                       >
-                        {editingWorkflow ? 'Update Workflow' : 'Save Workflow'}
+                        {editingWorkflow ? 'Update' : 'Save'}
                       </button>
                     </div>
                   </div>
@@ -855,10 +878,10 @@ const Workflows = () => {
             </div>
 
             {/* Actions Panel */}
-            <div className="col-span-12 lg:col-span-3">
-              <GlassCard className="h-[600px]">
-                <div className="p-4 h-full flex flex-col">
-                  <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4">
+            <div className="lg:col-span-3">
+              <GlassCard className="h-[400px] lg:h-[600px]">
+                <div className="p-3 sm:p-4 h-full flex flex-col">
+                  <h3 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white mb-3 sm:mb-4">
                     Actions
                   </h3>
                   <div className="flex-1 space-y-2 overflow-y-auto">
@@ -867,14 +890,30 @@ const Workflows = () => {
                         key={action.id}
                         draggable
                         onDragStart={(e) => handleDragStart(e, action, 'action')}
-                        className="p-3 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-green-300 dark:hover:border-green-600 cursor-move transition-all duration-200 bg-white/80 dark:bg-slate-800/80 hover:shadow-md"
+                        className="p-2.5 sm:p-3 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-green-300 dark:hover:border-green-600 cursor-move transition-all duration-200 bg-white/80 dark:bg-slate-800/80 hover:shadow-md touch-manipulation"
                       >
-                        <div className="flex items-start gap-2">
-                          <div className={`p-1.5 rounded-md bg-${action.color}-100 dark:bg-${action.color}-900/20`}>
-                            <action.icon className={`w-4 h-4 text-${action.color}-600 dark:text-${action.color}-400`} />
+                        <div className="flex items-start gap-2 sm:gap-3">
+                          <div className={`p-1.5 rounded-md flex-shrink-0 ${
+                            action.color === 'blue' ? 'bg-blue-100 dark:bg-blue-900/20' :
+                            action.color === 'red' ? 'bg-red-100 dark:bg-red-900/20' :
+                            action.color === 'purple' ? 'bg-purple-100 dark:bg-purple-900/20' :
+                            action.color === 'orange' ? 'bg-orange-100 dark:bg-orange-900/20' :
+                            action.color === 'indigo' ? 'bg-indigo-100 dark:bg-indigo-900/20' :
+                            action.color === 'green' ? 'bg-green-100 dark:bg-green-900/20' :
+                            'bg-slate-100 dark:bg-slate-900/20'
+                          }`}>
+                            <action.icon className={`w-3 h-3 sm:w-4 sm:h-4 ${
+                              action.color === 'blue' ? 'text-blue-600 dark:text-blue-400' :
+                              action.color === 'red' ? 'text-red-600 dark:text-red-400' :
+                              action.color === 'purple' ? 'text-purple-600 dark:text-purple-400' :
+                              action.color === 'orange' ? 'text-orange-600 dark:text-orange-400' :
+                              action.color === 'indigo' ? 'text-indigo-600 dark:text-indigo-400' :
+                              action.color === 'green' ? 'text-green-600 dark:text-green-400' :
+                              'text-slate-600 dark:text-slate-400'
+                            }`} />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium text-slate-800 dark:text-white text-sm truncate">
+                            <p className="font-medium text-slate-800 dark:text-white text-xs sm:text-sm truncate">
                               {action.name}
                             </p>
                             <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
@@ -900,30 +939,46 @@ const Workflows = () => {
 
           {/* Conditions */}
           <GlassCard>
-            <div className="p-6">
-              <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4">
+            <div className="p-4 sm:p-6">
+              <h3 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white mb-3 sm:mb-4">
                 Add Conditions (Optional)
               </h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4 sm:mb-6">
                 Add conditions to control when your workflow executes. Drag conditions to the canvas to create conditional logic.
               </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                 {conditions.map((condition) => (
                   <div
                     key={condition.id}
                     draggable
                     onDragStart={(e) => handleDragStart(e, condition, 'condition')}
-                    className="p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 hover:border-purple-300 dark:hover:border-purple-600 cursor-move transition-all duration-200 bg-white/80 dark:bg-slate-800/80 hover:shadow-lg"
+                    className="p-3 sm:p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 hover:border-purple-300 dark:hover:border-purple-600 cursor-move transition-all duration-200 bg-white/80 dark:bg-slate-800/80 hover:shadow-lg touch-manipulation"
                   >
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className={`p-2 rounded-lg bg-${condition.color}-100 dark:bg-${condition.color}-900/20`}>
-                        <condition.icon className={`w-5 h-5 text-${condition.color}-600 dark:text-${condition.color}-400`} />
+                    <div className="flex items-center gap-2 sm:gap-3 mb-2">
+                      <div className={`p-1.5 sm:p-2 rounded-lg flex-shrink-0 ${
+                        condition.color === 'blue' ? 'bg-blue-100 dark:bg-blue-900/20' :
+                        condition.color === 'green' ? 'bg-green-100 dark:bg-green-900/20' :
+                        condition.color === 'purple' ? 'bg-purple-100 dark:bg-purple-900/20' :
+                        condition.color === 'orange' ? 'bg-orange-100 dark:bg-orange-900/20' :
+                        condition.color === 'indigo' ? 'bg-indigo-100 dark:bg-indigo-900/20' :
+                        condition.color === 'emerald' ? 'bg-emerald-100 dark:bg-emerald-900/20' :
+                        'bg-slate-100 dark:bg-slate-900/20'
+                      }`}>
+                        <condition.icon className={`w-4 h-4 sm:w-5 sm:h-5 ${
+                          condition.color === 'blue' ? 'text-blue-600 dark:text-blue-400' :
+                          condition.color === 'green' ? 'text-green-600 dark:text-green-400' :
+                          condition.color === 'purple' ? 'text-purple-600 dark:text-purple-400' :
+                          condition.color === 'orange' ? 'text-orange-600 dark:text-orange-400' :
+                          condition.color === 'indigo' ? 'text-indigo-600 dark:text-indigo-400' :
+                          condition.color === 'emerald' ? 'text-emerald-600 dark:text-emerald-400' :
+                          'text-slate-600 dark:text-slate-400'
+                        }`} />
                       </div>
-                      <span className="font-medium text-slate-800 dark:text-white text-sm">
+                      <span className="font-medium text-slate-800 dark:text-white text-sm sm:text-base flex-1 min-w-0 truncate">
                         {condition.name}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
                       {condition.description}
                     </p>
                   </div>
@@ -936,52 +991,60 @@ const Workflows = () => {
 
       {/* My Workflows */}
       {activeTab === 'workflows' && (
-        <GlassCard>
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-slate-800 dark:text-white">
-                My Workflows
-              </h3>
-              <button
-                onClick={() => setActiveTab('canvas')}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                New Workflow
-              </button>
-            </div>
+        <div className="">
+          <GlassCard>
+            <div className="p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-3">
+                <h3 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
+                  My Workflows
+                </h3>
+                <button
+                  onClick={() => setActiveTab('canvas')}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium touch-manipulation"
+                >
+                  <Plus className="w-4 h-4" />
+                  New Workflow
+                </button>
+              </div>
 
             <div className="space-y-4">
               {workflows.map((workflow) => (
                 <div
                   key={workflow.id}
-                  className="flex items-center justify-between p-6 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl hover:bg-slate-100/50 dark:hover:bg-slate-700/30 transition-colors"
+                  className="flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-6 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl hover:bg-slate-100/50 dark:hover:bg-slate-700/30 transition-colors gap-4"
                 >
-                  <div className="flex items-center gap-4 flex-1">
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                      <Zap className="w-6 h-6 text-white" />
+                  <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Zap className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                     </div>
-                    <div className="flex-1">
-                      <h4 className="font-semibold text-slate-800 dark:text-white text-lg">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-semibold text-slate-800 dark:text-white text-base sm:text-lg truncate">
                         {workflow.name}
                       </h4>
-                      <div className="flex items-center gap-4 text-sm text-slate-500 dark:text-slate-400 mt-1">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
                         <div className="flex items-center gap-1">
-                          <Bot className="w-4 h-4" />
-                          <span>{workflow.agentName}</span>
+                          <Bot className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
+                          <span className="truncate">{workflow.agentName}</span>
                         </div>
-                        <span>•</span>
-                        <span>{workflow.nodes.length} nodes</span>
-                        <span>•</span>
-                        <span>{workflow.runs} runs</span>
-                        <span>•</span>
-                        <span>Last run: {workflow.lastRun}</span>
+                        <div className="hidden sm:flex items-center gap-4">
+                          <span>•</span>
+                          <span>{workflow.nodes.length} nodes</span>
+                          <span>•</span>
+                          <span>{workflow.runs} runs</span>
+                          <span>•</span>
+                          <span>Last: {workflow.lastRun}</span>
+                        </div>
+                        <div className="flex sm:hidden items-center gap-2 text-xs">
+                          <span>{workflow.nodes.length} nodes</span>
+                          <span>•</span>
+                          <span>{workflow.runs} runs</span>
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4">
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+                    <span className={`inline-flex w-fit px-3 py-1 rounded-full text-xs sm:text-sm font-medium ${
                       workflow.status === 'Active'
                         ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400'
                         : workflow.status === 'Paused'
@@ -991,24 +1054,24 @@ const Workflows = () => {
                       {workflow.status}
                     </span>
 
-                    <div className="flex gap-2">
+                    <div className="flex gap-1 sm:gap-2">
                       <button
                         onClick={() => handleEditWorkflow(workflow)}
-                        className="p-2 text-slate-400 hover:text-blue-500 transition-colors"
+                        className="p-2 text-slate-400 hover:text-blue-500 transition-colors touch-manipulation"
                         title="Edit Workflow"
                       >
-                        <Edit className="w-5 h-5" />
+                        <Edit className="w-4 h-4 sm:w-5 sm:h-5" />
                       </button>
                       
                       <button
                         onClick={() => handleToggleWorkflowStatus(workflow.id)}
-                        className="p-2 text-slate-400 hover:text-yellow-500 transition-colors"
+                        className="p-2 text-slate-400 hover:text-yellow-500 transition-colors touch-manipulation"
                         title={workflow.status === 'Active' ? 'Pause Workflow' : 'Activate Workflow'}
                       >
                         {workflow.status === 'Active' ? (
-                          <Pause className="w-5 h-5" />
+                          <Pause className="w-4 h-4 sm:w-5 sm:h-5" />
                         ) : (
-                          <Play className="w-5 h-5" />
+                          <Play className="w-4 h-4 sm:w-5 sm:h-5" />
                         )}
                       </button>
                       
@@ -1025,18 +1088,18 @@ const Workflows = () => {
                           };
                           setWorkflows(prev => [...prev, newWorkflow]);
                         }}
-                        className="p-2 text-slate-400 hover:text-green-500 transition-colors"
+                        className="p-2 text-slate-400 hover:text-green-500 transition-colors touch-manipulation"
                         title="Duplicate Workflow"
                       >
-                        <Copy className="w-5 h-5" />
+                        <Copy className="w-4 h-4 sm:w-5 sm:h-5" />
                       </button>
                       
                       <button
                         onClick={() => handleDeleteWorkflow(workflow.id)}
-                        className="p-2 text-slate-400 hover:text-red-500 transition-colors"
+                        className="p-2 text-slate-400 hover:text-red-500 transition-colors touch-manipulation"
                         title="Delete Workflow"
                       >
-                        <Trash2 className="w-5 h-5" />
+                        <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
                       </button>
                     </div>
                   </div>
@@ -1063,19 +1126,19 @@ const Workflows = () => {
             </div>
           </div>
         </GlassCard>
+        </div>
       )}
 
-      {/* Execution Log */}
       {activeTab === 'runs' && (
         <GlassCard>
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-slate-800 dark:text-white">
+          <div className="p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+              <h3 className="text-lg sm:text-xl font-semibold text-slate-800 dark:text-white">
                 Workflow Execution Log
               </h3>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                 <select 
-                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm"
+                  className="px-3 sm:px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm min-w-0 touch-manipulation"
                   style={{ zIndex: 50 }}
                 >
                   <option value="all">All Workflows</option>
@@ -1083,40 +1146,44 @@ const Workflows = () => {
                     <option key={workflow.id} value={workflow.id}>{workflow.name}</option>
                   ))}
                 </select>
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm">
+                <button className="px-3 sm:px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm touch-manipulation">
                   Refresh
                 </button>
               </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               {workflows.filter(w => w.runs > 0).map((workflow) => (
-                <div key={workflow.id} className="p-6 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                        <Zap className="w-6 h-6 text-white" />
+                <div key={workflow.id} className="p-4 sm:p-6 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                    <div className="flex items-start sm:items-center gap-3 sm:gap-4 flex-1 min-w-0">
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <Zap className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                       </div>
-                      <div>
-                        <h4 className="font-semibold text-slate-800 dark:text-white text-lg">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold text-slate-800 dark:text-white text-base sm:text-lg truncate">
                           {workflow.name}
                         </h4>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">
-                          {workflow.agentName} • {workflow.runs} total runs • Last: {workflow.lastRun}
+                        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                          <span className="block sm:inline">{workflow.agentName}</span>
+                          <span className="hidden sm:inline"> • </span>
+                          <span className="block sm:inline">{workflow.runs} total runs</span>
+                          <span className="hidden sm:inline"> • </span>
+                          <span className="block sm:inline">Last: {workflow.lastRun}</span>
                         </p>
                       </div>
                     </div>
                     
-                    <div className="flex items-center gap-3">
-                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                    <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-3">
+                      <span className={`inline-flex px-2.5 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium ${
                         workflow.status === 'Active'
                           ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400'
                           : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400'
                       }`}>
                         {workflow.status}
                       </span>
-                      <button className="p-2 text-slate-400 hover:text-blue-500 transition-colors">
-                        <Eye className="w-5 h-5" />
+                      <button className="p-2 text-slate-400 hover:text-blue-500 transition-colors touch-manipulation">
+                        <Eye className="w-4 h-4 sm:w-5 sm:h-5" />
                       </button>
                     </div>
                   </div>
@@ -1203,6 +1270,7 @@ const Workflows = () => {
           </div>
         </div>
       )}
+      
     </div>
   );
 };
