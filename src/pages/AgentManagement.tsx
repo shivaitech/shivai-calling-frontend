@@ -11,7 +11,6 @@ import {
   Save, 
   Play, 
   Pause, 
-  Settings, 
   Eye, 
   Edit,
   Trash2,
@@ -35,7 +34,8 @@ import {
   Building,
   Plus,
   Search,
-  Filter
+  Filter,
+  Settings
 } from 'lucide-react';
 
 const AgentManagement = () => {
@@ -174,7 +174,7 @@ const AgentManagement = () => {
 
   const getTemplate = () => {
     const key = `${formData.businessProcess}-${formData.industry}`;
-    return templates[key] || {
+    return templates[key as keyof typeof templates] || {
       name: `${businessProcesses.find(bp => bp.value === formData.businessProcess)?.label || 'Custom'} Agent`,
       description: `Handles ${businessProcesses.find(bp => bp.value === formData.businessProcess)?.label?.toLowerCase() || 'various tasks'} for ${industries.find(ind => ind.value === formData.industry)?.label?.toLowerCase() || 'your business'}`,
       features: ['Customer Interaction', 'Query Resolution', 'Information Provision', 'Process Automation'],
@@ -942,7 +942,7 @@ Content-Type: application/json
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="Enter a descriptive name for your agent"
-                    className="w-full px-4 py-3 sm:py-3 bg-white/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/20 text-slate-800 dark:text-white text-base sm:text-sm transition-all duration-200"
+                    className="w-full px-3 sm:px-4 py-3 sm:py-3 bg-white/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/20 text-slate-800 dark:text-white text-base sm:text-sm transition-all duration-200 touch-manipulation"
                   />
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                     Choose a clear, descriptive name that reflects your agent's purpose
@@ -951,7 +951,7 @@ Content-Type: application/json
 
                 {isCreate && (
                   <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                       <div>
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                           Business Process <span className="text-red-500">*</span>
@@ -981,26 +981,26 @@ Content-Type: application/json
 
                     {/* Template Suggestion */}
                     {formData.businessProcess && formData.industry && (
-                      <div className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/10 dark:to-purple-900/10 border border-blue-200 dark:border-blue-700/30 rounded-xl">
-                        <div className="flex items-start gap-3">
-                          <Lightbulb className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" />
-                          <div className="flex-1">
-                            <h4 className="font-medium text-slate-800 dark:text-white mb-2">
+                      <div className="p-3 sm:p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/10 dark:to-purple-900/10 border border-blue-200 dark:border-blue-700/30 rounded-xl">
+                        <div className="flex items-start gap-2 sm:gap-3">
+                          <Lightbulb className="w-4 sm:w-5 h-4 sm:h-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-medium text-slate-800 dark:text-white mb-1 sm:mb-2 text-sm sm:text-base">
                               Template Available
                             </h4>
-                            <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
+                            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mb-2 sm:mb-3 leading-relaxed">
                               We have a pre-configured template for your combination. Would you like to see it?
                             </p>
-                            <div className="flex gap-2">
+                            <div className="flex flex-col xs:flex-row gap-2">
                               <button
                                 onClick={() => setShowTemplates(true)}
-                                className="px-3 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm"
+                                className="flex-1 xs:flex-none px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-xs sm:text-sm font-medium active:scale-95"
                               >
                                 View Template
                               </button>
                               <button
                                 onClick={() => setShowTemplates(false)}
-                                className="px-3 py-1.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors text-sm"
+                                className="flex-1 xs:flex-none px-3 py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors text-xs sm:text-sm font-medium active:scale-95"
                               >
                                 Create Custom
                               </button>
@@ -1012,18 +1012,18 @@ Content-Type: application/json
 
                     {/* Template Preview Modal */}
                     {showTemplates && (
-                      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                        <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
-                          <div className="p-6">
-                            <div className="flex items-center justify-between mb-4">
-                              <h3 className="text-xl font-semibold text-slate-800 dark:text-white">
+                      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2 sm:p-4">
+                        <div className="bg-white dark:bg-slate-800 rounded-xl sm:rounded-2xl max-w-2xl w-full max-h-[90vh] sm:max-h-[80vh] overflow-y-auto m-2 sm:m-0">
+                          <div className="p-4 sm:p-6">
+                            <div className="flex items-center justify-between mb-3 sm:mb-4">
+                              <h3 className="text-lg sm:text-xl font-semibold text-slate-800 dark:text-white pr-2">
                                 Recommended Template
                               </h3>
                               <button
                                 onClick={() => setShowTemplates(false)}
-                                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors flex-shrink-0"
                               >
-                                ✕
+                                <span className="text-lg">✕</span>
                               </button>
                             </div>
 
@@ -1073,16 +1073,16 @@ Content-Type: application/json
                                     </div>
                                   </div>
 
-                                  <div className="flex gap-3 pt-4">
+                                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-3 sm:pt-4">
                                     <button
                                       onClick={applyTemplate}
-                                      className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+                                      className="flex-1 px-4 py-2.5 sm:py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm sm:text-base font-medium active:scale-95"
                                     >
                                       Apply Template
                                     </button>
                                     <button
                                       onClick={() => setShowTemplates(false)}
-                                      className="px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
+                                      className="flex-1 sm:flex-none px-4 py-2.5 sm:py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors text-sm sm:text-base font-medium active:scale-95"
                                     >
                                       Create Custom
                                     </button>
@@ -1101,7 +1101,7 @@ Content-Type: application/json
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
                     Persona <span className="text-red-500">*</span>
                   </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2 sm:gap-3">
                     {[
                       { value: 'Friendly', label: 'Friendly', desc: 'Warm and approachable' },
                       { value: 'Formal', label: 'Formal', desc: 'Professional and structured' },
@@ -1113,16 +1113,16 @@ Content-Type: application/json
                       <button
                         key={persona.value}
                         onClick={() => setFormData({ ...formData, persona: persona.value })}
-                        className={`p-3 text-left border-2 rounded-xl transition-all duration-200 active:scale-[0.98] ${
+                        className={`p-3 sm:p-4 text-left border-2 rounded-xl transition-all duration-200 active:scale-[0.98] touch-manipulation ${
                           formData.persona === persona.value
                             ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-sm'
                             : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800/50'
                         }`}
                       >
-                        <div className="font-medium text-slate-800 dark:text-white text-sm">
+                        <div className="font-medium text-slate-800 dark:text-white text-sm sm:text-base">
                           {persona.label}
                         </div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-tight">
+                        <div className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 leading-tight">
                           {persona.desc}
                         </div>
                       </button>
@@ -1151,7 +1151,7 @@ Content-Type: application/json
                 Configure how your agent communicates
               </p>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                     Language <span className="text-red-500">*</span>
@@ -1180,12 +1180,17 @@ Content-Type: application/json
 
           {/* Advanced Settings */}
           <GlassCard>
-            <div className="p-6">
-              <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-4">
-                Advanced Settings
-              </h3>
+            <div className="p-4 sm:p-5 lg:p-6">
+              <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                <div className="w-8 h-8 bg-gray-100 dark:bg-gray-900/30 rounded-lg flex items-center justify-center">
+                  <Settings className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                </div>
+                <h3 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
+                  Advanced Settings
+                </h3>
+              </div>
 
-              <div className="space-y-6">
+              <div className="space-y-4 sm:space-y-6">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                     Custom Instructions
@@ -1195,11 +1200,14 @@ Content-Type: application/json
                     onChange={(e) => setFormData({ ...formData, customInstructions: e.target.value })}
                     placeholder="Add specific instructions for your agent..."
                     rows={4}
-                    className="w-full px-4 py-3 bg-white/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-white resize-none"
+                    className="w-full px-3 sm:px-4 py-3 bg-white/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-white resize-none text-sm sm:text-base transition-all duration-200"
                   />
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                    Provide specific guidelines, rules, or context for your agent's responses
+                  </p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                       Response Style
@@ -1226,11 +1234,12 @@ Content-Type: application/json
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    Temperature (Creativity): {formData.temperature}%
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+                    Temperature (Creativity): <span className="font-semibold text-blue-600 dark:text-blue-400">{formData.temperature}%</span>
                   </label>
-                  <div className="flex items-center gap-4">
-                    <span className="text-xs text-slate-500 dark:text-slate-400">Conservative</span>
+                  <div className="flex items-center gap-2 sm:gap-4">
+                    <span className="text-xs text-slate-500 dark:text-slate-400 hidden xs:block">Conservative</span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400 xs:hidden">Con</span>
                     <div className="flex-1 relative">
                       <input
                         type="range"
@@ -1238,15 +1247,19 @@ Content-Type: application/json
                         max="100"
                         value={formData.temperature}
                         onChange={(e) => setFormData({ ...formData, temperature: parseInt(e.target.value) })}
-                        className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer slider"
+                        className="w-full h-3 sm:h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer slider touch-manipulation"
                       />
                       <div
-                        className="absolute top-0 h-2 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg pointer-events-none"
+                        className="absolute top-0 h-3 sm:h-2 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg pointer-events-none"
                         style={{ width: `${formData.temperature}%` }}
                       ></div>
                     </div>
-                    <span className="text-xs text-slate-500 dark:text-slate-400">Creative</span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400 hidden xs:block">Creative</span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400 xs:hidden">Cre</span>
                   </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
+                    Lower values for more consistent responses, higher for more creative answers
+                  </p>
                 </div>
 
                 <div>
@@ -1290,16 +1303,16 @@ Content-Type: application/json
                   <button
                     key={level.value}
                     onClick={() => setFormData({ ...formData, guardrailsLevel: level.value })}
-                    className={`w-full p-3 text-left border-2 rounded-xl transition-all duration-200 active:scale-[0.98] ${
+                    className={`w-full p-3 sm:p-4 text-left border-2 rounded-xl transition-all duration-200 active:scale-[0.98] touch-manipulation ${
                       formData.guardrailsLevel === level.value
                         ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-sm'
                         : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800/50'
                     }`}
                   >
-                    <div className="font-medium text-slate-800 dark:text-white text-sm">
+                    <div className="font-medium text-slate-800 dark:text-white text-sm sm:text-base">
                       {level.label}
                     </div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-tight">
+                    <div className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 leading-tight">
                       {level.desc}
                     </div>
                   </button>

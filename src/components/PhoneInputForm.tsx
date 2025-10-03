@@ -403,9 +403,9 @@ export default function PhoneInputForm({
                           aria-haspopup="listbox"
                         >
                           {selectedCountry.code === "US" ? (
-                            <USFlag className="w-4 h-4 sm:w-4 sm:h-4 flex-shrink-0" />
+                            <USFlag className="w-4 h-4 lg:w-8 lg:h-8 flex-shrink-0" />
                           ) : (
-                            <span className="text-[11px] sm:text-xs flex-shrink-0">
+                            <span className="text-[11px] lg:text-sm flex-shrink-0">
                               {selectedCountry.flag}
                             </span>
                           )}
@@ -413,7 +413,7 @@ export default function PhoneInputForm({
                             {customDialCode.replace("+", "")}
                           </span> */}
                           <ChevronDown
-                            className={`w-4 h-4 sm:w-3 sm:h-3 text-gray-400 transition-transform ${
+                            className={`w-4 h-4 lg:w-8 lg:h-8 text-gray-400 transition-transform ${
                               isCountryDropdownOpen ? "rotate-180" : ""
                             }`}
                           />
@@ -431,7 +431,7 @@ export default function PhoneInputForm({
                           onClick={() => setIsCountryDropdownOpen(false)}
                           onTouchStart={() => setIsCountryDropdownOpen(false)}
                         />
-                        <div className="absolute top-full lg:top-[130%] left-0 mt-2 w-[50vw] lg:w-[30vw] max-w-[90vw] h-[100px] lg:h-[220px] bg-white border border-gray-200 rounded-lg shadow-xl max-h-96 overflow-hidden z-[60] ">
+                        <div className="absolute top-full lg:top-[130%] left-0 mt-2 w-[50vw] lg:w-[30vw] max-w-[90vw] h-[100px] lg:h-[220px] bg-white border border-gray-200 rounded-lg shadow-xl max-h-96 overflow-hidden">
                           <div className="max-h-64 overflow-y-scroll scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
                             {filteredCountries.length > 0 ? (
                               filteredCountries.map((country) => (

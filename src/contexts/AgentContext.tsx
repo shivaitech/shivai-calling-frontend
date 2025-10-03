@@ -32,7 +32,7 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [agents, setAgents] = useState<Agent[]>([
     {
       id: '1',
-      name: 'Customer Support Bot',
+      name: 'Ricky sales machine',
       status: 'Published',
       persona: 'Empathetic',
       language: 'English (US)',
@@ -41,7 +41,7 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     },
     {
       id: '2',
-      name: 'Sales Assistant',
+      name: 'Ami support assistant',
       status: 'Draft',
       persona: 'Persuasive (Sales)',
       language: 'Hindi',

@@ -19,6 +19,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import logo from "../resources/images/ShivaiLogo.svg";
 import Step3, { OnboardingFormData } from "../components/Step3";
+import { authAPI } from "../services/authAPI";
 
 const industryOptions = [
   { value: "technology-it", label: "Technology / IT Services" },
@@ -156,7 +157,7 @@ const Onboarding: React.FC = () => {
     if (currentStep < totalSteps && validateStep(currentStep)) {
       setCurrentStep(currentStep + 1);
       // Scroll to top smoothly when moving to next step
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
 
@@ -164,7 +165,7 @@ const Onboarding: React.FC = () => {
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
       // Scroll to top smoothly when moving to previous step
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
 
@@ -222,7 +223,7 @@ const Onboarding: React.FC = () => {
   const validateStep = (step: number): boolean => {
     switch (step) {
       case 1:
-        return !!(watch("companyName"));
+        return !!watch("companyName");
       case 2:
         return !!watch("plan");
       case 3:
@@ -253,23 +254,171 @@ const Onboarding: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      console.log("Onboarding data:", data);
-      console.log("AI Employees configured:", data.agents.length);
-      console.log(
-        "AI Employee details:",
-        data.agents.map((agent) => ({
-          name: agent.agentName,
-          type: agent.agentType,
-          language: agent.preferredLanguage,
-          voiceGender: agent.voiceGender,
-        }))
-      );
+      console.log("Submitting complete onboarding data:", data);
 
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Get selected plan details
+      const selectedPlan = planOptions.find(plan => plan.id === data.plan);
 
+      // Construct comprehensive onboarding request
+      const onboardingRequest = {
+        company_basics: {
+          name: data.companyName || "",
+          industry: Array.isArray(data.industry) ? data.industry.join(", ") : data.industry || "",
+          description: data.companyDescription || "",
+          website: data.website || "",
+          primary_region: [
+            ...(data.businessCities || []),
+            ...(data.businessStates || []),
+            ...(data.businessCountries || [])
+          ].filter(Boolean).join(", "),
+          business_processes: data.businessProcesses ? [data.businessProcesses] : [],
+          headquarters_address: {
+            city: data.businessCities?.[0] || "",
+            state_province: data.businessStates?.[0] || "",
+            country: data.businessCountries?.[0] || "",
+          },
+          time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          primary_phone: data.companyPhone || "",
+          primary_contact: {
+            name: data.billingContactName || "",
+            email: data.companyEmail || data.billingContactEmail || "",
+            phone: data.companyPhone || data.billingContactPhone || "",
+            title: "Primary Contact",
+          },
+        },
+        plan_details: {
+          type: selectedPlan?.name || data.plan || "",
+          ai_employee_limit: data.agentCount || 1,
+          monthly_price: selectedPlan?.price === "Custom pricing" ? 0 : parseFloat(selectedPlan?.price?.replace(/[$\/month,]/g, "") || "0"),
+          features: selectedPlan?.features || [],
+        },
+        ai_employees: (data.agents || []).map((agent, index) => ({
+          name: agent.agentName || `AI Employee ${index + 1}`,
+          type: agent.agentType || "",
+          preferred_language: agent.preferredLanguage || "English",
+          voice_gender: agent.voiceGender || "neutral",
+          personality_traits: [agent.agentPersonality || "Professional", agent.responseStyle || "Helpful"].filter(Boolean),
+          specialization: agent.agentType || "General Assistant",
+        })),
+        knowledge_sources: {
+          website_url: data.website || "",
+          social_links: {
+            linkedin: data.linkedinUrl || "",
+            twitter: "",
+            facebook: "",
+          },
+          uploaded_files: [],
+          faqs_text: "",
+          additional_context: data.companyDescription || "",
+        },
+        instructions: {
+          dos: ["Be professional and helpful", "Listen actively to customers", "Provide accurate information"],
+          donts: ["Don't make promises you can't keep", "Don't argue with customers", "Don't share confidential information"],
+          escalation_rules: [{
+            condition: "Customer requests human agent",
+            action: "Transfer to available agent",
+            priority: "high",
+            notify_contacts: [data.companyEmail || data.billingContactEmail || ""],
+          }],
+          fallback_contacts: [{
+            name: data.billingContactName || "Primary Contact",
+            email: data.companyEmail || data.billingContactEmail || "",
+            phone: data.companyPhone || data.billingContactPhone || "",
+            role: "Primary Contact",
+            availability: "Business hours",
+          }],
+          tone_guidelines: "Professional, friendly, and helpful",
+          response_style: "Clear and concise",
+        },
+        targets: {
+          primary_goals: ["Improve customer satisfaction", "Reduce response time", "Handle routine inquiries"],
+          success_metrics: [{
+            metric_name: "Customer Satisfaction",
+            target_value: "90%",
+            measurement_period: "monthly",
+            description: "Percentage of satisfied customers",
+          }],
+          kpis: ["Response time", "Resolution rate", "Customer satisfaction"],
+          target_response_time: 30,
+          quality_threshold: 85,
+        },
+        deployment_targets: {
+          channels: ["phone", "web", "email"],
+          priority_channel: "phone",
+          integration_requirements: ["Basic phone system integration"],
+          custom_requirements: "",
+        },
+        deployment_service: {
+          service_type: "full_deployment",
+          requires_access: true,
+          access_details: {
+            platforms: ["phone_system"],
+            access_type: "api_integration",
+            credentials_required: true,
+            additional_info: "",
+          },
+          timeline_preference: "standard",
+          technical_contact: {
+            name: data.billingContactName || "Primary Contact",
+            email: data.companyEmail || data.billingContactEmail || "",
+            phone: data.companyPhone || data.billingContactPhone || "",
+            role: "Technical Contact",
+            availability: "Business hours",
+          },
+        },
+        consent_options: {
+          recording_enabled: true,
+          transcript_email_optin: false,
+          data_retention_period: 365,
+          privacy_preferences: ["gdpr_compliant"],
+          gdpr_compliance: true,
+        },
+        billing_contact: {
+          name: data.billingContactName || data.billingCompanyName || "",
+          email: data.billingContactEmail || data.companyEmail || "",
+          phone: data.billingContactPhone || data.companyPhone || "",
+          company_role: "Billing Contact",
+          billing_address: {
+            street: data.billingAddress || "",
+            city: data.billingCity || "",
+            state: data.billingState || "",
+            postal_code: data.billingZip || "",
+            country: data.billingCountry || "",
+          },
+        },
+        shivai_team_notes: {
+          internal_notes: `Company Size: ${data.companySize || "Not specified"}, Industry: ${Array.isArray(data.industry) ? data.industry.join(", ") : data.industry || "Not specified"}`,
+          priority_level: "standard",
+          assigned_team_member: "",
+          special_requirements: [],
+          follow_up_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          tags: ["onboarding", data.plan || "base_plan", ...(Array.isArray(data.industry) ? data.industry : [data.industry || ""])].filter(Boolean),
+        },
+      };
+
+      const response = await authAPI.createOnboarding(onboardingRequest);
+      console.log("Onboarding successful:", response);
+      
+      // Show success modal on successful submission
       setShowSuccessModal(true);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Onboarding error:", error);
+      
+      // Better error handling based on error type
+      let errorMessage = "There was an error submitting your onboarding. Please try again.";
+      
+      if (error?.response?.status === 400) {
+        errorMessage = "Please check your input data and try again.";
+      } else if (error?.response?.status === 401) {
+        errorMessage = "Please log in again and try submitting.";
+      } else if (error?.response?.status === 500) {
+        errorMessage = "Server error. Please try again in a few minutes.";
+      } else if (error?.message?.includes("Network")) {
+        errorMessage = "Network error. Please check your connection and try again.";
+      }
+      
+      // You can replace this with a proper toast notification component
+      alert(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -277,7 +426,7 @@ const Onboarding: React.FC = () => {
 
   const closeSuccessModal = () => {
     setShowSuccessModal(false);
-    navigate("/");
+    // navigate("/");
   };
 
   const stepVariants = {
@@ -450,8 +599,6 @@ const Onboarding: React.FC = () => {
                 </div>
               </div>
 
-             
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   LinkedIn Profile (Optional)
@@ -494,8 +641,6 @@ const Onboarding: React.FC = () => {
                   placeholder="Brief description of what your company does, your mission, and key services..."
                 />
               </div>
-
-             
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -712,9 +857,13 @@ const Onboarding: React.FC = () => {
                   <div
                     key={plan.id}
                     onClick={() => {
-                      setValue("plan", plan.id as "base" | "advanced" | "custom", {
-                        shouldValidate: true,
-                      });
+                      setValue(
+                        "plan",
+                        plan.id as "base" | "advanced" | "custom",
+                        {
+                          shouldValidate: true,
+                        }
+                      );
                       // Reset agent count based on plan
                       setValue("agentCount", 1);
                     }}
@@ -729,9 +878,11 @@ const Onboarding: React.FC = () => {
                     }`}
                   >
                     {isSelected && (
-                      <div className={`absolute -top-3 -right-3 w-8 h-8 rounded-full flex items-center justify-center ${
-                        plan.id === "custom" ? "bg-purple-500" : "bg-blue-500"
-                      }`}>
+                      <div
+                        className={`absolute -top-3 -right-3 w-8 h-8 rounded-full flex items-center justify-center ${
+                          plan.id === "custom" ? "bg-purple-500" : "bg-blue-500"
+                        }`}
+                      >
                         <Check className="w-5 h-5 text-white" />
                       </div>
                     )}
@@ -743,19 +894,25 @@ const Onboarding: React.FC = () => {
                     )}
 
                     <div className="text-center mb-4">
-                      <h3 className={`text-xl font-bold mb-2 ${
-                        plan.id === "custom" ? "text-purple-800" : "text-gray-900"
-                      }`}>
+                      <h3
+                        className={`text-xl font-bold mb-2 ${
+                          plan.id === "custom"
+                            ? "text-purple-800"
+                            : "text-gray-900"
+                        }`}
+                      >
                         {plan.name}
                       </h3>
                       <p className="text-gray-600 text-sm mb-3">
                         {plan.description}
                       </p>
-                      <div className={`text-2xl font-bold ${
-                        plan.id === "custom" 
-                          ? "bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent"
-                          : "text-blue-600"
-                      }`}>
+                      <div
+                        className={`text-2xl font-bold ${
+                          plan.id === "custom"
+                            ? "bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent"
+                            : "text-blue-600"
+                        }`}
+                      >
                         {plan.price}
                       </div>
                       {plan.id === "custom" && (
@@ -813,41 +970,52 @@ const Onboarding: React.FC = () => {
                           Choose your AI workforce size
                         </p>
                         <p className="text-xs text-gray-500 mt-1">
-                          Each AI Employee can handle different tasks simultaneously
+                          Each AI Employee can handle different tasks
+                          simultaneously
                         </p>
                       </div>
                       <div className="grid grid-cols-2 gap-3">
-                        {Array.from({ length: 4 }, (_, i) => i + 1).map((count) => (
-                          <label
-                            key={count}
-                            className={`px-4 py-6 rounded-xl cursor-pointer transition-all font-medium text-sm flex flex-col items-center justify-center space-y-2 ${
-                              watch("agentCount") === count
-                                ? "bg-gradient-to-br from-purple-500 to-blue-500 text-white shadow-lg transform scale-105"
-                                : "bg-gradient-to-br from-purple-50 to-blue-50 text-gray-700 hover:from-purple-100 hover:to-blue-100 border border-purple-200"
-                            }`}
-                          >
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                              watch("agentCount") === count
-                                ? "bg-white bg-opacity-20"
-                                : "bg-purple-200"
-                            }`}>
-                              <Bot className={`w-5 h-5 ${
-                                watch("agentCount") === count ? "text-white" : "text-purple-600"
-                              }`} />
-                            </div>
-                            <input
-                              type="radio"
-                              value={count}
-                              checked={watch("agentCount") === count}
-                              onChange={() => setValue("agentCount", count)}
-                              className="sr-only"
-                            />
-                            <span className="text-2xl font-bold">{count}</span>
-                            <span className="text-xs text-center">
-                              {count === 1 ? "AI Employee" : "AI Employees"}
-                            </span>
-                          </label>
-                        ))}
+                        {Array.from({ length: 4 }, (_, i) => i + 1).map(
+                          (count) => (
+                            <label
+                              key={count}
+                              className={`px-4 py-6 rounded-xl cursor-pointer transition-all font-medium text-sm flex flex-col items-center justify-center space-y-2 ${
+                                watch("agentCount") === count
+                                  ? "bg-gradient-to-br from-purple-500 to-blue-500 text-white shadow-lg transform scale-105"
+                                  : "bg-gradient-to-br from-purple-50 to-blue-50 text-gray-700 hover:from-purple-100 hover:to-blue-100 border border-purple-200"
+                              }`}
+                            >
+                              <div
+                                className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                                  watch("agentCount") === count
+                                    ? "bg-white bg-opacity-20"
+                                    : "bg-purple-200"
+                                }`}
+                              >
+                                <Bot
+                                  className={`w-5 h-5 ${
+                                    watch("agentCount") === count
+                                      ? "text-white"
+                                      : "text-purple-600"
+                                  }`}
+                                />
+                              </div>
+                              <input
+                                type="radio"
+                                value={count}
+                                checked={watch("agentCount") === count}
+                                onChange={() => setValue("agentCount", count)}
+                                className="sr-only"
+                              />
+                              <span className="text-2xl font-bold">
+                                {count}
+                              </span>
+                              <span className="text-xs text-center">
+                                {count === 1 ? "AI Employee" : "AI Employees"}
+                              </span>
+                            </label>
+                          )
+                        )}
                       </div>
                     </div>
                   ) : (
@@ -876,7 +1044,8 @@ const Onboarding: React.FC = () => {
                               onChange={() => setValue("agentCount", count)}
                               className="sr-only"
                             />
-                            {count} {count === 1 ? "AI Employee" : "AI Employees"}
+                            {count}{" "}
+                            {count === 1 ? "AI Employee" : "AI Employees"}
                           </label>
                         ));
                       })()}
@@ -893,10 +1062,7 @@ const Onboarding: React.FC = () => {
                   <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2">
                     Billing Information
                   </h3>
-                
                 </div>
-
-              
 
                 {/* Show billing form only if offline billing is not selected */}
                 {!watch("offlineBilling") && (
@@ -1067,7 +1233,6 @@ const Onboarding: React.FC = () => {
             setSelectedTemplates={setSelectedTemplates}
             showTemplateFeatures={showTemplateFeatures}
             setShowTemplateFeatures={setShowTemplateFeatures}
-
           />
         );
 
@@ -1190,10 +1355,10 @@ const Onboarding: React.FC = () => {
                 Your AI Employee is being set up.
               </p>
               <p className="text-gray-700">
-               You’ll soon be able to test, refine, and go live with ShivAI.
+                You’ll soon be able to test, refine, and go live with ShivAI.
               </p>
               <p className="text-gray-700">
-               We’ll notify you as soon as it’s ready to take calls.
+                We’ll notify you as soon as it’s ready to take calls.
               </p>
             </div>
             <button

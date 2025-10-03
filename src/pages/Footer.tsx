@@ -83,7 +83,7 @@ const Footer = () => {
   };
 
   return (
-    <footer className="relative bg-black text-white py-8 md:py-12 px-6 overflow-hidden">
+    <footer className="relative bg-black text-white py-8 md:py-12 px-6 overflow-hidden h-auto lg:h-[110vh]">
       {/* Main Content */}
       <div className="max-w-7xl mx-auto relative z-10">
         <div className="grid grid-cols-2 md:grid-cols-6 gap-4 md:gap-8 mb-8 md:mb-12">
@@ -351,7 +351,7 @@ const Footer = () => {
         <img
           src={Shivlogo}
           alt="ShivAI Background"
-          className="mx-auto w-[400px] lg:w-[1220px] object-contain"
+          className="mx-auto w-[400px] lg:w-[1260px] object-contain"
         />
       </div>
     </footer>

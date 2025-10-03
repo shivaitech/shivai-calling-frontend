@@ -83,7 +83,7 @@ export const FAQ = () => {
     setFaqs(
       faqs.map((faq) => ({
         ...faq,
-        isOpen: faq.id === id ? !faq.isOpen : false
+        isOpen: faq.id === id ? !faq.isOpen : false,
       }))
     );
   };
@@ -94,16 +94,11 @@ export const FAQ = () => {
         backgroundImage: `url('${bgImage}')`,
         backgroundPosition: "center",
       }}
-      className="w-full px-6 lg:px-0"
+      className="w-full px-6 lg:px-10 pt-0 md:pt-16 lg:pt-[100px]"
     >
       {/* FAQ Section */}
-      <div className="px-2 py-8 md:py-16 lg:py-24">
-        <div
-          className="max-w-7xl mx-auto
-      
-      
-      "
-        >
+      <div className="px-2 py-8 md:py-0 lg:py-24">
+        <div className="max-w-8xl mx-auto">
           {/* Header */}
           <div className="mb-8 md:mb-12 flex lg:flex-row flex-col items-center  justify-between">
             <h2 className="text-[38px] font-[600] md:text-4xl lg:text-6xl text-center lg:text-start  text-balance text-[#333] mb-6 leading-tight">
@@ -120,7 +115,7 @@ export const FAQ = () => {
             {faqs.map((faq) => (
               <div
                 key={faq.id}
-                className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden transition-all duration-300 hover:shadow-md"
+                className="bg-white rounded-[14px] shadow-sm border border-gray-100 overflow-hidden transition-all duration-300 hover:shadow-md"
               >
                 {/* Question Header */}
                 <button
@@ -157,7 +152,7 @@ export const FAQ = () => {
 
       {/* CTA Section */}
       <div className="px-2 pb-8 md:pb-16 lg:pb-24">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-8xl mx-auto">
           <div className="bg-[#000] rounded-[16px] flex justify-center md:rounded-3xl px-6 py-8 md:px-12 md:py-16 lg:px-16 lg:py-20 text-center relative overflow-hidden">
             {/* Background Pattern/Decoration */}
             <div className="absolute inset-0 ">
@@ -170,7 +165,7 @@ export const FAQ = () => {
             </div>
 
             {/* Content */}
-            <div className="relative z-10 flex flex-col items-center max-w-3xl">
+            <div className="relative z-10 flex flex-col items-center">
               <h2
                 style={{
                   fontFamily: "Poppins, sans-serif",
@@ -178,7 +173,7 @@ export const FAQ = () => {
                   lineHeight: "130%",
                   letterSpacing: "-2%",
                 }}
-                className="text-2xl md:text-3xl lg:text-4xl xl:text-[80px] font-semibold text-white mb-4 md:mb-6 leading-tight"
+                className="text-[32px] md:text-[60px] lg:text-[75px] xl:text-[80px] font-semibold text-white mb-4 md:mb-6 leading-tight"
               >
                 Ready to transform your customer experience?
               </h2>
@@ -190,7 +185,7 @@ export const FAQ = () => {
               {/* CTA Button */}
               <button className="bwhiteBgGradient bg-white  px-6 py-3 md:px-12 md:py-4 rounded-[60px]  hover:bg-gray-100 transition-colors duration-200 ">
                 Start Free Trial
-              </button> 
+              </button>
 
               {/* No Credit Card Text */}
               <div className="flex items-center justify-center mt-4 text-gray-400 text-xs md:text-sm">

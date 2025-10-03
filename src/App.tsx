@@ -51,7 +51,7 @@ function AppContent() {
             path="/landing"
             element={
               <PublicRoute>
-                <Landing />
+                <Workflows />
               </PublicRoute>
             }
           />
