@@ -1,5 +1,5 @@
 interface PasswordRequirement {
-  id: 'length' | 'letter' | 'number';
+  id: 'length' | 'letter' | 'number' | 'special';
   label: string;
 }
 
@@ -47,7 +47,7 @@ export const AUTH_MESSAGES: AuthMessages = {
     signin_generic2: "Invalid or Incorrect Password.",
     signin_too_many_attempts: "Too many attempts. Try again in 30 seconds.",
     password_too_short: "Use at least 8 characters",
-    password_requirements: "Password must include a letter and a number",
+    password_requirements: "Password must include a letter, number, and special character",
     password_mismatch: "Passwords don't match",
     reset_link_expired: "This reset link has expired. Request a new one.",
     one_time_code_incorrect: "That code isn't correct.",
@@ -57,9 +57,9 @@ export const AUTH_MESSAGES: AuthMessages = {
   
   helper: {
     signup_email: "We'll send confirmations here.",
-    signup_password: "Use 8+ characters with letters and numbers",
+    signup_password: "Use 8+ characters with letters, numbers, and special characters",
     password_guidance_title: "Create a password",
-    password_guidance_tips: "Include at least one letter and one number",
+    password_guidance_tips: "Include at least one letter, number, and special character",
     forgot_password_label: "Email",
     forgot_password_cta: "Send reset link"
   },
@@ -71,7 +71,8 @@ export const AUTH_MESSAGES: AuthMessages = {
     password_requirements: [
       { id: 'length', label: '8+ characters' },
       { id: 'letter', label: 'Include a letter' },
-      { id: 'number', label: 'Include a number' }
+      { id: 'number', label: 'Include a number' },
+      { id: 'special', label: 'Include special character (@, #, $, etc.)' }
     ]
   }
 } as const;

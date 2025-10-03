@@ -13,6 +13,7 @@ interface PasswordRequirements {
   length: boolean;
   letter: boolean;
   number: boolean;
+  special: boolean;
 }
 
 export const useEmailValidation = (
@@ -141,6 +142,7 @@ export const usePasswordValidation = (
       length: false,
       letter: false,
       number: false,
+      special: false,
     },
   });
 
@@ -164,6 +166,7 @@ export const usePasswordValidation = (
           length: password.length >= 8,
           letter: /[a-zA-Z]/.test(password),
           number: /[0-9]/.test(password),
+          special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\?]/.test(password),
         };
 
         let isValid = Object.values(requirements).every(Boolean);
@@ -171,7 +174,7 @@ export const usePasswordValidation = (
 
         if (!requirements.length) {
           error = AUTH_MESSAGES.error.password_too_short;
-        } else if (!requirements.letter || !requirements.number) {
+        } else if (!requirements.letter || !requirements.number || !requirements.special) {
           error = AUTH_MESSAGES.error.password_requirements;
         }
 

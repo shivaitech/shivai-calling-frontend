@@ -58,6 +58,8 @@ const AuthModel: React.FC<AuthModelProps> = ({
   >(null);
   const [isValidatingEmail, setIsValidatingEmail] = useState(false);
   const [shake, setShake] = useState(false);
+  // Separate password visibility states for each field
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Debounced validation function for signin only
   const debouncedValidateEmail = debounce(async (email: string) => {
@@ -146,7 +148,7 @@ const AuthModel: React.FC<AuthModelProps> = ({
           <X className="w-4 md:w-5 h-4 md:h-5" />
         </button>
 
-        <div className="px-6 py-14 sm:px-8 md:px-8 md:py-8">
+        <div className="px-6 py-10 sm:px-8 md:px-8 md:py-8">
           {/* Header */}
           <div className="text-center mb-6 md:mb-8">
             <h1 className="text-[36px] md:text-2xl font-[600] text-gray-900 mb-1 md:mb-2">
@@ -340,7 +342,7 @@ const AuthModel: React.FC<AuthModelProps> = ({
                   <label className="auth-label">Confirm Password</label>
                   <div className="relative">
                     <input
-                      type={showPassword ? "text" : "password"}
+                      type={showConfirmPassword ? "text" : "password"}
                       value={formData.confirmPassword}
                       onChange={(e) =>
                         setFormData({
@@ -361,11 +363,11 @@ const AuthModel: React.FC<AuthModelProps> = ({
                     />
                     <button
                       type="button"
-                      onClick={() => setShowPassword(!showPassword)}
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                       className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                       disabled={isLoading}
                     >
-                      {showPassword ? (
+                      {showConfirmPassword ? (
                         <EyeOff className="w-4 h-4" />
                       ) : (
                         <Eye className="w-4 h-4" />

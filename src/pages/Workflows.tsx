@@ -66,7 +66,7 @@ const Workflows = () => {
   const [newTrigger, setNewTrigger] = useState({ name: '', description: '', type: 'custom' });
   const [editingWorkflow, setEditingWorkflow] = useState<Workflow | null>(null);
   const [connectingFrom, setConnectingFrom] = useState<string | null>(null);
-  const [draggingNode, setDraggingNode] = useState<string | null>(null);
+  const [touchFeedback, setTouchFeedback] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
 
   const predefinedTriggers = [
@@ -299,6 +299,88 @@ const Workflows = () => {
 
     setNodes(prev => [...prev, newNode]);
     setDraggedItem(null);
+  };
+
+  // Touch event handlers for mobile drag and drop
+  const handleTouchStart = (e: React.TouchEvent, item: any, type: 'trigger' | 'action' | 'condition') => {
+    e.preventDefault();
+    setDraggedItem({ ...item, nodeType: type });
+    setTouchFeedback(`Touch and hold to drag ${item.name} to canvas`);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    e.preventDefault();
+    if (draggedItem) {
+      setTouchFeedback(`Dragging ${draggedItem.name}... Release over canvas to add`);
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    e.preventDefault();
+    if (!draggedItem || !canvasRef.current) {
+      setTouchFeedback(null);
+      setDraggedItem(null);
+      return;
+    }
+
+    const touch = e.changedTouches[0];
+    const canvasRect = canvasRef.current.getBoundingClientRect();
+    
+    // Check if touch ended within canvas bounds
+    if (touch.clientX >= canvasRect.left && touch.clientX <= canvasRect.right &&
+        touch.clientY >= canvasRect.top && touch.clientY <= canvasRect.bottom) {
+      
+      const x = touch.clientX - canvasRect.left;
+      const y = touch.clientY - canvasRect.top;
+
+      const newNode: WorkflowNode = {
+        id: `${draggedItem.nodeType}-${Date.now()}`,
+        type: draggedItem.nodeType,
+        data: draggedItem,
+        position: { x: Math.max(0, x - 50), y: Math.max(0, y - 50) }
+      };
+
+      setNodes(prev => [...prev, newNode]);
+      setTouchFeedback(`${draggedItem.name} added to canvas!`);
+      
+      // Clear success message after 2 seconds
+      setTimeout(() => setTouchFeedback(null), 2000);
+    } else {
+      setTouchFeedback(`Release over the canvas area to add ${draggedItem.name}`);
+      setTimeout(() => setTouchFeedback(null), 2000);
+    }
+    
+    setDraggedItem(null);
+  };
+
+  // Alternative mobile method: tap to select, then tap canvas to place
+  const handleMobileItemSelect = (item: any, type: 'trigger' | 'action' | 'condition') => {
+    if (window.innerWidth <= 768) { // Mobile screen width
+      setDraggedItem({ ...item, nodeType: type });
+      setTouchFeedback(`${item.name} selected. Tap on canvas to place it.`);
+    }
+  };
+
+  const handleMobileCanvasClick = (e: React.MouseEvent) => {
+    if (!draggedItem || !canvasRef.current || window.innerWidth > 768) return;
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    const newNode: WorkflowNode = {
+      id: `${draggedItem.nodeType}-${Date.now()}`,
+      type: draggedItem.nodeType,
+      data: draggedItem,
+      position: { x: Math.max(0, x - 50), y: Math.max(0, y - 50) }
+    };
+
+    setNodes(prev => [...prev, newNode]);
+    setTouchFeedback(`${draggedItem.name} added to canvas!`);
+    setDraggedItem(null);
+    
+    // Clear success message after 2 seconds
+    setTimeout(() => setTouchFeedback(null), 2000);
   };
 
   const handleNodeClick = (nodeId: string) => {
@@ -558,6 +640,10 @@ const Workflows = () => {
                         key={trigger.id}
                         draggable
                         onDragStart={(e) => handleDragStart(e, trigger, 'trigger')}
+                        onTouchStart={(e) => handleTouchStart(e, trigger, 'trigger')}
+                        onTouchMove={handleTouchMove}
+                        onTouchEnd={handleTouchEnd}
+                        onClick={() => handleMobileItemSelect(trigger, 'trigger')}
                         className="p-2.5 sm:p-3 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600 cursor-move transition-all duration-200 bg-white/80 dark:bg-slate-800/80 hover:shadow-md touch-manipulation"
                       >
                         <div className="flex items-center gap-2 sm:gap-3">
@@ -628,10 +714,18 @@ const Workflows = () => {
                     </div>
                   </div>
                   
+                  {/* Touch Feedback Display */}
+                  {touchFeedback && (
+                    <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg text-sm">
+                      {touchFeedback}
+                    </div>
+                  )}
+                  
                   <div
                     ref={canvasRef}
                     onDragOver={handleDragOver}
                     onDrop={handleDrop}
+                    onClick={handleMobileCanvasClick}
                     className="flex-1 relative bg-slate-50/50 dark:bg-slate-800/30 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600 overflow-hidden"
                   >
                     {nodes.length === 0 ? (
@@ -734,7 +828,6 @@ const Workflows = () => {
                             }}
                             onMouseDown={(e) => {
                               if (e.button === 0) { // Left click only
-                                setDraggingNode(node.id);
                                 const startX = e.clientX - node.position.x;
                                 const startY = e.clientY - node.position.y;
 
@@ -747,7 +840,6 @@ const Workflows = () => {
                                 };
 
                                 const handleMouseUp = () => {
-                                  setDraggingNode(null);
                                   document.removeEventListener('mousemove', handleMouseMove);
                                   document.removeEventListener('mouseup', handleMouseUp);
                                 };
@@ -890,6 +982,10 @@ const Workflows = () => {
                         key={action.id}
                         draggable
                         onDragStart={(e) => handleDragStart(e, action, 'action')}
+                        onTouchStart={(e) => handleTouchStart(e, action, 'action')}
+                        onTouchMove={handleTouchMove}
+                        onTouchEnd={handleTouchEnd}
+                        onClick={() => handleMobileItemSelect(action, 'action')}
                         className="p-2.5 sm:p-3 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-green-300 dark:hover:border-green-600 cursor-move transition-all duration-200 bg-white/80 dark:bg-slate-800/80 hover:shadow-md touch-manipulation"
                       >
                         <div className="flex items-start gap-2 sm:gap-3">
@@ -952,6 +1048,10 @@ const Workflows = () => {
                     key={condition.id}
                     draggable
                     onDragStart={(e) => handleDragStart(e, condition, 'condition')}
+                    onTouchStart={(e) => handleTouchStart(e, condition, 'condition')}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
+                    onClick={() => handleMobileItemSelect(condition, 'condition')}
                     className="p-3 sm:p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 hover:border-purple-300 dark:hover:border-purple-600 cursor-move transition-all duration-200 bg-white/80 dark:bg-slate-800/80 hover:shadow-lg touch-manipulation"
                   >
                     <div className="flex items-center gap-2 sm:gap-3 mb-2">
