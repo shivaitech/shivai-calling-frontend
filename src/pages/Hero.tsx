@@ -150,7 +150,7 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
   }
 
   return (
-    <div className="min-h-screen lg:min-h-screen sm:min-h-[80vh] bg-[#F0F0F0] overflow-hidden relative mb-8 sm:mb-2 mt-14">
+    <div className="min-h-[620px]  max-h-screen lg:min-h-screen  overflow-hidden relative mb-8 sm:mb-2 mt-14">
       <div className="relative px-4 sm:px-6 lg:px-8">
         <div className="hidden lg:block absolute left-20 top-28 bottom-24">
           <div className="w-px h-[42vh] bg-[#d1d1d1] relative top-[28%]" />
@@ -168,29 +168,25 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
 
         <motion.div className="relative z-10 pt-1 sm:pt-4 lg:pt-6">
           <div className="max-w-7xl mx-auto">
-            <div className="lg:hidden md:hidden relative min-h-[80vh] ">
+            <div className="lg:hidden md:hidden relative min-h-[620px] ">
               {/* Left vertical sidebar text */}
-              <div className="absolute left-0 top-0 bottom-0 w-6">
-                <div className="h-full flex gap-4 flex-col justify-center">
-                  <div className="w-px h-[30vh] bg-[#d1d1d1] relative left-[18px] -top-[1%]" />
-
-                  <div className="absolute -left-[50px] top-[93px] -rotate-90 origin-center">
-                    <span className="text-xs text-[#828282] tracking-[0.15em] font-light whitespace-nowrap">
-                      The New Frontline
-                    </span>
-                  </div>
-
-                  <div className="absolute left-0 top-[70%] -rotate-90 origin-center">
-                    <span className="text-xs text-[#828282] tracking-[0.15em] font-light whitespace-nowrap">
-                      2025
-                    </span>
-                  </div>
+              <div className="absolute left-0 top-1 bottom-0 w-8 overflow-hidden flex gap-4 flex-col justify-center items-center ">
+                <div className="relative -top-[52px] -rotate-90 origin-center">
+                  <span className="text-xs text-[#828282] tracking-[0.15em] font-light whitespace-nowrap">
+                    The New Frontline
+                  </span>
+                </div>
+                <div className="w-[2px] h-[38vh] bg-[#d1d1d1] origin-center" />
+                <div className="-rotate-90 origin-center">
+                  <span className="text-xs text-[#828282] tracking-[0.15em] font-light whitespace-nowrap">
+                    2025
+                  </span>
                 </div>
               </div>
 
               {/* Main content area */}
-              <div className="relative  min-h-[80vh] ">
-                <div className="ml-14 pt-8 pb-8  px-2">
+              <div className="relative  min-h-[620px] ">
+                <div className="ml-14 pt-8 pb-8 px-2">
                   {/* Statistics - Mobile */}
                   <motion.div
                     variants={containerVariants}
@@ -267,7 +263,7 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
                 </div>
 
                 <motion.div
-                  className="absolute -left-[44%] w-[140vw]  mx-auto border-none opacity-100 bottom-0"
+                  className="absolute -left-[44%] w-[140vw] h-auto mx-auto border-none opacity-100 bottom-0"
                   whileHover={{ scale: 1.02 }}
                   transition={{ duration: 0.6, ease: "easeOut" }}
                 >
