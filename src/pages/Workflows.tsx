@@ -825,7 +825,7 @@ const Workflows = () => {
                   )}
                   
                   {/* Mobile-Optimized Canvas Zoom Controls */}
-                  <div className="absolute top-3 right-3 z-10 flex flex-col gap-1 bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm rounded-xl border border-slate-200/50 dark:border-slate-700/50 shadow-xl p-2 sm:p-2">
+                  <div className="absolute hidden  bottom-3 right-3 z-10  flex-col gap-1 bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm rounded-xl border border-slate-200/50 dark:border-slate-700/50 shadow-xl p-2 sm:p-2">
                     <button
                       onClick={handleZoomIn}
                       disabled={canvasZoom >= 3}
