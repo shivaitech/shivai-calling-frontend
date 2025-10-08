@@ -150,7 +150,7 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
   }
 
   return (
-    <div className="min-h-[620px]  max-h-screen lg:min-h-[96vh]  overflow-hidden relative mb-8 sm:mb-2 mt-14">
+    <div className="min-h-[620px]  max-h-screen lg:min-h-[96vh] xs:min-h-screen  overflow-hidden relative mb-8 sm:mb-2 mt-14">
       <div className="relative px-4 sm:px-6 lg:px-8">
         <div className="hidden md:flex absolute left-[4vw]   top-[6vh] bottom-0 w-8  h-[80vh] overflow-hidden gap-4 flex-col justify-between items-center ">
           <div className="relative top-[65px]  -rotate-90 origin-center">
@@ -185,7 +185,7 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
               </div>
 
               {/* Main content area */}
-              <div className="relative  min-h-[620px] ">
+              <div className="relative  dynamicHeight ">
                 <div className="ml-14 pt-8 pb-8 px-2">
                   {/* Statistics - Mobile */}
                   <motion.div
@@ -401,7 +401,7 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
 
                 {/* Hero Image for medium screens */}
                 <motion.div
-                  className="absolute -right-[10%] w-[70vw] bottom-0"
+                  className="absolute -right-[10%] w-[70vw] bottom-0  border-[#f0f0f0] border-2"
                   whileHover={{ scale: 1.02 }}
                   transition={{ duration: 0.6, ease: "easeOut" }}
                 >
@@ -497,7 +497,7 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
                 transition={{ duration: 1 }}
                 className="flex"
               >
-                <div className="absolute -bottom- xl:-bottom-30 w-[70vw] max-w-[80vw] md:-bottom-20 md:w-[58vw] -right-5 ">
+                <div className="absolute -bottom- xl:-bottom-30 w-[70vw] max-w-[80vw] md:-bottom-20 md:w-[58vw] -right-5 border-t-[#f0f0f0] ">
                   <motion.div
                     className="relative overflow-hidden"
                     // whileHover={{ scale: 1.02 }}
