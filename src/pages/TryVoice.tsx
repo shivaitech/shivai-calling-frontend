@@ -380,7 +380,7 @@ export default function TryVoice() {
       {/* Main Container */}
       <main
         id="demo-content"
-        className="relative shadow-xl py-4 sm:py-6 md:py-0 lg:py-0 xl:py-0 lg:top-5 -top-[18vh]  xl:max-w-8xl mx-auto bg-[#FAFAFA] lg:shadow-lg rounded-3xl  lg:rounded-[40px] xl:rounded-[50px] sm:mx-2 md:m-4 lg:m-6 xl:m-8  overflow-hidden"
+        className="relative shadow-xl py-4 sm:py-6 md:py-0 lg:py-0 xl:py-0 lg:top-10 -top-[18vh]  xl:max-w-8xl mx-auto bg-[#FAFAFA] lg:shadow-lg rounded-3xl  lg:rounded-[40px] xl:rounded-[50px] sm:mx-2 md:m-4 lg:m-6 xl:m-8  overflow-hidden"
         role="main"
         aria-labelledby="main-heading"
       >

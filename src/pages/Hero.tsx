@@ -150,23 +150,23 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
   }
 
   return (
-    <div className="min-h-[620px]  max-h-screen lg:min-h-screen  overflow-hidden relative mb-8 sm:mb-2 mt-14">
+    <div className="min-h-[620px]  max-h-screen lg:min-h-[96vh]  overflow-hidden relative mb-8 sm:mb-2 mt-14">
       <div className="relative px-4 sm:px-6 lg:px-8">
-        <div className="hidden lg:block absolute left-20 top-28 bottom-24">
-          <div className="w-px h-[42vh] bg-[#d1d1d1] relative top-[28%]" />
-          <div className="absolute -left-[83px] -top-2 -rotate-90">
-            <span className="text-xs text-[#828282]  tracking-[0.2em] font-normal whitespace-nowrap">
+        <div className="hidden md:flex absolute left-[4vw]   top-[6vh] bottom-0 w-8  h-[80vh] overflow-hidden gap-4 flex-col justify-between items-center ">
+          <div className="relative top-[65px]  -rotate-90 origin-center">
+            <span className="text-xs text-[#828282] tracking-[0.15em] font-light whitespace-nowrap">
               The New Frontline
             </span>
           </div>
-          <div className="absolute -left-[20px] top-[60vh] -rotate-90">
-            <span className="text-xs text-[#828282]  tracking-[0.2em] font-normal whitespace-nowrap">
+          <div className="w-[1.3px] h-[50vh] top-[50px] left-[2px] relative bg-[#d1d1d1] origin-center" />
+          <div className="-rotate-90 origin-center">
+            <span className="text-xs -right-[15px] relative text-[#828282] tracking-[0.15em] font-light whitespace-nowrap">
               2025
             </span>
           </div>
         </div>
 
-        <motion.div className="relative z-10 pt-1 sm:pt-4 lg:pt-6">
+        <motion.div className="relative z-10 pt-1 sm:pt-4 lg:pt-2">
           <div className="max-w-7xl mx-auto">
             <div className="lg:hidden md:hidden relative min-h-[620px] ">
               {/* Left vertical sidebar text */}
@@ -321,25 +321,6 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
 
             {/* Medium Screen Layout (Tablet) */}
             <div className="hidden md:block lg:hidden relative min-h-[85vh]">
-              {/* Left vertical sidebar text for medium screens */}
-              <div className="absolute left-0 top-0 bottom-0 w-8">
-                <div className="h-full flex gap-4 flex-col justify-center">
-                  <div className="w-px h-[35vh] bg-[#d1d1d1] relative left-[24px] top-[5%]" />
-
-                  <div className="absolute -left-[60px] top-32 -rotate-90 origin-center">
-                    <span className="text-sm text-[#828282] tracking-[0.15em] font-light whitespace-nowrap">
-                      AI Voice teammates
-                    </span>
-                  </div>
-
-                  <div className="absolute -left-[8px] top-[75%] -rotate-90 origin-center">
-                    <span className="text-sm text-[#828282] tracking-[0.15em] font-light whitespace-nowrap">
-                      2025
-                    </span>
-                  </div>
-                </div>
-              </div>
-
               {/* Main content area for medium screens */}
               <div
                 className="rela
@@ -434,7 +415,7 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
             </div>
 
             {/* Desktop Layout */}
-            <div className="hidden lg:grid  grid-cols-2 gap-16 items-center min-h-[80vh] lg:px-10 px-2 xl:px-14  2xl:px-0 w-[100vw] overflow-hidden">
+            <div className="hidden lg:grid  grid-cols-2 gap-12 items-center min-h-[80vh] lg:px-10 px-2 xl:px-14  2xl:px-0 w-[100vw] overflow-hidden">
               {/* Left Column - Desktop */}
               <motion.div
                 variants={containerVariants}
@@ -519,8 +500,8 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
                 <div className="absolute -bottom- xl:-bottom-30 w-[70vw] max-w-[80vw] md:-bottom-20 md:w-[58vw] -right-5 ">
                   <motion.div
                     className="relative overflow-hidden"
-                    whileHover={{ scale: 1.02 }}
-                    transition={{ duration: 0.6, ease: "easeOut" }}
+                    // whileHover={{ scale: 1.02 }}
+                    // transition={{ duration: 0.6, ease: "easeOut" }}
                   >
                     <LazyImage
                       src={HeroImage}

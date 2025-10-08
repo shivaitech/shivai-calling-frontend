@@ -336,8 +336,10 @@ const Landing: React.FC = () => {
         showMobileMenu={showMobileMenu}
         setShowMobileMenu={setShowMobileMenu}
       />
-      <Hero setAuthMode={setAuthMode} setShowAuthModal={setShowAuthModal} />
-      <section id="demo" className="py-0 px-3 lg:px-0 mt-40 h-auto">
+      <section id="" className="">
+        <Hero setAuthMode={setAuthMode} setShowAuthModal={setShowAuthModal} />
+      </section>
+      <section id="demo" className="py-0 px-3 lg:px-0 mt-40 lg:mt-5 h-auto ">
         <TryVoice />
       </section>
       <section id="features" className="py-0 px-2 lg:px-0">
@@ -357,7 +359,10 @@ const Landing: React.FC = () => {
         <FAQ />
       </section>
 
-      <section id="footer" className="relative w-[100vw] py-0 px-0 lg:px-0 bg-black">
+      <section
+        id="footer"
+        className="relative w-[100vw] py-0 px-0 lg:px-0 bg-black"
+      >
         <Footer />
       </section>
 
