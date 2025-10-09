@@ -497,7 +497,7 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
                 transition={{ duration: 1 }}
                 className="flex"
               >
-                <div className="absolute -bottom- xl:-bottom-30 w-[70vw] max-w-[80vw] md:-bottom-20 md:w-[58vw] -right-5 border-t-[#f0f0f0] ">
+                <div className="absolute -bottom- xl:-bottom-30 w-[70vw] max-w-[80vw] md:-bottom-20 md:w-[58vw] -right-8 border-t-[#f0f0f0] ">
                   <motion.div
                     className="relative overflow-hidden"
                     // whileHover={{ scale: 1.02 }}
