@@ -8,22 +8,21 @@ export default function TryVoice() {
       style={{
         zIndex: 100,
       }}
-      className="bg-[#F0F0F0] font-sans px-2 sm:px-4 md:px-6 lg:px-8 xl:px-12 "
+      className=" font-sans px-2 sm:px-4 md:px-6 lg:px-8 xl:px-12 "
     >
       {/* Main Container */}
       <main
         id="demo-content"
-        className="relative shadow-xl py-4 sm:py-6 md:py-0 lg:py-0 xl:py-0 lg:top-10 -top-[18vh]  xl:max-w-8xl mx-auto bg-[#FAFAFA] lg:shadow-lg rounded-3xl  lg:rounded-[40px] xl:rounded-[50px] sm:mx-2 md:m-4 lg:m-6 xl:m-8  overflow-hidden"
+        className="relative shadow-xl py-4 sm:py-6 md:py-0 lg:py-0 xl:py-0 lg:top-10 -top-[18vh]  xl:max-w-8xl mx-auto lg:shadow-lg rounded-3xl  lg:rounded-[40px] xl:rounded-[50px] sm:mx-2 md:m-4 lg:m-6 xl:m-8  overflow-hidden"
         role="main"
         aria-labelledby="main-heading"
       >
         <div
-          className="absolute inset-0  pointer-events-none "
+          className="absolute inset-0  pointer-events-none filter blur-[0px] lg:blur-[1px]"
           style={{
             background: `url(${bgNew})`,
             backgroundPosition: "center",
-            backgroundRepeat: "repeat",
-            filter: "blur(1px)",
+            backgroundRepeat: "no-repeat",
           }}
           aria-hidden="true"
         />
@@ -41,7 +40,7 @@ export default function TryVoice() {
             {/* Main Title */}
             <h1
               id="main-heading"
-              className="text-white text-wrap leading-[36px] lg:leading:[normal] lg:text-nowrap text-[32px] sm:text-[36px] md:text-[44px] lg:text-[56px] xl:text-[64px] mb-2 sm:mb-6 md:mb-6 lg:mb-6 px-2 md:px-4 lg:px-6"
+              className="text-white text-wrap leading-[36px] lg:leading:[normal] lg:text-nowrap text-[26px] sm:text-[36px] md:text-[44px] lg:text-[56px] xl:text-[64px] mb-0 sm:mb-2 md:mb-6 lg:mb-6 px-2 md:px-4 lg:px-6"
               style={{
                 fontFamily: "Poppins, sans-serif",
                 letterSpacing: "-1px",
@@ -61,22 +60,22 @@ export default function TryVoice() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
-              className="bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20 px-6 py-4 md:px-10 md:py-6 text-center"
+              className="bg-white/5 backdrop-blur-[0.2px] rounded-2xl border border-white/20 px-6 py-4 md:px-10 md:py-6 text-center"
             >
               <h3
-                className="text-white text-lg md:text-xl lg:text-2xl font-semibold mb-3"
+                className="text-white text-lg md:text-xl lg:text-2xl font-semibold mb-2"
                 style={{ fontFamily: "Poppins, sans-serif" }}
               >
                 Your First AI Employee
               </h3>
               <p
-                className="text-white/90 text-sm md:text-base mb-2"
+                className="text-white/90 text-xs md:text-base mb-2"
                 style={{ fontFamily: "Poppins, sans-serif" }}
               >
                 Always On, Handles calls in 56+ languages
               </p>
               <p
-                className="text-white/90 text-sm md:text-base "
+                className="text-white/90 text-xs md:text-base "
                 style={{ fontFamily: "Poppins, sans-serif" }}
               >
                 Sells, supports, and books 24/7.

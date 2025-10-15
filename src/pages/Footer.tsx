@@ -291,33 +291,20 @@ const Footer = () => {
                   <span className="text-[14px] md:text-[16px] lg:text-sm text-[#FFFFFF99]/60">
                     India
                   </span>
-                  {"•"}
-                  <a
-                    href="https://wa.me/919211490707"
-                    className=" hover:text-white transition-colors text-[11px] flex items-center gap-1"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="w-3 h-3 inline-block"
-                      viewBox="0 0 32 32"
-                      fill="#25D366"
-                    >
-                      <path d="M16 3C9.373 3 4 8.373 4 15c0 2.637.77 5.13 2.227 7.3L4 29l7.012-2.227A12.93 12.93 0 0016 27c6.627 0 12-5.373 12-12S22.627 3 16 3zm0 22.917c-2.25 0-4.45-.67-6.32-1.933l-.45-.287-4.167 1.325 1.367-4.067-.293-.47A10.93 10.93 0 015.083 15c0-6.033 4.884-10.917 10.917-10.917S26.917 8.967 26.917 15 22.033 25.917 16 25.917zm5.417-7.417c-.3-.15-1.767-.867-2.04-.967-.273-.1-.473-.15-.673.15-.2.3-.767.967-.94 1.167-.173.2-.347.225-.647.075-.3-.15-1.267-.467-2.417-1.483-.893-.797-1.497-1.783-1.673-2.083-.173-.3-.018-.462.13-.612.134-.133.3-.347.45-.52.15-.173.2-.3.3-.5.1-.2.05-.375-.025-.525-.075-.15-.673-1.625-.92-2.225-.242-.583-.487-.5-.673-.508l-.573-.012c-.2 0-.525.075-.8.375-.273.3-1.04 1.017-1.04 2.483 0 1.467 1.067 2.883 1.217 3.083.15.2 2.103 3.217 5.1 4.383.713.275 1.267.438 1.7.562.713.227 1.362.195 1.875.118.573-.085 1.767-.722 2.017-1.42.25-.697.25-1.295.175-1.42-.075-.125-.273-.2-.573-.35z" />
-                    </svg>
-                    +91 921 149 0707
-                  </a>
                 </div>
-                <div className="text-[11px] mt-1">
-                  <span className="text-[#FFFFFF99]/60">Email us: </span>
-                  <a
-                    href="mailto:hello@callshivai.com"
-                    className="hover:text-white transition-colors"
-                  >
-                    hello@callshivai.com
-                  </a>
-                </div>
+                <a
+                  href="https://wa.me/919211490707"
+                  className=" hover:text-white transition-colors text-[11px] flex items-center gap-1"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <img
+                    src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg"
+                    alt="WhatsApp"
+                    className="w-3 h-3 object-contain"
+                  />
+                  +91 921 149 0707
+                </a>
               </div>
 
               {/* UAE Office */}
@@ -331,33 +318,20 @@ const Footer = () => {
                   <span className="text-[14px] md:text-[16px] lg:text-sm text-[#FFFFFF99]/60">
                     UAE
                   </span>
-                  {"•"}
-                  <a
-                    href="https://wa.me/971566180707"
-                    className=" hover:text-white transition-colors text-[11px] flex items-center gap-1"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="w-3 h-3 inline-block"
-                      viewBox="0 0 32 32"
-                      fill="#25D366"
-                    >
-                      <path d="M16 3C9.373 3 4 8.373 4 15c0 2.637.77 5.13 2.227 7.3L4 29l7.012-2.227A12.93 12.93 0 0016 27c6.627 0 12-5.373 12-12S22.627 3 16 3zm0 22.917c-2.25 0-4.45-.67-6.32-1.933l-.45-.287-4.167 1.325 1.367-4.067-.293-.47A10.93 10.93 0 015.083 15c0-6.033 4.884-10.917 10.917-10.917S26.917 8.967 26.917 15 22.033 25.917 16 25.917zm5.417-7.417c-.3-.15-1.767-.867-2.04-.967-.273-.1-.473-.15-.673.15-.2.3-.767.967-.94 1.167-.173.2-.347.225-.647.075-.3-.15-1.267-.467-2.417-1.483-.893-.797-1.497-1.783-1.673-2.083-.173-.3-.018-.462.13-.612.134-.133.3-.347.45-.52.15-.173.2-.3.3-.5.1-.2.05-.375-.025-.525-.075-.15-.673-1.625-.92-2.225-.242-.583-.487-.5-.673-.508l-.573-.012c-.2 0-.525.075-.8.375-.273.3-1.04 1.017-1.04 2.483 0 1.467 1.067 2.883 1.217 3.083.15.2 2.103 3.217 5.1 4.383.713.275 1.267.438 1.7.562.713.227 1.362.195 1.875.118.573-.085 1.767-.722 2.017-1.42.25-.697.25-1.295.175-1.42-.075-.125-.273-.2-.573-.35z" />
-                    </svg>
-                    +971 56 618 0707
-                  </a>
                 </div>
-                <div className="text-[11px] mt-1">
-                  <span className="text-[#FFFFFF99]/60">Email us: </span>
-                  <a
-                    href="mailto:hel</svg>lo@callshivai.com"
-                    className="hover:text-white transition-colors"
-                  >
-                    hello@callshivai.com
-                  </a>
-                </div>
+                <a
+                  href="https://wa.me/971566180707"
+                  className=" hover:text-white transition-colors text-[11px] flex items-center gap-1"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <img
+                    src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg"
+                    alt="WhatsApp"
+                    className="w-3 h-3 object-contain"
+                  />
+                  +971 56 618 0707
+                </a>
               </div>
 
               {/* USA Office */}
@@ -371,33 +345,30 @@ const Footer = () => {
                   <span className="text-[14px] md:text-[16px] lg:text-sm text-[#FFFFFF99]/60">
                     USA
                   </span>
-                  {"•"}
-                  <a
-                    href="https://wa.me/13154440707"
-                    className=" hover:text-white transition-colors text-[11px] flex items-center gap-1"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="w-3 h-3 inline-block"
-                      viewBox="0 0 32 32"
-                      fill="#25D366"
-                    >
-                      <path d="M16 3C9.373 3 4 8.373 4 15c0 2.637.77 5.13 2.227 7.3L4 29l7.012-2.227A12.93 12.93 0 0016 27c6.627 0 12-5.373 12-12S22.627 3 16 3zm0 22.917c-2.25 0-4.45-.67-6.32-1.933l-.45-.287-4.167 1.325 1.367-4.067-.293-.47A10.93 10.93 0 015.083 15c0-6.033 4.884-10.917 10.917-10.917S26.917 8.967 26.917 15 22.033 25.917 16 25.917zm5.417-7.417c-.3-.15-1.767-.867-2.04-.967-.273-.1-.473-.15-.673.15-.2.3-.767.967-.94 1.167-.173.2-.347.225-.647.075-.3-.15-1.267-.467-2.417-1.483-.893-.797-1.497-1.783-1.673-2.083-.173-.3-.018-.462.13-.612.134-.133.3-.347.45-.52.15-.173.2-.3.3-.5.1-.2.05-.375-.025-.525-.075-.15-.673-1.625-.92-2.225-.242-.583-.487-.5-.673-.508l-.573-.012c-.2 0-.525.075-.8.375-.273.3-1.04 1.017-1.04 2.483 0 1.467 1.067 2.883 1.217 3.083.15.2 2.103 3.217 5.1 4.383.713.275 1.267.438 1.7.562.713.227 1.362.195 1.875.118.573-.085 1.767-.722 2.017-1.42.25-.697.25-1.295.175-1.42-.075-.125-.273-.2-.573-.35z" />
-                    </svg>
-                    +1 315 444 0707
-                  </a>
                 </div>
-                <div className="text-[11px] mt-1">
-                  <span className="text-[#FFFFFF99]/60">Email us: </span>
-                  <a
-                    href="mailto:hello@callshivai.com"
-                    className="hover:text-white transition-colors"
-                  >
-                    hello@callshivai.com
-                  </a>
-                </div>
+
+                <a
+                  href="https://wa.me/13154440707"
+                  className=" hover:text-white transition-colors text-[11px] flex items-center gap-1"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <img
+                    src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg"
+                    alt="WhatsApp"
+                    className="w-3 h-3 object-contain"
+                  />
+                  +1 315 444 0707
+                </a>
+              </div>
+              <div className="text-[11px] mt-1">
+                <span className="text-[#FFFFFF99]/60">Email us: </span>
+                <a
+                  href="mailto:hel</svg>lo@callshivai.com"
+                  className="hover:text-white transition-colors"
+                >
+                  hello@callshivai.com
+                </a>
               </div>
             </div>
           </div>

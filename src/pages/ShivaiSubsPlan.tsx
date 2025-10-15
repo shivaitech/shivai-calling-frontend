@@ -913,7 +913,7 @@ export const ShivaiSubsPlan = () => {
 
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-4 mb-4">
                     <p className="text-blue-800 text-xs font-medium">
-                      💡 Check your email for our getting started guide!
+                      💡 Check your email for our getting-started-guide!
                     </p>
                   </div>
                   <button
