@@ -1,24 +1,9 @@
 import { useState } from "react";
 import blackHeart from "../resources/Icon/blackHeart.svg";
 import blueHeart from "../resources/Icon/blueHear.svg";
-import custom from "../resources/Icon/custom.svg";
 import circleCheck from "../resources/Icon/correctCircle.svg";
 
-// Plan interface
-interface Plan {
-  id: string;
-  name: string;
-  subtitle: string;
-  price: number | string;
-  originalPrice?: number;
-  discount?: string;
-  period: string;
-  popular: boolean;
-  buttonText: string;
-  features: string[];
-  roiFeatures: string[];
-  additionalInfo: string;
-}
+
 
 // Subscription plans data matching the Figma design exactly
 const subscriptionPlans = [
@@ -120,16 +105,50 @@ const subscriptionPlans = [
 ];
 
 export const ShivaiSubsPlan = () => {
-  const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">(
-    "monthly"
-  );
+  const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("monthly");
+  const [showModal, setShowModal] = useState(false);
+  const [modalStep, setModalStep] = useState<'form' | 'success'>('form');
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    country: '',
+    state: '',
+    city: '',
+  });
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+
+  const handleGetStarted = () => {
+    setShowModal(true);
+    setModalStep('form');
+    setFormData({ name: '', email: '', country: '', state: '', city: '' });
+    setFormErrors({});
+  };
+
+  const handleModalClose = () => {
+    setShowModal(false);
+    setModalStep('form');
+    setFormData({ name: '', email: '', country: '', state: '', city: '' });
+    setFormErrors({});
+  };
+
+  const handleModalSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Simple validation
+    const errors: any = {};
+    if (!formData.name.trim()) errors.name = 'Name is required';
+    if (!formData.email.trim() || !/^\S+@\S+\.\S+$/.test(formData.email)) errors.email = 'Valid email required';
+    if (!formData.country.trim()) errors.country = 'Country is required';
+    if (!formData.state.trim()) errors.state = 'State is required';
+    if (!formData.city.trim()) errors.city = 'City is required';
+    setFormErrors(errors);
+    if (Object.keys(errors).length === 0) {
+      setModalStep('success');
+    }
+  };
 
   return (
     <div className="w-full py-0  lg:py-0 -top-[15px] lg:top-[60px] relative">
-      <div
-        id="pricing-content"
-        className="max-w-8xl mx-auto px-0 sm:px-6 lg:px-8"
-      >
+      <div id="pricing-content" className="max-w-8xl mx-auto px-0 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="text-center mb-6 lg:mb-12">
           <h2
@@ -261,17 +280,30 @@ export const ShivaiSubsPlan = () => {
                     <div className="flex items-baseline">
                       <span className="text-3xl font-bold text-[#000]">
                         {typeof plan.price === "number"
-                          ? `$${plan.price}`
+                          ? billingCycle === "annual" 
+                            ? `$${Math.round(plan.price * 12 * 0.84)}` // 16% discount
+                            : `$${plan.price}`
                           : plan.price}
                       </span>
                       {plan.period && (
                         <span className="ml-1 text-sm text-[#000000CC]">
-                          /{plan.period}
+                          /{billingCycle === "annual" ? "year" : plan.period}
                         </span>
                       )}
                     </div>
-                    {/* Show original price and discount for popular plan */}
-                    {plan.popular && plan.originalPrice && plan.discount && (
+                    {/* Show original price and discount */}
+                    {billingCycle === "annual" && typeof plan.price === "number" && (
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-sm text-red-500 line-through">
+                          ${plan.price * 12}
+                        </span>
+                        <span className="text-sm text-green-600 font-medium">
+                          Save 16% + 1 Month Free
+                        </span>
+                      </div>
+                    )}
+                    {/* Show original price and discount for popular plan in monthly */}
+                    {billingCycle === "monthly" && plan.popular && plan.originalPrice && plan.discount && (
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-sm text-red-500 line-through">
                           ${plan.originalPrice}
@@ -306,6 +338,7 @@ export const ShivaiSubsPlan = () => {
                         ? "bg-gradient-to-r from-cyan-400 to-blue-500 text-white hover:from-cyan-500 hover:to-blue-600"
                         : "bg-gray-100 text-[#000] hover:bg-gray-200 border border-gray-300 hover:border-gray-400 button-gradient2"
                     }`}
+                    onClick={handleGetStarted}
                   >
                     {plan.buttonText}
                   </button>
@@ -363,6 +396,158 @@ export const ShivaiSubsPlan = () => {
           ))}
         </div>
       </div>
+      {/* Enhanced Modal for Get Started */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm p-4">
+          <div 
+            className="bg-[#f8fafc] rounded-3xl shadow-2xl max-w-lg w-full relative overflow-hidden transform transition-all duration-300 scale-100"
+            style={{
+              minWidth: 320,
+              background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.8)'
+            }}
+          >
+            {/* Header gradient */}
+            <div className="h-1 bg-gradient-to-r from-gray-500 via-gray-900 to-white"></div>
+            
+            {/* Close button */}
+            <button
+              className="absolute top-6 right-6 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 hover:text-gray-700 transition-all duration-200 z-10"
+              onClick={handleModalClose}
+              aria-label="Close"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+
+            <div className="p-8">
+              {modalStep === 'form' ? (
+                <div className="space-y-6">
+                  {/* Header */}
+                  <div className="text-center mb-8">
+                    <div className="w-16 h-16 bg-gradient-to-r from-gray-500 to-purple-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                        <circle cx="12" cy="7" r="4"/>
+                      </svg>
+                    </div>
+                    <h2 className="text-xl font-bold text-gray-900 mb-1">Get Started with ShivAI</h2>
+                    <p className="text-gray-600 text-sm">Enter your details and our team will reach out very soon.</p>
+                  </div>
+
+                  {/* Form */}
+                  <form onSubmit={handleModalSubmit} className="space-y-4">
+                    <div className="space-y-3">
+                      <div>
+                        <input
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-all duration-200 text-gray-900 placeholder-gray-500 bg-gray-50 focus:bg-white text-sm"
+                          type="text"
+                          placeholder="Full Name"
+                          value={formData.name}
+                          onChange={e => setFormData(f => ({ ...f, name: e.target.value }))}
+                          autoFocus
+                        />
+                        {formErrors['name'] && <p className="text-red-500 text-xs mt-1">{formErrors['name']}</p>}
+                      </div>
+
+                      <div>
+                        <input
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-all duration-200 text-gray-900 placeholder-gray-500 bg-gray-50 focus:bg-white text-sm"
+                          type="email"
+                          placeholder="Email Address"
+                          value={formData.email}
+                          onChange={e => setFormData(f => ({ ...f, email: e.target.value }))}
+                        />
+                        {formErrors['email'] && <p className="text-red-500 text-xs mt-1">{formErrors['email']}</p>}
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-4">
+                        <div>
+                          <input
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-all duration-200 text-gray-900 placeholder-gray-500 bg-gray-50 focus:bg-white text-sm"
+                            type="text"
+                            placeholder="Country"
+                            value={formData.country}
+                            onChange={e => setFormData(f => ({ ...f, country: e.target.value }))}
+                          />
+                          {formErrors['country'] && <p className="text-red-500 text-xs mt-1">{formErrors['country']}</p>}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <input
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-all duration-200 text-gray-900 placeholder-gray-500 bg-gray-50 focus:bg-white text-sm"
+                            type="text"
+                            placeholder="State/Province"
+                            value={formData.state}
+                            onChange={e => setFormData(f => ({ ...f, state: e.target.value }))}
+                          />
+                          {formErrors['state'] && <p className="text-red-500 text-xs mt-1">{formErrors['state']}</p>}
+                        </div>
+                        <div>
+                          <input
+                            className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-all duration-200 text-gray-900 placeholder-gray-500 bg-gray-50 focus:bg-white text-sm"
+                            type="text"
+                            placeholder="City"
+                            value={formData.city}
+                            onChange={e => setFormData(f => ({ ...f, city: e.target.value }))}
+                          />
+                          {formErrors['city'] && <p className="text-red-500 text-xs mt-1">{formErrors['city']}</p>}
+                        </div>
+                      </div>
+                    </div>
+
+                    <button 
+                      type="submit" 
+                      className="w-full py-3 bg-white border-gray-800 border-2 hover:bg-gray-800 text-gray-800 hover:text-white font-medium rounded-lg transition-all duration-200 text-sm"
+                    >
+                      Get Started Now
+                    </button>
+                  </form>
+
+                  {/* Trust indicators */}
+                  <div className="text-center pt-3 border-t border-gray-200">
+                    <p className="text-xs text-gray-500">
+                      🔒 Your information is secure and will never be shared
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  {/* Success icon with animation */}
+                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4 animate-pulse">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" className="text-green-500">
+                      <circle cx="12" cy="12" r="10" fill="currentColor" fillOpacity="0.1"/>
+                      <path d="M8 12.5l2.5 2.5L16 9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </div>
+                  
+                  <h2 className="text-xl font-bold text-gray-900 mb-2">Thank You!</h2>
+                  <p className="text-gray-600 text-sm mb-2 max-w-sm">
+                    We've received your information. Our team will reach out to you within 24 hours.
+                  </p>
+                  
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-4 mb-4">
+                    <p className="text-blue-800 text-xs font-medium">
+                      💡 Check your email for our getting started guide!
+                    </p>
+                  </div>
+                  
+                  <button 
+                    className="w-full py-2 bg-gray-600 hover:bg-gray-700 text-white font-medium rounded-lg transition-all duration-200 text-sm" 
+                    onClick={handleModalClose}
+                  >
+                    Close
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

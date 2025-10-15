@@ -185,7 +185,7 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
               </div>
 
               {/* Main content area */}
-              <div className="relative  dynamicHeight ">
+              <div className="relative  dynamicHeight z-10 main_hero_mobile">
                 <div className="ml-14 pt-8 pb-8 px-2">
                   {/* Statistics - Mobile */}
                   <motion.div
@@ -269,6 +269,139 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
                 >
                   <img src={HeroImage2} alt={""} className=" w-[700px] " />
                   <div className="w-[320px] mx-auto absolute left-[32vw] right-0 bottom-0 mb-4">
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.8, delay: 1.2 }}
+                      className="mt-8 px-2 "
+                    >
+                      <div className="bg-white/98 backdrop-blur-sm rounded-full p-2 border border-white/20 shadow-2xl">
+                        <div className="flex gap-2">
+                          <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => {
+                              if (setAuthMode && setShowAuthModal) {
+                                setAuthMode("signup");
+                                setShowAuthModal(true);
+                              }
+                            }}
+                            className="text-[14px] flex items-center justify-center gap-2 bg-white text-[#333333] px-8 py-2 rounded-full  font-medium shadow-lg hover:bg-[#1d4ed8] transition-all duration-300 "
+                          >
+                            <span>Try it now</span>
+                            <div className="flex gap-1">
+                              <LazyImage
+                                src={RightArrow}
+                                alt="Right Arrow"
+                                className="w-3 h-3"
+                              />
+                            </div>
+                          </motion.button>
+
+                          <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => {
+                              if (setAuthMode && setShowAuthModal) {
+                                setAuthMode("signin");
+                                setShowAuthModal(true);
+                              }
+                            }}
+                            className=" text-[14px] flex items-center justify-center bg-white text-[#333] px-2 py-1 rounded-full  font-medium hover:bg-gray-50 transition-all duration-300 flex-1"
+                          >
+                            Get Started
+                          </motion.button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  </div>
+                </motion.div>
+              </div>
+
+               <div className="absolute  dynamicHeight  top-0 z-20 custom_hero">
+                <div className="ml-14 pt-8 pb-8 px-2">
+                  {/* Statistics - Mobile */}
+                  <motion.div
+                    variants={containerVariants}
+                    initial="hidden"
+                    animate="visible"
+                    className="flex gap-8 mb-2 justify-start"
+                  >
+                    <motion.div
+                      variants={statsVariants}
+                      className="text-start relative -left-[6px]"
+                    >
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{
+                          duration: 1,
+                          delay: 0.8,
+                          type: "spring",
+                          stiffness: 100,
+                        }}
+                        className="text-3xl font-extralight text-[#333] mb-1"
+                      >
+                        +1Mss
+                      </motion.div>
+                      <motion.div
+                        variants={itemVariants}
+                        className="text-[11px] text-[#666]  text-nowrap font-extralight relative -top-2 left-[15px]"
+                      >
+                        Conversations Powered
+                      </motion.div>
+                    </motion.div>
+
+                    <motion.div variants={statsVariants} className="text-left">
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{
+                          duration: 1,
+                          delay: 1,
+                          type: "spring",
+                          stiffness: 100,
+                        }}
+                        className="text-3xl font-extralight text-[#333] mb-1"
+                      >
+                        +100
+                      </motion.div>
+                      <motion.div
+                        variants={itemVariants}
+                        className="text-[11px] text-[#666]  text-nowrap font-extralight relative -top-2 left-[15.5px]"
+                      >
+                        Industries Usable
+                      </motion.div>
+                    </motion.div>
+                  </motion.div>
+
+                  {/* Main Heading with dotted border - Mobile */}
+                  <motion.div
+                    variants={itemVariants}
+                    initial="hidden"
+                    animate="visible"
+                    className="mb-6 text-start relative"
+                  >
+                    <div className="mb-2 inline-block ml-1 mt-2">
+                      <TextAnimations isMobile={true} />
+                    </div>
+
+                    <motion.p
+                      variants={itemVariants}
+                      className="left-2 relative text-[11px] text-[#333333] font-normal leading-relaxed w-[80vw] -top-2"
+                    >
+                      ShivAI: your first AI employee Sell, Support, Book, 24/7.
+                    </motion.p>
+                  </motion.div>
+                </div>
+
+                <motion.div
+                  className="absolute -left-[44%] w-[140vw] h-auto mx-auto border-none opacity-100 bottom-0 hero_positions" 
+                  whileHover={{ scale: 1.02 }}
+                  transition={{ duration: 0.6, ease: "easeOut" }}
+                >
+                  <img src={HeroImage2} alt={""} className=" hero_img " />
+                  <div className="w-[320px]  absolute  right-0 bottom-0 mb-4 hero_btn">
                     <motion.div
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -497,18 +630,16 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
                 transition={{ duration: 1 }}
                 className="flex"
               >
-                <div className="absolute -bottom- xl:-bottom-30 w-[70vw] max-w-[80vw] md:-bottom-20 md:w-[58vw] -right-8 border-t-[#f0f0f0] ">
-                  <motion.div
-                    className="relative overflow-hidden"
-                    // whileHover={{ scale: 1.02 }}
-                    // transition={{ duration: 0.6, ease: "easeOut" }}
-                  >
+                <div className="absolute -bottom- xl:-bottom-30 w-[70vw] max-w-[80vw] md:-bottom-20 md:w-[58vw] -right-8 border-[#f0f0f0] border-2 ">
+                    <motion.div
+                    className="relative overflow-hidden bg-transparent"
+                    >
                     <LazyImage
                       src={HeroImage}
                       alt="Professional AI Assistant"
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover bg-transparent"
                     />
-                  </motion.div>
+                    </motion.div>
                 </div>
               </motion.div>
             </div>

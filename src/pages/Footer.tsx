@@ -249,6 +249,31 @@ const Footer = () => {
             <div className="space-y-4 font-[400] text-[14px] lg:text-[14px] text-[#FFFFFF99]/60">
               
               {/* UAE Office */}
+               <div className="hover:text-white transition-colors">
+                <div className="flex items-center gap-2 mb-1">
+                  <img
+                  src={indiaFlag}
+                  alt="India Flag"
+                  className="w-4 h-3 object-cover rounded-sm border border-gray-600"
+                  />
+                  <span className="text-[14px] md:text-[16px] lg:text-sm text-[#FFFFFF99]/60">India</span>
+                </div>
+                <div className="ml-8 space-y-1">
+                  <a 
+                  href="tel:+91xxxxxxxxxx" 
+                  className="block hover:text-white transition-colors text-[11px]"
+                  >
+                  📞 +91 921 149 0707
+                  </a>
+                  <a 
+                  href="mailto:india@shivai.com" 
+                  className="block hover:text-white transition-colors text-[11px]"
+                  >
+                  ✉️ hello@callshivai.com
+                  </a>
+                </div>
+                </div>
+                
               <div className="hover:text-white transition-colors">
                 <div className="flex items-center gap-2 mb-1">
                   <img
@@ -263,42 +288,19 @@ const Footer = () => {
                     href="tel:+971xxxxxxxxx" 
                     className="block hover:text-white transition-colors text-[11px]"
                   >
-                    📞 +971-xxx-xxx-xxxx  (Call/WhatsApp)
+                    📞 +971 56 618 0707
                   </a>
                   <a 
                     href="mailto:uae@shivai.com"
                     className="block hover:text-white transition-colors text-[11px]"
                   >
-                    ✉️ uae@shivai.com
+                    ✉️ hello@callshivai.com
                   </a>
                 </div>
               </div>
 
               {/* India Office */}
-                <div className="hover:text-white transition-colors">
-                <div className="flex items-center gap-2 mb-1">
-                  <img
-                  src={indiaFlag}
-                  alt="India Flag"
-                  className="w-4 h-3 object-cover rounded-sm border border-gray-600"
-                  />
-                  <span className="text-[14px] md:text-[16px] lg:text-sm text-[#FFFFFF99]/60">India</span>
-                </div>
-                <div className="ml-8 space-y-1">
-                  <a 
-                  href="tel:+91xxxxxxxxxx" 
-                  className="block hover:text-white transition-colors text-[11px]"
-                  >
-                  📞 +91-xxx-xxx-xxxx (Call/WhatsApp)
-                  </a>
-                  <a 
-                  href="mailto:india@shivai.com" 
-                  className="block hover:text-white transition-colors text-[11px]"
-                  >
-                  ✉️ india@shivai.com
-                  </a>
-                </div>
-                </div>
+               
 
                 {/* USA Office */}
                 <div className="hover:text-white transition-colors">
@@ -315,13 +317,13 @@ const Footer = () => {
                   href="tel:+1xxxxxxxxxx" 
                   className="block hover:text-white transition-colors text-[11px]"
                   >
-                  📞 +1-xxx-xxx-xxxx (Call/WhatsApp)
+                  📞 +1 315 444 0707
                   </a>
                   <a 
                   href="mailto:usa@shivai.com" 
                   className="block hover:text-white transition-colors text-[11px]"
                   >
-                  ✉️ usa@shivai.com
+                  ✉️ hello@callshivai.com
                   </a>
                 </div>
                 </div>

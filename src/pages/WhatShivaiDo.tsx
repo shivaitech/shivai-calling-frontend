@@ -54,8 +54,11 @@ export const WhatShivaiDo = React.memo(() => {
   const sliderRef = useRef<HTMLDivElement>(null);
   const mobileSliderRef = useRef<any>(null);
   const intervalRef = useRef<number | null>(null);
-  
 
+  // Desktop swipe state
+  const [isDesktopSwiping, setIsDesktopSwiping] = useState(false);
+  const [desktopTouchStart, setDesktopTouchStart] = useState({ x: 0, y: 0 });
+  const [desktopTouchEnd, setDesktopTouchEnd] = useState({ x: 0, y: 0 });
 
   // Memoize illustration mapping to prevent recalculation
   const illustrationMap = useMemo(() => ({
@@ -147,6 +150,103 @@ export const WhatShivaiDo = React.memo(() => {
 
     setTimeout(() => setIsAnimating(false), 300);
   }, [isAnimating]);
+
+  // Add handlePrev function for desktop swipe
+  const handlePrev = useCallback(() => {
+    if (isAnimating) return;
+    
+    // Clear any existing interval to prevent multiple timers
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+    
+    setIsAnimating(true);
+
+    setCurrentSlide((prev) => {
+      const prevSlide = prev - 1;
+
+      // If we're at the beginning of the first set, seamlessly jump to end of second set
+      if (prevSlide < features.length) {
+        setTimeout(() => {
+          setCurrentSlide(features.length * 2 - 1);
+        }, 300);
+      }
+
+      return prevSlide;
+    });
+
+    setTimeout(() => setIsAnimating(false), 300);
+  }, [isAnimating]);
+
+  // Desktop touch/swipe handlers
+  const handleDesktopTouchStart = useCallback((e: React.TouchEvent) => {
+    setIsDesktopSwiping(true);
+    setDesktopTouchStart({
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY
+    });
+  }, []);
+
+  const handleDesktopTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isDesktopSwiping) return;
+    setDesktopTouchEnd({
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY
+    });
+  }, [isDesktopSwiping]);
+
+  const handleDesktopTouchEnd = useCallback(() => {
+    if (!isDesktopSwiping) return;
+    
+    setIsDesktopSwiping(false);
+    
+    const deltaX = desktopTouchStart.x - desktopTouchEnd.x;
+    const deltaY = Math.abs(desktopTouchStart.y - desktopTouchEnd.y);
+    
+    // Only trigger swipe if horizontal movement is significant and vertical is minimal
+    if (Math.abs(deltaX) > 50 && deltaY < 100) {
+      if (deltaX > 0) {
+        handleNext(); // Swipe left -> next
+      } else {
+        handlePrev(); // Swipe right -> prev
+      }
+    }
+  }, [isDesktopSwiping, desktopTouchStart, desktopTouchEnd, handleNext, handlePrev]);
+
+  // Mouse drag handlers for desktop
+  const [isDesktopDragging, setIsDesktopDragging] = useState(false);
+  const [desktopMouseStart, setDesktopMouseStart] = useState({ x: 0, y: 0 });
+
+  const handleDesktopMouseDown = useCallback((e: React.MouseEvent) => {
+    setIsDesktopDragging(true);
+    setDesktopMouseStart({
+      x: e.clientX,
+      y: e.clientY
+    });
+  }, []);
+
+  const handleDesktopMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isDesktopDragging) return;
+    e.preventDefault();
+  }, [isDesktopDragging]);
+
+  const handleDesktopMouseUp = useCallback((e: React.MouseEvent) => {
+    if (!isDesktopDragging) return;
+    
+    setIsDesktopDragging(false);
+    
+    const deltaX = desktopMouseStart.x - e.clientX;
+    const deltaY = Math.abs(desktopMouseStart.y - e.clientY);
+    
+    // Only trigger swipe if horizontal movement is significant and vertical is minimal
+    if (Math.abs(deltaX) > 50 && deltaY < 100) {
+      if (deltaX > 0) {
+        handleNext(); // Drag left -> next
+      } else {
+        handlePrev(); // Drag right -> prev
+      }
+    }
+  }, [isDesktopDragging, desktopMouseStart, handleNext, handlePrev]);
 
   // Auto-scroll disabled for better user control
   // useEffect(() => {
@@ -407,9 +507,18 @@ export const WhatShivaiDo = React.memo(() => {
           </div>
         </div>
 
-        {/* Desktop View - Horizontal Slider with Blur Effect */}
+        {/* Desktop View - Horizontal Slider with Swipe & Indicators */}
         <div className="hidden md:block relative py-8 space-y-6">
-          <div className="relative overflow-hidden pb-10">
+          <div 
+            className="relative overflow-hidden pb-10 cursor-grab active:cursor-grabbing select-none"
+            onTouchStart={handleDesktopTouchStart}
+            onTouchMove={handleDesktopTouchMove}
+            onTouchEnd={handleDesktopTouchEnd}
+            onMouseDown={handleDesktopMouseDown}
+            onMouseMove={handleDesktopMouseMove}
+            onMouseUp={handleDesktopMouseUp}
+            onMouseLeave={handleDesktopMouseUp}
+          >
             {/* Left Blur Overlay - Gradient Spread */}
             <div className="absolute left-0 top-0 w-20 lg:w-44 xl:w-55 h-full z-10 pointer-events-none">
               <div
@@ -453,13 +562,27 @@ export const WhatShivaiDo = React.memo(() => {
               })}
             </div>
 
-            {/* Navigation Arrows */}
-            {/* <button
+            {/* Desktop Navigation Arrows */}
+            <button
               onClick={handlePrev}
               disabled={isAnimating}
               className="absolute left-4 top-1/2 transform -translate-y-1/2 z-20 bg-white/90 backdrop-blur-sm hover:bg-white shadow-lg rounded-full p-3 transition-all duration-300 hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed group"
             >
-              <ChevronLeft className="w-6 h-6 text-gray-700 group-hover:text-gray-900 transition-colors" />
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                className="text-gray-700 group-hover:text-gray-900 transition-colors"
+              >
+                <path
+                  d="M15 18l-6-6 6-6"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
             </button>
 
             <button
@@ -467,25 +590,98 @@ export const WhatShivaiDo = React.memo(() => {
               disabled={isAnimating}
               className="absolute right-4 top-1/2 transform -translate-y-1/2 z-20 bg-white/90 backdrop-blur-sm hover:bg-white shadow-lg rounded-full p-3 transition-all duration-300 hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed group"
             >
-              <ChevronRight className="w-6 h-6 text-gray-700 group-hover:text-gray-900 transition-colors" />
-            </button> */}
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                className="text-gray-700 group-hover:text-gray-900 transition-colors"
+              >
+                <path
+                  d="M9 18l6-6-6-6"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
           </div>
 
-          {/* Desktop Navigation Dots */}
-          {/* <div className="flex justify-center space-x-3 mt-8">
-            {features.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => goToSlide(index)}
-                disabled={isAnimating}
-                className={`transition-all duration-300 rounded-full ${
-                  getFeatureIndex(currentSlide) === index
-                    ? "w-8 h-3 bg-gray-900"
-                    : "w-3 h-3 bg-gray-300 hover:bg-gray-400"
-                } disabled:cursor-not-allowed`}
-              />
-            ))}
-          </div> */}
+          {/* Desktop Swipe Indicators */}
+          <div className="flex justify-between items-center mt-8 px-8">
+            {/* Left swipe hint */}
+            <div 
+              className={`flex items-center space-x-3 transition-opacity duration-300 cursor-pointer ${
+                getFeatureIndex(currentSlide) > 0 ? 'opacity-70 hover:opacity-100' : 'opacity-30'
+              }`}
+              onClick={handlePrev}
+            >
+              <svg
+                width="28"
+                height="28"
+                viewBox="0 0 24 24"
+                fill="none"
+                className="text-gray-600"
+              >
+                <path
+                  d="M15 18l-6-6 6-6"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <span className="text-sm text-gray-600 font-medium">Swipe or Drag</span>
+            </div>
+
+            {/* Progress indicators */}
+            <div className="flex items-center space-x-2">
+              {features.map((_, index) => (
+                <div
+                  key={index}
+                  className={`h-3 rounded-full transition-all duration-300 cursor-pointer hover:scale-110 ${
+                    getFeatureIndex(currentSlide) === index
+                      ? 'w-10 bg-gray-900 shadow-lg'
+                      : 'w-3 bg-gray-300 hover:bg-gray-500'
+                  }`}
+                  onClick={() => goToSlide(index)}
+                />
+              ))}
+            </div>
+
+            {/* Right swipe hint */}
+            <div 
+              className={`flex items-center space-x-3 transition-opacity duration-300 cursor-pointer ${
+                getFeatureIndex(currentSlide) < features.length - 1 ? 'opacity-70 hover:opacity-100' : 'opacity-30'
+              }`}
+              onClick={handleNext}
+            >
+              <span className="text-sm text-gray-600 font-medium">Swipe or Drag</span>
+              <svg
+                width="28"
+                height="28"
+                viewBox="0 0 24 24"
+                fill="none"
+                className="text-gray-600"
+              >
+                <path
+                  d="M9 18l6-6-6-6"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
+          </div>
+
+          {/* Desktop Gesture Hint */}
+          <div className="text-center">
+            <p className="text-xs text-gray-500 font-medium">
+              💡 Click cards to navigate • Swipe or drag to browse • Use arrow keys
+            </p>
+          </div>
         </div>
       </div>
     </div>

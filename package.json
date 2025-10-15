@@ -18,6 +18,7 @@
     "lodash": "^4.17.21",
     "lucide-react": "^0.344.0",
     "react": "^18.3.1",
+    "react-ai-orb": "^1.0.13",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.63.0",
     "react-router-dom": "^7.8.2",
