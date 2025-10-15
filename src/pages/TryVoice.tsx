@@ -1,7 +1,7 @@
 import bgNew from "../resources/AiImages/bg.svg";
 import voiceIcon from "../resources/AiImages/Animation.png";
 import { motion } from "framer-motion";
-import { Orb,oceanDepthsPreset ,galaxyPreset } from "react-ai-orb";
+import { Orb, oceanDepthsPreset, galaxyPreset } from "react-ai-orb";
 export default function TryVoice() {
   return (
     <div
@@ -23,19 +23,20 @@ export default function TryVoice() {
             background: `url(${bgNew})`,
             backgroundPosition: "center",
             backgroundRepeat: "repeat",
+            filter: "blur(1px)",
           }}
           aria-hidden="true"
         />
 
         {/* Main Content */}
         <div className="relative z-10 flex flex-col gap-5 lg:gap-1 justify-center items-center h-auto px-4 py-2 sm:px-6 md:px-8 lg:px-12 xl:px-16  md:py-12 lg:py-10 xl:py-10 space-y-0  md:space-y-8 lg:space-y-10 min-h-[44vh] md:min-h-[40vh] lg:min-h-[40vh] xl:min-h-[40vh]">
-            <div className="relative flex items-center justify-center mb-0 sm:mb-0 md:mb-2 z-20">
+          <div className="relative flex items-center justify-center mb-0 sm:mb-0 md:mb-2 z-20">
             {/* Glow effect */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="w-[120px] h-[120px] rounded-full bg-white opacity-30 blur-2xl" />
             </div>
             <Orb {...oceanDepthsPreset} />
-            </div>
+          </div>
           <header className="flex flex-col items-center text-center max-w-4xl md:max-w-5xl lg:max-w-6xl xl:max-w-7xl">
             {/* Main Title */}
             <h1
@@ -60,31 +61,25 @@ export default function TryVoice() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
-              className="bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20 p-6 md:p-8 text-center"
+              className="bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20 px-6 py-4 md:px-10 md:py-6 text-center"
             >
               <h3
                 className="text-white text-lg md:text-xl lg:text-2xl font-semibold mb-3"
                 style={{ fontFamily: "Poppins, sans-serif" }}
               >
-                Your AI Employee, Always On
+                Your First AI Employee
               </h3>
               <p
                 className="text-white/90 text-sm md:text-base mb-2"
                 style={{ fontFamily: "Poppins, sans-serif" }}
               >
-                Handles calls in 56+ languages, sells, supports, and books 24/7.
+                Always On, Handles calls in 56+ languages
               </p>
               <p
-                className="text-white/80 text-xs md:text-sm mb-2"
+                className="text-white/90 text-sm md:text-base "
                 style={{ fontFamily: "Poppins, sans-serif" }}
               >
-                One-line deploy • No setup • Works instantly
-              </p>
-              <p
-                className="text-white/70 text-xs md:text-sm"
-                style={{ fontFamily: "Poppins, sans-serif" }}
-              >
-                ShivAI talks, thinks, and works like your smartest teammate.
+                Sells, supports, and books 24/7.
               </p>
             </motion.div>
           </div>
@@ -97,8 +92,10 @@ export default function TryVoice() {
             <h2 id="description-heading" className="sr-only">
               ShivAI Features
             </h2>
+         
+
             <p
-              className="text-white text-center text-[12px] md:text-[20px] lg:text-[22px] xl:text-[24px]"
+              className="text-white text-center text-[14px] md:text-[20px] lg:text-[22px] xl:text-[24px] mt-2"
               style={{
                 fontFamily: "Poppins, sans-serif",
                 color: "#FFF",
@@ -108,15 +105,14 @@ export default function TryVoice() {
                 lineHeight: "157.3%",
               }}
             >
-              ShivAI will ask your{" "}
-              <strong className="font-bold text-white">language</strong> of
-              choice and{" "}
-              <strong className="font-bold text-white">switch</strong>{" "}
-              instantly. It{" "}
-              <strong className="font-bold text-white">sells</strong>,{" "}
-              <strong className="font-bold text-white">supports</strong>, and{" "}
-              <strong className="font-bold text-white">books</strong> like your
-              real teammate.
+              ShivAI <strong className="font-bold text-white">talks</strong>,{" "}
+              <strong className="font-bold text-white">thinks</strong>, and
+              works like your{" "}
+              <br />
+              <strong className="font-bold text-white">
+                smartest teammate
+              </strong>
+              .{" "}
             </p>
           </section>
         </div>

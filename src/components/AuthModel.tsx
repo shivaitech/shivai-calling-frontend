@@ -142,7 +142,13 @@ const AuthModel: React.FC<AuthModelProps> = ({
         {/* Close Button */}
         <button
           onClick={closeModal}
-          className="absolute top-3 right-3 md:top-4 md:right-4 text-gray-400 hover:text-gray-600 transition-colors z-10"
+          className="absolute top-3 right-3 md:top-4 md:right-4 w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:text-white transition-all duration-200 z-10 hover:bg-black"
+          style={{
+            background:
+              "linear-gradient(151.44deg, #FFFFFF -62.65%, #FBFBFE 83.01%)",
+            border: "1px solid #E5E5E5",
+            boxShadow: "0px 2px 4px rgba(0, 0, 0, 0.1)",
+          }}
           disabled={isLoading}
         >
           <X className="w-4 md:w-5 h-4 md:h-5" />
@@ -176,7 +182,7 @@ const AuthModel: React.FC<AuthModelProps> = ({
           )}
 
           {/* Form */}
-          <form onSubmit={handleAuth} className="space-y-3 md:space-y-4">
+          <form onSubmit={handleAuth} className="space-y-3 md:space-y-4" autoComplete="off">
             {/* Name and Email Fields for Signup - Side by side on desktop */}
             {authMode === "signup" ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
@@ -195,6 +201,7 @@ const AuthModel: React.FC<AuthModelProps> = ({
                     placeholder="Enter your full name"
                     required
                     disabled={isLoading}
+                    autoComplete="off"
                   />
                   {fieldErrors.fullName && (
                     <p className="auth-error">{fieldErrors.fullName}</p>
@@ -224,6 +231,7 @@ const AuthModel: React.FC<AuthModelProps> = ({
                       placeholder="Email"
                       required
                       disabled={isLoading}
+                      autoComplete="off"
                     />
                     <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                       {isValidatingEmail ? (
@@ -266,6 +274,7 @@ const AuthModel: React.FC<AuthModelProps> = ({
                     placeholder="Email"
                     required
                     disabled={isLoading}
+                    autoComplete="off"
                   />
                   <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                     {isValidatingEmail ? (
@@ -308,6 +317,7 @@ const AuthModel: React.FC<AuthModelProps> = ({
                       placeholder="Password"
                       required
                       disabled={isLoading}
+                      autoComplete="off"
                     />
                     <button
                       type="button"
@@ -360,10 +370,13 @@ const AuthModel: React.FC<AuthModelProps> = ({
                       placeholder="Confirm your password"
                       required
                       disabled={isLoading}
+                      autoComplete="off"
                     />
                     <button
                       type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      onClick={() =>
+                        setShowConfirmPassword(!showConfirmPassword)
+                      }
                       className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                       disabled={isLoading}
                     >
@@ -402,6 +415,7 @@ const AuthModel: React.FC<AuthModelProps> = ({
                     placeholder="Password"
                     required
                     disabled={isLoading}
+                    autoComplete="off"
                   />
                   <button
                     type="button"
@@ -476,10 +490,15 @@ const AuthModel: React.FC<AuthModelProps> = ({
           </div>
 
           {/* Google Sign In */}
+
           <button
             onClick={() => handleSocialAuth("google")}
-            disabled={isLoading}
-            className="  auth-button-secondary mb-4 md:mb-6"
+            style={{
+              background:
+                "linear-gradient(151.44deg, #FFFFFF -62.65%, #FBFBFE 83.01%)",
+              borderRadius: "1549.79px",
+            }}
+            className={`w-ful flex w-full items-center justify-center gap-2 py-3 px-4 rounded-lg font-medium transition-all mb-6 ${"bg-gray-100 text-[#000] hover:bg-gray-200 border border-gray-300 hover:border-gray-400 button-gradient2"}`}
           >
             <svg className="w-4 md:w-5 h-4 md:h-5 mr-2" viewBox="0 0 24 24">
               <path

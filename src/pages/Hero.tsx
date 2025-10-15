@@ -649,6 +649,12 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 1.6 }}
+              onClick={() => {
+                const demoSection = document.getElementById("demo-content");
+                if (demoSection) {
+                  demoSection.scrollIntoView({ behavior: "smooth" });
+                }
+              }}
               className="hidden lg:block absolute left-28 -bottom-10"
             >
               <motion.div
@@ -656,6 +662,7 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
                 transition={{
                   duration: 2,
                   repeat: Infinity,
+                  repeatType: "loop",
                   ease: "easeInOut",
                 }}
                 className="flex items-center gap-2 text-[#828282] cursor-pointer hover:text-[#333333] transition-colors duration-300"

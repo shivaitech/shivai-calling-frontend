@@ -64,7 +64,7 @@ const Navbar: React.FC<NavbarProps> = ({
         if (sectionId === "demo") {
           additionalOffset = 35; // Reduced offset for demo for better positioning
         } else if (sectionId === "pricing") {
-          additionalOffset = 35;
+          additionalOffset = 50;
         } else if (sectionId === "features") {
           additionalOffset = 20;
         } 
