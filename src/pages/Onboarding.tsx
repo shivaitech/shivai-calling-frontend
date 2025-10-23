@@ -1296,10 +1296,19 @@ const Onboarding: React.FC = () => {
             type="button"
             onClick={prevStep}
             disabled={currentStep === 1}
-            className={`flex items-center justify-center px-3 sm:px-4 lg:px-8 py-2 sm:py-3 flex-1 sm:flex-none sm:min-w-[120px] rounded-xl font-semibold text-xs sm:text-sm lg:text-base transition-all touch-manipulation ${
+            style={
               currentStep === 1
-                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                : "bg-gray-200 text-gray-700 hover:bg-gray-300 active:bg-gray-400"
+                ? {}
+                : {
+                    background:
+                      "linear-gradient(151.44deg, #FFFFFF -62.65%, #FBFBFE 83.01%)",
+                    borderRadius: "1549.79px",
+                  }
+            }
+            className={`flex items-center justify-center px-3 sm:px-4 lg:px-8 py-2.5 sm:py-3 flex-1 sm:flex-none sm:min-w-[120px] font-semibold text-xs sm:text-sm lg:text-base transition-all touch-manipulation shadow-sm ${
+              currentStep === 1
+                ? "bg-gray-100 text-gray-400 cursor-not-allowed rounded-xl"
+                : "text-gray-700 hover:bg-gray-50 active:bg-gray-200 border border-gray-300"
             }`}
           >
             <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" />
@@ -1311,9 +1320,22 @@ const Onboarding: React.FC = () => {
               type="button"
               onClick={nextStep}
               disabled={!validateStep(currentStep)}
-              className={`flex items-center justify-center px-4 sm:px-8 py-3 flex-1 sm:flex-none sm:min-w-[120px] rounded-xl font-semibold text-sm sm:text-base transition-all touch-manipulation ${
+              style={
                 validateStep(currentStep)
-                  ? "bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800"
+                  ? {
+                      background:
+                        "linear-gradient(0deg, #0A0A0A 0%, #000000 100%)",
+                      boxShadow:
+                        "0px 12.4px 18.6px -9.3px #00000040, 0px -6.2px 9.3px 0px #171717 inset, 0px 3.49px 0.77px 0px #5E5E5E inset, 0px 1.55px 0.77px 0px #33332F inset",
+                      borderRadius: "1549.79px",
+                    }
+                  : {
+                      borderRadius: "1549.79px",
+                    }
+              }
+              className={`flex items-center justify-center px-4 sm:px-8 py-2.5 sm:py-3 flex-1 sm:flex-none sm:min-w-[120px] font-semibold text-sm sm:text-base transition-all touch-manipulation ${
+                validateStep(currentStep)
+                  ? "text-white hover:transform hover:scale-[1.02] active:scale-[0.98]"
                   : "bg-gray-300 text-gray-500 cursor-not-allowed"
               }`}
             >
@@ -1325,9 +1347,26 @@ const Onboarding: React.FC = () => {
               type="button"
               onClick={handleSubmit(onSubmit)}
               disabled={isSubmitting}
-              className="flex items-center justify-center px-4 sm:px-8 py-3 flex-1 sm:flex-none sm:min-w-[140px] bg-blue-600 text-white rounded-xl hover:bg-blue-700 active:bg-blue-800 font-semibold text-sm sm:text-base transition-all touch-manipulation disabled:opacity-50"
+              style={{
+                background:
+                  "linear-gradient(0deg, #0A0A0A 0%, #000000 100%)",
+                boxShadow:
+                  "0px 12.4px 18.6px -9.3px #00000040, 0px -6.2px 9.3px 0px #171717 inset, 0px 3.49px 0.77px 0px #5E5E5E inset, 0px 1.55px 0.77px 0px #33332F inset",
+                borderRadius: "1549.79px",
+              }}
+              className="flex items-center justify-center px-4 sm:px-8 py-2.5 sm:py-3 flex-1 sm:flex-none sm:min-w-[140px] text-white font-semibold text-sm sm:text-base transition-all touch-manipulation hover:transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isSubmitting ? "Setting up..." : "Complete Setup"}
+              {isSubmitting ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Setting up...
+                </>
+              ) : (
+                "Complete Setup"
+              )}
             </button>
           )}
         </div>
@@ -1363,7 +1402,14 @@ const Onboarding: React.FC = () => {
             </div>
             <button
               onClick={closeSuccessModal}
-              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-6 rounded-lg hover:from-blue-700 hover:to-purple-700 font-semibold transition-all duration-200 shadow-lg hover:shadow-xl"
+              style={{
+                background:
+                  "linear-gradient(0deg, #0A0A0A 0%, #000000 100%)",
+                boxShadow:
+                  "0px 12.4px 18.6px -9.3px #00000040, 0px -6.2px 9.3px 0px #171717 inset, 0px 3.49px 0.77px 0px #5E5E5E inset, 0px 1.55px 0.77px 0px #33332F inset",
+                borderRadius: "1549.79px",
+              }}
+              className="w-full text-white py-3 px-6 font-semibold transition-all duration-200 hover:transform hover:scale-[1.02] active:scale-[0.98]"
             >
               Continue to Dashboard
             </button>

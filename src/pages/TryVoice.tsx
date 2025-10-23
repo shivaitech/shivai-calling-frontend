@@ -52,9 +52,7 @@ export default function TryVoice() {
             </h1>
           </header>
 
-          {/* Animated Video Icon */}
 
-          {/* AI Employee Features Widget */}
           <div className="flex flex-col items-center w-full max-w-4xl relative">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
