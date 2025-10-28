@@ -342,7 +342,7 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
                         }}
                         className="text-3xl font-extralight text-[#333] mb-1"
                       >
-                        +1Mss
+                        +1M
                       </motion.div>
                       <motion.div
                         variants={itemVariants}
