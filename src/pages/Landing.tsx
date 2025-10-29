@@ -356,7 +356,7 @@ const Landing: React.FC = () => {
       </section>
 
       <section id="features" className="py-0 px-0 lg:px-0">
-        <FAQ />
+        <FAQ setAuthMode={setAuthMode} setShowAuthModal={setShowAuthModal} />
       </section>
 
       <section

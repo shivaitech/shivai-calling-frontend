@@ -1,7 +1,13 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { Plus, Minus } from "lucide-react";
 import bgImage from "../resources/images/lines.svg";
 import bgImage2 from "../resources/images/curved.svg";
+
+interface FAQProps {
+  setAuthMode?: (mode: "signin" | "signup") => void;
+  setShowAuthModal?: (show: boolean) => void;
+}
+
 // FAQ data for ShivAI
 const faqData = [
   {
@@ -76,7 +82,7 @@ const faqData = [
   },
 ];
 
-export const FAQ = () => {
+export const FAQ: React.FC<FAQProps> = ({ setAuthMode, setShowAuthModal }) => {
   const [faqs, setFaqs] = useState(faqData);
 
   const toggleFAQ = (id: number) => {
@@ -183,7 +189,15 @@ export const FAQ = () => {
               </p>
 
               {/* CTA Button */}
-              <button className="bwhiteBgGradient bg-white  px-6 py-3 md:px-12 md:py-4 rounded-[60px]  hover:bg-gray-100 transition-colors duration-200 ">
+              <button 
+                onClick={() => {
+                  if (setAuthMode && setShowAuthModal) {
+                    setAuthMode("signup");
+                    setShowAuthModal(true);
+                  }
+                }}
+                className="bwhiteBgGradient shadow-md bg-white  px-6 py-3 md:px-12 md:py-4 rounded-[60px]  hover:bg-gray-100 transition-colors duration-200 "
+              >
                 Start Free Trial
               </button>
 
