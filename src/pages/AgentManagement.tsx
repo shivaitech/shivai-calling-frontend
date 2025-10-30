@@ -5,6 +5,8 @@ import SearchableSelect from '../components/SearchableSelect';
 import LanguagePicker from '../components/LanguagePicker';
 import Tooltip from '../components/Tooltip';
 import { useAgent } from '../contexts/AgentContext';
+import { useAuth } from '../contexts/AuthContext';
+import { isDeveloperUser } from '../lib/utils';
 import { 
   Bot, 
   ArrowLeft, 
@@ -43,6 +45,10 @@ const AgentManagement = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { agents, currentAgent, setCurrentAgent, addAgent, updateAgent } = useAgent();
+  const { user } = useAuth();
+  
+  // Check if current user is developer
+  const isDeveloper = isDeveloperUser(user?.email);
   
   const isCreate = location.pathname.includes('/create');
   const isEdit = location.pathname.includes('/edit');
@@ -253,11 +259,11 @@ const AgentManagement = () => {
   ];
 
   // Filter agents based on search and status
-  const filteredAgents = agents.filter(agent => {
+  const filteredAgents = isDeveloper ? agents.filter(agent => {
     const matchesSearch = agent.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || agent.status.toLowerCase() === statusFilter.toLowerCase();
     return matchesSearch && matchesStatus;
-  });
+  }) : [];
 
   // MAIN AGENT LIST PAGE
   if (isList) {
@@ -278,8 +284,13 @@ const AgentManagement = () => {
               
               {/* Mobile Create Button */}
               <button
-                onClick={() => navigate('/agents/create')}
-                className="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all duration-200 text-sm sm:text-base font-medium shadow-sm hover:shadow-md transform hover:scale-[1.02] active:scale-[0.98]"
+                onClick={() => isDeveloper && navigate('/agents/create')}
+                disabled={!isDeveloper}
+                className={`flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg transition-all duration-200 text-sm sm:text-base font-medium shadow-sm ${
+                  isDeveloper 
+                    ? 'bg-blue-500 text-white hover:bg-blue-600 hover:shadow-md transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer'
+                    : 'bg-gray-400 text-gray-200 cursor-not-allowed opacity-50'
+                }`}
               >
                 <Plus className="w-4 h-4" />
                 <span className="hidden sm:inline">Create</span>
@@ -289,18 +300,18 @@ const AgentManagement = () => {
             {/* Stats Row - Mobile Only */}
             <div className="grid grid-cols-3 gap-2 sm:hidden">
               <div className="bg-white/50 dark:bg-slate-800/50 rounded-lg p-2 text-center">
-                <p className="text-lg font-bold text-slate-800 dark:text-white">{agents.length}</p>
+                <p className="text-lg font-bold text-slate-800 dark:text-white">{isDeveloper ? agents.length : 0}</p>
                 <p className="text-xs text-slate-600 dark:text-slate-400">Agents</p>
               </div>
               <div className="bg-white/50 dark:bg-slate-800/50 rounded-lg p-2 text-center">
                 <p className="text-lg font-bold text-green-600 dark:text-green-400">
-                  {agents.filter(a => a.status === 'Published').length}
+                  {isDeveloper ? agents.filter(a => a.status === 'Published').length : 0}
                 </p>
                 <p className="text-xs text-slate-600 dark:text-slate-400">Live</p>
               </div>
               <div className="bg-white/50 dark:bg-slate-800/50 rounded-lg p-2 text-center">
                 <p className="text-lg font-bold text-yellow-600 dark:text-yellow-400">
-                  {agents.filter(a => a.status === 'Training').length}
+                  {isDeveloper ? agents.filter(a => a.status === 'Training').length : 0}
                 </p>
                 <p className="text-xs text-slate-600 dark:text-slate-400">Training</p>
               </div>
@@ -495,7 +506,7 @@ const AgentManagement = () => {
                 : 'Create your first AI agent to get started with automated conversations and boost your business efficiency'
               }
             </p>
-            {!searchTerm && statusFilter === 'all' && (
+            {!searchTerm && statusFilter === 'all' && isDeveloper && (
               <div className="space-y-3">
                 <button
                   onClick={() => navigate('/agents/create')}

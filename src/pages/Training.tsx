@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import GlassCard from '../components/GlassCard';
 import { useAgent } from '../contexts/AgentContext';
+import { useAuth } from '../contexts/AuthContext';
+import { isDeveloperUser } from '../lib/utils';
 import Slider from 'react-slick';
 import { 
   Brain, 
@@ -29,9 +31,13 @@ import {
 
 const Training = () => {
   const { agents, currentAgent } = useAgent();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const params = useParams();
+  
+  // Check if current user is developer
+  const isDeveloper = isDeveloperUser(user?.email);
   
   // Get agent ID from URL params or current agent
   const agentIdFromUrl = params.id;
@@ -50,18 +56,28 @@ const Training = () => {
     { id: 'testing', label: 'Testing & Validation', icon: CheckCircle }
   ];
 
-  const knowledgeStats = [
+  const knowledgeStats = isDeveloper ? [
     { label: 'Documents', value: '24', icon: FileText, color: 'blue' },
     { label: 'FAQ Items', value: '156', icon: Lightbulb, color: 'green' },
     { label: 'Training Examples', value: '89', icon: MessageSquare, color: 'purple' },
     { label: 'Intents Trained', value: '12', icon: Target, color: 'orange' }
+  ] : [
+    { label: 'Documents', value: '0', icon: FileText, color: 'blue' },
+    { label: 'FAQ Items', value: '0', icon: Lightbulb, color: 'green' },
+    { label: 'Training Examples', value: '0', icon: MessageSquare, color: 'purple' },
+    { label: 'Intents Trained', value: '0', icon: Target, color: 'orange' }
   ];
 
-  const trainingMetrics = [
+  const trainingMetrics = isDeveloper ? [
     { label: 'Accuracy Score', value: '94.2%', change: '+2.1%', trend: 'up' },
     { label: 'Response Time', value: '1.2s', change: '-0.3s', trend: 'down' },
     { label: 'Confidence Level', value: '87.5%', change: '+5.2%', trend: 'up' },
     { label: 'Intent Recognition', value: '91.8%', change: '+1.4%', trend: 'up' }
+  ] : [
+    { label: 'Accuracy Score', value: '0%', change: 'No data', trend: 'neutral' },
+    { label: 'Response Time', value: '0s', change: 'No data', trend: 'neutral' },
+    { label: 'Confidence Level', value: '0%', change: 'No data', trend: 'neutral' },
+    { label: 'Intent Recognition', value: '0%', change: 'No data', trend: 'neutral' }
   ];
 
   const handleStartTraining = () => {
@@ -136,7 +152,28 @@ const Training = () => {
       <div className="px-4 sm:px-0">
         <GlassCard>
           <div className="p-4 sm:p-6">
-          {selectedAgentData ? (
+          {!isDeveloper ? (
+            <div className="text-center py-8 sm:py-12">
+              <Bot className="w-12 h-12 sm:w-16 sm:h-16 text-slate-400 mx-auto mb-4" />
+              <h3 className="text-lg sm:text-xl font-semibold text-slate-800 dark:text-white mb-2">
+                Please Create an Agent to Start Training
+              </h3>
+              <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mb-6">
+                You need to create your first AI agent before you can access training features. Go to Agent Management to get started.
+              </p>
+              <button 
+                onClick={() => navigate('/agents')}
+                disabled={!isDeveloper}
+                className={`px-6 py-3 rounded-lg font-medium transition-colors duration-200 ${
+                  isDeveloper 
+                    ? 'bg-blue-500 text-white hover:bg-blue-600'
+                    : 'bg-gray-400 text-gray-200 cursor-not-allowed opacity-50'
+                }`}
+              >
+                Go to Agent Management
+              </button>
+            </div>
+          ) : selectedAgentData ? (
             <div className="space-y-4 sm:space-y-6">
               {/* Current Agent Display - Mobile Optimized */}
               <div className="space-y-4">
@@ -341,7 +378,14 @@ const Training = () => {
                             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-500 mb-4">
                               PDF, DOC, TXT, CSV files (Max 10MB each)
                             </p>
-                            <button className="px-4 sm:px-6 py-2.5 sm:py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm sm:text-base font-medium touch-manipulation">
+                            <button 
+                              disabled={!isDeveloper}
+                              className={`px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg transition-colors text-sm sm:text-base font-medium touch-manipulation ${
+                                isDeveloper 
+                                  ? 'bg-blue-500 text-white hover:bg-blue-600'
+                                  : 'bg-gray-400 text-gray-200 cursor-not-allowed opacity-50'
+                              }`}
+                            >
                               Choose Files
                             </button>
                           </div>
@@ -359,7 +403,14 @@ const Training = () => {
                           />
                           <div className="mt-2 flex justify-between items-center text-xs text-slate-500">
                             <span>Provide detailed, relevant information</span>
-                            <button className="text-blue-500 hover:text-blue-600 font-medium">
+                            <button 
+                              disabled={!isDeveloper}
+                              className={`font-medium ${
+                                isDeveloper 
+                                  ? 'text-blue-500 hover:text-blue-600'
+                                  : 'text-gray-400 cursor-not-allowed'
+                              }`}
+                            >
                               Save Draft
                             </button>
                           </div>
@@ -404,10 +455,24 @@ const Training = () => {
                               />
                             </div>
                             <div className="flex flex-col sm:flex-row gap-3">
-                              <button className="flex-1 px-4 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm sm:text-base font-medium touch-manipulation">
+                              <button 
+                                disabled={!isDeveloper}
+                                className={`flex-1 px-4 py-3 rounded-lg transition-colors text-sm sm:text-base font-medium touch-manipulation ${
+                                  isDeveloper 
+                                    ? 'bg-green-500 text-white hover:bg-green-600'
+                                    : 'bg-gray-400 text-gray-200 cursor-not-allowed opacity-50'
+                                }`}
+                              >
                                 Add Example
                               </button>
-                              <button className="px-4 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-sm sm:text-base font-medium">
+                              <button 
+                                disabled={!isDeveloper}
+                                className={`px-4 py-3 rounded-lg transition-colors text-sm sm:text-base font-medium ${
+                                  isDeveloper 
+                                    ? 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+                                    : 'bg-gray-400 text-gray-200 cursor-not-allowed opacity-50'
+                                }`}
+                              >
                                 Import CSV
                               </button>
                             </div>
@@ -453,10 +518,24 @@ const Training = () => {
                               />
                             </div>
                             <div className="flex flex-col sm:flex-row gap-3">
-                              <button className="flex-1 px-4 py-3 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors text-sm sm:text-base font-medium touch-manipulation">
+                              <button 
+                                disabled={!isDeveloper}
+                                className={`flex-1 px-4 py-3 rounded-lg transition-colors text-sm sm:text-base font-medium touch-manipulation ${
+                                  isDeveloper 
+                                    ? 'bg-purple-500 text-white hover:bg-purple-600'
+                                    : 'bg-gray-400 text-gray-200 cursor-not-allowed opacity-50'
+                                }`}
+                              >
                                 Add Intent
                               </button>
-                              <button className="px-4 py-3 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-sm sm:text-base font-medium">
+                              <button 
+                                disabled={!isDeveloper}
+                                className={`px-4 py-3 rounded-lg transition-colors text-sm sm:text-base font-medium ${
+                                  isDeveloper 
+                                    ? 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+                                    : 'bg-gray-400 text-gray-200 cursor-not-allowed opacity-50'
+                                }`}
+                              >
                                 Templates
                               </button>
                             </div>
@@ -489,7 +568,14 @@ const Training = () => {
                                 className="w-full px-4 py-3 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm sm:text-base resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                               />
                             </div>
-                            <button className="w-full sm:w-auto px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm sm:text-base font-medium touch-manipulation">
+                            <button 
+                              disabled={!isDeveloper}
+                              className={`w-full sm:w-auto px-6 py-3 rounded-lg transition-colors text-sm sm:text-base font-medium touch-manipulation ${
+                                isDeveloper 
+                                  ? 'bg-blue-500 text-white hover:bg-blue-600'
+                                  : 'bg-gray-400 text-gray-200 cursor-not-allowed opacity-50'
+                              }`}
+                            >
                               Test Response
                             </button>
                           </div>

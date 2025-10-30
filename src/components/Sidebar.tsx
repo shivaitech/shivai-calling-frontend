@@ -1,5 +1,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import Logo from '../resources/images/ShivaiLogo.svg';
 import { 
   Home, 
   Sparkles, 
@@ -41,17 +43,22 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           <X className="w-5 h-5 text-slate-600 dark:text-slate-300" />
         </button>
 
-        <div className="flex items-center gap-3 mb-8">
-          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-            <Bot className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-              ShivAI
-            </h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Client Dashboard</p>
-          </div>
-        </div>
+        <motion.div
+          onClick={() => {
+            window.location.href = "/";
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          className="flex flex-col items-start mb-8 cursor-pointer"
+        >
+          <img
+            src={Logo}
+            alt="ShivAi Logo"
+            className="h-6 w-auto lg:h-8 xl:h-10 mb-2"
+          />
+          <p className="text-xs text-slate-500 dark:text-slate-400">Client Dashboard</p>
+        </motion.div>
 
         <nav className="space-y-2">
           {navItems.map((item) => (
