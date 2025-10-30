@@ -123,7 +123,8 @@ const Footer = () => {
                 />
               </a>
               <a
-                href="#"
+                href="https://www.instagram.com/callshivai/"
+                target="_blank"
                 className="w-8 h-8 md:w-12 md:h-12 bg-black border border-gray-800 rounded-full p-1.5 md:p-3 flex items-center justify-center hover:bg-gray-200 transition-colors"
               >
                 <img
@@ -133,7 +134,9 @@ const Footer = () => {
                 />
               </a>
               <a
-                href="#"
+                href="https://www.linkedin.com/in/shivai-tech-52ab90382"
+                target="_blank"
+
                 className="w-8 h-8 md:w-12 md:h-12 bg-black border border-gray-800 rounded-full p-1.5 md:p-3 flex items-center justify-center hover:bg-gray-200 transition-colors"
               >
                 <img

@@ -183,9 +183,9 @@ const AuthModel: React.FC<AuthModelProps> = ({
 
           {/* Form */}
           <form onSubmit={handleAuth} className="space-y-3 md:space-y-4" autoComplete="off">
-            {/* Name and Email Fields for Signup - Side by side on all screens */}
+            {/* Name and Email Fields for Signup - Side by side on desktop */}
             {authMode === "signup" ? (
-              <div className="grid grid-cols-2 gap-3 md:gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                 {/* Name Field */}
                 <div>
                   <label className="auth-label">Full Name</label>
@@ -292,9 +292,9 @@ const AuthModel: React.FC<AuthModelProps> = ({
               </div>
             )}
 
-            {/* Password Fields - Side by side for signup on all screens */}
+            {/* Password Fields - Side by side for signup on desktop */}
             {authMode === "signup" ? (
-              <div className="grid grid-cols-2 gap-3 md:gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                 {/* Password Field */}
                 <div>
                   <label className="auth-label">PASSWORD</label>

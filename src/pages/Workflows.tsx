@@ -1,8 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import GlassCard from '../components/GlassCard';
 import { useAgent } from '../contexts/AgentContext';
-import { useAuth } from '../contexts/AuthContext';
-import { isDeveloperUser } from '../lib/utils';
 import { 
   Plus, 
   Play, 
@@ -58,7 +56,6 @@ interface Workflow {
 
 const Workflows = () => {
   const { agents } = useAgent();
-  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'canvas' | 'workflows' | 'runs'>('canvas');
   const [selectedAgent, setSelectedAgent] = useState('');
   const [workflowName, setWorkflowName] = useState('');
@@ -75,9 +72,6 @@ const Workflows = () => {
   const [isPanning, setIsPanning] = useState(false);
   const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
   const canvasRef = useRef<HTMLDivElement>(null);
-  
-  // Check if current user is developer
-  const isDeveloper = isDeveloperUser(user?.email);
 
   // Keyboard shortcuts for canvas controls
   useEffect(() => {
@@ -260,7 +254,7 @@ const Workflows = () => {
     }
   ];
 
-  const [workflows, setWorkflows] = useState<Workflow[]>(isDeveloper ? [
+  const [workflows, setWorkflows] = useState<Workflow[]>([
     {
       id: '1',
       name: 'Booking Confirmation Flow',
@@ -300,7 +294,7 @@ const Workflows = () => {
       lastRun: 'Never',
       createdAt: new Date('2024-01-20')
     }
-  ] : []);
+  ]);
 
   const tabs = [
     { id: 'canvas' as const, label: 'Canvas Builder', icon: Zap },
@@ -659,12 +653,7 @@ const Workflows = () => {
                     value={workflowName}
                     onChange={(e) => setWorkflowName(e.target.value)}
                     placeholder="e.g., Lead Qualification Flow"
-                    disabled={!isDeveloper}
-                    className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-sm sm:text-base touch-manipulation ${
-                      isDeveloper 
-                        ? 'bg-white/50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-white'
-                        : 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400 cursor-not-allowed'
-                    }`}
+                    className="w-full px-4 py-3 bg-white/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-white text-sm sm:text-base touch-manipulation"
                     required
                   />
                   {!workflowName.trim() && (
@@ -679,12 +668,7 @@ const Workflows = () => {
                   <select
                     value={selectedAgent}
                     onChange={(e) => setSelectedAgent(e.target.value)}
-                    disabled={!isDeveloper}
-                    className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-sm sm:text-base touch-manipulation ${
-                      isDeveloper 
-                        ? 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-white'
-                        : 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400 cursor-not-allowed'
-                    }`}
+                    className="w-full px-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-white text-sm sm:text-base touch-manipulation"
                     style={{ zIndex: 50 }}
                     required
                   >
@@ -733,12 +717,7 @@ const Workflows = () => {
                     </h3>
                     <button
                       onClick={() => setIsCreatingTrigger(true)}
-                      disabled={!isDeveloper}
-                      className={`p-2 rounded-lg transition-colors touch-manipulation ${
-                        isDeveloper 
-                          ? 'bg-blue-500 text-white hover:bg-blue-600'
-                          : 'bg-gray-400 text-gray-200 cursor-not-allowed opacity-50'
-                      }`}
+                      className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors touch-manipulation"
                       title="Add Custom Trigger"
                     >
                       <Plus className="w-4 h-4" />
@@ -788,12 +767,7 @@ const Workflows = () => {
                               e.stopPropagation();
                               handleAddToCanvas(trigger, 'trigger');
                             }}
-                            disabled={!isDeveloper}
-                            className={`sm:hidden p-1 rounded-md transition-colors touch-manipulation flex-shrink-0 active:scale-95 min-w-[28px] min-h-[28px] ${
-                              isDeveloper 
-                                ? 'bg-blue-500 text-white hover:bg-blue-600'
-                                : 'bg-gray-400 text-gray-200 cursor-not-allowed opacity-50'
-                            }`}
+                            className="sm:hidden p-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors touch-manipulation flex-shrink-0 active:scale-95 min-w-[28px] min-h-[28px]"
                             title="Add to Canvas"
                           >
                             <Plus className="w-3 h-3" />
@@ -828,23 +802,15 @@ const Workflows = () => {
                           }
                           alert('Workflow test initiated! Check the execution log for results.');
                         }}
-                        disabled={nodes.length === 0 || !isDeveloper}
-                        className={`flex-1 sm:flex-none px-3 py-2 text-xs sm:text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation ${
-                          isDeveloper 
-                            ? 'bg-blue-500 text-white hover:bg-blue-600'
-                            : 'bg-gray-400 text-gray-200'
-                        }`}
+                        disabled={nodes.length === 0}
+                        className="flex-1 sm:flex-none px-3 py-2 text-xs sm:text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
                       >
                         Test
                       </button>
                       <button
                         onClick={handleSaveWorkflow}
-                        disabled={!workflowName.trim() || !selectedAgent || nodes.length === 0 || !isDeveloper}
-                        className={`flex-1 sm:flex-none px-3 py-2 text-xs sm:text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation ${
-                          isDeveloper 
-                            ? 'bg-green-500 text-white hover:bg-green-600'
-                            : 'bg-gray-400 text-gray-200'
-                        }`}
+                        disabled={!workflowName.trim() || !selectedAgent || nodes.length === 0}
+                        className="flex-1 sm:flex-none px-3 py-2 text-xs sm:text-sm bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
                       >
                         {editingWorkflow ? 'Update' : 'Save'}
                       </button>
@@ -923,34 +889,21 @@ const Workflows = () => {
                       <div className="absolute inset-0 flex items-center justify-center p-4">
                         <div className="text-center text-slate-500 dark:text-slate-400 p-4">
                           <Zap className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                          <p className="text-lg font-medium mb-3">
-                            {isDeveloper ? 'Build Your Workflow' : 'Workflow Canvas'}
-                          </p>
+                          <p className="text-lg font-medium mb-3">Build Your Workflow</p>
                           <div className="text-sm max-w-md mx-auto space-y-2">
-                            {isDeveloper ? (
-                              <>
-                                <p className="block sm:hidden">
-                                  Tap the <span className="inline-flex w-4 h-4 bg-blue-500 text-white rounded text-xs items-center justify-center mx-1">+</span> buttons to add triggers and actions to your workflow.
-                                </p>
-                                <p className="hidden sm:block">
-                                  Drag triggers from the left and actions from the right to create your automation flow.
-                                </p>
-                                <p className="block mt-2">
-                                  <span className="block sm:hidden">Touch nodes to connect them together.</span>
-                                  <span className="hidden sm:block">Click nodes to connect them together.</span>
-                                </p>
-                                <p className="block sm:hidden text-xs text-slate-400 mt-3">
-                                  Use pinch gestures to zoom • Drag with one finger to pan
-                                </p>
-                              </>
-                            ) : (
-                              <>
-                                <p>This is where you'll build automated workflows for your agents.</p>
-                                <p className="text-xs text-slate-400 mt-2">
-                                  Create agents first to start building automation flows
-                                </p>
-                              </>
-                            )}
+                            <p className="block sm:hidden">
+                              Tap the <span className="inline-flex w-4 h-4 bg-blue-500 text-white rounded text-xs items-center justify-center mx-1">+</span> buttons to add triggers and actions to your workflow.
+                            </p>
+                            <p className="hidden sm:block">
+                              Drag triggers from the left and actions from the right to create your automation flow.
+                            </p>
+                            <p className="block mt-2">
+                              <span className="block sm:hidden">Touch nodes to connect them together.</span>
+                              <span className="hidden sm:block">Click nodes to connect them together.</span>
+                            </p>
+                            <p className="block sm:hidden text-xs text-slate-400 mt-3">
+                              Use pinch gestures to zoom • Drag with one finger to pan
+                            </p>
                           </div>
                         </div>
                       </div>
@@ -1258,12 +1211,7 @@ const Workflows = () => {
                               e.stopPropagation();
                               handleAddToCanvas(action, 'action');
                             }}
-                            disabled={!isDeveloper}
-                            className={`sm:hidden p-1 rounded-md transition-colors touch-manipulation flex-shrink-0 self-start mt-0.5 active:scale-95 min-w-[28px] min-h-[28px] ${
-                              isDeveloper 
-                                ? 'bg-green-500 text-white hover:bg-green-600'
-                                : 'bg-gray-400 text-gray-200 cursor-not-allowed opacity-50'
-                            }`}
+                            className="sm:hidden p-1 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors touch-manipulation flex-shrink-0 self-start mt-0.5 active:scale-95 min-w-[28px] min-h-[28px]"
                             title="Add to Canvas"
                           >
                             <Plus className="w-3 h-3" />
@@ -1327,12 +1275,7 @@ const Workflows = () => {
                           e.stopPropagation();
                           handleAddToCanvas(condition, 'condition');
                         }}
-                        disabled={!isDeveloper}
-                        className={`sm:hidden p-1 rounded-md transition-colors touch-manipulation flex-shrink-0 active:scale-95 min-w-[28px] min-h-[28px] ${
-                          isDeveloper 
-                            ? 'bg-purple-500 text-white hover:bg-purple-600'
-                            : 'bg-gray-400 text-gray-200 cursor-not-allowed opacity-50'
-                        }`}
+                        className="sm:hidden p-1 bg-purple-500 text-white rounded-md hover:bg-purple-600 transition-colors touch-manipulation flex-shrink-0 active:scale-95 min-w-[28px] min-h-[28px]"
                         title="Add to Canvas"
                       >
                         <Plus className="w-3 h-3" />
@@ -1364,12 +1307,7 @@ const Workflows = () => {
                 </h3>
                 <button
                   onClick={() => setActiveTab('canvas')}
-                  disabled={!isDeveloper}
-                  className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg transition-colors text-sm font-medium touch-manipulation ${
-                    isDeveloper 
-                      ? 'bg-blue-500 text-white hover:bg-blue-600'
-                      : 'bg-gray-400 text-gray-200 cursor-not-allowed opacity-50'
-                  }`}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium touch-manipulation"
                 >
                   <Plus className="w-4 h-4" />
                   New Workflow
@@ -1426,12 +1364,7 @@ const Workflows = () => {
                     <div className="flex gap-1 sm:gap-2">
                       <button
                         onClick={() => handleEditWorkflow(workflow)}
-                        disabled={!isDeveloper}
-                        className={`p-2 transition-colors touch-manipulation ${
-                          isDeveloper 
-                            ? 'text-slate-400 hover:text-blue-500'
-                            : 'text-gray-300 cursor-not-allowed opacity-50'
-                        }`}
+                        className="p-2 text-slate-400 hover:text-blue-500 transition-colors touch-manipulation"
                         title="Edit Workflow"
                       >
                         <Edit className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -1439,12 +1372,7 @@ const Workflows = () => {
                       
                       <button
                         onClick={() => handleToggleWorkflowStatus(workflow.id)}
-                        disabled={!isDeveloper}
-                        className={`p-2 transition-colors touch-manipulation ${
-                          isDeveloper 
-                            ? 'text-slate-400 hover:text-yellow-500'
-                            : 'text-gray-300 cursor-not-allowed opacity-50'
-                        }`}
+                        className="p-2 text-slate-400 hover:text-yellow-500 transition-colors touch-manipulation"
                         title={workflow.status === 'Active' ? 'Pause Workflow' : 'Activate Workflow'}
                       >
                         {workflow.status === 'Active' ? (
@@ -1467,12 +1395,7 @@ const Workflows = () => {
                           };
                           setWorkflows(prev => [...prev, newWorkflow]);
                         }}
-                        disabled={!isDeveloper}
-                        className={`p-2 transition-colors touch-manipulation ${
-                          isDeveloper 
-                            ? 'text-slate-400 hover:text-green-500'
-                            : 'text-gray-300 cursor-not-allowed opacity-50'
-                        }`}
+                        className="p-2 text-slate-400 hover:text-green-500 transition-colors touch-manipulation"
                         title="Duplicate Workflow"
                       >
                         <Copy className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -1480,12 +1403,7 @@ const Workflows = () => {
                       
                       <button
                         onClick={() => handleDeleteWorkflow(workflow.id)}
-                        disabled={!isDeveloper}
-                        className={`p-2 transition-colors touch-manipulation ${
-                          isDeveloper 
-                            ? 'text-slate-400 hover:text-red-500'
-                            : 'text-gray-300 cursor-not-allowed opacity-50'
-                        }`}
+                        className="p-2 text-slate-400 hover:text-red-500 transition-colors touch-manipulation"
                         title="Delete Workflow"
                       >
                         <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -1499,22 +1417,14 @@ const Workflows = () => {
                 <div className="text-center py-16">
                   <Zap className="w-20 h-20 text-slate-300 dark:text-slate-600 mx-auto mb-6" />
                   <h3 className="text-xl font-medium text-slate-600 dark:text-slate-400 mb-3">
-                    {isDeveloper ? 'No workflows yet' : 'No Workflows Available'}
+                    No workflows yet
                   </h3>
                   <p className="text-slate-500 dark:text-slate-500 mb-8 max-w-md mx-auto">
-                    {isDeveloper 
-                      ? 'Create your first workflow to automate agent actions and improve customer experience'
-                      : 'Workflows will appear here once you create agents and set up automation flows'
-                    }
+                    Create your first workflow to automate agent actions and improve customer experience
                   </p>
                   <button
                     onClick={() => setActiveTab('canvas')}
-                    disabled={!isDeveloper}
-                    className={`px-8 py-3 rounded-xl transition-colors ${
-                      isDeveloper 
-                        ? 'bg-blue-500 text-white hover:bg-blue-600'
-                        : 'bg-gray-400 text-gray-200 cursor-not-allowed opacity-50'
-                    }`}
+                    className="px-8 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors"
                   >
                     Create Your First Workflow
                   </button>
@@ -1535,12 +1445,7 @@ const Workflows = () => {
               </h3>
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                 <select 
-                  disabled={!isDeveloper}
-                  className={`px-3 sm:px-4 py-2 border rounded-lg text-sm min-w-0 touch-manipulation ${
-                    isDeveloper 
-                      ? 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
-                      : 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400 cursor-not-allowed'
-                  }`}
+                  className="px-3 sm:px-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm min-w-0 touch-manipulation"
                   style={{ zIndex: 50 }}
                 >
                   <option value="all">All Workflows</option>
@@ -1548,14 +1453,7 @@ const Workflows = () => {
                     <option key={workflow.id} value={workflow.id}>{workflow.name}</option>
                   ))}
                 </select>
-                <button 
-                  disabled={!isDeveloper}
-                  className={`px-3 sm:px-4 py-2 rounded-lg transition-colors text-sm touch-manipulation ${
-                    isDeveloper 
-                      ? 'bg-blue-500 text-white hover:bg-blue-600'
-                      : 'bg-gray-400 text-gray-200 cursor-not-allowed opacity-50'
-                  }`}
-                >
+                <button className="px-3 sm:px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm touch-manipulation">
                   Refresh
                 </button>
               </div>
@@ -1591,14 +1489,7 @@ const Workflows = () => {
                       }`}>
                         {workflow.status}
                       </span>
-                      <button 
-                        disabled={!isDeveloper}
-                        className={`p-2 transition-colors touch-manipulation ${
-                          isDeveloper 
-                            ? 'text-slate-400 hover:text-blue-500'
-                            : 'text-gray-300 cursor-not-allowed opacity-50'
-                        }`}
-                      >
+                      <button className="p-2 text-slate-400 hover:text-blue-500 transition-colors touch-manipulation">
                         <Eye className="w-4 h-4 sm:w-5 sm:h-5" />
                       </button>
                     </div>
