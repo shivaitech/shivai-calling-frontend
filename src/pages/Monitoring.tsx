@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import GlassCard from '../components/GlassCard';
+import { useAuth } from '../contexts/AuthContext';
+import { isDeveloperUser } from '../lib/utils';
 import Slider from 'react-slick';
 import { 
   TrendingUp, 
@@ -16,9 +18,13 @@ import {
 } from 'lucide-react';
 
 const Monitoring = () => {
+  const { user } = useAuth();
   const [timeRange, setTimeRange] = useState('7d');
+  
+  // Check if current user is developer
+  const isDeveloper = isDeveloperUser(user?.email);
 
-  const stats = [
+  const stats = isDeveloper ? [
     {
       title: 'Calls Today',
       value: '247',
@@ -51,17 +57,50 @@ const Monitoring = () => {
       icon: Users,
       color: 'orange'
     }
+  ] : [
+    {
+      title: 'Calls Today',
+      value: '0',
+      change: 'No data',
+      trend: 'neutral',
+      icon: MessageSquare,
+      color: 'blue'
+    },
+    {
+      title: 'Success Rate',
+      value: '0%',
+      change: 'No data',
+      trend: 'neutral',
+      icon: CheckCircle,
+      color: 'green'
+    },
+    {
+      title: 'Avg Duration',
+      value: '0s',
+      change: 'No data',
+      trend: 'neutral',
+      icon: Clock,
+      color: 'purple'
+    },
+    {
+      title: 'Active Users',
+      value: '0',
+      change: 'No data',
+      trend: 'neutral',
+      icon: Users,
+      color: 'orange'
+    }
   ];
 
-  const topIntents = [
+  const topIntents = isDeveloper ? [
     { name: 'Pricing Inquiry', count: 89, percentage: 36 },
     { name: 'Product Demo', count: 67, percentage: 27 },
     { name: 'Support Request', count: 45, percentage: 18 },
     { name: 'Booking Request', count: 32, percentage: 13 },
     { name: 'General Info', count: 15, percentage: 6 }
-  ];
+  ] : [];
 
-  const recentConversations = [
+  const recentConversations = isDeveloper ? [
     {
       id: 1,
       time: '2 min ago',
@@ -107,9 +146,9 @@ const Monitoring = () => {
       duration: '3m 56s',
       intent: 'General Info'
     }
-  ];
+  ] : [];
 
-  const callTimeline = [
+  const callTimeline = isDeveloper ? [
     { hour: '00:00', calls: 12 },
     { hour: '01:00', calls: 8 },
     { hour: '02:00', calls: 5 },
@@ -134,9 +173,34 @@ const Monitoring = () => {
     { hour: '21:00', calls: 28 },
     { hour: '22:00', calls: 19 },
     { hour: '23:00', calls: 14 }
+  ] : [
+    { hour: '00:00', calls: 0 },
+    { hour: '01:00', calls: 0 },
+    { hour: '02:00', calls: 0 },
+    { hour: '03:00', calls: 0 },
+    { hour: '04:00', calls: 0 },
+    { hour: '05:00', calls: 0 },
+    { hour: '06:00', calls: 0 },
+    { hour: '07:00', calls: 0 },
+    { hour: '08:00', calls: 0 },
+    { hour: '09:00', calls: 0 },
+    { hour: '10:00', calls: 0 },
+    { hour: '11:00', calls: 0 },
+    { hour: '12:00', calls: 0 },
+    { hour: '13:00', calls: 0 },
+    { hour: '14:00', calls: 0 },
+    { hour: '15:00', calls: 0 },
+    { hour: '16:00', calls: 0 },
+    { hour: '17:00', calls: 0 },
+    { hour: '18:00', calls: 0 },
+    { hour: '19:00', calls: 0 },
+    { hour: '20:00', calls: 0 },
+    { hour: '21:00', calls: 0 },
+    { hour: '22:00', calls: 0 },
+    { hour: '23:00', calls: 0 }
   ];
 
-  const maxCalls = Math.max(...callTimeline.map(item => item.calls));
+  const maxCalls = Math.max(...callTimeline.map(item => item.calls)) || 1;
 
   return (
     <div className="space-y-4 sm:space-y-6 w-full max-w-full overflow-hidden">
@@ -167,7 +231,14 @@ const Monitoring = () => {
               <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
             </div>
 
-            <button className="flex items-center justify-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm touch-manipulation">
+            <button 
+              disabled={!isDeveloper}
+              className={`flex items-center justify-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg transition-colors text-sm touch-manipulation ${
+                isDeveloper 
+                  ? 'bg-blue-500 text-white hover:bg-blue-600'
+                  : 'bg-gray-400 text-gray-200 cursor-not-allowed opacity-50'
+              }`}
+            >
               <Download className="w-4 h-4" />
               <span>Export</span>
             </button>
@@ -285,26 +356,42 @@ const Monitoring = () => {
               <h3 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white mb-3 sm:mb-4">
                 Call Timeline (24h)
               </h3>
-              <div className="h-40 sm:h-48 lg:h-64 flex items-end justify-between gap-0.5 sm:gap-1 overflow-x-auto touch-manipulation">
-                {callTimeline.map((item, index) => (
-                  <div key={index} className="flex flex-col items-center group">
-                    <div
-                      className="w-1.5 sm:w-2 lg:w-3 bg-gradient-to-t from-blue-500 to-blue-400 rounded-t hover:from-blue-600 hover:to-blue-500 transition-colors cursor-pointer touch-manipulation"
-                      style={{ height: `${(item.calls / maxCalls) * 120}px` }}
-                      title={`${item.hour}: ${item.calls} calls`}
-                    ></div>
-                    {index % 6 === 0 && (
-                      <span className="text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 rotate-45 origin-left">
-                        {item.hour}
-                      </span>
-                    )}
+              {!isDeveloper || maxCalls === 1 ? (
+                <div className="h-40 sm:h-48 lg:h-64 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <MessageSquare className="w-8 h-8 sm:w-10 sm:h-10 text-slate-400" />
+                    </div>
+                    <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mb-1">No call data available</p>
+                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-500">
+                      Timeline will appear here once agents start handling calls
+                    </p>
                   </div>
-                ))}
-              </div>
+                </div>
+              ) : (
+                <div className="h-40 sm:h-48 lg:h-64 flex items-end justify-between gap-0.5 sm:gap-1 overflow-x-auto touch-manipulation">
+                  {callTimeline.map((item, index) => (
+                    <div key={index} className="flex flex-col items-center group">
+                      <div
+                        className="w-1.5 sm:w-2 lg:w-3 bg-gradient-to-t from-blue-500 to-blue-400 rounded-t hover:from-blue-600 hover:to-blue-500 transition-colors cursor-pointer touch-manipulation"
+                        style={{ height: `${(item.calls / maxCalls) * 120}px` }}
+                        title={`${item.hour}: ${item.calls} calls`}
+                      ></div>
+                      {index % 6 === 0 && (
+                        <span className="text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-2 rotate-45 origin-left">
+                          {item.hour}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
               {/* Mobile scroll indicator */}
-              <div className="block sm:hidden text-center mt-3">
-                <p className="text-xs text-slate-400">Swipe to see more data →</p>
-              </div>
+              {isDeveloper && maxCalls > 1 && (
+                <div className="block sm:hidden text-center mt-3">
+                  <p className="text-xs text-slate-400">Swipe to see more data →</p>
+                </div>
+              )}
             </div>
           </GlassCard>
         </div>
@@ -316,26 +403,36 @@ const Monitoring = () => {
               Top Intents
             </h3>
             <div className="space-y-3 sm:space-y-4">
-              {topIntents.map((intent, index) => (
-                <div key={index} className="flex items-center justify-between touch-manipulation">
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs sm:text-sm font-medium text-slate-800 dark:text-white truncate pr-2">
-                        {intent.name}
-                      </span>
-                      <span className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 flex-shrink-0">
-                        {intent.count}
-                      </span>
-                    </div>
-                    <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
-                      <div
-                        className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${intent.percentage}%` }}
-                      ></div>
+              {topIntents.length === 0 ? (
+                <div className="text-center py-6 sm:py-8">
+                  <MessageSquare className="w-8 h-8 sm:w-12 sm:h-12 text-slate-400 mx-auto mb-2 sm:mb-3" />
+                  <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400">No intent data available</p>
+                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-500 mt-1">
+                    Data will appear here once agents start handling calls
+                  </p>
+                </div>
+              ) : (
+                topIntents.map((intent, index) => (
+                  <div key={index} className="flex items-center justify-between touch-manipulation">
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs sm:text-sm font-medium text-slate-800 dark:text-white truncate pr-2">
+                          {intent.name}
+                        </span>
+                        <span className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 flex-shrink-0">
+                          {intent.count}
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
+                        <div
+                          className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${intent.percentage}%` }}
+                        ></div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         </GlassCard>
@@ -360,20 +457,24 @@ const Monitoring = () => {
                     fill="none"
                     className="text-slate-200 dark:text-slate-700"
                   />
-                  <circle
-                    cx="50"
-                    cy="50"
-                    r="40"
-                    stroke="currentColor"
-                    strokeWidth="8"
-                    fill="none"
-                    strokeDasharray={`${94.2 * 2.51} ${(100 - 94.2) * 2.51}`}
-                    className="text-green-500"
-                  />
+                  {isDeveloper && (
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="40"
+                      stroke="currentColor"
+                      strokeWidth="8"
+                      fill="none"
+                      strokeDasharray={`${94.2 * 2.51} ${(100 - 94.2) * 2.51}`}
+                      className="text-green-500"
+                    />
+                  )}
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="text-center">
-                    <div className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-white">94.2%</div>
+                    <div className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-white">
+                      {isDeveloper ? '94.2%' : '0%'}
+                    </div>
                     <div className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">Success</div>
                   </div>
                 </div>
@@ -382,11 +483,15 @@ const Monitoring = () => {
             <div className="flex flex-col sm:flex-row justify-center items-center gap-3 sm:gap-6 mt-4">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                <span className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">Success (233)</span>
+                <span className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+                  Success ({isDeveloper ? '233' : '0'})
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                <span className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">Failed (14)</span>
+                <span className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+                  Failed ({isDeveloper ? '14' : '0'})
+                </span>
               </div>
             </div>
           </div>
@@ -400,19 +505,27 @@ const Monitoring = () => {
             <div className="space-y-3 sm:space-y-4">
               <div className="flex items-center justify-between p-3 bg-slate-50/50 dark:bg-slate-800/30 rounded-lg touch-manipulation">
                 <span className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">Avg Response Time</span>
-                <span className="text-sm sm:text-base font-semibold text-slate-800 dark:text-white">1.2s</span>
+                <span className="text-sm sm:text-base font-semibold text-slate-800 dark:text-white">
+                  {isDeveloper ? '1.2s' : '0s'}
+                </span>
               </div>
               <div className="flex items-center justify-between p-3 bg-slate-50/50 dark:bg-slate-800/30 rounded-lg touch-manipulation">
                 <span className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">Resolution Rate</span>
-                <span className="text-sm sm:text-base font-semibold text-slate-800 dark:text-white">87.3%</span>
+                <span className="text-sm sm:text-base font-semibold text-slate-800 dark:text-white">
+                  {isDeveloper ? '87.3%' : '0%'}
+                </span>
               </div>
               <div className="flex items-center justify-between p-3 bg-slate-50/50 dark:bg-slate-800/30 rounded-lg touch-manipulation">
                 <span className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">Customer Satisfaction</span>
-                <span className="text-sm sm:text-base font-semibold text-slate-800 dark:text-white">4.6/5</span>
+                <span className="text-sm sm:text-base font-semibold text-slate-800 dark:text-white">
+                  {isDeveloper ? '4.6/5' : '0/5'}
+                </span>
               </div>
               <div className="flex items-center justify-between p-3 bg-slate-50/50 dark:bg-slate-800/30 rounded-lg touch-manipulation">
                 <span className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">Escalation Rate</span>
-                <span className="text-sm sm:text-base font-semibold text-slate-800 dark:text-white">3.2%</span>
+                <span className="text-sm sm:text-base font-semibold text-slate-800 dark:text-white">
+                  {isDeveloper ? '3.2%' : '0%'}
+                </span>
               </div>
             </div>
           </div>
@@ -432,10 +545,22 @@ const Monitoring = () => {
                 <input
                   type="text"
                   placeholder="Search conversations..."
-                  className="pl-10 pr-4 py-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-sm w-full touch-manipulation"
+                  disabled={!isDeveloper}
+                  className={`pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-sm w-full touch-manipulation ${
+                    isDeveloper 
+                      ? 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                      : 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400 cursor-not-allowed'
+                  }`}
                 />
               </div>
-              <button className="flex items-center justify-center gap-2 px-3 py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors touch-manipulation">
+              <button 
+                disabled={!isDeveloper}
+                className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg transition-colors touch-manipulation ${
+                  isDeveloper 
+                    ? 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
+                    : 'bg-gray-300 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-50'
+                }`}
+              >
                 <Filter className="w-4 h-4" />
                 <span className="text-sm">Filter</span>
               </button>
@@ -444,7 +569,16 @@ const Monitoring = () => {
 
           {/* Mobile Card Layout */}
           <div className="block md:hidden space-y-3">
-            {recentConversations.map((conversation) => (
+            {recentConversations.length === 0 ? (
+              <div className="text-center py-6 sm:py-8">
+                <MessageSquare className="w-8 h-8 sm:w-12 sm:h-12 text-slate-400 mx-auto mb-2 sm:mb-3" />
+                <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400">No conversations yet</p>
+                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-500 mt-1">
+                  Recent conversations will appear here once agents start taking calls
+                </p>
+              </div>
+            ) : (
+              recentConversations.map((conversation) => (
               <div key={conversation.id} className="p-3 bg-slate-50/50 dark:bg-slate-800/30 rounded-lg border border-slate-200/50 dark:border-slate-700/50">
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1 min-w-0">
@@ -483,7 +617,8 @@ const Monitoring = () => {
                   </span>
                 </div>
               </div>
-            ))}
+              ))
+            )}
           </div>
 
           {/* Desktop Table Layout */}
@@ -501,7 +636,18 @@ const Monitoring = () => {
                 </tr>
               </thead>
               <tbody>
-                {recentConversations.map((conversation) => (
+                {recentConversations.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center">
+                      <MessageSquare className="w-12 h-12 text-slate-400 mx-auto mb-3" />
+                      <p className="text-base text-slate-600 dark:text-slate-400 mb-1">No conversations yet</p>
+                      <p className="text-sm text-slate-500 dark:text-slate-500">
+                        Recent conversations will appear here once agents start taking calls
+                      </p>
+                    </td>
+                  </tr>
+                ) : (
+                  recentConversations.map((conversation) => (
                   <tr key={conversation.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
                     <td className="py-3 px-4 text-slate-600 dark:text-slate-400 text-sm">
                       {conversation.time}
@@ -545,7 +691,8 @@ const Monitoring = () => {
                       </button>
                     </td>
                   </tr>
-                ))}
+                  ))
+                )}
               </tbody>
             </table>
           </div>

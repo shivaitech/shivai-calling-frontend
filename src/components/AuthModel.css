@@ -96,12 +96,30 @@
 /* Label styles */
 .auth-label {
   display: block;
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 500;
   color: #374151;
   margin-bottom: 6px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+/* Mobile specific adjustments for 2-column layout */
+@media (max-width: 767px) {
+  .auth-label {
+    font-size: 9px;
+    margin-bottom: 4px;
+  }
+  
+  .auth-input {
+    font-size: 12px;
+    padding: 8px 12px;
+  }
+  
+  .auth-error {
+    font-size: 10px;
+    margin-top: 2px;
+  }
 }
 
 /* Error text styles */
@@ -130,7 +148,6 @@
   .auth-input {
     font-size: 14px;
     padding: 12px 16px;
-    /* Slightly smaller on desktop */
   }
 
   .auth-button {
@@ -138,7 +155,13 @@
   }
 
   .auth-label {
-    font-size: 13px;
+    font-size: 12px;
+    margin-bottom: 6px;
+  }
+  
+  .auth-error {
+    font-size: 12px;
+    margin-top: 4px;
   }
 
   /* Signup form grid adjustments */

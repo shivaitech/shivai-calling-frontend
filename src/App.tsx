@@ -89,9 +89,9 @@ function AppContent() {
                 isOpen={sidebarOpen}
                 onClose={() => setSidebarOpen(false)}
               />
-              <div className="flex-1 min-w-0 lg:pl-64">
+              <div className="flex-1 min-w-0 relative ml-0 lg:ml-64 pl-0 lg:pl-5">
                 <TopBar onMenuClick={() => setSidebarOpen(true)} />
-                <main className="px-4 sm:px-6 lg:px-8 py-4 sm:py-6 pt-20 sm:pt-24 min-w-0 max-w-full overflow-hidden">
+                <main className="px-4 sm:px-6 lg:px-8 py-4 sm:py-6 pt-24 lg:pt-24 min-w-0 max-w-full overflow-hidden">
                   <Routes>
                     <Route path="/dashboard" element={<Overview />} />
                     <Route
@@ -118,7 +118,7 @@ function AppContent() {
               </div>
             </div>
             {/* Mobile overlay */}
-            {sidebarOpen && (
+            {sidebarOpen && ( 
               <div className="flex">
                 <div
                   className="fixed inset-0 bg-black/50 z-30 lg:hidden"

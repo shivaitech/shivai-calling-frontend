@@ -45,7 +45,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
     .slice(0, 2);
 
   return (
-    <div className="fixed top-0 right-0 left-0 lg:left-64 h-16 sm:h-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-700/50 z-30">
+    <div className="absolute w-full  top-0 right-0 pl-0 lg:pl-5 h-16 sm:h-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-700/50 z-30">
       <div className="flex items-center justify-between h-full px-3 sm:px-4 lg:px-6">
         {/* Left side content remains the same */}
         <div className="flex items-center gap-2 sm:gap-4">

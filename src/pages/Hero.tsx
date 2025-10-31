@@ -400,7 +400,7 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
                   whileHover={{ scale: 1.02 }}
                   transition={{ duration: 0.6, ease: "easeOut" }}
                 >
-                  <img src={HeroImage2} alt={""} className=" hero_img" />
+                  <img src={HeroImage2} alt={""} className=" hero_img " />
                   <div className="w-[320px]  absolute  right-0 bottom-0 mb-4 hero_btn">
                     <motion.div
                       initial={{ opacity: 0, y: 20 }}

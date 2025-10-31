@@ -36,7 +36,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   ];
 
   return (
-    <div className={`fixed left-0 top-0 h-full  bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700 z-40 transform transition-transform duration-300 ease-in-out ${
+    <div className={`fixed left-0 top-0 h-full   bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700 z-40 transform transition-transform duration-300 ease-in-out ${
       isOpen ? 'translate-x-0' : '-translate-x-full'
     } lg:translate-x-0 flex flex-col`}>
       
@@ -68,11 +68,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             />
           </motion.div>
           
-          <div className="flex items-center gap-2">
-            <button className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-              <Moon className="w-4 h-4 text-slate-600 dark:text-slate-300" />
-            </button>
-          </div>
+        
         </div>
 
         {/* Search Bar */}
@@ -165,4 +161,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   );
 };
 
-export default Sidebar;
+export default Sidebar; 
+
+
