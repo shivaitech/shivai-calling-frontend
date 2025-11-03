@@ -56,7 +56,7 @@ const faqData = [
     id: 7,
     question: "Does ShivAI work for inbound and outbound calls?",
     answer:
-      "Inbound is live now; outbound campaigns (reminders, promotions, renewals) can be activated in upcoming phases.",
+      "Inbound is live via web and voice. Outbound through WhatsApp, email, and SMS. Voice calling available for enterprise plans",
     isOpen: false,
   },
   {

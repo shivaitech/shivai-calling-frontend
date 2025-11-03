@@ -87,11 +87,10 @@ const subscriptionPlans = [
       "1000 voice conversations/month (2 min each)",
       "15 AI Employees",
       "200 GB storage",
-      "White-label option (your brand)",
       "Dedicated success manager",
       "SLA guarantee",
       "Premium integrations (ERP, call centers)",
-      "Regional / on-prem deployment option",
+      "Regional deployment option",
     ],
     roiFeatures: [
       "30 calls/day coverage",

@@ -91,7 +91,7 @@ function AppContent() {
               />
               <div className="flex-1 min-w-0 relative ml-0 lg:ml-64 pl-0 lg:pl-5">
                 <TopBar onMenuClick={() => setSidebarOpen(true)} />
-                <main className="px-4 sm:px-6 lg:px-8 py-4 sm:py-6 pt-24 lg:pt-24 min-w-0 max-w-full overflow-hidden">
+                <main className="px-4 sm:px-6 lg:px-8 py-2 lg:py-6 pt-20 lg:pt-28 min-w-0 max-w-full overflow-hidden">
                   <Routes>
                     <Route path="/dashboard" element={<Overview />} />
                     <Route

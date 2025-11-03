@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -43,6 +43,7 @@ const industryOptions = [
     value: "nonprofit-community",
     label: "Nonprofit & Community Organizations",
   },
+  { value: "other", label: "Other" },
 ];
 
 const planOptions = [
@@ -110,6 +111,7 @@ const Onboarding: React.FC = () => {
 
   const [showIndustryDropdown, setShowIndustryDropdown] = useState(false);
   const [industrySearch, setIndustrySearch] = useState("");
+  const industryInputRef = useRef<HTMLInputElement>(null);
 
   const {
     register,
@@ -645,14 +647,33 @@ const Onboarding: React.FC = () => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Industry
+                  <span className="text-xs text-gray-500 ml-2">
+                    ({(watch("industry") || []).length}/4 max)
+                  </span>
                 </label>
                 <div className="relative" data-dropdown-trigger>
                   <input
+                    ref={industryInputRef}
                     value={industrySearch}
                     onChange={(e) => setIndustrySearch(e.target.value)}
+                    onKeyDown={() => {
+                      // Clear the placeholder text when user starts typing
+                      if (industrySearch === "Add your industry type") {
+                        setIndustrySearch("");
+                      }
+                    }}
                     onFocus={() => setShowIndustryDropdown(true)}
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Search or add industries"
+                    disabled={(watch("industry") || []).length >= 4}
+                    className={`w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
+                      (watch("industry") || []).length >= 4
+                        ? "bg-gray-100 cursor-not-allowed text-gray-500"
+                        : "bg-white hover:border-gray-400"
+                    }`}
+                    placeholder={
+                      (watch("industry") || []).length >= 4
+                        ? "Maximum 4 industries selected"
+                        : "Search or add industries"
+                    }
                   />
                   <ChevronDown
                     className={`absolute right-3 top-3 w-4 h-4 text-gray-400 transition-transform cursor-pointer ${
@@ -722,15 +743,33 @@ const Onboarding: React.FC = () => {
                             key={option.value}
                             onClick={() => {
                               const currentIndustries = watch("industry") || [];
-                              setValue("industry", [
-                                ...currentIndustries,
-                                option.value,
-                              ]);
-                              setIndustrySearch("");
+                              if (option.value === "other") {
+                                // When "Other" is clicked, set placeholder text and focus input
+                                setIndustrySearch("Add your industry type");
+                                setTimeout(() => {
+                                  industryInputRef.current?.focus();
+                                  industryInputRef.current?.select();
+                                }, 100);
+                              } else if (currentIndustries.length < 4) {
+                                setValue("industry", [
+                                  ...currentIndustries,
+                                  option.value,
+                                ]);
+                                setIndustrySearch("");
+                              }
                             }}
-                            className="px-3 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                            className={`px-3 py-2 border-b border-gray-100 last:border-b-0 ${
+                              (watch("industry") || []).length >= 4
+                                ? "cursor-not-allowed text-gray-400 bg-gray-50"
+                                : "hover:bg-gray-50 cursor-pointer"
+                            }`}
                           >
                             {option.label}
+                            {(watch("industry") || []).length >= 4 && (
+                              <span className="text-xs text-gray-400 ml-2">
+                                (Max reached)
+                              </span>
+                            )}
                           </div>
                         ))}
                       {industrySearch &&
@@ -743,15 +782,26 @@ const Onboarding: React.FC = () => {
                           <div
                             onClick={() => {
                               const currentIndustries = watch("industry") || [];
-                              setValue("industry", [
-                                ...currentIndustries,
-                                industrySearch,
-                              ]);
-                              setIndustrySearch("");
+                              if (currentIndustries.length < 4) {
+                                setValue("industry", [
+                                  ...currentIndustries,
+                                  industrySearch,
+                                ]);
+                                setIndustrySearch("");
+                              }
                             }}
-                            className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-blue-600 font-medium"
+                            className={`px-3 py-2 font-medium ${
+                              (watch("industry") || []).length >= 4
+                                ? "cursor-not-allowed text-gray-400 bg-gray-50"
+                                : "hover:bg-blue-50 cursor-pointer text-blue-600"
+                            }`}
                           >
                             + Add "{industrySearch}"
+                            {(watch("industry") || []).length >= 4 && (
+                              <span className="text-xs text-gray-400 ml-2">
+                                (Max 4 reached)
+                              </span>
+                            )}
                           </div>
                         )}
                     </div>
