@@ -64,7 +64,15 @@ body {
 .touch-manipulation {
   touch-action: manipulation;
 }
-
+.common-bg-icons {
+  @apply bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400;
+}
+.common-button-bg{
+  @apply bg-gradient-to-r from-blue-800 to-cyan-500 border border-gray-500 text-white px-3 py-2 sm:px-6 sm:py-2 rounded-lg font-medium hover:shadow-lg transition-all duration-300 text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed;
+}
+.common-button-bg2{
+  @apply bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-white dark:text-white px-3 py-2 sm:px-6 sm:py-2 rounded-lg font-medium hover:shadow-lg transition-all duration-300 text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed;
+}
 /* Enhanced mobile tabs */
 @media (max-width: 480px) {
   .xs\:hidden {

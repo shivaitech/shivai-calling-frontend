@@ -136,26 +136,19 @@ const Settings = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6 w-full">
-      <div className="mb-4 sm:mb-6">
-        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-800 dark:text-white mb-2 break-words max-w-full overflow-hidden">
-          Settings ⚙️
-        </h1>
-        <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 break-words max-w-full">
-          Manage your account, team, and integration settings
-        </p>
-      </div>
+    
 
       {/* Tab Navigation */}
       <GlassCard>
         <div className="p-4 sm:p-6">
-          <div className="flex space-x-1 bg-slate-100/50 dark:bg-slate-800/50 rounded-xl p-1 overflow-x-auto">
+          <div className="flex space-x-1 common-bg-icons rounded-xl p-1 overflow-x-auto">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 rounded-lg transition-all duration-200 whitespace-nowrap ${
                   activeTab === tab.id
-                    ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm'
+                    ? 'common-button-bg2'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                 }`}
               >
@@ -185,7 +178,7 @@ const Settings = () => {
                     type="text"
                     value={profile.name}
                     onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-                    className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-white/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-white text-sm"
+                    className="common-bg-icons w-full text-sm"
                   />
                 </div>
 
@@ -197,7 +190,7 @@ const Settings = () => {
                     type="email"
                     value={profile.email}
                     onChange={(e) => setProfile({ ...profile, email: e.target.value })}
-                    className="w-full px-4 py-3 bg-white/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-white"
+                    className="common-bg-icons w-full"
                   />
                 </div>
 
@@ -209,7 +202,7 @@ const Settings = () => {
                     type="text"
                     value={profile.company}
                     onChange={(e) => setProfile({ ...profile, company: e.target.value })}
-                    className="w-full px-4 py-3 bg-white/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-white"
+                    className="common-bg-icons w-full"
                   />
                 </div>
 
@@ -221,7 +214,7 @@ const Settings = () => {
                     <select
                       value={profile.timezone}
                       onChange={(e) => setProfile({ ...profile, timezone: e.target.value })}
-                      className="w-full px-4 py-3 bg-white/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-white appearance-none pr-10"
+                      className="common-bg-icons w-full appearance-none pr-10"
                     >
                       {timezones.map(tz => (
                         <option key={tz} value={tz}>{tz}</option>
@@ -239,7 +232,7 @@ const Settings = () => {
                     <select
                       value={profile.language}
                       onChange={(e) => setProfile({ ...profile, language: e.target.value })}
-                      className="w-full px-4 py-3 bg-white/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-white appearance-none pr-10"
+                      className="common-bg-icons w-full appearance-none pr-10"
                     >
                       {languages.map(lang => (
                         <option key={lang} value={lang}>{lang}</option>
@@ -255,7 +248,7 @@ const Settings = () => {
                   </label>
                   <button
                     onClick={toggleTheme}
-                    className="flex items-center gap-3 w-full px-4 py-3 bg-white/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                    className="common-bg-icons flex items-center gap-3 w-full"
                   >
                     <Globe className="w-5 h-5 text-slate-600 dark:text-slate-400" />
                     <span className="text-slate-800 dark:text-white">
@@ -268,7 +261,7 @@ const Settings = () => {
               <div className="flex justify-end">
                 <button
                   onClick={handleSaveProfile}
-                  className="flex items-center gap-2 px-6 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors"
+                  className="common-button-bg flex items-center gap-2"
                 >
                   <Save className="w-4 h-4" />
                   Save Changes
@@ -285,7 +278,7 @@ const Settings = () => {
 
               <div className="space-y-4">
                 {Object.entries(notifications).map(([key, value]) => (
-                  <div key={key} className="flex items-center justify-between p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl">
+                  <div key={key} className="flex items-center justify-between p-4 common-bg-icons rounded-xl">
                     <div>
                       <p className="font-medium text-slate-800 dark:text-white">
                         {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
@@ -315,7 +308,7 @@ const Settings = () => {
               <div className="flex justify-end">
                 <button
                   onClick={handleSaveNotifications}
-                  className="flex items-center gap-2 px-6 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors"
+                  className="common-button-bg flex items-center gap-2"
                 >
                   <Save className="w-4 h-4" />
                   Save Preferences
@@ -331,38 +324,38 @@ const Settings = () => {
               </h3>
 
               <div className="space-y-4">
-                <div className="p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl">
+                <div className="p-4 common-bg-icons rounded-xl">
                   <h4 className="font-medium text-slate-800 dark:text-white mb-2">
                     Change Password
                   </h4>
                   <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
                     Update your password to keep your account secure
                   </p>
-                  <button className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+                  <button className="common-button-bg">
                     Change Password
                   </button>
                 </div>
 
-                <div className="p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl">
+                <div className="p-4 common-bg-icons rounded-xl">
                   <h4 className="font-medium text-slate-800 dark:text-white mb-2">
                     Two-Factor Authentication
                   </h4>
                   <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
                     Add an extra layer of security to your account
                   </p>
-                  <button className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors">
+                  <button className="common-button-bg">
                     Enable 2FA
                   </button>
                 </div>
 
-                <div className="p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl">
+                <div className="p-4 common-bg-icons rounded-xl">
                   <h4 className="font-medium text-slate-800 dark:text-white mb-2">
                     Active Sessions
                   </h4>
                   <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
                     Manage your active login sessions
                   </p>
-                  <button className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors">
+                  <button className="common-button-bg">
                     View Sessions
                   </button>
                 </div>
@@ -372,53 +365,55 @@ const Settings = () => {
 
           {activeTab === 'api' && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                 <h3 className="text-lg font-semibold text-slate-800 dark:text-white">
                   API Keys
                 </h3>
-                <button className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+                <button className="common-button-bg flex items-center gap-2 justify-center sm:justify-start w-full sm:w-auto">
                   <Plus className="w-4 h-4" />
-                  Create API Key
+                  <span>Create API Key</span>
                 </button>
               </div>
 
               <div className="space-y-4">
                 {apiKeys.map((apiKey) => (
-                  <div key={apiKey.id} className="p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl">
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <h4 className="font-medium text-slate-800 dark:text-white">
+                  <div key={apiKey.id} className="p-4 common-bg-icons rounded-xl">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-3">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-slate-800 dark:text-white truncate">
                           {apiKey.name}
                         </h4>
                         <p className="text-sm text-slate-600 dark:text-slate-400">
                           Created {apiKey.created} • Last used {apiKey.lastUsed}
                         </p>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-shrink-0">
                         <button
                           onClick={() => copyApiKey(apiKey.key)}
-                          className="p-2 text-slate-400 hover:text-blue-500 transition-colors"
+                          className="common-bg-icons p-2 w-9 h-9 flex items-center justify-center rounded-lg touch-manipulation"
                         >
-                          <Copy className="w-4 h-4" />
+                          <Copy className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                         </button>
-                        <button className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
-                          <RefreshCw className="w-4 h-4" />
+                        <button className="common-bg-icons p-2 w-9 h-9 flex items-center justify-center rounded-lg touch-manipulation">
+                          <RefreshCw className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                         </button>
-                        <button className="p-2 text-slate-400 hover:text-red-500 transition-colors">
-                          <Trash2 className="w-4 h-4" />
+                        <button className="common-bg-icons p-2 w-9 h-9 flex items-center justify-center rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors touch-manipulation">
+                          <Trash2 className="w-4 h-4 text-slate-600 dark:text-slate-400 hover:text-red-500" />
                         </button>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-3 mb-3">
-                      <div className="flex-1 bg-slate-200 dark:bg-slate-700 rounded-lg p-3 font-mono text-sm">
-                        {showApiKey ? apiKey.key : '••••••••••••••••••••••••••••••••'}
+                      <div className="flex-1 common-bg-icons rounded-lg p-3 font-mono text-xs sm:text-sm overflow-hidden">
+                        <span className="break-all">
+                          {showApiKey ? apiKey.key : '••••••••••••••••••••••••••••••••'}
+                        </span>
                       </div>
                       <button
                         onClick={() => setShowApiKey(!showApiKey)}
-                        className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                        className="common-bg-icons p-2 w-9 h-9 flex items-center justify-center rounded-lg flex-shrink-0 touch-manipulation"
                       >
-                        {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        {showApiKey ? <EyeOff className="w-4 h-4 text-slate-600 dark:text-slate-400" /> : <Eye className="w-4 h-4 text-slate-600 dark:text-slate-400" />}
                       </button>
                     </div>
 
@@ -440,17 +435,67 @@ const Settings = () => {
 
           {activeTab === 'team' && (
             <div className="space-y-6">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                 <h3 className="text-lg font-semibold text-slate-800 dark:text-white">
                   Team Members
                 </h3>
-                <button className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+                <button className="common-button-bg flex items-center gap-2 justify-center sm:justify-start w-full sm:w-auto">
                   <Plus className="w-4 h-4" />
-                  Invite Member
+                  <span>Invite Member</span>
                 </button>
               </div>
 
-              <div className="overflow-x-auto">
+              {/* Mobile-first team member cards */}
+              <div className="block sm:hidden space-y-4">
+                {teamMembers.map((member) => (
+                  <div key={member.id} className="common-bg-icons rounded-xl p-4">
+                    <div className="flex flex-col space-y-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <p className="font-medium text-slate-800 dark:text-white">
+                            {member.name}
+                          </p>
+                          <p className="text-sm text-slate-500 dark:text-slate-400 break-all">
+                            {member.email}
+                          </p>
+                        </div>
+                        <button className="common-bg-icons p-2 w-9 h-9 flex items-center justify-center rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors touch-manipulation">
+                          <Trash2 className="w-4 h-4 text-slate-600 dark:text-slate-400 hover:text-red-500" />
+                        </button>
+                      </div>
+                      
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="relative">
+                            <select
+                              value={member.role}
+                              className="common-bg-icons text-sm appearance-none pr-8 w-24"
+                            >
+                              {roles.map(role => (
+                                <option key={role} value={role}>{role}</option>
+                              ))}
+                            </select>
+                            <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
+                          </div>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            member.status === 'Active'
+                              ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400'
+                              : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400'
+                          }`}>
+                            {member.status}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 dark:text-slate-400">
+                          {member.lastActive}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop table */}
+              <div className="hidden sm:block overflow-x-auto">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-slate-200 dark:border-slate-700">
@@ -488,7 +533,7 @@ const Settings = () => {
                           <div className="relative">
                             <select
                               value={member.role}
-                              className="px-3 py-1 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 appearance-none pr-8"
+                              className="common-bg-icons text-sm appearance-none pr-8"
                             >
                               {roles.map(role => (
                                 <option key={role} value={role}>{role}</option>
@@ -510,8 +555,8 @@ const Settings = () => {
                           {member.lastActive}
                         </td>
                         <td className="py-3 px-4">
-                          <button className="p-2 text-slate-400 hover:text-red-500 transition-colors">
-                            <Trash2 className="w-4 h-4" />
+                          <button className="common-bg-icons p-2 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                            <Trash2 className="w-4 h-4 text-slate-600 dark:text-slate-400 hover:text-red-500" />
                           </button>
                         </td>
                       </tr>
@@ -529,69 +574,69 @@ const Settings = () => {
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl">
+                <div className="p-4 common-bg-icons rounded-xl">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-green-100 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
-                        <Webhook className="w-5 h-5 text-green-600 dark:text-green-400" />
+                      <div className="w-10 h-10 common-bg-icons rounded-lg flex items-center justify-center">
+                        <Webhook className="w-5 h-5 text-slate-600 dark:text-slate-400" />
                       </div>
                       <div>
                         <h4 className="font-medium text-slate-800 dark:text-white">WhatsApp</h4>
                         <p className="text-sm text-slate-600 dark:text-slate-400">Send messages via WhatsApp</p>
                       </div>
                     </div>
-                    <button className="px-3 py-1 bg-green-500 text-white rounded-lg text-sm">
+                    <button className="common-button-bg text-sm">
                       Connected
                     </button>
                   </div>
                 </div>
 
-                <div className="p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl">
+                <div className="p-4 common-bg-icons rounded-xl">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
-                        <Webhook className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                      <div className="w-10 h-10 common-bg-icons rounded-lg flex items-center justify-center">
+                        <Webhook className="w-5 h-5 text-slate-600 dark:text-slate-400" />
                       </div>
                       <div>
                         <h4 className="font-medium text-slate-800 dark:text-white">Slack</h4>
                         <p className="text-sm text-slate-600 dark:text-slate-400">Team notifications</p>
                       </div>
                     </div>
-                    <button className="px-3 py-1 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-sm">
+                    <button className="common-button-bg2 text-sm">
                       Connect
                     </button>
                   </div>
                 </div>
 
-                <div className="p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl">
+                <div className="p-4 common-bg-icons rounded-xl">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
-                        <Webhook className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                      <div className="w-10 h-10 common-bg-icons rounded-lg flex items-center justify-center">
+                        <Webhook className="w-5 h-5 text-slate-600 dark:text-slate-400" />
                       </div>
                       <div>
                         <h4 className="font-medium text-slate-800 dark:text-white">Zapier</h4>
                         <p className="text-sm text-slate-600 dark:text-slate-400">Workflow automation</p>
                       </div>
                     </div>
-                    <button className="px-3 py-1 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-sm">
+                    <button className="common-button-bg2 text-sm">
                       Connect
                     </button>
                   </div>
                 </div>
 
-                <div className="p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl">
+                <div className="p-4 common-bg-icons rounded-xl">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/20 rounded-lg flex items-center justify-center">
-                        <Webhook className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                      <div className="w-10 h-10 common-bg-icons rounded-lg flex items-center justify-center">
+                        <Webhook className="w-5 h-5 text-slate-600 dark:text-slate-400" />
                       </div>
                       <div>
                         <h4 className="font-medium text-slate-800 dark:text-white">Google Calendar</h4>
                         <p className="text-sm text-slate-600 dark:text-slate-400">Schedule meetings</p>
                       </div>
                     </div>
-                    <button className="px-3 py-1 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-sm">
+                    <button className="common-button-bg2 text-sm">
                       Connect
                     </button>
                   </div>

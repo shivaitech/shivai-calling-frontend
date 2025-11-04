@@ -672,17 +672,17 @@ export const ShivaiSubsPlan = () => {
                   >
                     <div className="space-y-3">
                       <div>
-                        <input
-                          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-all duration-200 text-gray-900 placeholder-gray-500 bg-gray-50 focus:bg-white text-sm"
-                          type="text"
-                          placeholder="Full Name"
-                          value={formData.name}
-                          onChange={(e) =>
-                            setFormData((f) => ({ ...f, name: e.target.value }))
-                          }
-                          autoFocus
-                          autoComplete="off"
-                        />
+                          <input
+                            className="w-full px-3 py-3 sm:py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-all duration-200 text-gray-900 placeholder-gray-500 bg-gray-50 focus:bg-white text-sm touch-manipulation"
+                            type="text"
+                            placeholder="Full Name"
+                            value={formData.name}
+                            onChange={(e) =>
+                              setFormData((f) => ({ ...f, name: e.target.value }))
+                            }
+                            autoFocus
+                            autoComplete="off"
+                          />
                         {formErrors["name"] && (
                           <p className="text-red-500 text-xs mt-1">
                             {formErrors["name"]}
@@ -692,7 +692,7 @@ export const ShivaiSubsPlan = () => {
 
                       <div>
                         <input
-                          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-all duration-200 text-gray-900 placeholder-gray-500 bg-gray-50 focus:bg-white text-sm"
+                          className="w-full px-3 py-3 sm:py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-all duration-200 text-gray-900 placeholder-gray-500 bg-gray-50 focus:bg-white text-sm touch-manipulation"
                           type="email"
                           placeholder="Email Address"
                           value={formData.email}
@@ -714,7 +714,7 @@ export const ShivaiSubsPlan = () => {
                       {/* Country Selection */}
                       <div className="relative location-dropdown">
                         <input
-                          className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-all duration-200 text-gray-900 placeholder-gray-500 bg-gray-50 focus:bg-white text-sm"
+                          className="w-full px-3 py-3 sm:py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-all duration-200 text-gray-900 placeholder-gray-500 bg-gray-50 focus:bg-white text-sm touch-manipulation"
                           type="text"
                           placeholder="Search and select country"
                           value={countrySearch}

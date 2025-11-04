@@ -207,14 +207,7 @@ const Monitoring = () => {
       {/* Mobile-First Header - App-like compact design */}
       <div className="mb-4 sm:mb-6 px-1">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="min-w-0 flex-1">
-            <h1 className="text-lg sm:text-2xl lg:text-3xl font-bold text-slate-800 dark:text-white mb-1 sm:mb-2 break-words max-w-full">
-              Monitoring & Analytics 📊
-            </h1>
-            <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 break-words max-w-full">
-              Track performance and analyze conversation insights
-            </p>
-          </div>
+          
 
           <div className="flex flex-col xs:flex-row items-stretch xs:items-center gap-2 sm:gap-3 flex-shrink-0">
             <div className="relative">
@@ -233,10 +226,10 @@ const Monitoring = () => {
 
             <button 
               disabled={!isDeveloper}
-              className={`flex items-center justify-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg transition-colors text-sm touch-manipulation ${
+              className={`flex items-center justify-center gap-1 sm:gap-2 touch-manipulation ${
                 isDeveloper 
-                  ? 'bg-blue-500 text-white hover:bg-blue-600'
-                  : 'bg-gray-400 text-gray-200 cursor-not-allowed opacity-50'
+                  ? 'common-button-bg'
+                  : 'bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50 px-3 sm:px-4 py-2 rounded-lg'
               }`}
             >
               <Download className="w-4 h-4" />
@@ -270,12 +263,7 @@ const Monitoring = () => {
                 <GlassCard hover>
                   <div className="p-3 min-h-[110px]">
                     <div className="flex items-center justify-between mb-2">
-                      <div className={`p-1.5 rounded-lg ${
-                        stat.color === 'blue' ? 'bg-blue-100 dark:bg-blue-900/20' :
-                        stat.color === 'green' ? 'bg-green-100 dark:bg-green-900/20' :
-                        stat.color === 'purple' ? 'bg-purple-100 dark:bg-purple-900/20' :
-                        'bg-orange-100 dark:bg-orange-900/20'
-                      }`}>
+                      <div className="p-1.5 rounded-lg common-bg-icons">
                         <stat.icon className={`w-4 h-4 ${
                           stat.color === 'blue' ? 'text-blue-600 dark:text-blue-400' :
                           stat.color === 'green' ? 'text-green-600 dark:text-green-400' :
@@ -311,12 +299,7 @@ const Monitoring = () => {
             <GlassCard key={index} hover>
               <div className="p-3 sm:p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <div className={`p-2 sm:p-3 rounded-xl ${
-                    stat.color === 'blue' ? 'bg-blue-100 dark:bg-blue-900/20' :
-                    stat.color === 'green' ? 'bg-green-100 dark:bg-green-900/20' :
-                    stat.color === 'purple' ? 'bg-purple-100 dark:bg-purple-900/20' :
-                    'bg-orange-100 dark:bg-orange-900/20'
-                  }`}>
+                  <div className="p-2 sm:p-3 rounded-xl common-bg-icons">
                     <stat.icon className={`w-4 sm:w-6 h-4 sm:h-6 ${
                       stat.color === 'blue' ? 'text-blue-600 dark:text-blue-400' :
                       stat.color === 'green' ? 'text-green-600 dark:text-green-400' :
@@ -555,10 +538,10 @@ const Monitoring = () => {
               </div>
               <button 
                 disabled={!isDeveloper}
-                className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg transition-colors touch-manipulation ${
+                className={`flex items-center justify-center gap-2 touch-manipulation ${
                   isDeveloper 
-                    ? 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
-                    : 'bg-gray-300 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-50'
+                    ? 'common-button-bg2'
+                    : 'bg-gray-300 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed opacity-50 px-3 py-2 rounded-lg'
                 }`}
               >
                 <Filter className="w-4 h-4" />
@@ -606,7 +589,7 @@ const Monitoring = () => {
                       {conversation.caller} • {conversation.duration}
                     </p>
                   </div>
-                  <button className="flex items-center gap-1 px-2 py-1 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-md hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors text-xs touch-manipulation">
+                  <button className="flex items-center gap-1 common-button-bg2 rounded-md text-xs touch-manipulation">
                     <Eye className="w-3 h-3" />
                     <span>View</span>
                   </button>
@@ -685,7 +668,7 @@ const Monitoring = () => {
                       {conversation.duration}
                     </td>
                     <td className="py-3 px-4">
-                      <button className="flex items-center gap-1 px-3 py-1 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors text-sm touch-manipulation">
+                      <button className="flex items-center gap-1 common-button-bg2 rounded-lg text-sm touch-manipulation">
                         <Eye className="w-3 h-3" />
                         <span>View</span>
                       </button>

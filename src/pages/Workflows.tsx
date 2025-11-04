@@ -592,18 +592,9 @@ const Workflows = () => {
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6 w-full px-2 sm:px-0">
+    <div className="space-y-4 sm:space-y-6 w-full ">
       {/* Mobile-First Header */}
-      <div className="space-y-4 sm:space-y-6">
-        <div className="text-center sm:text-left space-y-3 sm:space-y-2">
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-800 dark:text-white">
-            Workflows ⚡
-          </h1>
-          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 max-w-2xl mx-auto sm:mx-0">
-            Automate actions when specific events happen in your calls
-          </p>
-        </div>
-      </div>
+      
 
       {/* Enhanced Mobile-First Tab Navigation */}
       <div className=" ">
@@ -660,9 +651,9 @@ const Workflows = () => {
                     onChange={(e) => setWorkflowName(e.target.value)}
                     placeholder="e.g., Lead Qualification Flow"
                     disabled={!isDeveloper}
-                    className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-sm sm:text-base touch-manipulation ${
+                    className={`w-full px-4 py-3 rounded-xl text-sm sm:text-base touch-manipulation ${
                       isDeveloper 
-                        ? 'bg-white/50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-white'
+                        ? 'common-bg-icons'
                         : 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400 cursor-not-allowed'
                     }`}
                     required
@@ -680,9 +671,9 @@ const Workflows = () => {
                     value={selectedAgent}
                     onChange={(e) => setSelectedAgent(e.target.value)}
                     disabled={!isDeveloper}
-                    className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-sm sm:text-base touch-manipulation ${
+                    className={`w-full px-4 py-3 rounded-xl text-sm sm:text-base touch-manipulation ${
                       isDeveloper 
-                        ? 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-white'
+                        ? 'common-bg-icons'
                         : 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400 cursor-not-allowed'
                     }`}
                     style={{ zIndex: 50 }}
@@ -736,12 +727,12 @@ const Workflows = () => {
                       disabled={!isDeveloper}
                       className={`p-2 rounded-lg transition-colors touch-manipulation ${
                         isDeveloper 
-                          ? 'bg-blue-500 text-white hover:bg-blue-600'
-                          : 'bg-gray-400 text-gray-200 cursor-not-allowed opacity-50'
+                          ? 'common-bg-icons hover:shadow-sm'
+                          : 'bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50'
                       }`}
                       title="Add Custom Trigger"
                     >
-                      <Plus className="w-4 h-4" />
+                      <Plus className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                     </button>
                   </div>
 
@@ -752,27 +743,11 @@ const Workflows = () => {
                         key={trigger.id}
                         draggable
                         onDragStart={(e) => handleDragStart(e, trigger, 'trigger')}
-                        className="p-2.5 sm:p-3 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600 cursor-move transition-all duration-200 bg-white/80 dark:bg-slate-800/80 hover:shadow-md touch-manipulation"
+                        className="common-bg-icons p-2.5 sm:p-3 rounded-lg cursor-move transition-all duration-200 hover:shadow-md touch-manipulation"
                       >
                         <div className="flex items-center gap-2 sm:gap-3">
-                          <div className={`p-1.5 rounded-md flex-shrink-0 ${
-                            trigger.color === 'green' ? 'bg-green-100 dark:bg-green-900/20' :
-                            trigger.color === 'blue' ? 'bg-blue-100 dark:bg-blue-900/20' :
-                            trigger.color === 'purple' ? 'bg-purple-100 dark:bg-purple-900/20' :
-                            trigger.color === 'orange' ? 'bg-orange-100 dark:bg-orange-900/20' :
-                            trigger.color === 'emerald' ? 'bg-emerald-100 dark:bg-emerald-900/20' :
-                            trigger.color === 'red' ? 'bg-red-100 dark:bg-red-900/20' :
-                            'bg-slate-100 dark:bg-slate-900/20'
-                          }`}>
-                            <trigger.icon className={`w-3 h-3 sm:w-4 sm:h-4 ${
-                              trigger.color === 'green' ? 'text-green-600 dark:text-green-400' :
-                              trigger.color === 'blue' ? 'text-blue-600 dark:text-blue-400' :
-                              trigger.color === 'purple' ? 'text-purple-600 dark:text-purple-400' :
-                              trigger.color === 'orange' ? 'text-orange-600 dark:text-orange-400' :
-                              trigger.color === 'emerald' ? 'text-emerald-600 dark:text-emerald-400' :
-                              trigger.color === 'red' ? 'text-red-600 dark:text-red-400' :
-                              'text-slate-600 dark:text-slate-400'
-                            }`} />
+                          <div className="common-bg-icons p-1.5 rounded-md flex-shrink-0">
+                            <trigger.icon className="w-3 h-3 sm:w-4 sm:h-4 text-slate-600 dark:text-slate-400" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="font-medium text-slate-800 dark:text-white text-xs sm:text-sm truncate">
@@ -791,8 +766,8 @@ const Workflows = () => {
                             disabled={!isDeveloper}
                             className={`sm:hidden p-1 rounded-md transition-colors touch-manipulation flex-shrink-0 active:scale-95 min-w-[28px] min-h-[28px] ${
                               isDeveloper 
-                                ? 'bg-blue-500 text-white hover:bg-blue-600'
-                                : 'bg-gray-400 text-gray-200 cursor-not-allowed opacity-50'
+                                ? 'common-button-bg'
+                                : 'bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50'
                             }`}
                             title="Add to Canvas"
                           >
@@ -829,10 +804,10 @@ const Workflows = () => {
                           alert('Workflow test initiated! Check the execution log for results.');
                         }}
                         disabled={nodes.length === 0 || !isDeveloper}
-                        className={`flex-1 sm:flex-none px-3 py-2 text-xs sm:text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation ${
+                        className={`flex-1 sm:flex-none touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed ${
                           isDeveloper 
-                            ? 'bg-blue-500 text-white hover:bg-blue-600'
-                            : 'bg-gray-400 text-gray-200'
+                            ? 'common-button-bg2'
+                            : 'bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 px-3 py-2 text-xs sm:text-sm rounded-lg'
                         }`}
                       >
                         Test
@@ -840,10 +815,10 @@ const Workflows = () => {
                       <button
                         onClick={handleSaveWorkflow}
                         disabled={!workflowName.trim() || !selectedAgent || nodes.length === 0 || !isDeveloper}
-                        className={`flex-1 sm:flex-none px-3 py-2 text-xs sm:text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation ${
+                        className={`flex-1 sm:flex-none touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed ${
                           isDeveloper 
-                            ? 'bg-green-500 text-white hover:bg-green-600'
-                            : 'bg-gray-400 text-gray-200'
+                            ? 'common-button-bg'
+                            : 'bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 px-3 py-2 text-xs sm:text-sm rounded-lg'
                         }`}
                       >
                         {editingWorkflow ? 'Update' : 'Save'}
@@ -1155,19 +1130,19 @@ const Workflows = () => {
                   {/* Canvas Controls - Mobile Optimized */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-4 pt-4 border-t border-slate-200 dark:border-slate-700 gap-3">
                     <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-slate-600 dark:text-slate-400">
-                      <span className="bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">
+                      <span className="common-bg-icons px-2 py-1 rounded">
                         Nodes: {nodes.length}
                       </span>
-                      <span className="bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">
+                      <span className="common-bg-icons px-2 py-1 rounded">
                         Links: {connections.length}
                       </span>
-                      <span className="bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">
+                      <span className="common-bg-icons px-2 py-1 rounded">
                         Zoom: {Math.round(canvasZoom * 100)}%
                       </span>
-                      <span className="hidden sm:inline text-xs bg-slate-50 dark:bg-slate-800/50 px-2 py-1 rounded">
+                      <span className="hidden sm:inline text-xs common-bg-icons px-2 py-1 rounded">
                         Ctrl+/-: zoom • Ctrl+0: reset • Middle-click: pan
                       </span>
-                      <span className="sm:hidden text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 px-2 py-1 rounded">
+                      <span className="sm:hidden text-xs common-bg-icons px-2 py-1 rounded">
                         Pinch: zoom • Drag: pan
                       </span>
                     </div>
@@ -1177,7 +1152,7 @@ const Workflows = () => {
                         <button
                           type="button"
                           onClick={() => setConnectingFrom(null)}
-                          className="px-3 py-2 text-sm bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors rounded-lg touch-manipulation"
+                          className="common-button-bg2 px-3 py-2 text-sm rounded-lg touch-manipulation"
                         >
                           Cancel Connect
                         </button>
@@ -1189,7 +1164,7 @@ const Workflows = () => {
                           setConnections([]);
                           setConnectingFrom(null);
                         }}
-                        className="flex items-center gap-1 px-3 py-2 text-sm text-slate-600 dark:text-slate-400 hover:text-red-500 transition-colors bg-slate-100 dark:bg-slate-800 rounded-lg touch-manipulation hover:bg-red-50 dark:hover:bg-red-900/20"
+                        className="common-button-bg2 flex items-center gap-1 px-3 py-2 text-sm rounded-lg touch-manipulation hover:text-red-500"
                       >
                         <Trash2 className="w-3 h-3" />
                         <span className="hidden sm:inline">Clear All</span>
@@ -1214,27 +1189,11 @@ const Workflows = () => {
                         key={action.id}
                         draggable
                         onDragStart={(e) => handleDragStart(e, action, 'action')}
-                        className="p-2.5 sm:p-3 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-green-300 dark:hover:border-green-600 cursor-move transition-all duration-200 bg-white/80 dark:bg-slate-800/80 hover:shadow-md touch-manipulation"
+                        className="common-bg-icons p-2.5 sm:p-3 rounded-lg cursor-move transition-all duration-200 hover:shadow-md touch-manipulation"
                       >
                         <div className="flex items-start gap-2 sm:gap-3">
-                          <div className={`p-1.5 rounded-md flex-shrink-0 ${
-                            action.color === 'blue' ? 'bg-blue-100 dark:bg-blue-900/20' :
-                            action.color === 'red' ? 'bg-red-100 dark:bg-red-900/20' :
-                            action.color === 'purple' ? 'bg-purple-100 dark:bg-purple-900/20' :
-                            action.color === 'orange' ? 'bg-orange-100 dark:bg-orange-900/20' :
-                            action.color === 'indigo' ? 'bg-indigo-100 dark:bg-indigo-900/20' :
-                            action.color === 'green' ? 'bg-green-100 dark:bg-green-900/20' :
-                            'bg-slate-100 dark:bg-slate-900/20'
-                          }`}>
-                            <action.icon className={`w-3 h-3 sm:w-4 sm:h-4 ${
-                              action.color === 'blue' ? 'text-blue-600 dark:text-blue-400' :
-                              action.color === 'red' ? 'text-red-600 dark:text-red-400' :
-                              action.color === 'purple' ? 'text-purple-600 dark:text-purple-400' :
-                              action.color === 'orange' ? 'text-orange-600 dark:text-orange-400' :
-                              action.color === 'indigo' ? 'text-indigo-600 dark:text-indigo-400' :
-                              action.color === 'green' ? 'text-green-600 dark:text-green-400' :
-                              'text-slate-600 dark:text-slate-400'
-                            }`} />
+                          <div className="common-bg-icons p-1.5 rounded-md flex-shrink-0">
+                            <action.icon className="w-3 h-3 sm:w-4 sm:h-4 text-slate-600 dark:text-slate-400" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <p className="font-medium text-slate-800 dark:text-white text-xs sm:text-sm truncate">
@@ -1261,7 +1220,7 @@ const Workflows = () => {
                             disabled={!isDeveloper}
                             className={`sm:hidden p-1 rounded-md transition-colors touch-manipulation flex-shrink-0 self-start mt-0.5 active:scale-95 min-w-[28px] min-h-[28px] ${
                               isDeveloper 
-                                ? 'bg-green-500 text-white hover:bg-green-600'
+                                ? 'common-button-bg'
                                 : 'bg-gray-400 text-gray-200 cursor-not-allowed opacity-50'
                             }`}
                             title="Add to Canvas"
@@ -1296,27 +1255,11 @@ const Workflows = () => {
                     key={condition.id}
                     draggable
                     onDragStart={(e) => handleDragStart(e, condition, 'condition')}
-                    className="p-3 sm:p-4 rounded-xl border-2 border-slate-200 dark:border-slate-700 hover:border-purple-300 dark:hover:border-purple-600 cursor-move transition-all duration-200 bg-white/80 dark:bg-slate-800/80 hover:shadow-lg touch-manipulation"
+                    className="common-bg-icons p-3 sm:p-4 rounded-xl cursor-move transition-all duration-200 hover:shadow-lg touch-manipulation"
                   >
                     <div className="flex items-center gap-2 sm:gap-3 mb-2">
-                      <div className={`p-1.5 sm:p-2 rounded-lg flex-shrink-0 ${
-                        condition.color === 'blue' ? 'bg-blue-100 dark:bg-blue-900/20' :
-                        condition.color === 'green' ? 'bg-green-100 dark:bg-green-900/20' :
-                        condition.color === 'purple' ? 'bg-purple-100 dark:bg-purple-900/20' :
-                        condition.color === 'orange' ? 'bg-orange-100 dark:bg-orange-900/20' :
-                        condition.color === 'indigo' ? 'bg-indigo-100 dark:bg-indigo-900/20' :
-                        condition.color === 'emerald' ? 'bg-emerald-100 dark:bg-emerald-900/20' :
-                        'bg-slate-100 dark:bg-slate-900/20'
-                      }`}>
-                        <condition.icon className={`w-4 h-4 sm:w-5 sm:h-5 ${
-                          condition.color === 'blue' ? 'text-blue-600 dark:text-blue-400' :
-                          condition.color === 'green' ? 'text-green-600 dark:text-green-400' :
-                          condition.color === 'purple' ? 'text-purple-600 dark:text-purple-400' :
-                          condition.color === 'orange' ? 'text-orange-600 dark:text-orange-400' :
-                          condition.color === 'indigo' ? 'text-indigo-600 dark:text-indigo-400' :
-                          condition.color === 'emerald' ? 'text-emerald-600 dark:text-emerald-400' :
-                          'text-slate-600 dark:text-slate-400'
-                        }`} />
+                      <div className="common-bg-icons p-1.5 sm:p-2 rounded-lg flex-shrink-0">
+                        <condition.icon className="w-4 h-4 sm:w-5 sm:h-5 text-slate-600 dark:text-slate-400" />
                       </div>
                       <span className="font-medium text-slate-800 dark:text-white text-sm sm:text-base flex-1 min-w-0 truncate">
                         {condition.name}
@@ -1330,7 +1273,7 @@ const Workflows = () => {
                         disabled={!isDeveloper}
                         className={`sm:hidden p-1 rounded-md transition-colors touch-manipulation flex-shrink-0 active:scale-95 min-w-[28px] min-h-[28px] ${
                           isDeveloper 
-                            ? 'bg-purple-500 text-white hover:bg-purple-600'
+                            ? 'common-button-bg'
                             : 'bg-gray-400 text-gray-200 cursor-not-allowed opacity-50'
                         }`}
                         title="Add to Canvas"
@@ -1365,10 +1308,10 @@ const Workflows = () => {
                 <button
                   onClick={() => setActiveTab('canvas')}
                   disabled={!isDeveloper}
-                  className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg transition-colors text-sm font-medium touch-manipulation ${
+                  className={`flex items-center justify-center gap-2 touch-manipulation ${
                     isDeveloper 
-                      ? 'bg-blue-500 text-white hover:bg-blue-600'
-                      : 'bg-gray-400 text-gray-200 cursor-not-allowed opacity-50'
+                      ? 'common-button-bg'
+                      : 'bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50 px-4 py-2.5 rounded-lg'
                   }`}
                 >
                   <Plus className="w-4 h-4" />
@@ -1380,11 +1323,11 @@ const Workflows = () => {
               {workflows.map((workflow) => (
                 <div
                   key={workflow.id}
-                  className="flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-6 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl hover:bg-slate-100/50 dark:hover:bg-slate-700/30 transition-colors gap-4"
+                  className="common-bg-icons flex flex-col sm:flex-row sm:items-center justify-between p-4 sm:p-6 rounded-xl hover:shadow-md transition-all gap-4"
                 >
                   <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
-                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <Zap className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                    <div className="common-bg-icons w-10 h-10 sm:w-12 sm:h-12 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Zap className="w-5 h-5 sm:w-6 sm:h-6 text-slate-600 dark:text-slate-400" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <h4 className="font-semibold text-slate-800 dark:text-white text-base sm:text-lg truncate">
@@ -1415,10 +1358,10 @@ const Workflows = () => {
                   <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
                     <span className={`inline-flex w-fit px-3 py-1 rounded-full text-xs sm:text-sm font-medium ${
                       workflow.status === 'Active'
-                        ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400'
+                        ? 'common-bg-icons text-slate-700 dark:text-slate-300'
                         : workflow.status === 'Paused'
-                        ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400'
-                        : 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
+                        ? 'common-bg-icons text-slate-700 dark:text-slate-300'
+                        : 'common-bg-icons text-slate-700 dark:text-slate-300'
                     }`}>
                       {workflow.status}
                     </span>
@@ -1510,10 +1453,10 @@ const Workflows = () => {
                   <button
                     onClick={() => setActiveTab('canvas')}
                     disabled={!isDeveloper}
-                    className={`px-8 py-3 rounded-xl transition-colors ${
+                    className={`${
                       isDeveloper 
-                        ? 'bg-blue-500 text-white hover:bg-blue-600'
-                        : 'bg-gray-400 text-gray-200 cursor-not-allowed opacity-50'
+                        ? 'common-button-bg rounded-xl px-8 py-3'
+                        : 'bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50 px-8 py-3 rounded-xl'
                     }`}
                   >
                     Create Your First Workflow
@@ -1536,9 +1479,9 @@ const Workflows = () => {
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                 <select 
                   disabled={!isDeveloper}
-                  className={`px-3 sm:px-4 py-2 border rounded-lg text-sm min-w-0 touch-manipulation ${
+                  className={`px-3 sm:px-4 py-2 rounded-lg text-sm min-w-0 touch-manipulation ${
                     isDeveloper 
-                      ? 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+                      ? 'common-bg-icons'
                       : 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400 cursor-not-allowed'
                   }`}
                   style={{ zIndex: 50 }}
@@ -1552,7 +1495,7 @@ const Workflows = () => {
                   disabled={!isDeveloper}
                   className={`px-3 sm:px-4 py-2 rounded-lg transition-colors text-sm touch-manipulation ${
                     isDeveloper 
-                      ? 'bg-blue-500 text-white hover:bg-blue-600'
+                      ? 'common-button-bg'
                       : 'bg-gray-400 text-gray-200 cursor-not-allowed opacity-50'
                   }`}
                 >
@@ -1563,11 +1506,11 @@ const Workflows = () => {
 
             <div className="space-y-3 sm:space-y-4">
               {workflows.filter(w => w.runs > 0).map((workflow) => (
-                <div key={workflow.id} className="p-4 sm:p-6 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl">
+                <div key={workflow.id} className="common-bg-icons p-4 sm:p-6 rounded-xl">
                   <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                     <div className="flex items-start sm:items-center gap-3 sm:gap-4 flex-1 min-w-0">
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <Zap className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                      <div className="common-bg-icons w-10 h-10 sm:w-12 sm:h-12 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <Zap className="w-5 h-5 sm:w-6 sm:h-6 text-slate-600 dark:text-slate-400" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <h4 className="font-semibold text-slate-800 dark:text-white text-base sm:text-lg truncate">
@@ -1584,11 +1527,7 @@ const Workflows = () => {
                     </div>
                     
                     <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-3">
-                      <span className={`inline-flex px-2.5 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium ${
-                        workflow.status === 'Active'
-                          ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400'
-                          : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400'
-                      }`}>
+                      <span className="common-bg-icons inline-flex px-2.5 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">
                         {workflow.status}
                       </span>
                       <button 
@@ -1648,7 +1587,7 @@ const Workflows = () => {
                   value={newTrigger.name}
                   onChange={(e) => setNewTrigger({ ...newTrigger, name: e.target.value })}
                   placeholder="e.g., High Priority Request"
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  className="common-bg-icons w-full px-3 py-2 rounded-lg"
                   required
                 />
               </div>
@@ -1662,7 +1601,7 @@ const Workflows = () => {
                   onChange={(e) => setNewTrigger({ ...newTrigger, description: e.target.value })}
                   placeholder="Describe when this trigger should activate"
                   rows={3}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 resize-none"
+                  className="common-bg-icons w-full px-3 py-2 rounded-lg resize-none"
                   required
                 />
               </div>
@@ -1670,14 +1609,14 @@ const Workflows = () => {
               <div className="flex gap-3">
                 <button
                   onClick={() => setIsCreatingTrigger(false)}
-                  className="flex-1 py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
+                  className="common-button-bg2 flex-1 py-2 rounded-lg"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleCreateTrigger}
                   disabled={!newTrigger.name.trim() || !newTrigger.description.trim()}
-                  className="flex-1 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="common-button-bg flex-1 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Create
                 </button>

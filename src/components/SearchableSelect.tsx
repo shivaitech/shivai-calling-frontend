@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Search, ChevronDown, Check } from 'lucide-react';
 
 interface Option {
@@ -28,6 +28,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
   const [dropdownPosition, setDropdownPosition] = useState<'top' | 'bottom'>('bottom');
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
 
   const filteredOptions = options.filter(option =>
     option.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -45,19 +46,39 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
 
   const selectedOption = options.find(opt => opt.value === value);
 
-  useEffect(() => {
+  const updateDropdownPosition = useCallback(() => {
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
       const spaceBelow = window.innerHeight - rect.bottom;
       const dropdownHeight = 300;
       
-      if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
-        setDropdownPosition('top');
-      } else {
-        setDropdownPosition('bottom');
-      }
+      const position = spaceBelow < dropdownHeight && rect.top > dropdownHeight ? 'top' : 'bottom';
+      setDropdownPosition(position);
+      
+      setDropdownStyle({
+        left: rect.left,
+        width: rect.width,
+        top: position === 'top' ? rect.top - dropdownHeight : rect.bottom + 4
+      });
     }
-  }, [isOpen]);
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      updateDropdownPosition();
+      
+      const handleScroll = () => updateDropdownPosition();
+      const handleResize = () => updateDropdownPosition();
+      
+      window.addEventListener('scroll', handleScroll, true);
+      window.addEventListener('resize', handleResize);
+      
+      return () => {
+        window.removeEventListener('scroll', handleScroll, true);
+        window.removeEventListener('resize', handleResize);
+      };
+    }
+  }, [isOpen, updateDropdownPosition]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -97,9 +118,8 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
 
       {isOpen && (
         <div 
-          className={`absolute left-0 right-0 ${
-            dropdownPosition === 'top' ? 'bottom-full mb-1' : 'top-full mt-1'
-          } bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-80 overflow-hidden z-[999999]`}
+          className="fixed bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-80 overflow-y-auto z-[999999]"
+          style={dropdownStyle}
         >
           {/* Search */}
           <div className="p-3 border-b border-slate-200 dark:border-slate-700">

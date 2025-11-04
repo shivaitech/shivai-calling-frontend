@@ -130,14 +130,7 @@ const Billing = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6 w-full">
-      <div className="mb-4 sm:mb-6">
-        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-800 dark:text-white mb-2 break-words max-w-full overflow-hidden">
-          Billing & Usage 💳
-        </h1>
-        <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 break-words max-w-full">
-          Manage your subscription, usage, and payment methods
-        </p>
-      </div>
+     
 
       {/* Current Plan & Status */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
@@ -175,7 +168,7 @@ const Billing = () => {
               </div>
             </div>
 
-            <button className="w-full mt-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+            <button className="common-button-bg w-full mt-4">
               Manage Plan
             </button>
           </div>
@@ -194,12 +187,14 @@ const Billing = () => {
                   const color = getUsageColor(percentage);
                   
                   return (
-                    <div key={key} className="p-3 sm:p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl">
+                    <div key={key} className="p-3 sm:p-4 common-bg-icons rounded-xl">
                       <div className="flex items-center gap-3 mb-3">
-                        {key === 'minutes' && <Clock className="w-5 h-5 text-blue-500" />}
-                        {key === 'storage' && <Database className="w-5 h-5 text-purple-500" />}
-                        {key === 'workflows' && <Zap className="w-5 h-5 text-orange-500" />}
-                        {key === 'agents' && <CheckCircle className="w-5 h-5 text-green-500" />}
+                        <div className="w-8 h-8 common-bg-icons rounded-lg flex items-center justify-center">
+                          {key === 'minutes' && <Clock className="w-4 h-4 text-slate-600 dark:text-slate-400" />}
+                          {key === 'storage' && <Database className="w-4 h-4 text-slate-600 dark:text-slate-400" />}
+                          {key === 'workflows' && <Zap className="w-4 h-4 text-slate-600 dark:text-slate-400" />}
+                          {key === 'agents' && <CheckCircle className="w-4 h-4 text-slate-600 dark:text-slate-400" />}
+                        </div>
                         <div>
                           <p className="text-sm sm:text-base font-medium text-slate-800 dark:text-white capitalize">
                             {key}
@@ -241,12 +236,12 @@ const Billing = () => {
             </h3>
             <div className="flex items-center gap-2 sm:gap-3">
               <span className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 hidden sm:inline">Billing cycle:</span>
-              <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
+              <div className="flex common-bg-icons rounded-lg p-1">
                 <button
                   onClick={() => setBillingCycle('monthly')}
                   className={`px-2 sm:px-3 py-1 rounded-md text-xs sm:text-sm transition-colors ${
                     billingCycle === 'monthly'
-                      ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm'
+                      ? 'common-button-bg2'
                       : 'text-slate-600 dark:text-slate-400'
                   }`}
                 >
@@ -256,7 +251,7 @@ const Billing = () => {
                   onClick={() => setBillingCycle('yearly')}
                   className={`px-2 sm:px-3 py-1 rounded-md text-xs sm:text-sm transition-colors ${
                     billingCycle === 'yearly'
-                      ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm'
+                      ? 'common-button-bg2'
                       : 'text-slate-600 dark:text-slate-400'
                   }`}
                 >
@@ -269,7 +264,7 @@ const Billing = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {plans.map((plan, index) => (
               <div
                 key={index}
@@ -280,8 +275,8 @@ const Billing = () => {
                 }`}
               >
                 {plan.popular && (
-                  <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                    <span className="px-2 sm:px-3 py-1 bg-blue-500 text-white rounded-full text-xs sm:text-sm font-medium">
+                  <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10">
+                    <span className="px-3 py-1 bg-blue-500 text-white rounded-full text-xs font-medium whitespace-nowrap">
                       Most Popular
                     </span>
                   </div>
@@ -309,12 +304,12 @@ const Billing = () => {
                 </ul>
 
                 <button
-                  className={`w-full py-2 sm:py-3 rounded-xl text-sm sm:text-base font-medium transition-colors ${
+                  className={`w-full ${
                     plan.name === currentPlan.name
-                      ? 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 cursor-not-allowed'
+                      ? 'common-bg-icons cursor-not-allowed opacity-50'
                       : plan.popular
-                      ? 'bg-blue-500 text-white hover:bg-blue-600'
-                      : 'bg-slate-800 dark:bg-white text-white dark:text-slate-800 hover:bg-slate-700 dark:hover:bg-slate-100'
+                      ? 'common-button-bg'
+                      : 'common-button-bg2'
                   }`}
                   disabled={plan.name === currentPlan.name}
                 >
@@ -326,18 +321,17 @@ const Billing = () => {
         </div>
       </GlassCard>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Payment Methods */}
         <GlassCard>
           <div className="p-4 sm:p-6">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
               <h3 className="text-lg font-semibold text-slate-800 dark:text-white">
                 Payment Methods
               </h3>
-              <button className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-xs sm:text-sm">
-                <Plus className="w-3 sm:w-4 h-3 sm:h-4" />
-                <span className="hidden sm:inline">Add Card</span>
-                <span className="sm:hidden">Add</span>
+              <button className="common-button-bg flex items-center gap-2 justify-center sm:justify-start">
+                <Plus className="w-4 h-4" />
+                <span>Add Card</span>
               </button>
             </div>
 
@@ -345,33 +339,35 @@ const Billing = () => {
               {paymentMethods.map((method) => (
                 <div
                   key={method.id}
-                  className="flex items-center justify-between p-3 sm:p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl"
+                  className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 sm:p-4 common-bg-icons rounded-xl"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 sm:w-10 h-8 sm:h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                      <CreditCard className="w-4 sm:w-5 h-4 sm:h-5 text-white" />
+                  <div className="flex items-center gap-3 flex-1">
+                    <div className="w-10 h-10 common-bg-icons rounded-lg flex items-center justify-center flex-shrink-0">
+                      <CreditCard className="w-5 h-5 text-slate-600 dark:text-slate-400" />
                     </div>
-                    <div>
-                      <p className="text-sm sm:text-base font-medium text-slate-800 dark:text-white">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm sm:text-base font-medium text-slate-800 dark:text-white truncate">
                         {method.brand} •••• {method.last4}
                       </p>
-                      <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-                        Expires {method.expiry}
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+                          Expires {method.expiry}
+                        </p>
                         {method.isDefault && (
-                          <span className="ml-2 px-2 py-0.5 bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-full text-xs">
+                          <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-full text-xs self-start">
                             Default
                           </span>
                         )}
-                      </p>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex gap-2">
-                    <button className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
-                      <Edit className="w-3 sm:w-4 h-3 sm:h-4" />
+                  <div className="flex gap-2 justify-end sm:justify-start">
+                    <button className="common-bg-icons p-2 w-9 h-9 flex items-center justify-center rounded-lg touch-manipulation">
+                      <Edit className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                     </button>
-                    <button className="p-2 text-slate-400 hover:text-red-500 transition-colors">
-                      <Trash2 className="w-3 sm:w-4 h-3 sm:h-4" />
+                    <button className="common-bg-icons p-2 w-9 h-9 flex items-center justify-center rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors touch-manipulation">
+                      <Trash2 className="w-4 h-4 text-slate-600 dark:text-slate-400 hover:text-red-500" />
                     </button>
                   </div>
                 </div>
@@ -382,12 +378,12 @@ const Billing = () => {
 
         {/* Recent Invoices */}
         <GlassCard>
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-4">
+          <div className="p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
               <h3 className="text-lg font-semibold text-slate-800 dark:text-white">
                 Recent Invoices
               </h3>
-              <button className="text-blue-600 dark:text-blue-400 hover:underline text-sm">
+              <button className="common-button-bg2 text-sm w-full sm:w-auto">
                 View All
               </button>
             </div>
@@ -396,28 +392,28 @@ const Billing = () => {
               {invoices.map((invoice) => (
                 <div
                   key={invoice.id}
-                  className="flex items-center justify-between p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl"
+                  className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 common-bg-icons rounded-xl"
                 >
-                  <div>
-                    <p className="font-medium text-slate-800 dark:text-white">
+                  <div className="flex-1">
+                    <p className="font-medium text-slate-800 dark:text-white text-sm sm:text-base">
                       {invoice.id}
                     </p>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
                       {invoice.period} • {invoice.date}
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <p className="font-medium text-slate-800 dark:text-white">
+                  <div className="flex items-center justify-between sm:justify-end gap-3">
+                    <div className="flex flex-col sm:text-right">
+                      <p className="font-medium text-slate-800 dark:text-white text-sm sm:text-base">
                         ${invoice.amount}
                       </p>
-                      <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-full text-xs">
+                      <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-full text-xs self-start sm:self-end">
                         {invoice.status}
                       </span>
                     </div>
-                    <button className="p-2 text-slate-400 hover:text-blue-500 transition-colors">
-                      <Download className="w-4 h-4" />
+                    <button className="common-bg-icons p-2 w-9 h-9 flex items-center justify-center rounded-lg touch-manipulation flex-shrink-0">
+                      <Download className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                     </button>
                   </div>
                 </div>
@@ -434,23 +430,27 @@ const Billing = () => {
             Account Status
           </h3>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-xl">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="p-4 common-bg-icons rounded-xl">
               <div className="flex items-center gap-3">
-                <CheckCircle className="w-6 h-6 text-green-500" />
-                <div>
-                  <p className="font-medium text-green-800 dark:text-green-300">Active</p>
-                  <p className="text-sm text-green-600 dark:text-green-400">
+                <div className="w-10 h-10 common-bg-icons rounded-lg flex items-center justify-center flex-shrink-0">
+                  <CheckCircle className="w-5 h-5 text-green-500" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-slate-800 dark:text-white">Active</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
                     All features available
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="p-4 bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-slate-700 rounded-xl">
+            <div className="p-4 common-bg-icons rounded-xl">
               <div className="flex items-center gap-3">
-                <Clock className="w-6 h-6 text-slate-500" />
-                <div>
+                <div className="w-10 h-10 common-bg-icons rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Clock className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                </div>
+                <div className="min-w-0 flex-1">
                   <p className="font-medium text-slate-800 dark:text-white">Grace Period</p>
                   <p className="text-sm text-slate-600 dark:text-slate-400">
                     7 days inbound-only access
@@ -459,12 +459,14 @@ const Billing = () => {
               </div>
             </div>
 
-            <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-xl">
+            <div className="p-4 common-bg-icons rounded-xl sm:col-span-2 lg:col-span-1">
               <div className="flex items-center gap-3">
-                <AlertTriangle className="w-6 h-6 text-red-500" />
-                <div>
-                  <p className="font-medium text-red-800 dark:text-red-300">Suspended</p>
-                  <p className="text-sm text-red-600 dark:text-red-400">
+                <div className="w-10 h-10 common-bg-icons rounded-lg flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-red-500" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-slate-800 dark:text-white">Suspended</p>
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
                     Account disabled
                   </p>
                 </div>
