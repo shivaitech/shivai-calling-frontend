@@ -700,276 +700,286 @@ const AgentManagement = () => {
 
     return (
       <div className="space-y-4 sm:space-y-6 w-full">
-        {/* Mobile-First Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
-            <button
-              onClick={() => navigate("/agents")}
-              className="common-button-bg2 p-2 flex-shrink-0"
-            >
-              <ArrowLeft className="w-4 sm:w-5 h-4 sm:h-5 text-slate-600 dark:text-slate-300" />
-            </button>
-            <div className="min-w-0 flex-1">
-              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-800 dark:text-white truncate">
-                {currentAgent.name}
-              </h1>
-              <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400">
-                Agent Details & Performance
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3 flex-shrink-0">
-            <span className="common-bg-icons px-2 sm:px-3 py-1 sm:py-2 rounded-full text-xs sm:text-sm font-medium text-center whitespace-nowrap order-1">
-              {currentAgent.status}
-            </span>
-
-            <button
-              onClick={() => navigate(`/agents/${currentAgent.id}/edit`)}
-              className="common-button-bg2 flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 sm:py-2 min-h-[32px] sm:min-h-[36px] order-2 flex-shrink-0"
-            >
-              <Edit className="w-3 sm:w-4 h-3 sm:h-4" />
-              <span className="text-xs sm:text-sm">Edit</span>
-            </button>
-
-            {currentAgent.status === "Published" ? (
+        {/* Enhanced Mobile-First Header */}
+        <GlassCard>
+          <div className="p-4 sm:p-6">
+            {/* Top row with back button and actions */}
+            <div className="flex items-center justify-between mb-4 sm:mb-6">
               <button
-                onClick={() => handlePause(currentAgent.id)}
-                className="common-button-bg2 flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 sm:py-2 min-h-[32px] sm:min-h-[36px] order-3 flex-shrink-0"
+                onClick={() => navigate("/agents")}
+                className="common-button-bg2 p-2 sm:p-2.5 rounded-xl flex-shrink-0 touch-manipulation"
               >
-                <Pause className="w-3 sm:w-4 h-3 sm:h-4" />
-                <span className="text-xs sm:text-sm">Pause</span>
+                <ArrowLeft className="w-4 sm:w-5 h-4 sm:h-5 text-slate-600 dark:text-slate-300" />
               </button>
-            ) : (
-              <button
-                onClick={() => handlePublish(currentAgent.id)}
-                className="common-button-bg flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 sm:py-2 min-h-[32px] sm:min-h-[36px] order-3 flex-shrink-0"
-              >
-                <Play className="w-3 sm:w-4 h-3 sm:h-4" />
-                <span className="text-xs sm:text-sm">Publish</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Agent Overview Cards - Mobile Slider, Desktop Grid */}
-        <div className="overview-cards-container">
-          {/* Mobile Slider (md and below) */}
-          <div className="block md:hidden">
-            <Slider {...overviewSliderSettings} className="mobile-stats-slider">
-              <div className="px-2">
-                <GlassCard>
-                  <div className="p-4">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-10 h-10 common-bg-icons rounded-xl flex items-center justify-center flex-shrink-0">
-                        <MessageSquare className="w-5 h-5 text-slate-600 dark:text-slate-400" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <h3 className="text-sm font-semibold text-slate-800 dark:text-white">
-                          Conversations
-                        </h3>
-                        <p className="text-xl font-bold text-slate-800 dark:text-white">
-                          1,247
-                        </p>
-                      </div>
-                    </div>
-                    <p className="text-xs text-slate-600 dark:text-slate-400">
-                      +12% from last week
-                    </p>
-                  </div>
-                </GlassCard>
-              </div>
-
-              <div className="px-2">
-                <GlassCard>
-                  <div className="p-4">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-10 h-10 common-bg-icons rounded-xl flex items-center justify-center flex-shrink-0">
-                        <CheckCircle className="w-5 h-5 text-slate-600 dark:text-slate-400" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <h3 className="text-sm font-semibold text-slate-800 dark:text-white whitespace-nowrap overflow-hidden text-ellipsis">
-                          Success Rate
-                        </h3>
-                        <p className="text-xl font-bold text-slate-800 dark:text-white">
-                          94.2%
-                        </p>
-                      </div>
-                    </div>
-                    <p className="text-xs text-slate-600 dark:text-slate-400">
-                      +2.1% improvement
-                    </p>
-                  </div>
-                </GlassCard>
-              </div>
-
-              <div className="px-2">
-                <GlassCard>
-                  <div className="p-4">
-                    <div className="flex items-center gap-3 ">
-                      <div className="w-10 h-10 common-bg-icons rounded-xl flex items-center justify-center flex-shrink-0">
-                        <Clock className="w-5 h-5 text-slate-600 dark:text-slate-400" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <h3 className="text-sm font-semibold text-slate-800 dark:text-white">
-                          Avg Response
-                        </h3>
-                        <p className="text-xl font-bold text-slate-800 dark:text-white">
-                          1.2s
-                        </p>
-                      </div>
-                    </div>
-                    <p className="text-xs text-slate-600 dark:text-slate-400">
-                      -0.3s faster
-                    </p>
-                  </div>
-                </GlassCard>
-              </div>
-            </Slider>
-          </div>
-
-          {/* Desktop Grid (md and up) */}
-          <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6">
-            <GlassCard>
-              <div className="p-6">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-12 h-12 common-bg-icons rounded-xl flex items-center justify-center flex-shrink-0">
-                    <MessageSquare className="w-6 h-6 text-slate-600 dark:text-slate-400" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-base font-semibold text-slate-800 dark:text-white">
-                      Conversations
-                    </h3>
-                    <p className="text-2xl font-bold text-slate-800 dark:text-white">
-                      1,247
-                    </p>
-                  </div>
-                </div>
-                <p className="text-sm text-slate-600 dark:text-slate-400">
-                  +12% from last week
-                </p>
-              </div>
-            </GlassCard>
-
-            <GlassCard>
-              <div className="p-6">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-12 h-12 common-bg-icons rounded-xl flex items-center justify-center flex-shrink-0">
-                    <CheckCircle className="w-6 h-6 text-slate-600 dark:text-slate-400" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-base font-semibold text-slate-800 dark:text-white">
-                      Success Rate
-                    </h3>
-                    <p className="text-2xl font-bold text-slate-800 dark:text-white">
-                      94.2%
-                    </p>
-                  </div>
-                </div>
-                <p className="text-sm text-slate-600 dark:text-slate-400">
-                  +2.1% improvement
-                </p>
-              </div>
-            </GlassCard>
-
-            <GlassCard>
-              <div className="p-6 md:col-span-2 lg:col-span-1">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="w-12 h-12 common-bg-icons rounded-xl flex items-center justify-center flex-shrink-0">
-                    <Clock className="w-6 h-6 text-slate-600 dark:text-slate-400" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-base font-semibold text-slate-800 dark:text-white">
-                      Avg Response
-                    </h3>
-                    <p className="text-2xl font-bold text-slate-800 dark:text-white">
-                      1.2s
-                    </p>
-                  </div>
-                </div>
-                <p className="text-sm text-slate-600 dark:text-slate-400">
-                  -0.3s faster
-                </p>
-              </div>
-            </GlassCard>
-          </div>
-        </div>
-
-        {/* Agent Configuration - Mobile Responsive */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-          <GlassCard>
-            <div className="p-4 sm:p-6">
-              <h3 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white mb-3 sm:mb-4">
-                Agent Configuration
-              </h3>
-              <div className="space-y-3 sm:space-y-4">
-                <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2">
-                  <span className="text-sm text-slate-600 dark:text-slate-400">
-                    Language:
-                  </span>
-                  <span className="text-sm font-medium text-slate-800 dark:text-white">
-                    {currentAgent.language}
-                  </span>
-                </div>
-                <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2">
-                  <span className="text-sm text-slate-600 dark:text-slate-400">
-                    Voice:
-                  </span>
-                  <span className="text-sm font-medium text-slate-800 dark:text-white">
-                    {currentAgent.voice}
-                  </span>
-                </div>
-                <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2">
-                  <span className="text-sm text-slate-600 dark:text-slate-400">
-                    Persona:
-                  </span>
-                  <span className="text-sm font-medium text-slate-800 dark:text-white">
-                    {currentAgent.persona}
-                  </span>
-                </div>
-                <div className="flex flex-col sm:flex-row sm:justify-between gap-1 sm:gap-2">
-                  <span className="text-sm text-slate-600 dark:text-slate-400">
-                    Created:
-                  </span>
-                  <span className="text-sm font-medium text-slate-800 dark:text-white">
-                    {currentAgent.createdAt.toLocaleDateString()}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </GlassCard>
-
-          <GlassCard>
-            <div className="p-4 sm:p-6">
-              <h3 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white mb-3 sm:mb-4">
-                Quick Actions
-              </h3>
-              {/* Mobile: Horizontal layout, Desktop: Vertical layout */}
-              <div className="flex flex-row gap-2 sm:flex-col sm:space-y-3 sm:gap-0">
+              
+              <div className="flex items-center gap-2 sm:gap-3">
                 <button
-                  onClick={() => navigate(`/agents/${currentAgent.id}/train`)}
-                  className="common-bg-icons flex-1 sm:w-full flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1 sm:gap-3 p-2 sm:p-3 rounded-lg hover:shadow-sm transition-all touch-manipulation min-h-[60px] sm:min-h-auto"
+                  onClick={() => navigate(`/agents/${currentAgent.id}/edit`)}
+                  className="common-button-bg2 flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl touch-manipulation"
                 >
-                  <Zap className="w-4 sm:w-5 h-4 sm:h-5 text-slate-600 dark:text-slate-400 flex-shrink-0" />
-                  <span className="text-xs sm:text-base text-slate-800 dark:text-white text-center sm:text-left">
-                    Train
-                  </span>
+                  <Edit className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+                  <span className="text-xs sm:text-sm font-medium">Edit</span>
                 </button>
-                <button className="common-bg-icons flex-1 sm:w-full flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1 sm:gap-3 p-2 sm:p-3 rounded-lg hover:shadow-sm transition-all touch-manipulation min-h-[60px] sm:min-h-auto">
-                  <Copy className="w-4 sm:w-5 h-4 sm:h-5 text-slate-600 dark:text-slate-400 flex-shrink-0" />
-                  <span className="text-xs sm:text-base text-slate-800 dark:text-white text-center sm:text-left">
-                    Clone
+
+                {currentAgent.status === "Published" ? (
+                  <button
+                    onClick={() => handlePause(currentAgent.id)}
+                    className="common-button-bg2 flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl touch-manipulation"
+                  >
+                    <Pause className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+                    <span className="text-xs sm:text-sm font-medium">Pause</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handlePublish(currentAgent.id)}
+                    className="common-button-bg flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl touch-manipulation"
+                  >
+                    <Play className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+                    <span className="text-xs sm:text-sm font-medium">Publish</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Agent info section */}
+            <div className="flex items-start gap-4 sm:gap-6">
+              {/* Agent avatar/icon */}
+              <div className="w-16 h-16 sm:w-20 sm:h-20 common-bg-icons flex items-center justify-center flex-shrink-0">
+                <Bot className="w-8 h-8 sm:w-10 sm:h-10 text-black dark:text-white" />
+              </div>
+              
+              {/* Agent details */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-800 dark:text-white leading-tight">
+                    {currentAgent.name}
+                  </h1>
+                  <span className={`px-3 py-1 rounded-full text-xs sm:text-sm font-medium flex-shrink-0 ${
+                    currentAgent.status === 'Published' 
+                      ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400'
+                      : currentAgent.status === 'Training' 
+                      ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400'
+                      : 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
+                  }`}>
+                    {currentAgent.status}
                   </span>
-                </button>
-                <button className="common-bg-icons flex-1 sm:w-full flex flex-col sm:flex-row items-center justify-center sm:justify-start gap-1 sm:gap-3 p-2 sm:p-3 rounded-lg hover:shadow-sm transition-all touch-manipulation min-h-[60px] sm:min-h-auto">
-                  <Download className="w-4 sm:w-5 h-4 sm:h-5 text-slate-600 dark:text-slate-400 flex-shrink-0" />
-                  <span className="text-xs sm:text-base text-slate-800 dark:text-white text-center sm:text-left">
-                    Export
-                  </span>
-                </button>
+                </div>
+                
+                {/* Agent meta info */}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600 dark:text-slate-400 mb-3">
+                  <div className="flex items-center gap-1.5">
+                    <Globe className="w-4 h-4" />
+                    <span>{currentAgent.language}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Users className="w-4 h-4" />
+                    <span>{currentAgent.persona}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="w-4 h-4" />
+                    <span>Created {currentAgent.createdAt.toLocaleDateString()}</span>
+                  </div>
+                </div>
+
+                {/* Agent description/voice */}
+                <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400">
+                  <span className="font-medium">Voice:</span> {currentAgent.voice} • 
+                  <span className="ml-1">Professional AI assistant specialized in customer interactions</span>
+                </p>
+              </div>
+            </div>
+          </div>
+        </GlassCard>
+
+        {/* Performance Overview - Enhanced Design */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <GlassCard className="hover:shadow-lg transition-all duration-300">
+            <div className="p-4 sm:p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-50 dark:bg-blue-900/20 rounded-xl flex items-center justify-center">
+                  <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div className="text-right">
+                  <p className="text-lg sm:text-2xl font-bold text-slate-800 dark:text-white">1,247</p>
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">Conversations</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-xs sm:text-sm font-medium text-green-600 dark:text-green-400">+12%</span>
+                <span className="text-xs text-slate-500 dark:text-slate-500">this week</span>
               </div>
             </div>
           </GlassCard>
+
+          <GlassCard className="hover:shadow-lg transition-all duration-300">
+            <div className="p-4 sm:p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-50 dark:bg-green-900/20 rounded-xl flex items-center justify-center">
+                  <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-600 dark:text-green-400" />
+                </div>
+                <div className="text-right">
+                  <p className="text-lg sm:text-2xl font-bold text-slate-800 dark:text-white">94.2%</p>
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">Success Rate</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-xs sm:text-sm font-medium text-green-600 dark:text-green-400">+2.1%</span>
+                <span className="text-xs text-slate-500 dark:text-slate-500">improved</span>
+              </div>
+            </div>
+          </GlassCard>
+
+          <GlassCard className="hover:shadow-lg transition-all duration-300">
+            <div className="p-4 sm:p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-50 dark:bg-purple-900/20 rounded-xl flex items-center justify-center">
+                  <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600 dark:text-purple-400" />
+                </div>
+                <div className="text-right">
+                  <p className="text-lg sm:text-2xl font-bold text-slate-800 dark:text-white">1.2s</p>
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">Avg Response</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-xs sm:text-sm font-medium text-green-600 dark:text-green-400">-0.3s</span>
+                <span className="text-xs text-slate-500 dark:text-slate-500">faster</span>
+              </div>
+            </div>
+          </GlassCard>
+
+          <GlassCard className="hover:shadow-lg transition-all duration-300">
+            <div className="p-4 sm:p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-orange-50 dark:bg-orange-900/20 rounded-xl flex items-center justify-center">
+                  <Users className="w-5 h-5 sm:w-6 sm:h-6 text-orange-600 dark:text-orange-400" />
+                </div>
+                <div className="text-right">
+                  <p className="text-lg sm:text-2xl font-bold text-slate-800 dark:text-white">328</p>
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">Active Users</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-xs sm:text-sm font-medium text-green-600 dark:text-green-400">+8%</span>
+                <span className="text-xs text-slate-500 dark:text-slate-500">today</span>
+              </div>
+            </div>
+          </GlassCard>
+        </div>
+
+        {/* Enhanced Content Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+          {/* Agent Configuration - Improved Layout */}
+          <div className="lg:col-span-2">
+            <GlassCard>
+              <div className="p-4 sm:p-6">
+                <div className="flex items-center gap-3 mb-4 sm:mb-6">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center justify-center">
+                    <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-slate-600 dark:text-slate-400" />
+                  </div>
+                  <h3 className="text-lg sm:text-xl font-semibold text-slate-800 dark:text-white">
+                    Configuration
+                  </h3>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                  <div className="space-y-4">
+                    <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+                      <div className="flex items-center gap-3 mb-2">
+                        <Globe className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                        <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Language</span>
+                      </div>
+                      <p className="text-base font-semibold text-slate-800 dark:text-white">{currentAgent.language}</p>
+                    </div>
+                    
+                    <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+                      <div className="flex items-center gap-3 mb-2">
+                        <MessageSquare className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                        <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Voice</span>
+                      </div>
+                      <p className="text-base font-semibold text-slate-800 dark:text-white">{currentAgent.voice}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+                      <div className="flex items-center gap-3 mb-2">
+                        <Users className="w-4 h-4 text-green-600 dark:text-green-400" />
+                        <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Persona</span>
+                      </div>
+                      <p className="text-base font-semibold text-slate-800 dark:text-white">{currentAgent.persona}</p>
+                    </div>
+                    
+                    <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+                      <div className="flex items-center gap-3 mb-2">
+                        <Clock className="w-4 h-4 text-orange-600 dark:text-orange-400" />
+                        <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Created</span>
+                      </div>
+                      <p className="text-base font-semibold text-slate-800 dark:text-white">
+                        {currentAgent.createdAt.toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </GlassCard>
+          </div>
+
+          {/* Quick Actions - Enhanced Design */}
+          <div className="space-y-4 sm:space-y-6">
+            <GlassCard>
+              <div className="p-4 sm:p-6">
+                <div className="flex items-center gap-3 mb-4 sm:mb-6">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center justify-center">
+                    <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-slate-600 dark:text-slate-400" />
+                  </div>
+                  <h3 className="text-lg sm:text-xl font-semibold text-slate-800 dark:text-white">
+                    Quick Actions
+                  </h3>
+                </div>
+                
+                <div className="space-y-3">
+                  <button
+                    onClick={() => navigate(`/agents/${currentAgent.id}/train`)}
+                    className="w-full common-bg-icons hover:shadow-md transition-all duration-200 p-4 rounded-xl touch-manipulation group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <Lightbulb className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <div className="text-left flex-1">
+                        <p className="font-medium text-slate-800 dark:text-white">Train Agent</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400">Improve responses</p>
+                      </div>
+                    </div>
+                  </button>
+                  
+                  <button className="w-full common-bg-icons hover:shadow-md transition-all duration-200 p-4 rounded-xl touch-manipulation group">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-green-50 dark:bg-green-900/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <Copy className="w-5 h-5 text-green-600 dark:text-green-400" />
+                      </div>
+                      <div className="text-left flex-1">
+                        <p className="font-medium text-slate-800 dark:text-white">Clone Agent</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400">Create duplicate</p>
+                      </div>
+                    </div>
+                  </button>
+                  
+                  <button className="w-full common-bg-icons hover:shadow-md transition-all duration-200 p-4 rounded-xl touch-manipulation group">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-purple-50 dark:bg-purple-900/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <Download className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                      </div>
+                      <div className="text-left flex-1">
+                        <p className="font-medium text-slate-800 dark:text-white">Export Data</p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400">Download config</p>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </GlassCard>
+          </div>
         </div>
 
         {/* Integration Code Section - Only show when published */}
@@ -1676,23 +1686,29 @@ Content-Type: application/json
                 </div>
 
                 <div className="common-bg-icons p-4 rounded-xl">
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-4">
                     Temperature (Creativity):{" "}
-                    <span className="font-semibold text-slate-800 dark:text-slate-200">
+                    <span className="font-semibold text-blue-600 dark:text-blue-400">
                       {formData.temperature}%
                     </span>
                   </label>
 
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs text-slate-600 dark:text-slate-400 min-w-[70px] text-left">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-4">
+                      <span className="text-xs text-slate-600 dark:text-slate-400 min-w-[70px] text-left font-medium">
                         Conservative
                       </span>
-                      <div className="flex-1 relative h-3 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                        <div
-                          className="absolute top-0 left-0 h-full bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full transition-all duration-200"
-                          style={{ width: `${formData.temperature}%` }}
-                        ></div>
+                      <div className="flex-1 relative">
+                        {/* Track */}
+                        <div className="h-2 bg-slate-200 dark:bg-slate-700 rounded-full">
+                          {/* Active track */}
+                          <div
+                            className="h-full bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full transition-all duration-300 ease-out"
+                            style={{ width: `${formData.temperature}%` }}
+                          ></div>
+                        </div>
+                        
+                        {/* Range input */}
                         <input
                           type="range"
                           min="0"
@@ -1704,29 +1720,40 @@ Content-Type: application/json
                               temperature: parseInt(e.target.value),
                             })
                           }
-                          className="absolute top-0 left-0 w-full h-full opacity-0 cursor-pointer z-10 touch-manipulation"
+                          className="absolute top-0 left-0 w-full h-2 opacity-0 cursor-pointer z-20 touch-manipulation"
+                          style={{
+                            background: 'transparent',
+                            outline: 'none'
+                          }}
                         />
+                        
+                        {/* Thumb/Circle */}
                         <div
-                          className="absolute top-1/2 -translate-y-1/2 w-5 h-5 bg-white dark:bg-slate-200 rounded-full shadow-lg border-2 border-blue-500 transition-all duration-200 pointer-events-none"
+                          className="absolute top-1/2 -translate-y-1/2 w-5 h-5 bg-white dark:bg-slate-100 rounded-full shadow-lg border-2 border-blue-500 dark:border-blue-400 transition-all duration-300 ease-out pointer-events-none z-10 hover:scale-110"
                           style={{
                             left: `calc(${formData.temperature}% - 10px)`,
+                            transform: 'translateY(-50%)',
+                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.1)'
                           }}
-                        ></div>
+                        >
+                          {/* Inner circle for better visibility */}
+                          <div className="absolute inset-1 bg-blue-500 dark:bg-blue-400 rounded-full"></div>
+                        </div>
                       </div>
-                      <span className="text-xs text-slate-600 dark:text-slate-400 min-w-[50px] text-right">
+                      <span className="text-xs text-slate-600 dark:text-slate-400 min-w-[50px] text-right font-medium">
                         Creative
                       </span>
                     </div>
 
-                    <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 px-1">
-                      <span>0%</span>
-                      <span>25%</span>
-                      <span>50%</span>
-                      <span>75%</span>
-                      <span>100%</span>
+                    <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 px-2">
+                      <span className="font-medium">0%</span>
+                      <span className="font-medium">25%</span>
+                      <span className="font-medium">50%</span>
+                      <span className="font-medium">75%</span>
+                      <span className="font-medium">100%</span>
                     </div>
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 leading-relaxed">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-3 leading-relaxed">
                     Lower values for more consistent responses, higher for more
                     creative answers
                   </p>

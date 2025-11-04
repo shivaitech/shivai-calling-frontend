@@ -295,7 +295,7 @@ const Training = () => {
                       {...statsSliderSettings}
                       className="training-stats-slider"
                     >
-                      {knowledgeStats.map((stat, index) => (
+                      {knowledgeStats?.map((stat, index) => (
                         <div key={index} className="px-1.5">
                           <div className="common-bg-icons p-3 rounded-xl h-full">
                             <div className="flex items-center gap-3">
@@ -376,34 +376,24 @@ const Training = () => {
 
       {selectedAgent && selectedAgentData && (
         <div className=" space-y-4 sm:space-y-6">
-          {/* Enhanced Mobile-First Training Tabs */}
+          {/* Training Tabs - Using Settings.tsx Pattern */}
           <GlassCard>
             <div className="p-4 sm:p-6">
-              <div className="relative">
-                {/* Tab Navigation */}
-                <div className="common-bg-icons rounded-xl p-1.5 overflow-x-auto scrollbar-hide">
-                  <div className="flex space-x-1">
-                    {trainingTabs.map((tab) => (
-                      <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
-                        className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-3 md:px-4 py-2.5 sm:py-3 rounded-lg transition-all duration-200 whitespace-nowrap text-xs sm:text-sm md:text-base font-medium min-w-fit touch-manipulation ${
-                          activeTab === tab.id
-                            ? "common-button-bg text-white shadow-lg scale-[1.02]"
-                            : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 common-button-bg2"
-                        }`}
-                      >
-                        <tab.icon className="w-4 h-4 flex-shrink-0" />
-                        <span className="hidden sm:inline text-xs sm:text-sm md:text-base">
-                          {tab.label}
-                        </span>
-                        <span className="sm:hidden text-xs">
-                          {tab.label.split(" ")[0]}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
+              <div className="flex space-x-1 common-bg-icons rounded-xl p-1 overflow-x-auto">
+                {trainingTabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 rounded-lg transition-all duration-200 whitespace-nowrap ${
+                      activeTab === tab.id
+                        ? 'common-button-bg2'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    <tab.icon className="w-3 sm:w-4 h-3 sm:h-4" />
+                    <span className="text-xs sm:text-sm">{tab.label}</span>
+                  </button>
+                ))}
               </div>
             </div>
           </GlassCard>

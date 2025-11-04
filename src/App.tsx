@@ -91,7 +91,7 @@ function AppContent() {
                 onClose={() => setSidebarOpen(false)}
                 setCollapsed={setCollapsed}
               />
-              <div className={`flex-1 min-w-0 relative ${collapsed ? 'ml-0 lg:ml-14 pl-0 lg:pl-2' : 'ml-0 lg:ml-64 pl-0 lg:pl-8'}`}>
+              <div className={`flex-1 min-w-0 relative ${collapsed ? 'ml-0 lg:ml-14 pl-0 lg:pl-2' : 'ml-0 lg:ml-64 pl-2 lg:pl-8'}`}>
                 <TopBar onMenuClick={() => setSidebarOpen(true)} />
                 <main className="px-4 sm:px-6 lg:px-6 py-2 lg:py-6 pt-16 lg:pt-[105px] pl-2 min-w-0 max-w-full overflow-hidden">
                   <Routes>
