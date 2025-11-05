@@ -981,7 +981,6 @@ const Onboarding: React.FC = () => {
                 </div>
               </div>
 
-              {/* Region of Business Section */}
               <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 rounded-xl p-6">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
