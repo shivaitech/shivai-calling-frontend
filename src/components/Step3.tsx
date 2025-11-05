@@ -88,6 +88,12 @@ interface AgentTemplate {
 
 // Form data interface
 export interface OnboardingFormData {
+  // Personal information
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phone?: string;
+  // Company information
   companyName: string;
   industry: string[];
   businessProcesses: string;

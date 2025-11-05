@@ -15,10 +15,14 @@ import {
   Bot,
   Globe,
   Phone,
+  User,
+  Mail,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import logo from "../resources/images/ShivaiLogo.svg";
 import Step3, { OnboardingFormData } from "../components/Step3";
+import CountrySelector from "../components/CountrySelector";
+import { Country, defaultCountries } from "../types/country";
 import { authAPI } from "../services/authAPI";
 
 const industryOptions = [
@@ -111,6 +115,8 @@ const Onboarding: React.FC = () => {
 
   const [showIndustryDropdown, setShowIndustryDropdown] = useState(false);
   const [industrySearch, setIndustrySearch] = useState("");
+  const [selectedCountry, setSelectedCountry] = useState<Country>(defaultCountries[0]);
+  const [selectedCompanyCountry, setSelectedCompanyCountry] = useState<Country>(defaultCountries[0]);
   const industryInputRef = useRef<HTMLInputElement>(null);
 
   const {
@@ -122,6 +128,10 @@ const Onboarding: React.FC = () => {
   } = useForm<OnboardingFormData>({
     mode: "onChange",
     defaultValues: {
+      firstName: "",
+      lastName: "",
+      email: "",
+      phone: "",
       companyName: "",
       industry: [],
       businessProcesses: "",
@@ -225,7 +235,7 @@ const Onboarding: React.FC = () => {
   const validateStep = (step: number): boolean => {
     switch (step) {
       case 1:
-        return !!watch("companyName");
+        return !!(watch("firstName") && watch("lastName") && watch("email") && watch("companyName"));
       case 2:
         return !!watch("plan");
       case 3:
@@ -280,11 +290,11 @@ const Onboarding: React.FC = () => {
             country: data.businessCountries?.[0] || "",
           },
           time_zone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          primary_phone: data.companyPhone || "",
+          primary_phone: data.companyPhone ? `${selectedCompanyCountry.dialCode} ${data.companyPhone}` : (data.phone ? `${selectedCountry.dialCode} ${data.phone}` : ""),
           primary_contact: {
-            name: data.billingContactName || "",
-            email: data.companyEmail || data.billingContactEmail || "",
-            phone: data.companyPhone || data.billingContactPhone || "",
+            name: data.firstName && data.lastName ? `${data.firstName} ${data.lastName}` : data.billingContactName || "",
+            email: data.email || data.companyEmail || data.billingContactEmail || "",
+            phone: data.phone ? `${selectedCountry.dialCode} ${data.phone}` : (data.companyPhone ? `${selectedCompanyCountry.dialCode} ${data.companyPhone}` : data.billingContactPhone || ""),
             title: "Primary Contact",
           },
         },
@@ -323,9 +333,9 @@ const Onboarding: React.FC = () => {
             notify_contacts: [data.companyEmail || data.billingContactEmail || ""],
           }],
           fallback_contacts: [{
-            name: data.billingContactName || "Primary Contact",
-            email: data.companyEmail || data.billingContactEmail || "",
-            phone: data.companyPhone || data.billingContactPhone || "",
+            name: data.firstName && data.lastName ? `${data.firstName} ${data.lastName}` : data.billingContactName || "Primary Contact",
+            email: data.email || data.companyEmail || data.billingContactEmail || "",
+            phone: data.phone ? `${selectedCountry.dialCode} ${data.phone}` : (data.companyPhone ? `${selectedCompanyCountry.dialCode} ${data.companyPhone}` : data.billingContactPhone || ""),
             role: "Primary Contact",
             availability: "Business hours",
           }],
@@ -361,9 +371,9 @@ const Onboarding: React.FC = () => {
           },
           timeline_preference: "standard",
           technical_contact: {
-            name: data.billingContactName || "Primary Contact",
-            email: data.companyEmail || data.billingContactEmail || "",
-            phone: data.companyPhone || data.billingContactPhone || "",
+            name: data.firstName && data.lastName ? `${data.firstName} ${data.lastName}` : data.billingContactName || "Primary Contact",
+            email: data.email || data.companyEmail || data.billingContactEmail || "",
+            phone: data.phone ? `${selectedCountry.dialCode} ${data.phone}` : (data.companyPhone ? `${selectedCompanyCountry.dialCode} ${data.companyPhone}` : data.billingContactPhone || ""),
             role: "Technical Contact",
             availability: "Business hours",
           },
@@ -376,9 +386,9 @@ const Onboarding: React.FC = () => {
           gdpr_compliance: true,
         },
         billing_contact: {
-          name: data.billingContactName || data.billingCompanyName || "",
-          email: data.billingContactEmail || data.companyEmail || "",
-          phone: data.billingContactPhone || data.companyPhone || "",
+          name: data.billingContactName || (data.firstName && data.lastName ? `${data.firstName} ${data.lastName}` : "") || data.billingCompanyName || "",
+          email: data.billingContactEmail || data.email || data.companyEmail || "",
+          phone: data.billingContactPhone || (data.phone ? `${selectedCountry.dialCode} ${data.phone}` : "") || (data.companyPhone ? `${selectedCompanyCountry.dialCode} ${data.companyPhone}` : ""),
           company_role: "Billing Contact",
           billing_address: {
             street: data.billingAddress || "",
@@ -457,9 +467,160 @@ const Onboarding: React.FC = () => {
                 Company Basics
               </h2>
               <p className="text-sm sm:text-base text-gray-600 px-2">
-                Tell us about your company to customize your AI Employee
-                experience
+                Tell us about yourself and your company to customize your AI Employee experience
               </p>
+            </div>
+
+            {/* Personal Information Section */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6 mb-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                  <User className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-gray-900">
+                    Personal Information
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    Let us know who we're working with
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {/* Name Fields */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      First Name *
+                    </label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        {...register("firstName", {
+                          required: "First name is required",
+                          minLength: {
+                            value: 2,
+                            message: "First name must be at least 2 characters",
+                          },
+                        })}
+                        className={`w-full pl-10 pr-3 py-2.5 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
+                          errors.firstName
+                            ? "border-red-500 bg-red-50"
+                            : "border-gray-300 hover:border-gray-400"
+                        }`}
+                        placeholder="Enter your first name"
+                      />
+                    </div>
+                    {errors.firstName && (
+                      <p className="mt-1 text-sm text-red-600">
+                        {errors.firstName.message}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Last Name *
+                    </label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        {...register("lastName", {
+                          required: "Last name is required",
+                          minLength: {
+                            value: 2,
+                            message: "Last name must be at least 2 characters",
+                          },
+                        })}
+                        className={`w-full pl-10 pr-3 py-2.5 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
+                          errors.lastName
+                            ? "border-red-500 bg-red-50"
+                            : "border-gray-300 hover:border-gray-400"
+                        }`}
+                        placeholder="Enter your last name"
+                      />
+                    </div>
+                    {errors.lastName && (
+                      <p className="mt-1 text-sm text-red-600">
+                        {errors.lastName.message}
+                      </p>
+                    )}
+                  </div>
+
+                {/* Email Field */}
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Email Address *
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      {...register("email", {
+                        required: "Email address is required",
+                        pattern: {
+                          value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                          message: "Please enter a valid email address",
+                        },
+                      })}
+                      type="email"
+                      className={`w-full pl-10 pr-3 py-2.5 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
+                        errors.email
+                          ? "border-red-500 bg-red-50"
+                          : "border-gray-300 hover:border-gray-400"
+                      }`}
+                      placeholder="your.email@company.com"
+                    />
+                  </div>
+                  {errors.email && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {errors.email.message}
+                    </p>
+                  )}
+                </div>
+
+                {/* Phone Field with Country Selector */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Phone Number
+                  </label>
+                  <div className="flex gap-2">
+                    <CountrySelector
+                      selectedCountry={selectedCountry}
+                      onCountryChange={(country) => setSelectedCountry(country)}
+                      className="flex-shrink-0"
+                    />
+                    <div className="flex-1">
+                      <input
+                        {...register("phone", {
+                          pattern: {
+                            value: /^[\d\s\-\(\)\.]+$/,
+                            message: "Please enter a valid phone number",
+                          },
+                        })}
+                        type="tel"
+                        className={`w-full px-3 py-2.5 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
+                          errors.phone
+                            ? "border-red-500 bg-red-50"
+                            : "border-gray-300 hover:border-gray-400"
+                        }`}
+                        placeholder={selectedCountry.example || "(555) 123-4567"}
+                      />
+                    </div>
+                  </div>
+                  {errors.phone && (
+                    <p className="mt-1 text-sm text-red-600">
+                      {errors.phone.message}
+                    </p>
+                  )}
+                  <p className="text-xs text-gray-500 mt-1">
+                    We'll use this to contact you about your AI Employee setup
+                  </p>
+                </div>
+                </div>
+
+              </div>
             </div>
 
             {/* Company Details */}
@@ -589,14 +750,25 @@ const Onboarding: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Company Phone
                   </label>
-                  <div className="relative">
-                    <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                    <input
-                      {...register("companyPhone")}
-                      type="tel"
-                      className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all hover:border-gray-400"
-                      placeholder="+1 (555) 123-4567"
-                    />
+                  <div className="flex gap-2">
+                    <div className="">
+                      <CountrySelector
+                        selectedCountry={selectedCompanyCountry}
+                        onCountryChange={setSelectedCompanyCountry}
+                      />
+                    </div>
+                    <div className="flex-1 relative">
+                      <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        {...register("companyPhone")}
+                        type="tel"
+                        className="w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all hover:border-gray-400"
+                        placeholder="123-456-7890"
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-1 text-xs text-gray-500">
+                    Selected: {selectedCompanyCountry.name} ({selectedCompanyCountry.dialCode})
                   </div>
                 </div>
               </div>

@@ -145,7 +145,7 @@ export default function CountrySelector({
             onChange={handleDialCodeChange}
             onKeyDown={handleDialCodeSubmit}
             onBlur={handleDialCodeBlur}
-            className="w-[60px] sm:w-[70px] md:w-[80px] h-[38px] sm:h-[44px] md:h-[54px] lg:h-12 px-1 sm:px-2 text-[10px] sm:text-xs md:text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-full text-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-[60px] sm:w-[70px] md:w-[80px] h-[38px] sm:h-[44px] md:h-[54px] lg:h-12 px-1 sm:px-2 text-[10px] sm:text-xs md:text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-md text-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             placeholder="+1"
           />
         ) : (
@@ -157,7 +157,7 @@ export default function CountrySelector({
               setIsOpen(!isOpen);
             }}
             onDoubleClick={handleDialCodeEdit}
-            className={`flex items-center justify-center gap-0.5 sm:gap-1 w-[60px] sm:w-[70px] md:w-[80px] h-[38px] sm:h-[44px] md:h-[54px] lg:h-12 bg-white rounded-full border border-gray-300 flex-shrink-0 hover:bg-gray-50 hover:border-gray-400 transition-all duration-150 relative ${isOpen ? 'ring-2 ring-blue-500 border-blue-500 bg-blue-50' : ''}`}
+            className={`flex items-center justify-center gap-0.5 sm:gap-1 w-[60px] sm:w-[70px] md:w-[80px] h-[38px] sm:h-[44px] md:h-[54px] lg:h-11 bg-white rounded-lg border border-gray-300 flex-shrink-0 hover:bg-gray-50 hover:border-gray-400 transition-all duration-150 relative ${isOpen ? 'ring-2 ring-blue-500 border-blue-500 bg-blue-50' : ''}`}
             title="Click to select country, double-click to edit"
             aria-expanded={isOpen}
             aria-haspopup="listbox"
