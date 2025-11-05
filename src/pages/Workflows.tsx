@@ -74,10 +74,28 @@ const Workflows = () => {
   const [canvasPan, setCanvasPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
+  const [isDraggingNode, setIsDraggingNode] = useState(false);
+  const [dragStartPos, setDragStartPos] = useState<{ x: number; y: number } | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   
   // Check if current user is developer
   const isDeveloper = isDeveloperUser(user?.email);
+
+  // Cleanup function for drag operations
+  const cleanupDragState = () => {
+    document.body.style.userSelect = '';
+    document.body.style.webkitUserSelect = '';
+    setDraggedItem(null);
+    setIsDraggingNode(false);
+    setDragStartPos(null);
+  };
+
+  // Cleanup on component unmount
+  useEffect(() => {
+    return () => {
+      cleanupDragState();
+    };
+  }, []);
 
   // Keyboard shortcuts for canvas controls
   useEffect(() => {
@@ -309,17 +327,40 @@ const Workflows = () => {
   ];
 
   const handleDragStart = (e: React.DragEvent, item: any, type: 'trigger' | 'action' | 'condition') => {
+    e.stopPropagation();
     setDraggedItem({ ...item, nodeType: type });
+    
+    // Set drag image to be transparent to avoid browser default drag image
+    const dragImage = new Image();
+    dragImage.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    e.dataTransfer.setDragImage(dragImage, 0, 0);
     e.dataTransfer.effectAllowed = 'copy';
+    
+    // Prevent text selection during drag
+    document.body.style.userSelect = 'none';
+    document.body.style.webkitUserSelect = 'none';
+  };
+
+  const handleDragEnd = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    cleanupDragState();
   };
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     e.dataTransfer.dropEffect = 'copy';
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
+    e.stopPropagation();
+    
+    // Restore text selection
+    document.body.style.userSelect = '';
+    document.body.style.webkitUserSelect = '';
+    
     if (!draggedItem || !canvasRef.current) return;
 
     const rect = canvasRef.current.getBoundingClientRect();
@@ -334,11 +375,15 @@ const Workflows = () => {
       id: `${draggedItem.nodeType}-${Date.now()}`,
       type: draggedItem.nodeType,
       data: draggedItem,
-      position: { x: x - 50, y: y - 50 }
+      position: { x: Math.max(0, x - 50), y: Math.max(0, y - 50) }
     };
 
     setNodes(prev => [...prev, newNode]);
     setDraggedItem(null);
+    
+    // Show success feedback
+    setTouchFeedback(`✓ ${draggedItem.name} added!`);
+    setTimeout(() => setTouchFeedback(null), 1500);
   };
 
   // Simple mobile add function - works with infinite canvas
@@ -447,13 +492,14 @@ const Workflows = () => {
       });
       setInitialZoom(canvasZoom);
       setInitialPan(canvasPan);
+      setIsPanning(false); // Disable panning during zoom
     }
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
     if (!touchStart) return;
 
-    if (e.touches.length === 1 && !touchStart.distance) {
+    if (e.touches.length === 1 && !touchStart.distance && isPanning) {
       // Single touch panning
       e.preventDefault();
       const deltaX = e.touches[0].clientX - touchStart.x;
@@ -466,9 +512,26 @@ const Workflows = () => {
       // Two-finger pinch zooming
       e.preventDefault();
       const currentDistance = getTouchDistance(e.touches);
-      const scale = currentDistance / touchStart.distance;
+      const scale = Math.max(0.1, currentDistance / touchStart.distance);
       const newZoom = Math.min(Math.max(initialZoom * scale, 0.3), 3);
       setCanvasZoom(newZoom);
+      
+      // Calculate zoom center point
+      const centerX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const centerY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      
+      // Adjust pan to keep zoom centered
+      const deltaZoom = newZoom - canvasZoom;
+      if (canvasRef.current) {
+        const rect = canvasRef.current.getBoundingClientRect();
+        const relativeX = centerX - rect.left;
+        const relativeY = centerY - rect.top;
+        
+        setCanvasPan(prev => ({
+          x: prev.x - (relativeX * deltaZoom) / newZoom,
+          y: prev.y - (relativeY * deltaZoom) / newZoom
+        }));
+      }
     }
   };
 
@@ -482,16 +545,36 @@ const Workflows = () => {
   const handleNodeClick = (nodeId: string) => {
     if (connectingFrom) {
       if (connectingFrom !== nodeId) {
-        const newConnection: Connection = {
-          id: `conn-${Date.now()}`,
-          from: connectingFrom,
-          to: nodeId
-        };
-        setConnections(prev => [...prev, newConnection]);
+        // Check if connection already exists
+        const existingConnection = connections.find(
+          conn => conn.from === connectingFrom && conn.to === nodeId
+        );
+        
+        if (!existingConnection) {
+          const newConnection: Connection = {
+            id: `conn-${Date.now()}`,
+            from: connectingFrom,
+            to: nodeId
+          };
+          setConnections(prev => [...prev, newConnection]);
+          
+          // Show success feedback
+          setTouchFeedback('✓ Nodes connected!');
+          setTimeout(() => setTouchFeedback(null), 1500);
+        } else {
+          setTouchFeedback('⚠ Connection already exists');
+          setTimeout(() => setTouchFeedback(null), 1500);
+        }
       }
       setConnectingFrom(null);
     } else {
       setConnectingFrom(nodeId);
+      setTouchFeedback('Select target node to connect');
+      setTimeout(() => {
+        if (connectingFrom === nodeId) {
+          setTouchFeedback(null);
+        }
+      }, 3000);
     }
   };
 
@@ -741,9 +824,18 @@ const Workflows = () => {
                     {allTriggers.map((trigger) => (
                       <div
                         key={trigger.id}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, trigger, 'trigger')}
-                        className="common-bg-icons p-2.5 sm:p-3 rounded-lg cursor-move transition-all duration-200 hover:shadow-md touch-manipulation"
+                        draggable={isDeveloper}
+                        onDragStart={(e) => isDeveloper && handleDragStart(e, trigger, 'trigger')}
+                        onDragEnd={handleDragEnd}
+                        className={`common-bg-icons p-2.5 sm:p-3 rounded-lg transition-all duration-200 hover:shadow-md touch-manipulation select-none ${
+                          isDeveloper ? 'cursor-move' : 'cursor-default opacity-50'
+                        }`}
+                        style={{
+                          userSelect: 'none',
+                          WebkitUserSelect: 'none',
+                          MozUserSelect: 'none',
+                          msUserSelect: 'none'
+                        }}
                       >
                         <div className="flex items-center gap-2 sm:gap-3">
                           <div className="common-bg-icons p-1.5 rounded-md flex-shrink-0">
@@ -834,7 +926,7 @@ const Workflows = () => {
                   )}
                   
                   {/* Mobile-Optimized Canvas Zoom Controls */}
-                  <div className="absolute hidden  bottom-3 right-3 z-10  flex-col gap-1 bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm rounded-xl border border-slate-200/50 dark:border-slate-700/50 shadow-xl p-2 sm:p-2">
+                  <div className="absolute bottom-3 right-3 z-10 flex flex-col gap-1 bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm rounded-xl border border-slate-200/50 dark:border-slate-700/50 shadow-xl p-2 sm:p-2">
                     <button
                       onClick={handleZoomIn}
                       disabled={canvasZoom >= 3}
@@ -866,23 +958,50 @@ const Workflows = () => {
                     ref={canvasRef}
                     onDragOver={handleDragOver}
                     onDrop={handleDrop}
-                    onMouseDown={handleCanvasMouseDown}
-                    onMouseMove={handleCanvasMouseMove}
+                    onMouseDown={(e) => {
+                      if (!isDraggingNode && !(e.target as Element)?.closest('.workflow-node')) {
+                        handleCanvasMouseDown(e);
+                      }
+                    }}
+                    onMouseMove={(e) => {
+                      if (!isDraggingNode) {
+                        handleCanvasMouseMove(e);
+                      }
+                    }}
                     onMouseUp={handleCanvasMouseUp}
                     onMouseLeave={handleCanvasMouseUp}
                     onWheel={handleCanvasWheel}
-                    onTouchStart={handleTouchStart}
-                    onTouchMove={handleTouchMove}
-                    onTouchEnd={handleTouchEnd}
-                    className={`flex-1 relative rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600 overflow-hidden touch-none ${isPanning ? 'cursor-grabbing' : 'cursor-grab'}`}
+                    onTouchStart={(e) => {
+                      if (!isDraggingNode && !(e.target as Element)?.closest('.workflow-node')) {
+                        handleTouchStart(e);
+                      }
+                    }}
+                    onTouchMove={(e) => {
+                      if (!isDraggingNode && !(e.target as Element)?.closest('.workflow-node')) {
+                        handleTouchMove(e);
+                      }
+                    }}
+                    onTouchEnd={(e) => {
+                      if (!isDraggingNode) {
+                        handleTouchEnd();
+                      }
+                    }}
+                    className={`flex-1 relative rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600 overflow-hidden touch-none select-none ${
+                      isPanning ? 'cursor-grabbing' : isDraggingNode ? 'cursor-grabbing' : 'cursor-grab'
+                    }`}
                     style={{ 
-                      cursor: isPanning ? 'grabbing' : 'grab',
+                      cursor: isPanning ? 'grabbing' : isDraggingNode ? 'grabbing' : 'grab',
                       background: `
                         radial-gradient(circle at 1px 1px, rgba(148, 163, 184, 0.15) 1px, transparent 0),
                         linear-gradient(to bottom, rgb(248, 250, 252), rgb(241, 245, 249))
                       `,
-                      backgroundSize: '20px 20px',
-                      touchAction: 'none' // Prevent default touch behaviors
+                      backgroundSize: `${20 * canvasZoom}px ${20 * canvasZoom}px`,
+                      backgroundPosition: `${canvasPan.x}px ${canvasPan.y}px`,
+                      touchAction: 'none',
+                      userSelect: 'none',
+                      WebkitUserSelect: 'none',
+                      MozUserSelect: 'none',
+                      msUserSelect: 'none'
                     }}
                   >
                     {/* Canvas Content with Transform */}
@@ -932,19 +1051,30 @@ const Workflows = () => {
                     ) : (
                       <>
                         {/* Render Connections with Proper Arrows */}
-                        <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 1 }}>
+                        <svg 
+                          className="absolute pointer-events-none" 
+                          style={{ 
+                            left: 0, 
+                            top: 0, 
+                            width: '100%', 
+                            height: '100%',
+                            zIndex: 1,
+                            transform: `translate(${canvasPan.x}px, ${canvasPan.y}px) scale(${canvasZoom})`,
+                            transformOrigin: '0 0'
+                          }}
+                        >
                           <defs>
                             <marker
                               id="arrowhead"
-                              markerWidth="12"
-                              markerHeight="8"
-                              refX="11"
-                              refY="4"
+                              markerWidth="10"
+                              markerHeight="6"
+                              refX="9"
+                              refY="3"
                               orient="auto"
                               markerUnits="strokeWidth"
                             >
                               <path
-                                d="M0,0 L0,8 L12,4 z"
+                                d="M0,0 L0,6 L10,3 z"
                                 fill="#3b82f6"
                               />
                             </marker>
@@ -956,14 +1086,15 @@ const Workflows = () => {
                             
                             if (!fromNode || !toNode) return null;
 
-                            const fromX = fromNode.position.x + 50; // Node center
-                            const fromY = fromNode.position.y + 25;  // Node center
-                            const toX = toNode.position.x + 50;
-                            const toY = toNode.position.y + 25;
+                            // Calculate node centers (accounting for node size)
+                            const fromX = fromNode.position.x + 28; // Center of 56px node (14*4 = 56px on mobile, 12*4 = 48px on desktop)
+                            const fromY = fromNode.position.y + 28;
+                            const toX = toNode.position.x + 28;
+                            const toY = toNode.position.y + 28;
 
                             // Calculate control points for smooth curve
                             const distance = Math.abs(toX - fromX);
-                            const controlOffset = Math.min(distance / 2, 100);
+                            const controlOffset = Math.min(distance / 2, 80);
                             
                             const controlX1 = fromX + controlOffset;
                             const controlY1 = fromY;
@@ -972,29 +1103,46 @@ const Workflows = () => {
 
                             return (
                               <g key={connection.id}>
+                                {/* Invisible clickable path for deletion */}
+                                <path
+                                  d={`M ${fromX} ${fromY} C ${controlX1} ${controlY1} ${controlX2} ${controlY2} ${toX} ${toY}`}
+                                  stroke="transparent"
+                                  strokeWidth="10"
+                                  fill="none"
+                                  className="cursor-pointer"
+                                  onClick={() => {
+                                    if (isDeveloper) {
+                                      setConnections(prev => prev.filter(conn => conn.id !== connection.id));
+                                      setTouchFeedback('✓ Connection deleted');
+                                      setTimeout(() => setTouchFeedback(null), 1500);
+                                    }
+                                  }}
+                                  style={{ pointerEvents: 'stroke' }}
+                                />
+                                
                                 {/* Main connection path with arrow */}
                                 <path
                                   d={`M ${fromX} ${fromY} C ${controlX1} ${controlY1} ${controlX2} ${controlY2} ${toX} ${toY}`}
                                   stroke="#3b82f6"
-                                  strokeWidth="3"
-                                  strokeDasharray="8,4"
+                                  strokeWidth="2"
+                                  strokeDasharray="6,3"
                                   fill="none"
                                   markerEnd="url(#arrowhead)"
-                                  className="drop-shadow-sm"
+                                  className="drop-shadow-sm pointer-events-none"
                                 />
                                 
                                 {/* Connection dots for visual appeal */}
                                 <circle
                                   cx={fromX + (toX - fromX) * 0.3}
                                   cy={fromY + (toY - fromY) * 0.3}
-                                  r="3"
+                                  r="2"
                                   fill="#3b82f6"
                                   className="opacity-60"
                                 />
                                 <circle
                                   cx={fromX + (toX - fromX) * 0.7}
                                   cy={fromY + (toY - fromY) * 0.7}
-                                  r="3"
+                                  r="2"
                                   fill="#3b82f6"
                                   className="opacity-60"
                                 />
@@ -1007,29 +1155,59 @@ const Workflows = () => {
                         {nodes.map((node) => (
                           <div
                             key={node.id}
-                            className={`absolute cursor-pointer transition-all duration-200 ${
+                            className={`workflow-node absolute select-none transition-all duration-200 ${
                               connectingFrom === node.id 
                                 ? 'scale-110 z-20' 
+                                : isDraggingNode 
+                                ? 'z-30' 
                                 : 'hover:scale-105 z-10'
-                            }`}
+                            } ${isDraggingNode ? 'cursor-grabbing' : 'cursor-grab'}`}
                             style={{
                               left: `${node.position.x}px`,
-                              top: `${node.position.y}px`
+                              top: `${node.position.y}px`,
+                              userSelect: 'none',
+                              WebkitUserSelect: 'none',
+                              MozUserSelect: 'none',
+                              msUserSelect: 'none'
                             }}
                             onMouseDown={(e) => {
-                              if (e.button === 0) { // Left click only
-                                const startX = e.clientX - node.position.x;
-                                const startY = e.clientY - node.position.y;
+                              if (e.button === 0 && !(e.target as Element)?.closest('button')) { // Left click only, not on buttons
+                                e.preventDefault();
+                                e.stopPropagation();
+                                
+                                setIsDraggingNode(true);
+                                document.body.style.userSelect = 'none';
+                                document.body.style.webkitUserSelect = 'none';
+                                
+                                const rect = canvasRef.current?.getBoundingClientRect();
+                                if (!rect) return;
+                                
+                                // Calculate offset from mouse to node position
+                                const initialMouseX = (e.clientX - rect.left - canvasPan.x) / canvasZoom;
+                                const initialMouseY = (e.clientY - rect.top - canvasPan.y) / canvasZoom;
+                                const offsetX = initialMouseX - node.position.x;
+                                const offsetY = initialMouseY - node.position.y;
+                                setDragStartPos({ x: offsetX, y: offsetY });
 
                                 const handleMouseMove = (e: MouseEvent) => {
+                                  e.preventDefault();
                                   if (!canvasRef.current) return;
+                                  
                                   const rect = canvasRef.current.getBoundingClientRect();
-                                  const newX = Math.max(0, Math.min(e.clientX - rect.left - startX, rect.width - 100));
-                                  const newY = Math.max(0, Math.min(e.clientY - rect.top - startY, rect.height - 100));
+                                  const currentMouseX = (e.clientX - rect.left - canvasPan.x) / canvasZoom;
+                                  const currentMouseY = (e.clientY - rect.top - canvasPan.y) / canvasZoom;
+                                  
+                                  const newX = Math.max(0, currentMouseX - offsetX);
+                                  const newY = Math.max(0, currentMouseY - offsetY);
+                                  
                                   handleNodeDrag(node.id, { x: newX, y: newY });
                                 };
 
                                 const handleMouseUp = () => {
+                                  setIsDraggingNode(false);
+                                  setDragStartPos(null);
+                                  document.body.style.userSelect = '';
+                                  document.body.style.webkitUserSelect = '';
                                   document.removeEventListener('mousemove', handleMouseMove);
                                   document.removeEventListener('mouseup', handleMouseUp);
                                 };
@@ -1037,6 +1215,44 @@ const Workflows = () => {
                                 document.addEventListener('mousemove', handleMouseMove);
                                 document.addEventListener('mouseup', handleMouseUp);
                               }
+                            }}
+                            onTouchStart={(e) => {
+                              if (!(e.target as Element)?.closest('button')) {
+                                e.preventDefault();
+                                
+                                setIsDraggingNode(true);
+                                const touch = e.touches[0];
+                                const rect = canvasRef.current?.getBoundingClientRect();
+                                if (!rect) return;
+                                
+                                // Calculate offset from touch to node position
+                                const initialTouchX = (touch.clientX - rect.left - canvasPan.x) / canvasZoom;
+                                const initialTouchY = (touch.clientY - rect.top - canvasPan.y) / canvasZoom;
+                                const offsetX = initialTouchX - node.position.x;
+                                const offsetY = initialTouchY - node.position.y;
+                                setDragStartPos({ x: offsetX, y: offsetY });
+                              }
+                            }}
+                            onTouchMove={(e) => {
+                              if (isDraggingNode && dragStartPos && !(e.target as Element)?.closest('button')) {
+                                e.preventDefault();
+                                
+                                const touch = e.touches[0];
+                                const rect = canvasRef.current?.getBoundingClientRect();
+                                if (!rect) return;
+                                
+                                const currentTouchX = (touch.clientX - rect.left - canvasPan.x) / canvasZoom;
+                                const currentTouchY = (touch.clientY - rect.top - canvasPan.y) / canvasZoom;
+                                
+                                const newX = Math.max(0, currentTouchX - dragStartPos.x);
+                                const newY = Math.max(0, currentTouchY - dragStartPos.y);
+                                
+                                handleNodeDrag(node.id, { x: newX, y: newY });
+                              }
+                            }}
+                            onTouchEnd={() => {
+                              setIsDraggingNode(false);
+                              setDragStartPos(null);
                             }}
                           >
                             {/* Make.com Style Compact Node */}
@@ -1093,14 +1309,24 @@ const Workflows = () => {
                               {/* Connection Button - Mobile optimized */}
                               <button
                                 onClick={(e) => {
+                                  e.preventDefault();
                                   e.stopPropagation();
                                   handleNodeClick(node.id);
                                 }}
-                                className={`absolute -bottom-2 -right-2 w-7 h-7 sm:w-6 sm:h-6 rounded-full flex items-center justify-center transition-all shadow-lg touch-manipulation active:scale-90 ${
+                                className={`absolute -bottom-2 -right-2 w-7 h-7 sm:w-6 sm:h-6 rounded-full flex items-center justify-center transition-all shadow-lg touch-manipulation active:scale-90 z-40 ${
                                   connectingFrom === node.id
-                                    ? 'bg-blue-500 text-white animate-pulse'
+                                    ? 'bg-blue-500 text-white animate-pulse ring-4 ring-blue-500/30'
+                                    : connectingFrom && connectingFrom !== node.id
+                                    ? 'bg-green-500 text-white hover:bg-green-600 ring-2 ring-green-500/30'
                                     : 'bg-slate-300 dark:bg-slate-600 text-slate-600 dark:text-slate-300 hover:bg-blue-500 hover:text-white'
                                 }`}
+                                title={
+                                  connectingFrom === node.id 
+                                    ? 'Click to cancel connection' 
+                                    : connectingFrom 
+                                    ? 'Click to connect here' 
+                                    : 'Click to start connection'
+                                }
                               >
                                 <Link className="w-4 h-4 sm:w-3 sm:h-3" />
                               </button>
@@ -1187,9 +1413,18 @@ const Workflows = () => {
                     {actions.map((action) => (
                       <div
                         key={action.id}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, action, 'action')}
-                        className="common-bg-icons p-2.5 sm:p-3 rounded-lg cursor-move transition-all duration-200 hover:shadow-md touch-manipulation"
+                        draggable={isDeveloper}
+                        onDragStart={(e) => isDeveloper && handleDragStart(e, action, 'action')}
+                        onDragEnd={handleDragEnd}
+                        className={`common-bg-icons p-2.5 sm:p-3 rounded-lg transition-all duration-200 hover:shadow-md touch-manipulation select-none ${
+                          isDeveloper ? 'cursor-move' : 'cursor-default opacity-50'
+                        }`}
+                        style={{
+                          userSelect: 'none',
+                          WebkitUserSelect: 'none',
+                          MozUserSelect: 'none',
+                          msUserSelect: 'none'
+                        }}
                       >
                         <div className="flex items-start gap-2 sm:gap-3">
                           <div className="common-bg-icons p-1.5 rounded-md flex-shrink-0">
@@ -1253,9 +1488,18 @@ const Workflows = () => {
                 {conditions.map((condition) => (
                   <div
                     key={condition.id}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, condition, 'condition')}
-                    className="common-bg-icons p-3 sm:p-4 rounded-xl cursor-move transition-all duration-200 hover:shadow-lg touch-manipulation"
+                    draggable={isDeveloper}
+                    onDragStart={(e) => isDeveloper && handleDragStart(e, condition, 'condition')}
+                    onDragEnd={handleDragEnd}
+                    className={`common-bg-icons p-3 sm:p-4 rounded-xl transition-all duration-200 hover:shadow-lg touch-manipulation select-none ${
+                      isDeveloper ? 'cursor-move' : 'cursor-default opacity-50'
+                    }`}
+                    style={{
+                      userSelect: 'none',
+                      WebkitUserSelect: 'none',
+                      MozUserSelect: 'none',
+                      msUserSelect: 'none'
+                    }}
                   >
                     <div className="flex items-center gap-2 sm:gap-3 mb-2">
                       <div className="common-bg-icons p-1.5 sm:p-2 rounded-lg flex-shrink-0">

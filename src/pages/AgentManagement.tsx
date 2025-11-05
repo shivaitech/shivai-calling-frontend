@@ -544,7 +544,7 @@ const AgentManagement = () => {
 
                 {/* Agent Details - Compact for Mobile */}
                 <div className="space-y-2 mb-4 sm:mb-5">
-                  <div className="flex justify-between text-xs sm:text-sm">
+                  <div className="flex gap-1 text-xs sm:text-sm">
                     <span className="text-slate-600 dark:text-slate-400">
                       Voice:
                     </span>
@@ -552,7 +552,7 @@ const AgentManagement = () => {
                       {agent.voice}
                     </span>
                   </div>
-                  <div className="flex justify-between text-xs sm:text-sm">
+                  <div className="flex gap-2  text-xs sm:text-sm">
                     <span className="text-slate-600 dark:text-slate-400">
                       Created:
                     </span>
@@ -771,21 +771,14 @@ const AgentManagement = () => {
                     <Globe className="w-4 h-4" />
                     <span>{currentAgent.language}</span>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <Users className="w-4 h-4" />
-                    <span>{currentAgent.persona}</span>
-                  </div>
+                
                   <div className="flex items-center gap-1.5">
                     <Clock className="w-4 h-4" />
                     <span>Created {currentAgent.createdAt.toLocaleDateString()}</span>
                   </div>
                 </div>
 
-                {/* Agent description/voice */}
-                <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400">
-                  <span className="font-medium">Voice:</span> {currentAgent.voice} • 
-                  <span className="ml-1">Professional AI assistant specialized in customer interactions</span>
-                </p>
+               
               </div>
             </div>
           </div>

@@ -386,8 +386,8 @@ const Training = () => {
                     onClick={() => setActiveTab(tab.id)}
                     className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 rounded-lg transition-all duration-200 whitespace-nowrap ${
                       activeTab === tab.id
-                        ? 'common-button-bg2'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                        ? 'common-button-bg2 shadow-sm'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition ease-in-out'
                     }`}
                   >
                     <tab.icon className="w-3 sm:w-4 h-3 sm:h-4" />
