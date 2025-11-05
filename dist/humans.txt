@@ -1,0 +1,17 @@
+/* TEAM */
+Developer: ShivAI
+Website: https://callshivai.com
+Contact: rs@shivaitech.com
+Location: India
+
+/* SITE */
+Last update: 2025-11-05
+Language: English
+Standards: HTML5, CSS3, React.js, TypeScript
+Hosting: Amazon EC2 (AWS)
+Purpose: AI Calling and Voice Assistant Platform
+
+/* SOCIAL */
+LinkedIn: https://www.linkedin.com/in/shivai-tech-52ab90382
+Twitter: https://twitter.com/callshivai
+

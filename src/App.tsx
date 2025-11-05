@@ -3,6 +3,7 @@ import {
   BrowserRouter as Router,
   Routes,
   Route,
+  Navigate,
   useLocation,
 } from "react-router-dom";
 import { AuthProvider } from "./contexts/AuthContext"; // Add AuthProvider
@@ -81,6 +82,12 @@ function AppContent() {
             }
           />
           <Route path="/auth/google/callback" element={<GoogleCallback />} />
+          
+          {/* Redirect routes to home */}
+          <Route path="/ai-calling-app" element={<Navigate to="/" replace />} />
+          <Route path="/voice-assistant" element={<Navigate to="/" replace />} />
+          <Route path="/about" element={<Navigate to="/" replace />} />
+          <Route path="/contact" element={<Navigate to="/" replace />} />
         </Routes>
       ) : (
         <ProtectedRoute>
@@ -115,6 +122,12 @@ function AppContent() {
                     <Route path="/monitoring" element={<Monitoring />} />
                     <Route path="/billing" element={<Billing />} />
                     <Route path="/settings" element={<Settings />} />
+                    
+                    {/* Redirect routes to home */}
+                    <Route path="/ai-calling-app" element={<Navigate to="/" replace />} />
+                    <Route path="/voice-assistant" element={<Navigate to="/" replace />} />
+                    <Route path="/about" element={<Navigate to="/" replace />} />
+                    <Route path="/contact" element={<Navigate to="/" replace />} />
                   </Routes>
                 </main>
               </div>

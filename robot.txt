@@ -1,0 +1,28 @@
+# ShivAI Robots Configuration
+User-agent: *
+Allow: /
+
+# Sitemap for search engines & AI crawlers
+Sitemap: https://callshivai.com/sitemap.xml
+
+# Directives for major AI crawlers
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+# Contact for indexing issues
+Host: callshivai.com
