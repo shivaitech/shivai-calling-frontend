@@ -519,23 +519,39 @@ export const WhatShivaiDo = React.memo(() => {
             onMouseUp={handleDesktopMouseUp}
             onMouseLeave={handleDesktopMouseUp}
           >
-            {/* Left Blur Overlay - Gradient Spread */}
-            <div className="absolute left-0 top-0 w-20 lg:w-44 xl:w-55 h-full z-10 pointer-events-none">
+            {/* Left Glass Effect Overlay */}
+            <div className="absolute left-0  w-32 xl:w-44 h-[82%] top-10 z-10 pointer-events-none">
               <div
-                className="w-full h-full bg-gradient-to-r from-[#F0F0F0] via-[#F0F0F0]/20 to-transparent backdrop-blur-[1px]"
+                className="absolute inset-0 w-full h-full backdrop-blur-[10px] backdrop-saturate-[1.8] backdrop-brightness-[1]"
                 style={{
-                  background:
-                    "linear-gradient(90deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.85) 25%, rgba(255,255,255,0.6) 50%, rgba(255,255,255,0.3) 75%, transparent 100%)",
+                  background: `
+                    linear-gradient(90deg, 
+                      rgba(255,255,255,0.05) 0%,
+                      rgba(255,255,255,0.03) 20%,
+                      rgba(255,255,255,0.01) 40%,
+                      transparent 60%
+                    )
+                  `,
+                  maskImage: 'linear-gradient(to right, black 0%, black 60%, transparent 100%)',
+                  WebkitMaskImage: 'linear-gradient(to right, black 0%, black 60%, transparent 100%)'
                 }}
               />
             </div>
-            {/* Right Blur Overlay - Gradient Spread */}
-            <div className="absolute right-0 top-0 w-20 lg:w-44 xl:w-55 h-full z-10 pointer-events-none">
+            {/* Right Glass Effect Overlay */}
+            <div className="absolute right-0 top-10 w-32 xl:w-44 h-[82%] z-10 pointer-events-none">
               <div
-                className="w-full h-full bg-gradient-to-l from-[#F0F0F0] via-[#F0F0F0]/80 to-transparent backdrop-blur-[2px]"
+                className="absolute inset-0 w-full h-full backdrop-blur-[10px] backdrop-saturate-[1.8] backdrop-brightness-[1]"
                 style={{
-                  background:
-                    "linear-gradient(270deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.85) 25%, rgba(255,255,255,0.6) 50%, rgba(255,255,255,0.3) 75%, transparent 100%)",
+                  background: `
+                    linear-gradient(270deg, 
+                      rgba(255,255,255,0.05) 0%,
+                      rgba(255,255,255,0.03) 20%,
+                      rgba(255,255,255,0.01) 40%,
+                      transparent 60%
+                    )
+                  `,
+                  maskImage: 'linear-gradient(to left, black 0%, black 60%, transparent 100%)',
+                  WebkitMaskImage: 'linear-gradient(to left, black 0%, black 60%, transparent 100%)'
                 }}
               />
             </div>
@@ -562,50 +578,7 @@ export const WhatShivaiDo = React.memo(() => {
               })}
             </div>
 
-            {/* Desktop Navigation Arrows */}
-            <button
-              onClick={handlePrev}
-              disabled={isAnimating}
-              className="absolute left-4 top-1/2 transform -translate-y-1/2 z-20 bg-white/90 backdrop-blur-sm hover:bg-white shadow-lg rounded-full p-3 transition-all duration-300 hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed group"
-            >
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                className="text-gray-700 group-hover:text-gray-900 transition-colors"
-              >
-                <path
-                  d="M15 18l-6-6 6-6"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
-
-            <button
-              onClick={handleNext}
-              disabled={isAnimating}
-              className="absolute right-4 top-1/2 transform -translate-y-1/2 z-20 bg-white/90 backdrop-blur-sm hover:bg-white shadow-lg rounded-full p-3 transition-all duration-300 hover:scale-110 disabled:opacity-50 disabled:cursor-not-allowed group"
-            >
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                className="text-gray-700 group-hover:text-gray-900 transition-colors"
-              >
-                <path
-                  d="M9 18l6-6-6-6"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
+            
           </div>
 
           {/* Desktop Swipe Indicators */}

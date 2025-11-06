@@ -1,7 +1,7 @@
 /* TEAM */
 Developer: ShivAI
 Website: https://callshivai.com
-Contact: rs@shivaitech.com
+Contact: hello@callshivai.com
 Location: India
 
 /* SITE */

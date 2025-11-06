@@ -124,8 +124,8 @@ function AppContent() {
                     <Route path="/settings" element={<Settings />} />
                     
                     {/* Redirect routes to home */}
-                    <Route path="/ai-calling-app" element={<Navigate to="/" replace />} />
-                    <Route path="/voice-assistant" element={<Navigate to="/" replace />} />
+                    <Route path="/ai-employee" element={<Navigate to="/" replace />} />
+                    <Route path="/pricing" element={<Navigate to="/" replace />} />
                     <Route path="/about" element={<Navigate to="/" replace />} />
                     <Route path="/contact" element={<Navigate to="/" replace />} />
                   </Routes>

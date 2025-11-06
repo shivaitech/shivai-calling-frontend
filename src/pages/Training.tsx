@@ -35,7 +35,7 @@ const Training = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const params = useParams();
-
+  let { state } = location;
   // Check if current user is developer
   const isDeveloper = isDeveloperUser(user?.email);
 
@@ -190,17 +190,20 @@ const Training = () => {
   return (
     <div className="space-y-4 sm:space-y-6 w-full">
       {/* Mobile-First Header */}
-      <div className="space-y-4 sm:space-y-6 px-2 sm:px-0">
-        <button
-          onClick={() => navigate("/agents")}
-          className="common-button-bg2 flex items-center gap-2 transition-colors px-4 py-2 -m-2"
-        >
-          <ArrowLeft className="w-5 h-5" />
-          <span className="text-sm sm:text-base font-medium">
-            Back to Agents
-          </span>
-        </button>
-      </div>
+
+      {state?.from === "list" && (
+        <div className="space-y-4 sm:space-y-6 px-2 sm:px-0">
+          <button
+            onClick={() => navigate("/agents")}
+            className="common-button-bg2 flex items-center gap-2 transition-colors px-4 py-2 -m-2"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            <span className="text-sm sm:text-base font-medium">
+              Back to Agents
+            </span>
+          </button>
+        </div>
+      )}
 
       {/* Mobile-First Agent Selection */}
       <div className="">
@@ -320,7 +323,10 @@ const Training = () => {
                   {/* Desktop Grid */}
                   <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-4 gap-4">
                     {knowledgeStats.map((stat, index) => (
-                      <div key={index} className="common-bg-icons p-4 rounded-xl">
+                      <div
+                        key={index}
+                        className="common-bg-icons p-4 rounded-xl"
+                      >
                         <div className="flex items-center gap-3">
                           <div className="common-bg-icons p-2 rounded-lg flex-shrink-0">
                             <stat.icon className="w-5 h-5 text-slate-600 dark:text-slate-400" />
@@ -386,8 +392,8 @@ const Training = () => {
                     onClick={() => setActiveTab(tab.id)}
                     className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 rounded-lg transition-all duration-200 whitespace-nowrap ${
                       activeTab === tab.id
-                        ? 'common-button-bg2 shadow-sm'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition ease-in-out'
+                        ? "common-button-bg2 shadow-sm"
+                        : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition ease-in-out"
                     }`}
                   >
                     <tab.icon className="w-3 sm:w-4 h-3 sm:h-4" />
@@ -631,7 +637,10 @@ const Training = () => {
                         {/* Mobile-First Metrics Grid */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                           {trainingMetrics.map((metric, index) => (
-                            <div key={index} className="common-bg-icons p-4 rounded-xl">
+                            <div
+                              key={index}
+                              className="common-bg-icons p-4 rounded-xl"
+                            >
                               <div className="flex items-center justify-between mb-2">
                                 <span className="text-sm font-medium text-slate-800 dark:text-white truncate">
                                   {metric.label}
@@ -794,15 +803,21 @@ const Training = () => {
                   <div className="space-y-2 sm:space-y-3">
                     <button className="common-bg-icons w-full flex items-center gap-3 p-3 sm:p-3.5 rounded-lg hover:shadow-sm transition-colors text-sm font-medium touch-manipulation">
                       <Upload className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0 text-slate-600 dark:text-slate-400" />
-                      <span className="text-slate-800 dark:text-white">Bulk Upload Documents</span>
+                      <span className="text-slate-800 dark:text-white">
+                        Bulk Upload Documents
+                      </span>
                     </button>
                     <button className="common-bg-icons w-full flex items-center gap-3 p-3 sm:p-3.5 rounded-lg hover:shadow-sm transition-colors text-sm font-medium touch-manipulation">
                       <Download className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0 text-slate-600 dark:text-slate-400" />
-                      <span className="text-slate-800 dark:text-white">Export Training Data</span>
+                      <span className="text-slate-800 dark:text-white">
+                        Export Training Data
+                      </span>
                     </button>
                     <button className="common-bg-icons w-full flex items-center gap-3 p-3 sm:p-3.5 rounded-lg hover:shadow-sm transition-colors text-sm font-medium touch-manipulation">
                       <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0 text-slate-600 dark:text-slate-400" />
-                      <span className="text-slate-800 dark:text-white">View Training Analytics</span>
+                      <span className="text-slate-800 dark:text-white">
+                        View Training Analytics
+                      </span>
                     </button>
                   </div>
                 </div>

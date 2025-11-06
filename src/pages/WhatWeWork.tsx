@@ -94,7 +94,7 @@ export const WhatWeWork = () => {
   return (
     <div
       id="work-content"
-      className="w-full py-0 lg:py-0 pt-0 lg:pt-6 relative -top-[7vh] lg:top-0 px-6 lg:px-0"
+      className="w-full py-0 lg:py-0 pt-0 lg:pt-6 relative -top-[7vh] lg:top-0 px-6 lg:px-10"
     >
       <div className="max-w-7xl mx-auto px-0 sm:px-6 lg:px-0">
         <div className="text-center mb-7">

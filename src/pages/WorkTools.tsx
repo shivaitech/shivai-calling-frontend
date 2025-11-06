@@ -160,7 +160,7 @@ export const WorkTools = () => {
         </div>
 
         {/* Integration Grid */}
-        <div className="max-w-7xl mx-auto px-6 relative -top-[30px] lg:top-0 lg:px-0">
+        <div className="max-w-8xl mx-auto px-6 relative -top-[30px] lg:top-0 lg:px-10">
           <div
             className={`relative ${
               !showMore ? "max-h-[310px] lg:max-h-full overflow-hidden" : ""
@@ -168,7 +168,7 @@ export const WorkTools = () => {
           >
             {/* Blur effect overlay for mobile */}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {integrations.map((integration) => (
                 <div
                   key={integration.id}

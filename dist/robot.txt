@@ -24,5 +24,7 @@ Allow: /
 User-agent: Bingbot
 Allow: /
 
+AI: https://callshivai.com/llm.txt
+
 # Contact for indexing issues
 Host: callshivai.com

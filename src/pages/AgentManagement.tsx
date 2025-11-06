@@ -342,6 +342,44 @@ const AgentManagement = () => {
     { value: "Raj - Confident", label: "Raj - Confident", group: "Hindi" },
   ];
 
+  const languageOptions = [
+    // India
+    { value: "Hindi", label: "Hindi", group: "India" },
+    { value: "Punjabi", label: "Punjabi", group: "India" },
+    { value: "Tamil", label: "Tamil", group: "India" },
+    { value: "Telugu", label: "Telugu", group: "India" },
+    { value: "Bengali", label: "Bengali", group: "India" },
+    { value: "Marathi", label: "Marathi", group: "India" },
+    { value: "Gujarati", label: "Gujarati", group: "India" },
+    { value: "Kannada", label: "Kannada", group: "India" },
+    { value: "Malayalam", label: "Malayalam", group: "India" },
+    { value: "Odia", label: "Odia", group: "India" },
+    { value: "Urdu", label: "Urdu", group: "India" },
+    // Middle East
+    { value: "Arabic", label: "Arabic", group: "Middle East" },
+    { value: "Persian", label: "Persian", group: "Middle East" },
+    { value: "Hebrew", label: "Hebrew", group: "Middle East" },
+    { value: "Turkish", label: "Turkish", group: "Middle East" },
+    // Europe
+    { value: "English (UK)", label: "English (UK)", group: "Europe" },
+    { value: "French", label: "French", group: "Europe" },
+    { value: "German", label: "German", group: "Europe" },
+    { value: "Spanish", label: "Spanish", group: "Europe" },
+    { value: "Italian", label: "Italian", group: "Europe" },
+    { value: "Dutch", label: "Dutch", group: "Europe" },
+    // Americas
+    { value: "English (US)", label: "English (US)", group: "Americas" },
+    { value: "Spanish (MX)", label: "Spanish (MX)", group: "Americas" },
+    { value: "Portuguese (BR)", label: "Portuguese (BR)", group: "Americas" },
+    { value: "French (CA)", label: "French (CA)", group: "Americas" },
+    // APAC
+    { value: "Chinese (Mandarin)", label: "Chinese (Mandarin)", group: "APAC" },
+    { value: "Japanese", label: "Japanese", group: "APAC" },
+    { value: "Korean", label: "Korean", group: "APAC" },
+    { value: "Thai", label: "Thai", group: "APAC" },
+    { value: "Vietnamese", label: "Vietnamese", group: "APAC" },
+  ];
+
   const responseStyleOptions = [
     { value: "Concise", label: "Concise" },
     { value: "Balanced", label: "Balanced" },
@@ -447,17 +485,7 @@ const AgentManagement = () => {
               </div>
 
               {/* Status Filter */}
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="common-bg-icons px-3 py-2.5 rounded-lg text-slate-800 dark:text-white text-sm min-w-[120px] cursor-pointer"
-                style={{ zIndex: 100 }}
-              >
-                <option value="all">All Status</option>
-                <option value="published">Published</option>
-                <option value="draft">Draft</option>
-                <option value="training">Training</option>
-              </select>
+             
 
               {/* Filter Button */}
               <button className="flex items-center justify-center common-button-bg2 active:scale-95">
@@ -581,7 +609,7 @@ const AgentManagement = () => {
                   </button>
 
                   <button
-                    onClick={() => navigate(`/agents/${agent.id}/train`)}
+                    onClick={() => navigate(`/agents/${agent.id}/train`,{ state: { from: "list" } })}
                     className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-all duration-200 text-sm font-medium active:scale-[0.98]"
                   >
                     <Zap className="w-4 h-4" />
@@ -1577,11 +1605,14 @@ Content-Type: application/json
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                     Language <span className="text-red-500">*</span>
                   </label>
-                  <LanguagePicker
+                  <SearchableSelect
+                    options={languageOptions}
                     value={formData.language}
                     onChange={(value) =>
                       setFormData({ ...formData, language: value })
                     }
+                    placeholder="Select language..."
+                    groupBy={true}
                   />
                 </div>
 

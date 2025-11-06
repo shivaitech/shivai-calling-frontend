@@ -100,7 +100,7 @@ export const FAQ: React.FC<FAQProps> = ({ setAuthMode, setShowAuthModal }) => {
         backgroundImage: `url('${bgImage}')`,
         backgroundPosition: "center",
       }}
-      className="w-full px-6 lg:px-10 pt-0 md:pt-16 lg:pt-[100px]"
+      className="w-full px-6 lg:px-16 xl:px-24 pt-0 md:pt-16 lg:pt-[100px]"
     >
       {/* FAQ Section */}
       <div className="px-2 py-8 md:py-0 lg:py-24">
@@ -128,7 +128,7 @@ export const FAQ: React.FC<FAQProps> = ({ setAuthMode, setShowAuthModal }) => {
                   onClick={() => toggleFAQ(faq.id)}
                   className="w-full px-6 py-5 md:px-8 md:py-4 flex items-center justify-between text-left hover:bg-gray-50 transition-colors duration-200"
                 >
-                  <h3 className="text-base md:text-lg font-semibold text-gray-900 pr-4">
+                  <h3 className="text-base md:text-lg lg:text-xl font-semibold text-gray-900 pr-4">
                     {faq.question}
                   </h3>
                   <div className="flex-shrink-0 border rounded-full p-[6px] hover:bg-gray-100 transition-colors duration-200">
@@ -157,7 +157,7 @@ export const FAQ: React.FC<FAQProps> = ({ setAuthMode, setShowAuthModal }) => {
       </div>
 
       {/* CTA Section */}
-      <div className="px-2 pb-8 md:pb-16 lg:pb-24">
+      <div className="px-2 pb-8 md:pb-16 lg:pb-24 lg:px-16">
         <div className="max-w-8xl mx-auto">
           <div className="bg-[#000] rounded-[16px] flex justify-center md:rounded-3xl px-6 py-8 md:px-12 md:py-16 lg:px-16 lg:py-20 text-center relative overflow-hidden">
             {/* Background Pattern/Decoration */}

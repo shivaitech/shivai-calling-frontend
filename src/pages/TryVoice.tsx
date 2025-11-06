@@ -18,7 +18,7 @@ export default function TryVoice() {
         aria-labelledby="main-heading"
       >
         <div
-          className="absolute inset-0  pointer-events-none filter blur-[0px] lg:blur-[1px]"
+          className="absolute inset-0  pointer-events-none filter blur-[0px] lg:blur-[0px]"
           style={{
             background: `url(${bgNew})`,
             backgroundPosition: "center",

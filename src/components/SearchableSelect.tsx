@@ -118,7 +118,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
 
       {isOpen && (
         <div 
-          className="fixed bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-80 overflow-y-auto z-[999999]"
+          className=" bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-80 overflow-y-auto z-[999999]"
           style={dropdownStyle}
         >
           {/* Search */}

@@ -83,10 +83,10 @@ const Footer = () => {
   };
 
   return (
-    <footer className="relative bg-black text-white py-8 md:py-12 px-6 overflow-hidden h-auto lg:h-[110vh] ">
+    <footer className="relative bg-black text-white py-8 md:py-12 px-6 lg:px-20 xl:px-24 overflow-hidden h-auto ">
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto relative z-10">
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-4 md:gap-8 mb-8 md:mb-12">
+      <div className="w-full mx-auto relative z-10 pr-4 md:pr-6">
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-6 gap-4 md:gap-8 mb-8 md:mb-12 pt-0 lg:pt-8">
           {/* Logo and Description */}
           <div className="col-span-2 md:col-span-2">
             <div className="mb-3 md:mb-4">
@@ -123,8 +123,7 @@ const Footer = () => {
                 />
               </a>
               <a
-                href="https://www.instagram.com/callshivai/"
-                target="_blank"
+                href="#"
                 className="w-8 h-8 md:w-12 md:h-12 bg-black border border-gray-800 rounded-full p-1.5 md:p-3 flex items-center justify-center hover:bg-gray-200 transition-colors"
               >
                 <img
@@ -134,9 +133,7 @@ const Footer = () => {
                 />
               </a>
               <a
-                href="https://www.linkedin.com/in/shivai-tech-52ab90382"
-                target="_blank"
-
+                href="#"
                 className="w-8 h-8 md:w-12 md:h-12 bg-black border border-gray-800 rounded-full p-1.5 md:p-3 flex items-center justify-center hover:bg-gray-200 transition-colors"
               >
                 <img
@@ -149,7 +146,7 @@ const Footer = () => {
           </div>
 
           {/* Combined Links Column */}
-          <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8">
+          <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-2">
             {/* Product Column */}
             <div>
               <h4 className="font-[400] text-white mb-2 md:mb-4 text-sm md:text-base">
@@ -280,88 +277,96 @@ const Footer = () => {
           </div>
 
           {/* Office Locations Column */}
-          <div className="">
+          <div className="relative -left-10 md:-left-0 lg:-left-10 xl:-left-10">
             <h4 className="font-[400] text-white mb-2 text-sm">Our Offices</h4>
-            <div className="space-y-4 font-[400] text-[14px] lg:text-[14px] text-[#FFFFFF99]/60">
+            <div className="space-y-3 font-[400] text-[14px] lg:text-[14px] text-[#FFFFFF99]/60">
               {/* India Office */}
-              <div className="hover:text-white transition-colors">
-                <div className="flex items-center gap-2 mb-1">
-                  <img
-                    src={indiaFlag}
-                    alt="India Flag"
-                    className="w-4 h-3 object-cover rounded-sm border border-gray-600"
-                  />
-                  <span className="text-[14px] md:text-[16px] lg:text-sm text-[#FFFFFF99]/60">
-                    India
-                  </span>
-                </div>
+             
+
+                <div className="bwhiteDarkGradient rounded-full px-4 py-3 hover:bg-gray-700/50 transition-colors">
                 <a
-                  href="https://wa.me/919211490707"
-                  className=" hover:text-white transition-colors text-[11px] flex items-center gap-1"
+                  href="https://wa.me/971566180707"
+                  className="flex items-center justify-between w-full hover:text-white transition-colors"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  <img
-                    src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg"
-                    alt="WhatsApp"
-                    className="w-3 h-3 object-contain"
-                  />
-                  +91 921 149 0707
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={indiaFlag}
+                      alt="UAE Flag"
+                      className="w-6 h-5 object-cover rounded-sm border border-gray-600 flag"
+                    />
+                    <div>
+                      <div className="text-white text-sm font-medium">India</div>
+                                         <div className="text-gray-300 text-xs">+91 921 149 0707</div>
+
+                    </div>
+                  </div>
+                  <div className=" rounded-full p-2">
+                    <img
+                      src="/whatsapp.svg"
+                      alt="WhatsApp"
+                      className="w-4 h-4 object-contain whatsapp"
+                    />
+                  </div>
                 </a>
               </div>
 
               {/* UAE Office */}
-              <div className="hover:text-white transition-colors">
-                <div className="flex items-center gap-2 mb-1">
-                  <img
-                    src={uaeFlag}
-                    alt="UAE Flag"
-                    className="w-4 h-3 object-cover rounded-sm border border-gray-600"
-                  />
-                  <span className="text-[14px] md:text-[16px] lg:text-sm text-[#FFFFFF99]/60">
-                    UAE
-                  </span>
-                </div>
+              <div className="bwhiteDarkGradient rounded-full px-4 py-3 hover:bg-gray-700/50 transition-colors">
                 <a
                   href="https://wa.me/971566180707"
-                  className=" hover:text-white transition-colors text-[11px] flex items-center gap-1"
+                  className="flex items-center justify-between w-full hover:text-white transition-colors"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  <img
-                    src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg"
-                    alt="WhatsApp"
-                    className="w-3 h-3 object-contain"
-                  />
-                  +971 56 618 0707
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={uaeFlag}
+                      alt="UAE Flag"
+                      className="w-6 h-5 object-cover rounded-sm border border-gray-600 flag"
+                    />
+                    <div>
+                      <div className="text-white text-sm font-medium">UAE</div>
+                      <div className="text-gray-300 text-xs">+971 56 618 0707</div>
+                    </div>
+                  </div>
+                  <div className=" rounded-full p-2">
+                    <img
+                      src="/whatsapp.svg"
+                      alt="WhatsApp"
+                      className="w-4 h-4 object-contain whatsapp"
+                    />
+                  </div>
                 </a>
               </div>
 
               {/* USA Office */}
-              <div className="hover:text-white transition-colors">
-                <div className="flex items-center gap-2 mb-1">
-                  <img
-                    src={usaFlag}
-                    alt="USA Flag"
-                    className="w-4 h-3 object-cover rounded-sm border border-gray-600"
-                  />
-                  <span className="text-[14px] md:text-[16px] lg:text-sm text-[#FFFFFF99]/60">
-                    USA
-                  </span>
-                </div>
-
+              <div className="bwhiteDarkGradient rounded-full px-4 py-3 hover:bg-gray-700/50 transition-colors">
                 <a
                   href="https://wa.me/13154440707"
-                  className=" hover:text-white transition-colors text-[11px] flex items-center gap-1"
+                  className="flex items-center justify-between w-full hover:text-white transition-colors"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  <img
-                    src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg"
-                    alt="WhatsApp"
-                    className="w-3 h-3 object-contain"
-                  />
-                  +1 315 444 0707
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={usaFlag}
+                      alt="USA Flag"
+                      className="w-6 h-5 object-cover rounded-sm border border-gray-600 flag"
+                    />
+                    <div>
+                      <div className="text-white text-sm font-medium">USA</div>
+                      <div className="text-gray-300 text-xs">+1 315 444 0707</div>
+                    </div>
+                  </div>
+                  <div className=" rounded-full p-2">
+                    <img
+                      src="/whatsapp.svg"
+                      alt="WhatsApp"
+                      className="w-4 h-4 object-contain whatsapp"
+                    />
+                  </div>
                 </a>
               </div>
               <div className="text-[11px] mt-1">
@@ -378,7 +383,7 @@ const Footer = () => {
         </div>
 
         {/* Bottom Section */}
-        <div className="flex flex-col md:flex-row justify-between items-center pt-2 mb-20 mt-2 lg:mt-8 border-t border-gray-800">
+        <div className="flex flex-col md:flex-row justify-between items-center pt-2 mb-0 lg:mb-10 mt-2 lg:mt-8 border-t border-gray-800">
           <p className="text-gray-400 text-sm mb-2 md:mb-0">
             © 2025 ShivAI. All rights reserved.
           </p>
@@ -394,11 +399,11 @@ const Footer = () => {
       </div>
 
       {/* Large Background Logo */}
-      <div className="absolute px-4 bottom-0 left-1/2 -translate-x-1/2 flex justify-center w-full opacity-110 pointer-events-none ">
+      <div className="relative px-4 -bottom-8 lg:-bottom-12 left-1/2 -translate-x-1/2 flex justify-center w-full opacity-110 pointer-events-none ">
         <img
           src={Shivlogo}
           alt="ShivAI Background"
-          className="mx-auto w-[400px] lg:w-[1260px] object-contain"
+          className="mx-auto w-[400px] md:w-[800px] lg:w-[1260px] xl:w-[1320px] object-contain relative -left-5"
         />
       </div>
     </footer>

@@ -348,13 +348,11 @@ export const ShivaiSubsPlan = () => {
   };
 
   return (
-    <div 
-        id="pricing-content"
-    
-    className="w-full py-0  lg:py-0 -top-[15px] lg:top-[60px] relative">
-      <div
-        className="max-w-8xl mx-auto px-0 sm:px-6 lg:px-8"
-      >
+    <div
+      id="pricing-content"
+      className="w-full py-0  lg:py-0 -top-[15px] lg:top-[60px] relative"
+    >
+      <div className="max-w-8xl mx-auto px-0 sm:px-6 lg:px-10">
         {/* Header */}
         <div className="text-center mb-6 lg:mb-12">
           <h2
@@ -409,7 +407,7 @@ export const ShivaiSubsPlan = () => {
                 }`}
               style={
                 plan.popular
-                  ? { 
+                  ? {
                       background:
                         "linear-gradient(135deg, #00CEDB 0%, #A233FF 50%, #1192BB 100%)",
                       borderRadius: "25px",
@@ -573,6 +571,18 @@ export const ShivaiSubsPlan = () => {
                         </li>
                       ))}
                     </ul>
+                    
+                    {/* Setup fee information for monthly plans */}
+                    {billingCycle === "monthly" && (
+                      <div className="mt-3 pt-2 border-t border-gray-100">
+                        <p className="text-xs text-gray-500 font-normal">
+                          {plan.id === "starter" && "Setup fee $100, waived on annual plan."}
+                          {plan.id === "professional" && "Setup fee $150, waived on annual plan."}
+                          {plan.id === "business" && "Setup fee $200, waived on annual plan."}
+                          {plan.id === "custom" && "Contact us for setup details."}
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   {/* ROI Snapshot Section */}
@@ -672,17 +682,17 @@ export const ShivaiSubsPlan = () => {
                   >
                     <div className="space-y-3">
                       <div>
-                          <input
-                            className="w-full px-3 py-3 sm:py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-all duration-200 text-gray-900 placeholder-gray-500 bg-gray-50 focus:bg-white text-sm touch-manipulation"
-                            type="text"
-                            placeholder="Full Name"
-                            value={formData.name}
-                            onChange={(e) =>
-                              setFormData((f) => ({ ...f, name: e.target.value }))
-                            }
-                            autoFocus
-                            autoComplete="off"
-                          />
+                        <input
+                          className="w-full px-3 py-3 sm:py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none transition-all duration-200 text-gray-900 placeholder-gray-500 bg-gray-50 focus:bg-white text-sm touch-manipulation"
+                          type="text"
+                          placeholder="Full Name"
+                          value={formData.name}
+                          onChange={(e) =>
+                            setFormData((f) => ({ ...f, name: e.target.value }))
+                          }
+                          autoFocus
+                          autoComplete="off"
+                        />
                         {formErrors["name"] && (
                           <p className="text-red-500 text-xs mt-1">
                             {formErrors["name"]}

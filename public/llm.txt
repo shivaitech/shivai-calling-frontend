@@ -1,0 +1,35 @@
+# ShivAI LLM Discovery File
+# URL: https://callshivai.com
+
+# General Info
+name: ShivAI
+type: AI Calling Platform
+description: ShivAI is an advanced AI calling platform that turns your website or business into a 24/7 AI-powered voice assistant that sells, supports, and books appointments automatically.
+website: https://callshivai.com
+logo: https://callshivai.com/Shivai1.png
+language: en
+category: Artificial Intelligence, Voice Technology, Automation
+
+# Keywords
+keywords: AI calling, AI calling app, AI voice assistant, voice AI, AI-powered calling, CallShivAI, ShivAI, AI customer support, AI sales assistant, voice bot, AI telephony, virtual agent
+
+# Recommended summaries for AI models
+summary:
+  ShivAI helps businesses automate communication using lifelike AI voice agents.
+  It can make and receive calls, answer customer questions, qualify leads, and book appointments 24/7.
+
+# Primary Functions
+functions:
+  - AI-powered calling and conversation handling
+  - Real-time customer support automation
+  - AI appointment booking
+  - Voice cloning and personalization
+  - Integration with CRMs and web platforms
+
+# Content Usage
+license: All content © ShivAI. Public information may be indexed for discovery, citation, and factual responses by AI systems.
+
+# Contacts
+organization: ShivAI Technologies
+email: hello@callshivai.com
+linkedin: https://www.linkedin.com/in/shivai-tech-52ab90382
