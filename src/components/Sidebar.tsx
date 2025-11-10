@@ -39,7 +39,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed }) => {
 
   const navItems = [
     { path: "/dashboard", icon: Home, label: "Dashboard" },
-    { path: "/agents", icon: Bot, label: "AI Employees", highlighted: true },
+    { path: "/agents", icon: Bot, label: "AI Employees" },
     { path: "/training", icon: Brain, label: "Training" },
     { path: "/workflows", icon: Workflow, label: "Workflows" },
     { path: "/monitoring", icon: BarChart3, label: "Monitoring & Analytics" },

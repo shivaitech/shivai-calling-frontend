@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import GlassCard from "../components/GlassCard";
 import { useAgent } from "../contexts/AgentContext";
@@ -12,32 +12,19 @@ import {
   Users,
   MessageSquare,
   CheckCircle,
-  AlertCircle,
   Activity,
-  Settings,
-  BarChart3,
-  Zap,
 } from "lucide-react";
 
 const Overview = () => {
   const { agents } = useAgent();
-  const { user } = useAuth(); // Get user from AuthContext
+  const { user } = useAuth();
   const navigate = useNavigate();
-
-  // Add welcome message state
   const [welcomeMessage, setWelcomeMessage] = useState("");
-
-  // Check if current user is developer
   const isDeveloper = isDeveloperUser(user?.email);
 
-  // Check if first time user or returning user
   useEffect(() => {
     if (user) {
       const userName = user.fullName || "User";
-
-      console.log("user details", user);
-
-      // For now, show welcome back for all users
       setWelcomeMessage(`Welcome back,`);
     }
   }, [user]);
@@ -136,11 +123,7 @@ const Overview = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6 w-full max-w-full overflow-hidden">
-      {/* Header - App-like compact design */}
-
-      {/* Stats - Mobile Slider, Desktop Grid */}
       <div className="stats-section">
-        {/* Mobile Slider (sm and below) */}
         <div className="block sm:hidden">
           <Slider
             dots={true}
@@ -195,7 +178,6 @@ const Overview = () => {
           </Slider>
         </div>
 
-        {/* Desktop Grid (sm and above) */}
         <div className="hidden sm:grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
           {stats.map((stat, index) => (
             <GlassCard key={index} hover>
@@ -234,7 +216,6 @@ const Overview = () => {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
-        {/* Active Agents - Mobile Optimized */}
         <GlassCard>
           <div className="p-3 sm:p-6">
             <h3 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white mb-3 sm:mb-4">
@@ -260,7 +241,7 @@ const Overview = () => {
                 agents.map((agent) => (
                   <div
                     key={agent.id}
-                    className="flex items-center justify-between p-3 sm:p-4 bg-slate-50/50 dark:bg-slate-700/30 rounded-xl hover:bg-slate-100/50 dark:hover:bg-slate-700/50 transition-colors duration-200"
+                    className="flex items-center border justify-between px-3 py-3   bg-slate-50/50 dark:bg-slate-700/30 rounded-xl hover:bg-slate-100/50 dark:hover:bg-slate-700/50 transition-colors duration-200"
                   >
                     <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
                       <div className="w-7 sm:w-10 h-7 sm:h-10 common-bg-icons border-none flex items-center justify-center flex-shrink-0">
@@ -296,7 +277,6 @@ const Overview = () => {
           </div>
         </GlassCard>
 
-        {/* Recent Activity - Mobile Optimized */}
         <GlassCard>
           <div className="p-3 sm:p-6">
             <h3 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white mb-3 sm:mb-4">
@@ -448,7 +428,6 @@ const Overview = () => {
               </button>
             </div>
 
-            {/* Scroll indicator for mobile */}
             <div className="flex justify-center mt-3">
               <div className="flex gap-1">
                 <div className="w-1 h-1 bg-slate-400 rounded-full"></div>
@@ -469,11 +448,16 @@ const Overview = () => {
                   : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 opacity-50 cursor-not-allowed"
               }`}
             >
-              <div className="p-2 common-button-bg dark:bg-blue-900/30 rounded-lg w-10  mb-3  items-center">
-                <Bot className="w-6 h-6 relative right-3 text-white dark:text-blue-400 group-hover:scale-110 transition-transform duration-200" />
+              <div
+                style={{
+                  padding: "12px",
+                }}
+                className="common-button-bg  dark:bg-blue-900/30 rounded-lg w-auto  max-w-14 mb-3  items-center"
+              >
+                <Bot className="w-6 h-6  text-white dark:text-blue-400 group-hover:scale-110 transition-transform duration-200" />
               </div>
               <p className="text-base font-medium text-slate-800 dark:text-white mb-1">
-                Create Agent    
+                Create Agent
               </p>
               <p className="text-sm text-slate-600 dark:text-slate-400">
                 Set up new AI agent
@@ -484,19 +468,24 @@ const Overview = () => {
               onClick={() => isDeveloper && navigate("/monitoring")}
               disabled={!isDeveloper}
               className={`p-4 text-left rounded-xl transition-all duration-300 border ${
-                isDeveloper
-                  ? "common-bg-icons dark:border-green-700/30 hover:shadow-lg transform hover:scale-[1.02] group cursor-pointer"
-                  : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 opacity-50 cursor-not-allowed"
+              isDeveloper
+                ? "common-bg-icons dark:border-green-700/30 hover:shadow-lg transform hover:scale-[1.02] group cursor-pointer"
+                : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 opacity-50 cursor-not-allowed"
               }`}
             >
-              <div className="p-2 common-button-bg dark:bg-green-900/30 rounded-lg w-10 mb-3">
-                <MessageSquare className="w-6 h-6 relative right-3 text-white dark:text-green-400 group-hover:scale-110 transition-transform duration-200" />
+              <div
+              style={{
+                padding: "12px",
+              }}
+              className="common-button-bg  dark:bg-green-900/30 rounded-lg w-auto  max-w-14 mb-3  items-center"
+              >
+              <MessageSquare className="w-6 h-6  text-white dark:text-green-400 group-hover:scale-110 transition-transform duration-200" />
               </div>
               <p className="text-base font-medium text-slate-800 dark:text-white mb-1">
-                Conversations
+              Conversations
               </p>
               <p className="text-sm text-slate-600 dark:text-slate-400">
-                Monitor interactions
+              Monitor interactions
               </p>
             </button>
 
@@ -504,19 +493,24 @@ const Overview = () => {
               onClick={() => isDeveloper && navigate("/training")}
               disabled={!isDeveloper}
               className={`p-4 text-left rounded-xl transition-all duration-300 border ${
-                isDeveloper
-                  ? "common-bg-icons dark:border-orange-700/30 hover:shadow-lg transform hover:scale-[1.02] group cursor-pointer"
-                  : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 opacity-50 cursor-not-allowed"
+              isDeveloper
+                ? "common-bg-icons dark:border-orange-700/30 hover:shadow-lg transform hover:scale-[1.02] group cursor-pointer"
+                : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 opacity-50 cursor-not-allowed"
               }`}
             >
-              <div className="p-2 common-button-bg dark:bg-orange-900/30 rounded-lg w-10 mb-3">
-                <Activity className="w-6 h-6 relative right-3 text-white dark:text-orange-400 group-hover:scale-110 transition-transform duration-200" />
+              <div
+              style={{
+                padding: "12px",
+              }}
+              className="common-button-bg dark:bg-orange-900/30 rounded-lg w-auto max-w-14 mb-3 items-center"
+              >
+              <Activity className="w-6 h-6 text-white dark:text-orange-400 group-hover:scale-110 transition-transform duration-200" />
               </div>
               <p className="text-base font-medium text-slate-800 dark:text-white mb-1">
-                Training
+              Training
               </p>
               <p className="text-sm text-slate-600 dark:text-slate-400">
-                Improve AI models
+              Improve AI models
               </p>
             </button>
 
@@ -524,19 +518,24 @@ const Overview = () => {
               onClick={() => isDeveloper && navigate("/settings")}
               disabled={!isDeveloper}
               className={`p-4 text-left rounded-xl transition-all duration-300 border ${
-                isDeveloper
-                  ? "common-bg-icons dark:border-purple-700/30 hover:shadow-lg transform hover:scale-[1.02] group cursor-pointer"
-                  : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 opacity-50 cursor-not-allowed"
+              isDeveloper
+                ? "common-bg-icons dark:border-purple-700/30 hover:shadow-lg transform hover:scale-[1.02] group cursor-pointer"
+                : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 opacity-50 cursor-not-allowed"
               }`}
             >
-              <div className="p-2 common-button-bg dark:bg-purple-900/30 rounded-lg w-10 mb-3">
-                <Users className="w-6 h-6 relative right-3 text-white dark:text-purple-400 group-hover:scale-110 transition-transform duration-200" />
+              <div
+              style={{
+                padding: "12px",
+              }}
+              className="common-button-bg dark:bg-purple-900/30 rounded-lg w-auto max-w-14 mb-3 items-center"
+              >
+              <Users className="w-6 h-6 text-white dark:text-purple-400 group-hover:scale-110 transition-transform duration-200" />
               </div>
               <p className="text-base font-medium text-slate-800 dark:text-white mb-1">
-                Team Settings
+              Team Settings
               </p>
               <p className="text-sm text-slate-600 dark:text-slate-400">
-                Manage permissions
+              Manage permissions
               </p>
             </button>
           </div>

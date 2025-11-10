@@ -297,6 +297,12 @@ const AgentManagement = () => {
   };
 
   const handleSave = () => {
+    // Validate agent name
+    if (!formData.name || formData.name.trim() === "") {
+      alert("Agent name is required. Please enter a name for your agent.");
+      return;
+    }
+
     if (isCreate) {
       addAgent({
         name: formData.name,
@@ -304,6 +310,12 @@ const AgentManagement = () => {
         persona: formData.persona,
         language: formData.language,
         voice: formData.voice,
+        stats: {
+          conversations: 0,
+          successRate: 0,
+          avgResponseTime: 0,
+          activeUsers: 0,
+        },
       });
       navigate("/agents");
     } else if (isEdit && currentAgent) {
@@ -414,63 +426,61 @@ const AgentManagement = () => {
   // MAIN AGENT LIST PAGE
   if (isList) {
     return (
-      <div className="space-y-2 lg:space-y-4 w-full max-w-full overflow-hidden">
-        {/* Mobile-First Header */}
-        <div className="px-1">
-          <div className="flex flex-col ">
-            <div className="flex items-start justify-end gap-3 mb-3 lg:mb-0">
-              {/* Mobile Create Button */}
-              <button
-                onClick={() => isDeveloper && navigate("/agents/create")}
-                disabled={!isDeveloper}
-                className={`flex items-center gap-2 transition-all duration-200 shadow-sm ${
-                  isDeveloper
-                    ? "common-button-bg transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
-                    : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg"
-                }`}
-              >
-                <Plus className="w-4 h-4" />
-                <span className=" sm:inline">Create AI Employee</span>
-              </button>
+      <div className="space-y-4 lg:space-y-6 w-full max-w-full overflow-hidden">
+        {/* Header with Stats */}
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          {/* Stats Row */}
+          <div className="grid grid-cols-3 gap-3 lg:gap-4 flex-1">
+            <div className="bg-white/50 flex items-center justify-center gap-2 dark:bg-slate-800/50 rounded-xl px-4 lg:px-6 py-2.5 lg:py-2 text-center shadow-sm transition-all duration-200 hover:shadow-md">
+              <p className="text-xl lg:text-2xl font-bold text-slate-800 dark:text-white">
+                {isDeveloper ? agents.length : 0}
+              </p>
+              <p className="text-xs lg:text-sm font-medium text-slate-600 dark:text-slate-400">
+                Total Agents
+              </p>
             </div>
-
-            {/* Stats Row - Mobile Only */}
-            <div className="grid grid-cols-3 gap-2 sm:hidden">
-              <div className="bg-white/50 dark:bg-slate-800/50 rounded-lg p-2 text-center">
-                <p className="text-lg font-bold text-slate-800 dark:text-white">
-                  {isDeveloper ? agents.length : 0}
-                </p>
-                <p className="text-xs text-slate-600 dark:text-slate-400">
-                  Agents
-                </p>
-              </div>
-              <div className="bg-white/50 dark:bg-slate-800/50 rounded-lg p-2 text-center">
-                <p className="text-lg font-bold text-green-600 dark:text-green-400">
-                  {isDeveloper
-                    ? agents.filter((a) => a.status === "Published").length
-                    : 0}
-                </p>
-                <p className="text-xs text-slate-600 dark:text-slate-400">
-                  Live
-                </p>
-              </div>
-              <div className="bg-white/50 dark:bg-slate-800/50 rounded-lg p-2 text-center">
-                <p className="text-lg font-bold text-yellow-600 dark:text-yellow-400">
-                  {isDeveloper
-                    ? agents.filter((a) => a.status === "Training").length
-                    : 0}
-                </p>
-                <p className="text-xs text-slate-600 dark:text-slate-400">
-                  Training
-                </p>
-              </div>
+            <div className="bg-white/50 flex items-center justify-center gap-2 dark:bg-slate-800/50 rounded-xl px-4 lg:px-6 py-2.5 lg:py-2 text-center shadow-sm transition-all duration-200 hover:shadow-md">
+              <p className="text-xl lg:text-2xl font-bold text-green-600 dark:text-green-400">
+                {isDeveloper
+                  ? agents.filter((a) => a.status === "Published").length
+                  : 0}
+              </p>
+              <p className="text-xs lg:text-sm font-medium text-slate-600 dark:text-slate-400">
+                Published
+              </p>
+            </div>
+            <div className="bg-white/50 flex items-center justify-center gap-2 dark:bg-slate-800/50 rounded-xl px-4 lg:px-6 py-2.5 lg:py-2 text-center shadow-sm transition-all duration-200 hover:shadow-md">
+              <p className="text-xl lg:text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+                {isDeveloper
+                  ? agents.filter((a) => a.status === "Training").length
+                  : 0}
+              </p>
+              <p className="text-xs lg:text-sm font-medium text-slate-600 dark:text-slate-400">
+                Training
+              </p>
             </div>
           </div>
+
+          {/* Create Button */}
+          <button
+            onClick={() => isDeveloper && navigate("/agents/create")}
+            disabled={!isDeveloper}
+            className={`flex items-center justify-center gap-2 px-4 lg:px-6 py-2.5 lg:py-3 rounded-xl transition-all duration-200 shadow-sm whitespace-nowrap ${
+              isDeveloper
+                ? "common-button-bg transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50"
+            }`}
+          >
+            <Plus className="w-4 h-4 lg:w-5 lg:h-5" />
+            <span className="text-sm lg:text-base font-medium">
+              Create AI Employee
+            </span>
+          </button>
         </div>
 
         {/* Search and Filter Row */}
         <GlassCard>
-          <div className="p-3 sm:p-4 lg:p-6">
+          <div className="p-4 lg:p-6">
             <div className="flex items-center gap-3">
               {/* Search Input */}
               <div className="flex-1 relative">
@@ -480,15 +490,27 @@ const AgentManagement = () => {
                   placeholder="Search agents..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/20 text-slate-800 dark:text-white text-sm transition-all duration-200"
+                  className="w-full pl-10 pr-4 py-2.5 lg:py-3 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/20 text-slate-800 dark:text-white text-sm transition-all duration-200"
                 />
               </div>
 
               {/* Status Filter */}
-             
+              <div className="hidden lg:block min-w-[180px]">
+                <SearchableSelect
+                  options={[
+                    { value: "all", label: "All Status" },
+                    { value: "published", label: "Published" },
+                    { value: "draft", label: "Draft" },
+                    { value: "training", label: "Training" },
+                  ]}
+                  value={statusFilter}
+                  onChange={(value) => setStatusFilter(value)}
+                  placeholder="Filter by status..."
+                />
+              </div>
 
-              {/* Filter Button */}
-              <button className="flex items-center justify-center common-button-bg2 active:scale-95">
+              {/* Filter Button - Mobile Only */}
+              <button className="lg:hidden flex items-center justify-center common-button-bg2 p-2.5 rounded-lg active:scale-95">
                 <Filter className="w-4 h-4" />
               </button>
             </div>
@@ -572,7 +594,7 @@ const AgentManagement = () => {
 
                 {/* Agent Details - Compact for Mobile */}
                 <div className="space-y-2 mb-4 sm:mb-5">
-                  <div className="flex gap-1 text-xs sm:text-sm">
+                  <div className="flex items-center justify-start text-xs sm:text-sm">
                     <span className="text-slate-600 dark:text-slate-400">
                       Voice:
                     </span>
@@ -580,7 +602,7 @@ const AgentManagement = () => {
                       {agent.voice}
                     </span>
                   </div>
-                  <div className="flex gap-2  text-xs sm:text-sm">
+                  <div className="flex items-center justify-start text-xs sm:text-sm">
                     <span className="text-slate-600 dark:text-slate-400">
                       Created:
                     </span>
@@ -609,7 +631,11 @@ const AgentManagement = () => {
                   </button>
 
                   <button
-                    onClick={() => navigate(`/agents/${agent.id}/train`,{ state: { from: "list" } })}
+                    onClick={() =>
+                      navigate(`/agents/${agent.id}/train`, {
+                        state: { from: "list" },
+                      })
+                    }
                     className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-all duration-200 text-sm font-medium active:scale-[0.98]"
                   >
                     <Zap className="w-4 h-4" />
@@ -652,14 +678,14 @@ const AgentManagement = () => {
 
         {/* Mobile-Optimized Empty State */}
         {filteredAgents.length === 0 && (
-          <div className="text-center py-8 sm:py-12 lg:py-16 px-4">
-            <Bot className="w-16 sm:w-20 h-16 sm:h-20 text-slate-300 dark:text-slate-600 mx-auto mb-4 sm:mb-6" />
-            <h3 className="text-lg sm:text-xl font-medium text-slate-600 dark:text-slate-400 mb-2 sm:mb-3">
+          <div className="text-center py-12 lg:py-16 px-4">
+            <Bot className="w-20 lg:w-24 h-20 lg:h-24 text-slate-300 dark:text-slate-600 mx-auto mb-6" />
+            <h3 className="text-xl lg:text-2xl font-medium text-slate-600 dark:text-slate-400 mb-3">
               {searchTerm || statusFilter !== "all"
                 ? "No agents found"
                 : "No agents created yet"}
             </h3>
-            <p className="text-sm sm:text-base text-slate-500 dark:text-slate-500 max-w-sm sm:max-w-md mx-auto mb-4 sm:mb-6 leading-relaxed">
+            <p className="text-sm lg:text-base text-slate-500 dark:text-slate-500 max-w-md lg:max-w-lg mx-auto mb-6 leading-relaxed">
               {searchTerm || statusFilter !== "all"
                 ? "Try adjusting your search or filter criteria to find what you're looking for"
                 : "Create your first AI agent to get started with automated conversations and boost your business efficiency"}
@@ -683,7 +709,7 @@ const AgentManagement = () => {
                   setSearchTerm("");
                   setStatusFilter("all");
                 }}
-                className="w-full sm:w-auto common-button-bg2"
+                className="w-full sm:w-auto common-button-bg2 px-6 py-2.5 rounded-lg"
               >
                 Clear Filters
               </button>
@@ -696,54 +722,88 @@ const AgentManagement = () => {
 
   // VIEW MODE - Show agent details
   if (isView && currentAgent) {
-    // Slider settings for overview cards
-    const overviewSliderSettings = {
-      dots: false,
-      infinite: false,
-      speed: 300,
-      slidesToShow: 2.2,
-      slidesToScroll: 1,
-      arrows: false,
-      responsive: [
-        {
-          breakpoint: 640, // sm
-          settings: {
-            slidesToShow: 2.2,
-            slidesToScroll: 1,
-          },
-        },
-        {
-          breakpoint: 480, // xs
-          settings: {
-            slidesToShow: 1.8,
-            slidesToScroll: 1,
-          },
-        },
-        {
-          breakpoint: 768, // md and up - show grid instead
-          settings: "unslick" as const,
-        },
-      ],
-    };
-
     return (
       <div className="space-y-4 sm:space-y-6 w-full">
         {/* Enhanced Mobile-First Header */}
         <GlassCard>
           <div className="p-4 sm:p-6">
             {/* Top row with back button and actions */}
-            <div className="flex items-center justify-between mb-4 sm:mb-6">
-              <button
-                onClick={() => navigate("/agents")}
-                className="common-button-bg2 p-2 sm:p-2.5 rounded-xl flex-shrink-0 touch-manipulation"
-              >
-                <ArrowLeft className="w-4 sm:w-5 h-4 sm:h-5 text-slate-600 dark:text-slate-300" />
-              </button>
-              
-              <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              {/* Main agent info section */}
+              <div className="flex items-start gap-3 sm:gap-4 min-w-0 flex-1">
+                <button
+                  onClick={() => navigate("/agents")}
+                  className="common-button-bg2 p-2 sm:p-2.5 rounded-xl flex-shrink-0 touch-manipulation"
+                >
+                  <ArrowLeft className="w-4 sm:w-5 h-4 sm:h-5 text-slate-600 dark:text-slate-300" />
+                </button>
+
+                <div className="flex items-start gap-3 sm:gap-4 lg:gap-4 min-w-0 flex-1">
+                  {/* Agent avatar/icon */}
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 lg:w-20 lg:h-20 common-bg-icons flex items-center justify-center flex-shrink-0 rounded-xl">
+                    <Bot className="w-6 h-6 sm:w-8 sm:h-8 lg:w-10 lg:h-10 text-black dark:text-white" />
+                  </div>
+
+                  {/* Agent details */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0 flex-1">
+                        <h1 className="text-lg sm:text-xl lg:text-2xl xl:text-3xl font-bold text-slate-800 dark:text-white leading-tight truncate">
+                          {currentAgent.name}
+                        </h1>
+
+                        {/* Agent meta info - Mobile optimized */}
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1 sm:mt-2">
+                          <div className="flex items-center gap-1">
+                            <Globe className="w-3 sm:w-4 h-3 sm:h-4" />
+                            <span className="truncate">
+                              {currentAgent.language}
+                            </span>
+                          </div>
+                          <div className="hidden xs:flex items-center gap-1">
+                            <Clock className="w-3 sm:w-4 h-3 sm:h-4" />
+                            <span className="truncate">
+                              Created{" "}
+                              {currentAgent.createdAt.toLocaleDateString()}
+                            </span>
+                          </div>
+                          <div className="xs:hidden flex items-center gap-1">
+                            <Clock className="w-3 sm:w-4 h-3 sm:h-4" />
+                            <span className="truncate">
+                              {currentAgent.createdAt.toLocaleDateString(
+                                "en-US",
+                                {
+                                  month: "short",
+                                  day: "numeric",
+                                }
+                              )}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span
+                              className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium flex-shrink-0 ${
+                                currentAgent.status === "Published"
+                                  ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
+                                  : currentAgent.status === "Training"
+                                  ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400"
+                                  : "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
+                              }`}
+                            >
+                              {currentAgent.status}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action buttons - Mobile stacked */}
+              <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
                 <button
                   onClick={() => navigate(`/agents/${currentAgent.id}/edit`)}
-                  className="common-button-bg2 flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl touch-manipulation"
+                  className="flex-1 sm:flex-none common-button-bg2 flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl touch-manipulation min-h-[40px]"
                 >
                   <Edit className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
                   <span className="text-xs sm:text-sm font-medium">Edit</span>
@@ -752,63 +812,28 @@ const AgentManagement = () => {
                 {currentAgent.status === "Published" ? (
                   <button
                     onClick={() => handlePause(currentAgent.id)}
-                    className="common-button-bg2 flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl touch-manipulation"
+                    className="flex-1 sm:flex-none common-button-bg2 flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl touch-manipulation min-h-[40px]"
                   >
                     <Pause className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
-                    <span className="text-xs sm:text-sm font-medium">Pause</span>
+                    <span className="text-xs sm:text-sm font-medium">
+                      Pause
+                    </span>
                   </button>
                 ) : (
                   <button
                     onClick={() => handlePublish(currentAgent.id)}
-                    className="common-button-bg flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl touch-manipulation"
+                    className="flex-1 sm:flex-none common-button-bg flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl touch-manipulation min-h-[40px]"
                   >
                     <Play className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
-                    <span className="text-xs sm:text-sm font-medium">Publish</span>
+                    <span className="text-xs sm:text-sm font-medium">
+                      Publish
+                    </span>
                   </button>
                 )}
               </div>
             </div>
 
             {/* Agent info section */}
-            <div className="flex items-start gap-4 sm:gap-6">
-              {/* Agent avatar/icon */}
-              <div className="w-16 h-16 sm:w-20 sm:h-20 common-bg-icons flex items-center justify-center flex-shrink-0">
-                <Bot className="w-8 h-8 sm:w-10 sm:h-10 text-black dark:text-white" />
-              </div>
-              
-              {/* Agent details */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-slate-800 dark:text-white leading-tight">
-                    {currentAgent.name}
-                  </h1>
-                  <span className={`px-3 py-1 rounded-full text-xs sm:text-sm font-medium flex-shrink-0 ${
-                    currentAgent.status === 'Published' 
-                      ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400'
-                      : currentAgent.status === 'Training' 
-                      ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400'
-                      : 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
-                  }`}>
-                    {currentAgent.status}
-                  </span>
-                </div>
-                
-                {/* Agent meta info */}
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600 dark:text-slate-400 mb-3">
-                  <div className="flex items-center gap-1.5">
-                    <Globe className="w-4 h-4" />
-                    <span>{currentAgent.language}</span>
-                  </div>
-                
-                  <div className="flex items-center gap-1.5">
-                    <Clock className="w-4 h-4" />
-                    <span>Created {currentAgent.createdAt.toLocaleDateString()}</span>
-                  </div>
-                </div>
-
-               
-              </div>
-            </div>
           </div>
         </GlassCard>
 
@@ -821,13 +846,29 @@ const AgentManagement = () => {
                   <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div className="text-right">
-                  <p className="text-lg sm:text-2xl font-bold text-slate-800 dark:text-white">1,247</p>
-                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">Conversations</p>
+                  <p className="text-lg sm:text-2xl font-bold text-slate-800 dark:text-white">
+                    {currentAgent.stats.conversations.toLocaleString()}
+                  </p>
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+                    Conversations
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-1">
-                <span className="text-xs sm:text-sm font-medium text-green-600 dark:text-green-400">+12%</span>
-                <span className="text-xs text-slate-500 dark:text-slate-500">this week</span>
+                {currentAgent.stats.conversations > 0 ? (
+                  <>
+                    <span className="text-xs sm:text-sm font-medium text-green-600 dark:text-green-400">
+                      +12%
+                    </span>
+                    <span className="text-xs text-slate-500 dark:text-slate-500">
+                      this week
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-xs text-slate-500 dark:text-slate-500">
+                    No data yet
+                  </span>
+                )}
               </div>
             </div>
           </GlassCard>
@@ -839,13 +880,29 @@ const AgentManagement = () => {
                   <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-600 dark:text-green-400" />
                 </div>
                 <div className="text-right">
-                  <p className="text-lg sm:text-2xl font-bold text-slate-800 dark:text-white">94.2%</p>
-                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">Success Rate</p>
+                  <p className="text-lg sm:text-2xl font-bold text-slate-800 dark:text-white">
+                    {currentAgent.stats.successRate}%
+                  </p>
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+                    Success Rate
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-1">
-                <span className="text-xs sm:text-sm font-medium text-green-600 dark:text-green-400">+2.1%</span>
-                <span className="text-xs text-slate-500 dark:text-slate-500">improved</span>
+                {currentAgent.stats.successRate > 0 ? (
+                  <>
+                    <span className="text-xs sm:text-sm font-medium text-green-600 dark:text-green-400">
+                      +2.1%
+                    </span>
+                    <span className="text-xs text-slate-500 dark:text-slate-500">
+                      improved
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-xs text-slate-500 dark:text-slate-500">
+                    No data yet
+                  </span>
+                )}
               </div>
             </div>
           </GlassCard>
@@ -857,13 +914,29 @@ const AgentManagement = () => {
                   <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600 dark:text-purple-400" />
                 </div>
                 <div className="text-right">
-                  <p className="text-lg sm:text-2xl font-bold text-slate-800 dark:text-white">1.2s</p>
-                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">Avg Response</p>
+                  <p className="text-lg sm:text-2xl font-bold text-slate-800 dark:text-white">
+                    {currentAgent.stats.avgResponseTime}s
+                  </p>
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+                    Avg Response
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-1">
-                <span className="text-xs sm:text-sm font-medium text-green-600 dark:text-green-400">-0.3s</span>
-                <span className="text-xs text-slate-500 dark:text-slate-500">faster</span>
+                {currentAgent.stats.avgResponseTime > 0 ? (
+                  <>
+                    <span className="text-xs sm:text-sm font-medium text-green-600 dark:text-green-400">
+                      -0.3s
+                    </span>
+                    <span className="text-xs text-slate-500 dark:text-slate-500">
+                      faster
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-xs text-slate-500 dark:text-slate-500">
+                    No data yet
+                  </span>
+                )}
               </div>
             </div>
           </GlassCard>
@@ -875,13 +948,29 @@ const AgentManagement = () => {
                   <Users className="w-5 h-5 sm:w-6 sm:h-6 text-orange-600 dark:text-orange-400" />
                 </div>
                 <div className="text-right">
-                  <p className="text-lg sm:text-2xl font-bold text-slate-800 dark:text-white">328</p>
-                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">Active Users</p>
+                  <p className="text-lg sm:text-2xl font-bold text-slate-800 dark:text-white">
+                    {currentAgent.stats.activeUsers}
+                  </p>
+                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+                    Active Users
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-1">
-                <span className="text-xs sm:text-sm font-medium text-green-600 dark:text-green-400">+8%</span>
-                <span className="text-xs text-slate-500 dark:text-slate-500">today</span>
+                {currentAgent.stats.activeUsers > 0 ? (
+                  <>
+                    <span className="text-xs sm:text-sm font-medium text-green-600 dark:text-green-400">
+                      +8%
+                    </span>
+                    <span className="text-xs text-slate-500 dark:text-slate-500">
+                      today
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-xs text-slate-500 dark:text-slate-500">
+                    No data yet
+                  </span>
+                )}
               </div>
             </div>
           </GlassCard>
@@ -901,39 +990,53 @@ const AgentManagement = () => {
                     Configuration
                   </h3>
                 </div>
-                
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                   <div className="space-y-4">
-                    <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+                    <div className="p-4 bg-slate-50 border dark:bg-slate-800/50 rounded-xl">
                       <div className="flex items-center gap-3 mb-2">
                         <Globe className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                        <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Language</span>
+                        <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                          Language
+                        </span>
                       </div>
-                      <p className="text-base font-semibold text-slate-800 dark:text-white">{currentAgent.language}</p>
+                      <p className="text-base font-semibold text-slate-800 dark:text-white">
+                        {currentAgent.language}
+                      </p>
                     </div>
-                    
-                    <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+
+                    <div className="p-4 bg-slate-50 border dark:bg-slate-800/50 rounded-xl">
                       <div className="flex items-center gap-3 mb-2">
                         <MessageSquare className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                        <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Voice</span>
+                        <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                          Voice
+                        </span>
                       </div>
-                      <p className="text-base font-semibold text-slate-800 dark:text-white">{currentAgent.voice}</p>
+                      <p className="text-base font-semibold text-slate-800 dark:text-white">
+                        {currentAgent.voice}
+                      </p>
                     </div>
                   </div>
-                  
+
                   <div className="space-y-4">
-                    <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+                    <div className="p-4 bg-slate-50 border dark:bg-slate-800/50 rounded-xl">
                       <div className="flex items-center gap-3 mb-2">
                         <Users className="w-4 h-4 text-green-600 dark:text-green-400" />
-                        <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Persona</span>
+                        <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                          Persona
+                        </span>
                       </div>
-                      <p className="text-base font-semibold text-slate-800 dark:text-white">{currentAgent.persona}</p>
+                      <p className="text-base font-semibold text-slate-800 dark:text-white">
+                        {currentAgent.persona}
+                      </p>
                     </div>
-                    
-                    <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl">
+
+                    <div className="p-4 bg-slate-50 border dark:bg-slate-800/50 rounded-xl">
                       <div className="flex items-center gap-3 mb-2">
                         <Clock className="w-4 h-4 text-orange-600 dark:text-orange-400" />
-                        <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Created</span>
+                        <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                          Created
+                        </span>
                       </div>
                       <p className="text-base font-semibold text-slate-800 dark:text-white">
                         {currentAgent.createdAt.toLocaleDateString()}
@@ -957,7 +1060,7 @@ const AgentManagement = () => {
                     Quick Actions
                   </h3>
                 </div>
-                
+
                 <div className="space-y-3">
                   <button
                     onClick={() => navigate(`/agents/${currentAgent.id}/train`)}
@@ -968,32 +1071,44 @@ const AgentManagement = () => {
                         <Lightbulb className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                       </div>
                       <div className="text-left flex-1">
-                        <p className="font-medium text-slate-800 dark:text-white">Train Agent</p>
-                        <p className="text-xs text-slate-600 dark:text-slate-400">Improve responses</p>
+                        <p className="font-medium text-slate-800 dark:text-white">
+                          Train Agent
+                        </p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400">
+                          Improve responses
+                        </p>
                       </div>
                     </div>
                   </button>
-                  
+
                   <button className="w-full common-bg-icons hover:shadow-md transition-all duration-200 p-4 rounded-xl touch-manipulation group">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-green-50 dark:bg-green-900/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
                         <Copy className="w-5 h-5 text-green-600 dark:text-green-400" />
                       </div>
                       <div className="text-left flex-1">
-                        <p className="font-medium text-slate-800 dark:text-white">Clone Agent</p>
-                        <p className="text-xs text-slate-600 dark:text-slate-400">Create duplicate</p>
+                        <p className="font-medium text-slate-800 dark:text-white">
+                          Clone Agent
+                        </p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400">
+                          Create duplicate
+                        </p>
                       </div>
                     </div>
                   </button>
-                  
+
                   <button className="w-full common-bg-icons hover:shadow-md transition-all duration-200 p-4 rounded-xl touch-manipulation group">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-purple-50 dark:bg-purple-900/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
                         <Download className="w-5 h-5 text-purple-600 dark:text-purple-400" />
                       </div>
                       <div className="text-left flex-1">
-                        <p className="font-medium text-slate-800 dark:text-white">Export Data</p>
-                        <p className="text-xs text-slate-600 dark:text-slate-400">Download config</p>
+                        <p className="font-medium text-slate-800 dark:text-white">
+                          Export Data
+                        </p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400">
+                          Download config
+                        </p>
                       </div>
                     </div>
                   </button>
@@ -1247,52 +1362,127 @@ Content-Type: application/json
   // EDIT/CREATE MODE - Mobile-First
   return (
     <div className="space-y-4 sm:space-y-6 w-full max-w-full overflow-visible">
-      {/* Mobile-First Header */}
-      <div className="px-1">
-        <div className="flex flex-col gap-3 sm:gap-0 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
-            <button
-              onClick={() => navigate(isCreate ? "/agents" : `/agents/${id}`)}
-              className="p-2 rounded-lg common-button-bg2 flex-shrink-0 active:scale-95"
-            >
-              <ArrowLeft className="w-4 sm:w-5 h-4 sm:h-5 text-slate-600 dark:text-slate-300" />
-            </button>
-            <div className="min-w-0 flex-1">
-              <h1 className="text-lg sm:text-xl lg:text-2xl xl:text-3xl font-bold text-slate-800 dark:text-white truncate">
-                {isCreate ? "Create New Agent" : `Edit ${currentAgent?.name}`}
-              </h1>
-              <p className="text-xs sm:text-sm lg:text-base text-slate-600 dark:text-slate-400 leading-tight">
-                {isCreate
-                  ? "Set up your AI agent with custom personality and capabilities"
-                  : "Modify agent settings and configuration"}
-              </p>
+      {/* Consistent Header UI */}
+      <GlassCard>
+        <div className="p-4 sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            {/* Main agent info section */}
+            <div className="flex items-start gap-3 sm:gap-4 min-w-0 flex-1">
+              <button
+                onClick={() => {
+                  // Navigate to previous page or agents list
+                  if (window.history.length > 1) {
+                    navigate(-1);
+                  } else {
+                    navigate("/agents");
+                  }
+                }}
+                className="common-button-bg2 p-2 sm:p-2.5 rounded-xl flex-shrink-0 touch-manipulation"
+              >
+                <ArrowLeft className="w-4 sm:w-5 h-4 sm:h-5 text-slate-600 dark:text-slate-300" />
+              </button>
+
+              <div className="flex items-start gap-3 sm:gap-4 lg:gap-4 min-w-0 flex-1">
+                {/* Agent avatar/icon */}
+                <div className="w-12 h-12 sm:w-16 sm:h-16 lg:w-20 lg:h-20 common-bg-icons flex items-center justify-center flex-shrink-0 rounded-xl">
+                  <Bot className="w-6 h-6 sm:w-8 sm:h-8 lg:w-10 lg:h-10 text-black dark:text-white" />
+                </div>
+
+                {/* Agent details */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <h1 className="text-lg sm:text-xl lg:text-2xl xl:text-3xl font-bold text-slate-800 dark:text-white leading-tight truncate">
+                        {isCreate
+                          ? "Create New Agent"
+                          : `Edit ${currentAgent?.name || "Agent"}`}
+                      </h1>
+
+                      {/* Agent meta info - Mobile optimized */}
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1 sm:mt-2">
+                        <div className="flex items-center gap-1">
+                          <Settings className="w-3 sm:w-4 h-3 sm:h-4" />
+                          <span className="truncate">
+                            {isCreate
+                              ? "Configuration"
+                              : "Editing Configuration"}
+                          </span>
+                        </div>
+                        {!isCreate && currentAgent && (
+                          <>
+                            <div className="hidden xs:flex items-center gap-1">
+                              <Clock className="w-3 sm:w-4 h-3 sm:h-4" />
+                              <span className="truncate">
+                                Created{" "}
+                                {currentAgent.createdAt.toLocaleDateString()}
+                              </span>
+                            </div>
+                            <div className="xs:hidden flex items-center gap-1">
+                              <Clock className="w-3 sm:w-4 h-3 sm:h-4" />
+                              <span className="truncate">
+                                {currentAgent.createdAt.toLocaleDateString(
+                                  "en-US",
+                                  {
+                                    month: "short",
+                                    day: "numeric",
+                                  }
+                                )}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1 mt-0 md:mt-2 lg:mt-0">
+                              <span
+                                className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium flex-shrink-0 self-start ${
+                                  currentAgent.status === "Published"
+                                    ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
+                                    : currentAgent.status === "Training"
+                                    ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400"
+                                    : "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
+                                }`}
+                              >
+                                {currentAgent.status}
+                              </span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Action buttons - Mobile stacked */}
+            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+              <button
+                onClick={() => {
+                  // Navigate to previous page or agents list
+                  if (window.history.length > 1) {
+                    navigate(-1);
+                  } else {
+                    navigate("/agents");
+                  }
+                }}
+                className="flex-1 sm:flex-none common-button-bg2 flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl touch-manipulation min-h-[40px]"
+              >
+                <span className="text-xs sm:text-sm font-medium">Cancel</span>
+              </button>
+
+              <button
+                onClick={handleSave}
+                className="flex-1 sm:flex-none common-button-bg flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl touch-manipulation min-h-[40px]"
+              >
+                <Save className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+                <span className="text-xs sm:text-sm font-medium">
+                  {isCreate ? "Create" : "Save"}
+                </span>
+              </button>
             </div>
           </div>
-
-          {/* Action Buttons */}
-          <div className="flex items-center gap-2 sm:gap-3">
-            <button
-              onClick={() => navigate(isCreate ? "/agents" : `/agents/${id}`)}
-              className="flex-1 sm:flex-none common-button-bg2 active:scale-95"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              className="flex-1 sm:flex-none flex items-center justify-center gap-2 common-button-bg shadow-sm hover:shadow-md transform hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <Save className="w-4 h-4" />
-              <span className="hidden xs:inline">
-                {isCreate ? "Create Agent" : "Save Changes"}
-              </span>
-              <span className="xs:hidden">{isCreate ? "Create" : "Save"}</span>
-            </button>
-          </div>
         </div>
-      </div>
+      </GlassCard>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6 overflow-visible">
-        <div className="xl:col-span-2 space-y-4 sm:space-y-6 overflow-visible">
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-4 sm:gap-6 lg:gap-8">
+        <div className="space-y-4 sm:space-y-6 min-w-0">
           {/* Identity Section - Mobile Optimized */}
           <GlassCard>
             <div className="p-4 sm:p-5 lg:p-6">
@@ -1334,59 +1524,53 @@ Content-Type: application/json
                       <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                         Select Gender <span className="text-red-500">*</span>
                       </label>
-                      <div style={{ zIndex: 200 }}>
-                        <SearchableSelect
-                          options={genders}
-                          value={formData.gender}
-                          onChange={(value) =>
-                            setFormData({ ...formData, gender: value })
-                          }
-                          placeholder="Select gender..."
-                          groupBy={true}
-                        />
-                      </div>
+                      <SearchableSelect
+                        options={genders}
+                        value={formData.gender}
+                        onChange={(value) =>
+                          setFormData({ ...formData, gender: value })
+                        }
+                        placeholder="Select gender..."
+                        groupBy={true}
+                      />
                     </div>
                   </div>
 
                   {isCreate && (
-                    <>
+                    <div className="col-span-full space-y-4 sm:space-y-6">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                         <div>
                           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                             Business Process{" "}
                             <span className="text-red-500">*</span>
                           </label>
-                          <div style={{ zIndex: 200 }}>
-                            <SearchableSelect
-                              options={businessProcesses}
-                              value={formData.businessProcess}
-                              onChange={(value) =>
-                                setFormData({
-                                  ...formData,
-                                  businessProcess: value,
-                                })
-                              }
-                              placeholder="Select business process..."
-                              groupBy={true}
-                            />
-                          </div>
+                          <SearchableSelect
+                            options={businessProcesses}
+                            value={formData.businessProcess}
+                            onChange={(value) =>
+                              setFormData({
+                                ...formData,
+                                businessProcess: value,
+                              })
+                            }
+                            placeholder="Select business process..."
+                            groupBy={true}
+                          />
                         </div>
 
                         <div>
                           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                             Industry <span className="text-red-500">*</span>
                           </label>
-                          <div style={{ zIndex: 190 }}>
-                            <SearchableSelect
-                              options={industries}
-                              value={formData.industry}
-                              onChange={(value) =>
-                                setFormData({ ...formData, industry: value })
-                              }
-                              placeholder="Select your industry..."
-                              groupBy={true}
-                            />
-                          </div>
+                          <SearchableSelect
+                            options={industries}
+                            value={formData.industry}
+                            onChange={(value) =>
+                              setFormData({ ...formData, industry: value })
+                            }
+                            placeholder="Select your industry..."
+                            groupBy={true}
+                          />
                         </div>
                       </div>
 
@@ -1512,14 +1696,14 @@ Content-Type: application/json
                           </div>
                         </div>
                       )}
-                    </>
+                    </div>
                   )}
 
-                  <div>
+                  <div className="col-span-full">
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
                       Persona <span className="text-red-500">*</span>
                     </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2 sm:gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                       {[
                         {
                           value: "Friendly",
@@ -1557,16 +1741,16 @@ Content-Type: application/json
                           onClick={() =>
                             setFormData({ ...formData, persona: persona.value })
                           }
-                          className={`p-3 sm:p-4 text-left border-2 rounded-xl transition-all duration-200 active:scale-[0.98] touch-manipulation ${
+                          className={`p-4 text-left border-2 rounded-xl transition-all duration-200 active:scale-[0.98] touch-manipulation ${
                             formData.persona === persona.value
                               ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-sm"
                               : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800/50"
                           }`}
                         >
-                          <div className="font-medium text-slate-800 dark:text-white text-sm sm:text-base">
+                          <div className="font-medium text-slate-800 dark:text-white text-sm lg:text-base">
                             {persona.label}
                           </div>
-                          <div className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 leading-tight">
+                          <div className="text-xs lg:text-sm text-slate-500 dark:text-slate-400 mt-1 leading-tight">
                             {persona.desc}
                           </div>
                         </button>
@@ -1583,63 +1767,10 @@ Content-Type: application/json
           </GlassCard>
 
           {/* Voice & Language - Mobile Optimized */}
-          <GlassCard>
-            <div
-              className="p-4 sm:p-5 lg:p-6 relative"
-              style={{ overflow: "visible" }}
-            >
-              <div className="flex items-center gap-2 mb-3 sm:mb-4">
-                <div className="w-8 h-8 common-bg-icons rounded-lg flex items-center justify-center">
-                  <MessageSquare className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                </div>
-                <h3 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
-                  Voice & Language
-                </h3>
-              </div>
-              <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mb-4 sm:mb-6">
-                Configure how your agent communicates
-              </p>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 relative">
-                <div className="relative" style={{ zIndex: 300 }}>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    Language <span className="text-red-500">*</span>
-                  </label>
-                  <SearchableSelect
-                    options={languageOptions}
-                    value={formData.language}
-                    onChange={(value) =>
-                      setFormData({ ...formData, language: value })
-                    }
-                    placeholder="Select language..."
-                    groupBy={true}
-                  />
-                </div>
-
-                <div className="relative" style={{ zIndex: 290 }}>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    Voice <span className="text-red-500">*</span>
-                  </label>
-                  <SearchableSelect
-                    options={voiceOptions}
-                    value={formData.voice}
-                    onChange={(value) =>
-                      setFormData({ ...formData, voice: value })
-                    }
-                    placeholder="Select voice..."
-                    groupBy={true}
-                  />
-                </div>
-              </div>
-            </div>
-          </GlassCard>
 
           {/* Advanced Settings */}
           <GlassCard>
-            <div
-              className="p-4 sm:p-5 lg:p-6 relative"
-              style={{ overflow: "visible" }}
-            >
+            <div className="p-4 sm:p-5 lg:p-6 z-[99] relative">
               <div className="flex items-center gap-2 mb-3 sm:mb-4">
                 <div className="w-8 h-8 common-bg-icons rounded-lg flex items-center justify-center">
                   <Settings className="w-4 h-4 text-gray-600 dark:text-gray-400" />
@@ -1649,10 +1780,7 @@ Content-Type: application/json
                 </h3>
               </div>
 
-              <div
-                className="space-y-4 sm:space-y-6 relative"
-                style={{ overflow: "visible" }}
-              >
+              <div className="space-y-4 sm:space-y-6">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                     Custom Instructions
@@ -1680,32 +1808,28 @@ Content-Type: application/json
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                       Response Style
                     </label>
-                    <div style={{ zIndex: 170 }}>
-                      <SearchableSelect
-                        options={responseStyleOptions}
-                        value={formData.responseStyle}
-                        onChange={(value) =>
-                          setFormData({ ...formData, responseStyle: value })
-                        }
-                        placeholder="Select response style..."
-                      />
-                    </div>
+                    <SearchableSelect
+                      options={responseStyleOptions}
+                      value={formData.responseStyle}
+                      onChange={(value) =>
+                        setFormData({ ...formData, responseStyle: value })
+                      }
+                      placeholder="Select response style..."
+                    />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                       Maximum Response Length
                     </label>
-                    <div style={{ zIndex: 160 }}>
-                      <SearchableSelect
-                        options={maxResponseOptions}
-                        value={formData.maxResponseLength}
-                        onChange={(value) =>
-                          setFormData({ ...formData, maxResponseLength: value })
-                        }
-                        placeholder="Select max length..."
-                      />
-                    </div>
+                    <SearchableSelect
+                      options={maxResponseOptions}
+                      value={formData.maxResponseLength}
+                      onChange={(value) =>
+                        setFormData({ ...formData, maxResponseLength: value })
+                      }
+                      placeholder="Select max length..."
+                    />
                   </div>
                 </div>
 
@@ -1731,7 +1855,7 @@ Content-Type: application/json
                             style={{ width: `${formData.temperature}%` }}
                           ></div>
                         </div>
-                        
+
                         {/* Range input */}
                         <input
                           type="range"
@@ -1746,18 +1870,19 @@ Content-Type: application/json
                           }
                           className="absolute top-0 left-0 w-full h-2 opacity-0 cursor-pointer z-20 touch-manipulation"
                           style={{
-                            background: 'transparent',
-                            outline: 'none'
+                            background: "transparent",
+                            outline: "none",
                           }}
                         />
-                        
+
                         {/* Thumb/Circle */}
                         <div
                           className="absolute top-1/2 -translate-y-1/2 w-5 h-5 bg-white dark:bg-slate-100 rounded-full shadow-lg border-2 border-blue-500 dark:border-blue-400 transition-all duration-300 ease-out pointer-events-none z-10 hover:scale-110"
                           style={{
                             left: `calc(${formData.temperature}% - 10px)`,
-                            transform: 'translateY(-50%)',
-                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.1)'
+                            transform: "translateY(-50%)",
+                            boxShadow:
+                              "0 4px 12px rgba(0, 0, 0, 0.15), 0 2px 4px rgba(0, 0, 0, 0.1)",
                           }}
                         >
                           {/* Inner circle for better visibility */}
@@ -1787,16 +1912,14 @@ Content-Type: application/json
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                     Context Window
                   </label>
-                  <div style={{ zIndex: 150 }}>
-                    <SearchableSelect
-                      options={contextWindowOptions}
-                      value={formData.contextWindow}
-                      onChange={(value) =>
-                        setFormData({ ...formData, contextWindow: value })
-                      }
-                      placeholder="Select context window..."
-                    />
-                  </div>
+                  <SearchableSelect
+                    options={contextWindowOptions}
+                    value={formData.contextWindow}
+                    onChange={(value) =>
+                      setFormData({ ...formData, contextWindow: value })
+                    }
+                    placeholder="Select context window..."
+                  />
                 </div>
               </div>
             </div>
@@ -1805,6 +1928,119 @@ Content-Type: application/json
 
         {/* Sidebar - Mobile Stacked */}
         <div className="space-y-4 sm:space-y-6">
+          <GlassCard>
+            <div className="p-4 sm:p-5 lg:p-6">
+              <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                <div className="w-8 h-8 common-bg-icons rounded-lg flex items-center justify-center">
+                  <MessageSquare className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                </div>
+                <h3 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
+                  Voice & Language
+                </h3>
+              </div>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                Configure language and voice settings
+              </p>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                    Language <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.language}
+                    onChange={(e) =>
+                      setFormData({ ...formData, language: e.target.value })
+                    }
+                    className="common-bg-icons w-full px-3 sm:px-4 py-3 rounded-xl text-slate-800 dark:text-white text-base sm:text-sm transition-all duration-200 touch-manipulation appearance-none bg-no-repeat bg-right"
+                    style={{
+                      backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
+                      backgroundPosition: "right 0.75rem center",
+                      backgroundSize: "1.25rem 1.25rem",
+                    }}
+                  >
+                    <option value="">Select language...</option>
+                    <optgroup label="India">
+                      <option value="Hindi">Hindi</option>
+                      <option value="Punjabi">Punjabi</option>
+                      <option value="Tamil">Tamil</option>
+                      <option value="Telugu">Telugu</option>
+                      <option value="Bengali">Bengali</option>
+                      <option value="Marathi">Marathi</option>
+                      <option value="Gujarati">Gujarati</option>
+                      <option value="Kannada">Kannada</option>
+                      <option value="Malayalam">Malayalam</option>
+                      <option value="Odia">Odia</option>
+                      <option value="Urdu">Urdu</option>
+                    </optgroup>
+                    <optgroup label="Middle East">
+                      <option value="Arabic">Arabic</option>
+                      <option value="Persian">Persian</option>
+                      <option value="Hebrew">Hebrew</option>
+                      <option value="Turkish">Turkish</option>
+                    </optgroup>
+                    <optgroup label="Europe">
+                      <option value="English (UK)">English (UK)</option>
+                      <option value="French">French</option>
+                      <option value="German">German</option>
+                      <option value="Spanish">Spanish</option>
+                      <option value="Italian">Italian</option>
+                      <option value="Dutch">Dutch</option>
+                    </optgroup>
+                    <optgroup label="Americas">
+                      <option value="English (US)">English (US)</option>
+                      <option value="Spanish (MX)">Spanish (MX)</option>
+                      <option value="Portuguese (BR)">Portuguese (BR)</option>
+                      <option value="French (CA)">French (CA)</option>
+                    </optgroup>
+                    <optgroup label="APAC">
+                      <option value="Chinese (Mandarin)">
+                        Chinese (Mandarin)
+                      </option>
+                      <option value="Japanese">Japanese</option>
+                      <option value="Korean">Korean</option>
+                      <option value="Thai">Thai</option>
+                      <option value="Vietnamese">Vietnamese</option>
+                    </optgroup>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                    Voice <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.voice}
+                    onChange={(e) =>
+                      setFormData({ ...formData, voice: e.target.value })
+                    }
+                    className="common-bg-icons w-full px-3 sm:px-4 py-3 rounded-xl text-slate-800 dark:text-white text-base sm:text-sm transition-all duration-200 touch-manipulation appearance-none bg-no-repeat bg-right"
+                    style={{
+                      backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
+                      backgroundPosition: "right 0.75rem center",
+                      backgroundSize: "1.25rem 1.25rem",
+                    }}
+                  >
+                    <option value="">Select voice...</option>
+                    <optgroup label="English">
+                      <option value="Sarah - Professional">
+                        Sarah - Professional
+                      </option>
+                      <option value="John - Friendly">John - Friendly</option>
+                      <option value="Emma - Warm">Emma - Warm</option>
+                    </optgroup>
+                    <optgroup label="Hindi">
+                      <option value="Arjun - Friendly">Arjun - Friendly</option>
+                      <option value="Priya - Professional">
+                        Priya - Professional
+                      </option>
+                      <option value="Raj - Confident">Raj - Confident</option>
+                    </optgroup>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </GlassCard>
           <GlassCard>
             <div className="p-4 sm:p-5 lg:p-6">
               <div className="flex items-center gap-2 mb-3 sm:mb-4">

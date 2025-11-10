@@ -14,12 +14,20 @@ import {
   Eye,
   Filter,
   Search,
-  ChevronDown
+  ChevronDown,
+  X,
+  Play,
+  Pause,
+  Phone,
+  MapPin,
+  Calendar
 } from 'lucide-react';
 
 const Monitoring = () => {
   const { user } = useAuth();
   const [timeRange, setTimeRange] = useState('7d');
+  const [selectedConversation, setSelectedConversation] = useState<any>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
   
   // Check if current user is developer
   const isDeveloper = isDeveloperUser(user?.email);
@@ -108,7 +116,16 @@ const Monitoring = () => {
       caller: 'User-****7892',
       outcome: 'Success',
       duration: '4m 12s',
-      intent: 'Pricing Inquiry'
+      intent: 'Pricing Inquiry',
+      location: 'Ghaziabad, Uttar Pradesh (India)',
+      callId: 'f6faa345-d538-4da3-a8f4-f9e31d9996e2',
+      timestamp: 'Nov 9, 2025, 08:54 AM',
+      transcript: [
+        { speaker: 'SHIVAI ASSISTANT', time: '08:54:24', text: 'Hello, I am Shivai from call Shiv AI, how can I assist you today?' },
+        { speaker: 'SHIVAI ASSISTANT', time: '08:54:33', text: 'नमस्ते बताइए, मैं आपकी किस तरह मदद कर सकती हूँ?' },
+        { speaker: 'CUSTOMER', time: '08:54:33', text: 'Hi' }
+      ],
+      recordingUrl: 'https://example.com/recording1.mp3' // Mock URL
     },
     {
       id: 2,
@@ -117,7 +134,16 @@ const Monitoring = () => {
       caller: 'User-****3456',
       outcome: 'Success',
       duration: '2m 45s',
-      intent: 'Product Demo'
+      intent: 'Product Demo',
+      location: 'Mumbai, Maharashtra (India)',
+      callId: 'a1b2c3d4-e5f6-7g8h-9i0j-k1l2m3n4o5p6',
+      timestamp: 'Nov 9, 2025, 08:51 AM',
+      transcript: [
+        { speaker: 'SHIVAI ASSISTANT', time: '08:51:10', text: 'Hi! This is Sarah from ShivAI. How can I help you today?' },
+        { speaker: 'CUSTOMER', time: '08:51:15', text: 'I want to know about your product' },
+        { speaker: 'SHIVAI ASSISTANT', time: '08:51:18', text: 'I\'d be happy to show you our AI calling platform features.' }
+      ],
+      recordingUrl: 'https://example.com/recording2.mp3'
     },
     {
       id: 3,
@@ -126,7 +152,16 @@ const Monitoring = () => {
       caller: 'User-****9012',
       outcome: 'Failed',
       duration: '1m 23s',
-      intent: 'Support Request'
+      intent: 'Support Request',
+      location: 'Bangalore, Karnataka (India)',
+      callId: 'z9y8x7w6-v5u4-t3s2-r1q0-p9o8n7m6l5k4',
+      timestamp: 'Nov 9, 2025, 08:48 AM',
+      transcript: [
+        { speaker: 'SHIVAI ASSISTANT', time: '08:48:05', text: 'Hello, how can I help you?' },
+        { speaker: 'CUSTOMER', time: '08:48:10', text: 'I need technical support' },
+        { speaker: 'SHIVAI ASSISTANT', time: '08:48:12', text: 'I can help with that. What seems to be the issue?' }
+      ],
+      recordingUrl: 'https://example.com/recording3.mp3'
     },
     {
       id: 4,
@@ -135,7 +170,16 @@ const Monitoring = () => {
       caller: 'User-****5678',
       outcome: 'Success',
       duration: '6m 18s',
-      intent: 'Booking Request'
+      intent: 'Booking Request',
+      location: 'Delhi, NCR (India)',
+      callId: 'q1w2e3r4-t5y6-u7i8-o9p0-a1s2d3f4g5h6',
+      timestamp: 'Nov 9, 2025, 08:44 AM',
+      transcript: [
+        { speaker: 'SHIVAI ASSISTANT', time: '08:44:20', text: 'Hello! I can help you with booking. What would you like to schedule?' },
+        { speaker: 'CUSTOMER', time: '08:44:25', text: 'I want to book a demo' },
+        { speaker: 'SHIVAI ASSISTANT', time: '08:44:28', text: 'Great! Let me help you schedule a demo session.' }
+      ],
+      recordingUrl: 'https://example.com/recording4.mp3'
     },
     {
       id: 5,
@@ -144,7 +188,16 @@ const Monitoring = () => {
       caller: 'User-****2345',
       outcome: 'Success',
       duration: '3m 56s',
-      intent: 'General Info'
+      intent: 'General Info',
+      location: 'Pune, Maharashtra (India)',
+      callId: 'h6g5f4d3-s2a1-z0x9-c8v7-b6n5m4l3k2j1',
+      timestamp: 'Nov 9, 2025, 08:41 AM',
+      transcript: [
+        { speaker: 'SHIVAI ASSISTANT', time: '08:41:15', text: 'Hi! How can I assist you today?' },
+        { speaker: 'CUSTOMER', time: '08:41:20', text: 'Tell me about your services' },
+        { speaker: 'SHIVAI ASSISTANT', time: '08:41:22', text: 'We provide AI-powered calling solutions for businesses.' }
+      ],
+      recordingUrl: 'https://example.com/recording5.mp3'
     }
   ] : [];
 
@@ -589,7 +642,9 @@ const Monitoring = () => {
                       {conversation.caller} • {conversation.duration}
                     </p>
                   </div>
-                  <button className="flex items-center gap-1 common-button-bg2 rounded-md text-xs touch-manipulation">
+                  <button className="flex items-center gap-1 common-button-bg2 rounded-md text-xs touch-manipulation"
+                    onClick={() => setSelectedConversation(conversation)}
+                  >
                     <Eye className="w-3 h-3" />
                     <span>View</span>
                   </button>
@@ -668,7 +723,9 @@ const Monitoring = () => {
                       {conversation.duration}
                     </td>
                     <td className="py-3 px-4">
-                      <button className="flex items-center gap-1 common-button-bg2 rounded-lg text-sm touch-manipulation">
+                      <button className="flex items-center gap-1 common-button-bg2 rounded-lg text-sm touch-manipulation"
+                        onClick={() => setSelectedConversation(conversation)}
+                      >
                         <Eye className="w-3 h-3" />
                         <span>View</span>
                       </button>
@@ -681,6 +738,216 @@ const Monitoring = () => {
           </div>
         </div>
       </GlassCard>
+
+      {/* Conversation Detail Modal */}
+      {selectedConversation && (
+        <div className="fixed inset-0 -top-8 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-800 rounded-xl sm:rounded-2xl shadow-2xl w-full max-w-3xl max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col my-auto">
+            {/* Modal Header */}
+            <div className="p-3 sm:p-4 border-b border-slate-200 dark:border-slate-700">
+              <div className="flex items-start justify-between gap-2 mb-3">
+                <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 common-bg-icons rounded-lg flex items-center justify-center flex-shrink-0">
+                    <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 text-slate-600 dark:text-slate-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white truncate">
+                      Session Transcript
+                    </h2>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                      ID: {selectedConversation.callId}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setSelectedConversation(null);
+                    setIsPlaying(false);
+                  }}
+                  className="p-1.5 sm:p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors flex-shrink-0"
+                >
+                  <X className="w-4 h-4 sm:w-5 sm:h-5 text-slate-600 dark:text-slate-400" />
+                </button>
+              </div>
+
+              {/* Session Info in Header */}
+              <div className="grid grid-cols-3 gap-2 text-xs sm:text-sm">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <MapPin className="w-3 h-3 sm:w-4 sm:h-4 text-slate-500 dark:text-slate-400 flex-shrink-0" />
+                  <span className="text-slate-600 dark:text-slate-400 truncate">
+                    {selectedConversation.location}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-slate-500 dark:text-slate-400 flex-shrink-0" />
+                  <span className="text-slate-600 dark:text-slate-400 truncate">
+                    {selectedConversation.timestamp}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <Clock className="w-3 h-3 sm:w-4 sm:h-4 text-slate-500 dark:text-slate-400 flex-shrink-0" />
+                  <span className="text-slate-600 dark:text-slate-400 truncate">
+                    {selectedConversation.duration}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4">
+              {/* Call Recording Player */}
+              <div className="common-bg-icons p-3 sm:p-4 rounded-lg sm:rounded-xl">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm sm:text-base font-semibold text-slate-800 dark:text-white flex items-center gap-2">
+                    <Phone className="w-4 h-4 sm:w-5 sm:h-5" />
+                    Call Recording
+                  </h3>
+                  <span className={`px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-xs font-medium ${
+                    selectedConversation.outcome === 'Success'
+                      ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400'
+                      : 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400'
+                  }`}>
+                    {selectedConversation.outcome}
+                  </span>
+                </div>
+
+                {/* Audio Player */}
+                <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/10 dark:to-purple-900/10 p-3 sm:p-4 rounded-lg sm:rounded-xl border border-blue-200/50 dark:border-blue-700/30">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <button
+                      onClick={() => setIsPlaying(!isPlaying)}
+                      className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600 rounded-full text-white hover:from-blue-600 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl active:scale-95 flex-shrink-0"
+                    >
+                      {isPlaying ? (
+                        <Pause className="w-4 h-4 sm:w-5 sm:h-5" />
+                      ) : (
+                        <Play className="w-4 h-4 sm:w-5 sm:h-5 ml-0.5" />
+                      )}
+                    </button>
+                    
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1.5 sm:mb-2">
+                        <span className="text-xs sm:text-sm font-medium text-slate-800 dark:text-white truncate">
+                          {selectedConversation.agent}
+                        </span>
+                        <span className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 flex-shrink-0 ml-2">
+                          {selectedConversation.duration}
+                        </span>
+                      </div>
+                      <div className="w-full bg-slate-300 dark:bg-slate-700 rounded-full h-1.5 sm:h-2">
+                        <div
+                          className="bg-gradient-to-r from-blue-500 to-purple-500 h-1.5 sm:h-2 rounded-full transition-all duration-300"
+                          style={{ width: isPlaying ? '45%' : '0%' }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    <button className="p-1.5 sm:p-2 hover:bg-white/50 dark:hover:bg-slate-800/50 rounded-lg transition-colors flex-shrink-0">
+                      <Download className="w-4 h-4 sm:w-5 sm:h-5 text-slate-600 dark:text-slate-400" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Conversation Transcript */}
+              <div className="common-bg-icons p-3 sm:p-4 rounded-lg sm:rounded-xl">
+                <h3 className="text-sm sm:text-base font-semibold text-slate-800 dark:text-white mb-3">
+                  Conversation Transcript
+                </h3>
+                <div className="space-y-1 max-h-[250px] sm:max-h-[300px] overflow-y-auto">
+                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mb-2">
+                    Conversation started at {selectedConversation.timestamp}
+                  </p>
+                  
+                  {selectedConversation.transcript.map((message: any, index: number) => (
+                    <div key={index} className="flex flex-col gap-1.5 py-1.5 sm:py-2">
+                      {message.speaker === 'CUSTOMER' ? (
+                        <>
+                          <div className="flex-1"></div>
+                          <div className="flex items-start gap-1.5 sm:gap-2 flex-1">
+                            <div className="flex-1 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl rounded-tr-sm px-3 py-2 sm:px-4 sm:py-3 shadow-sm">
+                              <p className="text-xs sm:text-sm">{message.text}</p>
+                              <span className="text-xs opacity-75 mt-1 block">
+                                {message.speaker} • {message.time}
+                              </span>
+                            </div>
+                            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center flex-shrink-0">
+                              <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex items-start gap-1.5 sm:gap-2 flex-1">
+                          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                            <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+                          </div>
+                          <div className="flex-1 common-bg-icons rounded-2xl rounded-tl-sm px-3 py-2 sm:px-4 sm:py-3 border border-slate-200 dark:border-slate-700">
+                            <p className="text-xs sm:text-sm text-slate-800 dark:text-white">{message.text}</p>
+                            <span className="text-xs text-slate-500 dark:text-slate-400 mt-1 block">
+                              {message.speaker} • {message.time}
+                            </span>
+                          </div>
+                          <div className="flex-1"></div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-3 flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    Updated: {selectedConversation.timestamp}
+                  </p>
+                </div>
+              </div>
+
+              {/* Additional Info */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="common-bg-icons p-2 sm:p-3 rounded-lg">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-0.5 sm:mb-1">Agent</p>
+                  <p className="text-xs sm:text-sm font-medium text-slate-800 dark:text-white truncate">
+                    {selectedConversation.agent}
+                  </p>
+                </div>
+                <div className="common-bg-icons p-2 sm:p-3 rounded-lg">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-0.5 sm:mb-1">Caller</p>
+                  <p className="text-xs sm:text-sm font-medium text-slate-800 dark:text-white truncate">
+                    {selectedConversation.caller}
+                  </p>
+                </div>
+                <div className="common-bg-icons p-2 sm:p-3 rounded-lg">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-0.5 sm:mb-1">Intent</p>
+                  <p className="text-xs sm:text-sm font-medium text-slate-800 dark:text-white truncate">
+                    {selectedConversation.intent}
+                  </p>
+                </div>
+                <div className="common-bg-icons p-2 sm:p-3 rounded-lg">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-0.5 sm:mb-1">Time</p>
+                  <p className="text-xs sm:text-sm font-medium text-slate-800 dark:text-white truncate">
+                    {selectedConversation.time}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3 sm:p-4 border-t border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row gap-2 sm:gap-3">
+              <button
+                onClick={() => {
+                  setSelectedConversation(null);
+                  setIsPlaying(false);
+                }}
+                className="flex-1 common-button-bg2 text-sm sm:text-base"
+              >
+                Close
+              </button>
+              <button className="flex-1 common-button-bg flex items-center justify-center gap-2 text-sm sm:text-base">
+                <Download className="w-4 h-4" />
+                Export Transcript
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -55,11 +55,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
       const position = spaceBelow < dropdownHeight && rect.top > dropdownHeight ? 'top' : 'bottom';
       setDropdownPosition(position);
       
-      setDropdownStyle({
-        left: rect.left,
-        width: rect.width,
-        top: position === 'top' ? rect.top - dropdownHeight : rect.bottom + 4
-      });
+     
     }
   }, []);
 
@@ -118,7 +114,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
 
       {isOpen && (
         <div 
-          className=" bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-80 overflow-y-auto z-[999999]"
+          className="absolute top-14 w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-80 overflow-y-auto z-[99999] no-scrollbar"
           style={dropdownStyle}
         >
           {/* Search */}

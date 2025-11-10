@@ -87,7 +87,7 @@ const Training = () => {
         { label: "Intents Trained", value: "0", icon: Target, color: "orange" },
       ];
 
-  const trainingMetrics = isDeveloper
+  const   trainingMetrics = isDeveloper
     ? [
         {
           label: "Accuracy Score",
@@ -322,26 +322,48 @@ const Training = () => {
 
                   {/* Desktop Grid */}
                   <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {knowledgeStats.map((stat, index) => (
-                      <div
-                        key={index}
-                        className="common-bg-icons p-4 rounded-xl"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="common-bg-icons p-2 rounded-lg flex-shrink-0">
-                            <stat.icon className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                    {selectedAgentData?.name === "Ricky sales machine" ||
+                    selectedAgentData?.name === "Ami support assistant"
+                      ? knowledgeStats.map((stat, index) => (
+                          <div
+                            key={index}
+                            className="common-bg-icons p-4 rounded-xl"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="common-bg-icons p-2 rounded-lg flex-shrink-0">
+                                <stat.icon className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xl font-bold text-slate-800 dark:text-white">
+                                  {stat.value}
+                                </p>
+                                <p className="text-sm text-slate-600 dark:text-slate-400 truncate">
+                                  {stat.label}
+                                </p>
+                              </div>
+                            </div>
                           </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-xl font-bold text-slate-800 dark:text-white">
-                              {stat.value}
-                            </p>
-                            <p className="text-sm text-slate-600 dark:text-slate-400 truncate">
-                              {stat.label}
-                            </p>
+                        ))
+                      : knowledgeStats.map((stat, index) => (
+                          <div
+                            key={index}
+                            className="common-bg-icons p-4 rounded-xl"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="common-bg-icons p-2 rounded-lg flex-shrink-0">
+                                <stat.icon className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-xl font-bold text-slate-800 dark:text-white">
+                                  0
+                                </p>
+                                <p className="text-sm text-slate-600 dark:text-slate-400 truncate">
+                                  {stat.label}
+                                </p>
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                    ))}
+                        ))}
                   </div>
                 </div>
               </div>
@@ -416,10 +438,12 @@ const Training = () => {
                       </h3>
 
                       <div className="space-y-4 sm:space-y-6">
-                        {/* Mobile-Optimized File Upload */}
-                        <div>
+                          <div>
                           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
-                            Upload Documents
+                            Upload Knowledge Documents
+                            <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
+                              (PDF, DOC, TXT, CSV)
+                            </span>
                           </label>
                           <div className="common-bg-icons border-2 border-dashed rounded-xl p-6 sm:p-8 text-center">
                             <Upload className="w-10 h-10 sm:w-12 sm:h-12 text-slate-400 mx-auto mb-3 sm:mb-4" />
@@ -442,10 +466,81 @@ const Training = () => {
                           </div>
                         </div>
 
-                        {/* Mobile-Optimized Text Area */}
+                        {/* System Prompt / Instructions */}
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+                            System Prompt / Agent Instructions
+                            <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
+                              (Core behavior and personality)
+                            </span>
+                          </label>
+                          <textarea
+                            placeholder="Define your agent's role, personality, and core instructions. E.g., 'You are a friendly sales assistant for ShivAI. Your goal is to help customers understand our AI calling platform...'"
+                            rows={5}
+                            className="common-bg-icons w-full px-4 py-3 rounded-xl resize-none text-sm sm:text-base"
+                          />
+                          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                            This defines how your agent behaves and responds in all conversations
+                          </p>
+                        </div>
+
+                        {/* First Message */}
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+                            First Message (Greeting)
+                            <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
+                              (How agent starts conversations)
+                            </span>
+                          </label>
+                          <textarea
+                            placeholder="Hi! This is Sarah from ShivAI. How can I help you today?"
+                            rows={3}
+                            className="common-bg-icons w-full px-4 py-3 rounded-xl resize-none text-sm sm:text-base"
+                          />
+                          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                            The opening message when a call starts or customer initiates chat
+                          </p>
+                        </div>
+
+                        {/* Mobile-Optimized File Upload */}
+                      
+                        {/* URL-based Knowledge */}
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+                            Website / Knowledge Base URL
+                            <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
+                              (Scrape content from URLs)
+                            </span>
+                          </label>
+                          <div className="space-y-3">
+                            <input
+                              type="url"
+                              placeholder="https://yourwebsite.com/help-center"
+                              className="common-bg-icons w-full px-4 py-3 rounded-xl text-sm sm:text-base"
+                            />
+                            <button
+                              disabled={!isDeveloper}
+                              className={`w-full sm:w-auto ${
+                                isDeveloper
+                                  ? "common-button-bg2"
+                                  : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50 px-4 py-3 rounded-lg"
+                              }`}
+                            >
+                              Import from URL
+                            </button>
+                          </div>
+                          <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                            Agent will learn from publicly accessible web pages
+                          </p>
+                        </div>
+
+                        {/* Manual Knowledge Entry */}
                         <div>
                           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
                             Manual Knowledge Entry
+                            <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
+                              (FAQs, policies, product info)
+                            </span>
                           </label>
                           <textarea
                             placeholder="Enter knowledge, FAQs, policies, or any information your agent should know..."
@@ -473,17 +568,59 @@ const Training = () => {
                   {activeTab === "examples" && (
                     <div className="space-y-4 sm:space-y-6">
                       <h3 className="text-lg sm:text-xl font-semibold text-slate-800 dark:text-white">
-                        Training Examples
+                        Training Examples & Conversation Patterns
                       </h3>
 
                       <div className="space-y-4">
+                        {/* Call Script / Conversation Flow */}
                         <div className="common-bg-icons p-4 sm:p-5 rounded-xl">
                           <h4 className="font-medium text-slate-800 dark:text-white mb-2 sm:mb-3">
-                            Sample Conversations
+                            Call Script / Conversation Flow
                           </h4>
                           <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-                            Provide example conversations to improve agent
-                            responses
+                            Define the structure and flow of conversations
+                          </p>
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
+                                Opening Script:
+                              </label>
+                              <textarea
+                                placeholder="Hi, this is [Agent Name] calling from [Company]. Is this a good time to talk about [Purpose]?"
+                                rows={3}
+                                className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base resize-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
+                                Key Talking Points:
+                              </label>
+                              <textarea
+                                placeholder="• Product benefits&#10;• Pricing details&#10;• Common objection handling&#10;• Call to action"
+                                rows={4}
+                                className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base resize-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
+                                Closing Script:
+                              </label>
+                              <textarea
+                                placeholder="Thank you for your time. I'll send you the information we discussed. Is there anything else I can help you with?"
+                                rows={3}
+                                className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base resize-none"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Sample Conversations */}
+                        <div className="common-bg-icons p-4 sm:p-5 rounded-xl">
+                          <h4 className="font-medium text-slate-800 dark:text-white mb-2 sm:mb-3">
+                            Sample Conversation Examples
+                          </h4>
+                          <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                            Provide example conversations to improve agent responses
                           </p>
                           <div className="space-y-4">
                             <div>
@@ -519,15 +656,69 @@ const Training = () => {
                               </button>
                               <button
                                 disabled={!isDeveloper}
-                                className={`${
+                                className={`flex items-center gap-2 ${
                                   isDeveloper
                                     ? "common-button-bg2"
                                     : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50 px-4 py-3 rounded-lg"
                                 }`}
                               >
+                                <FileText className="w-4 h-4" />
                                 Import CSV
                               </button>
+                              <button
+                                disabled={!isDeveloper}
+                                className={`flex items-center gap-2 ${
+                                  isDeveloper
+                                    ? "common-button-bg2"
+                                    : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50 px-4 py-3 rounded-lg"
+                                }`}
+                              >
+                                <Zap className="w-4 h-4" />
+                                Import Audio
+                              </button>
                             </div>
+                          </div>
+                        </div>
+
+                        {/* Objection Handling */}
+                        <div className="common-bg-icons p-4 sm:p-5 rounded-xl">
+                          <h4 className="font-medium text-slate-800 dark:text-white mb-2 sm:mb-3">
+                            Objection Handling
+                          </h4>
+                          <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                            Train your agent to handle common objections professionally
+                          </p>
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
+                                Common Objection:
+                              </label>
+                              <input
+                                type="text"
+                                placeholder="e.g., 'It's too expensive' or 'I'm not interested'"
+                                className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
+                                Response Strategy:
+                              </label>
+                              <textarea
+                                placeholder="How should the agent respond to this objection?"
+                                rows={3}
+                                className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base resize-none"
+                              />
+                            </div>
+                            <button
+                              disabled={!isDeveloper}
+                              className={`w-full sm:w-auto ${
+                                isDeveloper
+                                  ? "common-button-bg"
+                                  : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50 px-4 py-3 rounded-lg"
+                              }`}
+                            >
+                              Add Objection Handler
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -537,13 +728,66 @@ const Training = () => {
                   {activeTab === "intents" && (
                     <div className="space-y-4 sm:space-y-6">
                       <h3 className="text-lg sm:text-xl font-semibold text-slate-800 dark:text-white">
-                        Intent Training
+                        Intent Training & Voice Settings
                       </h3>
 
                       <div className="space-y-4">
+                        {/* Voice & Speech Settings */}
                         <div className="common-bg-icons p-4 sm:p-5 rounded-xl">
                           <h4 className="font-medium text-slate-800 dark:text-white mb-2 sm:mb-3">
-                            Configure Intents
+                            Voice & Speech Configuration
+                          </h4>
+                          <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                            Customize how your agent sounds and speaks
+                          </p>
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
+                                Voice Model:
+                              </label>
+                              <select className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base">
+                                <option>Professional Female (US)</option>
+                                <option>Professional Male (US)</option>
+                                <option>Casual Female (UK)</option>
+                                <option>Casual Male (UK)</option>
+                                <option>Friendly (Australian)</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
+                                Speaking Rate:
+                              </label>
+                              <div className="flex items-center gap-4">
+                                <input
+                                  type="range"
+                                  min="0.5"
+                                  max="2"
+                                  step="0.1"
+                                  defaultValue="1"
+                                  className="flex-1"
+                                />
+                                <span className="text-sm font-medium text-slate-600 dark:text-slate-400 w-12">
+                                  1.0x
+                                </span>
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
+                                Interruption Sensitivity:
+                              </label>
+                              <select className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base">
+                                <option>Low (Agent keeps talking)</option>
+                                <option>Medium (Balanced)</option>
+                                <option>High (Stops immediately)</option>
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Intent Configuration */}
+                        <div className="common-bg-icons p-4 sm:p-5 rounded-xl">
+                          <h4 className="font-medium text-slate-800 dark:text-white mb-2 sm:mb-3">
+                            Intent Recognition
                           </h4>
                           <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
                             Train the agent to recognize specific intents and
@@ -556,17 +800,27 @@ const Training = () => {
                               </label>
                               <input
                                 type="text"
-                                placeholder="e.g., pricing_inquiry, support_request"
+                                placeholder="e.g., pricing_inquiry, support_request, booking_request"
                                 className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base"
                               />
                             </div>
                             <div>
                               <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
-                                Example Phrases
+                                Example Phrases (one per line)
                               </label>
                               <textarea
-                                placeholder="Enter multiple example phrases, one per line..."
+                                placeholder="How much does it cost?&#10;What's your pricing?&#10;Can you tell me the price?&#10;What are your rates?"
                                 rows={4}
+                                className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base resize-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
+                                Intent Response Template:
+                              </label>
+                              <textarea
+                                placeholder="Our pricing starts at $99/month for the basic plan..."
+                                rows={3}
                                 className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base resize-none"
                               />
                             </div>
@@ -594,6 +848,36 @@ const Training = () => {
                             </div>
                           </div>
                         </div>
+
+                        {/* End Call Conditions */}
+                        <div className="common-bg-icons p-4 sm:p-5 rounded-xl">
+                          <h4 className="font-medium text-slate-800 dark:text-white mb-2 sm:mb-3">
+                            End Call Conditions
+                          </h4>
+                          <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                            Define when and how the agent should end calls
+                          </p>
+                          <div className="space-y-3">
+                            <label className="flex items-center gap-3 cursor-pointer">
+                              <input type="checkbox" className="w-4 h-4 rounded" />
+                              <span className="text-sm text-slate-700 dark:text-slate-300">
+                                End call when objective is completed
+                              </span>
+                            </label>
+                            <label className="flex items-center gap-3 cursor-pointer">
+                              <input type="checkbox" className="w-4 h-4 rounded" />
+                              <span className="text-sm text-slate-700 dark:text-slate-300">
+                                End call on explicit customer request
+                              </span>
+                            </label>
+                            <label className="flex items-center gap-3 cursor-pointer">
+                              <input type="checkbox" className="w-4 h-4 rounded" />
+                              <span className="text-sm text-slate-700 dark:text-slate-300">
+                                Maximum call duration: <input type="number" placeholder="15" className="common-bg-icons w-16 px-2 py-1 rounded ml-2 text-center" /> minutes
+                              </span>
+                            </label>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -612,25 +896,35 @@ const Training = () => {
                           </h4>
                           <div className="space-y-4">
                             <div>
-                              <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
-                                Test Message
-                              </label>
                               <textarea
                                 placeholder="Type a test message to see how your agent responds..."
                                 rows={3}
                                 className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base resize-none"
                               />
                             </div>
-                            <button
-                              disabled={!isDeveloper}
-                              className={`w-full sm:w-auto touch-manipulation ${
-                                isDeveloper
-                                  ? "common-button-bg"
-                                  : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50 px-6 py-3 rounded-lg"
-                              }`}
-                            >
-                              Test Response
-                            </button>
+                            <div className="flex flex-col sm:flex-row gap-3">
+                              <button
+                                disabled={!isDeveloper}
+                                className={`w-full sm:w-auto touch-manipulation ${
+                                  isDeveloper
+                                    ? "common-button-bg"
+                                    : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50 px-6 py-3 rounded-lg"
+                                }`}
+                              >
+                                Test Response
+                              </button>
+                              <button
+                                disabled={!isDeveloper}
+                                className={`flex items-center gap-2 ${
+                                  isDeveloper
+                                    ? "common-button-bg2"
+                                    : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50 px-4 py-3 rounded-lg"
+                                }`}
+                              >
+                                <Play className="w-4 h-4" />
+                                Test Audio
+                              </button>
+                            </div>
                           </div>
                         </div>
 

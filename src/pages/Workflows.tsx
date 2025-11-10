@@ -680,34 +680,24 @@ const Workflows = () => {
       
 
       {/* Enhanced Mobile-First Tab Navigation */}
-      <div className=" ">
+      <div className="">
         <GlassCard>
           <div className="p-4 sm:p-6">
-            <div className="relative">
-              {/* Tab Navigation */}
-              <div className="flex space-x-1 bg-slate-100/50 dark:bg-slate-800/50 rounded-xl p-1.5 overflow-x-auto scrollbar-hide">
-                {tabs.map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg transition-all duration-200 whitespace-nowrap text-sm sm:text-base font-medium min-w-fit touch-manipulation ${
-                      activeTab === tab.id
-                        ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-lg scale-[1.02] border border-blue-200/50 dark:border-blue-500/30'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-700/50'
-                    }`}
-                  >
-                    <tab.icon className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-                    <span className="hidden xs:inline sm:inline text-xs sm:text-sm">
-                      {tab.label}
-                    </span>
-                    <span className="xs:hidden sm:hidden text-xs">
-                      {tab.label.split(' ')[0]}
-                    </span>
-                  </button>
-                ))}
-              </div>
-              
-            
+            <div className="flex space-x-1 common-bg-icons rounded-xl p-1 overflow-x-auto">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 rounded-lg transition-all duration-200 whitespace-nowrap ${
+                    activeTab === tab.id
+                      ? "common-button-bg2 shadow-sm"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition ease-in-out"
+                  }`}
+                >
+                  <tab.icon className="w-3 sm:w-4 h-3 sm:h-4" />
+                  <span className="text-xs sm:text-sm">{tab.label}</span>
+                </button>
+              ))}
             </div>
           </div>
         </GlassCard>
@@ -1749,55 +1739,83 @@ const Workflows = () => {
             </div>
 
             <div className="space-y-3 sm:space-y-4">
-              {workflows.filter(w => w.runs > 0).map((workflow) => (
-                <div key={workflow.id} className="common-bg-icons p-4 sm:p-6 rounded-xl">
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                    <div className="flex items-start sm:items-center gap-3 sm:gap-4 flex-1 min-w-0">
-                      <div className="common-bg-icons w-10 h-10 sm:w-12 sm:h-12 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <Zap className="w-5 h-5 sm:w-6 sm:h-6 text-slate-600 dark:text-slate-400" />
+              {workflows.length > 0 ? (
+                workflows.map((workflow) => (
+                  <div key={workflow.id} className="common-bg-icons p-4 sm:p-6 rounded-xl">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                      <div className="flex items-start sm:items-center gap-3 sm:gap-4 flex-1 min-w-0">
+                        <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                          workflow.runs > 0 
+                            ? 'bg-gradient-to-br from-blue-500 to-purple-600' 
+                            : 'common-bg-icons'
+                        }`}>
+                          <Zap className={`w-5 h-5 sm:w-6 sm:h-6 ${
+                            workflow.runs > 0 
+                              ? 'text-white' 
+                              : 'text-slate-600 dark:text-slate-400'
+                          }`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-slate-800 dark:text-white text-base sm:text-lg truncate">
+                            {workflow.name}
+                          </h4>
+                          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                            <span className="block sm:inline">{workflow.agentName}</span>
+                            <span className="hidden sm:inline"> • </span>
+                            <span className="block sm:inline">
+                              {workflow.runs > 0 ? `${workflow.runs} total runs` : 'No executions yet'}
+                            </span>
+                            <span className="hidden sm:inline"> • </span>
+                            <span className="block sm:inline">Last: {workflow.lastRun}</span>
+                          </p>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-semibold text-slate-800 dark:text-white text-base sm:text-lg truncate">
-                          {workflow.name}
-                        </h4>
-                        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
-                          <span className="block sm:inline">{workflow.agentName}</span>
-                          <span className="hidden sm:inline"> • </span>
-                          <span className="block sm:inline">{workflow.runs} total runs</span>
-                          <span className="hidden sm:inline"> • </span>
-                          <span className="block sm:inline">Last: {workflow.lastRun}</span>
-                        </p>
+                      
+                      <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-3">
+                        <span className={`inline-flex px-2.5 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium ${
+                          workflow.status === 'Active'
+                            ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400'
+                            : workflow.status === 'Paused'
+                            ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400'
+                            : 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
+                        }`}>
+                          {workflow.status}
+                        </span>
+                        <button 
+                          disabled={!isDeveloper}
+                          className={`p-2 transition-colors touch-manipulation ${
+                            isDeveloper 
+                              ? 'text-slate-400 hover:text-blue-500'
+                              : 'text-gray-300 cursor-not-allowed opacity-50'
+                          }`}
+                          title="View Details"
+                        >
+                          <Eye className="w-4 h-4 sm:w-5 sm:h-5" />
+                        </button>
                       </div>
-                    </div>
-                    
-                    <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-3">
-                      <span className="common-bg-icons inline-flex px-2.5 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">
-                        {workflow.status}
-                      </span>
-                      <button 
-                        disabled={!isDeveloper}
-                        className={`p-2 transition-colors touch-manipulation ${
-                          isDeveloper 
-                            ? 'text-slate-400 hover:text-blue-500'
-                            : 'text-gray-300 cursor-not-allowed opacity-50'
-                        }`}
-                      >
-                        <Eye className="w-4 h-4 sm:w-5 sm:h-5" />
-                      </button>
                     </div>
                   </div>
-                </div>
-              ))}
-
-              {workflows.filter(w => w.runs > 0).length === 0 && (
-                <div className="text-center py-16">
-                  <Play className="w-20 h-20 text-slate-300 dark:text-slate-600 mx-auto mb-6" />
-                  <h3 className="text-xl font-medium text-slate-600 dark:text-slate-400 mb-3">
-                    No workflow executions yet
+                ))
+              ) : (
+                <div className="text-center py-12 sm:py-16">
+                  <Play className="w-16 h-16 sm:w-20 sm:h-20 text-slate-300 dark:text-slate-600 mx-auto mb-4 sm:mb-6" />
+                  <h3 className="text-lg sm:text-xl font-medium text-slate-600 dark:text-slate-400 mb-2 sm:mb-3">
+                    No workflows created yet
                   </h3>
-                  <p className="text-slate-500 dark:text-slate-500">
-                    Workflow execution history will appear here once your workflows start running
+                  <p className="text-sm sm:text-base text-slate-500 dark:text-slate-500 mb-4 sm:mb-6">
+                    Create your first workflow to start automating your AI agent tasks
                   </p>
+                  <button
+                    onClick={() => setActiveTab('canvas')}
+                    disabled={!isDeveloper}
+                    className={`${
+                      isDeveloper 
+                        ? 'common-button-bg'
+                        : 'bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50 px-6 py-3 rounded-lg'
+                    }`}
+                  >
+                    Create Workflow
+                  </button>
                 </div>
               )}
             </div>

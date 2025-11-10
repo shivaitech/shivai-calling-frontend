@@ -8,6 +8,12 @@ export interface Agent {
   language: string;
   voice: string;
   createdAt: Date;
+  stats: {
+    conversations: number;
+    successRate: number;
+    avgResponseTime: number;
+    activeUsers: number;
+  };
 }
 
 interface AgentContextType {
@@ -37,7 +43,13 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       persona: 'Empathetic',
       language: 'English (US)',
       voice: 'Sarah - Professional',
-      createdAt: new Date('2024-01-15')
+      createdAt: new Date('2024-01-15'),
+      stats: {
+        conversations: 1247,
+        successRate: 94.2,
+        avgResponseTime: 1.2,
+        activeUsers: 328
+      }
     },
     {
       id: '2',
@@ -46,7 +58,13 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       persona: 'Persuasive (Sales)',
       language: 'Hindi',
       voice: 'Arjun - Friendly',
-      createdAt: new Date('2024-01-20')
+      createdAt: new Date('2024-01-20'),
+      stats: {
+        conversations: 0,
+        successRate: 0,
+        avgResponseTime: 0,
+        activeUsers: 0
+      }
     }
   ]);
   
@@ -56,7 +74,13 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const newAgent: Agent = {
       ...agentData,
       id: Date.now().toString(),
-      createdAt: new Date()
+      createdAt: new Date(),
+      stats: {
+        conversations: 0,
+        successRate: 0,
+        avgResponseTime: 0,
+        activeUsers: 0
+      }
     };
     setAgents(prev => [...prev, newAgent]);
     setCurrentAgent(newAgent);
