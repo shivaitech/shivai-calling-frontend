@@ -108,21 +108,15 @@ const Landing: React.FC = () => {
           formData.password,
           formData.confirmPassword
         );
-        setShowAuthModal(false);
-        navigate("/onboarding");
       } else {
         await login(formData.email, formData.password);
         setShowAuthModal(false);
         navigate("/dashboard");
       }
     } catch (error: any) {
-      console.error("Authentication failed:", error.response.data.errors);
-
-      // Handle your specific 422 validation error format
       if (error.response?.status === 422 && error.response?.data?.errors) {
         const backendErrors = error.response.data.errors;
 
-        // Convert backend error format to field mapping
         const fieldErrorsObj: Record<string, string> = {};
         backendErrors.forEach((err: any) => {
           fieldErrorsObj[err.field] = err.message;
@@ -130,16 +124,21 @@ const Landing: React.FC = () => {
 
         setFieldErrors(fieldErrorsObj);
       }
+      throw error;
     }
+  };
+
+  const handleSignupSuccess = () => {
+    setShowAuthModal(false);
+    navigate("/onboarding");
   };
 
   const handleSocialAuth = async (provider: string) => {
     if (provider === "google") {
       try {
-        const authUrl = await getGoogleAuthUrl();
-        window.location.href = authUrl;
+        const url = await getGoogleAuthUrl();
+        window.location.href = url;
       } catch (error) {
-        console.error("Failed to get Google auth URL:", error);
       }
     }
   };
@@ -381,6 +380,7 @@ const Landing: React.FC = () => {
           setShowPassword={setShowPassword}
           isLoading={isLoading}
           fieldErrors={fieldErrors}
+          onSignupSuccess={handleSignupSuccess}
         />
       )}
     </div>

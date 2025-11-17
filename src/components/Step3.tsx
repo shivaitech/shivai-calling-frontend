@@ -88,11 +88,6 @@ interface AgentTemplate {
 
 // Form data interface
 export interface OnboardingFormData {
-  // Personal information
-  firstName?: string;
-  lastName?: string;
-  email?: string;
-  phone?: string;
   // Company information
   companyName: string;
   industry: string[];
@@ -111,7 +106,7 @@ export interface OnboardingFormData {
   businessStates?: string[];
   businessCities?: string[];
   // Plan information
-  plan: "base" | "advanced" | "custom" | "";
+  plan: "starter" | "professional" | "business" | "custom" | "";
   agentCount: number;
   agents: AgentConfig[];
   // Billing information
@@ -148,22 +143,43 @@ interface Step3Props {
       | Record<number, boolean>
       | ((prev: Record<number, boolean>) => Record<number, boolean>)
   ) => void;
+  uploadedFiles: Record<number, File[]>;
+  setUploadedFiles: (
+    files:
+      | Record<number, File[]>
+      | ((prev: Record<number, File[]>) => Record<number, File[]>)
+  ) => void;
 }
 
 const agentTypeOptions = [
-  { value: "sales", label: "Sales" },
-  { value: "support", label: "Support" },
-  { value: "appointment", label: "Appointment" },
+  { value: "sales", label: "Sales & Business Development" },
+  { value: "support", label: "Customer Support & Service" },
+  { value: "appointment", label: "Appointment & Scheduling" },
+  { value: "order", label: "Order Management & Billing" },
+  { value: "product", label: "Product / Service Explainers" },
+  { value: "feedback", label: "Feedback & Engagement" },
+  { value: "custom", label: "Custom Workflows" },
 ];
 
 const languageOptions = [
-  { value: "All", label: "Multilingual" },
-  { value: "english", label: "English" },
-  { value: "french", label: "French" },
-  { value: "german", label: "German" },
-  { value: "italian", label: "Italian" },
-  { value: "portuguese", label: "Portuguese" },
-  { value: "spanish", label: "Spanish" },
+  { value: "All", label: "🌍 Multilingual" },
+  { value: "ar", label: "🇸🇦 Arabic" },
+  { value: "zh", label: "🇨🇳 Chinese" },
+  { value: "nl", label: "🇳🇱 Dutch" },
+  { value: "en-GB", label: "🇬🇧 English (UK)" },
+  { value: "en-US", label: "🇺🇸 English (US)" },
+  { value: "en-IN", label: "🇮🇳 English (India)" },
+  { value: "fr", label: "🇫🇷 French" },
+  { value: "de", label: "🇩🇪 German" },
+  { value: "hi", label: "🇮🇳 Hindi" },
+  { value: "it", label: "🇮🇹 Italian" },
+  { value: "ja", label: "🇯🇵 Japanese" },
+  { value: "ko", label: "🇰🇷 Korean" },
+  { value: "pt", label: "🇵🇹 Portuguese" },
+  { value: "pl", label: "🇵🇱 Polish" },
+  { value: "ru", label: "🇷🇺 Russian" },
+  { value: "es", label: "🇪🇸 Spanish" },
+  { value: "tr", label: "🇹🇷 Turkish" },
 ];
 
 const voiceGenderOptions = [
@@ -393,6 +409,8 @@ const Step3: React.FC<Step3Props> = ({
   setSelectedTemplates,
   showTemplateFeatures,
   setShowTemplateFeatures,
+  uploadedFiles,
+  setUploadedFiles,
 }) => {
   const [showAdvanced, setShowAdvanced] = useState(false);
   // UI state for modern always-visible sections
@@ -405,9 +423,6 @@ const Step3: React.FC<Step3Props> = ({
     string[]
   >([]);
   const [fileErrors, setFileErrors] = useState<Record<number, string>>({});
-  const [uploadedFiles, setUploadedFiles] = useState<Record<number, File[]>>(
-    {}
-  );
 
   // State for simplified form management
 
@@ -417,9 +432,13 @@ const Step3: React.FC<Step3Props> = ({
     const currentAgent = watch(`agents.${activeAgentTab}`);
 
     if (currentPlan && currentAgent) {
-      // Plan feature mapping - Advanced and Custom plans get privacy features
-      if (currentPlan === "advanced" || currentPlan === "custom") {
-        // Preselect features for Advanced/Custom plans
+      // Plan feature mapping - Professional, Business and Custom plans get privacy features
+      if (
+        currentPlan === "professional" ||
+        currentPlan === "business" ||
+        currentPlan === "custom"
+      ) {
+        // Preselect features for Professional/Business/Custom plans
         setValue(`agents.${activeAgentTab}.recordingEnabled`, true);
         setValue(`agents.${activeAgentTab}.transcriptEmailOptIn`, true);
 
@@ -430,8 +449,8 @@ const Step3: React.FC<Step3Props> = ({
             "Advanced privacy features enabled. Call recording and transcript services available with proper user consent as per plan features."
           );
         }
-      } else if (currentPlan === "base") {
-        // Force disable for Basic plan
+      } else if (currentPlan === "starter") {
+        // Force disable for Starter plan
         setValue(`agents.${activeAgentTab}.recordingEnabled`, false);
         setValue(`agents.${activeAgentTab}.transcriptEmailOptIn`, false);
 
@@ -439,7 +458,7 @@ const Step3: React.FC<Step3Props> = ({
         if (!currentAgent.consentNotes) {
           setValue(
             `agents.${activeAgentTab}.consentNotes`,
-            "Basic privacy compliance. Standard call handling without recording. Upgrade to Advanced plan to enable call recording and transcript features."
+            "Basic privacy compliance. Standard call handling without recording. Upgrade to Professional plan to enable call recording and transcript features."
           );
         }
       }
@@ -543,28 +562,25 @@ const Step3: React.FC<Step3Props> = ({
       initial="hidden"
       animate="visible"
       exit="exit"
-      className="space-y-3 sm:space-y-5 bg-white p-2 sm:p-4 lg:p-6 rounded-xl shadow-sm border border-gray-100"
+      className="space-y-2 sm:space-y-3 bg-white p-3 sm:p-4 lg:p-5 rounded-xl shadow-md border border-gray-200"
     >
-      <div className="text-center mb-4 sm:mb-6">
-        <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
-          <Bot className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
-        </div>
-        <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 mb-2">
+      <div className="text-start mb-4 bg-slate-100 p-3 rounded-md flex items-center gap-2 ">
+        <span className="text-sm text-gray-700 bg-white p-2 rounded-full shadow-sm ">
+          <Bot className="w-6 h-6 " />
+        </span>
+        <h2 className="text-lg sm:text-xl font-bold text-gray-900 ">
           Configure Your AI Employees
         </h2>
-        <p className="text-xs sm:text-sm lg:text-base text-gray-600 px-1 sm:px-2">
-          Set up each AI Employee with their basic details
-        </p>
       </div>
 
       {/* AI Employee Tabs */}
-      <div className="flex space-x-1 bg-gray-100 p-1 rounded-xl mb-4 sm:mb-6">
+      <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg mb-2 sm:mb-3">
         {Array.from({ length: agentCount }, (_, index) => (
           <button
             key={index}
             type="button"
             onClick={() => setActiveAgentTab(index)}
-            className={`flex-1 py-2 sm:py-3 px-2 sm:px-4 rounded-lg text-xs sm:text-sm lg:text-base font-semibold transition-all touch-manipulation ${
+            className={`flex-1 py-1.5 sm:py-2 px-2 sm:px-3 rounded-md text-xs sm:text-sm font-semibold transition-all touch-manipulation ${
               activeAgentTab === index
                 ? "bg-white text-blue-600 shadow-sm"
                 : "text-gray-600 hover:text-gray-800 active:bg-gray-200"
@@ -579,10 +595,10 @@ const Step3: React.FC<Step3Props> = ({
       {/* Comprehensive Template Selection Section */}
       {/* Template Selection - Simplified to direct selection */}
       <div>
-        <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-2 sm:mb-3">
+        <h3 className="text-sm sm:text-base font-semibold text-gray-900 mb-1 sm:mb-2">
           Choose a Template for AI Employee {activeAgentTab + 1}
         </h3>
-        <p className="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">
+        <p className="text-xs text-gray-600 mb-2 sm:mb-3">
           Select a pre-configured template that matches your business needs, or
           start from scratch.
         </p>
@@ -590,7 +606,7 @@ const Step3: React.FC<Step3Props> = ({
         {/* Template Grid */}
         <div className="relative">
           <div
-            className="flex overflow-x-auto gap-3 sm:gap-4 pb-4 px-1"
+            className="flex overflow-x-auto gap-2 sm:gap-3 pb-3 px-1"
             style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
           >
             {agentTemplates.map((template) => {
@@ -1503,14 +1519,14 @@ const Step3: React.FC<Step3Props> = ({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {[
                   {
-                    value: "client",
-                    label: "Client will handle deployment",
-                    desc: "You will implement at your end",
-                  },
-                  {
                     value: "shivai",
                     label: "Shivai will handle deployment",
                     desc: "We will handle implementation with access",
+                  },
+                  {
+                    value: "client",
+                    label: "You will handle deployment by yourself",
+                    desc: "You will implement at your end",
                   },
                 ].map((service) => (
                   <label
@@ -1574,7 +1590,7 @@ const Step3: React.FC<Step3Props> = ({
           <div className="space-y-4 sm:space-y-6">
             {(() => {
               const currentPlan = watch("plan");
-              const isBasicPlan = currentPlan === "base";
+              const isBasicPlan = currentPlan === "starter";
 
               return (
                 <>
@@ -1677,10 +1693,10 @@ const Step3: React.FC<Step3Props> = ({
               />
             </div>
 
-            {/* Plan Upgrade Notice for Basic Plan */}
+            {/* Plan Upgrade Notice for Starter Plan */}
             {(() => {
               const currentPlan = watch("plan");
-              if (currentPlan === "base") {
+              if (currentPlan === "starter") {
                 return (
                   <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-lg p-4">
                     <div className="flex items-start space-x-3">
@@ -1694,8 +1710,9 @@ const Step3: React.FC<Step3Props> = ({
                           Unlock Advanced Privacy Features
                         </h4>
                         <p className="text-xs text-orange-700 mb-2">
-                          Upgrade to Advanced or Custom plan to access call
-                          recording and transcript email opt-in features.
+                          Upgrade to Professional, Business or Custom plan to
+                          access call recording and transcript email opt-in
+                          features.
                         </p>
                         <div className="flex flex-wrap gap-2 text-xs">
                           <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded">

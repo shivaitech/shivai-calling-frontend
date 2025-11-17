@@ -120,18 +120,13 @@ const Settings = () => {
   const roles = ['Admin', 'Editor', 'Viewer'];
 
   const handleSaveProfile = () => {
-    // Save profile logic
-    console.log('Profile saved:', profile);
   };
 
   const handleSaveNotifications = () => {
-    // Save notifications logic
-    console.log('Notifications saved:', notifications);
   };
 
   const copyApiKey = (key: string) => {
     navigator.clipboard.writeText(key);
-    // Show toast notification
   };
 
   return (

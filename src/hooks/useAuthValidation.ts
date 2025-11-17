@@ -47,7 +47,6 @@ export const useEmailValidation = (
       try {
         setState((prev) => ({ ...prev, isChecking: true }));
 
-        // Check if email domain is disposable
         if (email.match(/\.(temp|tmp|disposable)\./i)) {
           setState({
             isValid: false,
@@ -57,9 +56,7 @@ export const useEmailValidation = (
           return;
         }
 
-        // Check email availability in backend
         const { data } = await authAPI.checkEmailAvailability(email, mode);
-        console.log({ data });
 
         if (mode === "signup" && !data) {
           setState({
@@ -75,9 +72,6 @@ export const useEmailValidation = (
           });
         }
       } catch (error: any) {
-        console.error("Email validation error:", error);
-
-        // Check if it's a 401 error with "Email not found" message for signin mode
         if (mode === "signin" && error.response?.status === 401) {
           const errorMessage = error.response?.data?.message;
           if (
@@ -93,7 +87,6 @@ export const useEmailValidation = (
           }
         }
 
-        // Check if it's a 409 error with "Email is already exist" message for signup mode
         if (mode === "signup" && error.response?.status === 409) {
           const errorMessage = error.response?.data?.message;
           if (
@@ -161,7 +154,6 @@ export const usePasswordValidation = (
       try {
         setState((prev) => ({ ...prev, isChecking: true }));
 
-        // Simple password validation
         const requirements = {
           length: password.length >= 8,
           letter: /[a-zA-Z]/.test(password),
@@ -179,8 +171,7 @@ export const usePasswordValidation = (
         }
 
         if (mode === "signin" && isValid) {
-          const result = await authAPI.validatePassword(password, email, mode);
-          console.log({ result });
+          await authAPI.validatePassword(password, email, mode);
         }
 
         setState({
@@ -190,7 +181,6 @@ export const usePasswordValidation = (
           requirements,
         });
       } catch (error: any) {
-        console.error("passowrd validation error:", error);
         if (mode === "signin" && error.response?.status === 401) {
           const errorMessage = error.response?.data?.message;
           if (

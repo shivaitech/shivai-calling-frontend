@@ -34,7 +34,9 @@ interface AuthResponse {
 
 interface OnboardingRequest {
   company_basics: {
-    name: string;
+      first_name: string;
+    last_name: string;
+    email: string;
     industry: string;
     description: string;
     website: string;
@@ -238,7 +240,6 @@ apiClient.interceptors.response.use(
 );
 
 export const authAPI = {
-  // Health check
   healthCheck: (): Promise<AxiosResponse> => apiClient.get("/health"),
   login: (data: LoginRequest): Promise<AuthResponse> =>
     apiClient.post("/auth/login", data).then((res) => res.data.data),
@@ -273,7 +274,6 @@ export const authAPI = {
       )
       .then(() => {}),
 
-  // User endpoints
   getCurrentUser: (accessToken: string): Promise<{ user: any }> =>
     apiClient
       .get("/auth/me", {
@@ -332,11 +332,22 @@ export const authAPI = {
       .then((res) => res.data),
 
   // Onboarding endpoints
-  createOnboarding: (data: OnboardingRequest): Promise<OnboardingResponse> =>
-    apiClient.post("/onboarding/create", data).then((res) => {
-      console.log("Onboarding response:", res.data);
-      return res.data;
-    }),
+  createOnboarding: (data: OnboardingRequest | FormData, token?: string): Promise<OnboardingResponse> => {
+    // Check if data is FormData and set appropriate headers
+    const config: any = data instanceof FormData 
+      ? { headers: { 'Content-Type': 'multipart/form-data' } }
+      : {};
+    
+    // Add Authorization header if token is provided
+    if (token) {
+      config.headers = {
+        ...config.headers,
+        Authorization: `Bearer ${token}`
+      };
+    }
+    
+    return apiClient.post("/onboarding", data, config).then((res) => res.data);
+  },
 
   getOnboardingStatus: (
     onboardingId: string
@@ -367,4 +378,29 @@ export const authAPI = {
       ai_employees_count: number;
     }>
   > => apiClient.get("/onboarding/history").then((res) => res.data.data),
+
+  // Code verification endpoint
+  verifyOnboardingCode: (code: string, token?: string): Promise<{ 
+    success: boolean; 
+    valid?: boolean;
+    statusCode: number;
+    message: string;
+    data?: {
+      userId: string;
+      code: string;
+      isVerified: boolean;
+      id: string;
+      createdAt: string;
+      updatedAt: string;
+      verifiedAt: string | null;
+    };
+    meta?: {
+      timestamp: string;
+    };
+  }> => {
+    const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+    return apiClient
+      .post("/code-verify", { code }, config)
+      .then((res) => res.data);
+  },
 };

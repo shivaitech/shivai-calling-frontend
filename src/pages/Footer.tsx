@@ -28,7 +28,6 @@ const Footer = () => {
       }
 
       if (!targetElement) {
-        console.warn(`Section with id "${sectionId}" not found`);
         return;
       }
 
@@ -73,8 +72,6 @@ const Footer = () => {
         requestAnimationFrame(animation);
       }
     } catch (error) {
-      console.error("Error during smooth scroll:", error);
-      // Fallback to basic scroll
       const targetElement = document.getElementById(sectionId);
       if (targetElement) {
         targetElement.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -285,7 +282,7 @@ const Footer = () => {
 
                 <div className="bwhiteDarkGradient rounded-full px-4 py-3 hover:bg-gray-700/50 transition-colors">
                 <a
-                  href="https://wa.me/971566180707"
+                  href="https://wa.me/919211490707"
                   className="flex items-center justify-between w-full hover:text-white transition-colors"
                   target="_blank"
                   rel="noopener noreferrer"

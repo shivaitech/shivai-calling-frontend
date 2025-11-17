@@ -168,7 +168,6 @@ export const ShivaiSubsPlan = () => {
         .sort((a: Country, b: Country) => a.name.localeCompare(b.name));
       setCountries(countryList);
     } catch (error) {
-      console.error("Error fetching countries:", error);
     }
   };
 
@@ -180,14 +179,13 @@ export const ShivaiSubsPlan = () => {
         {
           headers: {
             "X-CSCAPI-KEY":
-              "NHhvOEcyWk50N2Vna3VFTE00bFp3MjFKR0ZEOUhkZlg4RTk1MlJlaA==", // Free API key
+              "NHhvOEcyWk50N2Vna3VFTE00bFp3MjFKR0ZEOUhkZlg4RTk1MlJlaA==",
           },
         }
       );
       const data = await response.json();
       setStates(data || []);
     } catch (error) {
-      console.error("Error fetching states:", error);
       setStates([]);
     } finally {
       setLoadingStates(false);
@@ -209,7 +207,6 @@ export const ShivaiSubsPlan = () => {
       const data = await response.json();
       setCities(data || []);
     } catch (error) {
-      console.error("Error fetching cities:", error);
       setCities([]);
     } finally {
       setLoadingCities(false);

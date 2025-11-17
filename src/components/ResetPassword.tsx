@@ -156,8 +156,6 @@ const ResetPassword: React.FC<ResetPasswordProps> = ({
         }
       }
     } catch (err: any) {
-      console.error("Reset password error:", err);
-
       if (err.response?.status === 400 || err.response?.status === 410) {
         setError(FORGOT_PASSWORD_MESSAGES.reset.errors.token_invalid);
       } else if (err.response?.status === 404) {

@@ -1,5 +1,4 @@
-import bgNew from "../resources/AiImages/bg.svg";
-import voiceIcon from "../resources/AiImages/Animation.png";
+import bgNew from "../resources/AiImages/bg22.webp";
 import { motion } from "framer-motion";
 import { Orb, oceanDepthsPreset, galaxyPreset } from "react-ai-orb";
 export default function TryVoice() {
@@ -23,6 +22,9 @@ export default function TryVoice() {
             background: `url(${bgNew})`,
             backgroundPosition: "center",
             backgroundRepeat: "no-repeat",
+            backgroundSize: "cover",
+            backgroundAttachment: "fixed",
+            
           }}
           aria-hidden="true"
         />

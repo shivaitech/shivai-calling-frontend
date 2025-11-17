@@ -34,6 +34,7 @@ interface AuthContextType {
     password: string,
     confirmPassword: string
   ) => Promise<void>;
+  completeOnboarding: () => void;
   checkUserEmailPass: (email: string, password: string) => Promise<void>;
   logout: () => void;
   clearError: () => void;
@@ -69,8 +70,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           setUser(JSON.parse(storedUser));
         }
       } catch (error) {
-        console.error("Failed to initialize auth state:", error);
-        // Clear invalid stored data
         localStorage.removeItem("auth_tokens");
         localStorage.removeItem("auth_user");
       }
@@ -82,20 +81,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const clearError = () => setError(null);
 
   const googleAuth = async (code: string): Promise<void> => {
-    // Prevent concurrent authentication requests
     if (isAuthenticating.current) {
-      console.log(
-        "Authentication already in progress, skipping duplicate request"
-      );
       return;
     }
 
-    // Cancel any previous auth request
     if (authAbortController.current) {
       authAbortController.current.abort();
     }
 
-    // Create new abort controller for this request
     authAbortController.current = new AbortController();
 
     try {
@@ -103,32 +96,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setIsLoading(true);
       setError(null);
 
-      console.log("AuthContext: Starting Google authentication");
-
       const response = await authAPI.googleAuth({
         code,
-        // signal: authAbortController.current.signal
       });
-
-      console.log("AuthContext: Google authentication successful");
 
       // Update state
       setUser(response.user);
       setTokens(response.tokens);
 
-      // Persist to localStorage
       localStorage.setItem("auth_tokens", JSON.stringify(response.tokens));
       localStorage.setItem("auth_user", JSON.stringify(response.user));
     } catch (err: any) {
-      // Don't handle aborted requests as errors
       if (err.name === "AbortError") {
-        console.log("AuthContext: Google auth request was cancelled");
         return;
       }
 
-      console.error("AuthContext: Google authentication failed:", err);
-
-      // Clear any stored auth data on failure
       localStorage.removeItem("auth_tokens");
       localStorage.removeItem("auth_user");
       setUser(null);
@@ -218,10 +200,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
       const response = await authAPI.register(registerData);
 
-      setUser(response.user);
-      setTokens(response.tokens);
-      localStorage.setItem("auth_tokens", JSON.stringify(response.tokens));
-      localStorage.setItem("auth_user", JSON.stringify(response.user));
+      localStorage.setItem("pending_auth_tokens", JSON.stringify(response.tokens));
+      localStorage.setItem("pending_auth_user", JSON.stringify(response.user));
     } catch (err: any) {
       console.error("Registration error details:", err.response);
 
@@ -237,30 +217,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         setError(errorMessage);
       }
 
-      // Always throw to let Landing component handle detailed errors
       throw err;
     } finally {
       setIsLoading(false);
     }
   };
 
+  const completeOnboarding = () => {
+    const pendingTokens = localStorage.getItem("pending_auth_tokens");
+    const pendingUser = localStorage.getItem("pending_auth_user");
+
+    if (pendingTokens && pendingUser) {
+      const tokens = JSON.parse(pendingTokens);
+      const user = JSON.parse(pendingUser);
+
+      setUser(user);
+      setTokens(tokens);
+      localStorage.setItem("auth_tokens", JSON.stringify(tokens));
+      localStorage.setItem("auth_user", JSON.stringify(user));
+
+      localStorage.removeItem("pending_auth_tokens");
+      localStorage.removeItem("pending_auth_user");
+    }
+  };
+
   const logout = () => {
-    // Cancel any ongoing auth request
     if (authAbortController.current) {
       authAbortController.current.abort();
     }
 
-    // Clear state
     setUser(null);
     setTokens(null);
     setError(null);
     isAuthenticating.current = false;
 
-    // Clear localStorage
     localStorage.removeItem("auth_tokens");
     localStorage.removeItem("auth_user");
-
-    console.log("AuthContext: User logged out");
+    localStorage.removeItem("pending_auth_tokens");
+    localStorage.removeItem("pending_auth_user");
   };
 
   const getGoogleAuthUrl = async (): Promise<string> => {
@@ -285,6 +279,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     googleAuth,
     login,
     register,
+    completeOnboarding,
     logout,
     clearError,
     getGoogleAuthUrl,

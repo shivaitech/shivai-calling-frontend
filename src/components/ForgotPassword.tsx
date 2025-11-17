@@ -49,14 +49,9 @@ const ForgotPassword: React.FC<ForgotPasswordProps> = ({
       setEmailValidationError(null);
 
       try {
-        // Check if email exists for forgot password (opposite of signup validation)
         await authAPI.checkEmailAvailability(email, "signin");
-        // If no error, email exists and we can proceed
         setEmailValidationError(null);
       } catch (error: any) {
-        console.error("Email validation error:", error);
-
-        // Check if it's a 401 error with "Email not found" message
         if (error.response?.status === 401) {
           const errorMessage = error.response?.data?.message;
           if (

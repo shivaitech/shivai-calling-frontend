@@ -381,17 +381,12 @@ export const WhatShivaiDo = React.memo(() => {
               pauseOnHover={true}
               className="mobile-carousel"
               beforeChange={(current, next) => {
-                // With infinite scroll, normalize the index to match our features array
                 const normalizedIndex = next % features.length;
-                console.log('Carousel changing from', current, 'to', next, 'normalized:', normalizedIndex);
                 setCurrentMobileSlide(normalizedIndex);
               }}
               afterChange={(index) => {
-                // With infinite scroll, normalize the index to match our features array
                 const normalizedIndex = index % features.length;
-                console.log('Carousel changed to index:', index, 'normalized:', normalizedIndex);
                 setCurrentMobileSlide(normalizedIndex);
-                // Update current slide for consistency with desktop
                 setCurrentSlide(normalizedIndex + features.length);
               }}
               responsive={[

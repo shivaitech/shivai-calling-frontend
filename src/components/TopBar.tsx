@@ -38,11 +38,10 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
 
   const handleLogout = async () => {
     try {
-      await logout(); // Use context logout method
+      await logout();
       window.location.href = "/landing";
     } catch (error) {
-      console.error("Logout failed:", error);
-      window.location.href = "/landing"; // Force redirect even if logout fails
+      window.location.href = "/landing";
     }
   };
 

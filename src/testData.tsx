@@ -208,14 +208,10 @@ const Onboarding: React.FC = () => {
     
     setIsSubmitting(true);
     try {
-      // Simulate API call
-      console.log("Onboarding data:", data);
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      // Navigate to Landing page after successful onboarding
       navigate("/");
     } catch (error) {
-      console.error("Onboarding error:", error);
     } finally {
       setIsSubmitting(false);
     }

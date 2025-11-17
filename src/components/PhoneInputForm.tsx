@@ -158,7 +158,6 @@ export default function PhoneInputForm({
       setIsCountryDropdownOpen(false);
       setCountrySearchTerm("");
     } catch (error) {
-      console.error("Error selecting country:", error);
       setIsCountryDropdownOpen(false);
       setCountrySearchTerm("");
     }
@@ -279,12 +278,10 @@ export default function PhoneInputForm({
         await new Promise((resolve) => setTimeout(resolve, 1000));
         setCallState("ended");
 
-        // Reset after 3 seconds
         setTimeout(() => {
           setCallState("idle");
         }, 3000);
       } catch (error) {
-        console.error("Failed to submit phone number:", error);
         setCallState("idle");
       }
     },

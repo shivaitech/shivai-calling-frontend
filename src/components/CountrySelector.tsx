@@ -68,8 +68,6 @@ export default function CountrySelector({
       setIsOpen(false);
       setSearchTerm("");
     } catch (error) {
-      console.error('Error selecting country:', error);
-      // Fallback to close dropdown
       setIsOpen(false);
       setSearchTerm("");
     }
@@ -157,7 +155,7 @@ export default function CountrySelector({
               setIsOpen(!isOpen);
             }}
             onDoubleClick={handleDialCodeEdit}
-            className={`flex items-center justify-center gap-0.5 sm:gap-1 w-[60px] sm:w-[70px] md:w-[80px] h-[38px] sm:h-[44px] md:h-[54px] lg:h-11 bg-white rounded-lg border border-gray-300 flex-shrink-0 hover:bg-gray-50 hover:border-gray-400 transition-all duration-150 relative ${isOpen ? 'ring-2 ring-blue-500 border-blue-500 bg-blue-50' : ''}`}
+            className={`flex items-center justify-center gap-0.5 sm:gap-1 w-[60px] sm:w-[70px] md:w-[80px] h-[34px] md:h-[34px] lg:h-[35px] bg-white rounded-lg border border-gray-300 flex-shrink-0 hover:bg-gray-50 hover:border-gray-400 transition-all duration-150 relative ${isOpen ? 'ring-2 ring-blue-500 border-blue-500 bg-blue-50' : ''}`}
             title="Click to select country, double-click to edit"
             aria-expanded={isOpen}
             aria-haspopup="listbox"
@@ -178,11 +176,11 @@ export default function CountrySelector({
       {isOpen && !editingDialCode && (
         <>
           <div 
-            className="fixed inset-0 bg-black/20 z-[99998] sm:hidden" 
+            className="fixed inset-0 bg-black/20 z-[99998] sm:hidden lg:w-auto" 
             onClick={() => setIsOpen(false)} 
             onTouchStart={() => setIsOpen(false)}
           />
-          <div className="absolute top-full left-0 right-0 sm:right-auto mt-2 w-full sm:w-64 md:w-72 bg-white border border-gray-200 rounded-lg shadow-xl max-h-64 overflow-hidden z-[99999]">
+          <div className="absolute top-full left-0 right-0 sm:right-auto mt-2 w-[50vw]  md:w-72 bg-white border border-gray-200 rounded-lg shadow-xl max-h-64 overflow-hidden z-[99999]">
             <div className="p-2 sm:p-3 border-b border-gray-100">
               <input
                 type="text"
@@ -206,7 +204,7 @@ export default function CountrySelector({
               />
             </div>
 
-            <div className="max-h-48 overflow-y-auto" role="listbox">
+            <div className="max-h-48 overflow-y-auto " role="listbox">
               {filteredCountries.length > 0 ? (
                 filteredCountries.slice(0, 12).map((country) => (
                   <button

@@ -51,9 +51,7 @@ const Navbar: React.FC<NavbarProps> = ({
         }
       }
 
-      // Fallback to basic scroll if element not found
       if (!targetElement) {
-        console.warn(`Section with id "${sectionId}" not found`);
         return;
       }
 
@@ -100,8 +98,6 @@ const Navbar: React.FC<NavbarProps> = ({
         requestAnimationFrame(animation);
       }
     } catch (error) {
-      console.error("Error during smooth scroll:", error);
-      // Fallback to basic scroll
       const targetElement = document.getElementById(sectionId);
       if (targetElement) {
         targetElement.scrollIntoView({ behavior: "smooth", block: "start" });
