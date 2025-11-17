@@ -276,7 +276,11 @@ const Onboarding: React.FC = () => {
   const validateStep = (step: number): boolean => {
     switch (step) {
       case 1:
-        return !!watch("companyName");
+        const industry = watch("industry") || [];
+        return !!watch("companyName") && 
+               !!watch("companySize") && 
+               industry.length > 0 &&
+               !!watch("companyEmail");
       case 2:
         return !!watch("plan");
       case 3:
@@ -338,7 +342,6 @@ const Onboarding: React.FC = () => {
     const payloadData = {
       // Company basics
       company_basics: {
-        email: data.companyEmail || "",
         phone: data.companyPhone
           ? `${selectedCompanyCountry.dialCode}${data.companyPhone}`
           : "",
@@ -588,7 +591,7 @@ const Onboarding: React.FC = () => {
         }
       });
       
-      // Plan details
+    
       formData.append('plan_details[type]', payloadData.plan_details.type);
       formData.append('plan_details[ai_employee_limit]', String(payloadData.plan_details.ai_employee_limit));
       formData.append('plan_details[monthly_price]', String(payloadData.plan_details.monthly_price));
@@ -805,7 +808,7 @@ const Onboarding: React.FC = () => {
                           ? "border-red-500 bg-red-50"
                           : "border-gray-300 hover:border-gray-400"
                       }`}
-                      placeholder="facebook.com"
+                      placeholder="www.company.com"
                     />
                   </div>
                   {errors.website && (
@@ -817,10 +820,10 @@ const Onboarding: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Company Size
+                    Company Size <span className="text-red-500">*</span>
                   </label>
                   <select
-                    {...register("companySize")}
+                    {...register("companySize", { required: "Company size is required" })}
                     className="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none cursor-pointer transition-all hover:border-gray-400"
                     style={{
                       backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
@@ -837,13 +840,18 @@ const Onboarding: React.FC = () => {
                     <option value="201-1000">201-1000 employees</option>
                     <option value="1000+">1000+ employees</option>
                   </select>
+                  {errors.companySize && (
+                    <p className="mt-0.5 text-xs text-red-600">
+                      {errors.companySize.message}
+                    </p>
+                  )}
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">
-                    Company Email
+                    Company Email <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
                     <svg
@@ -861,6 +869,7 @@ const Onboarding: React.FC = () => {
                     </svg>
                     <input
                       {...register("companyEmail", {
+                        required: "Company email is required",
                         pattern: {
                           value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
                           message: "Please enter a valid email address",
@@ -958,7 +967,7 @@ const Onboarding: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Industry
+                  Industry <span className="text-red-500">*</span>
                   <span className="text-xs text-gray-500 ml-2">
                     ({(watch("industry") || []).length}/4 max)
                   </span>
@@ -1787,11 +1796,10 @@ const Onboarding: React.FC = () => {
 
                       <div>
                         <label className="block text-xs font-medium text-gray-700 mb-1">
-                          Billing Email *
+                          Billing Email
                         </label>
                         <input
                           {...register("billingContactEmail", {
-                            required: "Billing email is required",
                             pattern: {
                               value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
                               message: "Please enter a valid email address",
