@@ -372,7 +372,7 @@ const Onboarding: React.FC = () => {
 
       plan_details: {
         type: selectedPlan?.apiKey || data.plan || "",
-        ai_employee_limit: data.agentCount || 1,
+        ai_employee_limit: Number(data.agentCount) || 1,
         monthly_price:
           selectedPlan?.price === "Custom pricing"
             ? 299
@@ -472,7 +472,7 @@ const Onboarding: React.FC = () => {
       
       // Plan details
       formData.append('plan_details[type]', payloadData.plan_details.type);
-      formData.append('plan_details[ai_employee_limit]', payloadData.plan_details.ai_employee_limit.toString());
+      formData.append('plan_details[ai_employee_limit]', String(payloadData.plan_details.ai_employee_limit));
       formData.append('plan_details[billing_contact][name]', payloadData.plan_details.billing_contact.name);
       formData.append('plan_details[billing_contact][email]', payloadData.plan_details.billing_contact.email);
       formData.append('plan_details[billing_contact][phone]', payloadData.plan_details.billing_contact.phone);
@@ -598,7 +598,7 @@ const Onboarding: React.FC = () => {
       
     
       formData.append('plan_details[type]', payloadData.plan_details.type);
-      formData.append('plan_details[ai_employee_limit]', payloadData.plan_details.ai_employee_limit.toString());
+      formData.append('plan_details[ai_employee_limit]', String(payloadData.plan_details.ai_employee_limit));
       formData.append('plan_details[billing_contact][name]', payloadData.plan_details.billing_contact.name);
       formData.append('plan_details[billing_contact][email]', payloadData.plan_details.billing_contact.email);
       formData.append('plan_details[billing_contact][phone]', payloadData.plan_details.billing_contact.phone);
