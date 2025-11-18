@@ -1,4 +1,4 @@
-// Location data and API for countries, states, and cities
+﻿// Location data and API for countries, states, and cities
 // This uses a public API for location data
 
 export interface Country {
@@ -633,6 +633,492 @@ export const statesData: Record<string, State[]> = {
     { code: "TF", name: "Tierra del Fuego", countryCode: "AR" },
     { code: "TM", name: "Tucumán", countryCode: "AR" },
   ],
+  AT: [
+    { code: "1", name: "Burgenland", countryCode: "AT" },
+    { code: "2", name: "Carinthia", countryCode: "AT" },
+    { code: "3", name: "Lower Austria", countryCode: "AT" },
+    { code: "4", name: "Upper Austria", countryCode: "AT" },
+    { code: "5", name: "Salzburg", countryCode: "AT" },
+    { code: "6", name: "Styria", countryCode: "AT" },
+    { code: "7", name: "Tyrol", countryCode: "AT" },
+    { code: "8", name: "Vorarlberg", countryCode: "AT" },
+    { code: "9", name: "Vienna", countryCode: "AT" },
+  ],
+  BE: [
+    { code: "BRU", name: "Brussels", countryCode: "BE" },
+    { code: "VLG", name: "Flanders", countryCode: "BE" },
+    { code: "WAL", name: "Wallonia", countryCode: "BE" },
+  ],
+  CH: [
+    { code: "AG", name: "Aargau", countryCode: "CH" },
+    { code: "AR", name: "Appenzell Ausserrhoden", countryCode: "CH" },
+    { code: "AI", name: "Appenzell Innerrhoden", countryCode: "CH" },
+    { code: "BL", name: "Basel-Landschaft", countryCode: "CH" },
+    { code: "BS", name: "Basel-Stadt", countryCode: "CH" },
+    { code: "BE", name: "Bern", countryCode: "CH" },
+    { code: "FR", name: "Fribourg", countryCode: "CH" },
+    { code: "GE", name: "Geneva", countryCode: "CH" },
+    { code: "GL", name: "Glarus", countryCode: "CH" },
+    { code: "GR", name: "Graubünden", countryCode: "CH" },
+    { code: "JU", name: "Jura", countryCode: "CH" },
+    { code: "LU", name: "Lucerne", countryCode: "CH" },
+    { code: "NE", name: "Neuchâtel", countryCode: "CH" },
+    { code: "NW", name: "Nidwalden", countryCode: "CH" },
+    { code: "OW", name: "Obwalden", countryCode: "CH" },
+    { code: "SG", name: "St. Gallen", countryCode: "CH" },
+    { code: "SH", name: "Schaffhausen", countryCode: "CH" },
+    { code: "SZ", name: "Schwyz", countryCode: "CH" },
+    { code: "SO", name: "Solothurn", countryCode: "CH" },
+    { code: "TG", name: "Thurgau", countryCode: "CH" },
+    { code: "TI", name: "Ticino", countryCode: "CH" },
+    { code: "UR", name: "Uri", countryCode: "CH" },
+    { code: "VD", name: "Vaud", countryCode: "CH" },
+    { code: "VS", name: "Valais", countryCode: "CH" },
+    { code: "ZG", name: "Zug", countryCode: "CH" },
+    { code: "ZH", name: "Zurich", countryCode: "CH" },
+  ],
+  CZ: [
+    { code: "JC", name: "South Bohemian", countryCode: "CZ" },
+    { code: "JM", name: "South Moravian", countryCode: "CZ" },
+    { code: "KA", name: "Karlovy Vary", countryCode: "CZ" },
+    { code: "KR", name: "Hradec Králové", countryCode: "CZ" },
+    { code: "LI", name: "Liberec", countryCode: "CZ" },
+    { code: "MO", name: "Moravian-Silesian", countryCode: "CZ" },
+    { code: "OL", name: "Olomouc", countryCode: "CZ" },
+    { code: "PA", name: "Pardubice", countryCode: "CZ" },
+    { code: "PL", name: "Plzeň", countryCode: "CZ" },
+    { code: "PR", name: "Prague", countryCode: "CZ" },
+    { code: "ST", name: "Central Bohemian", countryCode: "CZ" },
+    { code: "US", name: "Ústí nad Labem", countryCode: "CZ" },
+    { code: "VY", name: "Vysočina", countryCode: "CZ" },
+    { code: "ZL", name: "Zlín", countryCode: "CZ" },
+  ],
+  DK: [
+    { code: "84", name: "Capital Region", countryCode: "DK" },
+    { code: "82", name: "Central Denmark", countryCode: "DK" },
+    { code: "81", name: "North Denmark", countryCode: "DK" },
+    { code: "85", name: "Zealand", countryCode: "DK" },
+    { code: "83", name: "Southern Denmark", countryCode: "DK" },
+  ],
+  FI: [
+    { code: "01", name: "Åland Islands", countryCode: "FI" },
+    { code: "02", name: "South Karelia", countryCode: "FI" },
+    { code: "03", name: "Southern Ostrobothnia", countryCode: "FI" },
+    { code: "04", name: "Southern Savonia", countryCode: "FI" },
+    { code: "05", name: "Kainuu", countryCode: "FI" },
+    { code: "06", name: "Tavastia Proper", countryCode: "FI" },
+    { code: "07", name: "Central Ostrobothnia", countryCode: "FI" },
+    { code: "08", name: "Central Finland", countryCode: "FI" },
+    { code: "09", name: "Kymenlaakso", countryCode: "FI" },
+    { code: "10", name: "Lapland", countryCode: "FI" },
+    { code: "11", name: "Pirkanmaa", countryCode: "FI" },
+    { code: "12", name: "Ostrobothnia", countryCode: "FI" },
+    { code: "13", name: "North Karelia", countryCode: "FI" },
+    { code: "14", name: "Northern Ostrobothnia", countryCode: "FI" },
+    { code: "15", name: "Northern Savonia", countryCode: "FI" },
+    { code: "16", name: "Päijänne Tavastia", countryCode: "FI" },
+    { code: "17", name: "Satakunta", countryCode: "FI" },
+    { code: "18", name: "Uusimaa", countryCode: "FI" },
+    { code: "19", name: "Southwest Finland", countryCode: "FI" },
+  ],
+  GR: [
+    { code: "A", name: "Eastern Macedonia and Thrace", countryCode: "GR" },
+    { code: "B", name: "Central Macedonia", countryCode: "GR" },
+    { code: "C", name: "Western Macedonia", countryCode: "GR" },
+    { code: "D", name: "Epirus", countryCode: "GR" },
+    { code: "E", name: "Thessaly", countryCode: "GR" },
+    { code: "F", name: "Ionian Islands", countryCode: "GR" },
+    { code: "G", name: "Western Greece", countryCode: "GR" },
+    { code: "H", name: "Central Greece", countryCode: "GR" },
+    { code: "I", name: "Attica", countryCode: "GR" },
+    { code: "J", name: "Peloponnese", countryCode: "GR" },
+    { code: "K", name: "North Aegean", countryCode: "GR" },
+    { code: "L", name: "South Aegean", countryCode: "GR" },
+    { code: "M", name: "Crete", countryCode: "GR" },
+  ],
+  IE: [
+    { code: "C", name: "Connacht", countryCode: "IE" },
+    { code: "L", name: "Leinster", countryCode: "IE" },
+    { code: "M", name: "Munster", countryCode: "IE" },
+    { code: "U", name: "Ulster", countryCode: "IE" },
+  ],
+  NO: [
+    { code: "03", name: "Oslo", countryCode: "NO" },
+    { code: "11", name: "Rogaland", countryCode: "NO" },
+    { code: "15", name: "Møre og Romsdal", countryCode: "NO" },
+    { code: "18", name: "Nordland", countryCode: "NO" },
+    { code: "30", name: "Viken", countryCode: "NO" },
+    { code: "34", name: "Innlandet", countryCode: "NO" },
+    { code: "38", name: "Vestfold og Telemark", countryCode: "NO" },
+    { code: "42", name: "Agder", countryCode: "NO" },
+    { code: "46", name: "Vestland", countryCode: "NO" },
+    { code: "50", name: "Trøndelag", countryCode: "NO" },
+    { code: "54", name: "Troms og Finnmark", countryCode: "NO" },
+  ],
+  NZ: [
+    { code: "AUK", name: "Auckland", countryCode: "NZ" },
+    { code: "BOP", name: "Bay of Plenty", countryCode: "NZ" },
+    { code: "CAN", name: "Canterbury", countryCode: "NZ" },
+    { code: "GIS", name: "Gisborne", countryCode: "NZ" },
+    { code: "HKB", name: "Hawke's Bay", countryCode: "NZ" },
+    { code: "MWT", name: "Manawatu-Wanganui", countryCode: "NZ" },
+    { code: "MBH", name: "Marlborough", countryCode: "NZ" },
+    { code: "NSN", name: "Nelson", countryCode: "NZ" },
+    { code: "NTL", name: "Northland", countryCode: "NZ" },
+    { code: "OTA", name: "Otago", countryCode: "NZ" },
+    { code: "STL", name: "Southland", countryCode: "NZ" },
+    { code: "TKI", name: "Taranaki", countryCode: "NZ" },
+    { code: "TAS", name: "Tasman", countryCode: "NZ" },
+    { code: "WKO", name: "Waikato", countryCode: "NZ" },
+    { code: "WGN", name: "Wellington", countryCode: "NZ" },
+    { code: "WTC", name: "West Coast", countryCode: "NZ" },
+  ],
+  PT: [
+    { code: "01", name: "Aveiro", countryCode: "PT" },
+    { code: "02", name: "Beja", countryCode: "PT" },
+    { code: "03", name: "Braga", countryCode: "PT" },
+    { code: "04", name: "Bragança", countryCode: "PT" },
+    { code: "05", name: "Castelo Branco", countryCode: "PT" },
+    { code: "06", name: "Coimbra", countryCode: "PT" },
+    { code: "07", name: "Évora", countryCode: "PT" },
+    { code: "08", name: "Faro", countryCode: "PT" },
+    { code: "09", name: "Guarda", countryCode: "PT" },
+    { code: "10", name: "Leiria", countryCode: "PT" },
+    { code: "11", name: "Lisbon", countryCode: "PT" },
+    { code: "12", name: "Portalegre", countryCode: "PT" },
+    { code: "13", name: "Porto", countryCode: "PT" },
+    { code: "14", name: "Santarém", countryCode: "PT" },
+    { code: "15", name: "Setúbal", countryCode: "PT" },
+    { code: "16", name: "Viana do Castelo", countryCode: "PT" },
+    { code: "17", name: "Vila Real", countryCode: "PT" },
+    { code: "18", name: "Viseu", countryCode: "PT" },
+    { code: "20", name: "Azores", countryCode: "PT" },
+    { code: "30", name: "Madeira", countryCode: "PT" },
+  ],
+  RO: [
+    { code: "AB", name: "Alba", countryCode: "RO" },
+    { code: "AR", name: "Arad", countryCode: "RO" },
+    { code: "AG", name: "Argeș", countryCode: "RO" },
+    { code: "BC", name: "Bacău", countryCode: "RO" },
+    { code: "BH", name: "Bihor", countryCode: "RO" },
+    { code: "BN", name: "Bistrița-Năsăud", countryCode: "RO" },
+    { code: "BT", name: "Botoșani", countryCode: "RO" },
+    { code: "BR", name: "Brăila", countryCode: "RO" },
+    { code: "BV", name: "Brașov", countryCode: "RO" },
+    { code: "B", name: "Bucharest", countryCode: "RO" },
+    { code: "BZ", name: "Buzău", countryCode: "RO" },
+    { code: "CL", name: "Călărași", countryCode: "RO" },
+    { code: "CS", name: "Caraș-Severin", countryCode: "RO" },
+    { code: "CJ", name: "Cluj", countryCode: "RO" },
+    { code: "CT", name: "Constanța", countryCode: "RO" },
+    { code: "CV", name: "Covasna", countryCode: "RO" },
+    { code: "DB", name: "Dâmbovița", countryCode: "RO" },
+    { code: "DJ", name: "Dolj", countryCode: "RO" },
+    { code: "GL", name: "Galați", countryCode: "RO" },
+    { code: "GR", name: "Giurgiu", countryCode: "RO" },
+    { code: "GJ", name: "Gorj", countryCode: "RO" },
+    { code: "HR", name: "Harghita", countryCode: "RO" },
+    { code: "HD", name: "Hunedoara", countryCode: "RO" },
+    { code: "IL", name: "Ialomița", countryCode: "RO" },
+    { code: "IS", name: "Iași", countryCode: "RO" },
+    { code: "IF", name: "Ilfov", countryCode: "RO" },
+    { code: "MM", name: "Maramureș", countryCode: "RO" },
+    { code: "MH", name: "Mehedinți", countryCode: "RO" },
+    { code: "MS", name: "Mureș", countryCode: "RO" },
+    { code: "NT", name: "Neamț", countryCode: "RO" },
+    { code: "OT", name: "Olt", countryCode: "RO" },
+    { code: "PH", name: "Prahova", countryCode: "RO" },
+    { code: "SJ", name: "Sălaj", countryCode: "RO" },
+    { code: "SM", name: "Satu Mare", countryCode: "RO" },
+    { code: "SB", name: "Sibiu", countryCode: "RO" },
+    { code: "SV", name: "Suceava", countryCode: "RO" },
+    { code: "TR", name: "Teleorman", countryCode: "RO" },
+    { code: "TM", name: "Timiș", countryCode: "RO" },
+    { code: "TL", name: "Tulcea", countryCode: "RO" },
+    { code: "VL", name: "Vâlcea", countryCode: "RO" },
+    { code: "VS", name: "Vaslui", countryCode: "RO" },
+    { code: "VN", name: "Vrancea", countryCode: "RO" },
+  ],
+  ZA: [
+    { code: "EC", name: "Eastern Cape", countryCode: "ZA" },
+    { code: "FS", name: "Free State", countryCode: "ZA" },
+    { code: "GP", name: "Gauteng", countryCode: "ZA" },
+    { code: "KZN", name: "KwaZulu-Natal", countryCode: "ZA" },
+    { code: "LP", name: "Limpopo", countryCode: "ZA" },
+    { code: "MP", name: "Mpumalanga", countryCode: "ZA" },
+    { code: "NC", name: "Northern Cape", countryCode: "ZA" },
+    { code: "NW", name: "North West", countryCode: "ZA" },
+    { code: "WC", name: "Western Cape", countryCode: "ZA" },
+  ],
+  // Gulf Countries
+  AE: [
+    { code: "AZ", name: "Abu Dhabi", countryCode: "AE" },
+    { code: "AJ", name: "Ajman", countryCode: "AE" },
+    { code: "DU", name: "Dubai", countryCode: "AE" },
+    { code: "FU", name: "Fujairah", countryCode: "AE" },
+    { code: "RK", name: "Ras Al Khaimah", countryCode: "AE" },
+    { code: "SH", name: "Sharjah", countryCode: "AE" },
+    { code: "UQ", name: "Umm Al Quwain", countryCode: "AE" },
+  ],
+  SA: [
+    { code: "01", name: "Riyadh", countryCode: "SA" },
+    { code: "02", name: "Makkah", countryCode: "SA" },
+    { code: "03", name: "Madinah", countryCode: "SA" },
+    { code: "04", name: "Eastern Province", countryCode: "SA" },
+    { code: "05", name: "Asir", countryCode: "SA" },
+    { code: "06", name: "Tabuk", countryCode: "SA" },
+    { code: "07", name: "Qassim", countryCode: "SA" },
+    { code: "08", name: "Ha'il", countryCode: "SA" },
+    { code: "09", name: "Northern Borders", countryCode: "SA" },
+    { code: "10", name: "Jizan", countryCode: "SA" },
+    { code: "11", name: "Najran", countryCode: "SA" },
+    { code: "12", name: "Al Bahah", countryCode: "SA" },
+    { code: "14", name: "Al Jawf", countryCode: "SA" },
+  ],
+  BH: [
+    { code: "13", name: "Capital Governorate", countryCode: "BH" },
+    { code: "14", name: "Muharraq Governorate", countryCode: "BH" },
+    { code: "15", name: "Northern Governorate", countryCode: "BH" },
+    { code: "17", name: "Southern Governorate", countryCode: "BH" },
+  ],
+  KW: [
+    { code: "AH", name: "Ahmadi", countryCode: "KW" },
+    { code: "FA", name: "Farwaniya", countryCode: "KW" },
+    { code: "HA", name: "Hawalli", countryCode: "KW" },
+    { code: "JA", name: "Jahra", countryCode: "KW" },
+    { code: "KU", name: "Kuwait City", countryCode: "KW" },
+    { code: "MU", name: "Mubarak Al-Kabeer", countryCode: "KW" },
+  ],
+  OM: [
+    { code: "DA", name: "Ad Dakhiliyah", countryCode: "OM" },
+    { code: "BU", name: "Al Buraimi", countryCode: "OM" },
+    { code: "WU", name: "Al Wusta", countryCode: "OM" },
+    { code: "ZA", name: "Az Zahirah", countryCode: "OM" },
+    { code: "BJ", name: "Janub al Batinah", countryCode: "OM" },
+    { code: "SJ", name: "Janub ash Sharqiyah", countryCode: "OM" },
+    { code: "MA", name: "Masqat", countryCode: "OM" },
+    { code: "MU", name: "Musandam", countryCode: "OM" },
+    { code: "BS", name: "Shamal al Batinah", countryCode: "OM" },
+    { code: "SS", name: "Shamal ash Sharqiyah", countryCode: "OM" },
+    { code: "ZU", name: "Zufar", countryCode: "OM" },
+  ],
+  QA: [
+    { code: "DA", name: "Ad Dawhah", countryCode: "QA" },
+    { code: "KH", name: "Al Khor", countryCode: "QA" },
+    { code: "WA", name: "Al Wakrah", countryCode: "QA" },
+    { code: "RA", name: "Ar Rayyan", countryCode: "QA" },
+    { code: "MS", name: "Ash Shamal", countryCode: "QA" },
+    { code: "ZA", name: "Az Za'ayin", countryCode: "QA" },
+    { code: "US", name: "Umm Salal", countryCode: "QA" },
+  ],
+  // Middle East Countries
+  IQ: [
+    { code: "AN", name: "Al Anbar", countryCode: "IQ" },
+    { code: "BA", name: "Basra", countryCode: "IQ" },
+    { code: "MU", name: "Al Muthanna", countryCode: "IQ" },
+    { code: "QA", name: "Al Qadisiyyah", countryCode: "IQ" },
+    { code: "NA", name: "Najaf", countryCode: "IQ" },
+    { code: "AR", name: "Arbil", countryCode: "IQ" },
+    { code: "SU", name: "As Sulaymaniyah", countryCode: "IQ" },
+    { code: "BG", name: "Baghdad", countryCode: "IQ" },
+    { code: "BB", name: "Babil", countryCode: "IQ" },
+    { code: "DA", name: "Dohuk", countryCode: "IQ" },
+    { code: "DQ", name: "Dhi Qar", countryCode: "IQ" },
+    { code: "DI", name: "Diyala", countryCode: "IQ" },
+    { code: "KA", name: "Karbala", countryCode: "IQ" },
+    { code: "KI", name: "Kirkuk", countryCode: "IQ" },
+    { code: "MA", name: "Maysan", countryCode: "IQ" },
+    { code: "NI", name: "Ninawa", countryCode: "IQ" },
+    { code: "SD", name: "Salah ad Din", countryCode: "IQ" },
+    { code: "WA", name: "Wasit", countryCode: "IQ" },
+  ],
+  JO: [
+    { code: "AJ", name: "Ajloun", countryCode: "JO" },
+    { code: "AM", name: "Amman", countryCode: "JO" },
+    { code: "AQ", name: "Aqaba", countryCode: "JO" },
+    { code: "BA", name: "Balqa", countryCode: "JO" },
+    { code: "IR", name: "Irbid", countryCode: "JO" },
+    { code: "JA", name: "Jarash", countryCode: "JO" },
+    { code: "KA", name: "Karak", countryCode: "JO" },
+    { code: "MA", name: "Ma'an", countryCode: "JO" },
+    { code: "MD", name: "Madaba", countryCode: "JO" },
+    { code: "MN", name: "Mafraq", countryCode: "JO" },
+    { code: "TA", name: "Tafilah", countryCode: "JO" },
+    { code: "ZA", name: "Zarqa", countryCode: "JO" },
+  ],
+  LB: [
+    { code: "AK", name: "Akkar", countryCode: "LB" },
+    { code: "BH", name: "Baalbek-Hermel", countryCode: "LB" },
+    { code: "BI", name: "Beirut", countryCode: "LB" },
+    { code: "BA", name: "Beqaa", countryCode: "LB" },
+    { code: "AS", name: "Mount Lebanon", countryCode: "LB" },
+    { code: "NA", name: "Nabatieh", countryCode: "LB" },
+    { code: "JA", name: "North", countryCode: "LB" },
+    { code: "JL", name: "South", countryCode: "LB" },
+  ],
+  SY: [
+    { code: "LA", name: "Latakia", countryCode: "SY" },
+    { code: "TA", name: "Tartus", countryCode: "SY" },
+    { code: "HL", name: "Aleppo", countryCode: "SY" },
+    { code: "ID", name: "Idlib", countryCode: "SY" },
+    { code: "HM", name: "Hama", countryCode: "SY" },
+    { code: "HI", name: "Homs", countryCode: "SY" },
+    { code: "DI", name: "Damascus", countryCode: "SY" },
+    { code: "RD", name: "Rif Dimashq", countryCode: "SY" },
+    { code: "QU", name: "Quneitra", countryCode: "SY" },
+    { code: "DR", name: "Daraa", countryCode: "SY" },
+    { code: "SU", name: "As-Suwayda", countryCode: "SY" },
+    { code: "RA", name: "Ar-Raqqah", countryCode: "SY" },
+    { code: "DY", name: "Deir ez-Zor", countryCode: "SY" },
+    { code: "HA", name: "Al-Hasakah", countryCode: "SY" },
+  ],
+  YE: [
+    { code: "SA", name: "Sana'a", countryCode: "YE" },
+    { code: "AD", name: "Aden", countryCode: "YE" },
+    { code: "TA", name: "Taiz", countryCode: "YE" },
+    { code: "HD", name: "Hadramaut", countryCode: "YE" },
+    { code: "IB", name: "Ibb", countryCode: "YE" },
+    { code: "HJ", name: "Hajjah", countryCode: "YE" },
+    { code: "HU", name: "Al Hudaydah", countryCode: "YE" },
+    { code: "DH", name: "Dhamar", countryCode: "YE" },
+    { code: "AM", name: "Amran", countryCode: "YE" },
+    { code: "BA", name: "Al Bayda", countryCode: "YE" },
+    { code: "JA", name: "Al Jawf", countryCode: "YE" },
+    { code: "MA", name: "Ma'rib", countryCode: "YE" },
+    { code: "MR", name: "Al Mahrah", countryCode: "YE" },
+    { code: "MW", name: "Al Mahwit", countryCode: "YE" },
+    { code: "SD", name: "Saada", countryCode: "YE" },
+    { code: "SN", name: "Sana'a Governorate", countryCode: "YE" },
+    { code: "SH", name: "Shabwah", countryCode: "YE" },
+    { code: "AB", name: "Abyan", countryCode: "YE" },
+    { code: "LA", name: "Lahij", countryCode: "YE" },
+    { code: "DA", name: "Ad Dali", countryCode: "YE" },
+    { code: "RA", name: "Raymah", countryCode: "YE" },
+  ],
+  IL: [
+    { code: "D", name: "Southern District", countryCode: "IL" },
+    { code: "HA", name: "Haifa District", countryCode: "IL" },
+    { code: "JM", name: "Jerusalem District", countryCode: "IL" },
+    { code: "M", name: "Central District", countryCode: "IL" },
+    { code: "TA", name: "Tel Aviv District", countryCode: "IL" },
+    { code: "Z", name: "Northern District", countryCode: "IL" },
+  ],
+  TR: [
+    { code: "01", name: "Adana", countryCode: "TR" },
+    { code: "02", name: "Adıyaman", countryCode: "TR" },
+    { code: "03", name: "Afyonkarahisar", countryCode: "TR" },
+    { code: "04", name: "Ağrı", countryCode: "TR" },
+    { code: "05", name: "Amasya", countryCode: "TR" },
+    { code: "06", name: "Ankara", countryCode: "TR" },
+    { code: "07", name: "Antalya", countryCode: "TR" },
+    { code: "08", name: "Artvin", countryCode: "TR" },
+    { code: "09", name: "Aydın", countryCode: "TR" },
+    { code: "10", name: "Balıkesir", countryCode: "TR" },
+    { code: "11", name: "Bilecik", countryCode: "TR" },
+    { code: "12", name: "Bingöl", countryCode: "TR" },
+    { code: "13", name: "Bitlis", countryCode: "TR" },
+    { code: "14", name: "Bolu", countryCode: "TR" },
+    { code: "15", name: "Burdur", countryCode: "TR" },
+    { code: "16", name: "Bursa", countryCode: "TR" },
+    { code: "17", name: "Çanakkale", countryCode: "TR" },
+    { code: "18", name: "Çankırı", countryCode: "TR" },
+    { code: "19", name: "Çorum", countryCode: "TR" },
+    { code: "20", name: "Denizli", countryCode: "TR" },
+    { code: "21", name: "Diyarbakır", countryCode: "TR" },
+    { code: "22", name: "Edirne", countryCode: "TR" },
+    { code: "23", name: "Elazığ", countryCode: "TR" },
+    { code: "24", name: "Erzincan", countryCode: "TR" },
+    { code: "25", name: "Erzurum", countryCode: "TR" },
+    { code: "26", name: "Eskişehir", countryCode: "TR" },
+    { code: "27", name: "Gaziantep", countryCode: "TR" },
+    { code: "28", name: "Giresun", countryCode: "TR" },
+    { code: "29", name: "Gümüşhane", countryCode: "TR" },
+    { code: "30", name: "Hakkâri", countryCode: "TR" },
+    { code: "31", name: "Hatay", countryCode: "TR" },
+    { code: "32", name: "Isparta", countryCode: "TR" },
+    { code: "33", name: "Mersin", countryCode: "TR" },
+    { code: "34", name: "Istanbul", countryCode: "TR" },
+    { code: "35", name: "İzmir", countryCode: "TR" },
+    { code: "36", name: "Kars", countryCode: "TR" },
+    { code: "37", name: "Kastamonu", countryCode: "TR" },
+    { code: "38", name: "Kayseri", countryCode: "TR" },
+    { code: "39", name: "Kırklareli", countryCode: "TR" },
+    { code: "40", name: "Kırşehir", countryCode: "TR" },
+    { code: "41", name: "Kocaeli", countryCode: "TR" },
+    { code: "42", name: "Konya", countryCode: "TR" },
+    { code: "43", name: "Kütahya", countryCode: "TR" },
+    { code: "44", name: "Malatya", countryCode: "TR" },
+    { code: "45", name: "Manisa", countryCode: "TR" },
+    { code: "46", name: "Kahramanmaraş", countryCode: "TR" },
+    { code: "47", name: "Mardin", countryCode: "TR" },
+    { code: "48", name: "Muğla", countryCode: "TR" },
+    { code: "49", name: "Muş", countryCode: "TR" },
+    { code: "50", name: "Nevşehir", countryCode: "TR" },
+    { code: "51", name: "Niğde", countryCode: "TR" },
+    { code: "52", name: "Ordu", countryCode: "TR" },
+    { code: "53", name: "Rize", countryCode: "TR" },
+    { code: "54", name: "Sakarya", countryCode: "TR" },
+    { code: "55", name: "Samsun", countryCode: "TR" },
+    { code: "56", name: "Siirt", countryCode: "TR" },
+    { code: "57", name: "Sinop", countryCode: "TR" },
+    { code: "58", name: "Sivas", countryCode: "TR" },
+    { code: "59", name: "Tekirdağ", countryCode: "TR" },
+    { code: "60", name: "Tokat", countryCode: "TR" },
+    { code: "61", name: "Trabzon", countryCode: "TR" },
+    { code: "62", name: "Tunceli", countryCode: "TR" },
+    { code: "63", name: "Şanlıurfa", countryCode: "TR" },
+    { code: "64", name: "Uşak", countryCode: "TR" },
+    { code: "65", name: "Van", countryCode: "TR" },
+    { code: "66", name: "Yozgat", countryCode: "TR" },
+    { code: "67", name: "Zonguldak", countryCode: "TR" },
+    { code: "68", name: "Aksaray", countryCode: "TR" },
+    { code: "69", name: "Bayburt", countryCode: "TR" },
+    { code: "70", name: "Karaman", countryCode: "TR" },
+    { code: "71", name: "Kırıkkale", countryCode: "TR" },
+    { code: "72", name: "Batman", countryCode: "TR" },
+    { code: "73", name: "Şırnak", countryCode: "TR" },
+    { code: "74", name: "Bartın", countryCode: "TR" },
+    { code: "75", name: "Ardahan", countryCode: "TR" },
+    { code: "76", name: "Iğdır", countryCode: "TR" },
+    { code: "77", name: "Yalova", countryCode: "TR" },
+    { code: "78", name: "Karabük", countryCode: "TR" },
+    { code: "79", name: "Kilis", countryCode: "TR" },
+    { code: "80", name: "Osmaniye", countryCode: "TR" },
+    { code: "81", name: "Düzce", countryCode: "TR" },
+  ],
+  IR: [
+    { code: "01", name: "Tehran", countryCode: "IR" },
+    { code: "02", name: "Qom", countryCode: "IR" },
+    { code: "03", name: "Markazi", countryCode: "IR" },
+    { code: "04", name: "Qazvin", countryCode: "IR" },
+    { code: "05", name: "Gilan", countryCode: "IR" },
+    { code: "06", name: "Ardabil", countryCode: "IR" },
+    { code: "07", name: "Zanjan", countryCode: "IR" },
+    { code: "08", name: "East Azerbaijan", countryCode: "IR" },
+    { code: "09", name: "West Azerbaijan", countryCode: "IR" },
+    { code: "10", name: "Kurdistan", countryCode: "IR" },
+    { code: "11", name: "Hamadan", countryCode: "IR" },
+    { code: "12", name: "Kermanshah", countryCode: "IR" },
+    { code: "13", name: "Ilam", countryCode: "IR" },
+    { code: "14", name: "Lorestan", countryCode: "IR" },
+    { code: "15", name: "Khuzestan", countryCode: "IR" },
+    { code: "16", name: "Chaharmahal and Bakhtiari", countryCode: "IR" },
+    { code: "17", name: "Kohgiluyeh and Boyer-Ahmad", countryCode: "IR" },
+    { code: "18", name: "Bushehr", countryCode: "IR" },
+    { code: "19", name: "Fars", countryCode: "IR" },
+    { code: "20", name: "Hormozgan", countryCode: "IR" },
+    { code: "21", name: "Sistan and Baluchestan", countryCode: "IR" },
+    { code: "22", name: "Kerman", countryCode: "IR" },
+    { code: "23", name: "Yazd", countryCode: "IR" },
+    { code: "24", name: "Isfahan", countryCode: "IR" },
+    { code: "25", name: "Semnan", countryCode: "IR" },
+    { code: "26", name: "Mazandaran", countryCode: "IR" },
+    { code: "27", name: "Golestan", countryCode: "IR" },
+    { code: "28", name: "North Khorasan", countryCode: "IR" },
+    { code: "29", name: "Razavi Khorasan", countryCode: "IR" },
+    { code: "30", name: "South Khorasan", countryCode: "IR" },
+    { code: "31", name: "Alborz", countryCode: "IR" },
+  ],
 };
 
 // Sample cities data (this would ideally come from an API)
@@ -688,6 +1174,57 @@ export const citiesData: Record<string, City[]> = {
   "IN-KA": [
     { name: "Bangalore", stateCode: "KA", countryCode: "IN" },
     { name: "Mysore", stateCode: "KA", countryCode: "IN" },
+  ],
+  "IN-TG": [
+    { name: "Hyderabad", stateCode: "TG", countryCode: "IN" },
+    { name: "Warangal", stateCode: "TG", countryCode: "IN" },
+    { name: "Nizamabad", stateCode: "TG", countryCode: "IN" },
+    { name: "Khammam", stateCode: "TG", countryCode: "IN" },
+    { name: "Karimnagar", stateCode: "TG", countryCode: "IN" },
+  ],
+  "IN-TN": [
+    { name: "Chennai", stateCode: "TN", countryCode: "IN" },
+    { name: "Coimbatore", stateCode: "TN", countryCode: "IN" },
+    { name: "Madurai", stateCode: "TN", countryCode: "IN" },
+    { name: "Tiruchirappalli", stateCode: "TN", countryCode: "IN" },
+  ],
+  "IN-UP": [
+    { name: "Lucknow", stateCode: "UP", countryCode: "IN" },
+    { name: "Kanpur", stateCode: "UP", countryCode: "IN" },
+    { name: "Agra", stateCode: "UP", countryCode: "IN" },
+    { name: "Varanasi", stateCode: "UP", countryCode: "IN" },
+    { name: "Noida", stateCode: "UP", countryCode: "IN" },
+  ],
+  "IN-GJ": [
+    { name: "Ahmedabad", stateCode: "GJ", countryCode: "IN" },
+    { name: "Surat", stateCode: "GJ", countryCode: "IN" },
+    { name: "Vadodara", stateCode: "GJ", countryCode: "IN" },
+    { name: "Rajkot", stateCode: "GJ", countryCode: "IN" },
+  ],
+  "IN-RJ": [
+    { name: "Jaipur", stateCode: "RJ", countryCode: "IN" },
+    { name: "Jodhpur", stateCode: "RJ", countryCode: "IN" },
+    { name: "Udaipur", stateCode: "RJ", countryCode: "IN" },
+  ],
+  "IN-WB": [
+    { name: "Kolkata", stateCode: "WB", countryCode: "IN" },
+    { name: "Howrah", stateCode: "WB", countryCode: "IN" },
+    { name: "Durgapur", stateCode: "WB", countryCode: "IN" },
+  ],
+  "IN-AP": [
+    { name: "Visakhapatnam", stateCode: "AP", countryCode: "IN" },
+    { name: "Vijayawada", stateCode: "AP", countryCode: "IN" },
+    { name: "Guntur", stateCode: "AP", countryCode: "IN" },
+  ],
+  "IN-HR": [
+    { name: "Gurugram", stateCode: "HR", countryCode: "IN" },
+    { name: "Faridabad", stateCode: "HR", countryCode: "IN" },
+    { name: "Panipat", stateCode: "HR", countryCode: "IN" },
+  ],
+  "IN-PB": [
+    { name: "Chandigarh", stateCode: "PB", countryCode: "IN" },
+    { name: "Ludhiana", stateCode: "PB", countryCode: "IN" },
+    { name: "Amritsar", stateCode: "PB", countryCode: "IN" },
   ],
   "AU-NSW": [
     { name: "Sydney", stateCode: "NSW", countryCode: "AU" },
@@ -878,6 +1415,421 @@ export const citiesData: Record<string, City[]> = {
   ],
   "AR-SF": [
     { name: "Rosario", stateCode: "SF", countryCode: "AR" },
+  ],
+  
+  // Austria Cities
+  "AT-9": [
+    { name: "Vienna", stateCode: "9", countryCode: "AT" },
+  ],
+  "AT-5": [
+    { name: "Salzburg", stateCode: "5", countryCode: "AT" },
+  ],
+  "AT-6": [
+    { name: "Graz", stateCode: "6", countryCode: "AT" },
+  ],
+  "AT-7": [
+    { name: "Innsbruck", stateCode: "7", countryCode: "AT" },
+  ],
+  
+  // Belgium Cities
+  "BE-BRU": [
+    { name: "Brussels", stateCode: "BRU", countryCode: "BE" },
+  ],
+  "BE-VLG": [
+    { name: "Antwerp", stateCode: "VLG", countryCode: "BE" },
+    { name: "Ghent", stateCode: "VLG", countryCode: "BE" },
+    { name: "Bruges", stateCode: "VLG", countryCode: "BE" },
+  ],
+  "BE-WAL": [
+    { name: "Liège", stateCode: "WAL", countryCode: "BE" },
+    { name: "Charleroi", stateCode: "WAL", countryCode: "BE" },
+  ],
+  
+  // Switzerland Cities
+  "CH-ZH": [
+    { name: "Zurich", stateCode: "ZH", countryCode: "CH" },
+  ],
+  "CH-GE": [
+    { name: "Geneva", stateCode: "GE", countryCode: "CH" },
+  ],
+  "CH-BE": [
+    { name: "Bern", stateCode: "BE", countryCode: "CH" },
+  ],
+  "CH-BS": [
+    { name: "Basel", stateCode: "BS", countryCode: "CH" },
+  ],
+  "CH-VD": [
+    { name: "Lausanne", stateCode: "VD", countryCode: "CH" },
+  ],
+  
+  // Czech Republic Cities
+  "CZ-PR": [
+    { name: "Prague", stateCode: "PR", countryCode: "CZ" },
+  ],
+  "CZ-JM": [
+    { name: "Brno", stateCode: "JM", countryCode: "CZ" },
+  ],
+  "CZ-PL": [
+    { name: "Plzeň", stateCode: "PL", countryCode: "CZ" },
+  ],
+  
+  // Denmark Cities
+  "DK-84": [
+    { name: "Copenhagen", stateCode: "84", countryCode: "DK" },
+  ],
+  "DK-82": [
+    { name: "Aarhus", stateCode: "82", countryCode: "DK" },
+  ],
+  "DK-83": [
+    { name: "Odense", stateCode: "83", countryCode: "DK" },
+  ],
+  
+  // Finland Cities
+  "FI-18": [
+    { name: "Helsinki", stateCode: "18", countryCode: "FI" },
+    { name: "Espoo", stateCode: "18", countryCode: "FI" },
+  ],
+  "FI-11": [
+    { name: "Tampere", stateCode: "11", countryCode: "FI" },
+  ],
+  "FI-19": [
+    { name: "Turku", stateCode: "19", countryCode: "FI" },
+  ],
+  
+  // Greece Cities
+  "GR-I": [
+    { name: "Athens", stateCode: "I", countryCode: "GR" },
+  ],
+  "GR-B": [
+    { name: "Thessaloniki", stateCode: "B", countryCode: "GR" },
+  ],
+  "GR-M": [
+    { name: "Heraklion", stateCode: "M", countryCode: "GR" },
+  ],
+  
+  // Ireland Cities
+  "IE-L": [
+    { name: "Dublin", stateCode: "L", countryCode: "IE" },
+  ],
+  "IE-M": [
+    { name: "Cork", stateCode: "M", countryCode: "IE" },
+  ],
+  "IE-C": [
+    { name: "Galway", stateCode: "C", countryCode: "IE" },
+  ],
+  
+  // Norway Cities
+  "NO-03": [
+    { name: "Oslo", stateCode: "03", countryCode: "NO" },
+  ],
+  "NO-46": [
+    { name: "Bergen", stateCode: "46", countryCode: "NO" },
+  ],
+  "NO-50": [
+    { name: "Trondheim", stateCode: "50", countryCode: "NO" },
+  ],
+  
+  // New Zealand Cities
+  "NZ-AUK": [
+    { name: "Auckland", stateCode: "AUK", countryCode: "NZ" },
+  ],
+  "NZ-WGN": [
+    { name: "Wellington", stateCode: "WGN", countryCode: "NZ" },
+  ],
+  "NZ-CAN": [
+    { name: "Christchurch", stateCode: "CAN", countryCode: "NZ" },
+  ],
+  
+  // Portugal Cities
+  "PT-11": [
+    { name: "Lisbon", stateCode: "11", countryCode: "PT" },
+  ],
+  "PT-13": [
+    { name: "Porto", stateCode: "13", countryCode: "PT" },
+  ],
+  "PT-08": [
+    { name: "Faro", stateCode: "08", countryCode: "PT" },
+  ],
+  
+  // Romania Cities
+  "RO-B": [
+    { name: "Bucharest", stateCode: "B", countryCode: "RO" },
+  ],
+  "RO-CJ": [
+    { name: "Cluj-Napoca", stateCode: "CJ", countryCode: "RO" },
+  ],
+  "RO-TM": [
+    { name: "Timișoara", stateCode: "TM", countryCode: "RO" },
+  ],
+  
+  // South Africa Cities
+  "ZA-GP": [
+    { name: "Johannesburg", stateCode: "GP", countryCode: "ZA" },
+    { name: "Pretoria", stateCode: "GP", countryCode: "ZA" },
+  ],
+  "ZA-WC": [
+    { name: "Cape Town", stateCode: "WC", countryCode: "ZA" },
+  ],
+  "ZA-KZN": [
+    { name: "Durban", stateCode: "KZN", countryCode: "ZA" },
+  ],
+  
+  // United Arab Emirates Cities
+  "AE-AZ": [
+    { name: "Abu Dhabi", stateCode: "AZ", countryCode: "AE" },
+    { name: "Al Ain", stateCode: "AZ", countryCode: "AE" },
+  ],
+  "AE-DU": [
+    { name: "Dubai", stateCode: "DU", countryCode: "AE" },
+  ],
+  "AE-SH": [
+    { name: "Sharjah", stateCode: "SH", countryCode: "AE" },
+  ],
+  "AE-AJ": [
+    { name: "Ajman", stateCode: "AJ", countryCode: "AE" },
+  ],
+  "AE-RK": [
+    { name: "Ras Al Khaimah", stateCode: "RK", countryCode: "AE" },
+  ],
+  "AE-FU": [
+    { name: "Fujairah", stateCode: "FU", countryCode: "AE" },
+  ],
+  "AE-UQ": [
+    { name: "Umm Al Quwain", stateCode: "UQ", countryCode: "AE" },
+  ],
+  
+  // Saudi Arabia Cities
+  "SA-01": [
+    { name: "Riyadh", stateCode: "01", countryCode: "SA" },
+  ],
+  "SA-02": [
+    { name: "Mecca", stateCode: "02", countryCode: "SA" },
+    { name: "Jeddah", stateCode: "02", countryCode: "SA" },
+    { name: "Taif", stateCode: "02", countryCode: "SA" },
+  ],
+  "SA-03": [
+    { name: "Medina", stateCode: "03", countryCode: "SA" },
+    { name: "Yanbu", stateCode: "03", countryCode: "SA" },
+  ],
+  "SA-04": [
+    { name: "Dammam", stateCode: "04", countryCode: "SA" },
+    { name: "Khobar", stateCode: "04", countryCode: "SA" },
+    { name: "Dhahran", stateCode: "04", countryCode: "SA" },
+    { name: "Jubail", stateCode: "04", countryCode: "SA" },
+  ],
+  "SA-05": [
+    { name: "Abha", stateCode: "05", countryCode: "SA" },
+    { name: "Khamis Mushait", stateCode: "05", countryCode: "SA" },
+  ],
+  "SA-06": [
+    { name: "Tabuk", stateCode: "06", countryCode: "SA" },
+  ],
+  "SA-07": [
+    { name: "Buraidah", stateCode: "07", countryCode: "SA" },
+    { name: "Unaizah", stateCode: "07", countryCode: "SA" },
+  ],
+  
+  // Bahrain Cities
+  "BH-13": [
+    { name: "Manama", stateCode: "13", countryCode: "BH" },
+  ],
+  "BH-14": [
+    { name: "Muharraq", stateCode: "14", countryCode: "BH" },
+  ],
+  "BH-17": [
+    { name: "Riffa", stateCode: "17", countryCode: "BH" },
+  ],
+  
+  // Kuwait Cities
+  "KW-KU": [
+    { name: "Kuwait City", stateCode: "KU", countryCode: "KW" },
+  ],
+  "KW-HA": [
+    { name: "Hawalli", stateCode: "HA", countryCode: "KW" },
+    { name: "Salmiya", stateCode: "HA", countryCode: "KW" },
+  ],
+  "KW-AH": [
+    { name: "Ahmadi", stateCode: "AH", countryCode: "KW" },
+  ],
+  "KW-FA": [
+    { name: "Farwaniya", stateCode: "FA", countryCode: "KW" },
+  ],
+  
+  // Oman Cities
+  "OM-MA": [
+    { name: "Muscat", stateCode: "MA", countryCode: "OM" },
+  ],
+  "OM-ZU": [
+    { name: "Salalah", stateCode: "ZU", countryCode: "OM" },
+  ],
+  "OM-BS": [
+    { name: "Sohar", stateCode: "BS", countryCode: "OM" },
+  ],
+  "OM-DA": [
+    { name: "Nizwa", stateCode: "DA", countryCode: "OM" },
+  ],
+  
+  // Qatar Cities
+  "QA-DA": [
+    { name: "Doha", stateCode: "DA", countryCode: "QA" },
+  ],
+  "QA-RA": [
+    { name: "Al Rayyan", stateCode: "RA", countryCode: "QA" },
+  ],
+  "QA-WA": [
+    { name: "Al Wakrah", stateCode: "WA", countryCode: "QA" },
+  ],
+  "QA-KH": [
+    { name: "Al Khor", stateCode: "KH", countryCode: "QA" },
+  ],
+  
+  // Iraq Cities
+  "IQ-BG": [
+    { name: "Baghdad", stateCode: "BG", countryCode: "IQ" },
+  ],
+  "IQ-BA": [
+    { name: "Basra", stateCode: "BA", countryCode: "IQ" },
+  ],
+  "IQ-NI": [
+    { name: "Mosul", stateCode: "NI", countryCode: "IQ" },
+  ],
+  "IQ-AR": [
+    { name: "Erbil", stateCode: "AR", countryCode: "IQ" },
+  ],
+  "IQ-SU": [
+    { name: "Sulaymaniyah", stateCode: "SU", countryCode: "IQ" },
+  ],
+  "IQ-KI": [
+    { name: "Kirkuk", stateCode: "KI", countryCode: "IQ" },
+  ],
+  "IQ-NA": [
+    { name: "Najaf", stateCode: "NA", countryCode: "IQ" },
+  ],
+  "IQ-KA": [
+    { name: "Karbala", stateCode: "KA", countryCode: "IQ" },
+  ],
+  
+  // Jordan Cities
+  "JO-AM": [
+    { name: "Amman", stateCode: "AM", countryCode: "JO" },
+  ],
+  "JO-AQ": [
+    { name: "Aqaba", stateCode: "AQ", countryCode: "JO" },
+  ],
+  "JO-IR": [
+    { name: "Irbid", stateCode: "IR", countryCode: "JO" },
+  ],
+  "JO-ZA": [
+    { name: "Zarqa", stateCode: "ZA", countryCode: "JO" },
+  ],
+  
+  // Lebanon Cities
+  "LB-BI": [
+    { name: "Beirut", stateCode: "BI", countryCode: "LB" },
+  ],
+  "LB-JA": [
+    { name: "Tripoli", stateCode: "JA", countryCode: "LB" },
+  ],
+  "LB-JL": [
+    { name: "Sidon", stateCode: "JL", countryCode: "LB" },
+    { name: "Tyre", stateCode: "JL", countryCode: "LB" },
+  ],
+  "LB-BH": [
+    { name: "Baalbek", stateCode: "BH", countryCode: "LB" },
+  ],
+  
+  // Syria Cities
+  "SY-DI": [
+    { name: "Damascus", stateCode: "DI", countryCode: "SY" },
+  ],
+  "SY-HL": [
+    { name: "Aleppo", stateCode: "HL", countryCode: "SY" },
+  ],
+  "SY-HI": [
+    { name: "Homs", stateCode: "HI", countryCode: "SY" },
+  ],
+  "SY-HM": [
+    { name: "Hama", stateCode: "HM", countryCode: "SY" },
+  ],
+  "SY-LA": [
+    { name: "Latakia", stateCode: "LA", countryCode: "SY" },
+  ],
+  
+  // Yemen Cities
+  "YE-SA": [
+    { name: "Sana'a", stateCode: "SA", countryCode: "YE" },
+  ],
+  "YE-AD": [
+    { name: "Aden", stateCode: "AD", countryCode: "YE" },
+  ],
+  "YE-TA": [
+    { name: "Taiz", stateCode: "TA", countryCode: "YE" },
+  ],
+  "YE-HD": [
+    { name: "Mukalla", stateCode: "HD", countryCode: "YE" },
+  ],
+  
+  // Israel Cities
+  "IL-TA": [
+    { name: "Tel Aviv", stateCode: "TA", countryCode: "IL" },
+  ],
+  "IL-JM": [
+    { name: "Jerusalem", stateCode: "JM", countryCode: "IL" },
+  ],
+  "IL-HA": [
+    { name: "Haifa", stateCode: "HA", countryCode: "IL" },
+  ],
+  "IL-D": [
+    { name: "Beersheba", stateCode: "D", countryCode: "IL" },
+  ],
+  
+  // Turkey Cities
+  "TR-34": [
+    { name: "Istanbul", stateCode: "34", countryCode: "TR" },
+  ],
+  "TR-06": [
+    { name: "Ankara", stateCode: "06", countryCode: "TR" },
+  ],
+  "TR-35": [
+    { name: "Izmir", stateCode: "35", countryCode: "TR" },
+  ],
+  "TR-16": [
+    { name: "Bursa", stateCode: "16", countryCode: "TR" },
+  ],
+  "TR-07": [
+    { name: "Antalya", stateCode: "07", countryCode: "TR" },
+  ],
+  "TR-01": [
+    { name: "Adana", stateCode: "01", countryCode: "TR" },
+  ],
+  "TR-27": [
+    { name: "Gaziantep", stateCode: "27", countryCode: "TR" },
+  ],
+  "TR-42": [
+    { name: "Konya", stateCode: "42", countryCode: "TR" },
+  ],
+  
+  // Iran Cities
+  "IR-01": [
+    { name: "Tehran", stateCode: "01", countryCode: "IR" },
+  ],
+  "IR-24": [
+    { name: "Isfahan", stateCode: "24", countryCode: "IR" },
+  ],
+  "IR-29": [
+    { name: "Mashhad", stateCode: "29", countryCode: "IR" },
+  ],
+  "IR-19": [
+    { name: "Shiraz", stateCode: "19", countryCode: "IR" },
+  ],
+  "IR-08": [
+    { name: "Tabriz", stateCode: "08", countryCode: "IR" },
+  ],
+  "IR-15": [
+    { name: "Ahvaz", stateCode: "15", countryCode: "IR" },
+  ],
+  "IR-22": [
+    { name: "Kerman", stateCode: "22", countryCode: "IR" },
   ],
 };
 

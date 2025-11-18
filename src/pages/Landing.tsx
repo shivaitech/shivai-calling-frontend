@@ -109,9 +109,13 @@ const Landing: React.FC = () => {
           formData.confirmPassword
         );
       } else {
-        await login(formData.email, formData.password);
+        const response = await login(formData.email, formData.password);
         setShowAuthModal(false);
-        navigate("/dashboard");
+        if (response?.onboarding !== null) {
+          navigate("/onboarding");
+        } else {
+          navigate("/dashboard");
+        }
       }
     } catch (error: any) {
       if (error.response?.status === 422 && error.response?.data?.errors) {
@@ -138,8 +142,7 @@ const Landing: React.FC = () => {
       try {
         const url = await getGoogleAuthUrl();
         window.location.href = url;
-      } catch (error) {
-      }
+      } catch (error) {}
     }
   };
 

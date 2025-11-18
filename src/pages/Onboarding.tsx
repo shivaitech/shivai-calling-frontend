@@ -17,6 +17,7 @@ import {
   Globe,
   Phone,
 } from "lucide-react";
+import { parsePhoneNumber, isValidPhoneNumber } from 'libphonenumber-js';
 import logo from "../resources/images/ShivaiLogo.svg";
 import Step3, { OnboardingFormData } from "../components/Step3";
 import CountrySelector from "../components/CountrySelector";
@@ -144,6 +145,9 @@ const Onboarding: React.FC = () => {
   const [showIndustryDropdown, setShowIndustryDropdown] = useState(false);
   const [industrySearch, setIndustrySearch] = useState("");
   const [selectedCompanyCountry, setSelectedCompanyCountry] = useState<Country>(
+    defaultCountries[0]
+  );
+  const [selectedBillingCountry, setSelectedBillingCountry] = useState<Country>(
     defaultCountries[0]
   );
   const industryInputRef = useRef<HTMLInputElement>(null);
@@ -301,7 +305,7 @@ const Onboarding: React.FC = () => {
   };
 
   // Helper function to build form data payload
-  const buildFormDataPayload = (data: OnboardingFormData, saveAsDraft: boolean = false) => {
+  const buildFormDataPayload = (data: OnboardingFormData) => {
     const selectedPlan = planOptions.find((plan) => plan.id === data.plan);
 
     // Helper function to ensure URL has protocol
@@ -337,6 +341,8 @@ const Onboarding: React.FC = () => {
         allFiles.push(...files);
       }
     });
+      console.log(typeof data.agentCount)
+
 
     // Construct payload matching API structure
     const payloadData = {
@@ -362,6 +368,8 @@ const Onboarding: React.FC = () => {
         },
       },
 
+      
+
       plan_details: {
         type: selectedPlan?.apiKey || data.plan || "",
         ai_employee_limit: data.agentCount || 1,
@@ -372,7 +380,9 @@ const Onboarding: React.FC = () => {
         billing_contact: {
           name: data.billingContactName || "",
           email: data.billingContactEmail || "",
-          phone: data.billingContactPhone || "",
+          phone: data.billingContactPhone
+            ? `${selectedBillingCountry.dialCode}${data.billingContactPhone}`
+            : "",
           company_name: data.billingCompanyName || data.companyName || "",
           billing_address: {
             street: data.billingAddress || "",
@@ -432,9 +442,6 @@ const Onboarding: React.FC = () => {
         transcript_email_optin: true,
         privacy_notes: "Privacy enabled",
       },
-
-      // Save as draft flag
-      save_as_draft: saveAsDraft,
     };
 
     return { payloadData, allFiles };
@@ -445,7 +452,7 @@ const Onboarding: React.FC = () => {
     setIsSavingDraft(true);
     try {
       const data = watch();
-      const { payloadData, allFiles } = buildFormDataPayload(data, true);
+      const { payloadData, allFiles } = buildFormDataPayload(data);
 
       // Create FormData to handle file uploads
       const formData = new FormData();
@@ -465,8 +472,7 @@ const Onboarding: React.FC = () => {
       
       // Plan details
       formData.append('plan_details[type]', payloadData.plan_details.type);
-      formData.append('plan_details[ai_employee_limit]', String(payloadData.plan_details.ai_employee_limit));
-      formData.append('plan_details[monthly_price]', String(payloadData.plan_details.monthly_price));
+      formData.append('plan_details[ai_employee_limit]', payloadData.plan_details.ai_employee_limit.toString());
       formData.append('plan_details[billing_contact][name]', payloadData.plan_details.billing_contact.name);
       formData.append('plan_details[billing_contact][email]', payloadData.plan_details.billing_contact.email);
       formData.append('plan_details[billing_contact][phone]', payloadData.plan_details.billing_contact.phone);
@@ -501,7 +507,6 @@ const Onboarding: React.FC = () => {
       formData.append('consent_options[recording_enabled]', String(payloadData.consent_options.recording_enabled));
       formData.append('consent_options[transcript_email_optin]', String(payloadData.consent_options.transcript_email_optin));
       formData.append('consent_options[privacy_notes]', payloadData.consent_options.privacy_notes);
-      formData.append('save_as_draft', String(payloadData.save_as_draft));
       
       // Append files
       allFiles.forEach((file) => {
@@ -518,7 +523,7 @@ const Onboarding: React.FC = () => {
         accessToken = tokens.accessToken;
       }
 
-      await authAPI.createOnboarding(formData as any, accessToken);
+      await authAPI.saveDraftOnboarding(formData as any, accessToken);
 
       toast.dismiss(loadingToast);
       toast.success('Draft saved successfully!');
@@ -571,7 +576,7 @@ const Onboarding: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      const { payloadData, allFiles } = buildFormDataPayload(data, false);
+      const { payloadData, allFiles } = buildFormDataPayload(data);
 
       // Create FormData to handle file uploads (same logic as draft)
       const formData = new FormData();
@@ -593,8 +598,7 @@ const Onboarding: React.FC = () => {
       
     
       formData.append('plan_details[type]', payloadData.plan_details.type);
-      formData.append('plan_details[ai_employee_limit]', String(payloadData.plan_details.ai_employee_limit));
-      formData.append('plan_details[monthly_price]', String(payloadData.plan_details.monthly_price));
+      formData.append('plan_details[ai_employee_limit]', payloadData.plan_details.ai_employee_limit.toString());
       formData.append('plan_details[billing_contact][name]', payloadData.plan_details.billing_contact.name);
       formData.append('plan_details[billing_contact][email]', payloadData.plan_details.billing_contact.email);
       formData.append('plan_details[billing_contact][phone]', payloadData.plan_details.billing_contact.phone);
@@ -638,9 +642,6 @@ const Onboarding: React.FC = () => {
       formData.append('consent_options[recording_enabled]', String(payloadData.consent_options.recording_enabled));
       formData.append('consent_options[transcript_email_optin]', String(payloadData.consent_options.transcript_email_optin));
       formData.append('consent_options[privacy_notes]', payloadData.consent_options.privacy_notes);
-      
-      // Save as draft
-      formData.append('save_as_draft', String(payloadData.save_as_draft));
       
       // Append files
       allFiles.forEach((file) => {
@@ -760,7 +761,10 @@ const Onboarding: React.FC = () => {
        
 
             <div className="space-y-2.5">
-              <div>
+             
+
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-3 gap-2.5">
+                 <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
                   Company Name *
                 </label>
@@ -786,7 +790,6 @@ const Onboarding: React.FC = () => {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">
                     Website
@@ -848,7 +851,7 @@ const Onboarding: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">
                     Company Email <span className="text-red-500">*</span>
@@ -902,6 +905,33 @@ const Onboarding: React.FC = () => {
                       <Phone className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                       <input
                         {...register("companyPhone", {
+                          validate: (value) => {
+                            if (!value) return true; // Optional field
+                            try {
+                              const fullNumber = `${selectedCompanyCountry.dialCode}${value}`;
+                              
+                              // Parse the number with strict country validation
+                              const parsedNumber = parsePhoneNumber(fullNumber, selectedCompanyCountry.code as any);
+                              
+                              if (!parsedNumber) {
+                                return `Invalid phone number for ${selectedCompanyCountry.name}`;
+                              }
+                              
+                              // Check if the parsed country matches the selected country
+                              if (parsedNumber.country !== selectedCompanyCountry.code) {
+                                return `This number doesn't match ${selectedCompanyCountry.name}`;
+                              }
+                              
+                              // Strict validation: check if the number is valid
+                              if (!parsedNumber.isValid()) {
+                                return `Invalid phone number for ${selectedCompanyCountry.name}`;
+                              }
+                              
+                              return true;
+                            } catch (error) {
+                              return "Invalid phone number format";
+                            }
+                          },
                           pattern: {
                             value: /^[0-9]{0,15}$/,
                             message: "Phone number must contain only digits (max 15)"
@@ -913,59 +943,23 @@ const Onboarding: React.FC = () => {
                           const target = e.target as HTMLInputElement;
                           target.value = target.value.replace(/[^0-9]/g, '');
                         }}
-                        className="w-full pl-8 pr-2.5 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all hover:border-gray-400"
+                        className={`w-full pl-8 pr-2.5 py-1.5 text-sm border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all hover:border-gray-400 ${
+                          errors.companyPhone ? "border-red-500 bg-red-50" : "border-gray-300"
+                        }`}
                         placeholder="1234567890"
                       />
                     </div>
                   </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
-                    LinkedIn URL
-                  </label>
-                  <div className="relative">
-                    <svg
-                      className="absolute left-2.5 top-1/2 transform -translate-y-1/2 w-3.5 h-3.5 text-gray-400"
-                      fill="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
-                    </svg>
-                    <input
-                      {...register("linkedinUrl", {
-                        pattern: {
-                          value:
-                            /^(https?:\/\/)?([\w\-]+\.)*linkedin\.com\/.*$/,
-                          message: "Please enter a valid LinkedIn URL",
-                        },
-                      })}
-                      type="text"
-                      className="w-full pl-8 pr-2.5 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all hover:border-gray-400"
-                      placeholder="linkedin.com/company/your-company"
-                    />
-                  </div>
-                  {errors.linkedinUrl && (
+                  {errors.companyPhone && (
                     <p className="mt-0.5 text-xs text-red-600">
-                      {errors.linkedinUrl.message}
+                      {errors.companyPhone.message}
                     </p>
                   )}
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  Company Description
-                </label>
-                <textarea
-                  {...register("companyDescription")}
-                  rows={2}
-                  className="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition-all hover:border-gray-400"
-                  placeholder="Brief description of what your company does..."
-                />
+               
               </div>
-
-              <div>
+               <div>
                 <label className="block text-xs font-medium text-gray-700 mb-1">
                   Industry <span className="text-red-500">*</span>
                   <span className="text-xs text-gray-500 ml-2">
@@ -1130,7 +1124,8 @@ const Onboarding: React.FC = () => {
                 </div>
               </div>
 
-              <div className="bg-slate-100 rounded-lg p-2.5">
+
+ <div className="bg-slate-100 rounded-lg p-2.5">
                 <div className="flex items-center gap-2 mb-2">
                   <div className="w-6 h-6 bg-indigo-600 rounded-lg flex items-center justify-center">
                     <Globe className="w-3.5 h-3.5 text-white" />
@@ -1533,6 +1528,22 @@ const Onboarding: React.FC = () => {
                   </div>
                 </div>
               </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Company Description
+                </label>
+                <textarea
+                  {...register("companyDescription")}
+                  rows={2}
+                  className="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition-all hover:border-gray-400"
+                  placeholder="Brief description of what your company does..."
+                />
+              </div>
+
+             
+
+             
             </div>
           </motion.div>
         );
@@ -1820,27 +1831,6 @@ const Onboarding: React.FC = () => {
                         )}
                       </div>
 
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">
-                          Phone Number
-                        </label>
-                        <input
-                          {...register("billingContactPhone", {
-                            pattern: {
-                              value: /^[0-9]{0,15}$/,
-                              message: "Phone number must contain only digits (max 15)"
-                            }
-                          })}
-                          type="tel"
-                          maxLength={15}
-                          onInput={(e) => {
-                            const target = e.target as HTMLInputElement;
-                            target.value = target.value.replace(/[^0-9]/g, '');
-                          }}
-                          className="w-full px-2.5 py-1.5 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                          placeholder="+1 5551234567"
-                        />
-                      </div>
 
                       <div>
                         <label className="block text-xs font-medium text-gray-700 mb-1">

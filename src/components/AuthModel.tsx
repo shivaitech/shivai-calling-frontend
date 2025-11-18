@@ -263,7 +263,7 @@ const AuthModel: React.FC<AuthModelProps> = ({
           >
             {/* Name and Email Fields for Signup - Side by side on all screens */}
             {authMode === "signup" ? (
-              <div className="grid grid-cols-2 gap-3 md:gap-4">
+              <div className="grid grid-cols-1 gap-3 md:gap-4">
                 {/* Name Field */}
                 <div>
                   <label className="auth-label">Full Name</label>

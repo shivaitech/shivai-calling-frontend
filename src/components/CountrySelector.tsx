@@ -155,7 +155,7 @@ export default function CountrySelector({
               setIsOpen(!isOpen);
             }}
             onDoubleClick={handleDialCodeEdit}
-            className={`flex items-center justify-center gap-0.5 sm:gap-1 w-[60px] sm:w-[70px] md:w-[80px] h-[34px] md:h-[34px] lg:h-[35px] bg-white rounded-lg border border-gray-300 flex-shrink-0 hover:bg-gray-50 hover:border-gray-400 transition-all duration-150 relative ${isOpen ? 'ring-2 ring-blue-500 border-blue-500 bg-blue-50' : ''}`}
+            className={`flex items-center justify-center gap-1 w-[60px] sm:w-[70px] md:w-[80px] h-[35px] md:h-[34px] lg:h-[35px] bg-white rounded-lg border border-gray-300 flex-shrink-0 hover:bg-gray-50 hover:border-gray-400 transition-all duration-150 relative ${isOpen ? 'ring-2 ring-blue-500 border-blue-500 bg-blue-50' : ''}`}
             title="Click to select country, double-click to edit"
             aria-expanded={isOpen}
             aria-haspopup="listbox"
@@ -168,7 +168,7 @@ export default function CountrySelector({
             <span className="text-[8px] sm:text-[10px] md:text-xs font-medium text-gray-700 truncate max-w-[24px] sm:max-w-[32px]">
               {customDialCode.replace('+', '')}
             </span>
-            <ChevronDown className={`w-2 h-2 sm:w-3 sm:h-3 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+            <ChevronDown className={`w-3 h-3 sm:w-3 sm:h-3 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
           </button>
         )}
       </div>

@@ -349,6 +349,24 @@ export const authAPI = {
     return apiClient.post("/onboarding", data, config).then((res) => res.data);
   },
 
+  // Save onboarding as draft
+  saveDraftOnboarding: (data: OnboardingRequest | FormData, token?: string): Promise<OnboardingResponse> => {
+    // Check if data is FormData and set appropriate headers
+    const config: any = data instanceof FormData 
+      ? { headers: { 'Content-Type': 'multipart/form-data' } }
+      : {};
+    
+    // Add Authorization header if token is provided
+    if (token) {
+      config.headers = {
+        ...config.headers,
+        Authorization: `Bearer ${token}`
+      };
+    }
+    
+    return apiClient.post("/onboarding?draft=true", data, config).then((res) => res.data);
+  },
+
   getOnboardingStatus: (
     onboardingId: string
   ): Promise<{

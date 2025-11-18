@@ -8,6 +8,8 @@ import { motion } from "framer-motion";
 import {
   Bot,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   X,
   Plus,
   Upload,
@@ -20,7 +22,25 @@ import {
   Users,
   Phone,
   Crown,
+  Zap,
 } from "lucide-react";
+
+// Import SVG icons for integrations
+import whatsappIcon from "../resources/Icon/whatsapp.svg";
+import calendlyIcon from "../resources/Icon/calendly.svg";
+import googleDriveIcon from "../resources/Icon/googleDrive.svg";
+import zohoIcon from "../resources/Icon/zoho.svg";
+import odooIcon from "../resources/Icon/odoo.svg";
+import hubspotIcon from "../resources/Icon/hubspot.svg";
+import freshworkIcon from "../resources/Icon/freshwork.svg";
+import shopifyIcon from "../resources/Icon/shopify.svg";
+import stripeIcon from "../resources/Icon/stripe.svg";
+import twilioIcon from "../resources/Icon/twilio.svg";
+import zendeskIcon from "../resources/Icon/zendesk.svg";
+import quickbooksIcon from "../resources/Icon/quickbooks.svg";
+import gmailIcon from "../resources/Icon/gmail.svg";
+import webhookIcon from "../resources/Icon/webhook.svg";
+import googleCalendarIcon from "../resources/Icon/googleCalendar.svg";
 
 // Individual AI Employee Configuration
 export interface AgentConfig {
@@ -64,6 +84,9 @@ export interface AgentConfig {
   recordingEnabled?: boolean;
   transcriptEmailOptIn?: boolean;
   consentNotes?: string;
+  // Workflow integrations
+  selectedWorkflows?: string[];
+  workflowInstructions?: Record<string, string>;
 }
 
 // Template interface
@@ -221,7 +244,187 @@ const voiceStyleOptions = [
   { value: "natural", label: "Natural & Clear" },
   { value: "energetic", label: "Energetic & Enthusiastic" },
   { value: "calm", label: "Calm & Soothing" },
-  { value: "confident", label: "Confident & Assertive" },
+  { value: "formal", label: "Formal & Professional" },
+  { value: "casual", label: "Casual & Friendly" },
+];
+
+const workflowIntegrationOptions = [
+  {
+    id: "whatsapp",
+    name: "WhatsApp Business",
+    description: "Send automated messages and notifications",
+    icon: whatsappIcon,
+    bgColor: "bg-green-50",
+    textColor: "text-green-600",
+    borderColor: "border-green-500",
+    hoverColor: "hover:bg-green-50 hover:border-green-400",
+    disabled: false,
+  },
+  {
+    id: "email",
+    name: "Gmail",
+    description: "Send email notifications and follow-ups",
+    icon: gmailIcon,
+    bgColor: "bg-blue-50",
+    textColor: "text-blue-600",
+    borderColor: "border-blue-500",
+    hoverColor: "hover:bg-blue-50 hover:border-blue-400",
+    disabled: false,
+  },
+  {
+    id: "webhook",
+    name: "Webhooks",
+    description: "Connect to any custom system or API",
+    icon: webhookIcon,
+    bgColor: "bg-teal-50",
+    textColor: "text-teal-600",
+    borderColor: "border-teal-500",
+    hoverColor: "hover:bg-teal-50 hover:border-teal-400",
+    disabled: false,
+  },
+  {
+    id: "google-calendar",
+    name: "Google Calendar",
+    description: "Schedule and manage appointments automatically",
+    icon: googleCalendarIcon,
+    bgColor: "bg-purple-50",
+    textColor: "text-purple-600",
+    borderColor: "border-purple-500",
+    hoverColor: "hover:bg-purple-50 hover:border-purple-400",
+    disabled: false,
+  },
+  {
+    id: "calendly",
+    name: "Calendly",
+    description: "Schedule meetings from calls",
+    icon: calendlyIcon,
+    bgColor: "bg-blue-50",
+    textColor: "text-blue-600",
+    borderColor: "border-blue-500",
+    hoverColor: "hover:bg-blue-50 hover:border-blue-400",
+    disabled: false,
+  },
+  {
+    id: "google-sheets",
+    name: "Google Sheets",
+    description: "Save and sync data to spreadsheets",
+    icon: googleDriveIcon,
+    bgColor: "bg-green-50",
+    textColor: "text-green-600",
+    borderColor: "border-green-500",
+    hoverColor: "hover:bg-green-50 hover:border-green-400",
+    disabled: false,
+  },
+  {
+    id: "zoho",
+    name: "Zoho CRM",
+    description: "Capture leads & log calls",
+    icon: zohoIcon,
+    bgColor: "bg-orange-50",
+    textColor: "text-orange-600",
+    borderColor: "border-orange-500",
+    hoverColor: "hover:bg-orange-50 hover:border-orange-400",
+    disabled: false,
+  },
+  {
+    id: "odoo",
+    name: "Odoo",
+    description: "Sync orders & CRM data",
+    icon: odooIcon,
+    bgColor: "bg-purple-50",
+    textColor: "text-purple-600",
+    borderColor: "border-purple-500",
+    hoverColor: "hover:bg-purple-50 hover:border-purple-400",
+    disabled: false,
+  },
+  {
+    id: "hubspot",
+    name: "HubSpot",
+    description: "Qualify & capture new leads",
+    icon: hubspotIcon,
+    bgColor: "bg-orange-50",
+    textColor: "text-orange-600",
+    borderColor: "border-orange-500",
+    hoverColor: "hover:bg-orange-50 hover:border-orange-400",
+    disabled: false,
+  },
+  {
+    id: "freshworks",
+    name: "Freshworks",
+    description: "Auto-log support tickets",
+    icon: freshworkIcon,
+    bgColor: "bg-blue-50",
+    textColor: "text-blue-600",
+    borderColor: "border-blue-500",
+    hoverColor: "hover:bg-blue-50 hover:border-blue-400",
+    disabled: false,
+  },
+  {
+    id: "shopify",
+    name: "Shopify",
+    description: "Manage orders by voice",
+    icon: shopifyIcon,
+    bgColor: "bg-green-50",
+    textColor: "text-green-600",
+    borderColor: "border-green-500",
+    hoverColor: "hover:bg-green-50 hover:border-green-400",
+    disabled: false,
+  },
+  {
+    id: "stripe",
+    name: "Stripe",
+    description: "Collect secure payments",
+    icon: stripeIcon,
+    bgColor: "bg-blue-50",
+    textColor: "text-blue-600",
+    borderColor: "border-blue-500",
+    hoverColor: "hover:bg-blue-50 hover:border-blue-400",
+    disabled: false,
+  },
+  {
+    id: "twilio",
+    name: "Twilio",
+    description: "Power voice & SMS calls",
+    icon: twilioIcon,
+    bgColor: "bg-red-50",
+    textColor: "text-red-600",
+    borderColor: "border-red-500",
+    hoverColor: "hover:bg-red-50 hover:border-red-400",
+    disabled: false,
+  },
+  {
+    id: "zendesk",
+    name: "Zendesk",
+    description: "Create tickets from calls",
+    icon: zendeskIcon,
+    bgColor: "bg-green-50",
+    textColor: "text-green-600",
+    borderColor: "border-green-500",
+    hoverColor: "hover:bg-green-50 hover:border-green-400",
+    disabled: false,
+  },
+  {
+    id: "quickbooks",
+    name: "QuickBooks Online",
+    description: "Record invoices & payments",
+    icon: quickbooksIcon,
+    bgColor: "bg-green-50",
+    textColor: "text-green-600",
+    borderColor: "border-green-500",
+    hoverColor: "hover:bg-green-50 hover:border-green-400",
+    disabled: false,
+  },
+  {
+    id: "custom",
+    name: "Custom Workflow",
+    description: "Create your own integration",
+    icon: "custom",
+    bgColor: "bg-gray-50",
+    textColor: "text-gray-600",
+    borderColor: "border-gray-500",
+    hoverColor: "hover:bg-gray-50 hover:border-gray-400",
+    disabled: false,
+  },
 ];
 
 // Template system - Direct template selection without use case step
@@ -423,6 +626,33 @@ const Step3: React.FC<Step3Props> = ({
     string[]
   >([]);
   const [fileErrors, setFileErrors] = useState<Record<number, string>>({});
+  const [selectedWorkflows, setSelectedWorkflows] = useState<string[]>([]);
+  const [workflowInstructions, setWorkflowInstructions] = useState<Record<string, string>>({});
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [cardsPerSlide, setCardsPerSlide] = useState(3);
+
+  // Update cards per slide based on window size
+  useEffect(() => {
+    const updateCardsPerSlide = () => {
+      if (window.innerWidth < 1024) { // lg breakpoint
+        setCardsPerSlide(2); // Mobile/tablet: 2 cards
+      } else {
+        setCardsPerSlide(3); // Desktop: 3 cards
+      }
+    };
+
+    updateCardsPerSlide();
+    window.addEventListener('resize', updateCardsPerSlide);
+    return () => window.removeEventListener('resize', updateCardsPerSlide);
+  }, []);
+
+  // Reset slide when cards per slide changes
+  useEffect(() => {
+    const maxSlide = Math.ceil(workflowIntegrationOptions.length / cardsPerSlide) - 1;
+    if (currentSlide > maxSlide) {
+      setCurrentSlide(maxSlide);
+    }
+  }, [cardsPerSlide, currentSlide]);
 
   // State for simplified form management
 
@@ -503,37 +733,62 @@ const Step3: React.FC<Step3Props> = ({
     );
   };
 
+  // Workflow integration handlers
+  const toggleWorkflow = (workflowId: string) => {
+    setSelectedWorkflows((prev) => {
+      const newSelection = prev.includes(workflowId)
+        ? prev.filter((id) => id !== workflowId)
+        : [...prev, workflowId];
+      
+      // Update form value
+      setValue(`agents.${activeAgentTab}.selectedWorkflows`, newSelection);
+      return newSelection;
+    });
+  };
+
+  const updateWorkflowInstruction = (workflowId: string, instruction: string) => {
+    setWorkflowInstructions((prev) => {
+      const updated = { ...prev, [workflowId]: instruction };
+      // Update form value
+      setValue(`agents.${activeAgentTab}.workflowInstructions`, updated);
+      return updated;
+    });
+  };
+
   // File validation handler
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files) return;
 
-    const allowedTypes = [
-      "application/pdf",
-      "application/msword",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "application/vnd.ms-powerpoint",
-      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-      "application/vnd.ms-excel",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    // Blocked image types
+    const blockedImageTypes = [
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/gif",
+      "image/bmp",
+      "image/webp",
+      "image/svg+xml",
+      "image/tiff",
     ];
+    
     const maxSize = 20 * 1024 * 1024; // 20MB
-    const maxFiles = 10;
+    const maxFiles = 5;
 
     let errorMessage = "";
-    const validFiles: File[] = [];
+    const currentFiles = uploadedFiles[activeAgentTab] || [];
+    const validFiles: File[] = [...currentFiles];
 
-    if (files.length > maxFiles) {
-      errorMessage = `Maximum ${maxFiles} files allowed`;
+    // Check if adding these files would exceed the limit
+    if (currentFiles.length + files.length > maxFiles) {
+      errorMessage = `Maximum ${maxFiles} files allowed. You have ${currentFiles.length} file(s) already uploaded.`;
     } else {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
 
-        if (
-          !allowedTypes.includes(file.type) &&
-          !file.name.match(/\.(pdf|doc|docx|ppt|pptx|xls|xlsx)$/i)
-        ) {
-          errorMessage = `File "${file.name}" is not a supported format. Only PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX are allowed.`;
+        // Block image files
+        if (blockedImageTypes.includes(file.type) || file.name.match(/\.(jpg|jpeg|png|gif|bmp|webp|svg|tiff)$/i)) {
+          errorMessage = `File "${file.name}" is an image file. Only document files are allowed (no images).`;
           break;
         }
 
@@ -553,6 +808,14 @@ const Step3: React.FC<Step3Props> = ({
       setFileErrors((prev) => ({ ...prev, [activeAgentTab]: "" }));
       setUploadedFiles((prev) => ({ ...prev, [activeAgentTab]: validFiles }));
     }
+  };
+
+  // Delete uploaded file handler
+  const handleDeleteFile = (fileIndex: number) => {
+    const currentFiles = uploadedFiles[activeAgentTab] || [];
+    const updatedFiles = currentFiles.filter((_, index) => index !== fileIndex);
+    setUploadedFiles((prev) => ({ ...prev, [activeAgentTab]: updatedFiles }));
+    setFileErrors((prev) => ({ ...prev, [activeAgentTab]: "" }));
   };
 
   return (
@@ -910,7 +1173,7 @@ const Step3: React.FC<Step3Props> = ({
 
       <div className="bg-gradient-to-r from-pink-50 to-blue-50 border border-blue-200 rounded-xl p-3 sm:p-4 lg:p-6 mb-4 sm:mb-6">
         <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
-          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gray-600 rounded-lg flex items-center justify-center">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-600 rounded-lg flex items-center justify-center">
             <Bot className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
           </div>
           <div>
@@ -923,11 +1186,11 @@ const Step3: React.FC<Step3Props> = ({
           </div>
         </div>
         <div className="bg-white rounded-lg p-3 sm:p-4 shadow-sm">
-          <div className="space-y-4 sm:space-y-6">
+          <div className="space-y-3 sm:space-y-4">
             {/* Basic AI Employee Fields */}
-            <div className="grid grid-cols-1 gap-4">
+            <div className="grid grid-cols-1 gap-3 sm:gap-4">
               <div>
-                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                   AI Employee Name *
                 </label>
                 <input
@@ -938,7 +1201,7 @@ const Step3: React.FC<Step3Props> = ({
                       message: "Name must be at least 2 characters",
                     },
                   })}
-                  className={`w-full px-3 sm:px-3 py-3 sm:py-2.5 text-base sm:text-sm border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all hover:border-gray-400 ${
+                  className={`w-full px-2.5 sm:px-3 py-2 sm:py-2.5 text-sm border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all hover:border-gray-400 placeholder:text-gray-400 ${
                     errors?.agents?.[activeAgentTab]?.agentName
                       ? "border-red-500 bg-red-50"
                       : "border-gray-300"
@@ -946,30 +1209,30 @@ const Step3: React.FC<Step3Props> = ({
                   placeholder="Enter AI Employee name"
                 />
                 {errors?.agents?.[activeAgentTab]?.agentName && (
-                  <p className="mt-1 text-sm text-red-600">
+                  <p className="mt-1 text-xs sm:text-sm text-red-600">
                     {errors.agents[activeAgentTab].agentName.message}
                   </p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                   AI Employee Type *
                 </label>
                 <select
                   {...register(`agents.${activeAgentTab}.agentType`, {
                     required: "Please select an AI Employee type",
                   })}
-                  className={`w-full px-3 py-2.5 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none cursor-pointer transition-all hover:border-gray-400 ${
+                  className={`w-full px-2.5 sm:px-3 py-2 sm:py-2.5 text-sm border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none cursor-pointer transition-all hover:border-gray-400 ${
                     errors?.agents?.[activeAgentTab]?.agentType
                       ? "border-red-500 bg-red-50"
                       : "border-gray-300"
-                  }`}
+                  } ${!watch(`agents.${activeAgentTab}.agentType`) ? 'text-gray-400' : 'text-gray-900'}`}
                   style={{
                     backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
                     backgroundPosition: "right 0.5rem center",
                     backgroundRepeat: "no-repeat",
-                    backgroundSize: "1.5em 1.5em",
+                    backgroundSize: "1.25em 1.25em",
                     paddingRight: "2.5rem",
                   }}
                 >
@@ -977,36 +1240,36 @@ const Step3: React.FC<Step3Props> = ({
                     Select AI Employee type
                   </option>
                   {agentTypeOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
+                    <option key={option.value} value={option.value} className="text-gray-900">
                       {option.label}
                     </option>
                   ))}
                 </select>
                 {errors?.agents?.[activeAgentTab]?.agentType && (
-                  <p className="mt-1 text-sm text-red-600">
+                  <p className="mt-1 text-xs sm:text-sm text-red-600">
                     {errors.agents[activeAgentTab].agentType.message}
                   </p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                   Preferred Language *
                 </label>
                 <select
                   {...register(`agents.${activeAgentTab}.preferredLanguage`, {
                     required: "Please select a preferred language",
                   })}
-                  className={`w-full px-3 py-2.5 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none cursor-pointer transition-all hover:border-gray-400 ${
+                  className={`w-full px-2.5 sm:px-3 py-2 sm:py-2.5 text-sm border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none cursor-pointer transition-all hover:border-gray-400 ${
                     errors?.agents?.[activeAgentTab]?.preferredLanguage
                       ? "border-red-500 bg-red-50"
                       : "border-gray-300"
-                  }`}
+                  } ${!watch(`agents.${activeAgentTab}.preferredLanguage`) ? 'text-gray-400' : 'text-gray-900'}`}
                   style={{
                     backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
                     backgroundPosition: "right 0.5rem center",
                     backgroundRepeat: "no-repeat",
-                    backgroundSize: "1.5em 1.5em",
+                    backgroundSize: "1.25em 1.25em",
                     paddingRight: "2.5rem",
                   }}
                 >
@@ -1014,36 +1277,36 @@ const Step3: React.FC<Step3Props> = ({
                     Select preferred language
                   </option>
                   {languageOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
+                    <option key={option.value} value={option.value} className="text-gray-900">
                       {option.label}
                     </option>
                   ))}
                 </select>
                 {errors?.agents?.[activeAgentTab]?.preferredLanguage && (
-                  <p className="mt-1 text-sm text-red-600">
+                  <p className="mt-1 text-xs sm:text-sm text-red-600">
                     {errors.agents[activeAgentTab].preferredLanguage.message}
                   </p>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                   Voice Gender *
                 </label>
                 <select
                   {...register(`agents.${activeAgentTab}.voiceGender`, {
                     required: "Please select a voice gender",
                   })}
-                  className={`w-full px-3 py-2.5 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none cursor-pointer transition-all hover:border-gray-400 ${
+                  className={`w-full px-2.5 sm:px-3 py-2 sm:py-2.5 text-sm border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none cursor-pointer transition-all hover:border-gray-400 ${
                     errors?.agents?.[activeAgentTab]?.voiceGender
                       ? "border-red-500 bg-red-50"
                       : "border-gray-300"
-                  }`}
+                  } ${!watch(`agents.${activeAgentTab}.voiceGender`) ? 'text-gray-400' : 'text-gray-900'}`}
                   style={{
                     backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
                     backgroundPosition: "right 0.5rem center",
                     backgroundRepeat: "no-repeat",
-                    backgroundSize: "1.5em 1.5em",
+                    backgroundSize: "1.25em 1.25em",
                     paddingRight: "2.5rem",
                   }}
                 >
@@ -1051,13 +1314,13 @@ const Step3: React.FC<Step3Props> = ({
                     Select voice gender
                   </option>
                   {voiceGenderOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
+                    <option key={option.value} value={option.value} className="text-gray-900">
                       {option.label}
                     </option>
                   ))}
                 </select>
                 {errors?.agents?.[activeAgentTab]?.voiceGender && (
-                  <p className="mt-1 text-sm text-red-600">
+                  <p className="mt-1 text-xs sm:text-sm text-red-600">
                     {errors.agents[activeAgentTab].voiceGender.message}
                   </p>
                 )}
@@ -1065,11 +1328,11 @@ const Step3: React.FC<Step3Props> = ({
             </div>
 
             {/* Advanced Configuration Toggle */}
-            <div className="border-t pt-4 sm:pt-6">
+            <div className="border-t pt-3 sm:pt-4">
               <button
                 type="button"
                 onClick={() => setShowAdvanced(!showAdvanced)}
-                className="flex items-center gap-2 text-sm sm:text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors w-full justify-center sm:justify-start py-2 sm:py-0"
+                className="flex items-center gap-2 text-xs sm:text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors w-full justify-center sm:justify-start py-2 sm:py-0"
               >
                 <ChevronDown
                   className={`w-4 h-4 transition-transform ${
@@ -1083,19 +1346,26 @@ const Step3: React.FC<Step3Props> = ({
 
           {/* Advanced Fields */}
           {showAdvanced && (
-            <div className="space-y-6 border-t pt-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-3 sm:space-y-4 border-t pt-3 sm:pt-4 mt-3 sm:mt-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                     Agent Personality
                   </label>
                   <select
                     {...register(`agents.${activeAgentTab}.agentPersonality`)}
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className={`w-full px-2.5 sm:px-3 py-2 sm:py-2.5 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none cursor-pointer transition-all hover:border-gray-400 ${!watch(`agents.${activeAgentTab}.agentPersonality`) ? 'text-gray-400' : 'text-gray-900'}`}
+                    style={{
+                      backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                      backgroundPosition: "right 0.5rem center",
+                      backgroundRepeat: "no-repeat",
+                      backgroundSize: "1.25em 1.25em",
+                      paddingRight: "2.5rem",
+                    }}
                   >
                     <option value="">Select personality</option>
                     {personalityOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
+                      <option key={option.value} value={option.value} className="text-gray-900">
                         {option.label}
                       </option>
                     ))}
@@ -1103,16 +1373,23 @@ const Step3: React.FC<Step3Props> = ({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                     Voice Style
                   </label>
                   <select
                     {...register(`agents.${activeAgentTab}.voiceStyle`)}
-                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className={`w-full px-2.5 sm:px-3 py-2 sm:py-2.5 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none cursor-pointer transition-all hover:border-gray-400 ${!watch(`agents.${activeAgentTab}.voiceStyle`) ? 'text-gray-400' : 'text-gray-900'}`}
+                    style={{
+                      backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                      backgroundPosition: "right 0.5rem center",
+                      backgroundRepeat: "no-repeat",
+                      backgroundSize: "1.25em 1.25em",
+                      paddingRight: "2.5rem",
+                    }}
                   >
                     <option value="">Select voice style</option>
                     {voiceStyleOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
+                      <option key={option.value} value={option.value} className="text-gray-900">
                         {option.label}
                       </option>
                     ))}
@@ -1121,18 +1398,178 @@ const Step3: React.FC<Step3Props> = ({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">
                   Special Instructions
                 </label>
                 <textarea
                   {...register(`agents.${activeAgentTab}.specialInstructions`)}
                   rows={3}
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                  placeholder="Add any special instructions for this AI Employee..."
+                  className="w-full px-2.5 sm:px-3 py-2 sm:py-2.5 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none transition-all hover:border-gray-400 placeholder:text-gray-400"
+                  placeholder="Add any special instructions..."
                 />
               </div>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Workflow Integrations Section */}
+      <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-xl p-3 sm:p-4 lg:p-6 mb-4 sm:mb-6">
+        <div className="flex items-center gap-2 sm:gap-3 mb-4 sm:mb-6">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-green-600 rounded-lg flex items-center justify-center">
+            <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+          </div>
+          <div>
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900">
+              Workflow Integrations
+            </h3>
+            <p className="text-xs sm:text-sm text-gray-600">
+              Select integrations and specify your requirements
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg p-3 sm:p-4 shadow-sm">
+          {/* Slider Container */}
+          <div className="relative">
+            {/* Navigation Buttons */}
+            <div className="flex justify-between items-center mb-3">
+              <button
+                type="button"
+                onClick={() => setCurrentSlide(Math.max(0, currentSlide - 1))}
+                disabled={currentSlide === 0}
+                className={`p-1.5 sm:p-2 rounded-full border transition-all ${
+                  currentSlide === 0
+                    ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400'
+                }`}
+              >
+                <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
+              
+              <div className="flex gap-1.5 sm:gap-2">
+                {Array.from({ length: Math.ceil(workflowIntegrationOptions.length / cardsPerSlide) }).map((_, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setCurrentSlide(idx)}
+                    className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full transition-all ${
+                      currentSlide === idx ? 'bg-green-600 w-4 sm:w-6' : 'bg-gray-300'
+                    }`}
+                  />
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setCurrentSlide(Math.min(Math.ceil(workflowIntegrationOptions.length / cardsPerSlide) - 1, currentSlide + 1))}
+                disabled={currentSlide >= Math.ceil(workflowIntegrationOptions.length / cardsPerSlide) - 1}
+                className={`p-1.5 sm:p-2 rounded-full border transition-all ${
+                  currentSlide >= Math.ceil(workflowIntegrationOptions.length / cardsPerSlide) - 1
+                    ? 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400'
+                }`}
+              >
+                <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
+            </div>
+
+            {/* Integration Cards - Slider */}
+            <div className="overflow-hidden">
+              <div 
+                className="flex transition-transform duration-300 ease-in-out"
+                style={{ transform: `translateX(-${currentSlide * 100}%)` }}
+              >
+                {Array.from({ length: Math.ceil(workflowIntegrationOptions.length / cardsPerSlide) }).map((_, slideIndex) => (
+                  <div key={slideIndex} className="min-w-full px-0.5 sm:px-1">
+                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
+                      {workflowIntegrationOptions
+                        .slice(slideIndex * cardsPerSlide, slideIndex * cardsPerSlide + cardsPerSlide)
+                        .map((workflow) => {
+                          const isSelected = selectedWorkflows.includes(workflow.id);
+
+                          return (
+                            <div
+                              key={workflow.id}
+                              className={`relative flex flex-col items-center gap-2 sm:gap-3 p-3 sm:p-4 lg:p-5 border-2 rounded-lg sm:rounded-xl transition-all ${
+                                isSelected
+                                  ? 'border-green-500 bg-green-50 cursor-pointer shadow-md'
+                                  : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm cursor-pointer'
+                              }`}
+                              onClick={() => toggleWorkflow(workflow.id)}
+                            >
+                              {/* Icon Container */}
+                              <div className="w-12 h-12 sm:w-16 sm:h-16 lg:w-20 lg:h-20 bg-gray-50 rounded-lg sm:rounded-xl lg:rounded-2xl flex items-center justify-center flex-shrink-0">
+                                {workflow.icon === "custom" ? (
+                                  <Plus className="w-7 h-7 sm:w-10 sm:h-10 lg:w-12 lg:h-12 text-gray-400" />
+                                ) : (
+                                  <img 
+                                    src={workflow.icon as string} 
+                                    alt={workflow.name}
+                                    className="w-7 h-7 sm:w-10 sm:h-10 lg:w-12 lg:h-12 object-contain"
+                                  />
+                                )}
+                              </div>
+                              
+                              {/* Content */}
+                              <div className="flex-1 text-center w-full">
+                                <div className="flex items-center justify-center gap-1 sm:gap-2 mb-1 sm:mb-2">
+                                  <h4 className="text-xs sm:text-sm lg:text-base font-semibold text-gray-900 leading-tight">
+                                    {workflow.name}
+                                  </h4>
+                                  {isSelected && (
+                                    <div className="w-4 h-4 sm:w-5 sm:h-5 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
+                                      <span className="text-[10px] sm:text-xs font-bold text-white">✓</span>
+                                    </div>
+                                  )}
+                                </div>
+                                <p className="text-[10px] sm:text-xs lg:text-sm text-gray-600 leading-snug sm:leading-relaxed px-0 sm:px-1">
+                                  {workflow.description}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Instructions for selected workflows */}
+          {selectedWorkflows.length > 0 && (
+            <div className="mt-6 space-y-4">
+              <h4 className="text-sm font-semibold text-gray-900">
+                Integration Requirements & Instructions
+              </h4>
+              {selectedWorkflows.map((workflowId) => {
+                const workflow = workflowIntegrationOptions.find(w => w.id === workflowId);
+                if (!workflow) return null;
+
+                return (
+                  <div key={workflowId} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      {workflow.name} - Requirements
+                    </label>
+                    <textarea
+                      value={workflowInstructions[workflowId] || ""}
+                      onChange={(e) => updateWorkflowInstruction(workflowId, e.target.value)}
+                      rows={3}
+                      className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-sm"
+                      placeholder="Describe your requirements"
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-xs sm:text-sm text-blue-800">
+              <strong>Note:</strong> These integrations will be configured during your deployment finalisation call with our team based on your specified requirements.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -1209,8 +1646,7 @@ const Step3: React.FC<Step3Props> = ({
             {/* File Uploads */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Upload Files (PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX - Max 20MB
-                each, 10 files max)
+                Upload Documents (Any file except images - Max 20MB each, 5 files max)
               </label>
               <div
                 className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
@@ -1228,38 +1664,54 @@ const Step3: React.FC<Step3Props> = ({
                 />
                 <p className="text-sm text-gray-600 mb-2">
                   {uploadedFiles[activeAgentTab]?.length
-                    ? `${uploadedFiles[activeAgentTab].length} file(s) selected`
-                    : "Upload knowledge base files"}
+                    ? `${uploadedFiles[activeAgentTab].length}/5 file(s) uploaded`
+                    : "Upload knowledge base documents"}
                 </p>
                 <input
                   type="file"
                   multiple
-                  accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx"
+                  accept="*/*"
                   className="hidden"
                   id={`file-upload-${activeAgentTab}`}
                   onChange={handleFileUpload}
+                  disabled={(uploadedFiles[activeAgentTab]?.length || 0) >= 5}
                 />
                 <label
                   htmlFor={`file-upload-${activeAgentTab}`}
-                  className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 cursor-pointer"
+                  className={`inline-flex items-center px-3 py-2 border shadow-sm text-sm leading-4 font-medium rounded-md ${
+                    (uploadedFiles[activeAgentTab]?.length || 0) >= 5
+                      ? "border-gray-200 text-gray-400 bg-gray-100 cursor-not-allowed"
+                      : "border-gray-300 text-gray-700 bg-white hover:bg-gray-50 cursor-pointer"
+                  }`}
                 >
-                  Choose Files
+                  {(uploadedFiles[activeAgentTab]?.length || 0) >= 5 ? "Maximum Files Reached" : "Choose Files"}
                 </label>
                 {uploadedFiles[activeAgentTab]?.length > 0 && (
                   <div className="mt-3 text-left">
-                    <p className="text-xs text-gray-500 mb-1">
-                      Selected files:
+                    <p className="text-xs text-gray-500 mb-2">
+                      Uploaded files:
                     </p>
-                    <ul className="text-xs text-gray-600 space-y-1">
+                    <ul className="text-xs text-gray-600 space-y-2">
                       {uploadedFiles[activeAgentTab].map((file, index) => (
                         <li
                           key={index}
-                          className="flex items-center justify-between"
+                          className="flex items-center justify-between bg-gray-50 px-3 py-2 rounded-md"
                         >
-                          <span className="truncate">{file.name}</span>
-                          <span className="text-gray-400 ml-2">
-                            ({(file.size / 1024 / 1024).toFixed(1)}MB)
-                          </span>
+                          <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <FileText className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                            <span className="truncate">{file.name}</span>
+                            <span className="text-gray-400 ml-2 flex-shrink-0">
+                              ({(file.size / 1024 / 1024).toFixed(1)}MB)
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteFile(index)}
+                            className="ml-2 p-1 hover:bg-red-100 rounded-full transition-colors flex-shrink-0"
+                            title="Delete file"
+                          >
+                            <X className="w-4 h-4 text-red-500" />
+                          </button>
                         </li>
                       ))}
                     </ul>
@@ -1688,7 +2140,7 @@ const Step3: React.FC<Step3Props> = ({
               <textarea
                 {...register(`agents.${activeAgentTab}.consentNotes`)}
                 rows={3}
-                className="w-full px-3 sm:px-3 py-3 sm:py-2.5 text-base sm:text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                className="w-full text-gray-800 px-3 sm:px-3 py-3 sm:py-2.5 text-xs border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                 placeholder="Additional privacy policies, consent requirements, or compliance notes..."
               />
             </div>

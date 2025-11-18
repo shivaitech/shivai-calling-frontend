@@ -27,7 +27,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   error: string | null;
   googleAuth: (code: string) => Promise<void>;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<any>;
   register: (
     name: string,
     email: string,
@@ -130,17 +130,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  const login = async (email: string, password: string): Promise<void> => {
+  const login = async (email: string, password: string): Promise<any> => {
     try {
       setIsLoading(true);
       setError(null);
-
       const response = await authAPI.login({ email, password });
-
+      console.log(response);
       setUser(response.user);
       setTokens(response.tokens);
       localStorage.setItem("auth_tokens", JSON.stringify(response.tokens));
       localStorage.setItem("auth_user", JSON.stringify(response.user));
+      return response;
     } catch (err: any) {
       const errorMessage = err.response?.data?.message || "Login failed";
       setError(errorMessage);
@@ -200,7 +200,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
       const response = await authAPI.register(registerData);
 
-      localStorage.setItem("pending_auth_tokens", JSON.stringify(response.tokens));
+      localStorage.setItem(
+        "pending_auth_tokens",
+        JSON.stringify(response.tokens)
+      );
       localStorage.setItem("pending_auth_user", JSON.stringify(response.user));
     } catch (err: any) {
       console.error("Registration error details:", err.response);
