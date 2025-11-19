@@ -23,8 +23,8 @@ import Step3, { OnboardingFormData } from "../components/Step3";
 import CountrySelector from "../components/CountrySelector";
 import { Country, defaultCountries } from "../types/country";
 import { authAPI } from "../services/authAPI";
-import { useNavigate } from "react-router-dom";
-import { locationAPI, Country as LocationCountry, State, City } from "../services/locationAPI";
+import { useLocation, useNavigate } from "react-router-dom";
+import { locationAPI, popularCountries, Country as LocationCountry, State, City } from "../services/locationAPI";
 
 const industryOptions = [
   { value: "technology-it", label: "Technology / IT Services" },
@@ -162,7 +162,8 @@ const Onboarding: React.FC = () => {
   const [showCountryDropdown, setShowCountryDropdown] = useState(false);
   const [showStateDropdown, setShowStateDropdown] = useState(false);
   const [showCityDropdown, setShowCityDropdown] = useState(false);
-
+let location = useLocation();
+  let draftedData = location.state || null
   // State for "Same as Company address" checkbox
   const [sameAsCompany, setSameAsCompany] = useState(false);
 
@@ -209,6 +210,156 @@ const Onboarding: React.FC = () => {
       setValue("agents", currentAgents.slice(0, agentCount));
     }
   }, [agentCount, setValue, watch]);
+
+  // Prefill form with draft data if available
+  React.useEffect(() => {
+    if (draftedData) {
+      console.log('Loading draft data:', draftedData);
+      
+      // Company basics
+      if (draftedData.company_basics) {
+        const cb = draftedData.company_basics;
+        if (cb.name) setValue('companyName', cb.name);
+        if (cb.company_size) setValue('companySize', cb.company_size);
+        if (cb.company_email) setValue('companyEmail', cb.company_email);
+        if (cb.company_phone) {
+          // Extract phone number without country code
+          const phone = cb.company_phone.replace(/^\+\d+-?/, '');
+          setValue('companyPhone', phone);
+        }
+        if (cb.website) setValue('website', cb.website);
+        if (cb.linkedin_profile) setValue('linkedinUrl', cb.linkedin_profile);
+        if (cb.description) setValue('companyDescription', cb.description);
+        if (cb.industry && Array.isArray(cb.industry)) {
+          setValue('industry', cb.industry);
+        }
+        
+        // Set location data
+        if (cb.primary_region) {
+          if (cb.primary_region.countries) {
+            const countries = cb.primary_region.countries.map((name: string) => {
+              const country = popularCountries.find(c => c.name === name);
+              return country || { code: name.substring(0, 2).toUpperCase(), name };
+            });
+            setSelectedCountries(countries);
+          }
+          if (cb.primary_region.states) {
+            const states = cb.primary_region.states.map((name: string) => ({
+              code: name.substring(0, 2).toUpperCase(),
+              name,
+              countryCode: ''
+            }));
+            setSelectedStates(states);
+          }
+          if (cb.primary_region.cities) {
+            const cities = cb.primary_region.cities.map((name: string) => ({
+              name,
+              stateCode: '',
+              countryCode: ''
+            }));
+            setSelectedCities(cities);
+          }
+        }
+      }
+      
+      // Plan details
+      if (draftedData.plan_details) {
+        const pd = draftedData.plan_details;
+        if (pd.type) {
+          // Find matching plan by apiKey
+          const plan = planOptions.find(p => p.apiKey === pd.type);
+          if (plan) setValue('plan', plan.id as any);
+        }
+        if (pd.ai_employee_limit) setValue('agentCount', pd.ai_employee_limit);
+        
+        // Billing info
+        if (pd.billing_contact) {
+          const bc = pd.billing_contact;
+          if (bc.name) setValue('billingContactName', bc.name);
+          if (bc.email) setValue('billingContactEmail', bc.email);
+          if (bc.phone) {
+            const phone = bc.phone.replace(/^\+\d+-?/, '');
+            setValue('billingContactPhone', phone);
+          }
+          if (bc.company_name) setValue('billingCompanyName', bc.company_name);
+        }
+        
+        if (pd.billing_address) {
+          const ba = pd.billing_address;
+          if (ba.street) setValue('billingAddress', ba.street);
+          if (ba.city) setValue('billingCity', ba.city);
+          if (ba.state) setValue('billingState', ba.state);
+          if (ba.postal_code) setValue('billingZip', ba.postal_code);
+          if (ba.country) setValue('billingCountry', ba.country);
+        }
+      }
+      
+      // AI Employees
+      if (draftedData.ai_employees && Array.isArray(draftedData.ai_employees)) {
+        const agents = draftedData.ai_employees.map((emp: any) => ({
+          agentName: emp.name || '',
+          agentType: emp.type || '',
+          selectedTemplate: emp.template || '',
+          preferredLanguage: emp.preferred_language || '',
+          voiceGender: emp.voice_gender || '',
+          agentPersonality: emp.agent_personality || '',
+          voiceStyle: emp.voice_style || '',
+          specialInstructions: emp.special_instructions || '',
+          selectedWorkflows: emp.workflows?.map((w: any) => {
+            // Map workflow names back to IDs
+            const workflowMap: Record<string, string> = {
+              'WhatsApp Business': 'whatsapp',
+              'Gmail': 'email',
+              'Webhooks': 'webhook',
+              'Google Calendar': 'google-calendar',
+              'Calendly': 'calendly',
+              'Google Sheets': 'google-sheets',
+              'Zoho CRM': 'zoho',
+              'Odoo': 'odoo',
+              'HubSpot': 'hubspot',
+              'Salesforce CRM': 'salesforce',
+              'Zendesk': 'zendesk',
+              'Shopify': 'shopify',
+              'Slack': 'slack',
+              'Zapier': 'zapier',
+            };
+            return workflowMap[w.name] || w.name.toLowerCase().replace(/\s+/g, '-');
+          }) || [],
+          workflowInstructions: emp.workflows?.reduce((acc: any, w: any) => {
+            const workflowMap: Record<string, string> = {
+              'WhatsApp Business': 'whatsapp',
+              'Gmail': 'email',
+              'Webhooks': 'webhook',
+              'Google Calendar': 'google-calendar',
+              'Calendly': 'calendly',
+              'Google Sheets': 'google-sheets',
+              'Zoho CRM': 'zoho',
+              'Odoo': 'odoo',
+              'HubSpot': 'hubspot',
+              'Salesforce CRM': 'salesforce',
+              'Zendesk': 'zendesk',
+              'Shopify': 'shopify',
+              'Slack': 'slack',
+              'Zapier': 'zapier',
+            };
+            const id = workflowMap[w.name] || w.name.toLowerCase().replace(/\s+/g, '-');
+            acc[id] = w.instruction;
+            return acc;
+          }, {}) || {},
+        }));
+        setValue('agents', agents);
+        setValue('agentCount', agents.length);
+      }
+      
+      // Show success message after a short delay to ensure all data is set
+      setTimeout(() => {
+        toast.success('Draft loaded successfully! You can continue where you left off.', {
+          duration: 4000,
+          icon: '📝'
+        });
+      }, 500);
+    }
+  }, [draftedData, setValue]);
 
   const nextStep = () => {
     if (currentStep < totalSteps && validateStep(currentStep)) {
@@ -286,7 +437,9 @@ const Onboarding: React.FC = () => {
                industry.length > 0 &&
                !!watch("companyEmail");
       case 2:
-        return !!watch("plan");
+        return !!watch("plan") && 
+               !!watch("billingContactName") && 
+               !!watch("billingContactEmail");
       case 3:
         const agents = watch("agents") || [];
         return (
@@ -361,14 +514,12 @@ const Onboarding: React.FC = () => {
         linkedin_profile: ensureValidUrl(data.linkedinUrl || ""),
         description: data.companyDescription || "",
         industry: Array.isArray(data.industry) ? data.industry : [data.industry || ""],
-        business_regions: {
+        primary_region: {
           countries: selectedCountries.map(c => c.name),
           states: selectedStates.map(s => s.name),
           cities: selectedCities.map(c => c.name),
         },
       },
-
-      
 
       plan_details: {
         type: selectedPlan?.apiKey || data.plan || "",
@@ -384,26 +535,61 @@ const Onboarding: React.FC = () => {
             ? `${selectedBillingCountry.dialCode}${data.billingContactPhone}`
             : "",
           company_name: data.billingCompanyName || data.companyName || "",
-          billing_address: {
-            street: data.billingAddress || "",
-            city: data.billingCity || "",
-            state: data.billingState || "",
-            postal_code: data.billingZip || "",
-            country: data.billingCountry || "",
-          },
+        },
+        billing_address: {
+          street: data.billingAddress || "",
+          city: data.billingCity || "",
+          state: data.billingState || "",
+          postal_code: data.billingZip || "",
+          country: data.billingCountry || "",
         },
       },
 
-      ai_employees: (data.agents || []).map((agent, index) => ({
-        name: agent.agentName || `AI Employee ${index + 1}`,
-        type: capitalizeWords(agent.agentType || "Sales"),
-        template: agent.selectedTemplate || "Sales & Business Development",
-        preferred_language: capitalizeWords(agent.preferredLanguage || "English"),
-        voice_gender: formatVoiceGender(agent.voiceGender || "Gender Neutral"),
-        agent_personality: agent.agentPersonality || "Enthusiastic & Energetic",
-        voice_style: agent.voiceStyle || "Energetic & Enthusiastic",
-        special_instructions: agent.specialInstructions || "Focus on customer needs",
-      })),
+      ai_employees: (data.agents || []).map((agent, index) => {
+        // Workflow name mapping based on workflowIntegrationOptions
+        const workflowNameMap: Record<string, string> = {
+          'whatsapp': 'WhatsApp Business',
+          'email': 'Gmail',
+          'webhook': 'Webhooks',
+          'google-calendar': 'Google Calendar',
+          'calendly': 'Calendly',
+          'google-sheets': 'Google Sheets',
+          'zoho': 'Zoho CRM',
+          'odoo': 'Odoo',
+          'hubspot': 'HubSpot',
+          'salesforce': 'Salesforce CRM',
+          'zendesk': 'Zendesk',
+          'shopify': 'Shopify',
+          'slack': 'Slack',
+          'zapier': 'Zapier',
+        };
+
+        // Build workflows array from selectedWorkflows and workflowInstructions
+        const workflows = (agent.selectedWorkflows || []).map((workflowId: string) => {
+          const instruction = agent.workflowInstructions?.[workflowId] || "";
+          const workflowName = workflowNameMap[workflowId] || 
+            workflowId.split('-').map(word => 
+              word.charAt(0).toUpperCase() + word.slice(1)
+            ).join(' ');
+          
+          return {
+            name: workflowName,
+            instruction: instruction || `Configure ${workflowName} integration`
+          };
+        });
+
+        return {
+          name: agent.agentName || `AI Employee ${index + 1}`,
+          type: capitalizeWords(agent.agentType || "Sales"),
+          template: agent.selectedTemplate || "Sales & Business Development",
+          preferred_language: capitalizeWords(agent.preferredLanguage || "English"),
+          voice_gender: formatVoiceGender(agent.voiceGender || "Gender Neutral"),
+          agent_personality: agent.agentPersonality || "Enthusiastic & Energetic",
+          voice_style: agent.voiceStyle || "Energetic & Enthusiastic",
+          special_instructions: agent.specialInstructions || "Focus on customer needs",
+          workflows: workflows,
+        };
+      }),
 
       knowledge_sources: {
         website_url: ensureValidUrl(data.website || ""),
@@ -454,65 +640,6 @@ const Onboarding: React.FC = () => {
       const data = watch();
       const { payloadData, allFiles } = buildFormDataPayload(data);
 
-      // Create FormData to handle file uploads
-      const formData = new FormData();
-      
-      // Append each nested field individually for proper parsing
-      Object.entries(payloadData.company_basics).forEach(([key, value]) => {
-        if (key === 'industry' && Array.isArray(value)) {
-          value.forEach((item, index) => {
-            formData.append(`company_basics[industry][${index}]`, item);
-          });
-        } else if (Array.isArray(value)) {
-          formData.append(`company_basics[${key}]`, JSON.stringify(value));
-        } else {
-          formData.append(`company_basics[${key}]`, String(value));
-        }
-      });
-      
-      // Plan details
-      formData.append('plan_details[type]', payloadData.plan_details.type);
-      formData.append('plan_details[ai_employee_limit]', String(payloadData.plan_details.ai_employee_limit));
-      formData.append('plan_details[billing_contact][name]', payloadData.plan_details.billing_contact.name);
-      formData.append('plan_details[billing_contact][email]', payloadData.plan_details.billing_contact.email);
-      formData.append('plan_details[billing_contact][phone]', payloadData.plan_details.billing_contact.phone);
-      formData.append('plan_details[billing_contact][company_name]', payloadData.plan_details.billing_contact.company_name);
-      formData.append('plan_details[billing_contact][billing_address][street]', payloadData.plan_details.billing_contact.billing_address.street);
-      formData.append('plan_details[billing_contact][billing_address][city]', payloadData.plan_details.billing_contact.billing_address.city);
-      formData.append('plan_details[billing_contact][billing_address][state]', payloadData.plan_details.billing_contact.billing_address.state);
-      formData.append('plan_details[billing_contact][billing_address][postal_code]', payloadData.plan_details.billing_contact.billing_address.postal_code);
-      formData.append('plan_details[billing_contact][billing_address][country]', payloadData.plan_details.billing_contact.billing_address.country);
-      
-      // AI Employees
-      payloadData.ai_employees.forEach((employee, index) => {
-        Object.entries(employee).forEach(([key, value]) => {
-          formData.append(`ai_employees[${index}][${key}]`, String(value));
-        });
-      });
-      
-      // Other sections
-      formData.append('knowledge_sources[website_url]', payloadData.knowledge_sources.website_url);
-      formData.append('knowledge_sources[social_links][linkedin]', payloadData.knowledge_sources.social_links.linkedin);
-      formData.append('knowledge_sources[faqs_text]', payloadData.knowledge_sources.faqs_text);
-      formData.append('instructions[dos_and_donts]', payloadData.instructions.dos_and_donts);
-      formData.append('instructions[fallback_contacts]', payloadData.instructions.fallback_contacts);
-      formData.append('targets[success_goals]', payloadData.targets.success_goals);
-      formData.append('targets[success_metrics]', payloadData.targets.success_metrics);
-      
-      payloadData.deployment_targets.channels.forEach((channel, index) => {
-        formData.append(`deployment_targets[channels][${index}]`, channel);
-      });
-      formData.append('deployment_targets[deployment_notes]', payloadData.deployment_targets.deployment_notes);
-      formData.append('deployment_service[service_type]', payloadData.deployment_service.service_type);
-      formData.append('consent_options[recording_enabled]', String(payloadData.consent_options.recording_enabled));
-      formData.append('consent_options[transcript_email_optin]', String(payloadData.consent_options.transcript_email_optin));
-      formData.append('consent_options[privacy_notes]', payloadData.consent_options.privacy_notes);
-      
-      // Append files
-      allFiles.forEach((file) => {
-        formData.append('files', file);
-      });
-
       const loadingToast = toast.loading('Saving draft...');
 
       // Get pending auth token
@@ -523,7 +650,20 @@ const Onboarding: React.FC = () => {
         accessToken = tokens.accessToken;
       }
 
-      await authAPI.saveDraftOnboarding(formData as any, accessToken);
+      // Upload files FIRST if there are any
+      let uploadedFilesData: any[] = [];
+      if (allFiles.length > 0) {
+        const uploadResponse = await authAPI.uploadOnboardingFiles(allFiles, accessToken);
+        uploadedFilesData = uploadResponse.data.uploaded_files || [];
+      }
+
+      // Add uploaded files to knowledge_sources
+      if (uploadedFilesData.length > 0) {
+        (payloadData.knowledge_sources as any).uploaded_files = uploadedFilesData;
+      }
+
+      // Send JSON data to onboarding endpoint with uploaded files info
+      await authAPI.saveDraftOnboarding(payloadData as any, accessToken);
 
       toast.dismiss(loadingToast);
       toast.success('Draft saved successfully!');
@@ -578,76 +718,6 @@ const Onboarding: React.FC = () => {
     try {
       const { payloadData, allFiles } = buildFormDataPayload(data);
 
-      // Create FormData to handle file uploads (same logic as draft)
-      const formData = new FormData();
-      
-      // Append each nested field individually for proper parsing
-      // Company basics
-      Object.entries(payloadData.company_basics).forEach(([key, value]) => {
-        if (key === 'industry' && Array.isArray(value)) {
-          // Append industry array items individually
-          value.forEach((item, index) => {
-            formData.append(`company_basics[industry][${index}]`, item);
-          });
-        } else if (Array.isArray(value)) {
-          formData.append(`company_basics[${key}]`, JSON.stringify(value));
-        } else {
-          formData.append(`company_basics[${key}]`, String(value));
-        }
-      });
-      
-    
-      formData.append('plan_details[type]', payloadData.plan_details.type);
-      formData.append('plan_details[ai_employee_limit]', String(payloadData.plan_details.ai_employee_limit));
-      formData.append('plan_details[billing_contact][name]', payloadData.plan_details.billing_contact.name);
-      formData.append('plan_details[billing_contact][email]', payloadData.plan_details.billing_contact.email);
-      formData.append('plan_details[billing_contact][phone]', payloadData.plan_details.billing_contact.phone);
-      formData.append('plan_details[billing_contact][company_name]', payloadData.plan_details.billing_contact.company_name);
-      formData.append('plan_details[billing_contact][billing_address][street]', payloadData.plan_details.billing_contact.billing_address.street);
-      formData.append('plan_details[billing_contact][billing_address][city]', payloadData.plan_details.billing_contact.billing_address.city);
-      formData.append('plan_details[billing_contact][billing_address][state]', payloadData.plan_details.billing_contact.billing_address.state);
-      formData.append('plan_details[billing_contact][billing_address][postal_code]', payloadData.plan_details.billing_contact.billing_address.postal_code);
-      formData.append('plan_details[billing_contact][billing_address][country]', payloadData.plan_details.billing_contact.billing_address.country);
-      
-      // AI Employees - append as JSON array
-      payloadData.ai_employees.forEach((employee, index) => {
-        Object.entries(employee).forEach(([key, value]) => {
-          formData.append(`ai_employees[${index}][${key}]`, String(value));
-        });
-      });
-      
-      // Knowledge sources
-      formData.append('knowledge_sources[website_url]', payloadData.knowledge_sources.website_url);
-      formData.append('knowledge_sources[social_links][linkedin]', payloadData.knowledge_sources.social_links.linkedin);
-      formData.append('knowledge_sources[faqs_text]', payloadData.knowledge_sources.faqs_text);
-      
-      // Instructions
-      formData.append('instructions[dos_and_donts]', payloadData.instructions.dos_and_donts);
-      formData.append('instructions[fallback_contacts]', payloadData.instructions.fallback_contacts);
-      
-      // Targets
-      formData.append('targets[success_goals]', payloadData.targets.success_goals);
-      formData.append('targets[success_metrics]', payloadData.targets.success_metrics);
-      
-      // Deployment targets
-      payloadData.deployment_targets.channels.forEach((channel, index) => {
-        formData.append(`deployment_targets[channels][${index}]`, channel);
-      });
-      formData.append('deployment_targets[deployment_notes]', payloadData.deployment_targets.deployment_notes);
-      
-      // Deployment service
-      formData.append('deployment_service[service_type]', payloadData.deployment_service.service_type);
-      
-      // Consent options
-      formData.append('consent_options[recording_enabled]', String(payloadData.consent_options.recording_enabled));
-      formData.append('consent_options[transcript_email_optin]', String(payloadData.consent_options.transcript_email_optin));
-      formData.append('consent_options[privacy_notes]', payloadData.consent_options.privacy_notes);
-      
-      // Append files
-      allFiles.forEach((file) => {
-        formData.append('files', file);
-      });
-
       const loadingToast = toast.loading('Setting up your account...');
 
       // Get pending auth token
@@ -658,7 +728,20 @@ const Onboarding: React.FC = () => {
         accessToken = tokens.accessToken;
       }
 
-      await authAPI.createOnboarding(formData as any, accessToken);
+      // Upload files FIRST if there are any
+      let uploadedFilesData: any[] = [];
+      if (allFiles.length > 0) {
+        const uploadResponse = await authAPI.uploadOnboardingFiles(allFiles, accessToken);
+        uploadedFilesData = uploadResponse.data.uploaded_files || [];
+      }
+
+      // Add uploaded files to knowledge_sources
+      if (uploadedFilesData.length > 0) {
+        (payloadData.knowledge_sources as any).uploaded_files = uploadedFilesData;
+      }
+
+      // Send JSON data to onboarding endpoint with uploaded files info
+      await authAPI.createOnboarding(payloadData as any, accessToken);
 
       toast.dismiss(loadingToast);
       toast.success('Onboarding completed successfully!');
@@ -1807,10 +1890,11 @@ const Onboarding: React.FC = () => {
 
                       <div>
                         <label className="block text-xs font-medium text-gray-700 mb-1">
-                          Billing Email
+                          Billing Email *
                         </label>
                         <input
                           {...register("billingContactEmail", {
+                            required: "Billing email is required",
                             pattern: {
                               value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
                               message: "Please enter a valid email address",

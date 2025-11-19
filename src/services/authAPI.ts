@@ -34,50 +34,67 @@ interface AuthResponse {
 
 interface OnboardingRequest {
   company_basics: {
-      first_name: string;
-    last_name: string;
-    email: string;
-    industry: string;
-    description: string;
-    website: string;
-    primary_region: string;
-    business_processes: string[];
-    headquarters_address: {
-      city: string;
-      state_province: string;
-      country: string;
+    name?: string;
+    phone?: string;
+    company_size?: string;
+    company_email?: string;
+    company_phone?: string;
+    website?: string;
+    linkedin_profile?: string;
+    description?: string;
+    industry?: string[];
+    business_regions?: {
+      countries?: string[];
+      states?: string[];
+      cities?: string[];
     };
-    time_zone: string;
-    primary_phone: string;
-    primary_contact: {
-      name: string;
-      email: string;
-      phone: string;
-      title: string;
+    primary_region?: {
+      countries?: string[];
+      states?: string[];
+      cities?: string[];
     };
   };
   plan_details: {
     type: string;
     ai_employee_limit: number;
-    monthly_price: number;
-    features: string[];
+    monthly_price?: number;
+    features?: string[];
+    billing_contact?: {
+      name: string;
+      email: string;
+      phone: string;
+      company_name?: string;
+    };
+    billing_address?: {
+      street: string;
+      city: string;
+      state: string;
+      postal_code: string;
+      country: string;
+    };
   };
-  ai_employees: Array<{
+  ai_employees?: Array<{
     name: string;
     type: string;
+    template?: string;
     preferred_language: string;
     voice_gender: string;
-    personality_traits: string[];
-    specialization: string;
+    agent_personality?: string;
+    voice_style?: string;
+    special_instructions?: string;
+    workflows?: Array<{
+      name: string;
+      instruction: string;
+    }>;
   }>;
-  knowledge_sources: {
-    website_url: string;
-    social_links: {
+  knowledge_sources?: {
+    website_url?: string;
+    social_links?: {
       linkedin?: string;
       twitter?: string;
       facebook?: string;
     };
-    uploaded_files: Array<{
+    uploaded_files?: Array<{
       id: string;
       filename: string;
       original_name: string;
@@ -86,92 +103,29 @@ interface OnboardingRequest {
       upload_date: string;
       file_path: string;
       file_url: string;
+      s3_key: string;
     }>;
-    faqs_text: string;
-    additional_context: string;
+    faqs_text?: string;
   };
-  instructions: {
-    dos: string[];
-    donts: string[];
-    escalation_rules: Array<{
-      condition: string;
-      action: string;
-      priority: string;
-      notify_contacts: string[];
-    }>;
-    fallback_contacts: Array<{
-      name: string;
-      email: string;
-      phone: string;
-      role: string;
-      availability: string;
-    }>;
-    tone_guidelines: string;
-    response_style: string;
+  instructions?: {
+    dos_and_donts?: string;
+    fallback_contacts?: string;
   };
-  targets: {
-    primary_goals: string[];
-    success_metrics: Array<{
-      metric_name: string;
-      target_value: string;
-      measurement_period: string;
-      description: string;
-    }>;
-    kpis: string[];
-    target_response_time: number;
-    quality_threshold: number;
+  targets?: {
+    success_goals?: string;
+    success_metrics?: string;
   };
-  deployment_targets: {
-    channels: string[];
-    priority_channel: string;
-    integration_requirements: string[];
-    custom_requirements: string;
+  deployment_targets?: {
+    channels?: string[];
+    deployment_notes?: string;
   };
-  deployment_service: {
+  deployment_service?: {
     service_type: string;
-    requires_access: boolean;
-    access_details: {
-      platforms: string[];
-      access_type: string;
-      credentials_required: boolean;
-      additional_info: string;
-    };
-    timeline_preference: string;
-    technical_contact: {
-      name: string;
-      email: string;
-      phone: string;
-      role: string;
-      availability: string;
-    };
   };
-  consent_options: {
+  consent_options?: {
     recording_enabled: boolean;
     transcript_email_optin: boolean;
-    data_retention_period: number;
-    privacy_preferences: string[];
-    gdpr_compliance: boolean;
-  };
-  billing_contact: {
-    name: string;
-    email: string;
-    phone: string;
-    company_role: string;
-    billing_address: {
-      street: string;
-      city: string;
-      state: string;
-      postal_code: string;
-      country: string;
-    };
-  };
-  shivai_team_notes: {
-    internal_notes: string;
-    priority_level: string;
-    assigned_team_member: string;
-    special_requirements: string[];
-    follow_up_date: string;
-    tags: string[];
+    privacy_notes?: string;
   };
 }
 
@@ -332,16 +286,12 @@ export const authAPI = {
       .then((res) => res.data),
 
   // Onboarding endpoints
-  createOnboarding: (data: OnboardingRequest | FormData, token?: string): Promise<OnboardingResponse> => {
-    // Check if data is FormData and set appropriate headers
-    const config: any = data instanceof FormData 
-      ? { headers: { 'Content-Type': 'multipart/form-data' } }
-      : {};
+  createOnboarding: (data: OnboardingRequest, token?: string): Promise<OnboardingResponse> => {
+    const config: any = {};
     
     // Add Authorization header if token is provided
     if (token) {
       config.headers = {
-        ...config.headers,
         Authorization: `Bearer ${token}`
       };
     }
@@ -350,16 +300,12 @@ export const authAPI = {
   },
 
   // Save onboarding as draft
-  saveDraftOnboarding: (data: OnboardingRequest | FormData, token?: string): Promise<OnboardingResponse> => {
-    // Check if data is FormData and set appropriate headers
-    const config: any = data instanceof FormData 
-      ? { headers: { 'Content-Type': 'multipart/form-data' } }
-      : {};
+  saveDraftOnboarding: (data: OnboardingRequest, token?: string): Promise<OnboardingResponse> => {
+    const config: any = {};
     
     // Add Authorization header if token is provided
     if (token) {
       config.headers = {
-        ...config.headers,
         Authorization: `Bearer ${token}`
       };
     }
@@ -419,6 +365,42 @@ export const authAPI = {
     const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
     return apiClient
       .post("/code-verify", { code }, config)
+      .then((res) => res.data);
+  },
+
+  // Upload files endpoint
+  uploadOnboardingFiles: (files: File[], token?: string): Promise<{
+    success: boolean;
+    message: string;
+    data: {
+      uploaded_files: Array<{
+        id: string;
+        filename: string;
+        original_name: string;
+        file_type: string;
+        file_size: number;
+        upload_date: string;
+        file_path: string;
+        file_url: string;
+        s3_key: string;
+      }>;
+    };
+  }> => {
+    const formData = new FormData();
+    files.forEach((file) => {
+      formData.append('files', file);
+    });
+
+    const config: any = {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    };
+
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    return apiClient
+      .post('/onboarding/upload-files', formData, config)
       .then((res) => res.data);
   },
 };

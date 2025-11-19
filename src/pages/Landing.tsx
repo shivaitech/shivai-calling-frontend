@@ -74,11 +74,11 @@ const Landing: React.FC = () => {
   });
 
   // Redirect if already authenticated
-  useEffect(() => {
-    if (isAuthenticated) {
-      navigate("/dashboard");
-    }
-  }, [isAuthenticated, navigate]);
+  // useEffect(() => {
+  //   if (isAuthenticated) {
+  //     navigate("/dashboard");
+  //   }
+  // }, [isAuthenticated, navigate]);
 
   // Show error from URL params (OAuth failures)
   useEffect(() => {
@@ -110,9 +110,11 @@ const Landing: React.FC = () => {
         );
       } else {
         const response = await login(formData.email, formData.password);
+        console.log(response);
+
         setShowAuthModal(false);
-        if (response?.onboarding !== null) {
-          navigate("/onboarding");
+        if (response?.onboarding !== null && response?.user?.isOnboarded === false) {
+          navigate("/onboarding", { state: response?.onboarding });
         } else {
           navigate("/dashboard");
         }
