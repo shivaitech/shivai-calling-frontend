@@ -24,7 +24,7 @@ import CountrySelector from "../components/CountrySelector";
 import { Country, defaultCountries } from "../types/country";
 import { authAPI } from "../services/authAPI";
 import { useLocation, useNavigate } from "react-router-dom";
-import { locationAPI, popularCountries, Country as LocationCountry, State, City } from "../services/locationAPI";
+import { locationAPI, popularCountries, Country as LocationCountry, State as LocationState, City as LocationCity } from "../services/locationAPI";
 
 const industryOptions = [
   { value: "technology-it", label: "Technology / IT Services" },
@@ -131,6 +131,7 @@ const Onboarding: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [activeAgentTab, setActiveAgentTab] = useState(0);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showDraftModal, setShowDraftModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedTemplates, setSelectedTemplates] = useState<
     Record<number, string>
@@ -154,8 +155,8 @@ const Onboarding: React.FC = () => {
 
   // Location selection states
   const [selectedCountries, setSelectedCountries] = useState<LocationCountry[]>([]);
-  const [selectedStates, setSelectedStates] = useState<State[]>([]);
-  const [selectedCities, setSelectedCities] = useState<City[]>([]);
+  const [selectedStates, setSelectedStates] = useState<LocationState[]>([]);
+  const [selectedCities, setSelectedCities] = useState<LocationCity[]>([]);
   const [countrySearch, setCountrySearch] = useState("");
   const [stateSearch, setStateSearch] = useState("");
   const [citySearch, setCitySearch] = useState("");
@@ -666,10 +667,9 @@ let location = useLocation();
       await authAPI.saveDraftOnboarding(payloadData as any, accessToken);
 
       toast.dismiss(loadingToast);
-      toast.success('Draft saved successfully!');
-
-      // Navigate to home
-      navigate("/");
+      
+      // Show draft modal instead of navigating
+      setShowDraftModal(true);
     } catch (error: any) {
       toast.dismiss();
       
@@ -802,6 +802,19 @@ let location = useLocation();
 
   const closeSuccessModal = () => {
     setShowSuccessModal(false);
+    
+    // Clear pending auth tokens and related data
+    localStorage.removeItem("pending_auth_tokens");
+    localStorage.removeItem("pending_auth_user");
+    localStorage.removeItem("onboarding_code");
+    localStorage.removeItem("onboarding_user_id");
+    localStorage.removeItem("onboarding_verification_id");
+    
+    navigate("/");
+  };
+
+  const closeDraftModal = () => {
+    setShowDraftModal(false);
     
     // Clear pending auth tokens and related data
     localStorage.removeItem("pending_auth_tokens");
@@ -1285,43 +1298,66 @@ let location = useLocation();
                       {/* Countries Dropdown */}
                       {showCountryDropdown && (
                         <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto" data-dropdown>
-                          {locationAPI.searchCountries(countrySearch).map((country) => {
-                            const isSelected = selectedCountries.some(
-                              (c) => c.code === country.code
-                            );
+                          {(() => {
+                            const searchResults = locationAPI.searchCountries(countrySearch);
                             return (
-                              <div
-                                key={country.code}
-                                onClick={() => {
-                                  if (isSelected) {
-                                    const newCountries = selectedCountries.filter(
-                                      (c) => c.code !== country.code
-                                    );
-                                    setSelectedCountries(newCountries);
-                                    // Clear states and cities
-                                    setSelectedStates(
-                                      selectedStates.filter((s) => s.countryCode !== country.code)
-                                    );
-                                    setSelectedCities(
-                                      selectedCities.filter((c) => c.countryCode !== country.code)
-                                    );
-                                  } else {
-                                    setSelectedCountries([...selectedCountries, country]);
-                                  }
-                                }}
-                                className={`px-3 py-2 text-sm cursor-pointer transition-colors ${
-                                  isSelected
-                                    ? "bg-blue-50 text-blue-700 font-medium"
-                                    : "hover:bg-gray-50 text-gray-700"
-                                }`}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <span>{country.name}</span>
-                                  {isSelected && <Check className="w-4 h-4" />}
-                                </div>
-                              </div>
+                              <>
+                                {searchResults.map((country) => {
+                                  const isSelected = selectedCountries.some(
+                                    (c) => c.code === country.code
+                                  );
+                                  return (
+                                    <div
+                                      key={country.code}
+                                      onClick={() => {
+                                        if (isSelected) {
+                                          const newCountries = selectedCountries.filter(
+                                            (c) => c.code !== country.code
+                                          );
+                                          setSelectedCountries(newCountries);
+                                          // Clear states and cities
+                                          setSelectedStates(
+                                            selectedStates.filter((s) => s.countryCode !== country.code)
+                                          );
+                                          setSelectedCities(
+                                            selectedCities.filter((c) => c.countryCode !== country.code)
+                                          );
+                                        } else {
+                                          setSelectedCountries([...selectedCountries, country]);
+                                        }
+                                      }}
+                                      className={`px-3 py-2 text-sm cursor-pointer transition-colors ${
+                                        isSelected
+                                          ? "bg-blue-50 text-blue-700 font-medium"
+                                          : "hover:bg-gray-50 text-gray-700"
+                                      }`}
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <span>{country.name}</span>
+                                        {isSelected && <Check className="w-4 h-4" />}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                                {countrySearch && searchResults.length === 0 && (
+                                  <div
+                                    onClick={() => {
+                                      const customCountry: LocationCountry = {
+                                        code: `CUSTOM-${Date.now()}`,
+                                        name: countrySearch.trim(),
+                                      };
+                                      setSelectedCountries([...selectedCountries, customCountry]);
+                                      setCountrySearch("");
+                                      setShowCountryDropdown(false);
+                                    }}
+                                    className="px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 text-blue-600 font-medium border-t border-gray-200"
+                                  >
+                                    + Add "{countrySearch.trim()}"
+                                  </div>
+                                )}
+                              </>
                             );
-                          })}
+                          })()}
                         </div>
                       )}
                     </div>
@@ -1416,53 +1452,78 @@ let location = useLocation();
                               statesByCountry[state.countryCode].push(state);
                             });
 
-                            return Object.entries(statesByCountry).map(([countryCode, states]) => {
-                              const country = selectedCountries.find(c => c.code === countryCode);
-                              return (
-                                <div key={countryCode}>
-                                  {/* Country Header */}
-                                  <div className="px-3 py-1.5 bg-gray-100 text-xs font-semibold text-gray-600 sticky top-0">
-                                    {country?.name || countryCode}
-                                  </div>
-                                  {/* States under this country */}
-                                  {states.map((state) => {
-                                    const isSelected = selectedStates.some(
-                                      (s) => s.code === state.code && s.countryCode === state.countryCode
-                                    );
-                                    return (
-                                      <div
-                                        key={`${state.countryCode}-${state.code}`}
-                                        onClick={() => {
-                                          if (isSelected) {
-                                            const newStates = selectedStates.filter(
-                                              (s) => s.code !== state.code || s.countryCode !== state.countryCode
-                                            );
-                                            setSelectedStates(newStates);
-                                            setSelectedCities(
-                                              selectedCities.filter(
-                                                (c) => c.stateCode !== state.code || c.countryCode !== state.countryCode
-                                              )
-                                            );
-                                          } else {
-                                            setSelectedStates([...selectedStates, state]);
-                                          }
-                                        }}
-                                        className={`px-3 py-2 text-sm cursor-pointer transition-colors ${
-                                          isSelected
-                                            ? "bg-green-50 text-green-700 font-medium"
-                                            : "hover:bg-gray-50 text-gray-700"
-                                        }`}
-                                      >
-                                        <div className="flex items-center justify-between">
-                                          <span>{state.name}</span>
-                                          {isSelected && <Check className="w-4 h-4" />}
-                                        </div>
+                            const hasResults = Object.keys(statesByCountry).length > 0;
+
+                            return (
+                              <>
+                                {Object.entries(statesByCountry).map(([countryCode, states]) => {
+                                  const country = selectedCountries.find(c => c.code === countryCode);
+                                  return (
+                                    <div key={countryCode}>
+                                      {/* Country Header */}
+                                      <div className="px-3 py-1.5 bg-gray-100 text-xs font-semibold text-gray-600 sticky top-0">
+                                        {country?.name || countryCode}
                                       </div>
-                                    );
-                                  })}
-                                </div>
-                              );
-                            });
+                                      {/* States under this country */}
+                                      {states.map((state) => {
+                                        const isSelected = selectedStates.some(
+                                          (s) => s.code === state.code && s.countryCode === state.countryCode
+                                        );
+                                        return (
+                                          <div
+                                            key={`${state.countryCode}-${state.code}`}
+                                            onClick={() => {
+                                              if (isSelected) {
+                                                const newStates = selectedStates.filter(
+                                                  (s) => s.code !== state.code || s.countryCode !== state.countryCode
+                                                );
+                                                setSelectedStates(newStates);
+                                                setSelectedCities(
+                                                  selectedCities.filter(
+                                                    (c) => c.stateCode !== state.code || c.countryCode !== state.countryCode
+                                                  )
+                                                );
+                                              } else {
+                                                setSelectedStates([...selectedStates, state]);
+                                              }
+                                            }}
+                                            className={`px-3 py-2 text-sm cursor-pointer transition-colors ${
+                                              isSelected
+                                                ? "bg-green-50 text-green-700 font-medium"
+                                                : "hover:bg-gray-50 text-gray-700"
+                                            }`}
+                                          >
+                                            <div className="flex items-center justify-between">
+                                              <span>{state.name}</span>
+                                              {isSelected && <Check className="w-4 h-4" />}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  );
+                                })}
+                                {stateSearch && !hasResults && selectedCountries.length > 0 && (
+                                  <div
+                                    onClick={() => {
+                                      // Add custom state to first selected country
+                                      const firstCountry = selectedCountries[0];
+                                      const customState: LocationState = {
+                                        code: `CUSTOM-${Date.now()}`,
+                                        name: stateSearch.trim(),
+                                        countryCode: firstCountry.code,
+                                      };
+                                      setSelectedStates([...selectedStates, customState]);
+                                      setStateSearch("");
+                                      setShowStateDropdown(false);
+                                    }}
+                                    className="px-3 py-2 text-sm cursor-pointer hover:bg-green-50 text-green-600 font-medium border-t border-gray-200"
+                                  >
+                                    + Add "{stateSearch.trim()}"
+                                  </div>
+                                )}
+                              </>
+                            );
                           })()}
                         </div>
                       )}
@@ -1552,58 +1613,83 @@ let location = useLocation();
                               citiesByState[stateKey].push(city);
                             });
 
-                            return Object.entries(citiesByState).map(([stateKey, cities]) => {
-                              const [countryCode, stateCode] = stateKey.split('-');
-                              const state = selectedStates.find(s => s.code === stateCode && s.countryCode === countryCode);
-                              return (
-                                <div key={stateKey}>
-                                  {/* State Header */}
-                                  <div className="px-3 py-1.5 bg-gray-100 text-xs font-semibold text-gray-600 sticky top-0">
-                                    {state?.name || stateCode}
-                                  </div>
-                                  {/* Cities under this state */}
-                                  {cities.map((city, idx) => {
-                                    const isSelected = selectedCities.some(
-                                      (c) =>
-                                        c.name === city.name &&
-                                        c.stateCode === city.stateCode &&
-                                        c.countryCode === city.countryCode
-                                    );
-                                    return (
-                                      <div
-                                        key={`${city.countryCode}-${city.stateCode}-${city.name}-${idx}`}
-                                        onClick={() => {
-                                          if (isSelected) {
-                                            setSelectedCities(
-                                              selectedCities.filter(
-                                                (c) =>
-                                                  !(
-                                                    c.name === city.name &&
-                                                    c.stateCode === city.stateCode &&
-                                                    c.countryCode === city.countryCode
-                                                  )
-                                              )
-                                            );
-                                          } else {
-                                            setSelectedCities([...selectedCities, city]);
-                                          }
-                                        }}
-                                        className={`px-3 py-2 text-sm cursor-pointer transition-colors ${
-                                          isSelected
-                                            ? "bg-purple-50 text-purple-700 font-medium"
-                                            : "hover:bg-gray-50 text-gray-700"
-                                        }`}
-                                      >
-                                        <div className="flex items-center justify-between">
-                                          <span>{city.name}</span>
-                                          {isSelected && <Check className="w-4 h-4" />}
-                                        </div>
+                            const hasResults = Object.keys(citiesByState).length > 0;
+
+                            return (
+                              <>
+                                {Object.entries(citiesByState).map(([stateKey, cities]) => {
+                                  const [countryCode, stateCode] = stateKey.split('-');
+                                  const state = selectedStates.find(s => s.code === stateCode && s.countryCode === countryCode);
+                                  return (
+                                    <div key={stateKey}>
+                                      {/* State Header */}
+                                      <div className="px-3 py-1.5 bg-gray-100 text-xs font-semibold text-gray-600 sticky top-0">
+                                        {state?.name || stateCode}
                                       </div>
-                                    );
-                                  })}
-                                </div>
-                              );
-                            });
+                                      {/* Cities under this state */}
+                                      {cities.map((city, idx) => {
+                                        const isSelected = selectedCities.some(
+                                          (c) =>
+                                            c.name === city.name &&
+                                            c.stateCode === city.stateCode &&
+                                            c.countryCode === city.countryCode
+                                        );
+                                        return (
+                                          <div
+                                            key={`${city.countryCode}-${city.stateCode}-${city.name}-${idx}`}
+                                            onClick={() => {
+                                              if (isSelected) {
+                                                setSelectedCities(
+                                                  selectedCities.filter(
+                                                    (c) =>
+                                                      !(
+                                                        c.name === city.name &&
+                                                        c.stateCode === city.stateCode &&
+                                                        c.countryCode === city.countryCode
+                                                      )
+                                                  )
+                                                );
+                                              } else {
+                                                setSelectedCities([...selectedCities, city]);
+                                              }
+                                            }}
+                                            className={`px-3 py-2 text-sm cursor-pointer transition-colors ${
+                                              isSelected
+                                                ? "bg-purple-50 text-purple-700 font-medium"
+                                                : "hover:bg-gray-50 text-gray-700"
+                                            }`}
+                                          >
+                                            <div className="flex items-center justify-between">
+                                              <span>{city.name}</span>
+                                              {isSelected && <Check className="w-4 h-4" />}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  );
+                                })}
+                                {citySearch && !hasResults && selectedStates.length > 0 && (
+                                  <div
+                                    onClick={() => {
+                                      // Add custom city to first selected state
+                                      const firstState = selectedStates[0];
+                                      const customCity: LocationCity = {
+                                        name: citySearch.trim(),
+                                        stateCode: firstState.code,
+                                        countryCode: firstState.countryCode,
+                                      };
+                                      setSelectedCities([...selectedCities, customCity]);
+                                      setCitySearch("");
+                                      setShowCityDropdown(false);
+                                    }}
+                                    className="px-3 py-2 text-sm cursor-pointer hover:bg-purple-50 text-purple-600 font-medium border-t border-gray-200"
+                                  >
+                                    + Add "{citySearch.trim()}"
+                                  </div>
+                                )}
+                              </>
+                            );
                           })()}
                         </div>
                       )}
@@ -2249,7 +2335,7 @@ let location = useLocation();
               </div>
             </div>
             <h3 className="text-2xl font-bold text-gray-900 mb-3">Success!</h3>
-            <div className="space-y-3 text-left bg-gray-50 p-4 rounded-lg mb-6">
+            <div className="space-y-3 text-center bg-gray-50 p-4 rounded-lg mb-6">
               <p className="text-gray-800 font-medium">
                 Your AI Employee is being set up.
               </p>
@@ -2271,6 +2357,62 @@ let location = useLocation();
               className="w-full text-white py-3 px-6 font-semibold transition-all duration-200 hover:transform hover:scale-[1.02] active:scale-[0.98]"
             >
               Go to Home
+            </button>
+          </motion.div>
+        </div>
+      )}
+
+      {showDraftModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-xl p-8 max-w-lg w-full text-center"
+          >
+            <div className="relative w-20 h-20 mx-auto mb-6">
+              <div className="w-20 h-20 bg-gradient-to-r from-green-500 to-emerald-600 rounded-full flex items-center justify-center">
+                <svg
+                  className="w-10 h-10 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
+                  />
+                </svg>
+              </div>
+              <div className="absolute -top-1 -right-1 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                <Check className="w-4 h-4 text-white" />
+              </div>
+            </div>
+            <h3 className="text-2xl font-bold text-gray-900 mb-3">Draft Saved Successfully! 📝</h3>
+            <div className="space-y-3 text-center bg-gray-50 p-4 rounded-lg mb-6">
+              <p className="text-gray-800 font-semibold">
+                Your onboarding progress has been saved.
+              </p>
+              <p className="text-gray-700">
+                To continue your onboarding process, please re-login with your email ID and password.
+              </p>
+              <p className="text-gray-600 text-sm">
+                You can complete the onboarding anytime by logging back in.
+              </p>
+            </div>
+            <button
+              onClick={closeDraftModal}
+              style={{
+                background: "linear-gradient(0deg, #0A0A0A 0%, #000000 100%)",
+                boxShadow:
+                  "0px 12.4px 18.6px -9.3px #00000040, 0px -6.2px 9.3px 0px #171717 inset, 0px 3.49px 0.77px 0px #5E5E5E inset, 0px 1.55px 0.77px 0px #33332F inset",
+                borderRadius: "1549.79px",
+              }}
+              className="w-full text-white py-3 px-6 font-semibold transition-all duration-200 hover:transform hover:scale-[1.02] active:scale-[0.98]"
+            >
+              Go to Login
             </button>
           </motion.div>
         </div>
