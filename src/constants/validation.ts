@@ -56,7 +56,7 @@ export const AUTH_MESSAGES: AuthMessages = {
   },
   
   helper: {
-    signup_email: "We'll send confirmations here.",
+    signup_email: "Please enter a valid email address.",
     signup_password: "Use 8+ characters with letters, numbers, and special characters",
     password_guidance_title: "Create a password",
     password_guidance_tips: "Include at least one letter, number, and special character",

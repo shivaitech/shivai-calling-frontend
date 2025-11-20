@@ -297,57 +297,94 @@ let location = useLocation();
       
       // AI Employees
       if (draftedData.ai_employees && Array.isArray(draftedData.ai_employees)) {
-        const agents = draftedData.ai_employees.map((emp: any) => ({
-          agentName: emp.name || '',
-          agentType: emp.type || '',
-          selectedTemplate: emp.template || '',
-          preferredLanguage: emp.preferred_language || '',
-          voiceGender: emp.voice_gender || '',
-          agentPersonality: emp.agent_personality || '',
-          voiceStyle: emp.voice_style || '',
-          specialInstructions: emp.special_instructions || '',
-          selectedWorkflows: emp.workflows?.map((w: any) => {
-            // Map workflow names back to IDs
-            const workflowMap: Record<string, string> = {
-              'WhatsApp Business': 'whatsapp',
-              'Gmail': 'email',
-              'Webhooks': 'webhook',
-              'Google Calendar': 'google-calendar',
-              'Calendly': 'calendly',
-              'Google Sheets': 'google-sheets',
-              'Zoho CRM': 'zoho',
-              'Odoo': 'odoo',
-              'HubSpot': 'hubspot',
-              'Salesforce CRM': 'salesforce',
-              'Zendesk': 'zendesk',
-              'Shopify': 'shopify',
-              'Slack': 'slack',
-              'Zapier': 'zapier',
-            };
-            return workflowMap[w.name] || w.name.toLowerCase().replace(/\s+/g, '-');
-          }) || [],
-          workflowInstructions: emp.workflows?.reduce((acc: any, w: any) => {
-            const workflowMap: Record<string, string> = {
-              'WhatsApp Business': 'whatsapp',
-              'Gmail': 'email',
-              'Webhooks': 'webhook',
-              'Google Calendar': 'google-calendar',
-              'Calendly': 'calendly',
-              'Google Sheets': 'google-sheets',
-              'Zoho CRM': 'zoho',
-              'Odoo': 'odoo',
-              'HubSpot': 'hubspot',
-              'Salesforce CRM': 'salesforce',
-              'Zendesk': 'zendesk',
-              'Shopify': 'shopify',
-              'Slack': 'slack',
-              'Zapier': 'zapier',
-            };
-            const id = workflowMap[w.name] || w.name.toLowerCase().replace(/\s+/g, '-');
-            acc[id] = w.instruction;
-            return acc;
-          }, {}) || {},
-        }));
+        const agents = draftedData.ai_employees.map((emp: any, index: number) => {
+          // Handle knowledge_sources if they exist in the employee data
+          let faqsText = '';
+          if (emp.knowledge_sources?.faqs_text) {
+            faqsText = emp.knowledge_sources.faqs_text;
+          }
+
+          // Handle uploaded files if they exist
+          if (emp.knowledge_sources?.uploaded_files && Array.isArray(emp.knowledge_sources.uploaded_files)) {
+            // Store uploaded files in state for this employee
+            // Note: These are already uploaded files from the server, we just track them
+            const fileObjects = emp.knowledge_sources.uploaded_files.map((file: any) => ({
+              name: file.original_name || file.filename,
+              size: file.file_size,
+              type: file.file_type,
+              // Add a flag to indicate this is from server
+              fromServer: true,
+              serverData: file
+            }));
+            
+            // Update uploadedFiles state for this employee index
+            setUploadedFiles(prev => ({
+              ...prev,
+              [index]: fileObjects as any
+            }));
+          }
+
+          // Set the template in the selectedTemplates state
+          if (emp.template) {
+            setSelectedTemplates(prev => ({
+              ...prev,
+              [index]: emp.template
+            }));
+          }
+
+          return {
+            agentName: emp.name || '',
+            agentType: emp.type || '',
+            selectedTemplate: emp.template || '',
+            preferredLanguage: emp.preferred_language || '',
+            voiceGender: emp.voice_gender || '',
+            agentPersonality: emp.agent_personality || '',
+            voiceStyle: emp.voice_style || '',
+            specialInstructions: emp.special_instructions || '',
+            faqsText: faqsText, // Add FAQs text to agent data
+            selectedWorkflows: emp.workflows?.map((w: any) => {
+              // Map workflow names back to IDs
+              const workflowMap: Record<string, string> = {
+                'WhatsApp Business': 'whatsapp',
+                'Gmail': 'email',
+                'Webhooks': 'webhook',
+                'Google Calendar': 'google-calendar',
+                'Calendly': 'calendly',
+                'Google Sheets': 'google-sheets',
+                'Zoho CRM': 'zoho',
+                'Odoo': 'odoo',
+                'HubSpot': 'hubspot',
+                'Salesforce CRM': 'salesforce',
+                'Zendesk': 'zendesk',
+                'Shopify': 'shopify',
+                'Slack': 'slack',
+                'Zapier': 'zapier',
+              };
+              return workflowMap[w.name] || w.name.toLowerCase().replace(/\s+/g, '-');
+            }) || [],
+            workflowInstructions: emp.workflows?.reduce((acc: any, w: any) => {
+              const workflowMap: Record<string, string> = {
+                'WhatsApp Business': 'whatsapp',
+                'Gmail': 'email',
+                'Webhooks': 'webhook',
+                'Google Calendar': 'google-calendar',
+                'Calendly': 'calendly',
+                'Google Sheets': 'google-sheets',
+                'Zoho CRM': 'zoho',
+                'Odoo': 'odoo',
+                'HubSpot': 'hubspot',
+                'Salesforce CRM': 'salesforce',
+                'Zendesk': 'zendesk',
+                'Shopify': 'shopify',
+                'Slack': 'slack',
+                'Zapier': 'zapier',
+              };
+              const id = workflowMap[w.name] || w.name.toLowerCase().replace(/\s+/g, '-');
+              acc[id] = w.instruction;
+              return acc;
+            }, {}) || {},
+          };
+        });
         setValue('agents', agents);
         setValue('agentCount', agents.length);
       }
@@ -579,26 +616,30 @@ let location = useLocation();
           };
         });
 
+        // Get template from selectedTemplates state or from agent data
+        const template = selectedTemplates[index] || agent.selectedTemplate || "Sales & Business Development";
+
+        // Build knowledge_sources for this specific employee
         return {
           name: agent.agentName || `AI Employee ${index + 1}`,
           type: capitalizeWords(agent.agentType || "Sales"),
-          template: agent.selectedTemplate || "Sales & Business Development",
+          template: template,
           preferred_language: capitalizeWords(agent.preferredLanguage || "English"),
           voice_gender: formatVoiceGender(agent.voiceGender || "Gender Neutral"),
           agent_personality: agent.agentPersonality || "Enthusiastic & Energetic",
           voice_style: agent.voiceStyle || "Energetic & Enthusiastic",
           special_instructions: agent.specialInstructions || "Focus on customer needs",
           workflows: workflows,
+          knowledge_sources: {
+            website_url: ensureValidUrl(data.website || ""),
+            social_links: {
+              linkedin: ensureValidUrl(data.linkedinUrl || ""),
+            },
+            faqs_text: agent.faqsText || "",
+            // uploaded_files will be added after file upload in handleSaveAsDraft/onSubmit
+          },
         };
       }),
-
-      knowledge_sources: {
-        website_url: ensureValidUrl(data.website || ""),
-        social_links: {
-          linkedin: ensureValidUrl(data.linkedinUrl || ""),
-        },
-        faqs_text: "",
-      },
 
       // Instructions
       instructions: {
@@ -658,9 +699,18 @@ let location = useLocation();
         uploadedFilesData = uploadResponse.data.uploaded_files || [];
       }
 
-      // Add uploaded files to knowledge_sources
+      // Distribute uploaded files to respective AI employees
       if (uploadedFilesData.length > 0) {
-        (payloadData.knowledge_sources as any).uploaded_files = uploadedFilesData;
+        let fileIndex = 0;
+        payloadData.ai_employees.forEach((employee: any, empIndex: number) => {
+          const agentFiles = uploadedFiles[empIndex] || [];
+          const numFiles = agentFiles.length;
+          
+          if (numFiles > 0) {
+            employee.knowledge_sources.uploaded_files = uploadedFilesData.slice(fileIndex, fileIndex + numFiles);
+            fileIndex += numFiles;
+          }
+        });
       }
 
       // Send JSON data to onboarding endpoint with uploaded files info
@@ -735,9 +785,18 @@ let location = useLocation();
         uploadedFilesData = uploadResponse.data.uploaded_files || [];
       }
 
-      // Add uploaded files to knowledge_sources
+      // Distribute uploaded files to respective AI employees
       if (uploadedFilesData.length > 0) {
-        (payloadData.knowledge_sources as any).uploaded_files = uploadedFilesData;
+        let fileIndex = 0;
+        payloadData.ai_employees.forEach((employee: any, empIndex: number) => {
+          const agentFiles = uploadedFiles[empIndex] || [];
+          const numFiles = agentFiles.length;
+          
+          if (numFiles > 0) {
+            employee.knowledge_sources.uploaded_files = uploadedFilesData.slice(fileIndex, fileIndex + numFiles);
+            fileIndex += numFiles;
+          }
+        });
       }
 
       // Send JSON data to onboarding endpoint with uploaded files info
@@ -1385,7 +1444,7 @@ let location = useLocation();
                         placeholder={
                           selectedCountries.length === 0
                             ? "Select countries first"
-                            : "Search states..."
+                            : "Search or add states..."
                         }
                       />
                       {selectedCountries.length > 0 && (
@@ -1552,7 +1611,7 @@ let location = useLocation();
                         placeholder={
                           selectedStates.length === 0
                             ? "Select states first"
-                            : "Search cities..."
+                            : "Search or add cities..."
                         }
                       />
                       {selectedStates.length > 0 && (

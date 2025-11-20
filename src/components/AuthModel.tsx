@@ -321,8 +321,12 @@ const AuthModel: React.FC<AuthModelProps> = ({
                       ) : null}
                     </div>
                   </div>
-                  {emailValidation.error && (
+                  {emailValidation.error ? (
                     <p className="auth-error">{emailValidation.error}</p>
+                  ) : (
+                    <p className="mt-1 text-xs text-gray-500">
+                      {AUTH_MESSAGES.helper.signup_email}
+                    </p>
                   )}
                 </div>
               </div>
@@ -410,6 +414,11 @@ const AuthModel: React.FC<AuthModelProps> = ({
                       )}
                     </button>
                   </div>
+                  {!formData.password && (
+                    <p className="mt-1 text-xs text-gray-500">
+                      {AUTH_MESSAGES.helper.signup_password}
+                    </p>
+                  )}
                   {formData.password && (
                     <div className="mt-2 space-y-1">
                       {AUTH_MESSAGES.validation.password_requirements.map(
