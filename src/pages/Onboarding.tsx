@@ -216,6 +216,7 @@ let location = useLocation();
   React.useEffect(() => {
     if (draftedData) {
       console.log('Loading draft data:', draftedData);
+      console.log('AI Employees from draft:', draftedData.ai_employees);
       
       // Company basics
       if (draftedData.company_basics) {
@@ -334,12 +335,12 @@ let location = useLocation();
 
           return {
             agentName: emp.name || '',
-            agentType: emp.type || '',
+            agentType: emp.type?.toLowerCase() || '',
             selectedTemplate: emp.template || '',
-            preferredLanguage: emp.preferred_language || '',
-            voiceGender: emp.voice_gender || '',
+            preferredLanguage: emp.preferred_language?.toLowerCase() || '',
+            voiceGender: emp.voice_gender?.toLowerCase() === 'gender neutral' ? 'neutral' : emp.voice_gender?.toLowerCase() || '',
             agentPersonality: emp.agent_personality || '',
-            voiceStyle: emp.voice_style || '',
+            voiceStyle: emp.voice_style?.toLowerCase() || '',
             specialInstructions: emp.special_instructions || '',
             faqsText: faqsText, // Add FAQs text to agent data
             selectedWorkflows: emp.workflows?.map((w: any) => {
@@ -387,6 +388,10 @@ let location = useLocation();
         });
         setValue('agents', agents);
         setValue('agentCount', agents.length);
+        
+        // Debug: Log what was loaded
+        console.log('Loaded agents data:', agents);
+        console.log('Selected templates state:', selectedTemplates);
       }
       
       // Show success message after a short delay to ensure all data is set
@@ -525,11 +530,24 @@ let location = useLocation();
       return "Gender Neutral";
     };
 
-    // Collect all uploaded files from all agents
-    const allFiles: File[] = [];
-    Object.values(uploadedFiles).forEach((files) => {
+    // Separate new files from server files
+    const newFilesToUpload: File[] = [];
+    const existingServerFiles: Record<number, any[]> = {};
+    
+    Object.entries(uploadedFiles).forEach(([index, files]) => {
       if (files && files.length > 0) {
-        allFiles.push(...files);
+        const empIndex = Number(index);
+        existingServerFiles[empIndex] = [];
+        
+        files.forEach((file: any) => {
+          if (file.fromServer && file.serverData) {
+            // This file is already uploaded, keep its server data
+            existingServerFiles[empIndex].push(file.serverData);
+          } else {
+            // This is a new file that needs to be uploaded
+            newFilesToUpload.push(file);
+          }
+        });
       }
     });
       console.log(typeof data.agentCount)
@@ -672,7 +690,7 @@ let location = useLocation();
       },
     };
 
-    return { payloadData, allFiles };
+    return { payloadData, newFilesToUpload, existingServerFiles };
   };
 
   // Save as draft function
@@ -680,7 +698,11 @@ let location = useLocation();
     setIsSavingDraft(true);
     try {
       const data = watch();
-      const { payloadData, allFiles } = buildFormDataPayload(data);
+      const { payloadData, newFilesToUpload, existingServerFiles } = buildFormDataPayload(data);
+
+      // Debug: Log the payload to see what's being sent
+      console.log('Saving draft with payload:', JSON.stringify(payloadData, null, 2));
+      console.log('AI Employees data:', payloadData.ai_employees);
 
       const loadingToast = toast.loading('Saving draft...');
 
@@ -692,26 +714,33 @@ let location = useLocation();
         accessToken = tokens.accessToken;
       }
 
-      // Upload files FIRST if there are any
+      // Upload NEW files only (if there are any)
       let uploadedFilesData: any[] = [];
-      if (allFiles.length > 0) {
-        const uploadResponse = await authAPI.uploadOnboardingFiles(allFiles, accessToken);
+      if (newFilesToUpload.length > 0) {
+        const uploadResponse = await authAPI.uploadOnboardingFiles(newFilesToUpload, accessToken);
         uploadedFilesData = uploadResponse.data.uploaded_files || [];
       }
 
-      // Distribute uploaded files to respective AI employees
-      if (uploadedFilesData.length > 0) {
-        let fileIndex = 0;
-        payloadData.ai_employees.forEach((employee: any, empIndex: number) => {
-          const agentFiles = uploadedFiles[empIndex] || [];
-          const numFiles = agentFiles.length;
-          
-          if (numFiles > 0) {
-            employee.knowledge_sources.uploaded_files = uploadedFilesData.slice(fileIndex, fileIndex + numFiles);
-            fileIndex += numFiles;
-          }
-        });
-      }
+      // Distribute files to respective AI employees (combine new uploads with existing server files)
+      let newFileIndex = 0;
+      payloadData.ai_employees.forEach((employee: any, empIndex: number) => {
+        const agentFiles = uploadedFiles[empIndex] || [];
+        
+        // Start with existing server files for this employee
+        const employeeFiles: any[] = [...(existingServerFiles[empIndex] || [])];
+        
+        // Add newly uploaded files for this employee
+        const newFilesForThisEmployee = agentFiles.filter((f: any) => !f.fromServer).length;
+        if (newFilesForThisEmployee > 0 && uploadedFilesData.length > 0) {
+          employeeFiles.push(...uploadedFilesData.slice(newFileIndex, newFileIndex + newFilesForThisEmployee));
+          newFileIndex += newFilesForThisEmployee;
+        }
+        
+        // Assign all files to this employee
+        if (employeeFiles.length > 0) {
+          employee.knowledge_sources.uploaded_files = employeeFiles;
+        }
+      });
 
       // Send JSON data to onboarding endpoint with uploaded files info
       await authAPI.saveDraftOnboarding(payloadData as any, accessToken);
@@ -766,7 +795,11 @@ let location = useLocation();
 
     setIsSubmitting(true);
     try {
-      const { payloadData, allFiles } = buildFormDataPayload(data);
+      const { payloadData, newFilesToUpload, existingServerFiles } = buildFormDataPayload(data);
+
+      // Debug: Log the payload to see what's being sent
+      console.log('Submitting onboarding with payload:', JSON.stringify(payloadData, null, 2));
+      console.log('AI Employees data:', payloadData.ai_employees);
 
       const loadingToast = toast.loading('Setting up your account...');
 
@@ -778,26 +811,33 @@ let location = useLocation();
         accessToken = tokens.accessToken;
       }
 
-      // Upload files FIRST if there are any
+      // Upload NEW files only (if there are any)
       let uploadedFilesData: any[] = [];
-      if (allFiles.length > 0) {
-        const uploadResponse = await authAPI.uploadOnboardingFiles(allFiles, accessToken);
+      if (newFilesToUpload.length > 0) {
+        const uploadResponse = await authAPI.uploadOnboardingFiles(newFilesToUpload, accessToken);
         uploadedFilesData = uploadResponse.data.uploaded_files || [];
       }
 
-      // Distribute uploaded files to respective AI employees
-      if (uploadedFilesData.length > 0) {
-        let fileIndex = 0;
-        payloadData.ai_employees.forEach((employee: any, empIndex: number) => {
-          const agentFiles = uploadedFiles[empIndex] || [];
-          const numFiles = agentFiles.length;
-          
-          if (numFiles > 0) {
-            employee.knowledge_sources.uploaded_files = uploadedFilesData.slice(fileIndex, fileIndex + numFiles);
-            fileIndex += numFiles;
-          }
-        });
-      }
+      // Distribute files to respective AI employees (combine new uploads with existing server files)
+      let newFileIndex = 0;
+      payloadData.ai_employees.forEach((employee: any, empIndex: number) => {
+        const agentFiles = uploadedFiles[empIndex] || [];
+        
+        // Start with existing server files for this employee
+        const employeeFiles: any[] = [...(existingServerFiles[empIndex] || [])];
+        
+        // Add newly uploaded files for this employee
+        const newFilesForThisEmployee = agentFiles.filter((f: any) => !f.fromServer).length;
+        if (newFilesForThisEmployee > 0 && uploadedFilesData.length > 0) {
+          employeeFiles.push(...uploadedFilesData.slice(newFileIndex, newFileIndex + newFilesForThisEmployee));
+          newFileIndex += newFilesForThisEmployee;
+        }
+        
+        // Assign all files to this employee
+        if (employeeFiles.length > 0) {
+          employee.knowledge_sources.uploaded_files = employeeFiles;
+        }
+      });
 
       // Send JSON data to onboarding endpoint with uploaded files info
       await authAPI.createOnboarding(payloadData as any, accessToken);
