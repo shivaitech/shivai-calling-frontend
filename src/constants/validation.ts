@@ -1,5 +1,5 @@
 interface PasswordRequirement {
-  id: 'length' | 'letter' | 'number' | 'special';
+  id: 'length' | 'lowercase' | 'uppercase' | 'number' | 'special';
   label: string;
 }
 
@@ -47,7 +47,7 @@ export const AUTH_MESSAGES: AuthMessages = {
     signin_generic2: "Invalid or Incorrect Password.",
     signin_too_many_attempts: "Too many attempts. Try again in 30 seconds.",
     password_too_short: "Use at least 8 characters",
-    password_requirements: "Password must include a letter, number, and special character",
+    password_requirements: "Password must include uppercase, lowercase, number, and special character",
     password_mismatch: "Passwords don't match",
     reset_link_expired: "This reset link has expired. Request a new one.",
     one_time_code_incorrect: "That code isn't correct.",
@@ -57,9 +57,9 @@ export const AUTH_MESSAGES: AuthMessages = {
   
   helper: {
     signup_email: "Please enter a valid email address.",
-    signup_password: "Use 8+ characters with letters, numbers, and special characters",
+    signup_password: "Use 8+ characters with uppercase, lowercase, numbers, and special characters",
     password_guidance_title: "Create a password",
-    password_guidance_tips: "Include at least one letter, number, and special character",
+    password_guidance_tips: "Include at least one uppercase, lowercase, number, and special character",
     forgot_password_label: "Email",
     forgot_password_cta: "Send reset link"
   },
@@ -70,7 +70,8 @@ export const AUTH_MESSAGES: AuthMessages = {
   validation: {
     password_requirements: [
       { id: 'length', label: '8+ characters' },
-      { id: 'letter', label: 'Include a letter' },
+      { id: 'lowercase', label: 'Include a lowercase letter' },
+      { id: 'uppercase', label: 'Include an uppercase letter' },
       { id: 'number', label: 'Include a number' },
       { id: 'special', label: 'Include special character (@, #, $, etc.)' }
     ]

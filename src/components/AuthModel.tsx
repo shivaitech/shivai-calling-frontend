@@ -88,41 +88,44 @@ const AuthModel: React.FC<AuthModelProps> = ({
 
     setOnboardingCodeError(null);
     setIsVerifyingCode(true);
-    
+
     try {
       // Get the pending auth token from localStorage (stored after signup)
       const pendingTokens = localStorage.getItem("pending_auth_tokens");
       let accessToken = "";
-      
+
       if (pendingTokens) {
         const tokens = JSON.parse(pendingTokens);
         accessToken = tokens.accessToken;
       }
-      
+
       // Call the API to verify the onboarding code with the auth token
-      const response = await authAPI.verifyOnboardingCode(onboardingCode, accessToken);
-      
+      const response = await authAPI.verifyOnboardingCode(
+        onboardingCode,
+        accessToken
+      );
+
       if (response.success || response.valid) {
         // Extract data from response
         const data = response.data;
-        
+
         // Store the verified code in localStorage
         if (data?.code) {
           localStorage.setItem("onboarding_code", data.code);
         } else {
           localStorage.setItem("onboarding_code", onboardingCode);
         }
-        
+
         // Store user ID if provided
         if (data?.userId) {
           localStorage.setItem("onboarding_user_id", data.userId);
         }
-        
+
         // Store verification ID if provided
         if (data?.id) {
           localStorage.setItem("onboarding_verification_id", data.id);
         }
-        
+
         // Close the modal
         setShowOnboardingCodeModal(false);
 
@@ -134,7 +137,9 @@ const AuthModel: React.FC<AuthModelProps> = ({
       }
     } catch (error: any) {
       // Handle API errors
-      const errorMessage = error?.response?.data?.message || "Failed to verify code. Please try again.";
+      const errorMessage =
+        error?.response?.data?.message ||
+        "Failed to verify code. Please try again.";
       setOnboardingCodeError(errorMessage);
     } finally {
       setIsVerifyingCode(false);
@@ -697,7 +702,11 @@ const AuthModel: React.FC<AuthModelProps> = ({
               <div className="flex gap-3">
                 <button
                   type="button"
-                  onClick={() => navigate("/")}
+                  onClick={() => {
+                    setShowOnboardingCodeModal(false);
+                    navigate("/");
+                    window.location.reload();
+                  }}
                   className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
                 >
                   Skip for now
