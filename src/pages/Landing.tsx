@@ -72,13 +72,12 @@ const Landing: React.FC = () => {
     confirmPassword: "", // Add this
     name: "",
   });
-
-  // Redirect if already authenticated
-  // useEffect(() => {
-  //   if (isAuthenticated) {
-  //     navigate("/dashboard");
-  //   }
-  // }, [isAuthenticated, navigate]);
+let token = localStorage.getItem("auth_tokens");
+  useEffect(() => {
+    if (token) {
+      navigate("/dashboard");
+    }
+  }, [token, navigate]);
 
   // Show error from URL params (OAuth failures)
   useEffect(() => {
@@ -113,10 +112,24 @@ const Landing: React.FC = () => {
         console.log(response);
 
         setShowAuthModal(false);
-        if (response?.onboarding !== null && response?.user?.isOnboarded === false) {
-          navigate("/onboarding", { state: response?.onboarding });
-        } else {
+
+        if (response.codeVerified === false || response.user?.isOnboarded) {
+          localStorage.setItem("auth_tokens", JSON.stringify(response.tokens));
+          localStorage.setItem("auth_user", JSON.stringify(response.user));
           navigate("/dashboard");
+        } else if (
+          response.user?.isOnboarded === false ||
+          response.codeVerified
+        ) {
+          localStorage.setItem(
+            "pending_auth_tokens",
+            JSON.stringify(response.tokens)
+          );
+          localStorage.setItem(
+            "pending_auth_user",
+            JSON.stringify(response.user)
+          );
+          navigate("/onboarding", { state: response?.onboarding });
         }
       }
     } catch (error: any) {
@@ -155,182 +168,6 @@ const Landing: React.FC = () => {
       clearError();
     }
   }, [showAuthModal, clearError]);
-
-  // Static data
-  const languages = [
-    "English (US)",
-    "English (UK)",
-    "Hindi",
-    "Spanish",
-    "French",
-    "German",
-    "Chinese (Mandarin)",
-    "Japanese",
-    "Arabic",
-    "Portuguese",
-    "Italian",
-    "Dutch",
-  ];
-
-  const voices: Record<string, string[]> = {
-    "English (US)": [
-      "Sarah - Professional",
-      "Michael - Friendly",
-      "Emma - Warm",
-    ],
-    "English (UK)": [
-      "James - Sophisticated",
-      "Charlotte - Elegant",
-      "Oliver - Crisp",
-    ],
-    Hindi: ["Arjun - Friendly", "Priya - Professional", "Raj - Warm"],
-    Spanish: ["Carlos - Professional", "Sofia - Friendly", "Diego - Warm"],
-    French: [
-      "Pierre - Sophisticated",
-      "Marie - Elegant",
-      "Antoine - Professional",
-    ],
-    German: [
-      "Hans - Professional",
-      "Greta - Friendly",
-      "Klaus - Authoritative",
-    ],
-  };
-
-  const handlePlayDemo = () => {
-    if (!demoText.trim()) {
-      setDemoText("Hi! I'm your AI assistant. How can I help you today?");
-    }
-    setIsPlaying(!isPlaying);
-    setTimeout(() => setIsPlaying(false), 3000);
-  };
-
-  const plans = [
-    {
-      name: "Starter",
-      tagline: "Perfect for small businesses",
-      price: { monthly: "$49", yearly: "$490" },
-      originalPrice: { monthly: "$79", yearly: "$790" },
-      features: [
-        "5,000 voice conversations/month",
-        "2 voice agents",
-        "10GB storage",
-        "Website & app integration",
-        "Email support",
-        "Basic voice analytics",
-      ],
-      popular: false,
-      color: "emerald",
-      icon: Zap,
-    },
-    {
-      name: "Professional",
-      tagline: "Most popular choice",
-      price: { monthly: "$149", yearly: "$1490" },
-      originalPrice: { monthly: "$199", yearly: "$1990" },
-      features: [
-        "25,000 voice conversations/month",
-        "10 voice agents",
-        "100GB storage",
-        "Advanced integrations",
-        "Priority support",
-        "Custom voice branding",
-        "API access",
-        "Advanced analytics",
-      ],
-      popular: true,
-      color: "blue",
-      icon: Crown,
-    },
-    {
-      name: "Enterprise",
-      tagline: "Unlimited scale",
-      price: { monthly: "$399", yearly: "$3990" },
-      originalPrice: { monthly: "$499", yearly: "$4990" },
-      features: [
-        "Unlimited voice conversations",
-        "Unlimited voice agents",
-        "1TB storage",
-        "White-label solution",
-        "Dedicated success manager",
-        "Custom integrations",
-        "SLA guarantee",
-        "On-premise deployment",
-      ],
-      popular: false,
-      color: "violet",
-      icon: Rocket,
-    },
-  ];
-
-  const testimonials = [
-    {
-      name: "Sarah Chen",
-      role: "VP of Customer Experience",
-      company: "Stripe",
-      content:
-        "ShivAI's voice agents transformed our customer support. Integration took 5 minutes, and our customers love the natural phone conversations.",
-      rating: 5,
-      avatar: "SC",
-    },
-    {
-      name: "Marcus Rodriguez",
-      role: "Head of Operations",
-      company: "Shopify",
-      content:
-        "The voice integration was seamless. Our conversion rates increased 300% with natural voice interactions on our website.",
-      rating: 5,
-      avatar: "MR",
-    },
-    {
-      name: "Priya Sharma",
-      role: "Founder & CEO",
-      company: "Razorpay",
-      content:
-        "One line of code gave us enterprise-grade voice AI. Our customers can't tell they're talking to AI - it's that natural.",
-      rating: 5,
-      avatar: "PS",
-    },
-  ];
-
-  const features = [
-    {
-      icon: Mic,
-      title: "Natural Voice Processing",
-      description:
-        "Advanced AI that understands context, emotions, and intent in real-time conversations.",
-    },
-    {
-      icon: Code,
-      title: "One-Line Integration",
-      description:
-        "Add voice capabilities to any platform with a single line of code. No complex setup required.",
-    },
-    {
-      icon: Globe,
-      title: "Multi-Language Support",
-      description:
-        "Support for 50+ languages and dialects with native-quality pronunciation.",
-    },
-    {
-      icon: Shield,
-      title: "Enterprise Security",
-      description:
-        "SOC 2 compliant with end-to-end encryption for all voice data and conversations.",
-    },
-    {
-      icon: Brain,
-      title: "Smart Learning",
-      description:
-        "AI agents learn from every conversation to provide increasingly better responses.",
-    },
-    {
-      icon: Smartphone,
-      title: "Cross-Platform",
-      description:
-        "Works seamlessly across web, mobile apps, phone systems, and IoT devices.",
-    },
-  ];
 
   return (
     <div className="min-h-screen bg-[#F0F0F0] overflow-hidden">

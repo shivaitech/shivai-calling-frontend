@@ -25,10 +25,15 @@ interface AuthResponse {
     fullName: string;
     profilePicture?: string;
     emailVerified: boolean;
+    isOnboarded: boolean;
   };
   tokens: {
     accessToken: string;
     refreshToken: string;
+  };
+  codeVerified?: boolean;
+  onboarding?: {
+    _id: string;
   };
 }
 

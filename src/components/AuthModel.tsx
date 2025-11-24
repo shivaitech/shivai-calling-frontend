@@ -167,6 +167,7 @@ const AuthModel: React.FC<AuthModelProps> = ({
       return () => clearTimeout(timer);
     }
   }, [shake]);
+  
   useEffect(() => {
     if (authMode === "signup" && formData.confirmPassword) {
       if (formData.password !== formData.confirmPassword) {

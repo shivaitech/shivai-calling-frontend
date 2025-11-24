@@ -138,8 +138,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       console.log(response);
       setUser(response.user);
       setTokens(response.tokens);
-      localStorage.setItem("auth_tokens", JSON.stringify(response.tokens));
-      localStorage.setItem("auth_user", JSON.stringify(response.user));
       return response;
     } catch (err: any) {
       const errorMessage = err.response?.data?.message || "Login failed";
@@ -173,7 +171,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setUser(null);
       setTokens(null);
       localStorage.removeItem("auth_tokens");
-
       localStorage.removeItem("auth_user");
       throw new Error(errorMessage);
     } finally {
@@ -208,9 +205,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     } catch (err: any) {
       console.error("Registration error details:", err.response);
 
-      // Handle different error types
       if (err.response?.status === 422) {
-        // Don't set general error for validation - let Landing component handle field errors
         const errorMessage =
           err.response?.data?.message || err.message || "Registration failed";
         setError(errorMessage);

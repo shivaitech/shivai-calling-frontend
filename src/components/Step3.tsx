@@ -19,6 +19,7 @@ import {
   Globe,
   Smartphone,
   Monitor,
+  MessageCircle,
   Users,
   Phone,
   Crown,
@@ -618,18 +619,42 @@ const Step3: React.FC<Step3Props> = ({
   const [showAdvanced, setShowAdvanced] = useState(false);
   // UI state for modern always-visible sections
 
-  // Simplified state management for core functionality
-  const [socialLinks, setSocialLinks] = useState<string[]>([""]);
-  const [fallbackContacts, setFallbackContacts] = useState<string[]>([""]);
-  const [successMetrics, setSuccessMetrics] = useState<string[]>([""]);
+  // Per-agent state management for individual configurations
+  const [socialLinks, setSocialLinks] = useState<Record<number, string[]>>({});
+  const [fallbackContacts, setFallbackContacts] = useState<Record<number, string[]>>({});
+  const [successMetrics, setSuccessMetrics] = useState<Record<number, string[]>>({});
   const [selectedDeploymentTargets, setSelectedDeploymentTargets] = useState<
-    string[]
-  >([]);
+    Record<number, string[]>
+  >({});
   const [fileErrors, setFileErrors] = useState<Record<number, string>>({});
-  const [selectedWorkflows, setSelectedWorkflows] = useState<string[]>([]);
-  const [workflowInstructions, setWorkflowInstructions] = useState<Record<string, string>>({});
+  const [selectedWorkflows, setSelectedWorkflows] = useState<Record<number, string[]>>({});
+  const [workflowInstructions, setWorkflowInstructions] = useState<Record<number, Record<string, string>>>({});
   const [currentSlide, setCurrentSlide] = useState(0);
   const [cardsPerSlide, setCardsPerSlide] = useState(3);
+
+  // Initialize state for each agent
+  useEffect(() => {
+    for (let i = 0; i < agentCount; i++) {
+      if (!socialLinks[i]) {
+        setSocialLinks(prev => ({ ...prev, [i]: [""] }));
+      }
+      if (!fallbackContacts[i]) {
+        setFallbackContacts(prev => ({ ...prev, [i]: [""] }));
+      }
+      if (!successMetrics[i]) {
+        setSuccessMetrics(prev => ({ ...prev, [i]: [""] }));
+      }
+      if (!selectedDeploymentTargets[i]) {
+        setSelectedDeploymentTargets(prev => ({ ...prev, [i]: [] }));
+      }
+      if (!selectedWorkflows[i]) {
+        setSelectedWorkflows(prev => ({ ...prev, [i]: [] }));
+      }
+      if (!workflowInstructions[i]) {
+        setWorkflowInstructions(prev => ({ ...prev, [i]: {} }));
+      }
+    }
+  }, [agentCount]);
 
   // Update cards per slide based on window size
   useEffect(() => {
@@ -695,64 +720,151 @@ const Step3: React.FC<Step3Props> = ({
     }
   }, [watch("plan"), activeAgentTab, setValue, watch]);
 
+  // Sync form data to local state when switching agents
+  useEffect(() => {
+    const currentAgent = watch(`agents.${activeAgentTab}`);
+    if (currentAgent) {
+      // Sync deployment targets from form to local state
+      if (currentAgent.deploymentTargets && Array.isArray(currentAgent.deploymentTargets)) {
+        setSelectedDeploymentTargets(prev => ({ 
+          ...prev, 
+          [activeAgentTab]: currentAgent.deploymentTargets 
+        }));
+      }
+      
+      // Sync workflows from form to local state  
+      if (currentAgent.selectedWorkflows && Array.isArray(currentAgent.selectedWorkflows)) {
+        setSelectedWorkflows(prev => ({ 
+          ...prev, 
+          [activeAgentTab]: currentAgent.selectedWorkflows 
+        }));
+      }
+      
+      // Sync workflow instructions from form to local state
+      if (currentAgent.workflowInstructions && typeof currentAgent.workflowInstructions === 'object') {
+        setWorkflowInstructions(prev => ({ 
+          ...prev, 
+          [activeAgentTab]: currentAgent.workflowInstructions 
+        }));
+      }
+      
+      // Sync social links from form to local state
+      if (currentAgent.socialLinks && Array.isArray(currentAgent.socialLinks)) {
+        setSocialLinks(prev => ({
+          ...prev,
+          [activeAgentTab]: currentAgent.socialLinks.length > 0 ? currentAgent.socialLinks : [""]
+        }));
+      }
+      
+      // Sync fallback contacts from form to local state
+      if (currentAgent.fallbackContacts && Array.isArray(currentAgent.fallbackContacts)) {
+        setFallbackContacts(prev => ({
+          ...prev,
+          [activeAgentTab]: currentAgent.fallbackContacts.length > 0 ? currentAgent.fallbackContacts : [""]
+        }));
+      }
+      
+      // Sync success metrics from form to local state
+      if (currentAgent.successMetrics && Array.isArray(currentAgent.successMetrics)) {
+        setSuccessMetrics(prev => ({
+          ...prev,
+          [activeAgentTab]: currentAgent.successMetrics.length > 0 ? currentAgent.successMetrics : [""]
+        }));
+      }
+    }
+  }, [activeAgentTab, watch]);
+
   // Helper functions for managing dynamic arrays (website management removed for simplicity)
 
-  const addSocialLink = () => setSocialLinks([...socialLinks, ""]);
-  const removeSocialLink = (index: number) =>
-    setSocialLinks(socialLinks.filter((_, i) => i !== index));
+  const addSocialLink = () => {
+    const currentLinks = socialLinks[activeAgentTab] || [""];
+    const newLinks = [...currentLinks, ""];
+    setSocialLinks(prev => ({ ...prev, [activeAgentTab]: newLinks }));
+    setValue(`agents.${activeAgentTab}.socialLinks`, newLinks);
+  };
+  const removeSocialLink = (index: number) => {
+    const currentLinks = socialLinks[activeAgentTab] || [""];
+    const newLinks = currentLinks.filter((_, i) => i !== index);
+    setSocialLinks(prev => ({ ...prev, [activeAgentTab]: newLinks }));
+    setValue(`agents.${activeAgentTab}.socialLinks`, newLinks);
+  };
   const updateSocialLink = (index: number, value: string) => {
-    const newLinks = [...socialLinks];
+    const currentLinks = socialLinks[activeAgentTab] || [""];
+    const newLinks = [...currentLinks];
     newLinks[index] = value;
-    setSocialLinks(newLinks);
+    setSocialLinks(prev => ({ ...prev, [activeAgentTab]: newLinks }));
+    setValue(`agents.${activeAgentTab}.socialLinks`, newLinks);
   };
 
-  const addFallbackContact = () =>
-    setFallbackContacts([...fallbackContacts, ""]);
-  const removeFallbackContact = (index: number) =>
-    setFallbackContacts(fallbackContacts.filter((_, i) => i !== index));
+  const addFallbackContact = () => {
+    const currentContacts = fallbackContacts[activeAgentTab] || [""];
+    const newContacts = [...currentContacts, ""];
+    setFallbackContacts(prev => ({ ...prev, [activeAgentTab]: newContacts }));
+    setValue(`agents.${activeAgentTab}.fallbackContacts`, newContacts);
+  };
+  const removeFallbackContact = (index: number) => {
+    const currentContacts = fallbackContacts[activeAgentTab] || [""];
+    const newContacts = currentContacts.filter((_, i) => i !== index);
+    setFallbackContacts(prev => ({ ...prev, [activeAgentTab]: newContacts }));
+    setValue(`agents.${activeAgentTab}.fallbackContacts`, newContacts);
+  };
   const updateFallbackContact = (index: number, value: string) => {
-    const newContacts = [...fallbackContacts];
+    const currentContacts = fallbackContacts[activeAgentTab] || [""];
+    const newContacts = [...currentContacts];
     newContacts[index] = value;
-    setFallbackContacts(newContacts);
+    setFallbackContacts(prev => ({ ...prev, [activeAgentTab]: newContacts }));
+    setValue(`agents.${activeAgentTab}.fallbackContacts`, newContacts);
   };
 
-  const addSuccessMetric = () => setSuccessMetrics([...successMetrics, ""]);
-  const removeSuccessMetric = (index: number) =>
-    setSuccessMetrics(successMetrics.filter((_, i) => i !== index));
+  const addSuccessMetric = () => {
+    const currentMetrics = successMetrics[activeAgentTab] || [""];
+    const newMetrics = [...currentMetrics, ""];
+    setSuccessMetrics(prev => ({ ...prev, [activeAgentTab]: newMetrics }));
+    setValue(`agents.${activeAgentTab}.successMetrics`, newMetrics);
+  };
+  const removeSuccessMetric = (index: number) => {
+    const currentMetrics = successMetrics[activeAgentTab] || [""];
+    const newMetrics = currentMetrics.filter((_, i) => i !== index);
+    setSuccessMetrics(prev => ({ ...prev, [activeAgentTab]: newMetrics }));
+    setValue(`agents.${activeAgentTab}.successMetrics`, newMetrics);
+  };
   const updateSuccessMetric = (index: number, value: string) => {
-    const newMetrics = [...successMetrics];
+    const currentMetrics = successMetrics[activeAgentTab] || [""];
+    const newMetrics = [...currentMetrics];
     newMetrics[index] = value;
-    setSuccessMetrics(newMetrics);
+    setSuccessMetrics(prev => ({ ...prev, [activeAgentTab]: newMetrics }));
+    setValue(`agents.${activeAgentTab}.successMetrics`, newMetrics);
   };
 
   const toggleDeploymentTarget = (target: string) => {
-    setSelectedDeploymentTargets((prev) =>
-      prev.includes(target)
-        ? prev.filter((t) => t !== target)
-        : [...prev, target]
-    );
+    const currentTargets = selectedDeploymentTargets[activeAgentTab] || [];
+    const newTargets = currentTargets.includes(target)
+      ? currentTargets.filter((t) => t !== target)
+      : [...currentTargets, target];
+    
+    setSelectedDeploymentTargets(prev => ({ ...prev, [activeAgentTab]: newTargets }));
+    setValue(`agents.${activeAgentTab}.deploymentTargets`, newTargets);
   };
 
   // Workflow integration handlers
   const toggleWorkflow = (workflowId: string) => {
-    setSelectedWorkflows((prev) => {
-      const newSelection = prev.includes(workflowId)
-        ? prev.filter((id) => id !== workflowId)
-        : [...prev, workflowId];
-      
-      // Update form value
-      setValue(`agents.${activeAgentTab}.selectedWorkflows`, newSelection);
-      return newSelection;
-    });
+    const currentWorkflows = selectedWorkflows[activeAgentTab] || [];
+    const newSelection = currentWorkflows.includes(workflowId)
+      ? currentWorkflows.filter((id) => id !== workflowId)
+      : [...currentWorkflows, workflowId];
+    
+    setSelectedWorkflows(prev => ({ ...prev, [activeAgentTab]: newSelection }));
+    // Update form value
+    setValue(`agents.${activeAgentTab}.selectedWorkflows`, newSelection);
   };
 
   const updateWorkflowInstruction = (workflowId: string, instruction: string) => {
-    setWorkflowInstructions((prev) => {
-      const updated = { ...prev, [workflowId]: instruction };
-      // Update form value
-      setValue(`agents.${activeAgentTab}.workflowInstructions`, updated);
-      return updated;
-    });
+    const currentInstructions = workflowInstructions[activeAgentTab] || {};
+    const updated = { ...currentInstructions, [workflowId]: instruction };
+    
+    setWorkflowInstructions(prev => ({ ...prev, [activeAgentTab]: updated }));
+    // Update form value
+    setValue(`agents.${activeAgentTab}.workflowInstructions`, updated);
   };
 
   // File validation handler
@@ -1486,7 +1598,7 @@ const Step3: React.FC<Step3Props> = ({
                       {workflowIntegrationOptions
                         .slice(slideIndex * cardsPerSlide, slideIndex * cardsPerSlide + cardsPerSlide)
                         .map((workflow) => {
-                          const isSelected = selectedWorkflows.includes(workflow.id);
+                          const isSelected = (selectedWorkflows[activeAgentTab] || []).includes(workflow.id);
 
                           return (
                             <div
@@ -1538,12 +1650,12 @@ const Step3: React.FC<Step3Props> = ({
           </div>
 
           {/* Instructions for selected workflows */}
-          {selectedWorkflows.length > 0 && (
+          {(selectedWorkflows[activeAgentTab] || []).length > 0 && (
             <div className="mt-6 space-y-4">
               <h4 className="text-sm font-semibold text-gray-900">
                 Integration Requirements & Instructions
               </h4>
-              {selectedWorkflows.map((workflowId) => {
+              {(selectedWorkflows[activeAgentTab] || []).map((workflowId) => {
                 const workflow = workflowIntegrationOptions.find(w => w.id === workflowId);
                 if (!workflow) return null;
 
@@ -1553,7 +1665,7 @@ const Step3: React.FC<Step3Props> = ({
                       {workflow.name} - Requirements
                     </label>
                     <textarea
-                      value={workflowInstructions[workflowId] || ""}
+                      value={(workflowInstructions[activeAgentTab] || {})[workflowId] || ""}
                       onChange={(e) => updateWorkflowInstruction(workflowId, e.target.value)}
                       rows={3}
                       className="w-full px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-sm"
@@ -1611,7 +1723,7 @@ const Step3: React.FC<Step3Props> = ({
                 Social Media Links
               </label>
               <div className="space-y-2">
-                {socialLinks.map((link, index) => (
+                {(socialLinks[activeAgentTab] || [""]).map((link, index) => (
                   <div key={index} className="flex gap-2">
                     <Link className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 mt-2 sm:mt-2.5" />
                     <input
@@ -1621,7 +1733,7 @@ const Step3: React.FC<Step3Props> = ({
                       className="flex-1 px-2 sm:px-3 py-2 sm:py-2.5 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       placeholder="https://social-platform.com/yourpage"
                     />
-                    {socialLinks.length > 1 && (
+                    {(socialLinks[activeAgentTab] || [""]).length > 1 && (
                       <button
                         type="button"
                         onClick={() => removeSocialLink(index)}
@@ -1778,7 +1890,7 @@ const Step3: React.FC<Step3Props> = ({
                 Fallback Contacts
               </label>
               <div className="space-y-2">
-                {fallbackContacts.map((contact, index) => (
+                {(fallbackContacts[activeAgentTab] || [""]).map((contact, index) => (
                   <div key={index} className="flex gap-2">
                     <Phone className="w-4 h-4 sm:w-5 sm:h-5 text-gray-400 mt-2 sm:mt-2.5" />
                     <input
@@ -1790,7 +1902,7 @@ const Step3: React.FC<Step3Props> = ({
                       className="flex-1 px-2 sm:px-3 py-2 sm:py-2.5 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       placeholder="Name, email, or phone number"
                     />
-                    {fallbackContacts.length > 1 && (
+                    {(fallbackContacts[activeAgentTab] || [""]).length > 1 && (
                       <button
                         type="button"
                         onClick={() => removeFallbackContact(index)}
@@ -1852,7 +1964,7 @@ const Step3: React.FC<Step3Props> = ({
                 Success Metrics
               </label>
               <div className="space-y-2">
-                {successMetrics.map((metric, index) => (
+                {(successMetrics[activeAgentTab] || [""]).map((metric, index) => (
                   <div key={index} className="flex gap-2">
                     <Target className="w-5 h-5 text-gray-400 mt-2.5" />
                     <input
@@ -1864,7 +1976,7 @@ const Step3: React.FC<Step3Props> = ({
                       className="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       placeholder="e.g., 80% FAQ resolution rate, 30% call reduction"
                     />
-                    {successMetrics.length > 1 && (
+                    {(successMetrics[activeAgentTab] || [""]).length > 1 && (
                       <button
                         type="button"
                         onClick={() => removeSuccessMetric(index)}
@@ -1914,20 +2026,25 @@ const Step3: React.FC<Step3Props> = ({
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3">
                 {[
-                  { value: "website", label: "Website", icon: Globe },
+                  { value: "Website", label: "Website", icon: Globe },
                   {
-                    value: "mobile-app",
+                    value: "Mobile App",
                     label: "Mobile App",
                     icon: Smartphone,
                   },
                   {
-                    value: "social-webview",
-                    label: "Social Web-view",
+                    value: "WhatsApp",
+                    label: "WhatsApp",
+                    icon: MessageCircle,
+                  },
+                  {
+                    value: "API",
+                    label: "API Integration",
                     icon: Monitor,
                   },
                 ].map((target) => {
                   const Icon = target.icon;
-                  const isSelected = selectedDeploymentTargets.includes(
+                  const isSelected = (selectedDeploymentTargets[activeAgentTab] || []).includes(
                     target.value
                   );
                   return (
@@ -1971,12 +2088,12 @@ const Step3: React.FC<Step3Props> = ({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {[
                   {
-                    value: "shivai",
+                    value: "Shivai",
                     label: "Shivai will handle deployment",
                     desc: "We will handle implementation with access",
                   },
                   {
-                    value: "client",
+                    value: "Client",
                     label: "You will handle deployment by yourself",
                     desc: "You will implement at your end",
                   },

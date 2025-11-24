@@ -200,10 +200,42 @@ let location = useLocation();
       const newAgents = [...currentAgents];
       for (let i = currentAgents.length; i < agentCount; i++) {
         newAgents.push({
+          // Basic agent info
           agentName: `AI Employee ${i + 1}`,
           agentType: "",
+          selectedTemplate: "",
           preferredLanguage: "",
           voiceGender: "",
+          agentPersonality: "",
+          voiceStyle: "",
+          specialInstructions: "",
+          
+          // Knowledge sources
+          knowledgeWebsiteUrl: "",
+          socialLinks: ["", "", ""], // LinkedIn, Twitter, Facebook
+          faqsText: "",
+          
+          // Instructions & guidance
+          dosAndDonts: "",
+          fallbackContacts: [""],
+          
+          // Success targets
+          targetDescription: "",
+          successMetrics: [""],
+          
+          // Deployment configuration
+          deploymentTargets: [],
+          deploymentNotes: "",
+          deploymentService: "",
+          
+          // Workflows
+          selectedWorkflows: [],
+          workflowInstructions: {},
+          
+          // Consent & Privacy
+          recordingEnabled: false,
+          transcriptEmailOptIn: false,
+          consentNotes: "",
         });
       }
       setValue("agents", newAgents);
@@ -343,6 +375,27 @@ let location = useLocation();
             voiceStyle: emp.voice_style?.toLowerCase() || '',
             specialInstructions: emp.special_instructions || '',
             faqsText: faqsText, // Add FAQs text to agent data
+            // Individual Knowledge Sources
+            knowledgeWebsiteUrl: emp.knowledge_sources?.website_url || '',
+            socialLinks: [
+              emp.knowledge_sources?.social_links?.linkedin || '',
+              emp.knowledge_sources?.social_links?.twitter || '',
+              emp.knowledge_sources?.social_links?.facebook || ''
+            ],
+            // Individual Instructions
+            dosAndDonts: emp.instructions?.dos_and_donts || '',
+            fallbackContacts: emp.instructions?.fallback_contacts ? [emp.instructions.fallback_contacts] : [],
+            // Individual Success Targets
+            targetDescription: emp.targets?.success_goals || '',
+            successMetrics: emp.targets?.success_metrics ? emp.targets.success_metrics.split(', ') : [],
+            // Individual Deployment Options
+            deploymentTargets: emp.deployment_targets?.channels || [],
+            deploymentNotes: emp.deployment_targets?.deployment_notes || '',
+            deploymentService: emp.deployment_service?.service_type || '',
+            // Individual Consent & Privacy
+            recordingEnabled: emp.consent_options?.recording_enabled || false,
+            transcriptEmailOptIn: emp.consent_options?.transcript_email_optin || false,
+            consentNotes: emp.consent_options?.privacy_notes || '',
             selectedWorkflows: emp.workflows?.map((w: any) => {
               // Map workflow names back to IDs
               const workflowMap: Record<string, string> = {
@@ -582,15 +635,15 @@ let location = useLocation();
         ai_employee_limit: Number(data.agentCount) || 1,
         monthly_price:
           selectedPlan?.price === "Custom pricing"
-            ? 299
-            : parseFloat(selectedPlan?.price?.replace(/[$\/mo,]/g, "") || "299"),
+            ? 0
+            : parseFloat(selectedPlan?.price?.replace(/[$\/mo,]/g, "") || "0"),
         billing_contact: {
           name: data.billingContactName || "",
           email: data.billingContactEmail || "",
           phone: data.billingContactPhone
             ? `${selectedBillingCountry.dialCode}${data.billingContactPhone}`
             : "",
-          company_name: data.billingCompanyName || data.companyName || "",
+          company_name: data.billingCompanyName || "",
         },
         billing_address: {
           street: data.billingAddress || "",
@@ -640,54 +693,52 @@ let location = useLocation();
         // Build knowledge_sources for this specific employee
         return {
           name: agent.agentName || `AI Employee ${index + 1}`,
-          type: capitalizeWords(agent.agentType || "Sales"),
+          type: capitalizeWords(agent.agentType || ""),
           template: template,
-          preferred_language: capitalizeWords(agent.preferredLanguage || "English"),
-          voice_gender: formatVoiceGender(agent.voiceGender || "Gender Neutral"),
-          agent_personality: agent.agentPersonality || "Enthusiastic & Energetic",
-          voice_style: agent.voiceStyle || "Energetic & Enthusiastic",
-          special_instructions: agent.specialInstructions || "Focus on customer needs",
+          preferred_language: capitalizeWords(agent.preferredLanguage || ""),
+          voice_gender: formatVoiceGender(agent.voiceGender || ""),
+          agent_personality: agent.agentPersonality || "",
+          voice_style: agent.voiceStyle || "",
+          special_instructions: agent.specialInstructions || "",
           workflows: workflows,
           knowledge_sources: {
-            website_url: ensureValidUrl(data.website || ""),
+            website_url: agent.knowledgeWebsiteUrl || "",
             social_links: {
-              linkedin: ensureValidUrl(data.linkedinUrl || ""),
+              linkedin: (agent.socialLinks && agent.socialLinks[0]) || "",
+              twitter: (agent.socialLinks && agent.socialLinks[1]) || "",
+              facebook: (agent.socialLinks && agent.socialLinks[2]) || "",
             },
             faqs_text: agent.faqsText || "",
             // uploaded_files will be added after file upload in handleSaveAsDraft/onSubmit
           },
+          // Deployment targets for this AI employee
+          deployment_targets: {
+            channels: agent.deploymentTargets || [],
+            deployment_notes: agent.deploymentNotes || "",
+          },
+          // Deployment service for this AI employee
+          deployment_service: {
+            service_type: agent.deploymentService || "",
+          },
+          // Consent options for this AI employee
+          consent_options: {
+            recording_enabled: agent.recordingEnabled || false,
+            transcript_email_optin: agent.transcriptEmailOptIn || false,
+            privacy_notes: agent.consentNotes || "",
+          },
+          // Instructions for this AI employee
+          instructions: {
+            dos_and_donts: agent.dosAndDonts || "",
+            fallback_contacts: (agent.fallbackContacts && agent.fallbackContacts[0]) || "",
+          },
+          // Success targets for this AI employee
+          targets: {
+            success_goals: agent.targetDescription || "",
+            success_metrics: (agent.successMetrics && agent.successMetrics.join(", ")) || "",
+          },
         };
       }),
 
-      // Instructions
-      instructions: {
-        dos_and_donts: "Be professional",
-        fallback_contacts: data.companyEmail || "",
-      },
-
-      // Targets
-      targets: {
-        success_goals: "Automate 70% interactions",
-        success_metrics: "Reduce tickets by 40%",
-      },
-
-      // Deployment targets
-      deployment_targets: {
-        channels: ["Website", "WhatsApp"],
-        deployment_notes: "Phase 1: Website",
-      },
-
-      // Deployment service
-      deployment_service: {
-        service_type: "Shivai",
-      },
-
-      // Consent options
-      consent_options: {
-        recording_enabled: true,
-        transcript_email_optin: true,
-        privacy_notes: "Privacy enabled",
-      },
     };
 
     return { payloadData, newFilesToUpload, existingServerFiles };
@@ -1035,7 +1086,6 @@ let location = useLocation();
                     <option value="1-10">1-10 employees</option>
                     <option value="11-50">11-50 employees</option>
                     <option value="51-200">51-200 employees</option>
-                    <option value="201-1000">201-1000 employees</option>
                     <option value="1000+">1000+ employees</option>
                   </select>
                   {errors.companySize && (

@@ -17,13 +17,11 @@ export const useTheme = () => {
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isDark, setIsDark] = useState(() => {
-    // Check system preference first
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('theme');
       if (saved) {
         return saved === 'dark';
       }
-      // Default to system preference
       return window.matchMedia('(prefers-color-scheme: dark)').matches;
     }
     return false;
