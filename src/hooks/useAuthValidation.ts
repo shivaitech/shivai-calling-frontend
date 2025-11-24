@@ -11,7 +11,8 @@ export interface ValidationState {
 
 interface PasswordRequirements {
   length: boolean;
-  letter: boolean;
+  lowercase: boolean;
+  uppercase: boolean;
   number: boolean;
   special: boolean;
 }
@@ -133,7 +134,8 @@ export const usePasswordValidation = (
     isChecking: false,
     requirements: {
       length: false,
-      letter: false,
+      lowercase: false,
+      uppercase: false,
       number: false,
       special: false,
     },
@@ -156,7 +158,8 @@ export const usePasswordValidation = (
 
         const requirements = {
           length: password.length >= 8,
-          letter: /[a-zA-Z]/.test(password),
+          lowercase: /[a-z]/.test(password),
+          uppercase: /[A-Z]/.test(password),
           number: /[0-9]/.test(password),
           special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\?]/.test(password),
         };
@@ -166,7 +169,7 @@ export const usePasswordValidation = (
 
         if (!requirements.length) {
           error = AUTH_MESSAGES.error.password_too_short;
-        } else if (!requirements.letter || !requirements.number || !requirements.special) {
+        } else if (!requirements.lowercase || !requirements.uppercase || !requirements.number || !requirements.special) {
           error = AUTH_MESSAGES.error.password_requirements;
         }
 

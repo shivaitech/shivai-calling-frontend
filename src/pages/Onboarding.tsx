@@ -200,10 +200,42 @@ let location = useLocation();
       const newAgents = [...currentAgents];
       for (let i = currentAgents.length; i < agentCount; i++) {
         newAgents.push({
+          // Basic agent info
           agentName: `AI Employee ${i + 1}`,
           agentType: "",
+          selectedTemplate: "",
           preferredLanguage: "",
           voiceGender: "",
+          agentPersonality: "",
+          voiceStyle: "",
+          specialInstructions: "",
+          
+          // Knowledge sources
+          knowledgeWebsiteUrl: "",
+          socialLinks: ["", "", ""], // LinkedIn, Twitter, Facebook
+          faqsText: "",
+          
+          // Instructions & guidance
+          dosAndDonts: "",
+          fallbackContacts: [""],
+          
+          // Success targets
+          targetDescription: "",
+          successMetrics: [""],
+          
+          // Deployment configuration
+          deploymentTargets: [],
+          deploymentNotes: "",
+          deploymentService: "",
+          
+          // Workflows
+          selectedWorkflows: [],
+          workflowInstructions: {},
+          
+          // Consent & Privacy
+          recordingEnabled: false,
+          transcriptEmailOptIn: false,
+          consentNotes: "",
         });
       }
       setValue("agents", newAgents);
@@ -216,6 +248,7 @@ let location = useLocation();
   React.useEffect(() => {
     if (draftedData) {
       console.log('Loading draft data:', draftedData);
+      console.log('AI Employees from draft:', draftedData.ai_employees);
       
       // Company basics
       if (draftedData.company_basics) {
@@ -235,6 +268,7 @@ let location = useLocation();
           setValue('industry', cb.industry);
         }
         
+        // Set location data
         if (cb.primary_region) {
           if (cb.primary_region.countries) {
             const countries = cb.primary_region.countries.map((name: string) => {
@@ -296,59 +330,121 @@ let location = useLocation();
       
       // AI Employees
       if (draftedData.ai_employees && Array.isArray(draftedData.ai_employees)) {
-        const agents = draftedData.ai_employees.map((emp: any) => ({
-          agentName: emp.name || '',
-          agentType: emp.type || '',
-          selectedTemplate: emp.template || '',
-          preferredLanguage: emp.preferred_language || '',
-          voiceGender: emp.voice_gender || '',
-          agentPersonality: emp.agent_personality || '',
-          voiceStyle: emp.voice_style || '',
-          specialInstructions: emp.special_instructions || '',
-          selectedWorkflows: emp.workflows?.map((w: any) => {
-            // Map workflow names back to IDs
-            const workflowMap: Record<string, string> = {
-              'WhatsApp Business': 'whatsapp',
-              'Gmail': 'email',
-              'Webhooks': 'webhook',
-              'Google Calendar': 'google-calendar',
-              'Calendly': 'calendly',
-              'Google Sheets': 'google-sheets',
-              'Zoho CRM': 'zoho',
-              'Odoo': 'odoo',
-              'HubSpot': 'hubspot',
-              'Salesforce CRM': 'salesforce',
-              'Zendesk': 'zendesk',
-              'Shopify': 'shopify',
-              'Slack': 'slack',
-              'Zapier': 'zapier',
-            };
-            return workflowMap[w.name] || w.name.toLowerCase().replace(/\s+/g, '-');
-          }) || [],
-          workflowInstructions: emp.workflows?.reduce((acc: any, w: any) => {
-            const workflowMap: Record<string, string> = {
-              'WhatsApp Business': 'whatsapp',
-              'Gmail': 'email',
-              'Webhooks': 'webhook',
-              'Google Calendar': 'google-calendar',
-              'Calendly': 'calendly',
-              'Google Sheets': 'google-sheets',
-              'Zoho CRM': 'zoho',
-              'Odoo': 'odoo',
-              'HubSpot': 'hubspot',
-              'Salesforce CRM': 'salesforce',
-              'Zendesk': 'zendesk',
-              'Shopify': 'shopify',
-              'Slack': 'slack',
-              'Zapier': 'zapier',
-            };
-            const id = workflowMap[w.name] || w.name.toLowerCase().replace(/\s+/g, '-');
-            acc[id] = w.instruction;
-            return acc;
-          }, {}) || {},
-        }));
+        const agents = draftedData.ai_employees.map((emp: any, index: number) => {
+          // Handle knowledge_sources if they exist in the employee data
+          let faqsText = '';
+          if (emp.knowledge_sources?.faqs_text) {
+            faqsText = emp.knowledge_sources.faqs_text;
+          }
+
+          // Handle uploaded files if they exist
+          if (emp.knowledge_sources?.uploaded_files && Array.isArray(emp.knowledge_sources.uploaded_files)) {
+            // Store uploaded files in state for this employee
+            // Note: These are already uploaded files from the server, we just track them
+            const fileObjects = emp.knowledge_sources.uploaded_files.map((file: any) => ({
+              name: file.original_name || file.filename,
+              size: file.file_size,
+              type: file.file_type,
+              // Add a flag to indicate this is from server
+              fromServer: true,
+              serverData: file
+            }));
+            
+            // Update uploadedFiles state for this employee index
+            setUploadedFiles(prev => ({
+              ...prev,
+              [index]: fileObjects as any
+            }));
+          }
+
+          // Set the template in the selectedTemplates state
+          if (emp.template) {
+            setSelectedTemplates(prev => ({
+              ...prev,
+              [index]: emp.template
+            }));
+          }
+
+          return {
+            agentName: emp.name || '',
+            agentType: emp.type?.toLowerCase() || '',
+            selectedTemplate: emp.template || '',
+            preferredLanguage: emp.preferred_language?.toLowerCase() || '',
+            voiceGender: emp.voice_gender?.toLowerCase() === 'gender neutral' ? 'neutral' : emp.voice_gender?.toLowerCase() || '',
+            agentPersonality: emp.agent_personality || '',
+            voiceStyle: emp.voice_style?.toLowerCase() || '',
+            specialInstructions: emp.special_instructions || '',
+            faqsText: faqsText, // Add FAQs text to agent data
+            // Individual Knowledge Sources
+            knowledgeWebsiteUrl: emp.knowledge_sources?.website_url || '',
+            socialLinks: [
+              emp.knowledge_sources?.social_links?.linkedin || '',
+              emp.knowledge_sources?.social_links?.twitter || '',
+              emp.knowledge_sources?.social_links?.facebook || ''
+            ],
+            // Individual Instructions
+            dosAndDonts: emp.instructions?.dos_and_donts || '',
+            fallbackContacts: emp.instructions?.fallback_contacts ? [emp.instructions.fallback_contacts] : [],
+            // Individual Success Targets
+            targetDescription: emp.targets?.success_goals || '',
+            successMetrics: emp.targets?.success_metrics ? emp.targets.success_metrics.split(', ') : [],
+            // Individual Deployment Options
+            deploymentTargets: emp.deployment_targets?.channels || [],
+            deploymentNotes: emp.deployment_targets?.deployment_notes || '',
+            deploymentService: emp.deployment_service?.service_type || '',
+            // Individual Consent & Privacy
+            recordingEnabled: emp.consent_options?.recording_enabled || false,
+            transcriptEmailOptIn: emp.consent_options?.transcript_email_optin || false,
+            consentNotes: emp.consent_options?.privacy_notes || '',
+            selectedWorkflows: emp.workflows?.map((w: any) => {
+              // Map workflow names back to IDs
+              const workflowMap: Record<string, string> = {
+                'WhatsApp Business': 'whatsapp',
+                'Gmail': 'email',
+                'Webhooks': 'webhook',
+                'Google Calendar': 'google-calendar',
+                'Calendly': 'calendly',
+                'Google Sheets': 'google-sheets',
+                'Zoho CRM': 'zoho',
+                'Odoo': 'odoo',
+                'HubSpot': 'hubspot',
+                'Salesforce CRM': 'salesforce',
+                'Zendesk': 'zendesk',
+                'Shopify': 'shopify',
+                'Slack': 'slack',
+                'Zapier': 'zapier',
+              };
+              return workflowMap[w.name] || w.name.toLowerCase().replace(/\s+/g, '-');
+            }) || [],
+            workflowInstructions: emp.workflows?.reduce((acc: any, w: any) => {
+              const workflowMap: Record<string, string> = {
+                'WhatsApp Business': 'whatsapp',
+                'Gmail': 'email',
+                'Webhooks': 'webhook',
+                'Google Calendar': 'google-calendar',
+                'Calendly': 'calendly',
+                'Google Sheets': 'google-sheets',
+                'Zoho CRM': 'zoho',
+                'Odoo': 'odoo',
+                'HubSpot': 'hubspot',
+                'Salesforce CRM': 'salesforce',
+                'Zendesk': 'zendesk',
+                'Shopify': 'shopify',
+                'Slack': 'slack',
+                'Zapier': 'zapier',
+              };
+              const id = workflowMap[w.name] || w.name.toLowerCase().replace(/\s+/g, '-');
+              acc[id] = w.instruction;
+              return acc;
+            }, {}) || {},
+          };
+        });
         setValue('agents', agents);
         setValue('agentCount', agents.length);
+        
+        // Debug: Log what was loaded
+        console.log('Loaded agents data:', agents);
+        console.log('Selected templates state:', selectedTemplates);
       }
       
       // Show success message after a short delay to ensure all data is set
@@ -487,11 +583,24 @@ let location = useLocation();
       return "Gender Neutral";
     };
 
-    // Collect all uploaded files from all agents
-    const allFiles: File[] = [];
-    Object.values(uploadedFiles).forEach((files) => {
+    // Separate new files from server files
+    const newFilesToUpload: File[] = [];
+    const existingServerFiles: Record<number, any[]> = {};
+    
+    Object.entries(uploadedFiles).forEach(([index, files]) => {
       if (files && files.length > 0) {
-        allFiles.push(...files);
+        const empIndex = Number(index);
+        existingServerFiles[empIndex] = [];
+        
+        files.forEach((file: any) => {
+          if (file.fromServer && file.serverData) {
+            // This file is already uploaded, keep its server data
+            existingServerFiles[empIndex].push(file.serverData);
+          } else {
+            // This is a new file that needs to be uploaded
+            newFilesToUpload.push(file);
+          }
+        });
       }
     });
       console.log(typeof data.agentCount)
@@ -526,15 +635,15 @@ let location = useLocation();
         ai_employee_limit: Number(data.agentCount) || 1,
         monthly_price:
           selectedPlan?.price === "Custom pricing"
-            ? 299
-            : parseFloat(selectedPlan?.price?.replace(/[$\/mo,]/g, "") || "299"),
+            ? 0
+            : parseFloat(selectedPlan?.price?.replace(/[$\/mo,]/g, "") || "0"),
         billing_contact: {
           name: data.billingContactName || "",
           email: data.billingContactEmail || "",
           phone: data.billingContactPhone
             ? `${selectedBillingCountry.dialCode}${data.billingContactPhone}`
             : "",
-          company_name: data.billingCompanyName || data.companyName || "",
+          company_name: data.billingCompanyName || "",
         },
         billing_address: {
           street: data.billingAddress || "",
@@ -578,59 +687,61 @@ let location = useLocation();
           };
         });
 
+        // Get template from selectedTemplates state or from agent data
+        const template = selectedTemplates[index] || agent.selectedTemplate || "Sales & Business Development";
+
+        // Build knowledge_sources for this specific employee
         return {
           name: agent.agentName || `AI Employee ${index + 1}`,
-          type: capitalizeWords(agent.agentType || "Sales"),
-          template: agent.selectedTemplate || "Sales & Business Development",
-          preferred_language: capitalizeWords(agent.preferredLanguage || "English"),
-          voice_gender: formatVoiceGender(agent.voiceGender || "Gender Neutral"),
-          agent_personality: agent.agentPersonality || "Enthusiastic & Energetic",
-          voice_style: agent.voiceStyle || "Energetic & Enthusiastic",
-          special_instructions: agent.specialInstructions || "Focus on customer needs",
+          type: capitalizeWords(agent.agentType || ""),
+          template: template,
+          preferred_language: capitalizeWords(agent.preferredLanguage || ""),
+          voice_gender: formatVoiceGender(agent.voiceGender || ""),
+          agent_personality: agent.agentPersonality || "",
+          voice_style: agent.voiceStyle || "",
+          special_instructions: agent.specialInstructions || "",
           workflows: workflows,
+          knowledge_sources: {
+            website_url: agent.knowledgeWebsiteUrl || "",
+            social_links: {
+              linkedin: (agent.socialLinks && agent.socialLinks[0]) || "",
+              twitter: (agent.socialLinks && agent.socialLinks[1]) || "",
+              facebook: (agent.socialLinks && agent.socialLinks[2]) || "",
+            },
+            faqs_text: agent.faqsText || "",
+            // uploaded_files will be added after file upload in handleSaveAsDraft/onSubmit
+          },
+          // Deployment targets for this AI employee
+          deployment_targets: {
+            channels: agent.deploymentTargets || [],
+            deployment_notes: agent.deploymentNotes || "",
+          },
+          // Deployment service for this AI employee
+          deployment_service: {
+            service_type: agent.deploymentService || "",
+          },
+          // Consent options for this AI employee
+          consent_options: {
+            recording_enabled: agent.recordingEnabled || false,
+            transcript_email_optin: agent.transcriptEmailOptIn || false,
+            privacy_notes: agent.consentNotes || "",
+          },
+          // Instructions for this AI employee
+          instructions: {
+            dos_and_donts: agent.dosAndDonts || "",
+            fallback_contacts: (agent.fallbackContacts && agent.fallbackContacts[0]) || "",
+          },
+          // Success targets for this AI employee
+          targets: {
+            success_goals: agent.targetDescription || "",
+            success_metrics: (agent.successMetrics && agent.successMetrics.join(", ")) || "",
+          },
         };
       }),
 
-      knowledge_sources: {
-        website_url: ensureValidUrl(data.website || ""),
-        social_links: {
-          linkedin: ensureValidUrl(data.linkedinUrl || ""),
-        },
-        faqs_text: "",
-      },
-
-      // Instructions
-      instructions: {
-        dos_and_donts: "Be professional",
-        fallback_contacts: data.companyEmail || "",
-      },
-
-      // Targets
-      targets: {
-        success_goals: "Automate 70% interactions",
-        success_metrics: "Reduce tickets by 40%",
-      },
-
-      // Deployment targets
-      deployment_targets: {
-        channels: ["Website", "WhatsApp"],
-        deployment_notes: "Phase 1: Website",
-      },
-
-      // Deployment service
-      deployment_service: {
-        service_type: "Shivai",
-      },
-
-      // Consent options
-      consent_options: {
-        recording_enabled: true,
-        transcript_email_optin: true,
-        privacy_notes: "Privacy enabled",
-      },
     };
 
-    return { payloadData, allFiles };
+    return { payloadData, newFilesToUpload, existingServerFiles };
   };
 
   // Save as draft function
@@ -638,7 +749,11 @@ let location = useLocation();
     setIsSavingDraft(true);
     try {
       const data = watch();
-      const { payloadData, allFiles } = buildFormDataPayload(data);
+      const { payloadData, newFilesToUpload, existingServerFiles } = buildFormDataPayload(data);
+
+      // Debug: Log the payload to see what's being sent
+      console.log('Saving draft with payload:', JSON.stringify(payloadData, null, 2));
+      console.log('AI Employees data:', payloadData.ai_employees);
 
       const loadingToast = toast.loading('Saving draft...');
 
@@ -650,17 +765,33 @@ let location = useLocation();
         accessToken = tokens.accessToken;
       }
 
-      // Upload files FIRST if there are any
+      // Upload NEW files only (if there are any)
       let uploadedFilesData: any[] = [];
-      if (allFiles.length > 0) {
-        const uploadResponse = await authAPI.uploadOnboardingFiles(allFiles, accessToken);
+      if (newFilesToUpload.length > 0) {
+        const uploadResponse = await authAPI.uploadOnboardingFiles(newFilesToUpload, accessToken);
         uploadedFilesData = uploadResponse.data.uploaded_files || [];
       }
 
-      // Add uploaded files to knowledge_sources
-      if (uploadedFilesData.length > 0) {
-        (payloadData.knowledge_sources as any).uploaded_files = uploadedFilesData;
-      }
+      // Distribute files to respective AI employees (combine new uploads with existing server files)
+      let newFileIndex = 0;
+      payloadData.ai_employees.forEach((employee: any, empIndex: number) => {
+        const agentFiles = uploadedFiles[empIndex] || [];
+        
+        // Start with existing server files for this employee
+        const employeeFiles: any[] = [...(existingServerFiles[empIndex] || [])];
+        
+        // Add newly uploaded files for this employee
+        const newFilesForThisEmployee = agentFiles.filter((f: any) => !f.fromServer).length;
+        if (newFilesForThisEmployee > 0 && uploadedFilesData.length > 0) {
+          employeeFiles.push(...uploadedFilesData.slice(newFileIndex, newFileIndex + newFilesForThisEmployee));
+          newFileIndex += newFilesForThisEmployee;
+        }
+        
+        // Assign all files to this employee
+        if (employeeFiles.length > 0) {
+          employee.knowledge_sources.uploaded_files = employeeFiles;
+        }
+      });
 
       // Send JSON data to onboarding endpoint with uploaded files info
       await authAPI.saveDraftOnboarding(payloadData as any, accessToken);
@@ -715,7 +846,11 @@ let location = useLocation();
 
     setIsSubmitting(true);
     try {
-      const { payloadData, allFiles } = buildFormDataPayload(data);
+      const { payloadData, newFilesToUpload, existingServerFiles } = buildFormDataPayload(data);
+
+      // Debug: Log the payload to see what's being sent
+      console.log('Submitting onboarding with payload:', JSON.stringify(payloadData, null, 2));
+      console.log('AI Employees data:', payloadData.ai_employees);
 
       const loadingToast = toast.loading('Setting up your account...');
 
@@ -727,17 +862,33 @@ let location = useLocation();
         accessToken = tokens.accessToken;
       }
 
-      // Upload files FIRST if there are any
+      // Upload NEW files only (if there are any)
       let uploadedFilesData: any[] = [];
-      if (allFiles.length > 0) {
-        const uploadResponse = await authAPI.uploadOnboardingFiles(allFiles, accessToken);
+      if (newFilesToUpload.length > 0) {
+        const uploadResponse = await authAPI.uploadOnboardingFiles(newFilesToUpload, accessToken);
         uploadedFilesData = uploadResponse.data.uploaded_files || [];
       }
 
-      // Add uploaded files to knowledge_sources
-      if (uploadedFilesData.length > 0) {
-        (payloadData.knowledge_sources as any).uploaded_files = uploadedFilesData;
-      }
+      // Distribute files to respective AI employees (combine new uploads with existing server files)
+      let newFileIndex = 0;
+      payloadData.ai_employees.forEach((employee: any, empIndex: number) => {
+        const agentFiles = uploadedFiles[empIndex] || [];
+        
+        // Start with existing server files for this employee
+        const employeeFiles: any[] = [...(existingServerFiles[empIndex] || [])];
+        
+        // Add newly uploaded files for this employee
+        const newFilesForThisEmployee = agentFiles.filter((f: any) => !f.fromServer).length;
+        if (newFilesForThisEmployee > 0 && uploadedFilesData.length > 0) {
+          employeeFiles.push(...uploadedFilesData.slice(newFileIndex, newFileIndex + newFilesForThisEmployee));
+          newFileIndex += newFilesForThisEmployee;
+        }
+        
+        // Assign all files to this employee
+        if (employeeFiles.length > 0) {
+          employee.knowledge_sources.uploaded_files = employeeFiles;
+        }
+      });
 
       // Send JSON data to onboarding endpoint with uploaded files info
       await authAPI.createOnboarding(payloadData as any, accessToken);
@@ -935,7 +1086,6 @@ let location = useLocation();
                     <option value="1-10">1-10 employees</option>
                     <option value="11-50">11-50 employees</option>
                     <option value="51-200">51-200 employees</option>
-                    <option value="201-1000">201-1000 employees</option>
                     <option value="1000+">1000+ employees</option>
                   </select>
                   {errors.companySize && (
@@ -1384,7 +1534,7 @@ let location = useLocation();
                         placeholder={
                           selectedCountries.length === 0
                             ? "Select countries first"
-                            : "Search states..."
+                            : "Search or add states..."
                         }
                       />
                       {selectedCountries.length > 0 && (
@@ -1551,7 +1701,7 @@ let location = useLocation();
                         placeholder={
                           selectedStates.length === 0
                             ? "Select states first"
-                            : "Search cities..."
+                            : "Search or add cities..."
                         }
                       />
                       {selectedStates.length > 0 && (
