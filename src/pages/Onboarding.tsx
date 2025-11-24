@@ -359,16 +359,46 @@ let location = useLocation();
 
           // Set the template in the selectedTemplates state
           if (emp.template) {
+            // Map backend template value to frontend template name
+            const backendToFrontendTemplate: Record<string, string> = {
+              'sales_development': 'Sales & Business Development',
+              'customer_support': 'Customer Support & Service', 
+              'appointment_scheduling': 'Appointment & Scheduling',
+              'order_billing': 'Order Management & Billing',
+              'product_explainers': 'Product / Service Explainers',
+              'feedback_engagement': 'Feedback & Engagement',
+              'custom_workflows': 'Custom Workflows',
+              'enterprise_sales': 'Sales & Business Development' // Legacy support
+            };
+            
+            const frontendTemplate = backendToFrontendTemplate[emp.template] || emp.template;
             setSelectedTemplates(prev => ({
               ...prev,
-              [index]: emp.template
+              [index]: frontendTemplate
             }));
           }
 
           return {
             agentName: emp.name || '',
             agentType: emp.type?.toLowerCase() || '',
-            selectedTemplate: emp.template || '',
+            selectedTemplate: emp.template ? (() => {
+              const backendToFrontendTemplate: Record<string, string> = {
+                'sales_business_development': 'Sales & Business Development',
+                'customer_support_service': 'Customer Support & Service', 
+                'appointment_scheduling': 'Appointment & Scheduling',
+                'order_management_billing': 'Order Management & Billing',
+                'product_service_explainers': 'Product / Service Explainers',
+                'feedback_engagement': 'Feedback & Engagement',
+                'custom_workflows': 'Custom Workflows',
+                // Legacy support for old values
+                'sales_development': 'Sales & Business Development',
+                'customer_support': 'Customer Support & Service',
+                'order_billing': 'Order Management & Billing',
+                'product_explainers': 'Product / Service Explainers',
+                'enterprise_sales': 'Sales & Business Development'
+              };
+              return backendToFrontendTemplate[emp.template] || emp.template;
+            })() : '',
             preferredLanguage: emp.preferred_language?.toLowerCase() || '',
             voiceGender: emp.voice_gender?.toLowerCase() === 'gender neutral' ? 'neutral' : emp.voice_gender?.toLowerCase() || '',
             agentPersonality: emp.agent_personality || '',
@@ -388,10 +418,34 @@ let location = useLocation();
             // Individual Success Targets
             targetDescription: emp.targets?.success_goals || '',
             successMetrics: emp.targets?.success_metrics ? emp.targets.success_metrics.split(', ') : [],
-            // Individual Deployment Options
-            deploymentTargets: emp.deployment_targets?.channels || [],
+            // Individual Deployment Options  
+            deploymentTargets: emp.deployment_targets?.channels?.map((channel: string) => {
+              // Map backend values to frontend values
+              const backendToFrontendTargets: Record<string, string> = {
+                'website': 'website',
+                'mobile_app': 'app',
+                'whatsapp': 'whatsapp', 
+                'api_integration': 'api',
+                // Handle current backend capitalized values
+                'Website': 'website',
+                'Mobile App': 'app',
+                'WhatsApp': 'whatsapp',
+                'API': 'api'
+              };
+              return backendToFrontendTargets[channel] || channel.toLowerCase();
+            }) || [],
             deploymentNotes: emp.deployment_targets?.deployment_notes || '',
-            deploymentService: emp.deployment_service?.service_type || '',
+            deploymentService: (() => {
+              const service = emp.deployment_service?.service_type || '';
+              const backendToFrontendService: Record<string, string> = {
+                'shivai_managed': 'managed',
+                'client_managed': 'self-service',
+                // Handle current backend capitalized values
+                'Shivai': 'managed',
+                'Client': 'self-service'
+              };
+              return backendToFrontendService[service] || service.toLowerCase();
+            })(),
             // Individual Consent & Privacy
             recordingEnabled: emp.consent_options?.recording_enabled || false,
             transcriptEmailOptIn: emp.consent_options?.transcript_email_optin || false,
@@ -690,11 +744,53 @@ let location = useLocation();
         // Get template from selectedTemplates state or from agent data
         const template = selectedTemplates[index] || agent.selectedTemplate || "Sales & Business Development";
 
+        // Map frontend template to backend enum value
+        const mapTemplate = (template: string) => {
+          const templateMap: Record<string, string> = {
+            'Sales & Business Development': 'sales_business_development',
+            'Customer Support & Service': 'customer_support_service',
+            'Appointment & Scheduling': 'appointment_scheduling',
+            'Order Management & Billing': 'order_management_billing',
+            'Product / Service Explainers': 'product_service_explainers',
+            'Feedback & Engagement': 'feedback_engagement',
+            'Custom Workflows': 'custom_workflows'
+          };
+          // If exact match not found, create snake_case version
+          const mapped = templateMap[template];
+          if (mapped) return mapped;
+          
+          // Convert to snake_case as fallback
+          return template.toLowerCase()
+            .replace(/\s+/g, '_')
+            .replace(/[^a-z0-9_]/g, '')
+            .replace(/&/g, 'and');
+        };
+
+        // Map frontend deployment target values to backend enum values
+        const mapDeploymentTargets = (targets: string[]) => {
+          // Based on API response, backend expects capitalized values
+          const targetMap: Record<string, string> = {
+            'website': 'Website',
+            'app': 'Mobile App'
+          };
+          return targets.map(target => targetMap[target] || target);
+        };
+
+        // Map frontend deployment service value to backend enum value  
+        const mapDeploymentService = (service: string) => {
+          // Based on API response, backend expects specific capitalized values
+          const serviceMap: Record<string, string> = {
+            'managed': 'Shivai',
+            'self-service': 'Client'
+          };
+          return serviceMap[service] || service;
+        };
+
         // Build knowledge_sources for this specific employee
         return {
           name: agent.agentName || `AI Employee ${index + 1}`,
-          type: capitalizeWords(agent.agentType || ""),
-          template: template,
+          type: agent.agentType || "",
+          template: mapTemplate(template),
           preferred_language: capitalizeWords(agent.preferredLanguage || ""),
           voice_gender: formatVoiceGender(agent.voiceGender || ""),
           agent_personality: agent.agentPersonality || "",
@@ -713,12 +809,12 @@ let location = useLocation();
           },
           // Deployment targets for this AI employee
           deployment_targets: {
-            channels: agent.deploymentTargets || [],
+            channels: mapDeploymentTargets(agent.deploymentTargets || []),
             deployment_notes: agent.deploymentNotes || "",
           },
           // Deployment service for this AI employee
           deployment_service: {
-            service_type: agent.deploymentService || "",
+            service_type: mapDeploymentService(agent.deploymentService || ""),
           },
           // Consent options for this AI employee
           consent_options: {
