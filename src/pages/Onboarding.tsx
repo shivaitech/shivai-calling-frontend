@@ -235,7 +235,6 @@ let location = useLocation();
           setValue('industry', cb.industry);
         }
         
-        // Set location data
         if (cb.primary_region) {
           if (cb.primary_region.countries) {
             const countries = cb.primary_region.countries.map((name: string) => {
