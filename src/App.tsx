@@ -17,13 +17,13 @@ import { oceanDepthsPreset, Orb } from "react-ai-orb";
 
 const Landing = lazy(() =>
   Promise.all([
-    import("./pages/Landing"),
+    import("./pages/Website/Landing"),
     new Promise((resolve) => setTimeout(resolve, 2000)),
   ]).then(([moduleExports]) => moduleExports)
 );
 const Onboarding = lazy(() =>
   Promise.all([
-    import("./pages/Onboarding"),
+    import("./pages/Website/Onboarding"),
     new Promise((resolve) => setTimeout(resolve, 100)),
   ]).then(([moduleExports]) => moduleExports)
 );

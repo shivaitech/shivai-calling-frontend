@@ -1,10 +1,44 @@
 (function () {
   "use strict";
-  try {
-    localStorage.removeItem('shivai-trigger-position');
-    localStorage.removeItem('shivai-widget-position');
-  } catch (e) {
+  
+  // ✅ Load LiveKit SDK dynamically
+  function loadLiveKitSDK() {
+    return new Promise((resolve, reject) => {
+      // Check if already loaded
+      if (typeof LivekitClient !== 'undefined') {
+        console.log('✅ LiveKit already loaded');
+        resolve();
+        return;
+      }
+      
+      console.log('📦 Loading LiveKit SDK...');
+      
+      // Load livekit-client directly (components-core not needed)
+      const clientScript = document.createElement('script');
+      clientScript.src = 'https://unpkg.com/livekit-client@2.5.8/dist/livekit-client.umd.js';
+      clientScript.onload = () => {
+        console.log('✅ LiveKit client loaded successfully');
+        resolve();
+      };
+      clientScript.onerror = () => {
+        console.error('❌ Failed to load LiveKit client');
+        reject(new Error('Failed to load LiveKit client'));
+      };
+      document.head.appendChild(clientScript);
+    });
   }
+  
+  try {
+    localStorage.removeItem("shivai-trigger-position");
+    localStorage.removeItem("shivai-widget-position");
+  } catch (e) {}
+  
+  // LiveKit variables
+  let room = null;
+  let localAudioTrack = null;
+  let remoteAudioTrack = null;
+  
+  // Legacy variables (keeping for compatibility)
   let ws = null;
   let audioContext = null;
   let mediaStream = null;
@@ -31,7 +65,26 @@
   let audioBufferingStarted = false;
   let minBufferChunks = 3;
   let audioStreamComplete = false;
+  let ringAudio = null;
   let messageBubble = null;
+  let connectionTimeout = null;
+  let aiResponseTimeout = null;
+  let retryCount = 0;
+  const MAX_RETRIES = 2;
+  const CONNECTION_TIMEOUT = 15000; // 15 seconds
+  const AI_RESPONSE_TIMEOUT = 20000; // 20 seconds after connection
+  
+  // ✅ Enhanced latency tracking using audio events
+  let latencyMetrics = {
+    userSpeechStartTime: null,
+    userSpeechEndTime: null,
+    agentResponseStartTime: null,
+    measurements: [],
+    maxSamples: 30,
+    isSpeaking: false,
+    isAgentSpeaking: false
+  };
+  
   let liveMessages = [
     "📞 Call ShivAI!",
     "📞 Call ShivAI!",
@@ -118,6 +171,9 @@
         case "call-end":
           playCallEndSound();
           break;
+        case "ring":
+          playRingSound();
+          break;
         default:
           console.warn("Unknown sound type:", type);
       }
@@ -134,6 +190,29 @@
       }, delay);
       delay += 120;
     });
+  }
+  
+  function playRingSound() {
+    try {
+      if (!ringAudio) {
+        ringAudio = new Audio('./assets/Rings/ring1.mp3');
+        ringAudio.loop = true;
+        ringAudio.volume = 0.7;
+      }
+      ringAudio.currentTime = 0;
+      ringAudio.play().catch(error => {
+        console.warn("Could not play ring sound:", error);
+      });
+    } catch (error) {
+      console.warn("Error initializing ring sound:", error);
+    }
+  }
+  
+  function stopRingSound() {
+    if (ringAudio) {
+      ringAudio.pause();
+      ringAudio.currentTime = 0;
+    }
   }
   function playDiallingSound() {
     const dialTone = 440;
@@ -233,13 +312,131 @@
     oscillator.start(soundContext.currentTime);
     oscillator.stop(soundContext.currentTime + duration);
   }
+  
+  // ✅ LiveKit: Track when user stops speaking (using audio level monitoring)
+  function monitorLocalAudioLevel(track) {
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const analyser = audioContext.createAnalyser();
+    const mediaStream = new MediaStream([track.mediaStreamTrack]);
+    const source = audioContext.createMediaStreamSource(mediaStream);
+    
+    source.connect(analyser);
+    analyser.fftSize = 256;
+    
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    
+    const SPEECH_THRESHOLD = 30;
+    const SILENCE_DURATION = 800; // 800ms of silence = end of speech
+    let silenceStart = null;
+    
+    function checkAudioLevel() {
+      if (!isConnected) return;
+      
+      analyser.getByteFrequencyData(dataArray);
+      const average = dataArray.reduce((a, b) => a + b) / bufferLength;
+      
+      if (average > SPEECH_THRESHOLD) {
+        // User is speaking
+        if (!latencyMetrics.isSpeaking) {
+          latencyMetrics.isSpeaking = true;
+          latencyMetrics.userSpeechStartTime = performance.now();
+          console.log('👤 User started speaking');
+          updateStatus("🎤 Listening...", "listening");
+        }
+        silenceStart = null;
+      } else {
+        // Silence detected
+        if (latencyMetrics.isSpeaking) {
+          if (!silenceStart) {
+            silenceStart = performance.now();
+          } else if (performance.now() - silenceStart > SILENCE_DURATION) {
+            // User stopped speaking
+            latencyMetrics.isSpeaking = false;
+            latencyMetrics.userSpeechEndTime = performance.now();
+            console.log('👤 User stopped speaking');
+            updateStatus("🤔 Processing...", "speaking");
+            silenceStart = null;
+          }
+        }
+      }
+      
+      requestAnimationFrame(checkAudioLevel);
+    }
+    
+    checkAudioLevel();
+  }
+
+  // ✅ LiveKit: Track when agent starts responding
+  function monitorRemoteAudioLevel(track) {
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const analyser = audioContext.createAnalyser();
+    const mediaStream = new MediaStream([track.mediaStreamTrack]);
+    const source = audioContext.createMediaStreamSource(mediaStream);
+    
+    source.connect(analyser);
+    analyser.fftSize = 256;
+    
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    
+    const SPEECH_THRESHOLD = 20;
+    
+    function checkAudioLevel() {
+      // Clear AI response timeout when agent starts speaking
+      if (aiResponseTimeout && !hasReceivedFirstAIResponse) {
+        clearTimeout(aiResponseTimeout);
+        aiResponseTimeout = null;
+        console.log('✅ AI response received - timeout cleared');
+      }
+      if (!isConnected) return;
+      
+      analyser.getByteFrequencyData(dataArray);
+      const average = dataArray.reduce((a, b) => a + b) / bufferLength;
+      
+      if (average > SPEECH_THRESHOLD && !latencyMetrics.isAgentSpeaking) {
+        // Agent started responding
+        latencyMetrics.isAgentSpeaking = true;
+        
+        // Start timer on first AI response
+        if (!hasReceivedFirstAIResponse) {
+          hasReceivedFirstAIResponse = true;
+          startCallTimer();
+          console.log('🎉 First AI response - timer started');
+        }
+        
+        if (latencyMetrics.userSpeechEndTime) {
+          latencyMetrics.agentResponseStartTime = performance.now();
+          const latency = latencyMetrics.agentResponseStartTime - latencyMetrics.userSpeechEndTime;
+          
+          latencyMetrics.measurements.push(latency);
+          if (latencyMetrics.measurements.length > latencyMetrics.maxSamples) {
+            latencyMetrics.measurements.shift();
+          }
+          
+          console.log(`⚡ Response latency: ${Math.round(latency)}ms`);
+          updateStatus("🤖 AI Speaking...", "speaking");
+          
+          latencyMetrics.userSpeechEndTime = null;
+        }
+      } else if (average <= SPEECH_THRESHOLD && latencyMetrics.isAgentSpeaking) {
+        latencyMetrics.isAgentSpeaking = false;
+        updateStatus("🟢 Connected - Speak naturally!", "connected");
+      }
+      
+      requestAnimationFrame(checkAudioLevel);
+    }
+    
+    checkAudioLevel();
+  }
+  
   function makeDraggable(element) {
     let isDragging = false;
     let startX, startY, initialX, initialY;
     let dragTimeout;
-    element.style.cursor = 'move';
-    element.addEventListener('mousedown', startDrag);
-    element.addEventListener('touchstart', startDrag, { passive: false });
+    element.style.cursor = "move";
+    element.addEventListener("mousedown", startDrag);
+    element.addEventListener("touchstart", startDrag, { passive: false });
     function startDrag(e) {
       e.preventDefault();
       if (dragTimeout) {
@@ -247,8 +444,8 @@
       }
       dragTimeout = setTimeout(() => {
         isDragging = true;
-        element.style.transition = 'none';
-        if (e.type === 'mousedown') {
+        element.style.transition = "none";
+        if (e.type === "mousedown") {
           startX = e.clientX;
           startY = e.clientY;
         } else {
@@ -258,18 +455,18 @@
         const rect = element.getBoundingClientRect();
         initialX = rect.left;
         initialY = rect.top;
-        document.addEventListener('mousemove', drag);
-        document.addEventListener('mouseup', stopDrag);
-        document.addEventListener('touchmove', drag, { passive: false });
-        document.addEventListener('touchend', stopDrag);
-        element.classList.add('dragging');
+        document.addEventListener("mousemove", drag);
+        document.addEventListener("mouseup", stopDrag);
+        document.addEventListener("touchmove", drag, { passive: false });
+        document.addEventListener("touchend", stopDrag);
+        element.classList.add("dragging");
       }, 100);
     }
     function drag(e) {
       if (!isDragging) return;
       e.preventDefault();
       let currentX, currentY;
-      if (e.type === 'mousemove') {
+      if (e.type === "mousemove") {
         currentX = e.clientX;
         currentY = e.clientY;
       } else {
@@ -285,11 +482,11 @@
       const maxY = window.innerHeight - elementRect.height;
       newX = Math.max(0, Math.min(newX, maxX));
       newY = Math.max(0, Math.min(newY, maxY));
-      element.style.position = 'fixed';
-      element.style.left = newX + 'px';
-      element.style.top = newY + 'px';
-      element.style.bottom = 'auto';
-      element.style.right = 'auto';
+      element.style.position = "fixed";
+      element.style.left = newX + "px";
+      element.style.top = newY + "px";
+      element.style.bottom = "auto";
+      element.style.right = "auto";
     }
     function stopDrag(e) {
       if (dragTimeout) {
@@ -298,32 +495,41 @@
       }
       if (isDragging) {
         isDragging = false;
-        element.style.transition = '';
-        element.classList.remove('dragging');
+        element.style.transition = "";
+        element.classList.remove("dragging");
       }
-      document.removeEventListener('mousemove', drag);
-      document.removeEventListener('mouseup', stopDrag);
-      document.removeEventListener('touchmove', drag);
-      document.removeEventListener('touchend', stopDrag);
+      document.removeEventListener("mousemove", drag);
+      document.removeEventListener("mouseup", stopDrag);
+      document.removeEventListener("touchmove", drag);
+      document.removeEventListener("touchend", stopDrag);
     }
   }
   function makeWidgetDraggable(widgetElement) {
     let isDragging = false;
     let startX, startY, initialX, initialY;
     let dragTimeout;
-    const headers = widgetElement.querySelectorAll('.widget-header, .call-header');
-    headers.forEach(header => {
-      header.style.cursor = 'move';
-      header.addEventListener('mousedown', startDrag);
-      header.addEventListener('touchstart', startDrag, { passive: false });
+    const headers = widgetElement.querySelectorAll(
+      ".widget-header, .call-header"
+    );
+    headers.forEach((header) => {
+      header.style.cursor = "move";
+      header.addEventListener("mousedown", startDrag);
+      header.addEventListener("touchstart", startDrag, { passive: false });
     });
     function startDrag(e) {
-      if (e.target.classList.contains('widget-close') || 
-          e.target.closest('.widget-close') || 
-          e.target.classList.contains('start-call-btn') ||
-          e.target.closest('.start-call-btn') ||
-          e.target.classList.contains('back-btn') ||
-          e.target.closest('.back-btn')) {
+      if (
+        e.target.classList.contains("widget-close") ||
+        e.target.closest(".widget-close") ||
+        e.target.classList.contains("start-call-btn") ||
+        e.target.closest(".start-call-btn") ||
+        e.target.classList.contains("back-btn") ||
+        e.target.closest(".back-btn") ||
+        e.target.classList.contains("language-select-styled-landing") ||
+        e.target.closest(".language-section-landing") ||
+        e.target.classList.contains("privacy-link") ||
+        e.target.tagName === "SELECT" ||
+        e.target.tagName === "OPTION"
+      ) {
         return;
       }
       e.preventDefault();
@@ -332,8 +538,8 @@
       }
       dragTimeout = setTimeout(() => {
         isDragging = true;
-        widgetElement.style.transition = 'none';
-        if (e.type === 'mousedown') {
+        widgetElement.style.transition = "none";
+        if (e.type === "mousedown") {
           startX = e.clientX;
           startY = e.clientY;
         } else {
@@ -343,18 +549,18 @@
         const rect = widgetElement.getBoundingClientRect();
         initialX = rect.left;
         initialY = rect.top;
-        document.addEventListener('mousemove', drag);
-        document.addEventListener('mouseup', stopDrag);
-        document.addEventListener('touchmove', drag, { passive: false });
-        document.addEventListener('touchend', stopDrag);
-        widgetElement.classList.add('dragging');
+        document.addEventListener("mousemove", drag);
+        document.addEventListener("mouseup", stopDrag);
+        document.addEventListener("touchmove", drag, { passive: false });
+        document.addEventListener("touchend", stopDrag);
+        widgetElement.classList.add("dragging");
       }, 100);
     }
     function drag(e) {
       if (!isDragging) return;
       e.preventDefault();
       let currentX, currentY;
-      if (e.type === 'mousemove') {
+      if (e.type === "mousemove") {
         currentX = e.clientX;
         currentY = e.clientY;
       } else {
@@ -370,11 +576,11 @@
       const maxY = window.innerHeight - elementRect.height;
       newX = Math.max(0, Math.min(newX, maxX));
       newY = Math.max(0, Math.min(newY, maxY));
-      widgetElement.style.position = 'fixed';
-      widgetElement.style.left = newX + 'px';
-      widgetElement.style.top = newY + 'px';
-      widgetElement.style.bottom = 'auto';
-      widgetElement.style.right = 'auto';
+      widgetElement.style.position = "fixed";
+      widgetElement.style.left = newX + "px";
+      widgetElement.style.top = newY + "px";
+      widgetElement.style.bottom = "auto";
+      widgetElement.style.right = "auto";
     }
     function stopDrag(e) {
       if (dragTimeout) {
@@ -383,13 +589,93 @@
       }
       if (isDragging) {
         isDragging = false;
-        widgetElement.style.transition = '';
-        widgetElement.classList.remove('dragging');
+        widgetElement.style.transition = "";
+        widgetElement.classList.remove("dragging");
       }
-      document.removeEventListener('mousemove', drag);
-      document.removeEventListener('mouseup', stopDrag);
-      document.removeEventListener('touchmove', drag);
-      document.removeEventListener('touchend', stopDrag);
+      document.removeEventListener("mousemove", drag);
+      document.removeEventListener("mouseup", stopDrag);
+      document.removeEventListener("touchmove", drag);
+      document.removeEventListener("touchend", stopDrag);
+    }
+  }
+  function makeTriggerBtnDraggable(btnElement) {
+    let isDragging = false;
+    let startX, startY, initialX, initialY;
+    let dragTimeout;
+    btnElement.addEventListener("mousedown", startDrag);
+    btnElement.addEventListener("touchstart", startDrag, { passive: false });
+    function startDrag(e) {
+      if (dragTimeout) {
+        clearTimeout(dragTimeout);
+      }
+      dragTimeout = setTimeout(() => {
+        isDragging = true;
+        btnElement.style.transition = "none";
+        if (e.type === "mousedown") {
+          startX = e.clientX;
+          startY = e.clientY;
+        } else {
+          startX = e.touches[0].clientX;
+          startY = e.touches[0].clientY;
+        }
+        const rect = btnElement.getBoundingClientRect();
+        initialX = rect.left;
+        initialY = rect.top;
+        document.addEventListener("mousemove", drag);
+        document.addEventListener("mouseup", stopDrag);
+        document.addEventListener("touchmove", drag, { passive: false });
+        document.addEventListener("touchend", stopDrag);
+        btnElement.classList.add("dragging");
+      }, 100);
+    }
+    function drag(e) {
+      if (!isDragging) return;
+      e.preventDefault();
+      let currentX, currentY;
+      if (e.type === "mousemove") {
+        currentX = e.clientX;
+        currentY = e.clientY;
+      } else {
+        currentX = e.touches[0].clientX;
+        currentY = e.touches[0].clientY;
+      }
+      const deltaX = currentX - startX;
+      const deltaY = currentY - startY;
+      let newX = initialX + deltaX;
+      let newY = initialY + deltaY;
+      const elementRect = btnElement.getBoundingClientRect();
+      const maxX = window.innerWidth - elementRect.width;
+      const maxY = window.innerHeight - elementRect.height;
+      newX = Math.max(0, Math.min(newX, maxX));
+      newY = Math.max(0, Math.min(newY, maxY));
+      btnElement.style.position = "fixed";
+      btnElement.style.left = newX + "px";
+      btnElement.style.top = newY + "px";
+      btnElement.style.bottom = "auto";
+      btnElement.style.right = "auto";
+      if (messageBubble) {
+        const bubbleOffset = 70;
+        messageBubble.style.left = newX - messageBubble.offsetWidth - 10 + "px";
+        messageBubble.style.top =
+          newY + elementRect.height / 2 - messageBubble.offsetHeight / 2 + "px";
+        messageBubble.style.bottom = "auto";
+        messageBubble.style.right = "auto";
+      }
+    }
+    function stopDrag(e) {
+      if (dragTimeout) {
+        clearTimeout(dragTimeout);
+        dragTimeout = null;
+      }
+      if (isDragging) {
+        isDragging = false;
+        btnElement.style.transition = "";
+        btnElement.classList.remove("dragging");
+      }
+      document.removeEventListener("mousemove", drag);
+      document.removeEventListener("mouseup", stopDrag);
+      document.removeEventListener("touchmove", drag);
+      document.removeEventListener("touchend", stopDrag);
     }
   }
   function createWidgetUI() {
@@ -407,30 +693,60 @@
     landingView.className = "landing-view";
     landingView.innerHTML = `
       <div class="widget-header">
-        <button class="widget-close" aria-label="Close widget">×</button>
-        <div class="widget-avatar">
-         <svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 1500">
-  <defs>
-    <style>
-      .cls-1 {
-        stroke-width: 0px;
-      }
-    </style>
-  </defs>
-  <path class="cls-1" d="m404.66,608.33c-9.95-7.3-50.21-35.08-105.88-29.33-26.64,2.75-47.74,12.25-62.31,21.06-14.39,8.7-26.96,20.35-35.39,34.9-12.13,20.93-15.94,45.25-9.6,67.8,4.02,14.28,11.39,25.29,18.63,33.3,6.91,7.65,15.23,13.89,24.25,18.89,25.77,14.32,51.54,28.63,77.31,42.95,11.98,7.56,18.69,20.94,17.17,34.34-.11,1.01-.27,1.98-.47,2.93-2.85,13.83-15.4,23.46-29.5,24.28-8.62.5-18.56.28-29.41-1.45-34.59-5.51-58.34-23.08-69.39-32.54-13.35,21.1-26.71,42.2-40.06,63.3,13.96,9.75,32.81,20.78,56.52,29.33,42.03,15.17,79.38,15.38,102.3,13.59,7.85-.92,45.14-6.13,72.25-39.35,1.28-1.57,2.49-3.15,3.65-4.73,27.87-38.33,23.14-92-9.89-125.97-.3-.31-.6-.62-.91-.93-17.09-17.27-35.69-27.61-51.02-33.85-19.44-7.9-38.05-17.71-55.07-29.99-.78-.56-1.56-1.12-2.33-1.68-9.66-6.97-12.29-20.21-6.03-30.34h0c7.3-11.68,22.31-17.66,37.92-15.02,8.22-.53,21.33-.36,36.48,4.29,15.34,4.71,26.38,12.07,32.91,17.17,9.3-20.98,18.6-41.97,27.9-62.95Z"/>
-  <path class="cls-1" d="m630.61,740.85c-3.86-4.46-8.41-8.89-13.76-13.05-17.19-13.34-35.56-18.29-49.77-19.92-15.45-1.76-31.19.76-45.13,7.63-.08.04-.16.08-.25.12-13.14,6.52-22.41,14.79-28.33,21.1v-169.18h-72.25v358.41h72.25v-130.44c9.49-21.4,30.88-33.36,50.51-29.8,3.55.64,6.78,1.75,9.71,3.15,14.12,6.76,22.48,21.69,22.48,37.35v119.75h73.68v-132.05c0-19.38-6.46-38.41-19.14-53.06Z"/>
-  <rect class="cls-1" x="662.56" y="712.06" width="74.4" height="213.9"/>
-  <path class="cls-1" d="m953.03,825.14c-13.76,33.61-27.52,67.21-41.28,100.82h84.42l25.75-67.96c-8.94-6.55-20.41-13.83-34.43-20.38-12.7-5.93-24.48-9.84-34.47-12.48Z"/>
-  <circle class="cls-1" cx="1270.13" cy="623.35" r="45.07"/>
-  <circle class="cls-1" cx="699.76" cy="623.35" r="45.07"/>
-  <path class="cls-1" d="m954.09,822.73l95.6-235.02h71.13l94.46,235.02c-13.9-.54-54.29-3.99-86.12-34.9-26-25.25-33.27-56.18-36.12-68.31-.48-2.06-.75-3.53-1.31-6.44-4.83-25.25-5.11-43.74-5.38-76.6-.22-27.23-.29-45.31-.45-45.31-.19,0-.33,26.01-1.25,51.3-.44,12.07-.99,22.81-.99,22.81-.31,5.8-.54,8.99-.78,14.32-.97,21.54-.88,21.8-1.44,25.22-2.48,15.29-13.28,66.99-58.46,96.77-27.62,18.21-55.44,20.82-68.92,21.15Z"/>
-  <path class="cls-1" d="m1215.73,825.86c-6.37.43-13.66,1.49-21.51,3.68-22.94,6.41-38.73,19.17-47.51,27.69,7.45,22.45,14.9,44.91,22.35,67.36h137.14v-101.86l-72.84,3.12.57,47.8-18.21-47.8Z"/>
-  <polygon class="cls-1" points="1233.94 716.32 1306.21 716.32 1306.21 825.14 1233.94 822.21 1233.94 716.32"/>
-  <path class="cls-1" d="m872.77,821c22.25.49,44.49.98,66.74,1.47,18.21-35.7,36.41-71.4,54.62-107.1l-80.12-3.31-48.65,116.61h-5.72l-51.51-116.61h-72.25v27.9l98.72,186h52.22c17.12-33.61,34.25-67.21,51.37-100.82-21.81-1.38-43.62-2.76-65.43-4.14Z"/>
-</svg>
+        <div class="header-content">
+          <button class="widget-close" aria-label="Close widget">×</button>
+          <div class="header-info">
+            <div class="widget-avatar">
+             <svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 1500">
+      <defs>
+        <style>
+          .cls-1 {
+            stroke-width: 0px;
+          }
+        </style>
+      </defs>
+      <path class="cls-1" d="m404.66,608.33c-9.95-7.3-50.21-35.08-105.88-29.33-26.64,2.75-47.74,12.25-62.31,21.06-14.39,8.7-26.96,20.35-35.39,34.9-12.13,20.93-15.94,45.25-9.6,67.8,4.02,14.28,11.39,25.29,18.63,33.3,6.91,7.65,15.23,13.89,24.25,18.89,25.77,14.32,51.54,28.63,77.31,42.95,11.98,7.56,18.69,20.94,17.17,34.34-.11,1.01-.27,1.98-.47,2.93-2.85,13.83-15.4,23.46-29.5,24.28-8.62.5-18.56.28-29.41-1.45-34.59-5.51-58.34-23.08-69.39-32.54-13.35,21.1-26.71,42.2-40.06,63.3,13.96,9.75,32.81,20.78,56.52,29.33,42.03,15.17,79.38,15.38,102.3,13.59,7.85-.92,45.14-6.13,72.25-39.35,1.28-1.57,2.49-3.15,3.65-4.73,27.87-38.33,23.14-92-9.89-125.97-.3-.31-.6-.62-.91-.93-17.09-17.27-35.69-27.61-51.02-33.85-19.44-7.9-38.05-17.71-55.07-29.99-.78-.56-1.56-1.12-2.33-1.68-9.66-6.97-12.29-20.21-6.03-30.34h0c7.3-11.68,22.31-17.66,37.92-15.02,8.22-.53,21.33-.36,36.48,4.29,15.34,4.71,26.38,12.07,32.91,17.17,9.3-20.98,18.6-41.97,27.9-62.95Z"/>
+      <path class="cls-1" d="m630.61,740.85c-3.86-4.46-8.41-8.89-13.76-13.05-17.19-13.34-35.56-18.29-49.77-19.92-15.45-1.76-31.19.76-45.13,7.63-.08.04-.16.08-.25.12-13.14,6.52-22.41,14.79-28.33,21.1v-169.18h-72.25v358.41h72.25v-130.44c9.49-21.4,30.88-33.36,50.51-29.8,3.55.64,6.78,1.75,9.71,3.15,14.12,6.76,22.48,21.69,22.48,37.35v119.75h73.68v-132.05c0-19.38-6.46-38.41-19.14-53.06Z"/>
+      <rect class="cls-1" x="662.56" y="712.06" width="74.4" height="213.9"/>
+      <path class="cls-1" d="m953.03,825.14c-13.76,33.61-27.52,67.21-41.28,100.82h84.42l25.75-67.96c-8.94-6.55-20.41-13.83-34.43-20.38-12.7-5.93-24.48-9.84-34.47-12.48Z"/>
+      <circle class="cls-1" cx="1270.13" cy="623.35" r="45.07"/>
+      <circle class="cls-1" cx="699.76" cy="623.35" r="45.07"/>
+      <path class="cls-1" d="m954.09,822.73l95.6-235.02h71.13l94.46,235.02c-13.9-.54-54.29-3.99-86.12-34.9-26-25.25-33.27-56.18-36.12-68.31-.48-2.06-.75-3.53-1.31-6.44-4.83-25.25-5.11-43.74-5.38-76.6-.22-27.23-.29-45.31-.45-45.31-.19,0-.33,26.01-1.25,51.3-.44,12.07-.99,22.81-.99,22.81-.31,5.8-.54,8.99-.78,14.32-.97,21.54-.88,21.8-1.44,25.22-2.48,15.29-13.28,66.99-58.46,96.77-27.62,18.21-55.44,20.82-68.92,21.15Z"/>
+      <path class="cls-1" d="m1215.73,825.86c-6.37.43-13.66,1.49-21.51,3.68-22.94,6.41-38.73,19.17-47.51,27.69,7.45,22.45,14.9,44.91,22.35,67.36h137.14v-101.86l-72.84,3.12.57,47.8-18.21-47.8Z"/>
+      <polygon class="cls-1" points="1233.94 716.32 1306.21 716.32 1306.21 825.14 1233.94 822.21 1233.94 716.32"/>
+      <path class="cls-1" d="m872.77,821c22.25.49,44.49.98,66.74,1.47,18.21-35.7,36.41-71.4,54.62-107.1l-80.12-3.31-48.65,116.61h-5.72l-51.51-116.61h-72.25v27.9l98.72,186h52.22c17.12-33.61,34.25-67.21,51.37-100.82-21.81-1.38-43.62-2.76-65.43-4.14Z"/>
+    </svg>
+            </div>
+            <div class="header-text">
+              <div class="widget-title">AI Employee</div>
+              <div class="widget-subtitle">ShivAI offers 24/7 voice support to handle your business calls efficiently and professionally.</div>
+            </div>
+          </div>
         </div>
-        <div class="widget-title">AI Employee</div>
-        <div class="widget-subtitle">ShivAI offers 24/7 voice support to handle your business calls efficiently and professionally.</div>
+      </div>
+      <div class="widget-body">
+        <div class="language-section-landing">
+          <label class="language-label-landing">Select your preferred language:</label>
+          <select id="shivai-language-landing" class="language-select-styled-landing">
+            <option value="ar">🇸🇦 Arabic</option>
+            <option value="zh">🇨🇳 Chinese</option>
+            <option value="nl">🇳🇱 Dutch</option>
+            <option value="en-GB">🇬🇧 English (UK)</option>
+            <option value="en-US" selected>🇺🇸 English (US)</option>
+            <option value="en-IN">🇮🇳 English (India)</option>
+            <option value="fr">🇫🇷 French</option>
+            <option value="de">🇩🇪 German</option>
+            <option value="hi">🇮🇳 Hindi</option>
+            <option value="it">🇮🇹 Italian</option>
+            <option value="ja">🇯🇵 Japanese</option>
+            <option value="ko">🇰🇷 Korean</option>
+            <option value="pt">🇵🇹 Portuguese</option>
+            <option value="pl">🇵🇱 Polish</option>
+            <option value="ru">🇷🇺 Russian</option>
+            <option value="es">🇪🇸 Spanish</option>
+            <option value="tr">🇹🇷 Turkish</option>
+          </select>
+        </div>
         <button class="start-call-btn mx-auto mb-4" id="start-call-btn">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
@@ -479,7 +795,7 @@
       </div>
       <div class="call-body">
       <div class="language-section">
-      <label class="language-label">Select your preferred language:</label>
+      <label class="language-label">Selected preferred language:</label>
       <select id="shivai-language" class="language-select-styled">
       <option value="ar">🇸🇦 Arabic</option>
       <option value="zh">🇨🇳 Chinese</option>
@@ -549,6 +865,7 @@
     document.body.appendChild(triggerBtn);
     document.body.appendChild(widgetContainer);
     makeWidgetDraggable(widgetContainer);
+    makeTriggerBtnDraggable(triggerBtn);
     createLiveMessageBubble();
     statusDiv = document.getElementById("shivai-status");
     connectBtn = document.getElementById("shivai-connect");
@@ -567,8 +884,8 @@
       "zh-CN": "zh",
       "zh-TW": "zh",
       en: "en",
-      "en-US": "en",
-      "en-GB": "en",
+      "en-US": "en-US",
+      "en-GB": "en-GB",
       "en-IN": "en-IN",
       fr: "fr",
       de: "de",
@@ -588,9 +905,15 @@
       const baseLang = browserLang.split("-")[0];
       detectedLang = languageMap[baseLang];
     }
-    const defaultLang = detectedLang || "en";
+    const defaultLang = detectedLang || "en-US";
     if (languageSelect) {
       languageSelect.value = defaultLang;
+    }
+    const landingLanguageSelect = document.getElementById(
+      "shivai-language-landing"
+    );
+    if (landingLanguageSelect) {
+      landingLanguageSelect.value = defaultLang;
       console.log(
         `Auto-detected language: ${defaultLang} (Browser locale: ${browserLang})`
       );
@@ -599,10 +922,21 @@
   function createLiveMessageBubble() {
     messageBubble = document.createElement("div");
     messageBubble.className = "shivai-message-bubble";
+    const isMobile = window.innerWidth <= 768;
+    const bubbleBottom = isMobile
+      ? window.innerWidth <= 420
+        ? "22px"
+        : "26px"
+      : "30px";
+    const bubbleRight = isMobile
+      ? window.innerWidth <= 420
+        ? "70px"
+        : "80px"
+      : "90px";
     messageBubble.style.cssText = `
       position: fixed;
-      bottom: 30px;
-      right: 90px;
+      bottom: ${bubbleBottom};
+      right: ${bubbleRight};
       transform: translateY(0);
       background-color: #ffffff;
       color: #374151;
@@ -734,7 +1068,7 @@
       height: 60px;
       border-radius: 50%;
       border: none;
-      cursor: pointer;
+      cursor: move;
       outline: none;
       display: flex;
       align-items: center;
@@ -755,6 +1089,12 @@
       transform: scale(0.95);
       background: linear-gradient(135deg, #374151 0%, #4b5563 30%, #1f2937 70%, #111827 100%);
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), inset 0 2px 4px rgba(0, 0, 0, 0.25);
+      }
+      .shivai-trigger.dragging {
+      transform: scale(1.05);
+      opacity: 0.8;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3) !important;
+      transition: none !important;
       }
       .shivai-neon-pulse {
       overflow: visible;
@@ -853,11 +1193,9 @@
         right: 16px;
       }
       .shivai-message-bubble {
-        bottom: 26px !important;
-        right: 80px !important;
-        font-size: 13px !important;
-        padding: 6px 10px !important;
-        max-width: 200px !important;
+        font-size: 13px;
+        padding: 6px 10px;
+        max-width: 200px;
       }
       }
       @media (max-width: 420px) {
@@ -868,11 +1206,9 @@
         right: 12px;
       }
       .shivai-message-bubble {
-        bottom: 22px !important;
-        right: 70px !important;
-        font-size: 12px !important;
-        padding: 6px 8px !important;
-        max-width: 180px !important;
+        font-size: 12px;
+        padding: 6px 8px;
+        max-width: 180px;
       }
       }
       .shivai-widget {
@@ -913,15 +1249,30 @@
       }
       .landing-view .widget-header {
       position: relative;
-      text-align: center;
-      padding: 14px 10px 16px;
-      background: #ffffff;
-      border-bottom: none;
+      text-align: left;
+      padding: 16px 14px 2px;
+      border-bottom: 1px solid #f3f4f6;
+      }
+      .header-content {
+      position: relative;
+      width: 100%;
+      }
+      .header-info {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 12px;
+      }
+      .header-text {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
       }
       .landing-view .widget-avatar {
-      width: 64px;
-      height: 64px;
-      margin: 0 auto 8px;
+      width: 42px;
+      height: 42px;
+      flex-shrink: 0;
       border-radius: 50%;
       background: transparent;
       display: flex;
@@ -929,33 +1280,36 @@
       justify-content: center;
       color: #111827;
       border: 1.5px solid #e5e7eb;
-      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
-      padding: 8px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+      padding: 5px;
+      }
+      .landing-view .widget-avatar svg {
+      width: 100%;
+      height: 100%;
       }
       .landing-view .widget-title {
       font-weight: 600;
-      font-size: 16px;
+      font-size: 14px;
       color: #111827;
-      margin: 0 0 6px 0;
+      margin: 0;
       letter-spacing: -0.01em;
+      line-height: 1.3;
       }
       .landing-view .widget-subtitle {
-      font-size: 12px;
+      font-size: 11px;
       color: #6b7280;
-      margin: 0 0 14px 0;
+      margin: 0;
       font-weight: 400;
-      line-height: 1.5;
-      padding: 0 6px;
+      line-height: 1.4;
       }
       .start-call-btn {
-      width: 50%;
+      width: 100%;
       padding: 10px 12px;
       border: 1px solid transparent;
-      border-radius: 55px;
-      font-size: 13px;
+      border-radius: 24px;
+      font-size: 14px;
       background: linear-gradient(135deg, #4b5563 0%, #6b7280 30%, #374151 70%, #1f2937 100%);
       color: white;
-      font-size: 15px;
       font-weight: 600;
       cursor: pointer;
       display: flex;
@@ -963,6 +1317,7 @@
       justify-content: center;
       gap: 8px;
       transition: all 0.2s ease;
+      margin-bottom: 10px;
       }
       .start-call-btn:hover {
       background: linear-gradient(135deg, #6b7280 0%, #9ca3af 30%, #4b5563 70%, #374151 100%);
@@ -973,10 +1328,10 @@
       transform: translateY(0);
       }
       .privacy-text {
-      font-size: 11px;
+      font-size: 10px;
       color: #9ca3af;
       text-align: center;
-      margin: 0 0 6px 0;
+      margin: 0;
       line-height: 1.1;
       }
       .privacy-link {
@@ -1179,6 +1534,49 @@
       box-shadow: 0 0 0 3px rgba(107, 114, 128, 0.1);
       background-color: white;
       }
+      .language-section-landing {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 16px;
+      padding: 0;
+      }
+      .language-label-landing {
+      font-size: 12px;
+      font-weight: 500;
+      color: #374151;
+      letter-spacing: 0.3px;
+      margin: 0;
+      text-align: left;
+      }
+      .language-select-styled-landing {
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 1.5px solid #d1d5db;
+      background: white;
+      font-size: 14px;
+      color: #111827;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background-image: url("data:image/svg+xml,%3Csvg width='12' height='12' viewBox='0 0 12 12' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2.5 4.5L6 8L9.5 4.5' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 36px;
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      font-weight: 500;
+      }
+      .language-select-styled-landing:hover {
+      border-color: #3b82f6;
+      background-color: #f9fafb;
+      }
+      .language-select-styled-landing:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+      background-color: white;
+      }
       .call-controls-row {
       display: flex;
       align-items: stretch;
@@ -1270,8 +1668,8 @@
       }
       .widget-close {
       position: absolute;
-      top: 8px;
-      right: 16px;
+      top: -10px;
+      right: -8px;
       background: transparent;
       border: none;
       color: #9ca3af;
@@ -1296,7 +1694,7 @@
       flex: 1;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 4px;
       overflow-y: auto;
       background: #ffffff;
       }
@@ -1633,6 +2031,8 @@
       }
       .widget-header .widget-close:hover,
       .widget-header .start-call-btn:hover,
+      .widget-header .language-select-styled-landing:hover,
+      .widget-header .language-section-landing:hover,
       .call-header .widget-close:hover,
       .call-header .back-btn:hover {
         cursor: pointer;
@@ -1651,7 +2051,17 @@
     });
     const startCallBtn = document.getElementById("start-call-btn");
     if (startCallBtn) {
-      startCallBtn.addEventListener("click", switchToCallView);
+      startCallBtn.addEventListener("click", async (e) => {
+        e.preventDefault();
+        const landingLanguageSelect = document.getElementById(
+          "shivai-language-landing"
+        );
+        if (landingLanguageSelect && languageSelect) {
+          languageSelect.value = landingLanguageSelect.value;
+        }
+        switchToCallView();
+        await handleConnectClick(e);
+      });
     }
     const backBtn = document.getElementById("back-btn");
     if (backBtn) {
@@ -1815,13 +2225,14 @@
           const buffer = soundContext.createBuffer(1, 1, 22050);
           const source = soundContext.createBufferSource();
           source.buffer = buffer;
-          source.connect(soundContext.destination);
+          // source.connect(soundContext.destination);
           source.start();
         }
       } catch (e) {
         console.warn("🍎 [iOS] Audio unlock failed:", e);
       }
     }
+
     if (isConnecting) {
       return;
     }
@@ -1829,6 +2240,7 @@
       console.log("🔴 Immediate hang up requested");
       isConnected = false;
       isConnecting = false;
+      stopRingSound(); // Stop ring sound when hanging up
       clearLoadingStatus();
       stopCallTimer();
       if (ws) {
@@ -1847,7 +2259,7 @@
     } else {
       isConnecting = true;
       connectBtn.disabled = true;
-      playSound("connecting");
+      playSound("ring"); // Start playing ring sound during loading
       try {
         connectBtn.innerHTML =
           '<svg width="26" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" transform="rotate(135 12 12)"></path></svg>';
@@ -1858,6 +2270,7 @@
         isConnecting = false;
       } catch (error) {
         console.error("Failed to start conversation:", error);
+        stopRingSound(); // Stop ring sound on error
         isConnected = false;
         isConnecting = false;
         hasReceivedFirstAIResponse = false;
@@ -1933,6 +2346,7 @@
     }
   }
   function startCallTimer() {
+    stopRingSound(); // Stop ring sound when call timer starts
     callStartTime = Date.now();
     if (callTimerElement) {
       callTimerElement.style.display = "block";
@@ -1946,6 +2360,7 @@
     connectBtn.title = "End Call";
     callTimerInterval = setInterval(updateCallTimer, 1000);
     updateCallTimer();
+    console.log("⏱️ Call timer started");
   }
   function stopCallTimer() {
     if (callTimerInterval) {
@@ -1979,7 +2394,7 @@
           ? "Using cached connection"
           : "Establishing secure connection",
         delay: baseDelay + 200,
-        sound: true,
+        sound: false,
       },
       {
         text: "Setting up voice pipeline...",
@@ -1993,7 +2408,7 @@
         text: "Configuring audio streams...",
         desc: "Optimizing voice quality",
         delay: baseDelay + 300,
-        sound: true,
+        sound: false,
       },
       {
         text: "Almost ready to talk...",
@@ -2014,7 +2429,7 @@
         showLoadingStatus(state.desc);
       }
       if (state.sound) {
-        playSound("connecting");
+        playSound("ring");
       }
       if (state.delay > 0) {
         await new Promise((resolve) => setTimeout(resolve, state.delay));
@@ -2067,291 +2482,243 @@
       hasReceivedFirstAIResponse = false;
       shouldAutoUnmute = true;
       audioStreamComplete = false;
-      await showProgressiveConnectionStates();
-      const selectedLanguage = languageSelect.value;
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        updateStatus("❌ Microphone not supported", "disconnected");
-        alert(
-          "Your browser doesn't support microphone access. Please use a modern browser like Chrome, Safari, or Firefox."
-        );
-        throw new Error("getUserMedia not supported");
-      }
-      updateStatus("Requesting microphone...", "connecting");
-      try {
-        mediaStream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            channelCount: 1,
-            sampleRate: 24000,
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: false,
-          },
-        });
-        console.log("Microphone access granted");
-        if (shouldAutoUnmute) {
-          mediaStream.getAudioTracks().forEach((track) => {
-            track.enabled = false;
-          });
-          console.log("🔇 Microphone muted initially");
-        }
-      } catch (micError) {
-        console.error("Error accessing microphone:", micError);
-        try {
-          console.log("Trying fallback microphone settings...");
-          mediaStream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
-          });
-          console.log("Microphone access granted with fallback settings");
-          if (shouldAutoUnmute) {
-            mediaStream.getAudioTracks().forEach((track) => {
-              track.enabled = false;
+      
+      // Clear any existing timeouts
+      if (connectionTimeout) clearTimeout(connectionTimeout);
+      if (aiResponseTimeout) clearTimeout(aiResponseTimeout);
+      
+      // Set connection timeout
+      connectionTimeout = setTimeout(() => {
+        if (!isConnected) {
+          console.error('❌ Connection timeout - AI server not responding');
+          updateStatus('⚠️ Connection timeout', 'disconnected');
+          if (retryCount < MAX_RETRIES) {
+            retryCount++;
+            console.log(`🔄 Retrying connection... Attempt ${retryCount}/${MAX_RETRIES}`);
+            stopConversation().then(() => {
+              setTimeout(() => startConversation(), 2000);
             });
-            console.log("🔇 Microphone muted initially (fallback)");
+          } else {
+            updateStatus('❌ Unable to connect. Please try again later.', 'disconnected');
+            alert('Unable to connect to AI. The service might be busy. Please try again in a few moments.');
+            stopConversation();
+            retryCount = 0;
           }
-        } catch (fallbackError) {
-          console.error("Fallback microphone access failed:", fallbackError);
-          updateStatus("❌ Microphone access denied", "disconnected");
-          let errorMessage = "Microphone access is required for voice calls.";
-          if (fallbackError.name === "NotAllowedError") {
-            errorMessage +=
-              "\n\nPlease allow microphone permissions in your browser settings.";
-          } else if (fallbackError.name === "NotFoundError") {
-            errorMessage +=
-              "\n\nNo microphone found. Please check your device.";
-          }
-          alert(errorMessage);
-          throw new Error("Microphone access denied");
         }
+      }, CONNECTION_TIMEOUT);
+      
+      await showProgressiveConnectionStates();
+      
+      const selectedLanguage = languageSelect.value;
+      const deviceType = /Mobile|Android|iPhone/i.test(navigator.userAgent) ? 'mobile' : 'desktop';
+      
+      // Check LiveKit support
+      if (typeof LivekitClient === 'undefined') {
+        console.error('❌ LiveKit client library not loaded');
+        updateStatus("❌ LiveKit not available", "disconnected");
+        alert("LiveKit library is not loaded. Please refresh the page.");
+        throw new Error("LiveKit not available");
       }
-      statusDiv.className = "call-info-status connecting";
-      updateStatus("Connecting to backend...", "connecting");
-      const startCallResponse = await fetch(
-        "https://shivai-com-backend.onrender.com/api/v1/calls/start-call",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Connection: "keep-alive",
-          },
-          body: JSON.stringify({
-            timestamp: new Date().toISOString(),
-            warmedUp: false,
-          }),
-          cache: "no-store",
-        }
-      );
-      if (!startCallResponse.ok) {
-        throw new Error(`Start call API failed: ${startCallResponse.status}`);
-      }
-      const startCallData = await startCallResponse.json();
-      console.log("📋 [API] Full start call response:", startCallData);
-      if (!startCallData.success || !startCallData.data) {
-        throw new Error(startCallData.message || "Failed to start call");
-      }
-      const { callId, pythonServiceUrl } = startCallData.data;
-      console.log(
-        "✅ [API] Call started successfully - CallId:",
-        callId,
-        "URL:",
-        pythonServiceUrl
-      );
+      
+      updateStatus("Connecting to LiveKit...", "connecting");
+      
+      // Get LiveKit token from backend
+      const callId = `call_${Date.now()}`;
       window.currentCallId = callId;
-      console.log(
-        "💾 [STORAGE] CallId stored in window.currentCallId:",
-        window.currentCallId
-      );
-      const audioContextOptions = {
-        sampleRate: 24000,
-        latencyHint: "interactive",
-      };
-      if (isIOS()) {
-        audioContextOptions.latencyHint = "playback";
-        console.log(
-          "🍎 [iOS] Using iOS-optimized audio settings with 20x amplification and soft clipping"
-        );
-      } else {
-        console.log(
-          "🤖 [Android] Using standard audio settings with 12x amplification"
-        );
+      
+      const response = await fetch('https://test-livekit-agent.onrender.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agent_id: 'test-agent',
+          language: selectedLanguage,
+          call_id: callId,
+          device: deviceType,
+          user_agent: navigator.userAgent
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to get LiveKit token: ${response.status}`);
       }
-      audioContext = new (window.AudioContext || window.webkitAudioContext)(
-        audioContextOptions
-      );
-      if (audioContext.state === "suspended") {
-        await audioContext.resume();
-        if (isIOS() && audioContext.state === "suspended") {
-          setTimeout(async () => {
-            try {
-              await audioContext.resume();
-              console.log("🍎 [iOS] Audio context resumed after delay");
-            } catch (e) {
-              console.warn("🍎 [iOS] Failed to resume audio context:", e);
-            }
-          }, 100);
+      
+      const data = await response.json();
+      console.log('✅ [LiveKit] Token received');
+      
+      // Create LiveKit room
+      room = new LivekitClient.Room({
+        adaptiveStream: true,
+        dynacast: true,
+        audioCaptureDefaults: {
+          noiseSuppression: true,
+          echoCancellation: true,
+          autoGainControl: true,
+          channelCount: 1,
+          sampleRate: 48000,
+          sampleSize: 16,
         }
-      }
-      setupPlaybackProcessor();
-      ws = new WebSocket(
-        pythonServiceUrl || "wss://python.service.callshivai.com"
-      );
-      ws.onopen = async () => {
-        console.log("🟢 [WEBSOCKET] Connected to server");
+      });
+      
+      // ✅ Track remote audio (agent speaking)
+      room.on(LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
+        if (track.kind === LivekitClient.Track.Kind.Audio) {
+          // Create Web Audio API gain boost for louder volume
+          const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          const source = audioContext.createMediaStreamSource(new MediaStream([track.mediaStreamTrack]));
+            const gainNode = audioContext.createGain();
+            gainNode.gain.value = isIOS() ? 2.0 : 1.0;  // 🔊 2x volume boost for iOS, 1x for other devices
+            source.connect(gainNode);
+          gainNode.connect(audioContext.destination);
+          
+          // Keep regular element too
+          const audioElement = track.attach();
+          audioElement.volume = 1.0;
+          document.body.appendChild(audioElement);
+          audioElement.play();
+          
+          remoteAudioTrack = track;
+          monitorRemoteAudioLevel(track);
+          console.log('🔊 Agent audio track received with 2x volume boost - monitoring started');
+        }
+      });
+      
+      // Room connected
+      room.on(LivekitClient.RoomEvent.Connected, async () => {
+        console.log('✅ Connected to LiveKit room');
         isConnected = true;
-        updateStatus("Waiting for AI response...", "connecting");
-        showLoadingStatus("AI is preparing to speak...");
-        playSound("call-start");
-        if (muteBtn) {
-          muteBtn.style.display = "none";
-          isMuted = true;
-          console.log(
-            "🔇 Starting with microphone muted internally - will auto-unmute after AI responds"
-          );
+        retryCount = 0; // Reset retry count on successful connection
+        
+        // Clear connection timeout
+        if (connectionTimeout) {
+          clearTimeout(connectionTimeout);
+          connectionTimeout = null;
         }
+        
+        updateStatus('✅ Connected - Waiting for AI...', 'connected');
+        playSound('call-start');
+        
         languageSelect.disabled = true;
-        console.log("Connected to server");
-        const clientIp = await getClientIP();
-        const agentIdInput = document.getElementById("agent-id-input");
-        ws.send(
-          JSON.stringify({
-            type: "config",
-            language: selectedLanguage,
-            agent_id: "id123",
-            client_ip: clientIp || null,
-            callId: window.currentCallId || null,
-          })
-        );
-       
-        startAudioStreaming();
-      };
-      ws.onmessage = async (event) => {
-        const data = JSON.parse(event.data);
-        const eventType = data.type;
-        if (eventType === "input_audio_buffer.speech_started") {
-          updateStatus("🎤 Listening...", "listening");
-          stopAllScheduledAudio({ preserveStatus: true });
-          currentUserTranscript = "";
-          lastUserMessageDiv = null;
-          if (!visualizerInterval) {
-            visualizerInterval = setInterval(
-              () => animateVisualizer(true),
-              100
-            );
-          }
-        } else if (eventType === "input_audio_buffer.speech_stopped") {
-          console.log("🛑 [USER] Speech stopped");
-          updateStatus("🤔 Processing...", "speaking");
-          if (visualizerInterval) {
-            clearInterval(visualizerInterval);
-            visualizerInterval = null;
-            animateVisualizer(false);
-          }
-        } else if (eventType === "deepgram.transcript") {
-          const transcript = data.transcript;
-          const isFinal = data.is_final;
-          if (transcript && transcript.trim()) {
-            console.log(
-              `📝 [USER ${isFinal ? "FINAL" : "INTERIM"}]:`,
-              transcript
-            );
-            if (!lastUserMessageDiv) {
-              lastUserMessageDiv = addMessage("user", transcript);
-              currentUserTranscript = transcript;
-            } else {
-              if (isFinal) {
-                currentUserTranscript = transcript;
-                updateMessage(lastUserMessageDiv, transcript);
-                console.log("✅ [USER] Final transcript saved:", transcript);
-                lastUserMessageDiv = null;
-              } else {
-                updateMessage(lastUserMessageDiv, transcript);
-              }
-            }
-          }
-        } else if (eventType === "response.audio_transcript.delta") {
-          console.log("📝 [AI DELTA]:", data.delta);
-          currentAssistantTranscript += data.delta;
-          if (!hasReceivedFirstAIResponse && data.delta && data.delta.trim()) {
-            hasReceivedFirstAIResponse = true;
-            clearLoadingStatus();
-            updateStatus("🤖 AI Speaking...", "speaking");
-            startCallTimer();
-            if (shouldAutoUnmute && isMuted) {
-              setTimeout(() => {
-                if (isMuted && mediaStream) {
-                  isMuted = false;
-                  mediaStream.getAudioTracks().forEach((track) => {
-                    track.enabled = true;
-                  });
-                  console.log("🎤 Auto-unmuted microphone after AI response");
-                  updateStatus("🎤 Ready to listen", "connected");
-                }
-                shouldAutoUnmute = false;
-              }, 2500);
-            }
-            console.log(
-              "🎉 First AI response received - loading cleared, timer started"
-            );
-          }
-        } else if (eventType === "response.audio_transcript.done") {
-          if (currentAssistantTranscript && currentAssistantTranscript.trim()) {
-            console.log("✅ [AI RESPONSE]:", currentAssistantTranscript);
-            addMessage("assistant", currentAssistantTranscript);
-          }
-          currentAssistantTranscript = "";
-        } else if (eventType === "response.audio.delta") {
-          console.log("🔊 [AI AUDIO] Received audio chunk");
-          scheduleAudioChunk(base64ToArrayBuffer(data.delta));
+        stopRingSound();
+        
+        // Set AI response timeout
+        aiResponseTimeout = setTimeout(() => {
           if (!hasReceivedFirstAIResponse) {
-            hasReceivedFirstAIResponse = true;
-            clearLoadingStatus();
-            updateStatus("🤖 AI Speaking...", "speaking");
-            startCallTimer();
-            if (shouldAutoUnmute && isMuted) {
-              setTimeout(() => {
-                if (isMuted && mediaStream) {
-                  isMuted = false;
-                  mediaStream.getAudioTracks().forEach((track) => {
-                    track.enabled = true;
-                  });
-                  console.log("🎤 Auto-unmuted microphone after AI response");
-                  updateStatus("🎤 Ready to listen", "connected");
-                }
-                shouldAutoUnmute = false;
-              }, 2500);
-            }
-            console.log(
-              "🎉 First AI audio received - loading cleared, timer started"
-            );
+            console.warn('⚠️ AI not responding - may be initializing');
+            updateStatus('⚠️ AI is taking longer than usual...', 'connected');
+            
+            // Extended timeout
+            setTimeout(() => {
+              if (!hasReceivedFirstAIResponse) {
+                console.error('❌ AI response timeout');
+                updateStatus('❌ AI not responding', 'disconnected');
+                alert('AI agent is not responding. Please try again.');
+                stopConversation();
+              }
+            }, 15000); // Additional 15 secondsclear token
           }
-        } else if (eventType === "response.done") {
-          console.log("✅ [AI] Response complete");
-          audioStreamComplete = true;
-          if (!assistantSpeaking) {
-            updateStatus("🟢 Connected - Speak naturally!", "connected");
-          }
-        } else if (eventType === "error") {
-          console.error("❌ [ERROR] from server:", data);
-          updateStatus("❌ Error occurred", "disconnected");
+        }, AI_RESPONSE_TIMEOUT);
+        
+        // Don't start timer here - wait for first AI response
+      });
+      
+      // Room disconnected
+      room.on(LivekitClient.RoomEvent.Disconnected, (reason) => {
+        console.log('Disconnected from LiveKit room', reason);
+        if (isConnected) {
+          updateStatus('❌ Connection lost', 'disconnected');
         }
-      };
-      ws.onerror = (error) => {
-        console.error("WebSocket error:", error);
-        clearLoadingStatus();
-        updateStatus("❌ Connection error", "disconnected");
         stopConversation();
-      };
-      ws.onclose = () => {
-        console.log("WebSocket closed");
-        clearLoadingStatus();
-        stopConversation();
-      };
+      });
+      
+      // Connection state change
+      room.on(LivekitClient.RoomEvent.ConnectionStateChanged, (state) => {
+        console.log('🔗 Connection state:', state);
+        if (state === LivekitClient.ConnectionState.Reconnecting) {
+          updateStatus('🔄 Reconnecting...', 'connecting');
+        } else if (state === LivekitClient.ConnectionState.Disconnected) {
+          updateStatus('❌ Disconnected', 'disconnected');
+        }
+      });
+      
+      // Data received
+      room.on(LivekitClient.RoomEvent.DataReceived, (payload, participant) => {
+        try {
+          const data = JSON.parse(new TextDecoder().decode(payload));
+          console.log('📨 Data received:', data);
+          
+          // Handle transcripts and events from agent
+          if (data.type === 'transcript') {
+            if (data.role === 'user') {
+              if (!lastUserMessageDiv) {
+                lastUserMessageDiv = addMessage("user", data.text);
+              } else {
+                updateMessage(lastUserMessageDiv, data.text);
+              }
+            } else if (data.role === 'assistant') {
+              addMessage("assistant", data.text);
+            }
+          }
+        } catch (e) {
+          console.error('Error parsing data:', e);
+        }
+      });
+      
+      // Connect to room
+      await room.connect(data.url, data.token);
+      console.log('🔗 LiveKit room connected successfully');
+      
+      // ✅ Enable microphone and monitor local audio
+      await room.localParticipant.setMicrophoneEnabled(true, {
+        noiseSuppression: true,
+        echoCancellation: true,
+        autoGainControl: true,
+        channelCount: 1,
+        sampleRate: 48000,
+        sampleSize: 16,
+      });
+      
+      // Get local audio track and start monitoring
+      const audioTracks = Array.from(room.localParticipant.audioTrackPublications.values());
+      if (audioTracks.length > 0) {
+        localAudioTrack = audioTracks[0].track;
+        monitorLocalAudioLevel(localAudioTrack);
+        console.log('🎤 Microphone monitoring started');
+      }
+      
+      console.log('🎤 Microphone enabled with LiveKit');
+      
     } catch (error) {
-      console.error("Error:", error);
+      console.error("❌ Connection Error:", error);
       clearLoadingStatus();
-      alert(
-        "Failed to access microphone or connect to server. Please ensure:\n1. Backend server is running\n2. Microphone permissions are granted"
-      );
-      stopConversation();
+      
+      // Clear timeouts
+      if (connectionTimeout) clearTimeout(connectionTimeout);
+      if (aiResponseTimeout) clearTimeout(aiResponseTimeout);
+      
+      // Show user-friendly error message
+      let errorMsg = 'Connection failed';
+      if (error.message.includes('token')) {
+        errorMsg = 'Authentication failed';
+      } else if (error.message.includes('timeout')) {
+        errorMsg = 'Connection timeout';
+      } else if (error.message.includes('network')) {
+        errorMsg = 'Network error';
+      }
+      
+      updateStatus(`❌ ${errorMsg}`, "disconnected");
+      
+      // Retry logic
+      if (retryCount < MAX_RETRIES && !error.message.includes('token')) {
+        retryCount++;
+        console.log(`🔄 Retrying connection... Attempt ${retryCount}/${MAX_RETRIES}`);
+        setTimeout(() => startConversation(), 2000);
+      } else {
+        if (retryCount >= MAX_RETRIES) {
+          alert('Unable to connect after multiple attempts. Please check your internet connection and try again.');
+        }
+        stopConversation();
+        retryCount = 0;
+      }
     }
   }
   async function stopConversation() {
@@ -2363,6 +2730,16 @@
     isMuted = false;
     stopCallTimer();
     clearLoadingStatus();
+    
+    // Clear all timeouts
+    if (connectionTimeout) {
+      clearTimeout(connectionTimeout);
+      connectionTimeout = null;
+    }
+    if (aiResponseTimeout) {
+      clearTimeout(aiResponseTimeout);
+      aiResponseTimeout = null;
+    }
     try {
       playSound("call-end");
     } catch (e) {
@@ -2393,36 +2770,17 @@
         window.currentCallId = null;
       }
     }
-    stopAllScheduledAudio();
-    teardownPlaybackProcessor();
-    if (audioWorkletNode) {
-      audioWorkletNode.disconnect();
-      audioWorkletNode = null;
+    
+    // Disconnect LiveKit room
+    if (room) {
+      await room.disconnect();
+      room = null;
+      console.log("🔴 LiveKit room disconnected");
     }
-    if (mediaStream) {
-      console.log("Stopping microphone and closing media stream...");
-      mediaStream.getTracks().forEach((track) => {
-        console.log(
-          `Stopping track: ${track.kind}, state: ${track.readyState}`
-        );
-        track.stop();
-        track.enabled = false;
-      });
-      mediaStream = null;
-      console.log("Microphone closed successfully");
-    }
-    if (ws) {
-      ws.close();
-      ws = null;
-    }
-    if (audioContext) {
-      try {
-        await audioContext.close();
-      } catch (error) {
-        console.error("Error closing audio context:", error);
-      }
-      audioContext = null;
-    }
+    
+    localAudioTrack = null;
+    remoteAudioTrack = null;
+    
     if (visualizerInterval) {
       clearInterval(visualizerInterval);
       visualizerInterval = null;
@@ -2439,27 +2797,19 @@
       isMuted = false;
     }
     languageSelect.disabled = false;
-    console.log("Conversation stopped");
+    
+    // Remove any attached audio elements
+    document.querySelectorAll('audio').forEach(el => el.remove());
+    
+    console.log("✅ Conversation stopped - LiveKit cleanup complete");
   }
+  
+  // Remove unused WebSocket audio streaming function
   function startAudioStreaming() {
-    const source = audioContext.createMediaStreamSource(mediaStream);
-    const processor = audioContext.createScriptProcessor(4096, 1, 1);
-    processor.onaudioprocess = (e) => {
-      if (!isConnected || !ws || ws.readyState !== WebSocket.OPEN) return;
-      const inputData = e.inputBuffer.getChannelData(0);
-      const pcm16 = convertFloat32ToPCM16(inputData);
-      const base64Audio = arrayBufferToBase64(pcm16);
-      ws.send(
-        JSON.stringify({
-          type: "audio",
-          audio: base64Audio,
-        })
-      );
-    };
-    source.connect(processor);
-    processor.connect(audioContext.destination);
-    audioWorkletNode = processor;
+    // This function is no longer needed with LiveKit
+    console.log("startAudioStreaming called but not needed with LiveKit");
   }
+  
   function base64ToArrayBuffer(base64) {
     const binaryString = atob(base64);
     const len = binaryString.length;
@@ -2513,9 +2863,9 @@
   function handlePlaybackProcess(event) {
     const output = event.outputBuffer.getChannelData(0);
     let offset = 0;
-    const baseVolumeGain = 3.5;
-    const compressionThreshold = 0.7;
-    const compressionRatio = 0.5;
+    const baseVolumeGain = isIOS() ? 6.0 : 3.5; // Higher gain for iOS
+    const compressionThreshold = isIOS() ? 0.6 : 0.7; // Lower threshold for iOS to handle higher gain
+    const compressionRatio = isIOS() ? 0.4 : 0.5; // More aggressive compression for iOS
     if (!audioBufferingStarted && !audioStreamComplete) {
       for (let i = 0; i < output.length; i++) {
         output[i] = 0;
@@ -2542,10 +2892,12 @@
         const absSample = Math.abs(processedSample);
         if (absSample > compressionThreshold) {
           const excess = absSample - compressionThreshold;
-          const compressed = compressionThreshold + (excess * compressionRatio);
+          const compressed = compressionThreshold + excess * compressionRatio;
           processedSample = (processedSample > 0 ? 1 : -1) * compressed;
         }
-        processedSample = Math.max(-0.95, Math.min(0.95, processedSample));
+        // Enhanced clipping prevention for iOS
+        const maxOutput = isIOS() ? 0.92 : 0.95; // Slightly more conservative clipping for iOS
+        processedSample = Math.max(-maxOutput, Math.min(maxOutput, processedSample));
         output[offset + i] = processedSample;
       }
       offset += samplesToCopy;
@@ -2568,7 +2920,10 @@
       return;
     }
     playbackBufferQueue.push(float32);
-    if (!audioBufferingStarted && playbackBufferQueue.length >= minBufferChunks) {
+    if (
+      !audioBufferingStarted &&
+      playbackBufferQueue.length >= minBufferChunks
+    ) {
       audioBufferingStarted = true;
       setAssistantSpeaking(true);
     }
@@ -2583,6 +2938,7 @@
   }
   function stopAllScheduledAudio(options = {}) {
     const preserveStatus = options.preserveStatus === true;
+    stopRingSound(); // Stop ring sound when stopping all audio
     playbackBufferQueue = [];
     playbackBufferOffset = 0;
     audioBufferingStarted = false;
@@ -2608,9 +2964,31 @@
   window.addEventListener("beforeunload", () => {
     stopConversation();
   });
+  
+  // ✅ Load LiveKit SDK first, then initialize widget
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initWidget);
+    document.addEventListener("DOMContentLoaded", () => {
+      loadLiveKitSDK()
+        .then(() => {
+          console.log('🚀 Initializing widget with LiveKit support');
+          initWidget();
+        })
+        .catch((error) => {
+          console.error('❌ Failed to load LiveKit SDK:', error);
+          console.log('⚠️ Initializing widget anyway (LiveKit features may not work)');
+          initWidget();
+        });
+    });
   } else {
-    initWidget();
+    loadLiveKitSDK()
+      .then(() => {
+        console.log('🚀 Initializing widget with LiveKit support');
+        initWidget();
+      })
+      .catch((error) => {
+        console.error('❌ Failed to load LiveKit SDK:', error);
+        console.log('⚠️ Initializing widget anyway (LiveKit features may not work)');
+        initWidget();
+      });
   }
 })(window, document);
