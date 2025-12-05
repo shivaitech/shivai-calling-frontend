@@ -37,7 +37,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
 
   const groupedOptions = groupBy
     ? filteredOptions.reduce((acc, option) => {
-        const group = option.group || 'Other';
+        const group = option.group || 'All';
         if (!acc[group]) acc[group] = [];
         acc[group].push(option);
         return acc;

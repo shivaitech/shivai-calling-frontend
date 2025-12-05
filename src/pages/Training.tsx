@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate, useLocation, useParams } from "react-router-dom";
+import toast from 'react-hot-toast';
 import GlassCard from "../components/GlassCard";
 import { useAgent } from "../contexts/AgentContext";
 import { useAuth } from "../contexts/AuthContext";
@@ -48,6 +49,270 @@ const Training = () => {
   const [trainingProgress, setTrainingProgress] = useState(0);
   const [isTraining, setIsTraining] = useState(false);
   const [activeTab, setActiveTab] = useState("knowledge");
+  const [urls, setUrls] = useState<string[]>(["", ""]);
+  const [objections, setObjections] = useState<{objection: string, response: string}[]>([
+    { objection: "", response: "" }
+  ]);
+  const [intents, setIntents] = useState<{name: string, phrases: string, response: string}[]>([
+    { name: "", phrases: "", response: "" }
+  ]);
+  const [testMessage, setTestMessage] = useState("");
+  const [aiResponse, setAiResponse] = useState("");
+  const [isTestingResponse, setIsTestingResponse] = useState(false);
+  const [isTestingAudio, setIsTestingAudio] = useState(false);
+  const [testMetrics, setTestMetrics] = useState({
+    accuracyScore: 0,
+    responseTime: 0,
+    confidenceLevel: 0,
+    intentRecognition: 0,
+    totalTests: 0
+  });
+  const [savedSections, setSavedSections] = useState({
+    knowledge: false,
+    examples: false,
+    intents: false
+  });
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const addUrl = () => {
+    setUrls([...urls, ""]);
+  };
+
+  const removeUrl = (index: number) => {
+    if (urls.length > 1) {
+      setUrls(urls.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateUrl = (index: number, value: string) => {
+    const newUrls = [...urls];
+    newUrls[index] = value;
+    setUrls(newUrls);
+  };
+
+  const addObjection = () => {
+    setObjections([...objections, { objection: "", response: "" }]);
+  };
+
+  const removeObjection = (index: number) => {
+    if (objections.length > 1) {
+      setObjections(objections.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateObjection = (index: number, field: 'objection' | 'response', value: string) => {
+    const newObjections = [...objections];
+    newObjections[index][field] = value;
+    setObjections(newObjections);
+  };
+
+  const addIntent = () => {
+    setIntents([...intents, { name: "", phrases: "", response: "" }]);
+  };
+
+  const removeIntent = (index: number) => {
+    if (intents.length > 1) {
+      setIntents(intents.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateIntent = (index: number, field: 'name' | 'phrases' | 'response', value: string) => {
+    const newIntents = [...intents];
+    newIntents[index][field] = value;
+    setIntents(newIntents);
+  };
+
+  const handleTestResponse = () => {
+    if (!testMessage.trim()) return;
+    
+    setIsTestingResponse(true);
+    
+    // Simulate AI processing time
+    setTimeout(() => {
+      // Generate a response based on the test message
+      let response = "";
+      const lowerMessage = testMessage.toLowerCase();
+      
+      if (lowerMessage.includes("hi") || lowerMessage.includes("hello")) {
+        response = "Hello! I'm your AI assistant. How can I help you today?";
+      } else if (lowerMessage.includes("price") || lowerMessage.includes("cost")) {
+        response = "Our pricing starts at $99/month for the basic plan. Would you like me to explain the different options available?";
+      } else if (lowerMessage.includes("help") || lowerMessage.includes("support")) {
+        response = "I'm here to help! Please tell me what specific assistance you need and I'll do my best to guide you.";
+      } else if (lowerMessage.includes("book") || lowerMessage.includes("schedule")) {
+        response = "I'd be happy to help you schedule an appointment. What date and time works best for you?";
+      } else {
+        response = "Thank you for your message. I understand you're asking about '" + testMessage + "'. Let me help you with that.";
+      }
+      
+      setAiResponse(response);
+      setIsTestingResponse(false);
+      
+      // Update metrics after each test
+      setTestMetrics(prev => {
+        const newTotalTests = prev.totalTests + 1;
+        const randomAccuracy = Math.floor(Math.random() * 15) + 85; // 85-100%
+        const randomResponseTime = (Math.random() * 2 + 0.5).toFixed(1); // 0.5-2.5s
+        const randomConfidence = Math.floor(Math.random() * 20) + 80; // 80-100%
+        const randomIntent = Math.floor(Math.random() * 25) + 75; // 75-100%
+        
+        return {
+          accuracyScore: randomAccuracy,
+          responseTime: parseFloat(randomResponseTime),
+          confidenceLevel: randomConfidence,
+          intentRecognition: randomIntent,
+          totalTests: newTotalTests
+        };
+      });
+    }, 1500);
+  };
+
+  const handleTestAudio = () => {
+    if (!aiResponse.trim()) return;
+    
+    setIsTestingAudio(true);
+    
+    // Use Web Speech API for text-to-speech
+    if ('speechSynthesis' in window) {
+      // Cancel any ongoing speech
+      speechSynthesis.cancel();
+      
+      const utterance = new SpeechSynthesisUtterance(aiResponse);
+      
+      // Configure voice settings
+      utterance.rate = 1.0; // Normal speed
+      utterance.pitch = 1.0; // Normal pitch
+      utterance.volume = 1.0; // Full volume
+      
+      // Try to find a professional female voice - more aggressive filtering
+      const voices = speechSynthesis.getVoices();
+      
+      // First, filter out any voices that are clearly male
+      const nonMaleVoices = voices.filter(voice => 
+        !voice.name.toLowerCase().includes('male') &&
+        !voice.name.toLowerCase().includes('man') &&
+        !voice.name.toLowerCase().includes('guy') &&
+        !voice.name.toLowerCase().includes('boy') &&
+        !voice.name.toLowerCase().includes('david') &&
+        !voice.name.toLowerCase().includes('alex') &&
+        !voice.name.toLowerCase().includes('tom') &&
+        !voice.name.toLowerCase().includes('john') &&
+        !voice.name.toLowerCase().includes('mark') &&
+        !voice.name.toLowerCase().includes('daniel') &&
+        !voice.name.toLowerCase().includes('fred') &&
+        !voice.name.toLowerCase().includes('jorge')
+      );
+      
+      // Then look for explicitly female voices
+      const femaleVoice = nonMaleVoices.find(voice => 
+        voice.name.toLowerCase().includes('female') || 
+        voice.name.toLowerCase().includes('sarah') ||
+        voice.name.toLowerCase().includes('samantha') ||
+        voice.name.toLowerCase().includes('karen') ||
+        voice.name.toLowerCase().includes('susan') ||
+        voice.name.toLowerCase().includes('anna') ||
+        voice.name.toLowerCase().includes('emma') ||
+        voice.name.toLowerCase().includes('zira') ||
+        voice.name.toLowerCase().includes('hazel') ||
+        voice.name.toLowerCase().includes('fiona') ||
+        voice.name.toLowerCase().includes('kate') ||
+        voice.name.toLowerCase().includes('victoria') ||
+        voice.name.toLowerCase().includes('allison') ||
+        voice.name.toLowerCase().includes('ava') ||
+        voice.name.toLowerCase().includes('serena') ||
+        voice.name.toLowerCase().includes('tessa') ||
+        (voice.gender && voice.gender.toLowerCase() === 'female')
+      ) || nonMaleVoices.find(voice => voice.lang.startsWith('en-US'))
+        || nonMaleVoices.find(voice => voice.lang.startsWith('en')) 
+        || nonMaleVoices[0]
+        || voices[0];
+      
+      // Force higher pitch for more feminine sound
+      if (femaleVoice) {
+        utterance.voice = femaleVoice;
+        utterance.pitch = 1.2; // Higher pitch for more feminine sound
+      }
+      
+      utterance.onend = () => {
+        setIsTestingAudio(false);
+      };
+      
+      utterance.onerror = () => {
+        setIsTestingAudio(false);
+        console.error('Speech synthesis error');
+      };
+      
+      speechSynthesis.speak(utterance);
+    } else {
+      // Fallback: simulate audio test
+      setTimeout(() => {
+        setIsTestingAudio(false);
+        alert('Audio test completed! (Speech synthesis not supported in this browser)');
+      }, 3000);
+    }
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files) {
+      const fileArray = Array.from(files);
+      const validFiles = fileArray.filter(file => {
+        const validTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain', 'text/csv'];
+        const maxSize = 10 * 1024 * 1024; // 10MB
+        
+        if (!validTypes.includes(file.type)) {
+          toast.error(`${file.name} is not a supported file type`);
+          return false;
+        }
+        
+        if (file.size > maxSize) {
+          toast.error(`${file.name} is too large (max 10MB)`);
+          return false;
+        }
+        
+        return true;
+      });
+      
+      if (validFiles.length > 0) {
+        setIsUploading(true);
+        
+        // Simulate upload process
+        setTimeout(() => {
+          setUploadedFiles(prev => [...prev, ...validFiles]);
+          setIsUploading(false);
+          toast.success(`${validFiles.length} file(s) uploaded successfully!`);
+        }, 2000);
+      }
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+    toast.success('File removed');
+  };
+
+  const saveKnowledgeBase = () => {
+    // Here you would normally save to backend
+    setSavedSections(prev => ({ ...prev, knowledge: true }));
+    toast.success('Knowledge base saved successfully!');
+  };
+
+  const saveTrainingExamples = () => {
+    // Here you would normally save to backend
+    setSavedSections(prev => ({ ...prev, examples: true }));
+    toast.success('Training examples saved successfully!');
+  };
+
+  const saveIntentTraining = () => {
+    // Here you would normally save to backend
+    setSavedSections(prev => ({ ...prev, intents: true }));
+    toast.success('Intent training saved successfully!');
+  };
+
+  const canStartTraining = () => {
+    return savedSections.knowledge && savedSections.examples && savedSections.intents;
+  };
 
   const selectedAgentData = agents.find((agent) => agent.id === selectedAgent);
 
@@ -91,26 +356,26 @@ const Training = () => {
     ? [
         {
           label: "Accuracy Score",
-          value: "94.2%",
-          change: "+2.1%",
+          value: `${testMetrics.accuracyScore}%`,
+          change: testMetrics.totalTests > 0 ? `+${(Math.random() * 3 + 0.5).toFixed(1)}%` : "No data",
           trend: "up",
         },
         {
           label: "Response Time",
-          value: "1.2s",
-          change: "-0.3s",
+          value: `${testMetrics.responseTime}s`,
+          change: testMetrics.totalTests > 0 ? `-${(Math.random() * 0.5 + 0.1).toFixed(1)}s` : "No data",
           trend: "down",
         },
         {
           label: "Confidence Level",
-          value: "87.5%",
-          change: "+5.2%",
+          value: `${testMetrics.confidenceLevel}%`,
+          change: testMetrics.totalTests > 0 ? `+${(Math.random() * 5 + 1).toFixed(1)}%` : "No data",
           trend: "up",
         },
         {
           label: "Intent Recognition",
-          value: "91.8%",
-          change: "+1.4%",
+          value: `${testMetrics.intentRecognition}%`,
+          change: testMetrics.totalTests > 0 ? `+${(Math.random() * 2 + 0.5).toFixed(1)}%` : "No data",
           trend: "up",
         },
       ]
@@ -453,17 +718,66 @@ const Training = () => {
                             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-500 mb-4">
                               PDF, DOC, TXT, CSV files (Max 10MB each)
                             </p>
-                            <button
-                              disabled={!isDeveloper}
-                              className={`touch-manipulation ${
-                                isDeveloper
-                                  ? "common-button-bg"
-                                  : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50 px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg"
+                            <input
+                              type="file"
+                              multiple
+                              accept=".pdf,.doc,.docx,.txt,.csv"
+                              onChange={handleFileUpload}
+                              className="hidden"
+                              id="file-upload"
+                              disabled={!isDeveloper || isUploading}
+                            />
+                            <label
+                              htmlFor="file-upload"
+                              className={`touch-manipulation cursor-pointer inline-flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg ${
+                                isDeveloper && !isUploading
+                                  ? "common-button-bg hover:opacity-90 transition-opacity"
+                                  : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50"
                               }`}
                             >
-                              Choose Files
-                            </button>
+                              {isUploading ? (
+                                <>
+                                  <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
+                                  Uploading...
+                                </>
+                              ) : (
+                                "Choose Files"
+                              )}
+                            </label>
                           </div>
+
+                          {/* Uploaded Files List */}
+                          {uploadedFiles.length > 0 && (
+                            <div className="mt-4 space-y-2">
+                              <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                                Uploaded Files ({uploadedFiles.length})
+                              </h4>
+                              {uploadedFiles.map((file, index) => (
+                                <div key={index} className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 bg-green-100 dark:bg-green-800 rounded-lg flex items-center justify-center">
+                                      <FileText className="w-4 h-4 text-green-600 dark:text-green-300" />
+                                    </div>
+                                    <div>
+                                      <p className="text-sm font-medium text-green-800 dark:text-green-200 truncate max-w-[200px]">
+                                        {file.name}
+                                      </p>
+                                      <p className="text-xs text-green-600 dark:text-green-400">
+                                        {(file.size / 1024 / 1024).toFixed(2)} MB
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <button
+                                    onClick={() => removeFile(index)}
+                                    className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors p-1"
+                                    title="Remove file"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
 
                         {/* System Prompt / Instructions */}
@@ -507,26 +821,44 @@ const Training = () => {
                         {/* URL-based Knowledge */}
                         <div>
                           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
-                            Website / Knowledge Base URL
+                            Website / Knowledge Base URLs
                             <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
                               (Scrape content from URLs)
                             </span>
                           </label>
                           <div className="space-y-3">
-                            <input
-                              type="url"
-                              placeholder="https://yourwebsite.com/help-center"
-                              className="common-bg-icons w-full px-4 py-3 rounded-xl text-sm sm:text-base"
-                            />
+                            {/* URL Input List */}
+                            <div className="space-y-2">
+                              {urls.map((url, index) => (
+                                <div key={index} className="flex gap-2">
+                                  <input
+                                    type="url"
+                                    value={url}
+                                    onChange={(e) => updateUrl(index, e.target.value)}
+                                    placeholder={`https://example${index + 1}.com/${index === 0 ? 'help-center' : 'faq'}`}
+                                    className="common-bg-icons flex-1 px-4 py-3 rounded-xl text-sm sm:text-base"
+                                  />
+                                  {urls.length > 1 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => removeUrl(index)}
+                                      className="px-3 py-3 text-red-600 dark:text-red-400 rounded-xl hover:text-red-700 dark:hover:text-red-300 transition-colors"
+                                      title="Remove URL"
+                                    >
+                                      ✕
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                            
+                            {/* Add URL Button */}
                             <button
-                              disabled={!isDeveloper}
-                              className={`w-full sm:w-auto ${
-                                isDeveloper
-                                  ? "common-button-bg2"
-                                  : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50 px-4 py-3 rounded-lg"
-                              }`}
+                              type="button"
+                              onClick={addUrl}
+                              className="w-full sm:w-auto px-4 py-3 bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-xl hover:bg-blue-200 dark:hover:bg-blue-900/30 transition-colors font-medium text-sm"
                             >
-                              Import from URL
+                              + Add Another URL
                             </button>
                           </div>
                           <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
@@ -560,6 +892,23 @@ const Training = () => {
                               Save Draft
                             </button>
                           </div>
+                        </div>
+
+                        {/* Save Knowledge Base Button */}
+                        <div className="flex justify-end">
+                          <button
+                            onClick={saveKnowledgeBase}
+                            disabled={!isDeveloper}
+                            className={`px-6 py-3 rounded-xl font-medium ${
+                              isDeveloper
+                                ? savedSections.knowledge
+                                  ? "bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800"
+                                  : "common-button-bg"
+                                : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50"
+                            }`}
+                          >
+                            {savedSections.knowledge ? "✓ Knowledge Base Saved" : "Save Knowledge Base"}
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -688,39 +1037,83 @@ const Training = () => {
                           <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
                             Train your agent to handle common objections professionally
                           </p>
-                          <div className="space-y-4">
-                            <div>
-                              <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
-                                Common Objection:
-                              </label>
-                              <input
-                                type="text"
-                                placeholder="e.g., 'It's too expensive' or 'I'm not interested'"
-                                className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base"
-                              />
+                          <div className="space-y-6">
+                            {objections.map((objection, index) => (
+                              <div key={index} className="space-y-4 p-4 border border-slate-200 dark:border-slate-700 rounded-lg relative">
+                                {objections.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => removeObjection(index)}
+                                    className="absolute top-2 right-2 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
+                                    title="Remove Objection"
+                                  >
+                                    ✕
+                                  </button>
+                                )}
+                                <div className="pr-8">
+                                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
+                                    Common Objection {index + 1}:
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={objection.objection}
+                                    onChange={(e) => updateObjection(index, 'objection', e.target.value)}
+                                    placeholder="e.g., 'It's too expensive' or 'I'm not interested'"
+                                    className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
+                                    Response Strategy {index + 1}:
+                                  </label>
+                                  <textarea
+                                    value={objection.response}
+                                    onChange={(e) => updateObjection(index, 'response', e.target.value)}
+                                    placeholder="How should the agent respond to this objection?"
+                                    rows={3}
+                                    className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base resize-none"
+                                  />
+                                </div>
+                              </div>
+                            ))}
+                            <div className="flex flex-col sm:flex-row gap-3">
+                              <button
+                                type="button"
+                                onClick={addObjection}
+                                className="w-full sm:w-auto px-4 py-3 bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-xl hover:bg-blue-200 dark:hover:bg-blue-900/30 transition-colors font-medium text-sm"
+                              >
+                                + Add Another Objection
+                              </button>
+                              <button
+                                disabled={!isDeveloper}
+                                className={`w-full sm:w-auto ${
+                                  isDeveloper
+                                    ? "common-button-bg"
+                                    : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50 px-4 py-3 rounded-lg"
+                                }`}
+                              >
+                                Save All Objections
+                              </button>
                             </div>
-                            <div>
-                              <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
-                                Response Strategy:
-                              </label>
-                              <textarea
-                                placeholder="How should the agent respond to this objection?"
-                                rows={3}
-                                className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base resize-none"
-                              />
-                            </div>
-                            <button
-                              disabled={!isDeveloper}
-                              className={`w-full sm:w-auto ${
-                                isDeveloper
-                                  ? "common-button-bg"
-                                  : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50 px-4 py-3 rounded-lg"
-                              }`}
-                            >
-                              Add Objection Handler
-                            </button>
                           </div>
                         </div>
+                      </div>
+
+                      {/* Save Training Examples Button */}
+                      <div className="flex justify-end">
+                        <button
+                          onClick={saveTrainingExamples}
+                          disabled={!isDeveloper}
+                          className={`px-6 py-3 rounded-xl font-medium ${
+                            isDeveloper
+                              ? savedSections.examples
+                                ? "bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800"
+                                : "common-button-bg"
+                              : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50"
+                          }`}
+                        >
+                          {savedSections.examples ? "✓ Training Examples Saved" : "Save Training Examples"}
+                        </button>
                       </div>
                     </div>
                   )}
@@ -793,38 +1186,65 @@ const Training = () => {
                             Train the agent to recognize specific intents and
                             respond appropriately
                           </p>
-                          <div className="space-y-4">
-                            <div>
-                              <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
-                                Intent Name
-                              </label>
-                              <input
-                                type="text"
-                                placeholder="e.g., pricing_inquiry, support_request, booking_request"
-                                className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
-                                Example Phrases (one per line)
-                              </label>
-                              <textarea
-                                placeholder="How much does it cost?&#10;What's your pricing?&#10;Can you tell me the price?&#10;What are your rates?"
-                                rows={4}
-                                className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base resize-none"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
-                                Intent Response Template:
-                              </label>
-                              <textarea
-                                placeholder="Our pricing starts at $99/month for the basic plan..."
-                                rows={3}
-                                className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base resize-none"
-                              />
-                            </div>
+                          <div className="space-y-6">
+                            {intents.map((intent, index) => (
+                              <div key={index} className="space-y-4 p-4 border border-slate-200 dark:border-slate-700 rounded-lg relative">
+                                {intents.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => removeIntent(index)}
+                                    className="absolute top-2 right-2 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
+                                    title="Remove Intent"
+                                  >
+                                    ✕
+                                  </button>
+                                )}
+                                <div className="pr-8">
+                                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
+                                    Intent Name {index + 1}:
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={intent.name}
+                                    onChange={(e) => updateIntent(index, 'name', e.target.value)}
+                                    placeholder="e.g., pricing_inquiry, support_request, booking_request"
+                                    className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
+                                    Example Phrases {index + 1} (one per line):
+                                  </label>
+                                  <textarea
+                                    value={intent.phrases}
+                                    onChange={(e) => updateIntent(index, 'phrases', e.target.value)}
+                                    placeholder="How much does it cost?&#10;What's your pricing?&#10;Can you tell me the price?&#10;What are your rates?"
+                                    rows={4}
+                                    className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base resize-none"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
+                                    Intent Response Template {index + 1}:
+                                  </label>
+                                  <textarea
+                                    value={intent.response}
+                                    onChange={(e) => updateIntent(index, 'response', e.target.value)}
+                                    placeholder="Our pricing starts at $99/month for the basic plan..."
+                                    rows={3}
+                                    className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base resize-none"
+                                  />
+                                </div>
+                              </div>
+                            ))}
                             <div className="flex flex-col sm:flex-row gap-3">
+                              <button
+                                type="button"
+                                onClick={addIntent}
+                                className="w-full sm:w-auto px-4 py-3 bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-xl hover:bg-blue-200 dark:hover:bg-blue-900/30 transition-colors font-medium text-sm"
+                              >
+                                + Add Another Intent
+                              </button>
                               <button
                                 disabled={!isDeveloper}
                                 className={`flex-1 touch-manipulation ${
@@ -833,7 +1253,7 @@ const Training = () => {
                                     : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50 px-4 py-3 rounded-lg"
                                 }`}
                               >
-                                Add Intent
+                                Save All Intents
                               </button>
                               <button
                                 disabled={!isDeveloper}
@@ -879,6 +1299,23 @@ const Training = () => {
                           </div>
                         </div>
                       </div>
+
+                      {/* Save Intent Training Button */}
+                      <div className="flex justify-end">
+                        <button
+                          onClick={saveIntentTraining}
+                          disabled={!isDeveloper}
+                          className={`px-6 py-3 rounded-xl font-medium ${
+                            isDeveloper
+                              ? savedSections.intents
+                                ? "bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800"
+                                : "common-button-bg"
+                              : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50"
+                          }`}
+                        >
+                          {savedSections.intents ? "✓ Intent Training Saved" : "Save Intent Training"}
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -897,6 +1334,8 @@ const Training = () => {
                           <div className="space-y-4">
                             <div>
                               <textarea
+                                value={testMessage}
+                                onChange={(e) => setTestMessage(e.target.value)}
                                 placeholder="Type a test message to see how your agent responds..."
                                 rows={3}
                                 className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base resize-none"
@@ -904,27 +1343,98 @@ const Training = () => {
                             </div>
                             <div className="flex flex-col sm:flex-row gap-3">
                               <button
-                                disabled={!isDeveloper}
+                                onClick={handleTestResponse}
+                                disabled={!isDeveloper || !testMessage.trim() || isTestingResponse}
                                 className={`w-full sm:w-auto touch-manipulation ${
-                                  isDeveloper
+                                  isDeveloper && testMessage.trim() && !isTestingResponse
                                     ? "common-button-bg"
                                     : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50 px-6 py-3 rounded-lg"
                                 }`}
                               >
-                                Test Response
+                                {isTestingResponse ? "Testing..." : "Test Response"}
                               </button>
                               <button
-                                disabled={!isDeveloper}
+                                onClick={handleTestAudio}
+                                disabled={!isDeveloper || !aiResponse.trim() || isTestingAudio}
                                 className={`flex items-center gap-2 ${
-                                  isDeveloper
+                                  isDeveloper && aiResponse.trim() && !isTestingAudio
                                     ? "common-button-bg2"
                                     : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50 px-4 py-3 rounded-lg"
                                 }`}
                               >
                                 <Play className="w-4 h-4" />
-                                Test Audio
+                                {isTestingAudio ? "Playing..." : "Test Audio"}
                               </button>
                             </div>
+                            
+                            {/* AI Response Display */}
+                            {(aiResponse || isTestingResponse) && (
+                              <div className={`mt-4 p-4 border rounded-lg transition-all duration-300 ${
+                                isTestingAudio 
+                                  ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800" 
+                                  : "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800"
+                              }`}>
+                                <div className="flex items-start gap-3">
+                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-300 ${
+                                    isTestingAudio 
+                                      ? "bg-green-100 dark:bg-green-800 animate-pulse" 
+                                      : "bg-blue-100 dark:bg-blue-800"
+                                  }`}>
+                                    <Bot className={`w-4 h-4 ${
+                                      isTestingAudio 
+                                        ? "text-green-600 dark:text-green-300" 
+                                        : "text-blue-600 dark:text-blue-300"
+                                    }`} />
+                                  </div>
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <p className={`text-sm font-medium ${
+                                        isTestingAudio 
+                                          ? "text-green-800 dark:text-green-200" 
+                                          : "text-blue-800 dark:text-blue-200"
+                                      }`}>
+                                        AI Agent Response:
+                                      </p>
+                                      {isTestingAudio && (
+                                        <div className="flex items-center gap-1 text-green-600 dark:text-green-400">
+                                          <div className="flex space-x-1">
+                                            <div className="w-1 h-3 bg-green-600 dark:bg-green-400 rounded-full animate-pulse"></div>
+                                            <div className="w-1 h-3 bg-green-600 dark:bg-green-400 rounded-full animate-pulse" style={{animationDelay: '0.1s'}}></div>
+                                            <div className="w-1 h-3 bg-green-600 dark:bg-green-400 rounded-full animate-pulse" style={{animationDelay: '0.2s'}}></div>
+                                          </div>
+                                          <span className="text-xs font-medium">Speaking...</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                    {isTestingResponse ? (
+                                      <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                                        <div className="animate-spin w-4 h-4 border-2 border-blue-600 dark:border-blue-400 border-t-transparent rounded-full"></div>
+                                        <span className="text-sm">Generating response...</span>
+                                      </div>
+                                    ) : (
+                                      <p className={`text-sm leading-relaxed ${
+                                        isTestingAudio 
+                                          ? "text-green-700 dark:text-green-300" 
+                                          : "text-blue-700 dark:text-blue-300"
+                                      }`}>
+                                        {aiResponse}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            
+                            {/* Test Statistics */}
+                            {testMetrics.totalTests > 0 && (
+                              <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                                <p className="text-sm text-green-700 dark:text-green-300">
+                                  <strong>Tests Completed:</strong> {testMetrics.totalTests} | 
+                                  <strong className="ml-2">Latest Accuracy:</strong> {testMetrics.accuracyScore}% | 
+                                  <strong className="ml-2">Response Time:</strong> {testMetrics.responseTime}s
+                                </p>
+                              </div>
+                            )}
                           </div>
                         </div>
 
@@ -978,15 +1488,56 @@ const Training = () => {
                       <div className="common-bg-icons w-12 h-12 sm:w-16 sm:h-16 rounded-xl flex items-center justify-center mx-auto mb-4">
                         <Brain className="w-6 h-6 sm:w-8 sm:h-8 text-slate-600 dark:text-slate-400" />
                       </div>
+                      
+                      {/* Training Requirements */}
+                      <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                        <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
+                          Training Requirements:
+                        </p>
+                        <div className="space-y-1 text-xs text-blue-700 dark:text-blue-300">
+                          <div className="flex items-center gap-2">
+                            {savedSections.knowledge ? (
+                              <span className="w-4 h-4 bg-green-500 text-white rounded-full flex items-center justify-center text-xs">✓</span>
+                            ) : (
+                              <span className="w-4 h-4 bg-gray-300 dark:bg-gray-600 rounded-full flex items-center justify-center text-xs">○</span>
+                            )}
+                            <span>Knowledge Base saved</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {savedSections.examples ? (
+                              <span className="w-4 h-4 bg-green-500 text-white rounded-full flex items-center justify-center text-xs">✓</span>
+                            ) : (
+                              <span className="w-4 h-4 bg-gray-300 dark:bg-gray-600 rounded-full flex items-center justify-center text-xs">○</span>
+                            )}
+                            <span>Training Examples saved</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {savedSections.intents ? (
+                              <span className="w-4 h-4 bg-green-500 text-white rounded-full flex items-center justify-center text-xs">✓</span>
+                            ) : (
+                              <span className="w-4 h-4 bg-gray-300 dark:bg-gray-600 rounded-full flex items-center justify-center text-xs">○</span>
+                            )}
+                            <span>Intent Training saved</span>
+                          </div>
+                        </div>
+                      </div>
+
                       <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mb-4 sm:mb-6">
-                        Ready to train your agent with the provided knowledge
-                        and examples
+                        {canStartTraining() 
+                          ? "All requirements complete! Ready to train your agent."
+                          : "Please save all training sections before starting training."
+                        }
                       </p>
                       <button
                         onClick={handleStartTraining}
-                        className="common-button-bg w-full rounded-xl px-4 sm:px-6 py-3 font-medium touch-manipulation"
+                        disabled={!canStartTraining()}
+                        className={`w-full rounded-xl px-4 sm:px-6 py-3 font-medium touch-manipulation ${
+                          canStartTraining()
+                            ? "common-button-bg"
+                            : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50"
+                        }`}
                       >
-                        Start Training
+                        {canStartTraining() ? "Start Training" : "Save All Sections First"}
                       </button>
                     </div>
                   )}
@@ -1015,14 +1566,14 @@ const Training = () => {
                       </div>
 
                       {trainingProgress === 100 && (
-                        <div className="common-bg-icons p-3 sm:p-4 rounded-xl border-2 border-slate-300 dark:border-slate-600">
+                        <div className="bg-green-50 dark:bg-green-900/20 p-3 sm:p-4 rounded-xl border-2 border-green-200 dark:border-green-800">
                           <div className="flex items-center gap-3">
-                            <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-slate-600 dark:text-slate-400 flex-shrink-0" />
+                            <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-600 dark:text-green-400 flex-shrink-0" />
                             <div>
-                              <p className="font-medium text-slate-800 dark:text-white text-sm sm:text-base">
+                              <p className="font-medium text-green-800 dark:text-green-300 text-sm sm:text-base">
                                 Training Successful!
                               </p>
-                              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+                              <p className="text-xs sm:text-sm text-green-600 dark:text-green-400">
                                 Your agent is now ready for deployment
                               </p>
                             </div>

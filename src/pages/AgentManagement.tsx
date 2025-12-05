@@ -163,20 +163,32 @@ const AgentManagement = () => {
   ];
 
   const industries = [
-    { value: "real-estate", label: "Real Estate", group: "Property" },
-    { value: "healthcare", label: "Healthcare", group: "Medical" },
-    { value: "dental", label: "Dental Clinics", group: "Medical" },
-    { value: "fitness", label: "Fitness & Wellness", group: "Health" },
-    { value: "education", label: "Education", group: "Services" },
-    { value: "finance", label: "Finance & Banking", group: "Financial" },
-    { value: "insurance", label: "Insurance", group: "Financial" },
-    { value: "ecommerce", label: "E-commerce", group: "Retail" },
-    { value: "saas", label: "SaaS & Technology", group: "Technology" },
-    { value: "legal", label: "Legal Services", group: "Professional" },
-    { value: "consulting", label: "Consulting", group: "Professional" },
-    { value: "hospitality", label: "Hospitality", group: "Services" },
-    { value: "automotive", label: "Automotive", group: "Manufacturing" },
-    { value: "construction", label: "Construction", group: "Manufacturing" },
+    { value: "real-estate", label: "Real Estate" },
+    { value: "healthcare", label: "Healthcare" },
+    { value: "dental", label: "Dental" },
+    { value: "fitness", label: "Fitness & Wellness" },
+    { value: "education", label: "Education" },
+    { value: "finance", label: "Finance & Banking" },
+    { value: "insurance", label: "Insurance" },
+    { value: "ecommerce", label: "E-commerce" },
+    { value: "retail", label: "Retail" },
+    { value: "technology", label: "Technology" },
+    { value: "saas", label: "SaaS" },
+    { value: "legal", label: "Legal Services" },
+    { value: "consulting", label: "Consulting" },
+    { value: "accounting", label: "Accounting" },
+    { value: "hospitality", label: "Hospitality" },
+    { value: "restaurants", label: "Restaurants" },
+    { value: "automotive", label: "Automotive" },
+    { value: "construction", label: "Construction" },
+    { value: "manufacturing", label: "Manufacturing" },
+    { value: "travel", label: "Travel & Tourism" },
+    { value: "beauty", label: "Beauty & Salon" },
+    { value: "home-services", label: "Home Services" },
+    { value: "nonprofit", label: "Non-Profit" },
+    { value: "government", label: "Government" },
+    { value: "entertainment", label: "Entertainment" },
+    { value: "other", label: "Other" },
   ];
 
   const genders = [
@@ -197,7 +209,7 @@ const AgentManagement = () => {
         "Market Updates",
         "Document Assistance",
       ],
-      persona: "Professional",
+      persona: "Formal",
       customInstructions:
         "You are a knowledgeable real estate assistant. Help clients with property inquiries, schedule viewings, provide market insights, and assist with documentation. Always be professional and detail-oriented.",
       guardrailsLevel: "High",
@@ -272,7 +284,7 @@ const AgentManagement = () => {
           "Information Provision",
           "Process Automation",
         ],
-        persona: "Professional",
+        persona: "Friendly",
         customInstructions: `You are a professional AI assistant specializing in ${
           businessProcesses
             .find((bp) => bp.value === formData.businessProcess)
@@ -291,7 +303,6 @@ const AgentManagement = () => {
     const template = getTemplate();
     setFormData((prev) => ({
       ...prev,
-      name: template.name,
       persona: template.persona,
       customInstructions: template.customInstructions,
       guardrailsLevel: template.guardrailsLevel,
@@ -811,13 +822,15 @@ const AgentManagement = () => {
                   <Edit className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
                   <span className="text-xs sm:text-sm font-medium">Edit</span>
                 </button>
-                <button
-                  onClick={() => setShowQRModal(true)}
-                  className="flex-1 sm:flex-none common-button-bg2 flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl touch-manipulation min-h-[40px]"
-                >
-                  <QrCode className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
-                  <span className="text-xs sm:text-sm font-medium">View QR</span>
-                </button>
+                {currentAgent.status === "Published" && (
+                  <button
+                    onClick={() => setShowQRModal(true)}
+                    className="flex-1 sm:flex-none common-button-bg2 flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl touch-manipulation min-h-[40px]"
+                  >
+                    <QrCode className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+                    <span className="text-xs sm:text-sm font-medium">View QR</span>
+                  </button>
+                )}
                 {currentAgent.status === "Published" ? (
                   <button
                     onClick={() => handlePause(currentAgent.id)}
@@ -1601,8 +1614,10 @@ Content-Type: application/json
                                 Template Available
                               </h4>
                               <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mb-2 sm:mb-3 leading-relaxed">
-                                We have a pre-configured template for your
-                                combination. Would you like to see it?
+                                We have a well-reserached template that fits
+                                your selected business process and industry.
+                                You can view the recommended template or choose
+                                to create a custom agent configuration.
                               </p>
                               <div className="flex flex-col xs:flex-row gap-2">
                                 <button
