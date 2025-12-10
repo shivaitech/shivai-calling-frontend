@@ -41,43 +41,43 @@ const TopBar = lazy(() =>
 );
 const Overview = lazy(() =>
   Promise.all([
-    import("./pages/Overview"),
+    import("./ClientDashboard/Dashboard/Overview"),
     new Promise((resolve) => setTimeout(resolve, 100)),
   ]).then(([moduleExports]) => moduleExports)
 );
 const AgentManagement = lazy(() =>
   Promise.all([
-    import("./pages/AgentManagement"),
+    import("./ClientDashboard/Employees/AgentManagement"),
     new Promise((resolve) => setTimeout(resolve, 100)),
   ]).then(([moduleExports]) => moduleExports)
 );
 const Training = lazy(() =>
   Promise.all([
-    import("./pages/Training"),
+    import("./ClientDashboard/Training/Training"),
     new Promise((resolve) => setTimeout(resolve, 100)),
   ]).then(([moduleExports]) => moduleExports)
 );
 const Workflows = lazy(() =>
   Promise.all([
-    import("./pages/Workflows"),
+    import("./ClientDashboard/Workflows/Workflows"),
     new Promise((resolve) => setTimeout(resolve, 100)),
   ]).then(([moduleExports]) => moduleExports)
 );
 const Monitoring = lazy(() =>
   Promise.all([
-    import("./pages/Monitoring"),
+    import("./ClientDashboard/Monitoring/Monitoring"),
     new Promise((resolve) => setTimeout(resolve, 100)),
   ]).then(([moduleExports]) => moduleExports)
 );
 const Billing = lazy(() =>
   Promise.all([
-    import("./pages/Billing"),
+    import("./ClientDashboard/Billing/Billing"),
     new Promise((resolve) => setTimeout(resolve, 100)),
   ]).then(([moduleExports]) => moduleExports)
 );
 const Settings = lazy(() =>
   Promise.all([
-    import("./pages/Settings"),
+    import("./ClientDashboard/Settings/Settings"),
     new Promise((resolve) => setTimeout(resolve, 100)),
   ]).then(([moduleExports]) => moduleExports)
 );
@@ -160,17 +160,20 @@ function AppContent() {
             />
             <Route path="/auth/google/callback" element={<GoogleCallback />} />
 
+            {/* Catch all other public routes and redirect to landing */}
+            <Route path="*" element={<Navigate to="/landing" replace />} />
+
             {/* Redirect routes to home */}
             <Route
               path="/ai-calling-app"
-              element={<Navigate to="/" replace />}
+              element={<Navigate to="/landing" replace />}
             />
             <Route
               path="/voice-assistant"
-              element={<Navigate to="/" replace />}
+              element={<Navigate to="/landing" replace />}
             />
-            <Route path="/about" element={<Navigate to="/" replace />} />
-            <Route path="/contact" element={<Navigate to="/" replace />} />
+            <Route path="/about" element={<Navigate to="/landing" replace />} />
+            <Route path="/contact" element={<Navigate to="/landing" replace />} />
           </Routes>
         </Suspense>
       ) : (
@@ -214,23 +217,29 @@ function AppContent() {
                       <Route path="/billing" element={<Billing />} />
                       <Route path="/settings" element={<Settings />} />
 
+                      {/* Default route for authenticated users */}
+                      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+
                       {/* Redirect routes to home */}
                       <Route
                         path="/ai-employee"
-                        element={<Navigate to="/" replace />}
+                        element={<Navigate to="/dashboard" replace />}
                       />
                       <Route
                         path="/pricing"
-                        element={<Navigate to="/" replace />}
+                        element={<Navigate to="/dashboard" replace />}
                       />
                       <Route
                         path="/about"
-                        element={<Navigate to="/" replace />}
+                        element={<Navigate to="/dashboard" replace />}
                       />
                       <Route
                         path="/contact"
-                        element={<Navigate to="/" replace />}
+                        element={<Navigate to="/dashboard" replace />}
                       />
+                      
+                      {/* Catch all other routes and redirect to dashboard */}
+                      <Route path="*" element={<Navigate to="/dashboard" replace />} />
                     </Routes>
                   </main>
                 </div>

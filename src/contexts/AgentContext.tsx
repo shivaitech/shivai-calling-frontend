@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { agentAPI, ApiAgent } from '../services/agentAPI';
 
 export interface Agent {
   id: string;
@@ -19,9 +20,13 @@ export interface Agent {
 interface AgentContextType {
   agents: Agent[];
   currentAgent: Agent | null;
+  isLoading: boolean;
+  error: string | null;
   setCurrentAgent: (agent: Agent | null) => void;
-  addAgent: (agent: Omit<Agent, 'id' | 'createdAt'>) => void;
-  updateAgent: (id: string, updates: Partial<Agent>) => void;
+  addAgent: (agent: Omit<Agent, 'id' | 'createdAt'>) => Promise<void>;
+  updateAgent: (id: string, updates: Partial<Agent>) => Promise<void>;
+  deleteAgent: (id: string) => Promise<void>;
+  refreshAgents: () => Promise<void>;
 }
 
 const AgentContext = createContext<AgentContextType | undefined>(undefined);
@@ -34,74 +39,173 @@ export const useAgent = () => {
   return context;
 };
 
-export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [agents, setAgents] = useState<Agent[]>([
-    {
-      id: '1',
-      name: 'Ricky sales machine',
-      status: 'Published',
-      persona: 'Empathetic',
-      language: 'English (US)',
-      voice: 'Sarah - Professional',
-      createdAt: new Date('2024-01-15'),
-      stats: {
-        conversations: 1247,
-        successRate: 94.2,
-        avgResponseTime: 1.2,
-        activeUsers: 328
-      }
-    },
-    {
-      id: '2',
-      name: 'Ami support assistant',
-      status: 'Draft',
-      persona: 'Persuasive (Sales)',
-      language: 'Hindi',
-      voice: 'Arjun - Friendly',
-      createdAt: new Date('2024-01-20'),
-      stats: {
-        conversations: 0,
-        successRate: 0,
-        avgResponseTime: 0,
-        activeUsers: 0
-      }
-    }
-  ]);
-  
-  const [currentAgent, setCurrentAgent] = useState<Agent | null>(agents[0]);
+// Helper function to convert API agent to local agent format
+const convertApiAgentToAgent = (apiAgent: ApiAgent): Agent => ({
+  ...apiAgent,
+  createdAt: new Date(apiAgent.createdAt),
+  stats: apiAgent.stats || {
+    conversations: 0,
+    successRate: 0,
+    avgResponseTime: 0,
+    activeUsers: 0
+  }
+});
 
-  const addAgent = (agentData: Omit<Agent, 'id' | 'createdAt'>) => {
-    const newAgent: Agent = {
-      ...agentData,
-      id: Date.now().toString(),
-      createdAt: new Date(),
-      stats: {
-        conversations: 0,
-        successRate: 0,
-        avgResponseTime: 0,
-        activeUsers: 0
+export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [currentAgent, setCurrentAgent] = useState<Agent | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Load agents from API
+  const loadAgents = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const apiAgents = await agentAPI.getAgents();
+      const convertedAgents = apiAgents.map(convertApiAgentToAgent);
+      setAgents(convertedAgents);
+      
+      // Set first agent as current if none selected
+      if (convertedAgents.length > 0 && !currentAgent) {
+        setCurrentAgent(convertedAgents[0]);
       }
-    };
-    setAgents(prev => [...prev, newAgent]);
-    setCurrentAgent(newAgent);
+    } catch (err: any) {
+      console.error('Failed to load agents:', err);
+      setError(err.message || 'Failed to load agents');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const updateAgent = (id: string, updates: Partial<Agent>) => {
-    setAgents(prev => prev.map(agent => 
-      agent.id === id ? { ...agent, ...updates } : agent
-    ));
-    if (currentAgent?.id === id) {
-      setCurrentAgent(prev => prev ? { ...prev, ...updates } : null);
+  // Load agents on component mount
+  useEffect(() => {
+    loadAgents();
+  }, []);
+
+  const addAgent = async (agentData: Omit<Agent, 'id' | 'createdAt'>) => {
+    try {
+      setError(null);
+      
+      // Call API to create agent
+      const newApiAgent = await agentAPI.createAgent({
+        name: agentData.name,
+        persona: agentData.persona,
+        language: agentData.language,
+        voice: agentData.voice,
+        status: agentData.status
+      });
+      
+      const newAgent = convertApiAgentToAgent(newApiAgent);
+      setAgents(prev => [...prev, newAgent]);
+      
+      // Set as current agent if it's the first one
+      if (agents.length === 0) {
+        setCurrentAgent(newAgent);
+      }
+    } catch (err: any) {
+      console.error('Failed to create agent:', err);
+      setError(err.message || 'Failed to create agent');
+      
+      // Fallback to local creation if API fails
+      const fallbackAgent: Agent = {
+        ...agentData,
+        id: Date.now().toString(),
+        createdAt: new Date(),
+        stats: {
+          conversations: 0,
+          successRate: 0,
+          avgResponseTime: 0,
+          activeUsers: 0
+        }
+      };
+      setAgents(prev => [...prev, fallbackAgent]);
+      
+      if (agents.length === 0) {
+        setCurrentAgent(fallbackAgent);
+      }
     }
+  };
+
+  const updateAgent = async (id: string, updates: Partial<Agent>) => {
+    try {
+      setError(null);
+      
+      // Call API to update agent
+      const updatedApiAgent = await agentAPI.updateAgent(id, {
+        name: updates.name,
+        persona: updates.persona,
+        language: updates.language,
+        voice: updates.voice,
+        status: updates.status
+      });
+      
+      const updatedAgent = convertApiAgentToAgent(updatedApiAgent);
+      
+      setAgents(prev => prev.map(agent => 
+        agent.id === id ? { ...agent, ...updatedAgent } : agent
+      ));
+      
+      // Update current agent if it's the one being updated
+      if (currentAgent?.id === id) {
+        setCurrentAgent(prev => prev ? { ...prev, ...updatedAgent } : null);
+      }
+    } catch (err: any) {
+      console.error('Failed to update agent:', err);
+      setError(err.message || 'Failed to update agent');
+      
+      // Fallback to local update if API fails
+      setAgents(prev => prev.map(agent => 
+        agent.id === id ? { ...agent, ...updates } : agent
+      ));
+      
+      if (currentAgent?.id === id) {
+        setCurrentAgent(prev => prev ? { ...prev, ...updates } : null);
+      }
+    }
+  };
+
+  const deleteAgent = async (id: string) => {
+    try {
+      setError(null);
+      
+      // Call API to delete agent
+      await agentAPI.deleteAgent(id);
+      
+      setAgents(prev => prev.filter(agent => agent.id !== id));
+      
+      // Clear current agent if it's the one being deleted
+      if (currentAgent?.id === id) {
+        setCurrentAgent(null);
+      }
+    } catch (err: any) {
+      console.error('Failed to delete agent:', err);
+      setError(err.message || 'Failed to delete agent');
+      
+      // Fallback to local deletion if API fails
+      setAgents(prev => prev.filter(agent => agent.id !== id));
+      
+      if (currentAgent?.id === id) {
+        setCurrentAgent(null);
+      }
+    }
+  };
+
+  const refreshAgents = async () => {
+    await loadAgents();
   };
 
   return (
     <AgentContext.Provider value={{
       agents,
       currentAgent,
+      isLoading,
+      error,
       setCurrentAgent,
       addAgent,
-      updateAgent
+      updateAgent,
+      deleteAgent,
+      refreshAgents
     }}>
       {children}
     </AgentContext.Provider>

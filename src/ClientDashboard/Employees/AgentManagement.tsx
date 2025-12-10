@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import Slider from "react-slick";
-import GlassCard from "../components/GlassCard";
-import SearchableSelect from "../components/SearchableSelect";
-import LanguagePicker from "../components/LanguagePicker";
-import Tooltip from "../components/Tooltip";
-import { AgentWidgetCustomization, AgentQRModal } from "../components/agents";
-import { useAgent } from "../contexts/AgentContext";
-import { useAuth } from "../contexts/AuthContext";
-import { isDeveloperUser } from "../lib/utils";
+import GlassCard from "../../components/GlassCard";
+import SearchableSelect from "../../components/SearchableSelect";
+import LanguagePicker from "../../components/LanguagePicker";
+import Tooltip from "../../components/Tooltip";
+import { AgentWidgetCustomization, AgentQRModal } from "./agents";
+import { useAgent } from "../../contexts/AgentContext";
+import { useAuth } from "../../contexts/AuthContext";
+import { isDeveloperUser } from "../../lib/utils";
 import {
   Bot,
   ArrowLeft,
@@ -47,7 +47,7 @@ const AgentManagement = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { agents, currentAgent, setCurrentAgent, addAgent, updateAgent, isLoading, error, refreshAgents } =
+  const { agents, currentAgent, setCurrentAgent, addAgent, updateAgent } =
     useAgent();
   const { user } = useAuth();
 
@@ -572,64 +572,6 @@ const AgentManagement = () => {
         </GlassCard>
 
         {/* Mobile-First Agent Grid */}
-        {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
-            {[1, 2, 3].map((i) => (
-              <GlassCard key={i}>
-                <div className="p-4 sm:p-5 lg:p-6 animate-pulse">
-                  <div className="flex items-start gap-3 mb-4">
-                    <div className="w-10 sm:w-12 h-10 sm:h-12 bg-slate-200 dark:bg-slate-700 rounded-xl"></div>
-                    <div className="flex-1">
-                      <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded mb-2"></div>
-                      <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-3/4"></div>
-                    </div>
-                  </div>
-                  <div className="space-y-3">
-                    <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded"></div>
-                    <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-2/3"></div>
-                  </div>
-                </div>
-              </GlassCard>
-            ))}
-          </div>
-        ) : error ? (
-          <GlassCard>
-            <div className="p-8 text-center">
-              <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-2">
-                Failed to Load Agents
-              </h3>
-              <p className="text-slate-600 dark:text-slate-400 mb-4">{error}</p>
-              <button
-                onClick={refreshAgents}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Try Again
-              </button>
-            </div>
-          </GlassCard>
-        ) : filteredAgents.length === 0 ? (
-          <GlassCard>
-            <div className="p-8 text-center">
-              <Bot className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-2">
-                No agents found
-              </h3>
-              <p className="text-slate-600 dark:text-slate-400 mb-4">
-                {searchTerm || statusFilter !== "all"
-                  ? "No agents match your current filters"
-                  : "Create your first AI agent to get started"}
-              </p>
-              <button
-                onClick={() => setShowForm(true)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 mx-auto"
-              >
-                <Plus className="w-4 h-4" />
-                Create Agent
-              </button>
-            </div>
-          </GlassCard>
-        ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
           {filteredAgents.map((agent) => (
             <GlassCard key={agent.id} hover>
@@ -747,7 +689,9 @@ const AgentManagement = () => {
             </GlassCard>
           ))}
         </div>
-        )}
+
+        {/* Mobile-Optimized Empty State */}
+        {filteredAgents.length === 0 && (
           <div className="text-center py-12 lg:py-16 px-4">
             <Bot className="w-20 lg:w-24 h-20 lg:h-24 text-slate-300 dark:text-slate-600 mx-auto mb-6" />
             <h3 className="text-xl lg:text-2xl font-medium text-slate-600 dark:text-slate-400 mb-3">

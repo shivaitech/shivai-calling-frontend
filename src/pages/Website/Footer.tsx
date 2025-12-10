@@ -369,10 +369,10 @@ const Footer = () => {
               <div className="text-[11px] mt-1">
                 <span className="text-[#FFFFFF99]/60">Email us: </span>
                 <a
-                  href="mailto:hel</svg>lo@callshivai.com"
+                  href="mailto:hello@shivaitech.com"
                   className="hover:text-white transition-colors"
                 >
-                  hello@callshivai.com
+                  Hello@shivaitech.com
                 </a>
               </div>
             </div>

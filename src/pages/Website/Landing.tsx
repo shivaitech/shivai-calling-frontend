@@ -1,29 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
-import {
-  ArrowRight,
-  Play,
-  CheckCircle,
-  Star,
-  Zap,
-  Shield,
-  Users,
-  Mic,
-  Phone,
-  Eye,
-  EyeOff,
-  Sparkles,
-  Crown,
-  Rocket,
-  Volume2,
-  Headphones,
-  Brain,
-  Code,
-  Smartphone,
-  Globe,
-  X,
-} from "lucide-react";
 import AuthModel from "../../components/AuthModel";
 import Hero from "./Hero";
 import Navbar from "./Navbar";
@@ -45,7 +22,6 @@ const Landing: React.FC = () => {
     isLoading,
     error,
     clearError,
-    isAuthenticated,
   } = useAuth();
 
   // UI State
@@ -53,15 +29,6 @@ const Landing: React.FC = () => {
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signup");
   const [showPassword, setShowPassword] = useState(false);
   const [scrollY, setScrollY] = useState(0);
-  const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">(
-    "monthly"
-  );
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [selectedLanguage, setSelectedLanguage] = useState("English (US)");
-  const [selectedVoice, setSelectedVoice] = useState("Sarah - Professional");
-  const [demoText, setDemoText] = useState(
-    "Hi! I'm your AI assistant. How can I help you today?"
-  );
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 

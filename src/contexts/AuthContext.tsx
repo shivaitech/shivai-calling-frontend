@@ -48,7 +48,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 }) => {
   const [user, setUser] = useState<User | null>(null);
   const [tokens, setTokens] = useState<Tokens | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true); // Set to true initially to prevent premature redirects
   const [error, setError] = useState<string | null>(null);
 
   // Use ref to prevent concurrent requests without causing re-renders
@@ -72,6 +72,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       } catch (error) {
         localStorage.removeItem("auth_tokens");
         localStorage.removeItem("auth_user");
+      } finally {
+        // Always set loading to false after initialization attempt
+        setIsLoading(false);
       }
     };
 
