@@ -274,7 +274,7 @@ const Footer = () => {
 
           {/* Office Locations Column */}
           <div className=" ">
-            <h4 className="font-[400] text-white mb-2 text-sm">Our Offices</h4>
+            <h4 className="font-[400] text-white mb-2 text-sm">Our Presence</h4>
             <div className="space-y-3 font-[400] text-[14px] lg:text-[14px] text-[#FFFFFF99]/60">
               {/* India Office */}
              
