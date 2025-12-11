@@ -15,6 +15,34 @@ interface AgentQRModalProps {
 
 const AgentQRModal: React.FC<AgentQRModalProps> = ({ agent, onClose }) => {
   const agentUrl = `https://widget.callshivai.com/agent/${agent.id}`;
+  const [qrSize, setQrSize] = React.useState(180);
+
+  React.useEffect(() => {
+    const updateQRSize = () => {
+      if (window.innerWidth < 640) {
+        setQrSize(140); // Small screens
+      } else if (window.innerWidth < 1024) {
+        setQrSize(160); // Medium screens
+      } else {
+        setQrSize(180); // Large screens
+      }
+    };
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    updateQRSize();
+    window.addEventListener('resize', updateQRSize);
+    window.addEventListener('keydown', handleEscape);
+    
+    return () => {
+      window.removeEventListener('resize', updateQRSize);
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [onClose]);
 
   const handleDownload = () => {
     // Create a canvas from the SVG QR code
@@ -73,43 +101,51 @@ const AgentQRModal: React.FC<AgentQRModalProps> = ({ agent, onClose }) => {
     }
   };
 
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 -top-8 ">
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-4xl w-full overflow-hidden relative border border-slate-200 dark:border-slate-700">
+    <div 
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 -top-8"
+      onClick={handleBackdropClick}
+    >
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-lg sm:max-w-2xl lg:max-w-4xl max-h-[90vh] overflow-y-auto relative border border-slate-200 dark:border-slate-700">
         {/* Close button */}
-     
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 sm:top-4 sm:right-4 p-2 hover:bg-slate-100 dark:hover:bg-slate-700 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-lg transition-colors z-50 cursor-pointer"
+        >
+          <X className="w-4 h-4 sm:w-5 sm:h-5 text-slate-500 dark:text-slate-400" />
+        </button>
 
         {/* Header */}
-        <div className="bg-gradient-to-r from-gray-400 via-gray-500 to-gray-600 px-6 py-4 text-white relative overflow-hidden">
+        <div className="bg-gradient-to-r from-gray-400 via-gray-500 to-gray-600 px-4 sm:px-6 py-4 text-white relative overflow-hidden">
           <div className="relative z-10">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center">
                 <QrCode className="w-4 h-4 text-white" />
               </div>
               <div>
-                <h3 className="text-xl font-bold">Share Agent</h3>
+                <h3 className="text-lg sm:text-xl font-bold">Share Agent</h3>
                 <p className="text-white/80 text-sm">Scan to start conversation</p>
               </div>
             </div>
           </div>
-
-             <button
-          onClick={onClose}
-          className="absolute top-4 right-4 p-2 hover:bg-slate-100 dark:hover:bg-slate-700 bg-white rounded-lg transition-colors z-10 "
-        >
-          <X className="w-5 h-5 text-slate-500 dark:text-slate-400" />
-        </button>
         </div>
 
-        <div className="grid grid-cols-5 gap-6 p-6">
-          <div className="col-span-2">
-            <div className="bg-white rounded-xl p-6 flex items-center justify-center shadow-lg border-2 border-slate-100 dark:border-slate-700 relative">
-              <div className="relative bg-white p-4 rounded-lg shadow-inner">
-                <div className="bg-white p-3 rounded-lg border border-slate-100">
+        <div className="flex flex-col lg:grid lg:grid-cols-5 lg:gap-6 p-4 sm:p-6">
+          {/* QR Code Section */}
+          <div className="lg:col-span-2 flex justify-center mb-6 lg:mb-0">
+            <div className="bg-white rounded-xl p-4 sm:p-6 flex items-center justify-center shadow-lg border-2 border-slate-100 dark:border-slate-700 relative max-w-xs sm:max-w-none">
+              <div className="relative bg-white p-3 sm:p-4 rounded-lg shadow-inner">
+                <div className="bg-white p-2 sm:p-3 rounded-lg border border-slate-100">
                   <QRCode
                     id="qr-code-svg"
                     value={agentUrl}
-                    size={180}
+                    size={qrSize}
                     style={{ height: "auto", maxWidth: "100%", width: "100%" }}
                     viewBox={`0 0 256 256`}
                     bgColor="#ffffff"
@@ -120,7 +156,7 @@ const AgentQRModal: React.FC<AgentQRModalProps> = ({ agent, onClose }) => {
                 
                 {/* Smaller ShivAI Logo in center */}
                 <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg p-1.5 shadow-xl border-2 border-white">
-                  <div className="w-5 h-5 bg-gradient-to-br from-gray-500 to-gray-600 rounded-md flex items-center justify-center shadow-md relative overflow-hidden">
+                  <div className="w-4 h-4 sm:w-5 sm:h-5 bg-gradient-to-br from-gray-500 to-gray-600 rounded-md flex items-center justify-center shadow-md relative overflow-hidden">
                     <span className="text-white font-bold text-xs relative z-10">AI</span>
                     <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent"></div>
                   </div>
@@ -136,15 +172,15 @@ const AgentQRModal: React.FC<AgentQRModalProps> = ({ agent, onClose }) => {
           </div>
 
           {/* Right Side - Agent Info */}
-          <div className="col-span-3 flex flex-col justify-between">
+          <div className="lg:col-span-3 flex flex-col justify-between">
             {/* Agent Info Card */}
-            <div className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-slate-900/50 dark:to-gray-800/20 rounded-xl p-5 border border-slate-200 dark:border-slate-700 mb-4">
+            <div className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-slate-900/50 dark:to-gray-800/20 rounded-xl p-4 sm:p-5 border border-slate-200 dark:border-slate-700 mb-4">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-gradient-to-r from-gray-400 to-gray-500 rounded-lg flex items-center justify-center shadow-lg">
+                <div className="w-10 h-10 bg-gradient-to-r from-gray-400 to-gray-500 rounded-lg flex items-center justify-center shadow-lg flex-shrink-0">
                   <span className="text-white font-bold text-lg">{agent.name.charAt(0).toUpperCase()}</span>
                 </div>
-                <div className="flex-1">
-                  <h4 className="font-bold text-slate-800 dark:text-white text-lg">{agent.name}</h4>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-bold text-slate-800 dark:text-white text-base sm:text-lg truncate">{agent.name}</h4>
                   <div className="flex items-center gap-2 mt-1">
                     <span
                       className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${
@@ -169,17 +205,17 @@ const AgentQRModal: React.FC<AgentQRModalProps> = ({ agent, onClose }) => {
                 <p className="text-slate-500 dark:text-slate-400 text-xs font-medium mb-1 uppercase tracking-wide">
                   Widget URL
                 </p>
-                <p className="font-mono text-sm text-gray-600 dark:text-gray-400 break-all bg-gray-100 dark:bg-gray-800/20 px-2 py-1.5 rounded">
+                <p className="font-mono text-xs sm:text-sm text-gray-600 dark:text-gray-400 break-all bg-gray-100 dark:bg-gray-800/20 px-2 py-1.5 rounded">
                   {agentUrl}
                 </p>
               </div>
             </div>
 
             {/* Action Buttons */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 onClick={handleDownload}
-                className="group bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-[1.02] flex items-center justify-center gap-2"
+                className="group bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 touch-manipulation"
               >
                 <div className="w-4 h-4 transition-transform group-hover:scale-110">
                   <svg fill="currentColor" viewBox="0 0 24 24">
@@ -190,25 +226,25 @@ const AgentQRModal: React.FC<AgentQRModalProps> = ({ agent, onClose }) => {
                     <polyline points="10,9 9,9 8,9"/>
                   </svg>
                 </div>
-                Download QR
+                <span className="text-sm sm:text-base">Download QR</span>
               </button>
               <button
                 id="copy-url-btn"
                 onClick={handleCopyURL}
-                className="group bg-white hover:bg-slate-50 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-semibold py-3 px-4 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-[1.02] border-2 border-slate-200 dark:border-slate-600 flex items-center justify-center gap-2"
+                className="group bg-white hover:bg-slate-50 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-semibold py-3 px-4 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98] border-2 border-slate-200 dark:border-slate-600 flex items-center justify-center gap-2 touch-manipulation"
               >
                 <div className="w-4 h-4 transition-transform group-hover:scale-110">
                   <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                   </svg>
                 </div>
-                Copy Link
+                <span className="text-sm sm:text-base">Copy Link</span>
               </button>
             </div>
 
             {/* Instructions */}
             <div className="mt-4 text-center">
-              <p className="text-slate-500 dark:text-slate-400 text-sm">
+              <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm leading-relaxed">
                 Share this QR code or link to let users instantly chat with your AI agent
               </p>
             </div>

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { agentAPI, ApiAgent } from '../services/agentAPI';
 
 export interface Agent {
@@ -52,10 +53,17 @@ const convertApiAgentToAgent = (apiAgent: ApiAgent): Agent => ({
 });
 
 export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const location = useLocation();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [currentAgent, setCurrentAgent] = useState<Agent | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasLoaded, setHasLoaded] = useState(false);
+
+  // Check if we're on an agent-related page
+  const isAgentPage = location.pathname.includes('/agents') || 
+                     location.pathname.includes('/agent') ||
+                     location.pathname.includes('/dashboard');
 
   // Load agents from API
   const loadAgents = async () => {
@@ -70,6 +78,7 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (convertedAgents.length > 0 && !currentAgent) {
         setCurrentAgent(convertedAgents[0]);
       }
+      setHasLoaded(true);
     } catch (err: any) {
       console.error('Failed to load agents:', err);
       setError(err.message || 'Failed to load agents');
@@ -78,10 +87,12 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  // Load agents on component mount
+  // Load agents only when on agent-related pages
   useEffect(() => {
-    loadAgents();
-  }, []);
+    if (isAgentPage && !hasLoaded) {
+      loadAgents();
+    }
+  }, [isAgentPage, hasLoaded]);
 
   const addAgent = async (agentData: Omit<Agent, 'id' | 'createdAt'>) => {
     try {
@@ -192,7 +203,9 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const refreshAgents = async () => {
-    await loadAgents();
+    if (isAgentPage) {
+      await loadAgents();
+    }
   };
 
   return (

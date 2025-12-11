@@ -828,7 +828,7 @@ const AgentManagement = () => {
                     className="flex-1 sm:flex-none common-button-bg2 flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl touch-manipulation min-h-[40px]"
                   >
                     <QrCode className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
-                    <span className="text-xs sm:text-sm font-medium">View QR</span>
+                    <span className="text-xs sm:text-sm font-medium">Get QR</span>
                   </button>
                 )}
                 {currentAgent.status === "Published" ? (
@@ -1147,7 +1147,7 @@ const AgentManagement = () => {
         />
 
         {/* Integration Code Section - Only show when published */}
-        {/* {currentAgent.status === "Published" && (
+        {currentAgent.status === "Published" && (
           <div className="mt-6 sm:mt-8">
             <GlassCard>
               <div className="p-4 sm:p-6">
@@ -1318,7 +1318,7 @@ Content-Type: application/json
               </div>
             </GlassCard>
           </div>
-        )} */}
+        )}
 
         <div className="mt-6 sm:mt-8">
           <GlassCard>

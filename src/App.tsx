@@ -267,12 +267,12 @@ function App() {
       {" "}
       {/* Wrap with AuthProvider */}
       <ThemeProvider>
-        <AgentProvider>
-          <Router>
+        <Router>
+          <AgentProvider>
             <ScrollToTop />
             <AppContent />
-          </Router>
-        </AgentProvider>
+          </AgentProvider>
+        </Router>
       </ThemeProvider>
     </AuthProvider>
   );

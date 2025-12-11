@@ -3,8 +3,8 @@
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { ChevronDown } from "lucide-react";
-import HeroImage from "../../resources/images/HeroAI.svg";
-import HeroImage2 from "../../resources/images/HeroChar.png";
+import HeroImage from "../../resources/images/shiv.png";
+import HeroImage2 from "../../resources/images/shiv.png";
 import RightArrow from "../../resources/images/rightArr.svg";
 import { TextAnimations } from "../../components/TextAnimations";
 interface HeroProps {

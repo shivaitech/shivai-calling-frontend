@@ -82,8 +82,8 @@ const Footer = () => {
   return (
     <footer className="relative bg-black text-white py-8 md:py-12 px-6 lg:px-20 xl:px-24 overflow-hidden h-auto ">
       {/* Main Content */}
-      <div className="w-full mx-auto relative z-10 pr-4 md:pr-6">
-        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-6 gap-4 md:gap-8 mb-8 md:mb-12 pt-0 lg:pt-8">
+      <div className="w-full mx-auto relative z-10 pr-4 md:pr-6 ">
+        <div className="grid  grid-cols-2 md:grid-cols-2 lg:grid-cols-6 gap-4 md:gap-8 mb-8 md:mb-12 pt-0 lg:pt-8 ">
           {/* Logo and Description */}
           <div className="col-span-2 md:col-span-2">
             <div className="mb-3 md:mb-4">
@@ -143,9 +143,9 @@ const Footer = () => {
           </div>
 
           {/* Combined Links Column */}
-          <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-2">
+          <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-4 lg:gap-12 ">
             {/* Product Column */}
-            <div>
+            <div className="">
               <h4 className="font-[400] text-white mb-2 md:mb-4 text-sm md:text-base">
                 Product
               </h4>
@@ -191,7 +191,7 @@ const Footer = () => {
             </div>
 
             {/* Company Column */}
-            <div>
+            <div className="">
               <h4 className="font-[400] text-white mb-2 md:mb-4 text-sm md:text-base">
                 Company
               </h4>
@@ -232,7 +232,7 @@ const Footer = () => {
             </div>
 
             {/* Support Column */}
-            <div>
+            <div className="">
               <h4 className="font-[400] text-white mb-2 md:mb-4 text-sm md:text-base">
                 Support
               </h4>
@@ -271,16 +271,15 @@ const Footer = () => {
                 </li>
               </ul>
             </div>
-          </div>
 
           {/* Office Locations Column */}
-          <div className="relative -left-10 md:-left-0 lg:-left-10 xl:-left-10">
+          <div className=" ">
             <h4 className="font-[400] text-white mb-2 text-sm">Our Offices</h4>
             <div className="space-y-3 font-[400] text-[14px] lg:text-[14px] text-[#FFFFFF99]/60">
               {/* India Office */}
              
 
-                <div className="bwhiteDarkGradient rounded-full px-4 py-3 hover:bg-gray-700/50 transition-colors">
+                <div className="bwhiteDarkGradient rounded-full px-6 py-3 hover:bg-gray-700/50 transition-colors min-w-[320px]">
                 <a
                   href="https://wa.me/919211490707"
                   className="flex items-center justify-between w-full hover:text-white transition-colors"
@@ -291,10 +290,11 @@ const Footer = () => {
                     <img
                       src={indiaFlag}
                       alt="UAE Flag"
-                      className="w-6 h-5 object-cover rounded-sm border border-gray-600 flag"
+                      className="w-6 h-5 object-cover rounded-sm border border-gray-600 flag flex-shrink-0"
                     />
-                    <div>
+                    <div className="min-w-0">
                       <div className="text-white text-sm font-medium">India</div>
+                      <div className="text-gray-400 text-xs whitespace-nowrap">ShivAI Tech Pvt. Ltd.</div>
                                          <div className="text-gray-300 text-xs">+91 921 149 0707</div>
 
                     </div>
@@ -310,7 +310,7 @@ const Footer = () => {
               </div>
 
               {/* UAE Office */}
-              <div className="bwhiteDarkGradient rounded-full px-4 py-3 hover:bg-gray-700/50 transition-colors">
+              <div className="bwhiteDarkGradient rounded-full px-6 py-3 hover:bg-gray-700/50 transition-colors min-w-[320px]">
                 <a
                   href="https://wa.me/971566180707"
                   className="flex items-center justify-between w-full hover:text-white transition-colors"
@@ -321,10 +321,11 @@ const Footer = () => {
                     <img
                       src={uaeFlag}
                       alt="UAE Flag"
-                      className="w-6 h-5 object-cover rounded-sm border border-gray-600 flag"
+                      className="w-6 h-5 object-cover rounded-sm border border-gray-600 flag flex-shrink-0"
                     />
-                    <div>
+                    <div className="min-w-0">
                       <div className="text-white text-sm font-medium">UAE</div>
+                      <div className="text-gray-400 text-xs whitespace-nowrap">Call Shiv AI Developing Services</div>
                       <div className="text-gray-300 text-xs">+971 56 618 0707</div>
                     </div>
                   </div>
@@ -339,7 +340,7 @@ const Footer = () => {
               </div>
 
               {/* USA Office */}
-              <div className="bwhiteDarkGradient rounded-full px-4 py-3 hover:bg-gray-700/50 transition-colors">
+              <div className="bwhiteDarkGradient rounded-full px-6 py-3 hover:bg-gray-700/50 transition-colors min-w-[320px]">
                 <a
                   href="https://wa.me/13154440707"
                   className="flex items-center justify-between w-full hover:text-white transition-colors"
@@ -350,9 +351,9 @@ const Footer = () => {
                     <img
                       src={usaFlag}
                       alt="USA Flag"
-                      className="w-6 h-5 object-cover rounded-sm border border-gray-600 flag"
+                      className="w-6 h-5 object-cover rounded-sm border border-gray-600 flag flex-shrink-0"
                     />
-                    <div>
+                    <div className="min-w-0">
                       <div className="text-white text-sm font-medium">USA</div>
                       <div className="text-gray-300 text-xs">+1 315 444 0707</div>
                     </div>
@@ -377,6 +378,8 @@ const Footer = () => {
               </div>
             </div>
           </div>
+          </div>
+
         </div>
 
         {/* Bottom Section */}

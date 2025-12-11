@@ -169,16 +169,52 @@ const Training = () => {
   };
 
   const handleTestAudio = () => {
-    if (!aiResponse.trim()) return;
+    if (!testMessage.trim()) return;
     
     setIsTestingAudio(true);
+    
+    // Generate a response first (similar to handleTestResponse)
+    let response = "";
+    const lowerMessage = testMessage.toLowerCase();
+    
+    if (lowerMessage.includes("hi") || lowerMessage.includes("hello")) {
+      response = "Hello! I'm your AI assistant. How can I help you today?";
+    } else if (lowerMessage.includes("price") || lowerMessage.includes("cost")) {
+      response = "Our pricing starts at $99/month for the basic plan. Would you like me to explain the different options available?";
+    } else if (lowerMessage.includes("help") || lowerMessage.includes("support")) {
+      response = "I'm here to help! Please tell me what specific assistance you need and I'll do my best to guide you.";
+    } else if (lowerMessage.includes("book") || lowerMessage.includes("schedule")) {
+      response = "I'd be happy to help you schedule an appointment. What date and time works best for you?";
+    } else {
+      response = "Thank you for your message. I understand you're asking about '" + testMessage + "'. Let me help you with that.";
+    }
+    
+    // Set the AI response
+    setAiResponse(response);
+    
+    // Update metrics after each test
+    setTestMetrics(prev => {
+      const newTotalTests = prev.totalTests + 1;
+      const randomAccuracy = Math.floor(Math.random() * 15) + 85; // 85-100%
+      const randomResponseTime = (Math.random() * 2 + 0.5).toFixed(1); // 0.5-2.5s
+      const randomConfidence = Math.floor(Math.random() * 20) + 80; // 80-100%
+      const randomIntent = Math.floor(Math.random() * 25) + 75; // 75-100%
+      
+      return {
+        accuracyScore: randomAccuracy,
+        responseTime: parseFloat(randomResponseTime),
+        confidenceLevel: randomConfidence,
+        intentRecognition: randomIntent,
+        totalTests: newTotalTests
+      };
+    });
     
     // Use Web Speech API for text-to-speech
     if ('speechSynthesis' in window) {
       // Cancel any ongoing speech
       speechSynthesis.cancel();
       
-      const utterance = new SpeechSynthesisUtterance(aiResponse);
+      const utterance = new SpeechSynthesisUtterance(response);
       
       // Configure voice settings
       utterance.rate = 1.0; // Normal speed
@@ -1354,15 +1390,15 @@ const Training = () => {
                               </button>
                               <button
                                 onClick={handleTestAudio}
-                                disabled={!isDeveloper || !aiResponse.trim() || isTestingAudio}
+                                disabled={!testMessage.trim() || isTestingAudio}
                                 className={`flex items-center gap-2 ${
-                                  isDeveloper && aiResponse.trim() && !isTestingAudio
+                                  testMessage.trim() && !isTestingAudio
                                     ? "common-button-bg2"
                                     : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50 px-4 py-3 rounded-lg"
                                 }`}
                               >
                                 <Play className="w-4 h-4" />
-                                {isTestingAudio ? "Playing..." : "Test Audio"}
+                                {isTestingAudio ? "Playing..." : "Test Audio Response"}
                               </button>
                             </div>
                             
