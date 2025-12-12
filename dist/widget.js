@@ -103,6 +103,84 @@
     "📞 Call ShivAI!",
     "📞 Call ShivAI!",
   ];
+
+  // Helper function to get company info from URL parameters
+  function getCompanyInfo() {
+    let companyName = "ShivAI";
+    let companyDescription = "AI-Powered Support";
+    let agentName = "AI Assistant";
+    let companyLogo = ""; // Empty means use default ShivAI logo
+    let themeColors = {
+      primaryColor: "#4b5563",
+      secondaryColor: "#ffffff", 
+      accentColor: "#2563eb"
+    };
+    
+    try {
+      // Get from URL parameters
+      const scriptTags = document.getElementsByTagName('script');
+      for (let i = scriptTags.length - 1; i >= 0; i--) {
+        const script = scriptTags[i];
+        if (script.src && script.src.includes('/widget.js')) {
+          try {
+            const url = new URL(script.src);
+            const urlCompanyName = url.searchParams.get('companyName');
+            const urlCompanyDescription = url.searchParams.get('companyDescription');
+            const urlAgentName = url.searchParams.get('agentName');
+            if (urlCompanyName) {
+              companyName = decodeURIComponent(urlCompanyName);
+              console.log("🏢 Using companyName from URL parameter:", companyName);
+            }
+            if (urlCompanyDescription) {
+              companyDescription = decodeURIComponent(urlCompanyDescription);
+              console.log("📄 Using companyDescription from URL parameter:", companyDescription);
+            }
+            if (urlAgentName) {
+              agentName = decodeURIComponent(urlAgentName);
+              console.log("🤖 Using agentName from URL parameter:", agentName);
+            }
+            break;
+          } catch (urlError) {
+            console.warn("⚠️ Error parsing script URL:", urlError);
+            continue;
+          }
+        }
+      }
+      
+      // Get company logo from SHIVAI_CONFIG (not URL to avoid length issues)
+      if (window.SHIVAI_CONFIG && window.SHIVAI_CONFIG.content && window.SHIVAI_CONFIG.content.companyLogo) {
+        companyLogo = window.SHIVAI_CONFIG.content.companyLogo;
+        console.log("🖼️ Using companyLogo from SHIVAI_CONFIG");
+      }
+      
+      // Get theme colors from SHIVAI_CONFIG
+      if (window.SHIVAI_CONFIG && window.SHIVAI_CONFIG.theme) {
+        if (window.SHIVAI_CONFIG.theme.primaryColor) {
+          themeColors.primaryColor = window.SHIVAI_CONFIG.theme.primaryColor;
+        }
+        if (window.SHIVAI_CONFIG.theme.secondaryColor) {
+          themeColors.secondaryColor = window.SHIVAI_CONFIG.theme.secondaryColor;
+        }
+        if (window.SHIVAI_CONFIG.theme.accentColor) {
+          themeColors.accentColor = window.SHIVAI_CONFIG.theme.accentColor;
+        }
+        console.log("🎨 Using theme colors from SHIVAI_CONFIG:", themeColors);
+      }
+      
+    } catch (error) {
+      console.warn("⚠️ Error getting company info from URL parameters, using defaults:", error);
+    }
+    
+    const result = { 
+      name: companyName, 
+      description: companyDescription,
+      agentName: agentName,
+      logo: companyLogo,
+      theme: themeColors
+    };
+    console.log("✅ Final company info being used:", result);
+    return result;
+  }
   let currentMessageIndex = 0;
   let messageInterval = null;
   let triggerBtn = null;
@@ -217,6 +295,22 @@
       }
     }
   }
+
+  // Function to refresh widget styles with updated theme colors
+  function refreshWidgetTheme() {
+    // Remove existing styles
+    const existingStyles = document.getElementById('shivai-widget-styles');
+    if (existingStyles) {
+      existingStyles.remove();
+    }
+    // Re-add styles with updated theme
+    addWidgetStyles();
+    console.log("🎨 Widget theme refreshed with new colors");
+  }
+
+  // Expose refresh function globally for theme updates
+  window.ShivAIWidget = window.ShivAIWidget || {};
+  window.ShivAIWidget.refreshTheme = refreshWidgetTheme;
 
   function initWidget() {
     createWidgetUI();
@@ -979,13 +1073,20 @@
     widgetContainer.className = "shivai-widget";
     landingView = document.createElement("div");
     landingView.className = "landing-view";
+    
+    // Get company info for dynamic content
+    const companyInfo = getCompanyInfo();
+    console.log("🏢 Using company info:", companyInfo);
+    
     landingView.innerHTML = `
       <div class="widget-header">
         <div class="header-content">
           <button class="widget-close" aria-label="Close widget">×</button>
           <div class="header-info">
             <div class="widget-avatar">
-             <svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 1500">
+            ${companyInfo.logo ? 
+              `<img src="${companyInfo.logo}" alt="${companyInfo.name} Logo" style="width: 100%; height: 100%; object-fit: cover; border-radius: 12px;">` :
+              `<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 1500">
       <defs>
         <style>
           .cls-1 {
@@ -1003,11 +1104,12 @@
       <path class="cls-1" d="m1215.73,825.86c-6.37.43-13.66,1.49-21.51,3.68-22.94,6.41-38.73,19.17-47.51,27.69,7.45,22.45,14.9,44.91,22.35,67.36h137.14v-101.86l-72.84,3.12.57,47.8-18.21-47.8Z"/>
       <polygon class="cls-1" points="1233.94 716.32 1306.21 716.32 1306.21 825.14 1233.94 822.21 1233.94 716.32"/>
       <path class="cls-1" d="m872.77,821c22.25.49,44.49.98,66.74,1.47,18.21-35.7,36.41-71.4,54.62-107.1l-80.12-3.31-48.65,116.61h-5.72l-51.51-116.61h-72.25v27.9l98.72,186h52.22c17.12-33.61,34.25-67.21,51.37-100.82-21.81-1.38-43.62-2.76-65.43-4.14Z"/>
-    </svg>
+    </svg>`
+            }
             </div>
             <div class="header-text">
-              <div class="widget-title">AI Employee</div>
-              <div class="widget-subtitle">ShivAI offers 24/7 voice support to handle your business calls efficiently and professionally.</div>
+              <div class="widget-title">${companyInfo.agentName}</div>
+              <div class="widget-subtitle">${companyInfo.description}.</div>
             </div>
           </div>
         </div>
@@ -1065,6 +1167,11 @@
     callView = document.createElement("div");
     callView.className = "call-view";
     callView.style.display = "none";
+    
+    // Get company info for dynamic content
+    const callCompanyInfo = getCompanyInfo();
+    console.log("📞 Using company info for call view:", callCompanyInfo);
+    
     callView.innerHTML = `
     <div class="call-visualizer" id="call-visualizer">
       <div class="call-header">
@@ -1074,7 +1181,7 @@
       </svg>
       </button>
       <div class="call-info">
-      <div class="call-info-name text-2xl">ShivAI Employee</div>
+      <div class="call-info-name text-2xl">${callCompanyInfo.agentName}</div>
       <div class="call-info-status" id="shivai-status">
       <span class="status-text ">Online</span>
       </div>
@@ -1496,6 +1603,14 @@
     }
   }
   function addWidgetStyles() {
+    // Get theme colors from company info
+    const companyInfo = getCompanyInfo();
+    const theme = companyInfo.theme || {
+      primaryColor: "#4b5563",
+      secondaryColor: "#ffffff",
+      accentColor: "#2563eb"
+    };
+    
     const styles = `
       .shivai-trigger {
       position: fixed;
@@ -1514,17 +1629,17 @@
       color: #ffffff;
       font-size: 24px;
       transition: all 0.3s ease;
-      background: linear-gradient(135deg, #4b5563 0%, #6b7280 30%, #374151 70%, #1f2937 100%);
+      background: linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%);
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25), 0 2px 8px rgba(0, 0, 0, 0.15);
       }
       .shivai-trigger:hover {
       transform: scale(1.1);
-      background: linear-gradient(135deg, #6b7280 0%, #9ca3af 30%, #4b5563 70%, #374151 100%);
+      background: linear-gradient(135deg, ${theme.accentColor} 0%, ${theme.primaryColor} 100%);
       box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35), 0 4px 12px rgba(0, 0, 0, 0.25);
       }
       .shivai-trigger:active {
       transform: scale(0.95);
-      background: linear-gradient(135deg, #374151 0%, #4b5563 30%, #1f2937 70%, #111827 100%);
+      background: linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.accentColor} 50%, ${theme.primaryColor} 100%);
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), inset 0 2px 4px rgba(0, 0, 0, 0.25);
       }
       .shivai-trigger.dragging {
@@ -1652,7 +1767,8 @@
       position: fixed;
       bottom: 60px;
       right: 20px;
-      width: 360px;
+      width: 380px;
+      max-width: 380px;
       max-height: 550px;
       background: white;
       border-radius: 12px;
@@ -1745,7 +1861,7 @@
       border: 1px solid transparent;
       border-radius: 24px;
       font-size: 14px;
-      background: linear-gradient(135deg, #4b5563 0%, #6b7280 30%, #374151 70%, #1f2937 100%);
+      background: linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%);
       color: white;
       font-weight: 600;
       cursor: pointer;
@@ -1757,7 +1873,7 @@
       margin-bottom: 10px;
       }
       .start-call-btn:hover {
-      background: linear-gradient(135deg, #6b7280 0%, #9ca3af 30%, #4b5563 70%, #374151 100%);
+      background: linear-gradient(135deg, ${theme.accentColor} 0%, ${theme.primaryColor} 100%);
       transform: translateY(-1px);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
       }
@@ -2188,7 +2304,7 @@
       .audio-visualizer-enhanced .visualizer-bar {
       width: 3px;
       height: 16px;
-      background: linear-gradient(180deg, #6b7280 0%, #4b5563 100%);
+      background: linear-gradient(180deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%);
       border-radius: 2px;
       transition: all 0.15s ease;
       }
@@ -2214,12 +2330,12 @@
       0%, 100% {
         height: 16px;
         opacity: 0.7;
-        background: linear-gradient(180deg, #6b7280 0%, #4b5563 100%);
+        background: linear-gradient(180deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%);
       }
       50% {
         height: 24px;
         opacity: 1;
-        background: linear-gradient(180deg, #4b5563 0%, #374151 100%);
+        background: linear-gradient(180deg, ${theme.accentColor} 0%, ${theme.primaryColor} 100%);
       }
       }
       .widget-header {
@@ -2358,7 +2474,7 @@
       .visualizer-bar {
       width: 4px;
       height: 20px;
-      background: linear-gradient(180deg, #6b7280 0%, #4b5563 100%);
+      background: linear-gradient(180deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%);
       border-radius: 2px;
       transition: height 0.15s ease;
       }
@@ -2512,7 +2628,7 @@
       flex-shrink: 0;
       }
       .control-btn-icon.connect {
-      background: linear-gradient(135deg, #4b5563 0%, #6b7280 30%, #374151 70%, #1f2937 100%);
+      background: linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%);
       color: white;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
       animation: connectPulse 2s ease-in-out infinite;
@@ -2526,7 +2642,7 @@
       }
       }
       .control-btn-icon.connect:hover {
-      background: linear-gradient(135deg, #6b7280 0%, #9ca3af 30%, #4b5563 70%, #374151 100%);
+      background: linear-gradient(135deg, ${theme.accentColor} 0%, ${theme.primaryColor} 100%);
       transform: scale(1.05);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
       }
@@ -2730,6 +2846,7 @@
       }
     `;
     const styleSheet = document.createElement("style");
+    styleSheet.id = "shivai-widget-styles";
     styleSheet.textContent = styles;
     document.head.appendChild(styleSheet);
   }
@@ -3763,13 +3880,62 @@
       const callId = `call_${Date.now()}`;
       window.currentCallId = callId;
 
+      // Get agent ID from configuration or script data attributes
+      let agentId = "id123"; // default fallback
+      
+      console.log("🔍 Debug: window.SHIVAI_CONFIG:", window.SHIVAI_CONFIG);
+      console.log("🔍 Debug: document.currentScript:", document.currentScript);
+      
+      // First try to get from URL parameters of the widget script
+      const scriptTags = document.getElementsByTagName('script');
+      let foundFromUrl = false;
+      
+      for (let i = scriptTags.length - 1; i >= 0; i--) {
+        const script = scriptTags[i];
+        if (script.src && script.src.includes('/widget.js')) {
+          const url = new URL(script.src);
+          const urlAgentId = url.searchParams.get('agentId');
+          if (urlAgentId) {
+            agentId = urlAgentId;
+            foundFromUrl = true;
+            console.log("🎯 Using agentId from URL parameter:", agentId);
+            break;
+          }
+        }
+      }
+      
+      // If not found in URL, try SHIVAI_CONFIG (for preview)
+      if (!foundFromUrl && window.SHIVAI_CONFIG && window.SHIVAI_CONFIG.agentId) {
+        agentId = window.SHIVAI_CONFIG.agentId;
+        console.log("🎯 Using agentId from SHIVAI_CONFIG:", agentId);
+      } 
+      // Then try to get from script data attributes (for production)
+      else if (!foundFromUrl) {
+        console.log("🔍 SHIVAI_CONFIG not found, checking script attributes...");
+        const scriptElements = document.querySelectorAll('script[data-agent-id]');
+        console.log("🔍 Found script elements with data-agent-id:", scriptElements);
+        
+        if (scriptElements.length > 0) {
+          agentId = scriptElements[scriptElements.length - 1].getAttribute('data-agent-id');
+          console.log("🎯 Using agentId from script data attribute:", agentId);
+        }
+        // Try to get from current script if available
+        else if (document.currentScript && document.currentScript.getAttribute('data-agent-id')) {
+          agentId = document.currentScript.getAttribute('data-agent-id');
+          console.log("🎯 Using agentId from current script:", agentId);
+        }
+        else {
+          console.warn("⚠️ No agentId found, using default:", agentId);
+        }
+      }
+
       const response = await fetch(
         "https://token-server-i5u4.onrender.com/token",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            agent_id: "id123",
+            agent_id: agentId,
             language: selectedLanguage,
             call_id: callId,
             device: deviceType,

@@ -20,15 +20,12 @@ import {
   Trash2,
   Copy,
   Download,
-  Upload,
   MessageSquare,
-  Phone,
   Globe,
   Shield,
   Zap,
   Clock,
   Users,
-  BarChart3,
   CheckCircle,
   AlertCircle,
   Info,
@@ -351,60 +348,7 @@ const AgentManagement = () => {
     updateAgent(agentId, { status: "Draft" });
   };
 
-  const voiceOptions = [
-    {
-      value: "Sarah - Professional",
-      label: "Sarah - Professional",
-      group: "English",
-    },
-    { value: "John - Friendly", label: "John - Friendly", group: "English" },
-    { value: "Emma - Warm", label: "Emma - Warm", group: "English" },
-    { value: "Arjun - Friendly", label: "Arjun - Friendly", group: "Hindi" },
-    {
-      value: "Priya - Professional",
-      label: "Priya - Professional",
-      group: "Hindi",
-    },
-    { value: "Raj - Confident", label: "Raj - Confident", group: "Hindi" },
-  ];
-
-  const languageOptions = [
-    // India
-    { value: "Hindi", label: "Hindi", group: "India" },
-    { value: "Punjabi", label: "Punjabi", group: "India" },
-    { value: "Tamil", label: "Tamil", group: "India" },
-    { value: "Telugu", label: "Telugu", group: "India" },
-    { value: "Bengali", label: "Bengali", group: "India" },
-    { value: "Marathi", label: "Marathi", group: "India" },
-    { value: "Gujarati", label: "Gujarati", group: "India" },
-    { value: "Kannada", label: "Kannada", group: "India" },
-    { value: "Malayalam", label: "Malayalam", group: "India" },
-    { value: "Odia", label: "Odia", group: "India" },
-    { value: "Urdu", label: "Urdu", group: "India" },
-    // Middle East
-    { value: "Arabic", label: "Arabic", group: "Middle East" },
-    { value: "Persian", label: "Persian", group: "Middle East" },
-    { value: "Hebrew", label: "Hebrew", group: "Middle East" },
-    { value: "Turkish", label: "Turkish", group: "Middle East" },
-    // Europe
-    { value: "English (UK)", label: "English (UK)", group: "Europe" },
-    { value: "French", label: "French", group: "Europe" },
-    { value: "German", label: "German", group: "Europe" },
-    { value: "Spanish", label: "Spanish", group: "Europe" },
-    { value: "Italian", label: "Italian", group: "Europe" },
-    { value: "Dutch", label: "Dutch", group: "Europe" },
-    // Americas
-    { value: "English (US)", label: "English (US)", group: "Americas" },
-    { value: "Spanish (MX)", label: "Spanish (MX)", group: "Americas" },
-    { value: "Portuguese (BR)", label: "Portuguese (BR)", group: "Americas" },
-    { value: "French (CA)", label: "French (CA)", group: "Americas" },
-    // APAC
-    { value: "Chinese (Mandarin)", label: "Chinese (Mandarin)", group: "APAC" },
-    { value: "Japanese", label: "Japanese", group: "APAC" },
-    { value: "Korean", label: "Korean", group: "APAC" },
-    { value: "Thai", label: "Thai", group: "APAC" },
-    { value: "Vietnamese", label: "Vietnamese", group: "APAC" },
-  ];
+ 
 
   const responseStyleOptions = [
     { value: "Concise", label: "Concise" },
@@ -589,6 +533,7 @@ const AgentManagement = () => {
                         </h3>
                         <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 truncate">
                           {agent.language} • {agent.persona}
+
                         </p>
                       </div>
                       <span
@@ -620,7 +565,7 @@ const AgentManagement = () => {
                     <span className="text-slate-600 dark:text-slate-400">
                       Created:
                     </span>
-                    <span className="text-slate-800 dark:text-white">
+                    <span className="text-slate-800 dark:text-white ml-2">
                       {agent.createdAt.toLocaleDateString()}
                     </span>
                   </div>
@@ -828,7 +773,9 @@ const AgentManagement = () => {
                     className="flex-1 sm:flex-none common-button-bg2 flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl touch-manipulation min-h-[40px]"
                   >
                     <QrCode className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
-                    <span className="text-xs sm:text-sm font-medium">Get QR</span>
+                    <span className="text-xs sm:text-sm font-medium">
+                      Get QR
+                    </span>
                   </button>
                 )}
                 {currentAgent.status === "Published" ? (
@@ -1144,6 +1091,7 @@ const AgentManagement = () => {
         <AgentWidgetCustomization
           agentId={currentAgent.id}
           agentName={currentAgent.name}
+
         />
 
         {/* Integration Code Section - Only show when published */}
@@ -1615,9 +1563,9 @@ Content-Type: application/json
                               </h4>
                               <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mb-2 sm:mb-3 leading-relaxed">
                                 We have a well-reserached template that fits
-                                your selected business process and industry.
-                                You can view the recommended template or choose
-                                to create a custom agent configuration.
+                                your selected business process and industry. You
+                                can view the recommended template or choose to
+                                create a custom agent configuration.
                               </p>
                               <div className="flex flex-col xs:flex-row gap-2">
                                 <button

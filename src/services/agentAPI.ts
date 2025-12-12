@@ -32,11 +32,14 @@ export interface ApiAgent {
   id: string;
   name: string;
   status: 'Draft' | 'Training' | 'Published';
-  persona: string;
+  personality: string;
   language: string;
   voice: string;
   createdAt: string;
   updatedAt?: string;
+  greeting_message?: {
+    [key: string]: string; // Language codes as keys with greeting text as values
+  };
   stats?: {
     conversations: number;
     successRate: number;
@@ -80,7 +83,7 @@ class AgentAPI {
         id: '1',
         name: 'Ricky sales machine',
         status: 'Published',
-        persona: 'Empathetic',
+        personality: 'Empathetic',
         language: 'English (US)',
         voice: 'Sarah - Professional',
         createdAt: new Date('2024-01-15').toISOString(),
@@ -95,7 +98,7 @@ class AgentAPI {
         id: '2',
         name: 'Ami support assistant',
         status: 'Draft',
-        persona: 'Persuasive (Sales)',
+        personality: 'Persuasive (Sales)',
         language: 'Hindi',
         voice: 'Arjun - Friendly',
         createdAt: new Date('2024-01-20').toISOString(),
@@ -110,7 +113,7 @@ class AgentAPI {
         id: '3',
         name: 'Maya customer care',
         status: 'Training',
-        persona: 'Professional',
+        personality: 'Professional',
         language: 'English (US)',
         voice: 'Emma - Warm',
         createdAt: new Date('2024-01-25').toISOString(),
