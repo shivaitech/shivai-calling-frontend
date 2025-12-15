@@ -11,6 +11,7 @@ export { default as AgentConfigSection } from "./AgentConfigSection";
 export { default as AgentQuickActions } from "./AgentQuickActions";
 export { default as AgentRecentActivity } from "./AgentRecentActivity";
 export { default as AgentWidgetCustomization } from "./AgentWidgetCustomization";
+export { default as AgentIntegrationCode } from "./AgentIntegrationCode";
 
 // Form Components
 export { default as AgentFormHeader } from "./AgentFormHeader";

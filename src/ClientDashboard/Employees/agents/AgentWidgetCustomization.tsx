@@ -158,16 +158,27 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
 
   // Apply gradient preset
   const applyGradientPreset = (preset: (typeof gradientPresets)[0]) => {
-    setWidgetConfig((prev) => ({
-      ...prev,
+    const newConfig = {
+      ...widgetConfig,
       theme: {
-        ...prev.theme,
+        ...widgetConfig.theme,
         primaryColor: preset.primaryColor,
         secondaryColor: preset.secondaryColor,
         accentColor: preset.accentColor,
       },
-    }));
+    };
+
+    setWidgetConfig(newConfig);
     setHasUnsavedChanges(true);
+
+    // Emit event for integration code real-time updates
+    const event = new CustomEvent('widgetConfigUpdated', {
+      detail: {
+        agentId,
+        config: newConfig,
+      }
+    });
+    window.dispatchEvent(event);
 
     // Force immediate preview refresh
     setTimeout(() => {
@@ -291,6 +302,15 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
       // Refresh preview
       setPreviewKey((prev) => prev + 1);
 
+      // Emit event for integration code real-time updates
+      const event = new CustomEvent('widgetConfigUpdated', {
+        detail: {
+          agentId,
+          config: widgetConfig,
+        }
+      });
+      window.dispatchEvent(event);
+
       console.log("✅ Widget configuration saved successfully");
 
       // Show success notification
@@ -386,15 +406,25 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
     key: string,
     value: any
   ) => {
-    setWidgetConfig((prev) => ({
-      ...prev,
+    const newConfig = {
+      ...widgetConfig,
       [section]: {
-        ...(prev[section] as Record<string, any>),
+        ...(widgetConfig[section] as Record<string, any>),
         [key]: value,
       },
-    }));
+    };
 
+    setWidgetConfig(newConfig);
     setHasUnsavedChanges(true);
+
+    // Emit event for integration code real-time updates
+    const event = new CustomEvent('widgetConfigUpdated', {
+      detail: {
+        agentId,
+        config: newConfig,
+      }
+    });
+    window.dispatchEvent(event);
 
     // Debounced real-time preview update
     if (configTimeoutRef.current) {
