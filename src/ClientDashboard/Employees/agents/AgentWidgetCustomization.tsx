@@ -66,111 +66,112 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
   // Gradient presets for theme customization
   const gradientPresets = [
     {
-      id: 'original',
-      name: 'Original Default',
-      primaryColor: '#4b5563',
-      secondaryColor: '#6b7280',
-      accentColor: '#374151',
-      gradient: 'linear-gradient(135deg, #4b5563 0%, #6b7280 30%, #374151 70%, #1f2937 100%)'
+      id: "original",
+      name: "Original Default",
+      primaryColor: "#4b5563",
+      secondaryColor: "#6b7280",
+      accentColor: "#374151",
+      gradient:
+        "linear-gradient(135deg, #4b5563 0%, #6b7280 30%, #374151 70%, #1f2937 100%)",
     },
     {
-      id: 'default',
-      name: 'ShivAI Blue',
-      primaryColor: '#3b82f6',
-      secondaryColor: '#1e40af',
-      accentColor: '#2563eb',
-      gradient: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)'
+      id: "default",
+      name: "ShivAI Blue",
+      primaryColor: "#3b82f6",
+      secondaryColor: "#1e40af",
+      accentColor: "#2563eb",
+      gradient: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
     },
     {
-      id: 'ocean',
-      name: 'Ocean Breeze',
-      primaryColor: '#0ea5e9',
-      secondaryColor: '#0284c7',
-      accentColor: '#0369a1',
-      gradient: 'linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%)'
+      id: "ocean",
+      name: "Ocean Breeze",
+      primaryColor: "#0ea5e9",
+      secondaryColor: "#0284c7",
+      accentColor: "#0369a1",
+      gradient: "linear-gradient(135deg, #0ea5e9 0%, #0369a1 100%)",
     },
     {
-      id: 'sunset',
-      name: 'Sunset Glow',
-      primaryColor: '#f97316',
-      secondaryColor: '#ea580c',
-      accentColor: '#dc2626',
-      gradient: 'linear-gradient(135deg, #f97316 0%, #dc2626 100%)'
+      id: "sunset",
+      name: "Sunset Glow",
+      primaryColor: "#f97316",
+      secondaryColor: "#ea580c",
+      accentColor: "#dc2626",
+      gradient: "linear-gradient(135deg, #f97316 0%, #dc2626 100%)",
     },
     {
-      id: 'forest',
-      name: 'Forest Green',
-      primaryColor: '#22c55e',
-      secondaryColor: '#16a34a',
-      accentColor: '#15803d',
-      gradient: 'linear-gradient(135deg, #22c55e 0%, #15803d 100%)'
+      id: "forest",
+      name: "Forest Green",
+      primaryColor: "#22c55e",
+      secondaryColor: "#16a34a",
+      accentColor: "#15803d",
+      gradient: "linear-gradient(135deg, #22c55e 0%, #15803d 100%)",
     },
     {
-      id: 'purple',
-      name: 'Purple Dream',
-      primaryColor: '#a855f7',
-      secondaryColor: '#9333ea',
-      accentColor: '#7c3aed',
-      gradient: 'linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)'
+      id: "purple",
+      name: "Purple Dream",
+      primaryColor: "#a855f7",
+      secondaryColor: "#9333ea",
+      accentColor: "#7c3aed",
+      gradient: "linear-gradient(135deg, #a855f7 0%, #7c3aed 100%)",
     },
     {
-      id: 'teal',
-      name: 'Teal Wave',
-      primaryColor: '#14b8a6',
-      secondaryColor: '#0d9488',
-      accentColor: '#0f766e',
-      gradient: 'linear-gradient(135deg, #14b8a6 0%, #0f766e 100%)'
+      id: "teal",
+      name: "Teal Wave",
+      primaryColor: "#14b8a6",
+      secondaryColor: "#0d9488",
+      accentColor: "#0f766e",
+      gradient: "linear-gradient(135deg, #14b8a6 0%, #0f766e 100%)",
     },
     {
-      id: 'rose',
-      name: 'Rose Garden',
-      primaryColor: '#f43f5e',
-      secondaryColor: '#e11d48',
-      accentColor: '#be123c',
-      gradient: 'linear-gradient(135deg, #f43f5e 0%, #be123c 100%)'
+      id: "rose",
+      name: "Rose Garden",
+      primaryColor: "#f43f5e",
+      secondaryColor: "#e11d48",
+      accentColor: "#be123c",
+      gradient: "linear-gradient(135deg, #f43f5e 0%, #be123c 100%)",
     },
     {
-      id: 'gradient1',
-      name: 'Cosmic Fusion',
-      primaryColor: '#6366f1',
-      secondaryColor: '#8b5cf6',
-      accentColor: '#a855f7',
-      gradient: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)'
+      id: "gradient1",
+      name: "Cosmic Fusion",
+      primaryColor: "#6366f1",
+      secondaryColor: "#8b5cf6",
+      accentColor: "#a855f7",
+      gradient: "linear-gradient(135deg, #6366f1 0%, #a855f7 100%)",
     },
     {
-      id: 'gradient2',
-      name: 'Warm Citrus',
-      primaryColor: '#fbbf24',
-      secondaryColor: '#f59e0b',
-      accentColor: '#d97706',
-      gradient: 'linear-gradient(135deg, #fbbf24 0%, #d97706 100%)'
+      id: "gradient2",
+      name: "Warm Citrus",
+      primaryColor: "#fbbf24",
+      secondaryColor: "#f59e0b",
+      accentColor: "#d97706",
+      gradient: "linear-gradient(135deg, #fbbf24 0%, #d97706 100%)",
     },
     {
-      id: 'gradient3',
-      name: 'Cool Mint',
-      primaryColor: '#34d399',
-      secondaryColor: '#10b981',
-      accentColor: '#059669',
-      gradient: 'linear-gradient(135deg, #34d399 0%, #059669 100%)'
-    }
+      id: "gradient3",
+      name: "Cool Mint",
+      primaryColor: "#34d399",
+      secondaryColor: "#10b981",
+      accentColor: "#059669",
+      gradient: "linear-gradient(135deg, #34d399 0%, #059669 100%)",
+    },
   ];
 
   // Apply gradient preset
-  const applyGradientPreset = (preset: typeof gradientPresets[0]) => {
-    setWidgetConfig(prev => ({
+  const applyGradientPreset = (preset: (typeof gradientPresets)[0]) => {
+    setWidgetConfig((prev) => ({
       ...prev,
       theme: {
         ...prev.theme,
         primaryColor: preset.primaryColor,
         secondaryColor: preset.secondaryColor,
-        accentColor: preset.accentColor
-      }
+        accentColor: preset.accentColor,
+      },
     }));
     setHasUnsavedChanges(true);
-    
+
     // Force immediate preview refresh
     setTimeout(() => {
-      setPreviewKey(prev => prev + 1);
+      setPreviewKey((prev) => prev + 1);
     }, 50);
   };
 
@@ -585,36 +586,46 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                         </label>
                         <div className="grid grid-cols-2 gap-3">
                           {gradientPresets.map((preset) => {
-                            const isSelected = 
-                              widgetConfig.theme.primaryColor === preset.primaryColor &&
-                              widgetConfig.theme.accentColor === preset.accentColor;
-                            
+                            const isSelected =
+                              widgetConfig.theme.primaryColor ===
+                                preset.primaryColor &&
+                              widgetConfig.theme.accentColor ===
+                                preset.accentColor;
+
                             return (
                               <button
                                 key={preset.id}
                                 onClick={() => applyGradientPreset(preset)}
                                 className={`relative group h-16 rounded-lg border-2 transition-all duration-200 ${
                                   isSelected
-                                    ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-800'
-                                    : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                                    ? "border-blue-500 ring-2 ring-blue-200 dark:ring-blue-800"
+                                    : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
                                 }`}
                                 style={{ background: preset.gradient }}
                                 title={preset.name}
                               >
                                 {/* Overlay */}
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent rounded-md"></div>
-                                
+
                                 {/* Content */}
                                 <div className="relative h-full flex flex-col items-center justify-center text-white">
                                   <div className="text-xs font-medium mb-1 opacity-90">
                                     {preset.name}
                                   </div>
-                                  
+
                                   {/* Selection indicator */}
                                   {isSelected && (
                                     <div className="absolute -top-1 -right-1 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center border-2 border-white">
-                                      <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                      <svg
+                                        className="w-3 h-3 text-white"
+                                        fill="currentColor"
+                                        viewBox="0 0 20 20"
+                                      >
+                                        <path
+                                          fillRule="evenodd"
+                                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                          clipRule="evenodd"
+                                        />
                                       </svg>
                                     </div>
                                   )}
@@ -624,7 +635,8 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                           })}
                         </div>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-                          Select a preset theme or customize individual colors below
+                          Select a preset theme or customize individual colors
+                          below
                         </p>
                       </div>
 
@@ -638,19 +650,31 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                             <input
                               type="color"
                               value={widgetConfig.theme.primaryColor}
-                              onChange={(e) => updateConfig('theme', 'primaryColor', e.target.value)}
+                              onChange={(e) =>
+                                updateConfig(
+                                  "theme",
+                                  "primaryColor",
+                                  e.target.value
+                                )
+                              }
                               className="w-8 h-8 rounded border border-slate-300 dark:border-slate-600 cursor-pointer"
                             />
                             <input
                               type="text"
                               value={widgetConfig.theme.primaryColor}
-                              onChange={(e) => updateConfig('theme', 'primaryColor', e.target.value)}
+                              onChange={(e) =>
+                                updateConfig(
+                                  "theme",
+                                  "primaryColor",
+                                  e.target.value
+                                )
+                              }
                               className="flex-1 common-bg-icons px-2 py-1 text-xs rounded"
                               placeholder="#3b82f6"
                             />
                           </div>
                         </div>
-                        
+
                         <div>
                           <label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">
                             Secondary Color
@@ -659,19 +683,31 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                             <input
                               type="color"
                               value={widgetConfig.theme.secondaryColor}
-                              onChange={(e) => updateConfig('theme', 'secondaryColor', e.target.value)}
+                              onChange={(e) =>
+                                updateConfig(
+                                  "theme",
+                                  "secondaryColor",
+                                  e.target.value
+                                )
+                              }
                               className="w-8 h-8 rounded border border-slate-300 dark:border-slate-600 cursor-pointer"
                             />
                             <input
                               type="text"
                               value={widgetConfig.theme.secondaryColor}
-                              onChange={(e) => updateConfig('theme', 'secondaryColor', e.target.value)}
+                              onChange={(e) =>
+                                updateConfig(
+                                  "theme",
+                                  "secondaryColor",
+                                  e.target.value
+                                )
+                              }
                               className="flex-1 common-bg-icons px-2 py-1 text-xs rounded"
                               placeholder="#ffffff"
                             />
                           </div>
                         </div>
-                        
+
                         <div>
                           <label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">
                             Accent Color
@@ -680,29 +716,41 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                             <input
                               type="color"
                               value={widgetConfig.theme.accentColor}
-                              onChange={(e) => updateConfig('theme', 'accentColor', e.target.value)}
+                              onChange={(e) =>
+                                updateConfig(
+                                  "theme",
+                                  "accentColor",
+                                  e.target.value
+                                )
+                              }
                               className="w-8 h-8 rounded border border-slate-300 dark:border-slate-600 cursor-pointer"
                             />
                             <input
                               type="text"
                               value={widgetConfig.theme.accentColor}
-                              onChange={(e) => updateConfig('theme', 'accentColor', e.target.value)}
+                              onChange={(e) =>
+                                updateConfig(
+                                  "theme",
+                                  "accentColor",
+                                  e.target.value
+                                )
+                              }
                               className="flex-1 common-bg-icons px-2 py-1 text-xs rounded"
                               placeholder="#2563eb"
                             />
                           </div>
                         </div>
                       </div>
-                      
+
                       {/* Gradient Preview */}
                       <div>
                         <label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">
                           Current Gradient Preview
                         </label>
-                        <div 
+                        <div
                           className="h-12 rounded-lg border border-slate-200 dark:border-slate-700"
-                          style={{ 
-                            background: `linear-gradient(135deg, ${widgetConfig.theme.primaryColor} 0%, ${widgetConfig.theme.accentColor} 100%)` 
+                          style={{
+                            background: `linear-gradient(135deg, ${widgetConfig.theme.primaryColor} 0%, ${widgetConfig.theme.accentColor} 100%)`,
                           }}
                         ></div>
                       </div>
@@ -836,10 +884,39 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
     <div class="">
       
         
-       <div  class="" style="margin-bottom: 1.5rem; font-size: 0.875rem; font-weight: 600; color: white; background: linear-gradient(135deg, #3b82f6, #8b5cf6); display: inline-block; padding: 0.5rem 1rem; border-radius: 20px;">
-       ShivAI Employee Preview Section
-       </
-div>
+      
+
+
+
+<div class="demo-text">
+  <strong> Test Your AI Employee Widget:</strong>
+</div>
+<div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.5rem; margin: 1rem 0; text-align: left;">
+  <div style="color: #374151; font-size: 0.9rem; line-height: 1.6;">
+    <p style="margin: 0 0 1rem 0; font-weight: 600; color: #1f2937;">
+      📋 How to test:
+    </p>
+    <ol style="margin: 0; padding-left: 1.5rem; color: #4b5563;">
+      <li style="margin-bottom: 0.75rem;">
+        <strong>Look for the chat button</strong> - It should appear in the bottom-right corner
+      </li>
+      <li style="margin-bottom: 0.75rem;">
+        <strong>Click to open</strong> - Test the interface and your custom branding
+      </li>
+      <li style="margin-bottom: 0.75rem;">
+        <strong>Try voice features</strong> - Click the Start call button icon to test voice input of AI Employee
+      </li>
+      <li style="margin-bottom: 0;">
+        <strong>Check response and Other Features</strong> - Send messages, view Transcripts, and see how the AI responds
+      </li>
+    </ol>
+    <div style="margin-top: 1rem; padding: 0.75rem; background: #dbeafe; border-radius: 8px; border-left: 4px solid #3b82f6;">
+      <p style="margin: 0; font-size: 0.85rem; color: #1e40af;">
+        💡 <strong>Tip:</strong> Make changes in the customization panel and see them update in real-time!
+      </p>
+    </div>
+  </div>
+</div>
     </div>
 
     <!-- Pass configuration to widget -->

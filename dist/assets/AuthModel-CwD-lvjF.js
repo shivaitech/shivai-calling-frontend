@@ -1,0 +1,11 @@
+import{c as s}from"./createLucideIcon-DzFI7d3J.js";/**
+ * @license lucide-react v0.344.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const t=s("Loader2",[["path",{d:"M21 12a9 9 0 1 1-6.219-8.56",key:"13zald"}]]);/**
+ * @license lucide-react v0.344.0 - ISC
+ *
+ * This source code is licensed under the ISC license.
+ * See the LICENSE file in the root directory of this source tree.
+ */const r=s("Mic",[["path",{d:"M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z",key:"131961"}],["path",{d:"M19 10v2a7 7 0 0 1-14 0v-2",key:"1vc78b"}],["line",{x1:"12",x2:"12",y1:"19",y2:"22",key:"x3vr5v"}]]),n={link_text:"Forgot password?",request:{title:"Reset your password",subtitle:"Enter your email and we'll send a reset link.",email_label:"Email address",email_placeholder:"you@example.com",submit_button:"Send reset link",back_to_signin:"Back to sign in",success:"If this email is registered, you'll get reset instructions.",errors:{required:"Enter your email address.",invalid:"Enter a valid email address.",rate_limited:"Too many attempts. Try again in a few minutes.",server:"Something went wrong. Please try again."}},reset:{title:"Set a new password",subtitle:"Create a password that's at least 8 characters, with a mix of letters and numbers.",password_label:"New password",password_placeholder:"Enter new password",confirm_label:"Confirm password",confirm_placeholder:"Confirm new password",submit_button:"Update password",request_new_link:"Request a new reset link",back_to_signin:"Back to sign in",success:"Password reset successful. Please sign in.",errors:{password_required:"Enter a new password.",confirm_required:"Confirm your new password.",mismatch:"Passwords don't match.",too_short:"Use at least 8 characters.",no_letters:"Include at least one letter.",no_numbers:"Include at least one number.",token_invalid:"Link expired or invalid. Request a new reset link.",server:"Couldn't update password. Please try again."}},requirements:[{id:"length",label:"8+ characters",check:e=>e.length>=8},{id:"letter",label:"Include a letter",check:e=>/[a-zA-Z]/.test(e)},{id:"number",label:"Include a number",check:e=>/[0-9]/.test(e)}]};export{n as F,t as L,r as M};
