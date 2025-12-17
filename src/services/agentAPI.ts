@@ -48,6 +48,7 @@ export interface ApiAgent {
   };
 }
 
+
 interface AgentsResponse {
   success: boolean;
   data: {
@@ -73,6 +74,22 @@ interface UpdateAgentRequest {
   language?: string;
   voice?: string;
   status?: 'Draft' | 'Training' | 'Published';
+}
+
+export interface PublicationRequest {
+  agent_id: string;
+  is_published: boolean;
+}
+
+export interface PublicationResponse {
+  success: boolean;
+  message: string;
+  data?: {
+    agent_id: string;
+    is_published: boolean;
+    published_at?: string;
+    unpublished_at?: string;
+  };
 }
 
 class AgentAPI {
@@ -262,6 +279,60 @@ class AgentAPI {
       throw error;
     }
   }
+
+  // Publication API functions
+  async publishAgent(agentId: string): Promise<PublicationResponse> {
+    try {
+      const response: AxiosResponse<PublicationResponse> = await apiClient.patch(
+        `/publications/update`,
+        {
+          agent_id: agentId,
+          is_published: true,
+        } as PublicationRequest
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error("Error publishing agent:", error);
+      throw new Error(
+        error.response?.data?.message || "Failed to publish agent"
+      );
+    }
+  }
+
+  async unpublishAgent(agentId: string): Promise<PublicationResponse> {
+    try {
+      const response: AxiosResponse<PublicationResponse> = await apiClient.patch( // Changed to patch as per backend update pattern
+        `/publications/update`,
+        {
+          agent_id: agentId,
+          is_published: false,
+        } as PublicationRequest
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error("Error unpublishing agent:", error);
+      throw new Error(
+        error.response?.data?.message || "Failed to unpublish agent"
+      );
+    }
+  }
+
+  // Check if agent is static (no API integration needed)
+  isStaticAgent(agentId: string): boolean {
+    // Static agents typically have specific IDs or patterns
+    // Adjust this logic based on your static agent identification method
+    return agentId?.startsWith('static-') || agentId?.includes('demo-') || (agentId?.length < 10 && !agentId.includes('-'));
+  }
 }
 
 export const agentAPI = new AgentAPI();
+
+// Export convenience functions
+export const publishAgent = (agentId: string): Promise<PublicationResponse> => 
+  agentAPI.publishAgent(agentId);
+
+export const unpublishAgent = (agentId: string): Promise<PublicationResponse> => 
+  agentAPI.unpublishAgent(agentId);
+
+export const isStaticAgent = (agentId: string): boolean => 
+  agentAPI.isStaticAgent(agentId);

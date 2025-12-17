@@ -740,18 +740,18 @@ const Training = () => {
                       <div className="space-y-4 sm:space-y-6">
                           <div>
                           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
-                            Upload Knowledge Documents
+                            📄 Upload Knowledge Documents
                             <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
                               (PDF, DOC, TXT, CSV)
                             </span>
                           </label>
-                          <div className="common-bg-icons border-2 border-dashed rounded-xl p-6 sm:p-8 text-center">
-                            <Upload className="w-10 h-10 sm:w-12 sm:h-12 text-slate-400 mx-auto mb-3 sm:mb-4" />
-                            <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mb-2">
-                              Drop files here or tap to upload
+                          <div className="common-bg-icons border border-slate-200 dark:border-slate-600 rounded-xl p-4 sm:p-6 text-center hover:border-blue-300 dark:hover:border-blue-600 transition-colors">
+                            <Upload className="w-8 h-8 text-slate-400 mx-auto mb-3" />
+                            <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">
+                              Drop files here or click to browse
                             </p>
-                            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-500 mb-4">
-                              PDF, DOC, TXT, CSV files (Max 10MB each)
+                            <p className="text-xs text-slate-500 dark:text-slate-500 mb-4">
+                              Max 10MB each • PDF, DOC, TXT, CSV
                             </p>
                             <input
                               type="file"
@@ -764,19 +764,19 @@ const Training = () => {
                             />
                             <label
                               htmlFor="file-upload"
-                              className={`touch-manipulation cursor-pointer inline-flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg ${
+                              className={`inline-block px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-all ${
                                 isDeveloper && !isUploading
-                                  ? "common-button-bg hover:opacity-90 transition-opacity"
-                                  : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50"
+                                  ? "bg-blue-600 hover:bg-blue-700 text-white"
+                                  : "bg-gray-300 text-gray-500 cursor-not-allowed"
                               }`}
                             >
                               {isUploading ? (
-                                <>
-                                  <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
+                                <span className="flex items-center gap-2">
+                                  <div className="animate-spin w-3 h-3 border-2 border-white border-t-transparent rounded-full"></div>
                                   Uploading...
-                                </>
+                                </span>
                               ) : (
-                                "Choose Files"
+                                "Browse Files"
                               )}
                             </label>
                           </div>
@@ -856,9 +856,9 @@ const Training = () => {
                         {/* URL-based Knowledge */}
                         <div>
                           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
-                            Website / Knowledge Base URLs
+                            🌐 Website URLs
                             <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
-                              (Scrape content from URLs)
+                              (Add websites to learn from)
                             </span>
                           </label>
                           <div className="space-y-3">
@@ -870,15 +870,15 @@ const Training = () => {
                                     type="url"
                                     value={url}
                                     onChange={(e) => updateUrl(index, e.target.value)}
-                                    placeholder={`https://example${index + 1}.com/${index === 0 ? 'help-center' : 'faq'}`}
-                                    className="common-bg-icons flex-1 px-4 py-3 rounded-xl text-sm sm:text-base"
+                                    placeholder={`https://example${index + 1}.com/${index === 0 ? 'help' : 'faq'}`}
+                                    className="common-bg-icons flex-1 px-3 py-2 rounded-lg text-sm border border-slate-200 dark:border-slate-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
                                   />
                                   {urls.length > 1 && (
                                     <button
                                       type="button"
                                       onClick={() => removeUrl(index)}
-                                      className="px-3 py-3 text-red-600 dark:text-red-400 rounded-xl hover:text-red-700 dark:hover:text-red-300 transition-colors"
-                                      title="Remove URL"
+                                      className="w-8 h-8 flex items-center justify-center text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors text-sm"
+                                      title="Remove"
                                     >
                                       ✕
                                     </button>
@@ -887,41 +887,40 @@ const Training = () => {
                               ))}
                             </div>
                             
-                            {/* Add URL Button */}
                             <button
                               type="button"
                               onClick={addUrl}
-                              className="w-full sm:w-auto px-4 py-3 bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-xl hover:bg-blue-200 dark:hover:bg-blue-900/30 transition-colors font-medium text-sm"
+                              className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
                             >
-                              + Add Another URL
+                              + Add URL
                             </button>
                           </div>
                           <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                            Agent will learn from publicly accessible web pages
+                            Agent learns from public web content
                           </p>
                         </div>
 
                         {/* Manual Knowledge Entry */}
                         <div>
                           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
-                            Manual Knowledge Entry
+                            ✍️ Manual Knowledge
                             <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
                               (FAQs, policies, product info)
                             </span>
                           </label>
                           <textarea
                             placeholder="Enter knowledge, FAQs, policies, or any information your agent should know..."
-                            rows={6}
-                            className="common-bg-icons w-full px-4 py-3 rounded-xl resize-none text-sm sm:text-base"
+                            rows={5}
+                            className="common-bg-icons w-full px-3 py-2 rounded-lg text-sm border border-slate-200 dark:border-slate-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors resize-none"
                           />
-                          <div className="mt-2 flex justify-between items-center text-xs text-slate-500">
-                            <span>Provide detailed, relevant information</span>
+                          <div className="mt-2 flex justify-between items-center">
+                            <span className="text-xs text-slate-500">Detailed, relevant information works best</span>
                             <button
                               disabled={!isDeveloper}
-                              className={`font-medium px-3 py-1 rounded ${
+                              className={`text-xs px-2 py-1 rounded transition-colors ${
                                 isDeveloper
-                                  ? "common-button-bg2"
-                                  : "text-gray-400 dark:text-gray-500 cursor-not-allowed"
+                                  ? "text-blue-600 hover:text-blue-700 font-medium"
+                                  : "text-gray-400 cursor-not-allowed"
                               }`}
                             >
                               Save Draft
@@ -934,15 +933,15 @@ const Training = () => {
                           <button
                             onClick={saveKnowledgeBase}
                             disabled={!isDeveloper}
-                            className={`px-6 py-3 rounded-xl font-medium ${
+                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                               isDeveloper
                                 ? savedSections.knowledge
-                                  ? "bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800"
-                                  : "common-button-bg"
-                                : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50"
+                                 ? "bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800"
+                                : "common-button-bg"
+                              : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50"
                             }`}
                           >
-                            {savedSections.knowledge ? "✓ Knowledge Base Saved" : "Save Knowledge Base"}
+                            {savedSections.knowledge ? "✓ Saved" : "Save Knowledge"}
                           </button>
                         </div>
                       </div>
@@ -1027,37 +1026,37 @@ const Training = () => {
                                 className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base resize-none"
                               />
                             </div>
-                            <div className="flex flex-col sm:flex-row gap-3">
+                            <div className="flex flex-wrap gap-2">
                               <button
                                 disabled={!isDeveloper}
-                                className={`flex-1 touch-manipulation ${
+                                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                                   isDeveloper
-                                    ? "common-button-bg"
-                                    : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50 px-4 py-3 rounded-lg"
+                                    ? "bg-blue-600 hover:bg-blue-700 text-white"
+                                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
                                 }`}
                               >
                                 Add Example
                               </button>
                               <button
                                 disabled={!isDeveloper}
-                                className={`flex items-center gap-2 ${
+                                className={`flex items-center gap-1 px-3 py-2 rounded-lg text-sm transition-colors ${
                                   isDeveloper
-                                    ? "common-button-bg2"
-                                    : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50 px-4 py-3 rounded-lg"
+                                    ? "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"
+                                    : "text-gray-400 cursor-not-allowed"
                                 }`}
                               >
-                                <FileText className="w-4 h-4" />
+                                <FileText className="w-3 h-3" />
                                 Import CSV
                               </button>
                               <button
                                 disabled={!isDeveloper}
-                                className={`flex items-center gap-2 ${
+                                className={`flex items-center gap-1 px-3 py-2 rounded-lg text-sm transition-colors ${
                                   isDeveloper
-                                    ? "common-button-bg2"
-                                    : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50 px-4 py-3 rounded-lg"
+                                    ? "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"
+                                    : "text-gray-400 cursor-not-allowed"
                                 }`}
                               >
-                                <Zap className="w-4 h-4" />
+                                <Zap className="w-3 h-3" />
                                 Import Audio
                               </button>
                             </div>
@@ -1079,8 +1078,8 @@ const Training = () => {
                                   <button
                                     type="button"
                                     onClick={() => removeObjection(index)}
-                                    className="absolute top-2 right-2 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
-                                    title="Remove Objection"
+                                    className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors text-xs"
+                                    title="Remove"
                                   >
                                     ✕
                                   </button>
@@ -1111,23 +1110,23 @@ const Training = () => {
                                 </div>
                               </div>
                             ))}
-                            <div className="flex flex-col sm:flex-row gap-3">
+                            <div className="flex flex-wrap gap-2">
                               <button
                                 type="button"
                                 onClick={addObjection}
-                                className="w-full sm:w-auto px-4 py-3 bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-xl hover:bg-blue-200 dark:hover:bg-blue-900/30 transition-colors font-medium text-sm"
+                                className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
                               >
-                                + Add Another Objection
+                                + Add Objection
                               </button>
                               <button
                                 disabled={!isDeveloper}
-                                className={`w-full sm:w-auto ${
+                                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                                   isDeveloper
-                                    ? "common-button-bg"
-                                    : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50 px-4 py-3 rounded-lg"
+                                    ? "bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-300"
+                                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
                                 }`}
                               >
-                                Save All Objections
+                                Save Objections
                               </button>
                             </div>
                           </div>
@@ -1228,8 +1227,8 @@ const Training = () => {
                                   <button
                                     type="button"
                                     onClick={() => removeIntent(index)}
-                                    className="absolute top-2 right-2 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors"
-                                    title="Remove Intent"
+                                    className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors text-xs"
+                                    title="Remove"
                                   >
                                     ✕
                                   </button>
@@ -1272,33 +1271,33 @@ const Training = () => {
                                 </div>
                               </div>
                             ))}
-                            <div className="flex flex-col sm:flex-row gap-3">
+                            <div className="flex flex-wrap gap-2">
                               <button
                                 type="button"
                                 onClick={addIntent}
-                                className="w-full sm:w-auto px-4 py-3 bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-xl hover:bg-blue-200 dark:hover:bg-blue-900/30 transition-colors font-medium text-sm"
+                                className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
                               >
-                                + Add Another Intent
+                                + Add Intent
                               </button>
                               <button
                                 disabled={!isDeveloper}
-                                className={`flex-1 touch-manipulation ${
+                                className={`px-2 py-1 rounded text-xs transition-colors ${
                                   isDeveloper
-                                    ? "common-button-bg"
-                                    : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50 px-4 py-3 rounded-lg"
-                                }`}
-                              >
-                                Save All Intents
-                              </button>
-                              <button
-                                disabled={!isDeveloper}
-                                className={`${
-                                  isDeveloper
-                                    ? "common-button-bg2"
-                                    : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50 px-4 py-3 rounded-lg"
+                                    ? "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"
+                                    : "text-gray-400 cursor-not-allowed"
                                 }`}
                               >
                                 Templates
+                              </button>
+                              <button
+                                disabled={!isDeveloper}
+                                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                  isDeveloper
+                                    ? "bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-300"
+                                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                                }`}
+                              >
+                                Save Intents
                               </button>
                             </div>
                           </div>

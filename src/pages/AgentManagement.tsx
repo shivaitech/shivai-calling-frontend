@@ -9,6 +9,8 @@ import { AgentWidgetCustomization, AgentQRModal } from "../components/agents";
 import { useAgent } from "../contexts/AgentContext";
 import { useAuth } from "../contexts/AuthContext";
 import { isDeveloperUser } from "../lib/utils";
+import { liveKitService, LiveKitMessage, LiveKitCallbacks } from "../services/liveKitService";
+import { publishAgent, unpublishAgent, isStaticAgent } from "../services/agentsAPI";
 import {
   Bot,
   ArrowLeft,
@@ -41,13 +43,15 @@ import {
   Filter,
   Settings,
   QrCode,
+  Volume2,
+  X,
 } from "lucide-react";
 
 const AgentManagement = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { agents, currentAgent, setCurrentAgent, addAgent, updateAgent, isLoading, error, refreshAgents } =
+  const { agents, currentAgent, setCurrentAgent, addAgent, updateAgent, isLoading, error, refreshAgents, publishAgentStatus, unpublishAgentStatus } =
     useAgent();
   const { user } = useAuth();
 
@@ -80,6 +84,16 @@ const AgentManagement = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showQRModal, setShowQRModal] = useState(false);
+
+  // LiveKit test modal state
+  const [showTestModal, setShowTestModal] = useState(false);
+  const [isCallActive, setIsCallActive] = useState(false);
+  const [callStatus, setCallStatus] = useState('');
+  const [callState, setCallState] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected');
+  const [activeTab, setActiveTab] = useState<'call' | 'transcript' | 'chat'>('call');
+  const [messages, setMessages] = useState<LiveKitMessage[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [publishingAgents, setPublishingAgents] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (id && !isCreate) {
@@ -343,12 +357,46 @@ const AgentManagement = () => {
     }
   };
 
-  const handlePublish = (agentId: string) => {
-    updateAgent(agentId, { status: "Published" });
+  const handlePublish = async (agentId: string) => {
+    try {
+      // Add to publishing set for loading state
+      setPublishingAgents(prev => new Set(prev).add(agentId));
+      
+      // Use context function for publication
+      await publishAgentStatus(agentId);
+      console.log('✅ Agent published successfully');
+    } catch (error: any) {
+      console.error('❌ Error publishing agent:', error);
+      alert(error.message || 'Failed to publish agent. Please try again.');
+    } finally {
+      // Remove from publishing set
+      setPublishingAgents(prev => {
+        const next = new Set(prev);
+        next.delete(agentId);
+        return next;
+      });
+    }
   };
 
-  const handlePause = (agentId: string) => {
-    updateAgent(agentId, { status: "Draft" });
+  const handlePause = async (agentId: string) => {
+    try {
+      // Add to publishing set for loading state
+      setPublishingAgents(prev => new Set(prev).add(agentId));
+      
+      // Use context function for unpublication
+      await unpublishAgentStatus(agentId);
+      console.log('✅ Agent unpublished successfully');
+    } catch (error: any) {
+      console.error('❌ Error unpublishing agent:', error);
+      alert(error.message || 'Failed to unpublish agent. Please try again.');
+    } finally {
+      // Remove from publishing set
+      setPublishingAgents(prev => {
+        const next = new Set(prev);
+        next.delete(agentId);
+        return next;
+      });
+    }
   };
 
   const voiceOptions = [
@@ -423,6 +471,90 @@ const AgentManagement = () => {
     { value: "Standard (8K tokens)", label: "Standard (8K tokens)" },
     { value: "Large (16K tokens)", label: "Large (16K tokens)" },
   ];
+
+  // LiveKit callback functions - EXACT implementation from widget.js
+  const handleStartCall = async () => {
+    console.log('🎯 Starting LiveKit voice test...');
+    setIsCallActive(true);
+    setCallStatus('🔄 Initializing...');
+    setCallState('connecting');
+    setMessages([]); // Clear previous messages
+    
+    try {
+      // Setup LiveKit callbacks
+      liveKitService.setCallbacks({
+        onMessage: (message: LiveKitMessage) => {
+          console.log('📨 New message received:', message);
+          setMessages(prev => [...prev, message]);
+        },
+        onConnected: () => {
+          console.log('✅ LiveKit connected');
+          setCallState('connected');
+          setCallStatus('✅ Connected - Speak now!');
+        },
+        onDisconnected: (reason?: string) => {
+          console.log('❌ LiveKit disconnected:', reason);
+          setCallState('disconnected');
+          setCallStatus(reason ? `❌ Disconnected: ${reason}` : '❌ Disconnected');
+          setIsCallActive(false);
+        },
+        onConnectionStateChange: (state: string) => {
+          console.log('🔗 Connection state changed:', state);
+        },
+        onError: (error: string) => {
+          console.error('❌ LiveKit error:', error);
+          setCallStatus(`❌ Error: ${error}`);
+          setIsCallActive(false);
+        },
+        onStatusUpdate: (status: string, state: 'connecting' | 'connected' | 'disconnected') => {
+          console.log('📊 Status update:', status, state);
+          setCallStatus(status);
+          setCallState(state);
+        }
+      });
+
+      // Connect to LiveKit with agent context
+      await liveKitService.connect({
+        agentId: currentAgent?.id || 'test-agent',
+        agentName: currentAgent?.name || 'Test Agent',
+        sessionType: 'demo'
+      });
+
+      console.log('🎤 LiveKit connection initiated');
+    } catch (error) {
+      console.error('❌ Failed to start call:', error);
+      setCallStatus('❌ Failed to connect');
+      setIsCallActive(false);
+      setCallState('disconnected');
+    }
+  };
+
+  const handleEndCall = async () => {
+    console.log('🛑 Ending LiveKit call...');
+    try {
+      await liveKitService.disconnect();
+      setIsCallActive(false);
+      setCallState('disconnected');
+      setCallStatus('📴 Call ended');
+    } catch (error) {
+      console.error('❌ Error ending call:', error);
+      setIsCallActive(false);
+      setCallState('disconnected');
+      setCallStatus('📴 Call ended');
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!chatInput.trim() || !isCallActive) return;
+
+    try {
+      console.log('💬 Sending chat message:', chatInput);
+      await liveKitService.sendMessage(chatInput.trim());
+      setChatInput('');
+    } catch (error) {
+      console.error('❌ Failed to send message:', error);
+    }
+  };
 
   // Filter agents based on search and status
   const filteredAgents = isDeveloper
@@ -720,18 +852,46 @@ const AgentManagement = () => {
                   {agent.status === "Published" ? (
                     <button
                       onClick={() => handlePause(agent.id)}
-                      className="flex-1 flex items-center justify-center gap-1.5 common-button-bg2 transition-all duration-200 text-sm font-medium active:scale-[0.98]"
+                      disabled={publishingAgents.has(agent.id)}
+                      className={`flex-1 flex items-center justify-center gap-1.5 transition-all duration-200 text-sm font-medium active:scale-[0.98] ${
+                        publishingAgents.has(agent.id) 
+                          ? 'common-button-bg2 opacity-50 cursor-not-allowed' 
+                          : 'common-button-bg2'
+                      }`}
                     >
-                      <Pause className="w-4 h-4" />
-                      Pause
+                      {publishingAgents.has(agent.id) ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                          Pausing...
+                        </>
+                      ) : (
+                        <>
+                          <Pause className="w-4 h-4" />
+                          Pause
+                        </>
+                      )}
                     </button>
                   ) : (
                     <button
                       onClick={() => handlePublish(agent.id)}
-                      className="flex-1 flex items-center justify-center gap-1.5 common-button-bg transition-all duration-200 text-sm font-medium active:scale-[0.98]"
+                      disabled={publishingAgents.has(agent.id)}
+                      className={`flex-1 flex items-center justify-center gap-1.5 transition-all duration-200 text-sm font-medium active:scale-[0.98] ${
+                        publishingAgents.has(agent.id) 
+                          ? 'common-button-bg2 opacity-50 cursor-not-allowed' 
+                          : 'common-button-bg'
+                      }`}
                     >
-                      <Play className="w-4 h-4" />
-                      Publish
+                      {publishingAgents.has(agent.id) ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          Publishing...
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-4 h-4" />
+                          Publish
+                        </>
+                      )}
                     </button>
                   )}
 
@@ -878,6 +1038,16 @@ const AgentManagement = () => {
                   <Edit className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
                   <span className="text-xs sm:text-sm font-medium">Edit</span>
                 </button>
+                {/* Test Voice button - Only show when agent is published */}
+                {currentAgent.status === "Published" && (
+                  <button
+                    onClick={() => setShowTestModal(true)}
+                    className="flex-1 sm:flex-none common-button-bg flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl touch-manipulation min-h-[40px]"
+                  >
+                    <Phone className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+                    <span className="text-xs sm:text-sm font-medium">Test Voice</span>
+                  </button>
+                )}
                 {currentAgent.status === "Published" && (
                   <button
                     onClick={() => setShowQRModal(true)}
@@ -890,22 +1060,54 @@ const AgentManagement = () => {
                 {currentAgent.status === "Published" ? (
                   <button
                     onClick={() => handlePause(currentAgent.id)}
-                    className="flex-1 sm:flex-none common-button-bg2 flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl touch-manipulation min-h-[40px]"
+                    disabled={publishingAgents.has(currentAgent.id)}
+                    className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl touch-manipulation min-h-[40px] ${
+                      publishingAgents.has(currentAgent.id) 
+                        ? 'common-button-bg2 opacity-50 cursor-not-allowed' 
+                        : 'common-button-bg2'
+                    }`}
                   >
-                    <Pause className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
-                    <span className="text-xs sm:text-sm font-medium">
-                      Pause
-                    </span>
+                    {publishingAgents.has(currentAgent.id) ? (
+                      <>
+                        <div className="w-3.5 sm:w-4 h-3.5 sm:h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                        <span className="text-xs sm:text-sm font-medium">
+                          Pausing...
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <Pause className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+                        <span className="text-xs sm:text-sm font-medium">
+                          Pause
+                        </span>
+                      </>
+                    )}
                   </button>
                 ) : (
                   <button
                     onClick={() => handlePublish(currentAgent.id)}
-                    className="flex-1 sm:flex-none common-button-bg flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl touch-manipulation min-h-[40px]"
+                    disabled={publishingAgents.has(currentAgent.id)}
+                    className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl touch-manipulation min-h-[40px] ${
+                      publishingAgents.has(currentAgent.id) 
+                        ? 'common-button-bg opacity-50 cursor-not-allowed' 
+                        : 'common-button-bg'
+                    }`}
                   >
-                    <Play className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
-                    <span className="text-xs sm:text-sm font-medium">
-                      Publish
-                    </span>
+                    {publishingAgents.has(currentAgent.id) ? (
+                      <>
+                        <div className="w-3.5 sm:w-4 h-3.5 sm:h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span className="text-xs sm:text-sm font-medium">
+                          Publishing...
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+                        <span className="text-xs sm:text-sm font-medium">
+                          Publish
+                        </span>
+                      </>
+                    )}
                   </button>
                 )}
               </div>
@@ -1434,6 +1636,219 @@ Content-Type: application/json
             </div>
           </GlassCard>
         </div>
+
+        {/* LiveKit Test Modal - Only for published agents */}
+        {showTestModal && currentAgent && currentAgent.status === "Published" && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
+              {/* Modal Header */}
+              <div className="p-6 border-b border-slate-200 dark:border-slate-700">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+                      <Phone className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+                        Test Voice Agent
+                      </h2>
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
+                        {currentAgent.name} • Live Demo
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowTestModal(false);
+                      if (isCallActive) {
+                        handleEndCall();
+                      }
+                    }}
+                    className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+
+              {/* Tab Navigation */}
+              <div className="flex border-b border-slate-200 dark:border-slate-700">
+                {[
+                  { id: 'call', label: 'Call', icon: Phone },
+                  { id: 'transcript', label: 'Transcript', icon: MessageSquare },
+                  { id: 'chat', label: 'Chat', icon: MessageSquare }
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as any)}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
+                      activeTab === tab.id
+                        ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                    }`}
+                  >
+                    <tab.icon className="w-4 h-4" />
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Tab Content */}
+              <div className="p-6 h-96 overflow-y-auto">
+                {activeTab === 'call' && (
+                  <div className="flex flex-col items-center justify-center h-full space-y-6">
+                    {/* Call Status */}
+                    <div className="text-center">
+                      <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-4 ${
+                        callState === 'connected' 
+                          ? 'bg-green-100 dark:bg-green-900/20 text-green-600 dark:text-green-400' 
+                          : callState === 'connecting' 
+                            ? 'bg-yellow-100 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-400' 
+                            : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                      }`}>
+                        <Phone className={`w-8 h-8 ${callState === 'connecting' ? 'animate-pulse' : ''}`} />
+                      </div>
+                      <p className="text-lg font-medium text-slate-900 dark:text-white mb-2">
+                        {callStatus || (isCallActive ? 'Connected' : 'Ready to test')}
+                      </p>
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
+                        {isCallActive ? 'Speak naturally to test the agent' : 'Click start to begin voice test'}
+                      </p>
+                    </div>
+
+                    {/* Call Controls */}
+                    <div className="flex gap-4">
+                      {!isCallActive ? (
+                        <button
+                          onClick={handleStartCall}
+                          className="px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl font-medium hover:from-green-600 hover:to-green-700 transition-all duration-200 flex items-center gap-2"
+                        >
+                          <Phone className="w-5 h-5" />
+                          Start Test Call
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handleEndCall}
+                          className="px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl font-medium hover:from-red-600 hover:to-red-700 transition-all duration-200 flex items-center gap-2"
+                        >
+                          <Phone className="w-5 h-5" />
+                          End Call
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'transcript' && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-medium text-slate-900 dark:text-white">
+                        Voice Transcript
+                      </h3>
+                      <span className="text-sm text-slate-600 dark:text-slate-400">
+                        {messages.filter(m => m.source === 'voice').length} messages
+                      </span>
+                    </div>
+                    <div className="space-y-3 max-h-80 overflow-y-auto">
+                      {messages.filter(m => m.source === 'voice').length === 0 ? (
+                        <div className="text-center py-8">
+                          <MessageSquare className="w-12 h-12 text-slate-400 dark:text-slate-500 mx-auto mb-3" />
+                          <p className="text-slate-600 dark:text-slate-400">
+                            Voice transcript will appear here during the call
+                          </p>
+                        </div>
+                      ) : (
+                        messages.filter(m => m.source === 'voice').map((message, index) => (
+                          <div
+                            key={index}
+                            className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
+                          >
+                            <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${
+                              message.isUser
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white'
+                            }`}>
+                              <p className="text-sm">{message.text}</p>
+                              <p className={`text-xs mt-1 ${
+                                message.isUser ? 'text-blue-200' : 'text-slate-500 dark:text-slate-400'
+                              }`}>
+                                {new Date(message.timestamp).toLocaleTimeString()}
+                              </p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'chat' && (
+                  <div className="flex flex-col h-full">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-medium text-slate-900 dark:text-white">
+                        Text Chat
+                      </h3>
+                      <span className="text-sm text-slate-600 dark:text-slate-400">
+                        {messages.filter(m => m.source === 'chat').length} messages
+                      </span>
+                    </div>
+                    
+                    <div className="flex-1 space-y-3 max-h-64 overflow-y-auto mb-4">
+                      {messages.filter(m => m.source === 'chat').length === 0 ? (
+                        <div className="text-center py-8">
+                          <MessageSquare className="w-12 h-12 text-slate-400 dark:text-slate-500 mx-auto mb-3" />
+                          <p className="text-slate-600 dark:text-slate-400">
+                            Send a message to test text chat
+                          </p>
+                        </div>
+                      ) : (
+                        messages.filter(m => m.source === 'chat').map((message, index) => (
+                          <div
+                            key={index}
+                            className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
+                          >
+                            <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${
+                              message.isUser
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white'
+                            }`}>
+                              <p className="text-sm">{message.text}</p>
+                              <p className={`text-xs mt-1 ${
+                                message.isUser ? 'text-blue-200' : 'text-slate-500 dark:text-slate-400'
+                              }`}>
+                                {new Date(message.timestamp).toLocaleTimeString()}
+                              </p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    {/* Chat Input */}
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={chatInput}
+                        onChange={(e) => setChatInput(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                        placeholder={isCallActive ? "Type a message..." : "Start call to enable chat"}
+                        disabled={!isCallActive}
+                        className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 disabled:opacity-50"
+                      />
+                      <button
+                        onClick={handleSendMessage}
+                        disabled={!isCallActive || !chatInput.trim()}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Send
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {showQRModal && currentAgent && (
           <AgentQRModal

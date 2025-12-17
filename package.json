@@ -16,6 +16,7 @@
     "clsx": "^2.1.1",
     "framer-motion": "^12.23.14",
     "libphonenumber-js": "^1.12.26",
+    "livekit-client": "^2.16.1",
     "lodash": "^4.17.21",
     "lucide-react": "^0.344.0",
     "react": "^18.3.1",

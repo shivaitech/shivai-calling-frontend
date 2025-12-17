@@ -1,14 +1,13 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import Slider from "react-slick";
 import GlassCard from "../../components/GlassCard";
 import SearchableSelect from "../../components/SearchableSelect";
-import LanguagePicker from "../../components/LanguagePicker";
 import Tooltip from "../../components/Tooltip";
 import { AgentWidgetCustomization, AgentQRModal, AgentIntegrationCode } from "./agents";
 import { useAgent } from "../../contexts/AgentContext";
 import { useAuth } from "../../contexts/AuthContext";
 import { isDeveloperUser } from "../../lib/utils";
+import { liveKitService, LiveKitMessage, LiveKitCallbacks } from "../../services/liveKitService";
 import {
   Bot,
   ArrowLeft,
@@ -27,24 +26,26 @@ import {
   Clock,
   Users,
   CheckCircle,
-  AlertCircle,
   Info,
   Lightbulb,
-  Sparkles,
-  Target,
-  Building,
   Plus,
   Search,
   Filter,
   Settings,
   QrCode,
+  X,
+  Send,
+  Phone,
+  PhoneCall,
+  Mic,
+  MicOff,
 } from "lucide-react";
 
 const AgentManagement = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { agents, currentAgent, setCurrentAgent, addAgent, updateAgent } =
+  const { agents, currentAgent, setCurrentAgent, addAgent, updateAgent,publishAgentStatus, unpublishAgentStatus } =
     useAgent();
   const { user } = useAuth();
 
@@ -77,6 +78,87 @@ const AgentManagement = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showQRModal, setShowQRModal] = useState(false);
+  const [showTestChat, setShowTestChat] = useState(false);
+  const [activeTestTab, setActiveTestTab] = useState<'call' | 'conversation'>('call');
+  const [isCallActive, setIsCallActive] = useState(false);
+  const [callDuration, setCallDuration] = useState(0);
+  const [isRecording, setIsRecording] = useState(false);
+  const [callTimerInterval, setCallTimerInterval] = useState<number | null>(null);
+  const [messages, setMessages] = useState<Array<{id: string, text: string, isUser: boolean, timestamp: Date, source?: string}>>([    
+    {
+      id: '1',
+      text: `Hi! I'm ${currentAgent?.name || 'your AI assistant'}. How can I help you today?`,
+      isUser: false,
+      timestamp: new Date()
+    }
+  ]);
+  const [testInput, setTestInput] = useState("");
+  const recentMessagesRef = useRef<Set<string>>(new Set());
+  const lastMessageTimeRef = useRef<number>(0);
+  const [isTestLoading, setIsTestLoading] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState('disconnected');
+  const [statusMessage, setStatusMessage] = useState('Ready to connect');
+  const [isMuted, setIsMuted] = useState(false);
+  const [testStatus, setTestStatus] = useState('📞 Ready to start call');
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
+  const [room, setRoom] = useState<any>(null);
+
+  useEffect(() => {
+    // Setup LiveKit callbacks
+    const callbacks: LiveKitCallbacks = {
+      onMessage: (message: LiveKitMessage) => {
+        setMessages(prev => [...prev, {
+          id: String(message.id),
+          text: message.text,
+          isUser: message.isUser,
+          timestamp: message.timestamp,
+          source: message.source
+        }]);
+      },
+      onConnected: () => {
+        setIsCallActive(true);
+        setConnectionStatus('connected');
+        setStatusMessage('Connected - Speak now!');
+        setIsTestLoading(false);
+      },
+      onDisconnected: () => {
+        setIsCallActive(false);
+        setConnectionStatus('disconnected');
+        setStatusMessage('Disconnected');
+        setIsTestLoading(false);
+        if (callTimerInterval) {
+          clearInterval(callTimerInterval);
+          setCallTimerInterval(null);
+        }
+        setCallDuration(0);
+      },
+      onConnectionStateChange: (state) => {
+        console.log('Connection state changed:', state);
+      },
+      onError: (error) => {
+        setConnectionStatus('disconnected');
+        setStatusMessage(error);
+        setIsTestLoading(false);
+        setIsCallActive(false);
+        console.error('LiveKit error:', error);
+      },
+      onStatusUpdate: (status, state) => {
+        setStatusMessage(status);
+        setConnectionStatus(state);
+      }
+    };
+
+    liveKitService.setCallbacks(callbacks);
+
+    // Cleanup on unmount
+    return () => {
+      liveKitService.disconnect();
+      if (callTimerInterval) {
+        clearInterval(callTimerInterval);
+      }
+    };
+  }, [callTimerInterval]);
 
   useEffect(() => {
     if (id && !isCreate) {
@@ -98,6 +180,8 @@ const AgentManagement = () => {
           contextWindow: "Standard (8K tokens)",
           temperature: 50,
         });
+        // Reset messages when agent changes
+        setMessages([]);
       }
     } else if (isCreate) {
       setFormData({
@@ -340,12 +424,651 @@ const AgentManagement = () => {
     }
   };
 
-  const handlePublish = (agentId: string) => {
-    updateAgent(agentId, { status: "Published" });
+  const handlePublish = async (agentId: string) => {
+    try {
+      await publishAgentStatus(agentId);
+      console.log('✅ Agent published successfully');
+    } catch (error: any) {
+      console.error('❌ Error publishing agent:', error);
+      alert(error.message || 'Failed to publish agent. Please try again.');
+    }
   };
 
-  const handlePause = (agentId: string) => {
-    updateAgent(agentId, { status: "Draft" });
+  const handlePause = async (agentId: string) => {
+    try {
+      await unpublishAgentStatus(agentId);
+      console.log('✅ Agent paused successfully');
+    } catch (error: any) {
+      console.error('❌ Error pausing agent:', error);
+      alert(error.message || 'Failed to pause agent. Please try again.');
+    }
+  };
+
+  const handleTestSend = async () => {
+    if (!testInput.trim() || isTestLoading) return;
+
+    const message = testInput.trim();
+    const now = Date.now();
+    
+    // Prevent rapid duplicate sends
+    if (now - lastMessageTimeRef.current < 1000) {
+      console.log('🚫 Message sent too quickly, preventing duplicate');
+      return;
+    }
+    
+    // Create unique message key
+    const messageKey = `user-${message}-${Math.floor(now / 1000)}`; // Group by second
+    
+    if (recentMessagesRef.current.has(messageKey)) {
+      console.log('🚫 Duplicate message prevented:', message);
+      setTestInput("");
+      return;
+    }
+    
+    // Track this message
+    recentMessagesRef.current.add(messageKey);
+    lastMessageTimeRef.current = now;
+    
+    // Clear old messages from tracking (keep only last 10 seconds)
+    setTimeout(() => {
+      recentMessagesRef.current.delete(messageKey);
+    }, 10000);
+    
+    setTestInput("");
+    setIsTestLoading(true);
+
+    try {
+      // Add user message to UI immediately
+      const userMessage = {
+        id: `user-chat-${now}-${Math.random()}`,
+        text: message,
+        isUser: true,
+        timestamp: new Date(),
+        source: 'chat'
+      };
+      setMessages(prev => [...prev, userMessage]);
+
+      // If connected to LiveKit room, send via room's data channel - same as widget.js
+      if (room && connectionStatus === 'connected') {
+        const LiveKit = (window as any).LivekitClient;
+        const messageData = JSON.stringify({
+          type: 'chat',
+          text: message,
+          timestamp: new Date().toISOString(),
+          source: 'typed'
+        });
+        
+        // Send to all participants via data channel
+        const encoder = new TextEncoder();
+        const data = encoder.encode(messageData);
+        await room.localParticipant.publishData(data, LiveKit.DataPacket_Kind.RELIABLE);
+        
+        console.log('💬 Message sent via LiveKit:', message);
+      } else {
+        // Fallback to simulation if not connected
+        setTimeout(() => {
+          const responses = [
+            "I understand you're looking for help. Let me assist you with that based on my training and configuration.",
+            "Thank you for your message. As an AI Employee, I'm designed to help with various tasks in a professional manner.",
+            "I appreciate your question. Based on my role as your AI Employee, I'd be happy to provide assistance.",
+            "That's an interesting point. As your AI Employee, here's how I can help you.",
+            "I see what you're asking about. As an AI Employee, I'm here to provide helpful, accurate information.",
+          ];
+
+          const agentMessage = {
+            id: `fallback-${Date.now()}-${Math.random()}`,
+            text: responses[Math.floor(Math.random() * responses.length)],
+            isUser: false,
+            timestamp: new Date(),
+            source: 'chat'
+          };
+
+          setMessages(prev => [...prev, agentMessage]);
+          setIsTestLoading(false);
+        }, 1000 + Math.random() * 2000);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setIsTestLoading(false);
+    }
+  };
+
+  // Working LiveKit connection implementation (based on your working React component)
+  const startAgentCall = useCallback(async () => {
+    try {
+      setIsConnecting(true);
+      setTestStatus('🎤 Requesting microphone access...');
+      setConnectionStatus('connecting');
+      setStatusMessage('Initializing call...');
+      
+      // Check if in secure context (HTTPS required for microphone)
+      if (!window.isSecureContext) {
+        throw new Error('HTTPS required for microphone access');
+      }
+
+      // Request microphone permission first (same as working component)
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: false,
+            channelCount: 1,
+            sampleRate: 48000,
+            sampleSize: 16
+          }
+        });
+        
+        // Stop the stream - LiveKit will create its own
+        stream.getTracks().forEach(track => track.stop());
+        setTestStatus('✅ Microphone access granted');
+        console.log('✅ Microphone access granted');
+      } catch (micError) {
+        const errorMessage = micError instanceof Error ? micError.message : 'Unknown error';
+        throw new Error(`Microphone access denied: ${errorMessage}`);
+      }
+      
+      // Get agent ID from the current agent
+      const agentId = currentAgent?.id;
+      if (!agentId) {
+        throw new Error('Agent ID not found');
+      }
+      
+      setTestStatus('🔗 Getting LiveKit token...');
+      
+      // Get LiveKit token from backend (exact same endpoint as working component)
+      const callId = `admin_test_${Date.now()}`;
+      console.log('🔑 Getting token with parameters:', {
+        agent_id: agentId,
+        language: 'en-US',
+        call_id: callId,
+        device: 'desktop'
+      });
+
+      const response = await fetch('https://python.service.callshivai.com/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          agent_id: agentId,
+          language: 'en-US',
+          call_id: callId,
+          device: 'desktop',
+          user_agent: navigator.userAgent
+        })
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Token server error:', errorText);
+        throw new Error(`Failed to get LiveKit token: ${response.status} - ${errorText}`);
+      }
+      
+      const tokenData = await response.json();
+      console.log('🎯 Token received for agent testing:', agentId, tokenData);
+      
+      setTestStatus('🔗 Connecting to LiveKit...');
+      
+      // Load LiveKit SDK if not available
+      if (typeof (window as any).LivekitClient === 'undefined') {
+        setTestStatus('📦 Loading LiveKit SDK...');
+        
+        const script = document.createElement('script');
+        script.src = 'https://unpkg.com/livekit-client@latest/dist/livekit-client.umd.js';
+        script.onload = () => {
+          console.log('✅ LiveKit SDK loaded');
+          connectToLiveKit(tokenData);
+        };
+        script.onerror = () => {
+          throw new Error('Failed to load LiveKit SDK');
+        };
+        document.head.appendChild(script);
+      } else {
+        await connectToLiveKit(tokenData);
+      }
+      
+    } catch (error) {
+      console.error('Failed to start agent test call:', error);
+      setTestStatus(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setConnectionStatus('disconnected');
+      setStatusMessage('Connection failed');
+      setIsConnecting(false);
+      setIsConnected(false);
+    }
+  }, [currentAgent]);
+
+  const connectToLiveKit = useCallback(async (tokenData: any) => {
+    try {
+      const LiveKit = (window as any).LivekitClient;
+      
+      // Create LiveKit room with same config as working component
+      const liveKitRoom = new LiveKit.Room({
+        adaptiveStream: true,
+        dynacast: true,
+        audioCaptureDefaults: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          suppressLocalAudioPlayback: true
+        },
+        publishDefaults: {
+          audioPreset: LiveKit.AudioPresets.speech,
+          dtx: true,
+          red: false,
+          simulcast: false
+        }
+      });
+
+      // Track remote audio (agent speaking) - same as working component
+      liveKitRoom.on(LiveKit.RoomEvent.TrackSubscribed, (track: any) => {
+        if (track.kind === LiveKit.Track.Kind.Audio) {
+          console.log('🔊 Audio track received from agent');
+          const audioElement = track.attach();
+          audioElement.volume = 0.4; // Same volume as widget for feedback prevention
+          audioElement.autoplay = true;
+          document.body.appendChild(audioElement);
+          
+          audioElement.play().catch((err: any) => 
+            console.warn('Audio autoplay blocked:', err)
+          );
+        }
+      });
+
+      // Handle real-time transcript and chat data - same as widget.js
+      liveKitRoom.on(LiveKit.RoomEvent.DataReceived, (data: any, participant: any) => {
+        try {
+          const text = new TextDecoder().decode(data);
+          console.log('📨 DataReceived:', text, 'from:', participant?.identity);
+          
+          if (!text || text.trim().length === 0) return;
+          
+          // Skip technical messages
+          const skipPatterns = ['subscribed', 'connected', 'disconnected', 'enabled', 'disabled', 'true', 'false'];
+          if (skipPatterns.some(pattern => text.toLowerCase() === pattern)) return;
+          
+          try {
+            const jsonData = JSON.parse(text);
+            
+            // Look for text content in various fields
+            let transcriptText = '';
+            const textFields = ['text', 'transcript', 'message', 'content', 'response'];
+            for (const field of textFields) {
+              if (jsonData[field] && typeof jsonData[field] === 'string' && jsonData[field].trim()) {
+                transcriptText = jsonData[field].trim();
+                break;
+              }
+            }
+            
+            if (transcriptText) {
+              const isUser = participant?.identity === liveKitRoom.localParticipant?.identity;
+              const messageKey = `${isUser ? 'user' : 'ai'}-${transcriptText}-${Math.floor(Date.now() / 2000)}`;
+              
+              // Prevent duplicate messages within 2-second windows
+              if (recentMessagesRef.current.has(messageKey)) {
+                console.log('🚫 Preventing duplicate DataReceived:', transcriptText);
+                return;
+              }
+              
+              recentMessagesRef.current.add(messageKey);
+              setTimeout(() => recentMessagesRef.current.delete(messageKey), 5000);
+              
+              setMessages(prev => [...prev, {
+                id: `${Date.now()}-${Math.random()}`,
+                text: transcriptText,
+                isUser,
+                timestamp: new Date(),
+                source: 'voice'
+              }]);
+              
+              // Stop loading if this is an agent response
+              if (!isUser) {
+                setIsTestLoading(false);
+              }
+              
+              console.log('✅ Added real-time message:', { isUser, text: transcriptText });
+            }
+          } catch (e) {
+            // Treat as plain text if not JSON
+            if (text.length >= 2 && text.length <= 1000) {
+              const isUser = participant?.identity === liveKitRoom.localParticipant?.identity;
+              const messageKey = `${isUser ? 'user' : 'ai'}-${text.trim()}-${Math.floor(Date.now() / 2000)}`;
+              
+              if (recentMessagesRef.current.has(messageKey)) {
+                console.log('🚫 Preventing duplicate plain text:', text.trim());
+                return;
+              }
+              
+              recentMessagesRef.current.add(messageKey);
+              setTimeout(() => recentMessagesRef.current.delete(messageKey), 5000);
+              
+              setMessages(prev => [...prev, {
+                id: `${Date.now()}-${Math.random()}`,
+                text: text.trim(),
+                isUser,
+                timestamp: new Date(),
+                source: 'voice'
+              }]);
+              
+              // Stop loading if this is an agent response
+              if (!isUser) {
+                setIsTestLoading(false);
+              }
+              
+              console.log('✅ Added plain text message:', { isUser, text: text.trim() });
+            }
+          }
+        } catch (error) {
+          console.error('❌ Error processing DataReceived:', error);
+        }
+      });
+
+      // Register text stream handlers for transcription and chat - same as widget.js
+      if (typeof liveKitRoom.registerTextStreamHandler === 'function') {
+        console.log('📝 Registering text stream handlers...');
+        
+        // Transcription stream handler
+        liveKitRoom.registerTextStreamHandler('lk.transcription', async (reader: any, participantInfo: any) => {
+          console.log('🎯 Transcription stream from:', participantInfo.identity);
+          try {
+            const text = await reader.readAll();
+            if (text && text.trim()) {
+              const isUser = participantInfo.identity === liveKitRoom.localParticipant?.identity;
+              const messageKey = `${isUser ? 'user' : 'ai'}-transcription-${text.trim()}-${Math.floor(Date.now() / 2000)}`;
+              
+              if (recentMessagesRef.current.has(messageKey)) {
+                console.log('🚫 Preventing duplicate transcription:', text.trim());
+                return;
+              }
+              
+              recentMessagesRef.current.add(messageKey);
+              setTimeout(() => recentMessagesRef.current.delete(messageKey), 5000);
+              
+              setMessages(prev => [...prev, {
+                id: `transcription-${Date.now()}-${Math.random()}`,
+                text: text.trim(),
+                isUser,
+                timestamp: new Date(),
+                source: 'voice'
+              }]);
+              
+              // Stop loading if this is an agent response
+              if (!isUser) {
+                setIsTestLoading(false);
+              }
+              
+              console.log('✅ Transcription added:', { isUser, text: text.trim() });
+            }
+          } catch (error) {
+            console.error('❌ Error processing transcription:', error);
+          }
+        });
+        
+        // Chat stream handler
+        liveKitRoom.registerTextStreamHandler('lk.chat', async (reader: any, participantInfo: any) => {
+          console.log('💬 Chat stream from:', participantInfo.identity);
+          try {
+            const text = await reader.readAll();
+            const isUser = participantInfo.identity === liveKitRoom.localParticipant?.identity;
+            
+            if (!isUser && text && text.trim()) {
+              const messageKey = `ai-chat-${text.trim()}-${Math.floor(Date.now() / 2000)}`;
+              
+              if (recentMessagesRef.current.has(messageKey)) {
+                console.log('🚫 Preventing duplicate chat:', text.trim());
+                return;
+              }
+              
+              recentMessagesRef.current.add(messageKey);
+              setTimeout(() => recentMessagesRef.current.delete(messageKey), 5000);
+              
+              setMessages(prev => [...prev, {
+                id: `chat-${Date.now()}-${Math.random()}`,
+                text: text.trim(),
+                isUser: false,
+                timestamp: new Date(),
+                source: 'chat'
+              }]);
+              
+              // Stop loading since this is an agent chat response
+              setIsTestLoading(false);
+              
+              console.log('✅ Chat message added:', { text: text.trim() });
+            }
+          } catch (error) {
+            console.error('❌ Error processing chat:', error);
+          }
+        });
+      }
+
+      // Handle transcript from metadata - enhanced with loading state management
+      liveKitRoom.on(LiveKit.RoomEvent.ParticipantMetadataChanged, (metadata: string, participant: any) => {
+        if (metadata) {
+          try {
+            const data = JSON.parse(metadata);
+            if (data.transcript || data.text) {
+              const isUser = participant?.identity === liveKitRoom.localParticipant?.identity;
+              
+              setMessages(prev => [...prev, {
+                id: `metadata-${Date.now()}`,
+                text: data.transcript || data.text,
+                isUser,
+                timestamp: new Date(),
+                source: 'voice'
+              }]);
+              
+              // Stop loading if this is an agent response
+              if (!isUser) {
+                setIsTestLoading(false);
+              }
+              
+              console.log('✅ Transcript from participant metadata:', data.transcript || data.text);
+            }
+          } catch (e) {
+            console.log('Metadata not JSON:', metadata);
+          }
+        }
+      });
+
+      // Handle room metadata - enhanced with loading state management
+      liveKitRoom.on(LiveKit.RoomEvent.RoomMetadataChanged, (metadata: string) => {
+        if (metadata) {
+          try {
+            const data = JSON.parse(metadata);
+            if (data.transcript || data.text) {
+              setMessages(prev => [...prev, {
+                id: `room-metadata-${Date.now()}`,
+                text: data.transcript || data.text,
+                isUser: false, // Room metadata is typically from agent
+                timestamp: new Date(),
+                source: 'voice'
+              }]);
+              
+              // Stop loading since this is an agent response
+              setIsTestLoading(false);
+              
+              console.log('✅ Transcript from room metadata:', data.transcript || data.text);
+            }
+          } catch (e) {
+            console.log('Room metadata not JSON:', metadata);
+          }
+        }
+      });
+
+      // Handle connection - same as working component
+      liveKitRoom.on(LiveKit.RoomEvent.Connected, async () => {
+        console.log('🎉 Connected to LiveKit room for agent testing');
+        setIsConnected(true);
+        setIsConnecting(false);
+        setIsCallActive(true);
+        setConnectionStatus('connected');
+        setTestStatus('🟢 Connected! You can now speak with the agent.');
+        setStatusMessage('✅ Connected - Speak now!');
+        
+        // Start call timer
+        const timer = setInterval(() => {
+          setCallDuration(prev => prev + 1);
+        }, 1000);
+        setCallTimerInterval(timer);
+        
+        // Enable microphone with same settings as working component
+        try {
+          await liveKitRoom.localParticipant.setMicrophoneEnabled(true, {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          });
+          
+          setIsRecording(true);
+          
+          console.log('🎤 Microphone enabled and ready');
+        } catch (err) {
+          console.error('Failed to enable microphone:', err);
+        }
+      });
+
+      // Handle disconnection
+      liveKitRoom.on(LiveKit.RoomEvent.Disconnected, () => {
+        console.log('❌ Disconnected from LiveKit room');
+        setIsConnected(false);
+        setIsConnecting(false);
+        setIsCallActive(false);
+        setConnectionStatus('disconnected');
+        setTestStatus('🔴 Disconnected');
+        setStatusMessage('❌ Disconnected');
+        setRoom(null);
+        
+        if (callTimerInterval) {
+          clearInterval(callTimerInterval);
+          setCallTimerInterval(null);
+        }
+        setCallDuration(0);
+      });
+
+      // Connect to room using token data
+      console.log('🔗 Connecting to LiveKit room...');
+      await liveKitRoom.connect(tokenData.url, tokenData.token);
+      setRoom(liveKitRoom);
+      
+    } catch (error) {
+      console.error('LiveKit connection failed:', error);
+      setTestStatus(`❌ Connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setConnectionStatus('disconnected');
+      setStatusMessage('Connection failed');
+      setIsConnecting(false);
+      setIsConnected(false);
+    }
+  }, [currentAgent, callTimerInterval]);
+
+  const endAgentCall = useCallback(async () => {
+    if (room) {
+      try {
+        await room.disconnect();
+        console.log('✅ Disconnected from LiveKit room');
+      } catch (error) {
+        console.error('Error disconnecting from room:', error);
+      }
+    }
+    
+    setIsConnected(false);
+    setIsConnecting(false);
+    setIsCallActive(false);
+    setConnectionStatus('disconnected');
+    setTestStatus('📞 Call ended');
+    setStatusMessage('Ready to connect');
+    setRoom(null);
+    setIsRecording(false);
+    
+    if (callTimerInterval) {
+      clearInterval(callTimerInterval);
+      setCallTimerInterval(null);
+    }
+    setCallDuration(0);
+    
+    // Add disconnect message
+    setMessages(prev => [...prev, {
+      id: `disconnect-${Date.now()}`,
+      text: 'Call ended',
+      isUser: false,
+      timestamp: new Date(),
+      source: 'system'
+    }]);
+  }, [room, callTimerInterval]);
+
+  const toggleMute = useCallback(async () => {
+    if (room && isConnected) {
+      try {
+        const newMutedState = !isMuted;
+        await room.localParticipant.setMicrophoneEnabled(!newMutedState);
+        setIsMuted(newMutedState);
+        setIsRecording(!newMutedState);
+        console.log(`🎤 Microphone ${newMutedState ? 'muted' : 'unmuted'}`);
+      } catch (error) {
+        console.error('Error toggling mute:', error);
+      }
+    }
+  }, [room, isConnected, isMuted]);
+
+  // Test connection function to help debug issues
+  const testConnection = useCallback(async () => {
+    if (!currentAgent) {
+      alert('No agent selected');
+      return;
+    }
+
+    console.log('🧪 Testing connection components...');
+    
+    try {
+      // Test 1: Check microphone permission
+      console.log('🎤 Testing microphone access...');
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+      console.log('✅ Microphone access OK');
+      
+      // Test 2: Check token server
+      console.log('🔑 Testing token server...');
+      const response = await fetch('https://python.service.callshivai.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agent_id: currentAgent.id,
+          language: 'en-US',
+          call_id: `test_${Date.now()}`,
+          device: 'desktop',
+          user_agent: navigator.userAgent,
+        }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Token server OK', data);
+        alert('✅ Connection test passed! Token server is working. Try starting the call again.');
+      } else {
+        console.error('❌ Token server error:', response.status);
+        alert(`❌ Token server error: ${response.status}. The voice service may be temporarily unavailable.`);
+      }
+    } catch (error) {
+      console.error('❌ Connection test failed:', error);
+      if (error instanceof Error && error.name === 'NotAllowedError') {
+        alert('❌ Microphone permission denied. Please allow microphone access and try again.');
+      } else if (error instanceof Error && error.message.includes('fetch')) {
+        alert('❌ Cannot reach voice service. Please check your internet connection.');
+      } else {
+        alert(`❌ Connection test failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }
+  }, [currentAgent]);
+
+  // Remove the old handleStartCall function and replace with startAgentCall
+  const handleStartCall = startAgentCall;
+
+  const handleEndCall = endAgentCall;
+
+  const handleToggleMute = toggleMute;
+
+  const formatCallDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
  
@@ -614,11 +1337,13 @@ const AgentManagement = () => {
                     </button>
                   ) : (
                     <button
-                      onClick={() => handlePublish(agent.id)}
-                      className="flex-1 flex items-center justify-center gap-1.5 common-button-bg transition-all duration-200 text-sm font-medium active:scale-[0.98]"
+                      onClick={() => (agent as any).is_active ? handlePause(agent.id) : handlePublish(agent.id)}
+                      className={`flex-1 flex items-center justify-center gap-1.5 transition-all duration-200 text-sm font-medium active:scale-[0.98] ${
+                        (agent as any).is_active ? 'common-button-bg2' : 'common-button-bg'
+                      }`}
                     >
-                      <Play className="w-4 h-4" />
-                      Publish
+                      {(agent as any).is_active ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                      {(agent as any).is_active ? 'Pause' : 'Publish'}
                     </button>
                   )}
 
@@ -790,12 +1515,14 @@ const AgentManagement = () => {
                   </button>
                 ) : (
                   <button
-                    onClick={() => handlePublish(currentAgent.id)}
-                    className="flex-1 sm:flex-none common-button-bg flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl touch-manipulation min-h-[40px]"
+                    onClick={() => (currentAgent as any).is_active ? handlePause(currentAgent.id) : handlePublish(currentAgent.id)}
+                    className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl touch-manipulation min-h-[40px] ${
+                      (currentAgent as any).is_active ? 'common-button-bg2' : 'common-button-bg'
+                    }`}
                   >
-                    <Play className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+                    {(currentAgent as any).is_active ? <Pause className="w-3.5 sm:w-4 h-3.5 sm:h-4" /> : <Play className="w-3.5 sm:w-4 h-3.5 sm:h-4" />}
                     <span className="text-xs sm:text-sm font-medium">
-                      Publish
+                      {(currentAgent as any).is_active ? 'Pause' : 'Publish'}
                     </span>
                   </button>
                 )}
@@ -945,69 +1672,82 @@ const AgentManagement = () => {
           </GlassCard>
         </div>
 
-        {/* Enhanced Content Grid */}
+        {/* Enhanced Content Grid - Mobile Responsive */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-          {/* Agent Configuration - Improved Layout */}
-          <div className="lg:col-span-2">
+          {/* Agent Configuration - Mobile Optimized */}
+          <div className="order-1 lg:order-1 lg:col-span-2">
             <GlassCard>
-              <div className="p-4 sm:p-6">
-                <div className="flex items-center gap-3 mb-4 sm:mb-6">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center justify-center">
-                    <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-slate-600 dark:text-slate-400" />
+              <div className="p-3 sm:p-4 lg:p-6">
+                <div className="flex flex-row sm:items-center sm:justify-between gap-3 mb-3 sm:mb-4">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="w-6 h-6 sm:w-8 sm:h-8 bg-slate-50 dark:bg-slate-800 rounded-lg sm:rounded-xl flex items-center justify-center">
+                      <Settings className="w-3 h-3 sm:w-4 sm:h-4 text-slate-600 dark:text-slate-400" />
+                    </div>
+                    <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-slate-800 dark:text-white">
+                      Configuration
+                    </h3>
                   </div>
-                  <h3 className="text-lg sm:text-xl font-semibold text-slate-800 dark:text-white">
-                    Configuration
-                  </h3>
+                  
+                  {/* Test Button - Only show when agent is published */}
+                  {currentAgent.status === "Published" && (
+                    <button
+                      onClick={() => setShowTestChat(true)}
+                      className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:py-2 border border-1 dark:bg-green-900/20 text-black dark:text-green-300 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-all duration-200 text-xs sm:text-sm font-medium shadow-sm hover:shadow-md self-start"
+                    >
+                      <Play className="w-3 h-3 sm:w-4 sm:h-4" />
+                      <span>Test</span>
+                    </button>
+                  )}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                  <div className="space-y-4">
-                    <div className="p-4 bg-slate-50 border dark:bg-slate-800/50 rounded-xl">
-                      <div className="flex items-center gap-3 mb-2">
-                        <Globe className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                        <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                  <div className="space-y-3">
+                    <div className="p-3 bg-slate-50 border dark:bg-slate-800/50 rounded-lg">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Globe className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600 dark:text-blue-400" />
+                        <span className="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400">
                           Language
                         </span>
                       </div>
-                      <p className="text-base font-semibold text-slate-800 dark:text-white">
+                      <p className="text-sm sm:text-base font-semibold text-slate-800 dark:text-white">
                         {currentAgent.language}
                       </p>
                     </div>
 
-                    <div className="p-4 bg-slate-50 border dark:bg-slate-800/50 rounded-xl">
-                      <div className="flex items-center gap-3 mb-2">
-                        <MessageSquare className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                        <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                    <div className="p-3 bg-slate-50 border dark:bg-slate-800/50 rounded-lg">
+                      <div className="flex items-center gap-2 mb-1">
+                        <MessageSquare className="w-3 h-3 sm:w-4 sm:h-4 text-purple-600 dark:text-purple-400" />
+                        <span className="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400">
                           Voice
                         </span>
                       </div>
-                      <p className="text-base font-semibold text-slate-800 dark:text-white">
+                      <p className="text-sm sm:text-base font-semibold text-slate-800 dark:text-white">
                         {currentAgent.voice}
                       </p>
                     </div>
                   </div>
 
-                  <div className="space-y-4">
-                    <div className="p-4 bg-slate-50 border dark:bg-slate-800/50 rounded-xl">
-                      <div className="flex items-center gap-3 mb-2">
-                        <Users className="w-4 h-4 text-green-600 dark:text-green-400" />
-                        <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                  <div className="space-y-3">
+                    <div className="p-3 bg-slate-50 border dark:bg-slate-800/50 rounded-lg">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Users className="w-3 h-3 sm:w-4 sm:h-4 text-green-600 dark:text-green-400" />
+                        <span className="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400">
                           Persona
                         </span>
                       </div>
-                      <p className="text-base font-semibold text-slate-800 dark:text-white">
+                      <p className="text-sm sm:text-base font-semibold text-slate-800 dark:text-white">
                         {currentAgent.persona}
                       </p>
                     </div>
 
-                    <div className="p-4 bg-slate-50 border dark:bg-slate-800/50 rounded-xl">
-                      <div className="flex items-center gap-3 mb-2">
-                        <Clock className="w-4 h-4 text-orange-600 dark:text-orange-400" />
-                        <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                    <div className="p-3 bg-slate-50 border dark:bg-slate-800/50 rounded-lg">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Clock className="w-3 h-3 sm:w-4 sm:h-4 text-orange-600 dark:text-orange-400" />
+                        <span className="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400">
                           Created
                         </span>
                       </div>
-                      <p className="text-base font-semibold text-slate-800 dark:text-white">
+                      <p className="text-sm sm:text-base font-semibold text-slate-800 dark:text-white">
                         {currentAgent.createdAt.toLocaleDateString()}
                       </p>
                     </div>
@@ -1017,30 +1757,30 @@ const AgentManagement = () => {
             </GlassCard>
           </div>
 
-          {/* Quick Actions - Enhanced Design */}
-          <div className="space-y-4 sm:space-y-6">
+          {/* Quick Actions - Mobile Optimized */}
+          <div className="order-2 lg:order-2 space-y-3 sm:space-y-4">
             <GlassCard>
-              <div className="p-4 sm:p-6">
-                <div className="flex items-center gap-3 mb-4 sm:mb-6">
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center justify-center">
-                    <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-slate-600 dark:text-slate-400" />
+              <div className="p-3 sm:p-4 lg:p-6">
+                <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                  <div className="w-6 h-6 sm:w-8 sm:h-8 bg-slate-50 dark:bg-slate-800 rounded-lg sm:rounded-xl flex items-center justify-center">
+                    <Zap className="w-3 h-3 sm:w-4 sm:h-4 text-slate-600 dark:text-slate-400" />
                   </div>
-                  <h3 className="text-lg sm:text-xl font-semibold text-slate-800 dark:text-white">
+                  <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-slate-800 dark:text-white">
                     Quick Actions
                   </h3>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-2 sm:space-y-3">
                   <button
                     onClick={() => navigate(`/agents/${currentAgent.id}/train`)}
-                    className="w-full common-bg-icons hover:shadow-md transition-all duration-200 p-4 rounded-xl touch-manipulation group"
+                    className="w-full common-bg-icons hover:shadow-md transition-all duration-200 p-3 sm:p-4 rounded-lg touch-manipulation group"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <Lightbulb className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <Lightbulb className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400" />
                       </div>
                       <div className="text-left flex-1">
-                        <p className="font-medium text-slate-800 dark:text-white">
+                        <p className="text-sm sm:text-base font-medium text-slate-800 dark:text-white">
                           Train Agent
                         </p>
                         <p className="text-xs text-slate-600 dark:text-slate-400">
@@ -1050,13 +1790,32 @@ const AgentManagement = () => {
                     </div>
                   </button>
 
-                  <button className="w-full common-bg-icons hover:shadow-md transition-all duration-200 p-4 rounded-xl touch-manipulation group">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-green-50 dark:bg-green-900/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <Copy className="w-5 h-5 text-green-600 dark:text-green-400" />
+                  <button
+                    onClick={() => navigate(`/agents/${currentAgent.id}/edit`)}
+                    className="w-full common-bg-icons hover:shadow-md transition-all duration-200 p-3 sm:p-4 rounded-lg touch-manipulation group"
+                  >
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <Edit className="w-4 h-4 sm:w-5 sm:h-5 text-yellow-600 dark:text-yellow-400" />
                       </div>
                       <div className="text-left flex-1">
-                        <p className="font-medium text-slate-800 dark:text-white">
+                        <p className="text-sm sm:text-base font-medium text-slate-800 dark:text-white">
+                          Edit Agent
+                        </p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400">
+                          Modify settings
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+
+                  <button className="w-full common-bg-icons hover:shadow-md transition-all duration-200 p-3 sm:p-4 rounded-lg touch-manipulation group">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-green-50 dark:bg-green-900/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <Copy className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 dark:text-green-400" />
+                      </div>
+                      <div className="text-left flex-1">
+                        <p className="text-sm sm:text-base font-medium text-slate-800 dark:text-white">
                           Clone Agent
                         </p>
                         <p className="text-xs text-slate-600 dark:text-slate-400">
@@ -1066,13 +1825,13 @@ const AgentManagement = () => {
                     </div>
                   </button>
 
-                  <button className="w-full common-bg-icons hover:shadow-md transition-all duration-200 p-4 rounded-xl touch-manipulation group">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-purple-50 dark:bg-purple-900/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <Download className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                  <button className="w-full common-bg-icons hover:shadow-md transition-all duration-200 p-3 sm:p-4 rounded-lg touch-manipulation group">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-purple-50 dark:bg-purple-900/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <Download className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
                       </div>
                       <div className="text-left flex-1">
-                        <p className="font-medium text-slate-800 dark:text-white">
+                        <p className="text-sm sm:text-base font-medium text-slate-800 dark:text-white">
                           Export Data
                         </p>
                         <p className="text-xs text-slate-600 dark:text-slate-400">
@@ -1087,17 +1846,23 @@ const AgentManagement = () => {
           </div>
         </div>
 
-        {/* Widget Customization Section */}
-        <AgentWidgetCustomization
-          agentId={currentAgent.id}
-          agentName={currentAgent.name}
+        {/* Widget Customization Section - Only show when agent is published */}
+          <div className="mt-4 sm:mt-6">
+            <AgentWidgetCustomization
+              agentId={currentAgent.id}
+              agentName={currentAgent.name}
+              isPublished={true}
+            />
+          </div>
 
-        />
-
-        {/* Integration Code Section - Only show when published */}
-        <AgentIntegrationCode 
-          currentAgent={currentAgent}
-        />
+        {/* Integration Code Section - Only show when agent is published */}
+        {currentAgent.status === "Published" && (
+          <div className="mt-4 sm:mt-6">
+            <AgentIntegrationCode 
+              currentAgent={currentAgent}
+            />
+          </div>
+        )}
 
         <div className="mt-6 sm:mt-8">
           <GlassCard>
@@ -1163,6 +1928,288 @@ const AgentManagement = () => {
             agent={currentAgent}
             onClose={() => setShowQRModal(false)}
           />
+        )}
+
+        {/* Comprehensive Agent Testing Modal - Only show for published agents */}
+        {showTestChat && currentAgent && currentAgent.status === "Published" && (
+          <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[60] flex items-center justify-center p-3 sm:p-4 -top-8">
+            <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl w-full max-w-2xl h-[80vh] max-h-[600px] relative flex flex-col shadow-xl border border-white/20 dark:border-slate-700/50">
+              
+              {/* Minimalist Header */}
+              <div className="flex items-center justify-between p-4 border-b border-slate-200/50 dark:border-slate-700/50">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    Test {currentAgent.name}
+                  </h3>
+                </div>
+                <button
+                  onClick={async () => {
+                    // Cleanup and close
+                    if (room) {
+                      try {
+                        await room.disconnect();
+                      } catch (error) {
+                        console.error('Error disconnecting on close:', error);
+                      }
+                    }
+                    
+                    setShowTestChat(false);
+                    setIsCallActive(false);
+                    setIsRecording(false);
+                    setConnectionStatus('disconnected');
+                    setStatusMessage('Ready to connect');
+                    if (callTimerInterval) {
+                      clearInterval(callTimerInterval);
+                      setCallTimerInterval(null);
+                    }
+                    setCallDuration(0);
+                    setActiveTestTab('call');
+                  }}
+                  className="w-8 h-8 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                >
+                  <X className="w-4 h-4 text-slate-400" />
+                </button>
+              </div>
+
+              {/* Minimalist Tab Navigation */}
+              <div className="flex border-b border-slate-200/50 dark:border-slate-700/50">
+                {[
+                  { id: 'call', label: 'Voice', icon: Phone },
+                  { id: 'conversation', label: 'Conversation', icon: MessageSquare },
+                ].map(({ id, label, icon: Icon }) => (
+                  <button
+                    key={id}
+                    onClick={() => setActiveTestTab(id as any)}
+                    className={`flex-1 flex items-center justify-center gap-2 py-3 text-xs font-medium transition-colors ${
+                      activeTestTab === id
+                        ? 'text-slate-900 dark:text-white border-b-2 border-slate-900 dark:border-white bg-slate-50/50 dark:bg-slate-800/50'
+                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span>{label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Content Area */}
+              <div className="flex-1 overflow-hidden">
+                {/* Call Tab */}
+                {activeTestTab === 'call' && (
+                  <div className="h-full flex flex-col items-center justify-center p-6">
+                    
+                    {/* Status Indicator */}
+                    <div className="text-center mb-6">
+                      <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-4 mx-auto transition-all ${
+                        connectionStatus === 'connected' 
+                          ? 'bg-green-100 dark:bg-green-900/20' 
+                          : connectionStatus === 'connecting'
+                          ? 'bg-yellow-100 dark:bg-yellow-900/20 animate-pulse'
+                          : 'bg-slate-100 dark:bg-slate-800/50'
+                      }`}>
+                        <Phone className={`w-8 h-8 ${
+                          connectionStatus === 'connected' 
+                            ? 'text-green-600 dark:text-green-400' 
+                            : connectionStatus === 'connecting'
+                            ? 'text-yellow-600 dark:text-yellow-400'
+                            : 'text-slate-400'
+                        }`} />
+                      </div>
+                      
+                      <h3 className="text-lg font-medium text-slate-800 dark:text-white mb-1">
+                        {connectionStatus === 'connected' ? 'Connected' : 
+                         connectionStatus === 'connecting' ? 'Connecting...' :
+                         'Ready to Call'}
+                      </h3>
+                      
+                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                        {statusMessage}
+                      </p>
+                      
+                      {isCallActive && (
+                        <p className="text-sm font-mono text-slate-600 dark:text-slate-300 mt-2">
+                          {formatCallDuration(callDuration)}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Simple Controls */}
+                    <div className="flex items-center gap-3">
+                      {!isCallActive && !isConnecting ? (
+                        <>
+                          <button
+                            onClick={handleStartCall}
+                            disabled={isTestLoading || isConnecting}
+                            className="flex items-center gap-2 px-6 py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl hover:bg-slate-800 dark:hover:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                          >
+                            <PhoneCall className="w-4 h-4" />
+                            {isConnecting ? 'Connecting...' : 'Start Call'}
+                          </button>
+                          
+                          <button
+                            onClick={testConnection}
+                            className="flex items-center gap-2 px-4 py-3 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors text-sm"
+                          >
+                            <Settings className="w-4 h-4" />
+                            Test
+                          </button>
+                        </>
+                      ) : isCallActive ? (
+                        <>
+                          <button
+                            onClick={handleToggleMute}
+                            className={`p-3 rounded-xl transition-colors ${
+                              isMuted
+                                ? 'bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+                                : 'bg-green-100 dark:bg-green-900/20 text-green-600 dark:text-green-400'
+                            }`}
+                            title={isMuted ? 'Unmute' : 'Mute'}
+                          >
+                            {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                          </button>
+                          
+                          <button
+                            onClick={handleEndCall}
+                            className="p-3 bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors"
+                            title="End Call"
+                          >
+                            <Phone className="w-5 h-5" />
+                          </button>
+                        </>
+                      ) : (
+                        <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-sm">
+                          <div className="w-4 h-4 border-2 border-slate-300 dark:border-slate-600 border-t-slate-900 dark:border-t-white rounded-full animate-spin"></div>
+                          <span>Connecting...</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {isCallActive && (
+                      <div className="mt-6 text-center">
+                        <div className="flex items-center justify-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                          <div className={`w-2 h-2 rounded-full ${
+                            !isMuted ? 'bg-green-500' : 'bg-red-500'
+                          }`}></div>
+                          {!isMuted ? 'Listening' : 'Muted'}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Conversation Tab (Combined Transcript + Chat) */}
+                {activeTestTab === 'conversation' && (
+                  <div className="h-full flex flex-col">
+                    <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                      {messages.length === 0 ? (
+                        <div className="text-center py-8">
+                          <MessageSquare className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+                          <p className="text-sm text-slate-500 dark:text-slate-400">Start a conversation to see messages</p>
+                        </div>
+                      ) : (
+                        messages.map((message) => (
+                          <div
+                            key={message.id}
+                            className={`flex mb-4 ${message.isUser ? 'justify-end' : 'justify-start'}`}
+                          >
+                            <div className={`flex gap-3 max-w-[80%] ${message.isUser ? 'flex-row-reverse' : ''}`}>
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                                message.isUser
+                                  ? 'bg-blue-500 text-white'
+                                  : 'bg-green-500 text-white'
+                              }`}>
+                                {message.isUser ? (
+                                  <span className="text-sm font-medium">U</span>
+                                ) : (
+                                  <span className="text-sm font-medium">AI</span>
+                                )}
+                              </div>
+                              <div className="flex flex-col">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                                    {message.isUser ? 'You' : 'AI Employee'}
+                                  </span>
+                                  <span className="text-xs text-slate-400 dark:text-slate-500">
+                                    {message.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                  </span>
+                                  {message.source && (
+                                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                      message.source === 'voice' 
+                                        ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
+                                        : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                                    }`}>
+                                      {message.source === 'voice' ? '🎙️' : '💬'}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className={`px-4 py-2 rounded-2xl text-sm ${
+                                  message.isUser
+                                    ? 'bg-blue-500 text-white'
+                                    : 'bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200'
+                                }`}>
+                                  {message.text}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                      {isTestLoading && (
+                        <div className="flex justify-start mb-4">
+                          <div className="flex gap-3 max-w-[80%]">
+                            <div className="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center flex-shrink-0">
+                              <span className="text-sm font-medium">AI</span>
+                            </div>
+                            <div className="flex flex-col">
+                              <div className="px-4 py-2 rounded-2xl bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200">
+                                <div className="flex items-center gap-1">
+                                  <div className="w-2 h-2 bg-slate-400 rounded-full animate-pulse"></div>
+                                  <div className="w-2 h-2 bg-slate-400 rounded-full animate-pulse" style={{animationDelay: '0.1s'}}></div>
+                                  <div className="w-2 h-2 bg-slate-400 rounded-full animate-pulse" style={{animationDelay: '0.2s'}}></div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Chat Input */}
+                    <div className="p-4 border-t border-slate-200/50 dark:border-slate-700/50">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={testInput}
+                          onChange={(e) => setTestInput(e.target.value)}
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter' && !isTestLoading) {
+                              handleTestSend();
+                            }
+                          }}
+                          placeholder={connectionStatus === 'connected' ? 'Type a message or use voice...' : 'Type a message...'}
+                          className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800 border-0 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900/10 dark:focus:ring-white/10 text-slate-700 dark:text-slate-300 text-sm placeholder-slate-400 dark:placeholder-slate-500"
+                          disabled={isTestLoading}
+                        />
+                        <button
+                          onClick={handleTestSend}
+                          disabled={!testInput.trim() || isTestLoading}
+                          className="px-3 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-lg hover:bg-slate-800 dark:hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <Send className="w-4 h-4" />
+                        </button>
+                      </div>
+                      {connectionStatus === 'connected' && (
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 text-center">
+                          🔴 Live conversation • Voice and text messages
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         )}
       </div>
     );

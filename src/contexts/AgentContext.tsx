@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
-import { agentAPI, ApiAgent } from "../services/agentAPI";
+import { agentAPI, ApiAgent, PublicationResponse, publishAgent, unpublishAgent, isStaticAgent } from "../services/agentAPI";
 
 export interface Agent {
   id: string;
@@ -32,6 +32,8 @@ interface AgentContextType {
   updateAgent: (id: string, updates: Partial<Agent>) => Promise<void>;
   deleteAgent: (id: string) => Promise<void>;
   refreshAgents: () => Promise<void>;
+  publishAgentStatus: (id: string) => Promise<PublicationResponse>;
+  unpublishAgentStatus: (id: string) => Promise<PublicationResponse>;
 }
 
 const AgentContext = createContext<AgentContextType | undefined>(undefined);
@@ -299,6 +301,102 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  const publishAgentStatus = async (id: string): Promise<PublicationResponse> => {
+    try {
+      setError(null);
+
+      // Check if it's a static agent - use existing flow
+      if (isStaticAgent(id)) {
+        setAgents((prev) =>
+          prev.map((agent) =>
+            agent.id === id ? { ...agent, status: "Published" } : agent
+          )
+        );
+
+        if (currentAgent?.id === id) {
+          setCurrentAgent((prev) =>
+            prev ? { ...prev, status: "Published" } : null
+          );
+        }
+        return { success: true, message: "Static agent published successfully" };
+      }
+
+      // For API agents, use publication endpoint
+      const response = await publishAgent(id);
+
+      if (response.success) {
+        // Update local state directly without calling agents API
+        setAgents((prev) =>
+          prev.map((agent) =>
+            agent.id === id ? { ...agent, status: "Published" } : agent
+          )
+        );
+
+        if (currentAgent?.id === id) {
+          setCurrentAgent((prev) =>
+            prev ? { ...prev, status: "Published" } : null
+          );
+        }
+      } else {
+        throw new Error(response.message || "Failed to publish agent");
+      }
+
+      return response;
+    } catch (err: any) {
+      console.error("Failed to publish agent:", err);
+      setError(err.message || "Failed to publish agent");
+      throw err;
+    }
+  };
+
+  const unpublishAgentStatus = async (id: string): Promise<PublicationResponse> => {
+    try {
+      setError(null);
+
+      // Check if it's a static agent - use existing flow
+      if (isStaticAgent(id)) {
+        setAgents((prev) =>
+          prev.map((agent) =>
+            agent.id === id ? { ...agent, status: "Draft" } : agent
+          )
+        );
+
+        if (currentAgent?.id === id) {
+          setCurrentAgent((prev) =>
+            prev ? { ...prev, status: "Draft" } : null
+          );
+        }
+        return { success: true, message: "Static agent unpublished successfully" };
+      }
+
+      // For API agents, use publication endpoint
+      const response = await unpublishAgent(id);
+
+      if (response.success) {
+        // Update local state directly without calling agents API
+        setAgents((prev) =>
+          prev.map((agent) =>
+            agent.id === id ? { ...agent, status: "Draft" } : agent
+          )
+        );
+
+        if (currentAgent?.id === id) {
+          setCurrentAgent((prev) =>
+            prev ? { ...prev, status: "Draft" } : null
+          );
+        }
+      } else {
+        throw new Error(response.message || "Failed to unpublish agent");
+      }
+
+      return response;
+    } catch (err: any) {
+      console.error("Failed to unpublish agent:", err);
+      setError(err.message || "Failed to unpublish agent");
+      throw err;
+    }
+  };
+
   const refreshAgents = async () => {
     if (isAgentPage) {
       await loadAgents();
@@ -317,6 +415,8 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({
         updateAgent,
         deleteAgent,
         refreshAgents,
+        publishAgentStatus,
+        unpublishAgentStatus,
       }}
     >
       {children}

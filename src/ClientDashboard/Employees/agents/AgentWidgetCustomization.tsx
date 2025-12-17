@@ -928,7 +928,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
     </p>
     <ol style="margin: 0; padding-left: 1.5rem; color: #4b5563;">
       <li style="margin-bottom: 0.75rem;">
-        <strong>Look for the chat button</strong> - It should appear in the bottom-right corner
+        <strong>Look for the call button</strong> - It should appear in the bottom-right corner
       </li>
       <li style="margin-bottom: 0.75rem;">
         <strong>Click to open</strong> - Test the interface and your custom branding
