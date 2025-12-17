@@ -96,6 +96,7 @@ const AgentManagement = () => {
   const recentMessagesRef = useRef<Set<string>>(new Set());
   const lastMessageTimeRef = useRef<number>(0);
   const [isTestLoading, setIsTestLoading] = useState(false);
+  const [publishingAgents, setPublishingAgents] = useState<Set<string>>(new Set());
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
   const [statusMessage, setStatusMessage] = useState('Ready to connect');
   const [isMuted, setIsMuted] = useState(false);
@@ -426,21 +427,41 @@ const AgentManagement = () => {
 
   const handlePublish = async (agentId: string) => {
     try {
+      // Add to publishing set for loading state
+      setPublishingAgents(prev => new Set(prev).add(agentId));
+      
       await publishAgentStatus(agentId);
       console.log('✅ Agent published successfully');
     } catch (error: any) {
       console.error('❌ Error publishing agent:', error);
       alert(error.message || 'Failed to publish agent. Please try again.');
+    } finally {
+      // Remove from publishing set
+      setPublishingAgents(prev => {
+        const next = new Set(prev);
+        next.delete(agentId);
+        return next;
+      });
     }
   };
 
   const handlePause = async (agentId: string) => {
     try {
+      // Add to publishing set for loading state
+      setPublishingAgents(prev => new Set(prev).add(agentId));
+      
       await unpublishAgentStatus(agentId);
       console.log('✅ Agent paused successfully');
     } catch (error: any) {
       console.error('❌ Error pausing agent:', error);
       alert(error.message || 'Failed to pause agent. Please try again.');
+    } finally {
+      // Remove from publishing set
+      setPublishingAgents(prev => {
+        const next = new Set(prev);
+        next.delete(agentId);
+        return next;
+      });
     }
   };
 
@@ -1330,20 +1351,41 @@ const AgentManagement = () => {
                   {agent.status === "Published" ? (
                     <button
                       onClick={() => handlePause(agent.id)}
-                      className="flex-1 flex items-center justify-center gap-1.5 common-button-bg2 transition-all duration-200 text-sm font-medium active:scale-[0.98]"
+                      disabled={publishingAgents.has(agent.id)}
+                      className={`flex-1 flex items-center justify-center gap-1.5 common-button-bg2 transition-all duration-200 text-sm font-medium ${
+                        publishingAgents.has(agent.id) 
+                          ? 'opacity-50 cursor-not-allowed' 
+                          : 'active:scale-[0.98]'
+                      }`}
                     >
-                      <Pause className="w-4 h-4" />
-                      Pause
+                      {publishingAgents.has(agent.id) ? (
+                        <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                      ) : (
+                        <Pause className="w-4 h-4" />
+                      )}
+                      {publishingAgents.has(agent.id) ? 'Pausing...' : 'Pause'}
                     </button>
                   ) : (
                     <button
                       onClick={() => (agent as any).is_active ? handlePause(agent.id) : handlePublish(agent.id)}
-                      className={`flex-1 flex items-center justify-center gap-1.5 transition-all duration-200 text-sm font-medium active:scale-[0.98] ${
+                      disabled={publishingAgents.has(agent.id)}
+                      className={`flex-1 flex items-center justify-center gap-1.5 transition-all duration-200 text-sm font-medium ${
+                        publishingAgents.has(agent.id) 
+                          ? 'opacity-50 cursor-not-allowed' 
+                          : 'active:scale-[0.98]'
+                      } ${
                         (agent as any).is_active ? 'common-button-bg2' : 'common-button-bg'
                       }`}
                     >
-                      {(agent as any).is_active ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                      {(agent as any).is_active ? 'Pause' : 'Publish'}
+                      {publishingAgents.has(agent.id) ? (
+                        <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                      ) : (
+                        (agent as any).is_active ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />
+                      )}
+                      {publishingAgents.has(agent.id) 
+                        ? ((agent as any).is_active ? 'Pausing...' : 'Publishing...')
+                        : ((agent as any).is_active ? 'Pause' : 'Publish')
+                      }
                     </button>
                   )}
 
@@ -1506,23 +1548,44 @@ const AgentManagement = () => {
                 {currentAgent.status === "Published" ? (
                   <button
                     onClick={() => handlePause(currentAgent.id)}
-                    className="flex-1 sm:flex-none common-button-bg2 flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl touch-manipulation min-h-[40px]"
+                    disabled={publishingAgents.has(currentAgent.id)}
+                    className={`flex-1 sm:flex-none common-button-bg2 flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl touch-manipulation min-h-[40px] ${
+                      publishingAgents.has(currentAgent.id) 
+                        ? 'opacity-50 cursor-not-allowed' 
+                        : ''
+                    }`}
                   >
-                    <Pause className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+                    {publishingAgents.has(currentAgent.id) ? (
+                      <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                    ) : (
+                      <Pause className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+                    )}
                     <span className="text-xs sm:text-sm font-medium">
-                      Pause
+                      {publishingAgents.has(currentAgent.id) ? 'Pausing...' : 'Pause'}
                     </span>
                   </button>
                 ) : (
                   <button
                     onClick={() => (currentAgent as any).is_active ? handlePause(currentAgent.id) : handlePublish(currentAgent.id)}
+                    disabled={publishingAgents.has(currentAgent.id)}
                     className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl touch-manipulation min-h-[40px] ${
+                      publishingAgents.has(currentAgent.id) 
+                        ? 'opacity-50 cursor-not-allowed' 
+                        : ''
+                    } ${
                       (currentAgent as any).is_active ? 'common-button-bg2' : 'common-button-bg'
                     }`}
                   >
-                    {(currentAgent as any).is_active ? <Pause className="w-3.5 sm:w-4 h-3.5 sm:h-4" /> : <Play className="w-3.5 sm:w-4 h-3.5 sm:h-4" />}
+                    {publishingAgents.has(currentAgent.id) ? (
+                      <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                    ) : (
+                      (currentAgent as any).is_active ? <Pause className="w-3.5 sm:w-4 h-3.5 sm:h-4" /> : <Play className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+                    )}
                     <span className="text-xs sm:text-sm font-medium">
-                      {(currentAgent as any).is_active ? 'Pause' : 'Publish'}
+                      {publishingAgents.has(currentAgent.id) 
+                        ? ((currentAgent as any).is_active ? 'Pausing...' : 'Publishing...')
+                        : ((currentAgent as any).is_active ? 'Pause' : 'Publish')
+                      }
                     </span>
                   </button>
                 )}
