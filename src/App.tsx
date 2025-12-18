@@ -28,7 +28,6 @@ const Billing = lazy(() => import("./ClientDashboard/Billing/Billing"));
 const Settings = lazy(() => import("./ClientDashboard/Settings/Settings"));
 const ResetPassword = lazy(() => import("./components/ResetPassword"));
 
-// Loading fallback component
 function LoadingFallback() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 via-slate-200 to-slate-300 dark:from-slate-900 dark:via-slate-800 dark:to-slate-700">
