@@ -6,7 +6,7 @@ import {
   Navigate,
   useLocation,
 } from "react-router-dom";
-import { AuthProvider } from "./contexts/AuthContext"; // Add AuthProvider
+import { AuthProvider } from "./contexts/AuthContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { AgentProvider } from "./contexts/AgentContext";
 import ScrollToTop from "./components/ScrollToTop";
@@ -15,78 +15,18 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import GoogleCallback from "./components/GoogleCallback";
 import { oceanDepthsPreset, Orb } from "react-ai-orb";
 
-const Landing = lazy(() =>
-  Promise.all([
-    import("./pages/Website/Landing"),
-    new Promise((resolve) => setTimeout(resolve, 2000)),
-  ]).then(([moduleExports]) => moduleExports)
-);
-const Onboarding = lazy(() =>
-  Promise.all([
-    import("./pages/Website/Onboarding"),
-    new Promise((resolve) => setTimeout(resolve, 100)),
-  ]).then(([moduleExports]) => moduleExports)
-);
-const Sidebar = lazy(() =>
-  Promise.all([
-    import("./components/Sidebar"),
-    new Promise((resolve) => setTimeout(resolve, 100)),
-  ]).then(([moduleExports]) => moduleExports)
-);
-const TopBar = lazy(() =>
-  Promise.all([
-    import("./components/TopBar"),
-    new Promise((resolve) => setTimeout(resolve, 100)),
-  ]).then(([moduleExports]) => moduleExports)
-);
-const Overview = lazy(() =>
-  Promise.all([
-    import("./ClientDashboard/Dashboard/Overview"),
-    new Promise((resolve) => setTimeout(resolve, 100)),
-  ]).then(([moduleExports]) => moduleExports)
-);
-const AgentManagement = lazy(() =>
-  Promise.all([
-    import("./ClientDashboard/Employees/AgentManagement"),
-    new Promise((resolve) => setTimeout(resolve, 100)),
-  ]).then(([moduleExports]) => moduleExports)
-);
-const Training = lazy(() =>
-  Promise.all([
-    import("./ClientDashboard/Training/Training"),
-    new Promise((resolve) => setTimeout(resolve, 100)),
-  ]).then(([moduleExports]) => moduleExports)
-);
-const Workflows = lazy(() =>
-  Promise.all([
-    import("./ClientDashboard/Workflows/Workflows"),
-    new Promise((resolve) => setTimeout(resolve, 100)),
-  ]).then(([moduleExports]) => moduleExports)
-);
-const Monitoring = lazy(() =>
-  Promise.all([
-    import("./ClientDashboard/Monitoring/Monitoring"),
-    new Promise((resolve) => setTimeout(resolve, 100)),
-  ]).then(([moduleExports]) => moduleExports)
-);
-const Billing = lazy(() =>
-  Promise.all([
-    import("./ClientDashboard/Billing/Billing"),
-    new Promise((resolve) => setTimeout(resolve, 100)),
-  ]).then(([moduleExports]) => moduleExports)
-);
-const Settings = lazy(() =>
-  Promise.all([
-    import("./ClientDashboard/Settings/Settings"),
-    new Promise((resolve) => setTimeout(resolve, 100)),
-  ]).then(([moduleExports]) => moduleExports)
-);
-const ResetPassword = lazy(() =>
-  Promise.all([
-    import("./components/ResetPassword"),
-    new Promise((resolve) => setTimeout(resolve, 100)),
-  ]).then(([moduleExports]) => moduleExports)
-);
+const Landing = lazy(() => import("./pages/Website/Landing"));
+const Onboarding = lazy(() => import("./pages/Website/Onboarding"));
+const Sidebar = lazy(() => import("./components/Sidebar"));
+const TopBar = lazy(() => import("./components/TopBar"));
+const Overview = lazy(() => import("./ClientDashboard/Dashboard/Overview"));
+const AgentManagement = lazy(() => import("./ClientDashboard/Employees/AgentManagement"));
+const Training = lazy(() => import("./ClientDashboard/Training/Training"));
+const Workflows = lazy(() => import("./ClientDashboard/Workflows/Workflows"));
+const Monitoring = lazy(() => import("./ClientDashboard/Monitoring/Monitoring"));
+const Billing = lazy(() => import("./ClientDashboard/Billing/Billing"));
+const Settings = lazy(() => import("./ClientDashboard/Settings/Settings"));
+const ResetPassword = lazy(() => import("./components/ResetPassword"));
 
 // Loading fallback component
 function LoadingFallback() {

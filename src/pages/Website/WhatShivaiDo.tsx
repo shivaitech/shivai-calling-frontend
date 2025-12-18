@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import Slider from "react-slick";
+import OptimizedImage from "../../components/OptimizedImage";
 import integration from "../../resources/images/02.svg";
 import voice from "../../resources/images/03.svg";
 import language from "../../resources/images/04.svg";
@@ -89,14 +90,11 @@ export const WhatShivaiDo = React.memo(() => {
 
       return (
         <div className="h-[60%] w-[90%] lg:w-full lg:h-full max-w-screen-sm flex items-center justify-center mt-4 lg:mt-1">
-          <img
+          <OptimizedImage
             src={src}
             alt={type}
             className="w-full h-full object-contain"
-            draggable={false}
-            loading="eager"
-            decoding="async"
-            style={{ imageRendering: 'auto' }}
+            lazy={false}
           />
         </div>
       );

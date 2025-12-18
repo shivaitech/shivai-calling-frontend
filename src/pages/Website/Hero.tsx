@@ -3,93 +3,15 @@
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { ChevronDown } from "lucide-react";
-import HeroImage from "../../resources/images/shiv.png";
-import HeroImage2 from "../../resources/images/shiv.png";
+import HeroImage from "../../resources/images/shiv.webp";
+import HeroImage2 from "../../resources/images/shiv.webp";
 import RightArrow from "../../resources/images/rightArr.svg";
 import { TextAnimations } from "../../components/TextAnimations";
+import OptimizedImage from "../../components/OptimizedImage";
 interface HeroProps {
   setAuthMode?: (mode: "signin" | "signup") => void;
   setShowAuthModal?: (show: boolean) => void;
 }
-
-interface LazyImageProps {
-  src: string;
-  alt: string;
-  className?: string;
-  placeholder?: string;
-}
-
-const LazyImage: React.FC<LazyImageProps> = ({
-  src,
-  alt,
-  className = "",
-  placeholder = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect width='100%25' height='100%25' fill='%23f0f0f0'/%3E%3C/svg%3E",
-}) => {
-  const [imageSrc, setImageSrc] = useState(placeholder);
-  const [imageRef, setImageRef] = useState<HTMLImageElement | null>(null);
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [hasError, setHasError] = useState(false);
-
-  useEffect(() => {
-    let observer: IntersectionObserver;
-
-    if (imageRef && imageSrc === placeholder) {
-      observer = new IntersectionObserver(
-        (entries) => {
-          entries.forEach((entry) => {
-            if (entry.isIntersecting) {
-              setImageSrc(src);
-              observer.unobserve(imageRef);
-            }
-          });
-        },
-        { threshold: 0.1, rootMargin: "50px" }
-      );
-      observer.observe(imageRef);
-    }
-
-    return () => {
-      if (observer && imageRef) {
-        observer.unobserve(imageRef);
-      }
-    };
-  }, [imageRef, imageSrc, placeholder, src]);
-
-  const handleLoad = () => {
-    setIsLoaded(true);
-    setHasError(false);
-  };
-
-  const handleError = () => {
-    setHasError(true);
-    setIsLoaded(true);
-  };
-
-  if (hasError) {
-    return (
-      <div
-        className={`bg-gray-200 flex items-center justify-center ${className}`}
-      >
-        <span className="text-gray-500 text-sm">Failed to load image</span>
-      </div>
-    );
-  }
-
-  return (
-    <img
-      ref={setImageRef}
-      src={imageSrc}
-      alt={alt}
-      className={`transition-all duration-300 ${
-        isLoaded ? "opacity-100" : "opacity-0"
-      } ${className}`}
-      onLoad={handleLoad}
-      onError={handleError}
-      loading="lazy"
-      decoding="async"
-    />
-  );
-};
 
 const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
   const [isMounted, setIsMounted] = useState(false);
@@ -290,7 +212,7 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
                           >
                             <span>Try it now</span>
                             <div className="flex gap-1">
-                              <LazyImage
+                              <OptimizedImage
                                 src={RightArrow}
                                 alt="Right Arrow"
                                 className="w-3 h-3"
@@ -423,7 +345,7 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
                           >
                             <span>Try it now</span>
                             <div className="flex gap-1">
-                              <LazyImage
+                              <OptimizedImage
                                 src={RightArrow}
                                 alt="Right Arrow"
                                 className="w-3 h-3"
@@ -538,7 +460,7 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
                   whileHover={{ scale: 1.02 }}
                   transition={{ duration: 0.6, ease: "easeOut" }}
                 >
-                  <LazyImage
+                  <OptimizedImage
                     src={HeroImage2}
                     alt="Professional AI Assistant"
                     className="w-full h-auto"
@@ -634,7 +556,7 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
                     <motion.div
                     className="relative overflow-hidden bg-transparent"
                     >
-                    <LazyImage
+                    <OptimizedImage
                       src={HeroImage}
                       alt="Professional AI Assistant"
                       className="w-full h-full object-cover bg-transparent"
