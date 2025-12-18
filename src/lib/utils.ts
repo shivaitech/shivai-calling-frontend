@@ -10,6 +10,7 @@ export function isDeveloperUser(userEmail?: string): boolean {
   return (
     userEmail === "atharkatheri@gmail.com" ||
     userEmail === "rs@shivaitech.com" ||
-    userEmail === "demo@callshivai.com"
+    userEmail === "demo@callshivai.com" || 
+    userEmail === "demo@callshivai1.com"
   );
 }
