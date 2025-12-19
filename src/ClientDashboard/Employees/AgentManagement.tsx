@@ -86,7 +86,7 @@ const AgentManagement = () => {
   const [isCallActive, setIsCallActive] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
-  const [callTimerInterval, setCallTimerInterval] = useState<NodeJS.Timeout | null>(null);
+  const [callTimerInterval, setCallTimerInterval] = useState<number | null>(null);
   const [messages, setMessages] = useState<Array<{id: string, text: string, isUser: boolean, timestamp: Date, source?: string}>>([    
     {
       id: '1',
