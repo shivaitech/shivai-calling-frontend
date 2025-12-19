@@ -4,7 +4,7 @@ import GlassCard from "../../components/GlassCard";
 import SearchableSelect from "../../components/SearchableSelect";
 import Tooltip from "../../components/Tooltip";
 import { AgentWidgetCustomization, AgentQRModal, AgentIntegrationCode } from "./agents";
-import SessionTranscriptModal from "../../components/SessionTranscriptModal";
+import SessionTranscriptModal from "./agents/SessionTranscriptModal";
 import { useAgent } from "../../contexts/AgentContext";
 import { useAuth } from "../../contexts/AuthContext";
 import { isDeveloperUser } from "../../lib/utils";
@@ -48,7 +48,7 @@ const AgentManagement = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { agents, currentAgent, setCurrentAgent, addAgent, updateAgent,publishAgentStatus, unpublishAgentStatus } =
+  const { agents, currentAgent, setCurrentAgent, addAgent, updateAgent, publishAgentStatus, unpublishAgentStatus, refreshAgents } =
     useAgent();
   const { user } = useAuth();
 
@@ -464,6 +464,7 @@ const AgentManagement = () => {
       setPublishingAgents(prev => new Set(prev).add(agentId));
       
       await publishAgentStatus(agentId);
+      await refreshAgents();
       console.log('✅ Agent published successfully');
     } catch (error: any) {
       console.error('❌ Error publishing agent:', error);
@@ -484,6 +485,7 @@ const AgentManagement = () => {
       setPublishingAgents(prev => new Set(prev).add(agentId));
       
       await unpublishAgentStatus(agentId);
+      await refreshAgents();
       console.log('✅ Agent paused successfully');
     } catch (error: any) {
       console.error('❌ Error pausing agent:', error);
@@ -1548,7 +1550,7 @@ const AgentManagement = () => {
                   <Edit className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   <span className="text-xs sm:text-sm font-medium">Edit</span>
                 </button>
-                {currentAgent.status === "Published" && (
+                {(currentAgent.status === "Published" || (currentAgent as any).is_active) && (
                   <button
                     onClick={() => setShowQRModal(true)}
                     className="flex-none common-button-bg2 flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-3 lg:px-4 py-1.5 sm:py-2 lg:py-2.5 rounded-lg sm:rounded-xl touch-manipulation min-h-[36px] sm:min-h-[40px]"
@@ -1869,7 +1871,7 @@ const AgentManagement = () => {
                   </div>
                   
                   {/* Test Button - Only show when agent is published */}
-                  {currentAgent.status === "Published" && (
+                  {(currentAgent.status === "Published" || (currentAgent as any).is_active) && (
                     <button
                       onClick={() => setShowTestChat(true)}
                       className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:py-2 border border-1 dark:bg-green-900/20 text-black dark:text-green-300 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-all duration-200 text-xs sm:text-sm font-medium shadow-sm hover:shadow-md self-start"
@@ -2125,7 +2127,7 @@ const AgentManagement = () => {
           </div>
 
         {/* Integration Code Section - Only show when agent is published */}
-        {currentAgent.status === "Published" && (
+        {(currentAgent.status === "Published" || (currentAgent as any).is_active) && (
           <div className="mt-4 sm:mt-6">
             <AgentIntegrationCode 
               currentAgent={currentAgent}

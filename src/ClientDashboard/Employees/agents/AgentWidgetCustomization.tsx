@@ -793,6 +793,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
             display: flex;
             align-items: center;
             justify-content: center;
+            overflow: hidden;
         }
         .demo-content {
             text-align: center;
