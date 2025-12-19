@@ -1118,11 +1118,12 @@
         <div class="language-section-landing">
           <label class="language-label-landing">Select your preferred language:</label>
           <select id="shivai-language-landing" class="language-select-styled-landing">
+            <option value="multilingual" selected>🌐 Multilingual</option>
             <option value="ar">🇸🇦 Arabic</option>
             <option value="zh">🇨🇳 Chinese</option>
             <option value="nl">🇳🇱 Dutch</option>
             <option value="en-GB">🇬🇧 English (UK)</option>
-            <option value="en-US" selected>🇺🇸 English (US)</option>
+            <option value="en-US">🇺🇸 English (US)</option>
             <option value="en-IN">🇮🇳 English (India)</option>
             <option value="fr">🇫🇷 French</option>
             <option value="de">🇩🇪 German</option>
@@ -1192,6 +1193,7 @@
       <div class="language-section">
       <label class="language-label">Selected preferred language:</label>
       <select id="shivai-language" class="language-select-styled">
+      <option value="multilingual">🌐 Multilingual</option>
       <option value="ar">🇸🇦 Arabic</option>
       <option value="zh">🇨🇳 Chinese</option>
       <option value="nl">🇳🇱 Dutch</option>
@@ -1377,7 +1379,7 @@
       const baseLang = browserLang.split("-")[0];
       detectedLang = languageMap[baseLang];
     }
-    const defaultLang = detectedLang || "en-US";
+    const defaultLang = "multilingual"; // Default to multilingual
     if (languageSelect) {
       languageSelect.value = defaultLang;
     }
@@ -1387,7 +1389,7 @@
     if (landingLanguageSelect) {
       landingLanguageSelect.value = defaultLang;
       console.log(
-        `Auto-detected language: ${defaultLang} (Browser locale: ${browserLang})`
+        `Default language set to: ${defaultLang} (Browser locale: ${browserLang})`
       );
     }
   }
@@ -3878,8 +3880,8 @@
 
       // Get LiveKit token from backend
       const callId = `call_${Date.now()}`;
-      window.currentCallId = callId;
-
+      // Don't set currentCallId yet - wait until token is successfully received
+      
       // Get agent ID from configuration or script data attributes
       let agentId = "id123"; // default fallback
       
@@ -3940,6 +3942,7 @@
             call_id: callId,
             device: deviceType,
             user_agent: navigator.userAgent,
+            ip: await getClientIP(),
           }),
         }
       );
@@ -3950,6 +3953,9 @@
 
       const data = await response.json();
       console.log("✅ [LiveKit] Token received");
+      
+      // Only set currentCallId after successfully receiving token
+      window.currentCallId = callId;
 
       // Check if connection was cancelled after getting token
       if (!isConnecting) {

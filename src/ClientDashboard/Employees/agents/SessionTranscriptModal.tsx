@@ -143,13 +143,14 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
                     <div key={index} className="flex flex-col gap-1.5 py-1.5 sm:py-2">
                       {transcript.role === 'user' ? (
                         <>
-                          <div className="flex-1"></div>
-                          <div className="flex items-start gap-1.5 sm:gap-2 flex-1">
-                            <div className="flex-1 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl rounded-tr-sm px-3 py-2 sm:px-4 sm:py-3 shadow-sm">
+                          <div className="flex justify-end mb-1">
+                            <span className="text-xs text-slate-500 dark:text-slate-400">
+                              CUSTOMER • {formatTime(transcript.timestamp || transcript.created_at)}
+                            </span>
+                          </div>
+                          <div className="flex items-start gap-1.5 sm:gap-2 justify-end">
+                            <div className="max-w-[80%] bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl rounded-tr-sm px-3 py-2 sm:px-4 sm:py-3 shadow-sm">
                               <p className="text-xs sm:text-sm">{transcript.text || transcript.content}</p>
-                              <span className="text-xs opacity-75 mt-1 block">
-                                CUSTOMER • {formatTime(transcript.timestamp || transcript.created_at)}
-                              </span>
                             </div>
                             <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center flex-shrink-0">
                               <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
@@ -157,18 +158,21 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
                           </div>
                         </>
                       ) : (
-                        <div className="flex items-start gap-1.5 sm:gap-2 flex-1 w-full">
-                          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
-                            <Bot className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
-                          </div>
-                          <div className="w-full common-bg-icons rounded-2xl rounded-tl-sm px-3 py-2 sm:px-4 sm:py-3 border border-slate-200 dark:border-slate-700">
-                            <p className="text-xs sm:text-sm text-slate-800 dark:text-white">{transcript.text || transcript.content}</p>
-                            <span className="text-xs text-slate-500 dark:text-slate-400 mt-2 block">
+                        <>
+                          <div className="flex justify-start mb-1">
+                            <span className="text-xs text-slate-500 dark:text-slate-400">
                               AI EMPLOYEE • {formatTime(transcript.timestamp || transcript.created_at)}
                             </span>
                           </div>
-                          <div className="flex-1"></div>
-                        </div>
+                          <div className="flex items-start gap-1.5 sm:gap-2">
+                            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                              <Bot className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+                            </div>
+                            <div className="max-w-[80%] common-bg-icons rounded-2xl rounded-tl-sm px-3 py-2 sm:px-4 sm:py-3 border border-slate-200 dark:border-slate-700">
+                              <p className="text-xs sm:text-sm text-slate-800 dark:text-white">{transcript.text || transcript.content}</p>
+                            </div>
+                          </div>
+                        </>
                       )}
                     </div>
                   ))}

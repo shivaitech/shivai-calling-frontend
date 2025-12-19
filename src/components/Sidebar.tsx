@@ -17,6 +17,7 @@ import {
   LogOut,
   Moon,
   ChevronLeft,
+  History,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -42,7 +43,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed }) => {
     { path: "/agents", icon: Bot, label: "AI Employees" },
     { path: "/training", icon: Brain, label: "Training" },
     { path: "/workflows", icon: Workflow, label: "Workflows" },
-    { path: "/monitoring", icon: BarChart3, label: "Monitoring & Analytics" },
+    { path: "/analytics", icon: History, label: "Analytics & Call History" },
+    { path: "/monitoring", icon: BarChart3, label: "Monitoring & Reports" },
     { path: "/billing", icon: CreditCard, label: "Billing" },
   ];
 
@@ -61,7 +63,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed }) => {
       } lg:translate-x-0 flex flex-col overflow-hidden`}
     >
       {/* Header Section */}
-      <div className={`border-b border-slate-200 dark:border-slate-700 ${isCollapsed ? 'p-6 flex items-center' : 'p-6'}`}>
+      <div
+        className={`border-b border-slate-200 dark:border-slate-700 ${
+          isCollapsed ? "p-6 flex items-center" : "p-6"
+        }`}
+      >
         {/* Mobile close button */}
         <button
           onClick={onClose}
@@ -75,7 +81,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed }) => {
           onClick={toggleCollapse}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          className={`hidden lg:flex absolute top-4 ${isCollapsed ? 'right-4' : 'right-4'} p-2 transition-all common-bg-icons cursor-pointer rounded-lg`}
+          className={`hidden lg:flex absolute top-4 ${
+            isCollapsed ? "right-4" : "right-4"
+          } p-2 transition-all common-bg-icons cursor-pointer rounded-lg`}
         >
           <motion.div
             animate={{ rotate: isCollapsed ? 0 : 180 }}
@@ -86,7 +94,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed }) => {
         </motion.button>
 
         {/* Logo Section */}
-        <div className={`mb-4 flex flex-col ${isCollapsed ? 'items-start' : 'items-start'}`}>
+        <div
+          className={`mb-4 flex flex-col ${
+            isCollapsed ? "items-start" : "items-start"
+          }`}
+        >
           <motion.div
             onClick={() => {
               if (isCollapsed) {
@@ -108,7 +120,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed }) => {
                 height: isCollapsed ? 0 : 32,
               }}
               transition={{ duration: 0.3 }}
-              className={`w-auto dark:invert ${isCollapsed ? 'hidden' : 'block'}`}
+              className={`w-auto dark:invert ${
+                isCollapsed ? "hidden" : "block"
+              }`}
             />
             <motion.p
               animate={{
@@ -146,7 +160,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed }) => {
       </div>
 
       {/* Navigation Section */}
-      <div className={`flex-1 ${isCollapsed ? 'px-2 py-4' : 'p-6'} overflow-y-auto no-scrollbar`}>
+      <div
+        className={`flex-1 ${
+          isCollapsed ? "px-2 py-4" : "p-6"
+        } overflow-y-auto no-scrollbar`}
+      >
         <nav className="space-y-2">
           {navItems.map((item) => (
             <NavLink
@@ -180,7 +198,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed }) => {
         </nav>
 
         {/* Additional Settings */}
-        <div className={`${isCollapsed ? 'mt-4 pt-4' : 'mt-6 pt-6'} border-t border-slate-200 dark:border-slate-700`}>
+        <div
+          className={`${
+            isCollapsed ? "mt-4 pt-4" : "mt-6 pt-6"
+          } border-t border-slate-200 dark:border-slate-700`}
+        >
           <NavLink
             to="/settings"
             onClick={() => onClose()}
@@ -211,7 +233,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed }) => {
       </div>
 
       {/* User Profile Section */}
-      <div className={`${isCollapsed ? 'p-3' : 'p-6'} border-t border-slate-200 dark:border-slate-700`}>
+      <div
+        className={`${
+          isCollapsed ? "p-3" : "p-6"
+        } border-t border-slate-200 dark:border-slate-700`}
+      >
         <div
           className={`flex items-center ${
             isCollapsed ? "justify-center" : "gap-3"

@@ -1992,19 +1992,7 @@ const AgentManagement = () => {
                   </div>
                 </button>
 
-                <button 
-                  onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })}
-                  className="common-bg-icons hover:shadow-md transition-all duration-200 p-2 rounded-lg touch-manipulation group col-span-2"
-                >
-                  <div className="flex items-center justify-center gap-2">
-                    <div className="w-7 h-7 bg-orange-50 dark:bg-orange-900/20 rounded-lg flex items-center justify-center">
-                      <BarChart3 className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
-                    </div>
-                    <p className="text-xs font-medium text-slate-800 dark:text-white">
-                      Analytics
-                    </p>
-                  </div>
-                </button>
+             
               </div>
             </div>
 
@@ -2137,194 +2125,7 @@ const AgentManagement = () => {
 
      
 
-        {/* Session History Section */}
-        <div className="mt-6 sm:mt-8">
-          <GlassCard>
-            <div className="p-4 sm:p-6">
-              <div className="flex items-center justify-between mb-4 sm:mb-6">
-                <h3 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
-                  Session History <span className="text-sm font-normal text-slate-500 dark:text-slate-400">({sessionHistory.length} sessions)</span>
-                </h3>
-                <div className="flex items-center gap-2">
-                  <button 
-                    onClick={() => fetchSessionHistory(currentAgent.id)}
-                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-                    title="Refresh sessions"
-                  >
-                    <Filter className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Search and Filters - Full Width Search */}
-              <div className="space-y-3 mb-4">
-                {/* Search - Full Row */}
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                  <input
-                    type="text"
-                    placeholder="Search sessions..."
-                    value={sessionSearchTerm}
-                    onChange={(e) => setSessionSearchTerm(e.target.value)}
-                    className="w-full h-[38px] pl-10 pr-3 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500 dark:focus:ring-slate-400 transition-all"
-                  />
-                </div>
-                
-                {/* Filters Row */}
-                <div className="flex gap-2 sm:gap-3">
-                  <select 
-                    value={sessionDeviceFilter}
-                    onChange={(e) => setSessionDeviceFilter(e.target.value)}
-                    className="flex-1 h-[38px] px-3 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-slate-500 dark:focus:ring-slate-400 transition-all"
-                  >
-                    <option value="all">All Devices</option>
-                    <option value="mobile">Mobile</option>
-                    <option value="desktop">Desktop</option>
-                  </select>
-                  <select 
-                    value={sessionTimeFilter}
-                    onChange={(e) => setSessionTimeFilter(e.target.value)}
-                    className="flex-1 h-[38px] px-3 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-slate-500 dark:focus:ring-slate-400 transition-all"
-                  >
-                    <option value="all">All Time</option>
-                    <option value="today">Today</option>
-                    <option value="week">7 days</option>
-                    <option value="month">30 days</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Loading State */}
-              {sessionLoading && (
-                <div className="text-center py-8">
-                  <div className="w-8 h-8 border-3 border-slate-300 dark:border-slate-600 border-t-slate-900 dark:border-t-white rounded-full animate-spin mx-auto mb-3"></div>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">Loading sessions...</p>
-                </div>
-              )}
-
-              {/* Error State */}
-              {sessionError && !sessionLoading && (
-                <div className="text-center py-8">
-                  <p className="text-sm text-red-600 dark:text-red-400 mb-3">{sessionError}</p>
-                  <button
-                    onClick={() => fetchSessionHistory(currentAgent.id)}
-                    className="px-4 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-lg text-sm hover:opacity-90 transition-opacity"
-                  >
-                    Retry
-                  </button>
-                </div>
-              )}
-
-              {/* Session Cards */}
-              {!sessionLoading && !sessionError && (
-                <div className="space-y-4">
-                  {sessionHistory.length === 0 ? (
-                    <div className="text-center py-8">
-                      <MessageSquare className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
-                      <p className="text-sm text-slate-500 dark:text-slate-400">No sessions found for this agent</p>
-                    </div>
-                  ) : (
-                    sessionHistory.map((session, index) => {
-                      // Format duration from seconds
-                      const formatDuration = (seconds: number) => {
-                        if (!seconds) return 'N/A';
-                        const mins = Math.floor(seconds / 60);
-                        const secs = Math.floor(seconds % 60);
-                        return `${mins}m ${secs}s`;
-                      };
-                      
-                      return (
-                      <div
-                        key={session.session_id || session.id || index}
-                        className="bg-white dark:bg-slate-800/30 border border-slate-200 dark:border-slate-700/50 rounded-xl p-4 hover:shadow-md transition-all"
-                      >
-                        {/* Session Header */}
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex items-start gap-3">
-                            <MessageSquare className="w-5 h-5 text-slate-400 mt-0.5" />
-                            <div>
-                              <h4 className="text-sm font-medium text-slate-800 dark:text-white">
-                                {session.session_id || session.id || `Session ${index + 1}`}
-                              </h4>
-                              <p className="text-xs text-slate-500 dark:text-slate-400">
-                                {session.user_ip || 'Unknown caller'}
-                              </p>
-                            </div>
-                          </div>
-                          <button 
-                            onClick={() => setSelectedSession(session)}
-                            className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors"
-                            title="View transcript"
-                          >
-                            <Eye className="w-4 h-4 text-slate-400" />
-                          </button>
-                        </div>
-
-                        {/* Status Badges */}
-                        <div className="flex items-center gap-2 mb-3">
-                          <span className="px-2 py-1 bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-xs font-medium rounded">
-                            Completed
-                          </span>
-                          {session.language && (
-                            <span className="px-2 py-1 bg-slate-100 dark:bg-slate-700/50 text-slate-700 dark:text-slate-300 text-xs font-medium rounded">
-                              {session.language.toUpperCase()}
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Session Details Grid */}
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                          <div>
-                            <p className="text-slate-500 dark:text-slate-400 mb-1">Device & Browser</p>
-                            <p className="text-slate-800 dark:text-white font-medium">
-                              {session.device?.device_type || 'Unknown Browser'}
-                            </p>
-                            <p className="text-slate-500 dark:text-slate-400">
-                              {session.location?.city || 'unknown'}, {session.location?.country || 'unknown'}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-slate-500 dark:text-slate-400 mb-1">Duration</p>
-                            <p className="text-slate-800 dark:text-white font-medium">
-                              {formatDuration(session.duration_seconds)}
-                            </p>
-                            <p className="text-slate-500 dark:text-slate-400">Session time</p>
-                          </div>
-                          <div>
-                            <p className="text-slate-500 dark:text-slate-400 mb-1">Date & Time</p>
-                            <p className="text-slate-800 dark:text-white font-medium">
-                              {session.start_time ? new Date(session.start_time).toLocaleDateString() : 'N/A'}
-                            </p>
-                            <p className="text-slate-500 dark:text-slate-400">
-                              {session.start_time ? new Date(session.start_time).toLocaleTimeString() : 'N/A'}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-slate-500 dark:text-slate-400 mb-1">Messages</p>
-                            <p className="text-slate-800 dark:text-white font-medium">
-                              {session.total_messages || 0}
-                            </p>
-                            <p className="text-slate-500 dark:text-slate-400">
-                              User: {session.user_messages || 0} • Transcripts: {session.transcript_count || 0}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* IP Info */}
-                        <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700/50">
-                          <p className="text-xs text-slate-500 dark:text-slate-400">
-                            IP: {session.device?.ip || session.user_ip || 'unknown'}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                    })
-                  )}
-                </div>
-              )}
-            </div>
-          </GlassCard>
-        </div>
+       
 
         {showQRModal && currentAgent && (
           <AgentQRModal
@@ -2333,13 +2134,7 @@ const AgentManagement = () => {
           />
         )}
 
-        {/* Session Transcript Modal */}
-        {selectedSession && (
-          <SessionTranscriptModal
-            session={selectedSession}
-            onClose={() => setSelectedSession(null)}
-          />
-        )}
+        
 
         {/* Comprehensive Agent Testing Modal - Only show for published agents */}
         {showTestChat && currentAgent && currentAgent.status === "Published" && (

@@ -23,6 +23,7 @@ const Overview = lazy(() => import("./ClientDashboard/Dashboard/Overview"));
 const AgentManagement = lazy(() => import("./ClientDashboard/Employees/AgentManagement"));
 const Training = lazy(() => import("./ClientDashboard/Training/Training"));
 const Workflows = lazy(() => import("./ClientDashboard/Workflows/Workflows"));
+const Analytics = lazy(() => import("./ClientDashboard/Analytics/Analytics"));
 const Monitoring = lazy(() => import("./ClientDashboard/Monitoring/Monitoring"));
 const Billing = lazy(() => import("./ClientDashboard/Billing/Billing"));
 const Settings = lazy(() => import("./ClientDashboard/Settings/Settings"));
@@ -152,6 +153,7 @@ function AppContent() {
                       <Route path="/agents/:id/train" element={<Training />} />
                       <Route path="/training" element={<Training />} />
                       <Route path="/workflows" element={<Workflows />} />
+                      <Route path="/analytics" element={<Analytics />} />
                       <Route path="/monitoring" element={<Monitoring />} />
                       <Route path="/billing" element={<Billing />} />
                       <Route path="/settings" element={<Settings />} />
