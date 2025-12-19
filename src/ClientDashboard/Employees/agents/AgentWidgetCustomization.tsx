@@ -614,7 +614,62 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                         <label className="block text-xs text-slate-600 dark:text-slate-400 mb-3">
                           Choose a Gradient Theme
                         </label>
-                        <div className="grid grid-cols-2 gap-3">
+                        {/* Mobile: Compact Grid */}
+                        <div className="lg:hidden">
+                          <div className="grid grid-cols-3 gap-2">
+                            {gradientPresets.map((preset) => {
+                              const isSelected =
+                                widgetConfig.theme.primaryColor ===
+                                  preset.primaryColor &&
+                                widgetConfig.theme.accentColor ===
+                                  preset.accentColor;
+
+                              return (
+                                <button
+                                  key={preset.id}
+                                  onClick={() => applyGradientPreset(preset)}
+                                  className={`relative group h-14 rounded-lg border-2 transition-all duration-200 ${
+                                    isSelected
+                                      ? "border-blue-500 ring-1 ring-blue-200 dark:ring-blue-800"
+                                      : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
+                                  }`}
+                                  style={{ background: preset.gradient }}
+                                  title={preset.name}
+                                >
+                                  {/* Overlay */}
+                                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent rounded-md"></div>
+
+                                  {/* Content */}
+                                  <div className="relative h-full flex flex-col items-center justify-center text-white">
+                                    <div className="text-[9px] font-medium opacity-90 px-0.5 text-center leading-tight">
+                                      {preset.name}
+                                    </div>
+
+                                    {/* Selection indicator */}
+                                    {isSelected && (
+                                      <div className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center border border-white">
+                                        <svg
+                                          className="w-2.5 h-2.5 text-white"
+                                          fill="currentColor"
+                                          viewBox="0 0 20 20"
+                                        >
+                                          <path
+                                            fillRule="evenodd"
+                                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                            clipRule="evenodd"
+                                          />
+                                        </svg>
+                                      </div>
+                                    )}
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Desktop: Grid */}
+                        <div className="hidden lg:grid grid-cols-2 gap-3">
                           {gradientPresets.map((preset) => {
                             const isSelected =
                               widgetConfig.theme.primaryColor ===
@@ -668,121 +723,6 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                           Select a preset theme or customize individual colors
                           below
                         </p>
-                      </div>
-
-                      {/* Custom Color Inputs */}
-                      <div className="grid grid-cols-3 gap-3">
-                        <div>
-                          <label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">
-                            Primary Color
-                          </label>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="color"
-                              value={widgetConfig.theme.primaryColor}
-                              onChange={(e) =>
-                                updateConfig(
-                                  "theme",
-                                  "primaryColor",
-                                  e.target.value
-                                )
-                              }
-                              className="w-8 h-8 rounded border border-slate-300 dark:border-slate-600 cursor-pointer"
-                            />
-                            <input
-                              type="text"
-                              value={widgetConfig.theme.primaryColor}
-                              onChange={(e) =>
-                                updateConfig(
-                                  "theme",
-                                  "primaryColor",
-                                  e.target.value
-                                )
-                              }
-                              className="flex-1 common-bg-icons px-2 py-1 text-xs rounded"
-                              placeholder="#3b82f6"
-                            />
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">
-                            Secondary Color
-                          </label>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="color"
-                              value={widgetConfig.theme.secondaryColor}
-                              onChange={(e) =>
-                                updateConfig(
-                                  "theme",
-                                  "secondaryColor",
-                                  e.target.value
-                                )
-                              }
-                              className="w-8 h-8 rounded border border-slate-300 dark:border-slate-600 cursor-pointer"
-                            />
-                            <input
-                              type="text"
-                              value={widgetConfig.theme.secondaryColor}
-                              onChange={(e) =>
-                                updateConfig(
-                                  "theme",
-                                  "secondaryColor",
-                                  e.target.value
-                                )
-                              }
-                              className="flex-1 common-bg-icons px-2 py-1 text-xs rounded"
-                              placeholder="#ffffff"
-                            />
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">
-                            Accent Color
-                          </label>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="color"
-                              value={widgetConfig.theme.accentColor}
-                              onChange={(e) =>
-                                updateConfig(
-                                  "theme",
-                                  "accentColor",
-                                  e.target.value
-                                )
-                              }
-                              className="w-8 h-8 rounded border border-slate-300 dark:border-slate-600 cursor-pointer"
-                            />
-                            <input
-                              type="text"
-                              value={widgetConfig.theme.accentColor}
-                              onChange={(e) =>
-                                updateConfig(
-                                  "theme",
-                                  "accentColor",
-                                  e.target.value
-                                )
-                              }
-                              className="flex-1 common-bg-icons px-2 py-1 text-xs rounded"
-                              placeholder="#2563eb"
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Gradient Preview */}
-                      <div>
-                        <label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">
-                          Current Gradient Preview
-                        </label>
-                        <div
-                          className="h-12 rounded-lg border border-slate-200 dark:border-slate-700"
-                          style={{
-                            background: `linear-gradient(135deg, ${widgetConfig.theme.primaryColor} 0%, ${widgetConfig.theme.accentColor} 100%)`,
-                          }}
-                        ></div>
                       </div>
                     </div>
                   </div>
@@ -882,7 +822,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
             margin-bottom: 0.5rem;
         }
         .company-description {
-            font-size: 1.1rem;
+           y font-size: 1.1rem;
             color: #6b7280;
             line-height: 1.6;
             margin-bottom: 2rem;

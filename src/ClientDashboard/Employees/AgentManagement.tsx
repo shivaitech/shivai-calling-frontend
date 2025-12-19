@@ -4,10 +4,12 @@ import GlassCard from "../../components/GlassCard";
 import SearchableSelect from "../../components/SearchableSelect";
 import Tooltip from "../../components/Tooltip";
 import { AgentWidgetCustomization, AgentQRModal, AgentIntegrationCode } from "./agents";
+import SessionTranscriptModal from "../../components/SessionTranscriptModal";
 import { useAgent } from "../../contexts/AgentContext";
 import { useAuth } from "../../contexts/AuthContext";
 import { isDeveloperUser } from "../../lib/utils";
 import { liveKitService, LiveKitMessage, LiveKitCallbacks } from "../../services/liveKitService";
+import { agentAPI } from "../../services/agentAPI";
 import {
   Bot,
   ArrowLeft,
@@ -39,6 +41,7 @@ import {
   PhoneCall,
   Mic,
   MicOff,
+  BarChart3,
 } from "lucide-react";
 
 const AgentManagement = () => {
@@ -83,7 +86,7 @@ const AgentManagement = () => {
   const [isCallActive, setIsCallActive] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
-  const [callTimerInterval, setCallTimerInterval] = useState<number | null>(null);
+  const [callTimerInterval, setCallTimerInterval] = useState<NodeJS.Timeout | null>(null);
   const [messages, setMessages] = useState<Array<{id: string, text: string, isUser: boolean, timestamp: Date, source?: string}>>([    
     {
       id: '1',
@@ -104,6 +107,13 @@ const AgentManagement = () => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [room, setRoom] = useState<any>(null);
+  const [sessionHistory, setSessionHistory] = useState<any[]>([]);
+  const [sessionLoading, setSessionLoading] = useState(false);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [sessionSearchTerm, setSessionSearchTerm] = useState("");
+  const [sessionDeviceFilter, setSessionDeviceFilter] = useState("all");
+  const [sessionTimeFilter, setSessionTimeFilter] = useState("all");
+  const [selectedSession, setSelectedSession] = useState<any | null>(null);
 
   useEffect(() => {
     // Setup LiveKit callbacks
@@ -183,6 +193,8 @@ const AgentManagement = () => {
         });
         // Reset messages when agent changes
         setMessages([]);
+        // Fetch session history for this agent
+        fetchSessionHistory(agent.id);
       }
     } else if (isCreate) {
       setFormData({
@@ -202,6 +214,27 @@ const AgentManagement = () => {
       });
     }
   }, [id, isCreate, agents, setCurrentAgent]);
+
+  // Fetch session history from API
+  const fetchSessionHistory = async (agentId: string) => {
+    setSessionLoading(true);
+    setSessionError(null);
+    
+    try {
+      const response = await agentAPI.getAgentSessions(agentId);
+      // response is already response.data.data from the API service
+      // which contains { sessions: [...], pagination: {...} }
+      const sessions = response?.sessions || [];
+      setSessionHistory(sessions);
+      console.log('✅ Session history loaded:', sessions.length, 'sessions');
+    } catch (error) {
+      console.error('❌ Error fetching session history:', error);
+      setSessionError(error instanceof Error ? error.message : 'Failed to load session history');
+      setSessionHistory([]);
+    } finally {
+      setSessionLoading(false);
+    }
+  };
 
   const businessProcesses = [
     { value: "customer-support", label: "Customer Support", group: "Support" },
@@ -1132,32 +1165,32 @@ const AgentManagement = () => {
         {/* Header with Stats */}
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           {/* Stats Row */}
-          <div className="grid grid-cols-3 gap-3 lg:gap-4 flex-1">
-            <div className="bg-white/50 flex items-center justify-center gap-2 dark:bg-slate-800/50 rounded-xl px-4 lg:px-6 py-2.5 lg:py-2 text-center shadow-sm transition-all duration-200 hover:shadow-md">
-              <p className="text-xl lg:text-2xl font-bold text-slate-800 dark:text-white">
+          <div className="grid grid-cols-3 gap-2 lg:gap-4 flex-1">
+            <div className="bg-white/50 flex items-center justify-center gap-1.5 dark:bg-slate-800/50 rounded-lg px-2 lg:px-6 py-2 lg:py-2 text-center shadow-sm transition-all duration-200 hover:shadow-md">
+              <p className="text-base lg:text-2xl font-bold text-slate-800 dark:text-white">
                 {isDeveloper ? agents.length : 0}
               </p>
-              <p className="text-xs lg:text-sm font-medium text-slate-600 dark:text-slate-400">
-                Total Agents
+              <p className="text-[10px] lg:text-sm font-medium text-slate-600 dark:text-slate-400">
+                Total
               </p>
             </div>
-            <div className="bg-white/50 flex items-center justify-center gap-2 dark:bg-slate-800/50 rounded-xl px-4 lg:px-6 py-2.5 lg:py-2 text-center shadow-sm transition-all duration-200 hover:shadow-md">
-              <p className="text-xl lg:text-2xl font-bold text-green-600 dark:text-green-400">
+            <div className="bg-white/50 flex items-center justify-center gap-1.5 dark:bg-slate-800/50 rounded-lg px-2 lg:px-6 py-2 lg:py-2 text-center shadow-sm transition-all duration-200 hover:shadow-md">
+              <p className="text-base lg:text-2xl font-bold text-green-600 dark:text-green-400">
                 {isDeveloper
                   ? agents.filter((a) => a.status === "Published").length
                   : 0}
               </p>
-              <p className="text-xs lg:text-sm font-medium text-slate-600 dark:text-slate-400">
-                Published
+              <p className="text-[10px] lg:text-sm font-medium text-slate-600 dark:text-slate-400">
+                Active
               </p>
             </div>
-            <div className="bg-white/50 flex items-center justify-center gap-2 dark:bg-slate-800/50 rounded-xl px-4 lg:px-6 py-2.5 lg:py-2 text-center shadow-sm transition-all duration-200 hover:shadow-md">
-              <p className="text-xl lg:text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+            <div className="bg-white/50 flex items-center justify-center gap-1.5 dark:bg-slate-800/50 rounded-lg px-2 lg:px-6 py-2 lg:py-2 text-center shadow-sm transition-all duration-200 hover:shadow-md">
+              <p className="text-base lg:text-2xl font-bold text-yellow-600 dark:text-yellow-400">
                 {isDeveloper
                   ? agents.filter((a) => a.status === "Training").length
                   : 0}
               </p>
-              <p className="text-xs lg:text-sm font-medium text-slate-600 dark:text-slate-400">
+              <p className="text-[10px] lg:text-sm font-medium text-slate-600 dark:text-slate-400">
                 Training
               </p>
             </div>
@@ -1449,65 +1482,46 @@ const AgentManagement = () => {
   // VIEW MODE - Show agent details
   if (isView && currentAgent) {
     return (
-      <div className="space-y-4 sm:space-y-6 w-full">
+      <div className="space-y-3 sm:space-y-4 lg:space-y-6 w-full">
         {/* Enhanced Mobile-First Header */}
         <GlassCard>
           <div className="p-4 sm:p-6">
             {/* Top row with back button and actions */}
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex flex-col gap-3 sm:gap-4 sm:flex-row sm:items-start sm:justify-between">
               {/* Main agent info section */}
-              <div className="flex items-start gap-3 sm:gap-4 min-w-0 flex-1">
+              <div className="flex items-start gap-2 sm:gap-3 lg:gap-4 min-w-0 flex-1">
                 <button
                   onClick={() => navigate("/agents")}
-                  className="common-button-bg2 p-2 sm:p-2.5 rounded-xl flex-shrink-0 touch-manipulation"
+                  className="common-button-bg2 p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl flex-shrink-0 touch-manipulation"
                 >
                   <ArrowLeft className="w-4 sm:w-5 h-4 sm:h-5 text-slate-600 dark:text-slate-300" />
                 </button>
 
-                <div className="flex items-start gap-3 sm:gap-4 lg:gap-4 min-w-0 flex-1">
+                <div className="flex items-start gap-2 sm:gap-3 lg:gap-4 min-w-0 flex-1">
                   {/* Agent avatar/icon */}
-                  <div className="w-12 h-12 sm:w-16 sm:h-16 lg:w-20 lg:h-20 common-bg-icons flex items-center justify-center flex-shrink-0 rounded-xl">
-                    <Bot className="w-6 h-6 sm:w-8 sm:h-8 lg:w-10 lg:h-10 text-black dark:text-white" />
+                  <div className="w-10 h-10 sm:w-14 sm:h-14 lg:w-16 lg:h-16 common-bg-icons flex items-center justify-center flex-shrink-0 rounded-lg sm:rounded-xl">
+                    <Bot className="w-5 h-5 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-black dark:text-white" />
                   </div>
 
                   {/* Agent details */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex flex-col gap-1.5 sm:gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0 flex-1">
-                        <h1 className="text-lg sm:text-xl lg:text-2xl xl:text-3xl font-bold text-slate-800 dark:text-white leading-tight truncate">
+                        <h1 className="text-base sm:text-xl lg:text-2xl font-bold text-slate-800 dark:text-white leading-tight truncate">
                           {currentAgent.name}
                         </h1>
 
                         {/* Agent meta info - Mobile optimized */}
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1 sm:mt-2">
+                        <div className="flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-1 text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
                           <div className="flex items-center gap-1">
-                            <Globe className="w-3 sm:w-4 h-3 sm:h-4" />
-                            <span className="truncate">
+                            <Globe className="w-3 h-3 sm:w-4 sm:h-4" />
+                            <span className="truncate text-xs sm:text-sm">
                               {currentAgent.language}
-                            </span>
-                          </div>
-                          <div className="hidden xs:flex items-center gap-1">
-                            <Clock className="w-3 sm:w-4 h-3 sm:h-4" />
-                            <span className="truncate">
-                              Created{" "}
-                              {currentAgent.createdAt.toLocaleDateString()}
-                            </span>
-                          </div>
-                          <div className="xs:hidden flex items-center gap-1">
-                            <Clock className="w-3 sm:w-4 h-3 sm:h-4" />
-                            <span className="truncate">
-                              {currentAgent.createdAt.toLocaleDateString(
-                                "en-US",
-                                {
-                                  month: "short",
-                                  day: "numeric",
-                                }
-                              )}
                             </span>
                           </div>
                           <div className="flex items-center gap-1">
                             <span
-                              className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium flex-shrink-0 ${
+                              className={`px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-xs font-medium flex-shrink-0 ${
                                 currentAgent.status === "Published"
                                   ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
                                   : currentAgent.status === "Training"
@@ -1525,23 +1539,23 @@ const AgentManagement = () => {
                 </div>
               </div>
 
-              {/* Action buttons - Mobile stacked */}
-              <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+              {/* Action buttons - Mobile compact */}
+              <div className="flex items-center gap-1.5 sm:gap-2 lg:gap-3 flex-shrink-0">
                 <button
                   onClick={() => navigate(`/agents/${currentAgent.id}/edit`)}
-                  className="flex-1 sm:flex-none common-button-bg2 flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl touch-manipulation min-h-[40px]"
+                  className="flex-1 sm:flex-none common-button-bg2 flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-3 lg:px-4 py-1.5 sm:py-2 lg:py-2.5 rounded-lg sm:rounded-xl touch-manipulation min-h-[36px] sm:min-h-[40px]"
                 >
-                  <Edit className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+                  <Edit className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   <span className="text-xs sm:text-sm font-medium">Edit</span>
                 </button>
                 {currentAgent.status === "Published" && (
                   <button
                     onClick={() => setShowQRModal(true)}
-                    className="flex-1 sm:flex-none common-button-bg2 flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl touch-manipulation min-h-[40px]"
+                    className="flex-none common-button-bg2 flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-3 lg:px-4 py-1.5 sm:py-2 lg:py-2.5 rounded-lg sm:rounded-xl touch-manipulation min-h-[36px] sm:min-h-[40px]"
                   >
-                    <QrCode className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
-                    <span className="text-xs sm:text-sm font-medium">
-                      Get QR
+                    <QrCode className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span className="hidden sm:inline text-xs sm:text-sm font-medium">
+                      QR
                     </span>
                   </button>
                 )}
@@ -1549,26 +1563,26 @@ const AgentManagement = () => {
                   <button
                     onClick={() => handlePause(currentAgent.id)}
                     disabled={publishingAgents.has(currentAgent.id)}
-                    className={`flex-1 sm:flex-none common-button-bg2 flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl touch-manipulation min-h-[40px] ${
+                    className={`flex-none common-button-bg2 flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-3 lg:px-4 py-1.5 sm:py-2 lg:py-2.5 rounded-lg sm:rounded-xl touch-manipulation min-h-[36px] sm:min-h-[40px] ${
                       publishingAgents.has(currentAgent.id) 
                         ? 'opacity-50 cursor-not-allowed' 
                         : ''
                     }`}
                   >
                     {publishingAgents.has(currentAgent.id) ? (
-                      <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                      <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
                     ) : (
-                      <Pause className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+                      <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     )}
                     <span className="text-xs sm:text-sm font-medium">
-                      {publishingAgents.has(currentAgent.id) ? 'Pausing...' : 'Pause'}
+                      {publishingAgents.has(currentAgent.id) ? '...' : 'Pause'}
                     </span>
                   </button>
                 ) : (
                   <button
                     onClick={() => (currentAgent as any).is_active ? handlePause(currentAgent.id) : handlePublish(currentAgent.id)}
                     disabled={publishingAgents.has(currentAgent.id)}
-                    className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl touch-manipulation min-h-[40px] ${
+                    className={`flex-none flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-3 lg:px-4 py-1.5 sm:py-2 lg:py-2.5 rounded-lg sm:rounded-xl touch-manipulation min-h-[36px] sm:min-h-[40px] ${
                       publishingAgents.has(currentAgent.id) 
                         ? 'opacity-50 cursor-not-allowed' 
                         : ''
@@ -1577,13 +1591,13 @@ const AgentManagement = () => {
                     }`}
                   >
                     {publishingAgents.has(currentAgent.id) ? (
-                      <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                      <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
                     ) : (
-                      (currentAgent as any).is_active ? <Pause className="w-3.5 sm:w-4 h-3.5 sm:h-4" /> : <Play className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
+                      (currentAgent as any).is_active ? <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     )}
                     <span className="text-xs sm:text-sm font-medium">
                       {publishingAgents.has(currentAgent.id) 
-                        ? ((currentAgent as any).is_active ? 'Pausing...' : 'Publishing...')
+                        ? '...'
                         : ((currentAgent as any).is_active ? 'Pause' : 'Publish')
                       }
                     </span>
@@ -1596,19 +1610,122 @@ const AgentManagement = () => {
           </div>
         </GlassCard>
 
-        {/* Performance Overview - Enhanced Design */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        {/* Performance Overview - Compact Grid on Mobile */}
+        <div className="lg:hidden grid grid-cols-2 gap-2">
+          <GlassCard className="hover:shadow-md transition-all duration-200">
+            <div className="p-2">
+              <div className="flex flex-col items-center gap-1">
+                <div className="w-7 h-7 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
+                  <MessageSquare className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                </div>
+                <p className="text-base font-bold text-slate-800 dark:text-white">
+                  {currentAgent.stats.conversations.toLocaleString()}
+                </p>
+                <p className="text-[10px] text-slate-600 dark:text-slate-400">
+                  Conversations
+                </p>
+                {currentAgent.stats.conversations > 0 ? (
+                  <span className="text-[10px] font-medium text-green-600 dark:text-green-400">
+                    +12%
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-slate-500 dark:text-slate-500">
+                    No data
+                  </span>
+                )}
+              </div>
+            </div>
+          </GlassCard>
+
+          <GlassCard className="hover:shadow-md transition-all duration-200">
+            <div className="p-2">
+              <div className="flex flex-col items-center gap-1">
+                <div className="w-7 h-7 bg-green-50 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
+                  <CheckCircle className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+                </div>
+                <p className="text-base font-bold text-slate-800 dark:text-white">
+                  {currentAgent.stats.successRate}%
+                </p>
+                <p className="text-[10px] text-slate-600 dark:text-slate-400">
+                  Success Rate
+                </p>
+                {currentAgent.stats.successRate > 0 ? (
+                  <span className="text-[10px] font-medium text-green-600 dark:text-green-400">
+                    +2.1%
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-slate-500 dark:text-slate-500">
+                    No data
+                  </span>
+                )}
+              </div>
+            </div>
+          </GlassCard>
+
+          <GlassCard className="hover:shadow-md transition-all duration-200">
+            <div className="p-2">
+              <div className="flex flex-col items-center gap-1">
+                <div className="w-7 h-7 bg-purple-50 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
+                  <Clock className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                </div>
+                <p className="text-base font-bold text-slate-800 dark:text-white">
+                  {currentAgent.stats.avgResponseTime}s
+                </p>
+                <p className="text-[10px] text-slate-600 dark:text-slate-400">
+                  Avg Response
+                </p>
+                {currentAgent.stats.avgResponseTime > 0 ? (
+                  <span className="text-[10px] font-medium text-green-600 dark:text-green-400">
+                    -0.3s
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-slate-500 dark:text-slate-500">
+                    No data
+                  </span>
+                )}
+              </div>
+            </div>
+          </GlassCard>
+
+          <GlassCard className="hover:shadow-md transition-all duration-200">
+            <div className="p-2">
+              <div className="flex flex-col items-center gap-1">
+                <div className="w-7 h-7 bg-orange-50 dark:bg-orange-900/20 rounded-lg flex items-center justify-center">
+                  <Users className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
+                </div>
+                <p className="text-base font-bold text-slate-800 dark:text-white">
+                  {currentAgent.stats.activeUsers}
+                </p>
+                <p className="text-[10px] text-slate-600 dark:text-slate-400">
+                  Active Users
+                </p>
+                {currentAgent.stats.activeUsers > 0 ? (
+                  <span className="text-[10px] font-medium text-green-600 dark:text-green-400">
+                    +8%
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-slate-500 dark:text-slate-500">
+                    No data
+                  </span>
+                )}
+              </div>
+            </div>
+          </GlassCard>
+        </div>
+
+        {/* Desktop Grid View */}
+        <div className="hidden lg:grid grid-cols-4 gap-4">
           <GlassCard className="hover:shadow-lg transition-all duration-300">
-            <div className="p-4 sm:p-5">
+            <div className="p-5">
               <div className="flex items-center justify-between mb-3">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-50 dark:bg-blue-900/20 rounded-xl flex items-center justify-center">
-                  <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 dark:text-blue-400" />
+                <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/20 rounded-xl flex items-center justify-center">
+                  <MessageSquare className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div className="text-right">
-                  <p className="text-lg sm:text-2xl font-bold text-slate-800 dark:text-white">
+                  <p className="text-2xl font-bold text-slate-800 dark:text-white">
                     {currentAgent.stats.conversations.toLocaleString()}
                   </p>
-                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
                     Conversations
                   </p>
                 </div>
@@ -1616,7 +1733,7 @@ const AgentManagement = () => {
               <div className="flex items-center gap-1">
                 {currentAgent.stats.conversations > 0 ? (
                   <>
-                    <span className="text-xs sm:text-sm font-medium text-green-600 dark:text-green-400">
+                    <span className="text-sm font-medium text-green-600 dark:text-green-400">
                       +12%
                     </span>
                     <span className="text-xs text-slate-500 dark:text-slate-500">
@@ -1633,16 +1750,16 @@ const AgentManagement = () => {
           </GlassCard>
 
           <GlassCard className="hover:shadow-lg transition-all duration-300">
-            <div className="p-4 sm:p-5">
+            <div className="p-5">
               <div className="flex items-center justify-between mb-3">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-50 dark:bg-green-900/20 rounded-xl flex items-center justify-center">
-                  <CheckCircle className="w-5 h-5 sm:w-6 sm:h-6 text-green-600 dark:text-green-400" />
+                <div className="w-12 h-12 bg-green-50 dark:bg-green-900/20 rounded-xl flex items-center justify-center">
+                  <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400" />
                 </div>
                 <div className="text-right">
-                  <p className="text-lg sm:text-2xl font-bold text-slate-800 dark:text-white">
+                  <p className="text-2xl font-bold text-slate-800 dark:text-white">
                     {currentAgent.stats.successRate}%
                   </p>
-                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
                     Success Rate
                   </p>
                 </div>
@@ -1650,7 +1767,7 @@ const AgentManagement = () => {
               <div className="flex items-center gap-1">
                 {currentAgent.stats.successRate > 0 ? (
                   <>
-                    <span className="text-xs sm:text-sm font-medium text-green-600 dark:text-green-400">
+                    <span className="text-sm font-medium text-green-600 dark:text-green-400">
                       +2.1%
                     </span>
                     <span className="text-xs text-slate-500 dark:text-slate-500">
@@ -1667,16 +1784,16 @@ const AgentManagement = () => {
           </GlassCard>
 
           <GlassCard className="hover:shadow-lg transition-all duration-300">
-            <div className="p-4 sm:p-5">
+            <div className="p-5">
               <div className="flex items-center justify-between mb-3">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-50 dark:bg-purple-900/20 rounded-xl flex items-center justify-center">
-                  <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600 dark:text-purple-400" />
+                <div className="w-12 h-12 bg-purple-50 dark:bg-purple-900/20 rounded-xl flex items-center justify-center">
+                  <Clock className="w-6 h-6 text-purple-600 dark:text-purple-400" />
                 </div>
                 <div className="text-right">
-                  <p className="text-lg sm:text-2xl font-bold text-slate-800 dark:text-white">
+                  <p className="text-2xl font-bold text-slate-800 dark:text-white">
                     {currentAgent.stats.avgResponseTime}s
                   </p>
-                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
                     Avg Response
                   </p>
                 </div>
@@ -1684,7 +1801,7 @@ const AgentManagement = () => {
               <div className="flex items-center gap-1">
                 {currentAgent.stats.avgResponseTime > 0 ? (
                   <>
-                    <span className="text-xs sm:text-sm font-medium text-green-600 dark:text-green-400">
+                    <span className="text-sm font-medium text-green-600 dark:text-green-400">
                       -0.3s
                     </span>
                     <span className="text-xs text-slate-500 dark:text-slate-500">
@@ -1701,16 +1818,16 @@ const AgentManagement = () => {
           </GlassCard>
 
           <GlassCard className="hover:shadow-lg transition-all duration-300">
-            <div className="p-4 sm:p-5">
+            <div className="p-5">
               <div className="flex items-center justify-between mb-3">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-orange-50 dark:bg-orange-900/20 rounded-xl flex items-center justify-center">
-                  <Users className="w-5 h-5 sm:w-6 sm:h-6 text-orange-600 dark:text-orange-400" />
+                <div className="w-12 h-12 bg-orange-50 dark:bg-orange-900/20 rounded-xl flex items-center justify-center">
+                  <Users className="w-6 h-6 text-orange-600 dark:text-orange-400" />
                 </div>
                 <div className="text-right">
-                  <p className="text-lg sm:text-2xl font-bold text-slate-800 dark:text-white">
+                  <p className="text-2xl font-bold text-slate-800 dark:text-white">
                     {currentAgent.stats.activeUsers}
                   </p>
-                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+                  <p className="text-sm text-slate-600 dark:text-slate-400">
                     Active Users
                   </p>
                 </div>
@@ -1718,7 +1835,7 @@ const AgentManagement = () => {
               <div className="flex items-center gap-1">
                 {currentAgent.stats.activeUsers > 0 ? (
                   <>
-                    <span className="text-xs sm:text-sm font-medium text-green-600 dark:text-green-400">
+                    <span className="text-sm font-medium text-green-600 dark:text-green-400">
                       +8%
                     </span>
                     <span className="text-xs text-slate-500 dark:text-slate-500">
@@ -1736,17 +1853,17 @@ const AgentManagement = () => {
         </div>
 
         {/* Enhanced Content Grid - Mobile Responsive */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
           {/* Agent Configuration - Mobile Optimized */}
           <div className="order-1 lg:order-1 lg:col-span-2">
             <GlassCard>
-              <div className="p-3 sm:p-4 lg:p-6">
-                <div className="flex flex-row sm:items-center sm:justify-between gap-3 mb-3 sm:mb-4">
-                  <div className="flex items-center gap-2 sm:gap-3">
-                    <div className="w-6 h-6 sm:w-8 sm:h-8 bg-slate-50 dark:bg-slate-800 rounded-lg sm:rounded-xl flex items-center justify-center">
-                      <Settings className="w-3 h-3 sm:w-4 sm:h-4 text-slate-600 dark:text-slate-400" />
+              <div className="p-2 sm:p-3">
+                <div className="flex flex-row sm:items-center sm:justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <div className="w-5 h-5 sm:w-6 sm:h-6 bg-slate-50 dark:bg-slate-800 rounded-lg flex items-center justify-center">
+                      <Settings className="w-3 h-3 text-slate-600 dark:text-slate-400" />
                     </div>
-                    <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-slate-800 dark:text-white">
+                    <h3 className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-white">
                       Configuration
                     </h3>
                   </div>
@@ -1763,65 +1880,134 @@ const AgentManagement = () => {
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                  <div className="space-y-3">
-                    <div className="p-3 bg-slate-50 border dark:bg-slate-800/50 rounded-lg">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Globe className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600 dark:text-blue-400" />
-                        <span className="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400">
-                          Language
-                        </span>
-                      </div>
-                      <p className="text-sm sm:text-base font-semibold text-slate-800 dark:text-white">
-                        {currentAgent.language}
-                      </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {/* Row 1 */}
+                  <div className="p-2 bg-slate-50 border dark:bg-slate-800/50 rounded-lg">
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <Globe className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                      <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                        Language
+                      </span>
                     </div>
-
-                    <div className="p-3 bg-slate-50 border dark:bg-slate-800/50 rounded-lg">
-                      <div className="flex items-center gap-2 mb-1">
-                        <MessageSquare className="w-3 h-3 sm:w-4 sm:h-4 text-purple-600 dark:text-purple-400" />
-                        <span className="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400">
-                          Voice
-                        </span>
-                      </div>
-                      <p className="text-sm sm:text-base font-semibold text-slate-800 dark:text-white">
-                        {currentAgent.voice}
-                      </p>
-                    </div>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-white">
+                      {currentAgent.language}
+                    </p>
                   </div>
 
-                  <div className="space-y-3">
-                    <div className="p-3 bg-slate-50 border dark:bg-slate-800/50 rounded-lg">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Users className="w-3 h-3 sm:w-4 sm:h-4 text-green-600 dark:text-green-400" />
-                        <span className="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400">
-                          Persona
-                        </span>
-                      </div>
-                      <p className="text-sm sm:text-base font-semibold text-slate-800 dark:text-white">
-                        {currentAgent.persona}
-                      </p>
+                  <div className="p-2 bg-slate-50 border dark:bg-slate-800/50 rounded-lg">
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <MessageSquare className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+                      <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                        Voice
+                      </span>
                     </div>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-white">
+                      {currentAgent.voice}
+                    </p>
+                  </div>
 
-                    <div className="p-3 bg-slate-50 border dark:bg-slate-800/50 rounded-lg">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Clock className="w-3 h-3 sm:w-4 sm:h-4 text-orange-600 dark:text-orange-400" />
-                        <span className="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400">
-                          Created
-                        </span>
-                      </div>
-                      <p className="text-sm sm:text-base font-semibold text-slate-800 dark:text-white">
-                        {currentAgent.createdAt.toLocaleDateString()}
-                      </p>
+                  {/* Row 2 */}
+                  <div className="p-2 bg-slate-50 border dark:bg-slate-800/50 rounded-lg">
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <Users className="w-3 h-3 text-green-600 dark:text-green-400" />
+                      <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                        Persona
+                      </span>
                     </div>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-white">
+                      {currentAgent.persona}
+                    </p>
+                  </div>
+
+                  <div className="p-2 bg-slate-50 border dark:bg-slate-800/50 rounded-lg">
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <Clock className="w-3 h-3 text-orange-600 dark:text-orange-400" />
+                      <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                        Created
+                      </span>
+                    </div>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-white">
+                      {currentAgent.createdAt.toLocaleDateString()}
+                    </p>
                   </div>
                 </div>
               </div>
             </GlassCard>
           </div>
 
-          {/* Quick Actions - Mobile Optimized */}
-          <div className="order-2 lg:order-2 space-y-3 sm:space-y-4">
+          {/* Quick Actions - Compact Stack on Mobile, Sidebar on Desktop */}
+          <div className="order-2 lg:order-2">
+            {/* Mobile: Compact Stack */}
+            <div className="lg:hidden">
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => navigate(`/agents/${currentAgent.id}/train`)}
+                  className="common-bg-icons hover:shadow-md transition-all duration-200 p-2 rounded-lg touch-manipulation group"
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
+                      <Lightbulb className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <p className="text-xs font-medium text-slate-800 dark:text-white">
+                      Train
+                    </p>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => navigate(`/agents/${currentAgent.id}/edit`)}
+                  className="common-bg-icons hover:shadow-md transition-all duration-200 p-2 rounded-lg touch-manipulation group"
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg flex items-center justify-center">
+                      <Edit className="w-3.5 h-3.5 text-yellow-600 dark:text-yellow-400" />
+                    </div>
+                    <p className="text-xs font-medium text-slate-800 dark:text-white">
+                      Edit
+                    </p>
+                  </div>
+                </button>
+
+                <button className="common-bg-icons hover:shadow-md transition-all duration-200 p-2 rounded-lg touch-manipulation group">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 bg-green-50 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
+                      <Copy className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+                    </div>
+                    <p className="text-xs font-medium text-slate-800 dark:text-white">
+                      Clone
+                    </p>
+                  </div>
+                </button>
+
+                <button className="common-bg-icons hover:shadow-md transition-all duration-200 p-2 rounded-lg touch-manipulation group">
+                  <div className="flex items-center gap-2">
+                    <div className="w-7 h-7 bg-purple-50 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
+                      <Download className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <p className="text-xs font-medium text-slate-800 dark:text-white">
+                      Export
+                    </p>
+                  </div>
+                </button>
+
+                <button 
+                  onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })}
+                  className="common-bg-icons hover:shadow-md transition-all duration-200 p-2 rounded-lg touch-manipulation group col-span-2"
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-7 h-7 bg-orange-50 dark:bg-orange-900/20 rounded-lg flex items-center justify-center">
+                      <BarChart3 className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
+                    </div>
+                    <p className="text-xs font-medium text-slate-800 dark:text-white">
+                      Analytics
+                    </p>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Desktop: Vertical Sidebar */}
+            <div className="hidden lg:block space-y-4">
             <GlassCard>
               <div className="p-3 sm:p-4 lg:p-6">
                 <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
@@ -1903,14 +2089,34 @@ const AgentManagement = () => {
                       </div>
                     </div>
                   </button>
+
+                  <button 
+                    onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })}
+                    className="w-full common-bg-icons hover:shadow-md transition-all duration-200 p-3 sm:p-4 rounded-lg touch-manipulation group"
+                  >
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-orange-50 dark:bg-orange-900/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600 dark:text-orange-400" />
+                      </div>
+                      <div className="text-left flex-1">
+                        <p className="text-sm sm:text-base font-medium text-slate-800 dark:text-white">
+                          View Call Analytics
+                        </p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400">
+                          See performance data
+                        </p>
+                      </div>
+                    </div>
+                  </button>
                 </div>
               </div>
             </GlassCard>
+            </div>
           </div>
         </div>
 
         {/* Widget Customization Section - Only show when agent is published */}
-          <div className="mt-4 sm:mt-6">
+          <div className="mt-3 sm:mt-4 lg:mt-6">
             <AgentWidgetCustomization
               agentId={currentAgent.id}
               agentName={currentAgent.name}
@@ -1927,61 +2133,193 @@ const AgentManagement = () => {
           </div>
         )}
 
+     
+
+        {/* Session History Section */}
         <div className="mt-6 sm:mt-8">
           <GlassCard>
             <div className="p-4 sm:p-6">
-              <h3 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white mb-3 sm:mb-4">
-                Recent Activity
-              </h3>
-              <div className="space-y-3 sm:space-y-4">
-                {[
-                  {
-                    time: "2 min ago",
-                    action: "Handled customer inquiry about pricing",
-                    status: "success",
-                  },
-                  {
-                    time: "5 min ago",
-                    action: "Successfully scheduled appointment",
-                    status: "success",
-                  },
-                  {
-                    time: "12 min ago",
-                    action: "Escalated complex technical issue",
-                    status: "warning",
-                  },
-                  {
-                    time: "1 hour ago",
-                    action: "Completed product explanation call",
-                    status: "success",
-                  },
-                  {
-                    time: "2 hours ago",
-                    action: "Updated knowledge base integration",
-                    status: "info",
-                  },
-                ].map((activity, index) => (
-                  <div key={index} className="flex items-start gap-3">
-                    <div
-                      className={`w-2 h-2 rounded-full mt-2 ${
-                        activity.status === "success"
-                          ? "bg-green-500"
-                          : activity.status === "warning"
-                          ? "bg-yellow-500"
-                          : "bg-blue-500"
-                      }`}
-                    ></div>
-                    <div className="flex-1">
-                      <p className="text-sm text-slate-800 dark:text-white">
-                        {activity.action}
-                      </p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        {activity.time}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+              <div className="flex items-center justify-between mb-4 sm:mb-6">
+                <h3 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
+                  Session History <span className="text-sm font-normal text-slate-500 dark:text-slate-400">({sessionHistory.length} sessions)</span>
+                </h3>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => fetchSessionHistory(currentAgent.id)}
+                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                    title="Refresh sessions"
+                  >
+                    <Filter className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                  </button>
+                </div>
               </div>
+
+              {/* Search and Filters - Full Width Search */}
+              <div className="space-y-3 mb-4">
+                {/* Search - Full Row */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Search sessions..."
+                    value={sessionSearchTerm}
+                    onChange={(e) => setSessionSearchTerm(e.target.value)}
+                    className="w-full h-[38px] pl-10 pr-3 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500 dark:focus:ring-slate-400 transition-all"
+                  />
+                </div>
+                
+                {/* Filters Row */}
+                <div className="flex gap-2 sm:gap-3">
+                  <select 
+                    value={sessionDeviceFilter}
+                    onChange={(e) => setSessionDeviceFilter(e.target.value)}
+                    className="flex-1 h-[38px] px-3 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-slate-500 dark:focus:ring-slate-400 transition-all"
+                  >
+                    <option value="all">All Devices</option>
+                    <option value="mobile">Mobile</option>
+                    <option value="desktop">Desktop</option>
+                  </select>
+                  <select 
+                    value={sessionTimeFilter}
+                    onChange={(e) => setSessionTimeFilter(e.target.value)}
+                    className="flex-1 h-[38px] px-3 py-2 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-slate-500 dark:focus:ring-slate-400 transition-all"
+                  >
+                    <option value="all">All Time</option>
+                    <option value="today">Today</option>
+                    <option value="week">7 days</option>
+                    <option value="month">30 days</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Loading State */}
+              {sessionLoading && (
+                <div className="text-center py-8">
+                  <div className="w-8 h-8 border-3 border-slate-300 dark:border-slate-600 border-t-slate-900 dark:border-t-white rounded-full animate-spin mx-auto mb-3"></div>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Loading sessions...</p>
+                </div>
+              )}
+
+              {/* Error State */}
+              {sessionError && !sessionLoading && (
+                <div className="text-center py-8">
+                  <p className="text-sm text-red-600 dark:text-red-400 mb-3">{sessionError}</p>
+                  <button
+                    onClick={() => fetchSessionHistory(currentAgent.id)}
+                    className="px-4 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-lg text-sm hover:opacity-90 transition-opacity"
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
+
+              {/* Session Cards */}
+              {!sessionLoading && !sessionError && (
+                <div className="space-y-4">
+                  {sessionHistory.length === 0 ? (
+                    <div className="text-center py-8">
+                      <MessageSquare className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+                      <p className="text-sm text-slate-500 dark:text-slate-400">No sessions found for this agent</p>
+                    </div>
+                  ) : (
+                    sessionHistory.map((session, index) => {
+                      // Format duration from seconds
+                      const formatDuration = (seconds: number) => {
+                        if (!seconds) return 'N/A';
+                        const mins = Math.floor(seconds / 60);
+                        const secs = Math.floor(seconds % 60);
+                        return `${mins}m ${secs}s`;
+                      };
+                      
+                      return (
+                      <div
+                        key={session.session_id || session.id || index}
+                        className="bg-white dark:bg-slate-800/30 border border-slate-200 dark:border-slate-700/50 rounded-xl p-4 hover:shadow-md transition-all"
+                      >
+                        {/* Session Header */}
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-start gap-3">
+                            <MessageSquare className="w-5 h-5 text-slate-400 mt-0.5" />
+                            <div>
+                              <h4 className="text-sm font-medium text-slate-800 dark:text-white">
+                                {session.session_id || session.id || `Session ${index + 1}`}
+                              </h4>
+                              <p className="text-xs text-slate-500 dark:text-slate-400">
+                                {session.user_ip || 'Unknown caller'}
+                              </p>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => setSelectedSession(session)}
+                            className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition-colors"
+                            title="View transcript"
+                          >
+                            <Eye className="w-4 h-4 text-slate-400" />
+                          </button>
+                        </div>
+
+                        {/* Status Badges */}
+                        <div className="flex items-center gap-2 mb-3">
+                          <span className="px-2 py-1 bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-xs font-medium rounded">
+                            Completed
+                          </span>
+                          {session.language && (
+                            <span className="px-2 py-1 bg-slate-100 dark:bg-slate-700/50 text-slate-700 dark:text-slate-300 text-xs font-medium rounded">
+                              {session.language.toUpperCase()}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Session Details Grid */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                          <div>
+                            <p className="text-slate-500 dark:text-slate-400 mb-1">Device & Browser</p>
+                            <p className="text-slate-800 dark:text-white font-medium">
+                              {session.device?.device_type || 'Unknown Browser'}
+                            </p>
+                            <p className="text-slate-500 dark:text-slate-400">
+                              {session.location?.city || 'unknown'}, {session.location?.country || 'unknown'}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-slate-500 dark:text-slate-400 mb-1">Duration</p>
+                            <p className="text-slate-800 dark:text-white font-medium">
+                              {formatDuration(session.duration_seconds)}
+                            </p>
+                            <p className="text-slate-500 dark:text-slate-400">Session time</p>
+                          </div>
+                          <div>
+                            <p className="text-slate-500 dark:text-slate-400 mb-1">Date & Time</p>
+                            <p className="text-slate-800 dark:text-white font-medium">
+                              {session.start_time ? new Date(session.start_time).toLocaleDateString() : 'N/A'}
+                            </p>
+                            <p className="text-slate-500 dark:text-slate-400">
+                              {session.start_time ? new Date(session.start_time).toLocaleTimeString() : 'N/A'}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-slate-500 dark:text-slate-400 mb-1">Messages</p>
+                            <p className="text-slate-800 dark:text-white font-medium">
+                              {session.total_messages || 0}
+                            </p>
+                            <p className="text-slate-500 dark:text-slate-400">
+                              User: {session.user_messages || 0} • Transcripts: {session.transcript_count || 0}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* IP Info */}
+                        <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700/50">
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            IP: {session.device?.ip || session.user_ip || 'unknown'}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                    })
+                  )}
+                </div>
+              )}
             </div>
           </GlassCard>
         </div>
@@ -1990,6 +2328,14 @@ const AgentManagement = () => {
           <AgentQRModal
             agent={currentAgent}
             onClose={() => setShowQRModal(false)}
+          />
+        )}
+
+        {/* Session Transcript Modal */}
+        {selectedSession && (
+          <SessionTranscriptModal
+            session={selectedSession}
+            onClose={() => setSelectedSession(null)}
           />
         )}
 

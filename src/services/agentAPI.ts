@@ -317,10 +317,41 @@ class AgentAPI {
     }
   }
 
-  // Check if agent is static (no API integration needed)
+  // Get agent session history
+  async getAgentSessions(agentId: string): Promise<any> {
+    try {
+      const response: AxiosResponse<{ success: boolean; data: any; message?: string }> = 
+        await apiClient.get(`/agent-sessions/agent/${agentId}`);
+      
+      if (response.data.success && response.data.data) {
+        return response.data.data;
+      }
+      
+      throw new Error(response.data.message || 'Failed to fetch agent sessions');
+    } catch (error: any) {
+      console.error('Error fetching agent sessions:', error);
+      throw error;
+    }
+  }
+
+  // Get session transcripts
+  async getSessionTranscripts(sessionId: string): Promise<any> {
+    try {
+      const response: AxiosResponse<{ success: boolean; data: any; message?: string }> = 
+        await apiClient.get(`/agent-sessions/${sessionId}/transcripts`);
+      
+      if (response.data.success && response.data.data) {
+        return response.data.data;
+      }
+      
+      throw new Error(response.data.message || 'Failed to fetch session transcripts');
+    } catch (error: any) {
+      console.error('Error fetching session transcripts:', error);
+      throw error;
+    }
+  }
+
   isStaticAgent(agentId: string): boolean {
-    // Static agents typically have specific IDs or patterns
-    // Adjust this logic based on your static agent identification method
     return agentId?.startsWith('static-') || agentId?.includes('demo-') || (agentId?.length < 10 && !agentId.includes('-'));
   }
 }

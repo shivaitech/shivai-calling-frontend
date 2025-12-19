@@ -60,6 +60,63 @@ body {
   display: none;
 }
 
+/* Custom Scrollbar Styling for Sliders */
+.overflow-x-auto {
+  scrollbar-width: thin;
+  scrollbar-color: #6366f1 #e2e8f0;
+  padding-bottom: 12px;
+}
+
+.overflow-x-auto::-webkit-scrollbar {
+  height: 10px;
+  background: transparent;
+}
+
+.overflow-x-auto::-webkit-scrollbar-track {
+  background: linear-gradient(to right, #e2e8f0, #cbd5e1, #e2e8f0);
+  border-radius: 12px;
+  margin: 0 16px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #9333ea 100%);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.6), inset 0 1px 2px rgba(255, 255, 255, 0.4);
+  transform: scaleY(1.2);
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb:active {
+  background: linear-gradient(135deg, #4338ca 0%, #6d28d9 50%, #7e22ce 100%);
+}
+
+:root.dark .overflow-x-auto {
+  scrollbar-color: #6366f1 #334155;
+}
+
+:root.dark .overflow-x-auto::-webkit-scrollbar-track {
+  background: linear-gradient(to right, #1e293b, #334155, #1e293b);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+:root.dark .overflow-x-auto::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.2);
+}
+
+:root.dark .overflow-x-auto::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #818cf8 0%, #a78bfa 50%, #c084fc 100%);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.7), inset 0 1px 2px rgba(255, 255, 255, 0.3);
+}
+
 /* Touch-optimized interactions */
 .touch-manipulation {
   touch-action: manipulation;
