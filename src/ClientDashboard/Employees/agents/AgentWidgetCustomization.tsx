@@ -519,45 +519,58 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                     </h4>
                     <div className="space-y-4">
                       <div>
-                        <label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">
+                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">
                           Company Logo
                         </label>
-                        <div className="flex items-start gap-4">
-                          <div className="w-20 h-20 common-bg-icons rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
+                        <div className="relative group w-32 h-32">
+                          <input
+                            type="file"
+                            id="logo-upload"
+                            accept="image/*"
+                            onChange={handleLogoUpload}
+                            className="hidden"
+                          />
+                          
+                          {/* Preview Box with Upload/Remove */}
+                          <div className="relative w-full h-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600 overflow-hidden">
                             {logoPreview || widgetConfig.content.companyLogo ? (
-                              <img
-                                src={
-                                  logoPreview ||
-                                  widgetConfig.content.companyLogo
-                                }
-                                alt="Company Logo"
-                                className="w-full h-full object-contain"
-                              />
+                              <>
+                                <label htmlFor="logo-upload" className="cursor-pointer block w-full h-full">
+                                  <img
+                                    src={logoPreview || widgetConfig.content.companyLogo}
+                                    alt="Company Logo"
+                                    className="w-full h-full object-contain p-3"
+                                  />
+                                </label>
+                                {/* Remove Button - Top Left */}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setLogoPreview("");
+                                    updateConfig("content", "companyLogo", "");
+                                  }}
+                                  className="absolute top-2 left-2 p-1.5 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg transition-all duration-200 hover:scale-110 z-10"
+                                  title="Remove logo"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              </>
                             ) : (
-                              <div className="text-slate-400 text-center text-xs p-2">
-                                No logo
-                              </div>
+                              <label
+                                htmlFor="logo-upload"
+                                className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                              >
+                                <svg className="w-10 h-10 text-slate-400 dark:text-slate-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                </svg>
+                                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Upload</span>
+                              </label>
                             )}
                           </div>
-                          {/* Upload Button */}
-                          <div className="flex-1">
-                            <input
-                              type="file"
-                              id="logo-upload"
-                              accept="image/*"
-                              onChange={handleLogoUpload}
-                              className="hidden"
-                            />
-                            <label
-                              htmlFor="logo-upload"
-                              className="inline-block common-button-bg text-white px-4 py-2 rounded-lg text-sm cursor-pointer hover:opacity-90 transition-opacity"
-                            >
-                              Upload Logo
-                            </label>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-                              Recommended: 200x200px, PNG or SVG, max 2MB
-                            </p>
-                          </div>
+                          
+                         
                         </div>
                       </div>
 

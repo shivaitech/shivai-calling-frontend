@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { X, FileText, Clock, MapPin, Calendar, Users, MessageSquare, Loader2, Bot } from "lucide-react";
+import { useState, useEffect, useRef } from 'react';
+import { X, FileText, Clock, MapPin, Calendar, Users, MessageSquare, Loader2, Bot, Play, Pause, Download, Volume2, VolumeX, SkipBack, SkipForward } from "lucide-react";
 import { agentAPI } from '../../../services/agentAPI';
 
 interface SessionTranscriptModalProps {
@@ -11,6 +11,16 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
   const [transcripts, setTranscripts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Audio player state
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(1);
+  const [isMuted, setIsMuted] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const progressRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchTranscripts = async () => {
@@ -32,6 +42,98 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
 
     fetchTranscripts();
   }, [session?.session_id]);
+
+  // Audio player handlers
+  const togglePlayPause = () => {
+    if (!audioRef.current) return;
+    
+    if (isPlaying) {
+      audioRef.current.pause();
+    } else {
+      audioRef.current.play();
+    }
+    setIsPlaying(!isPlaying);
+  };
+
+  const handleTimeUpdate = () => {
+    if (audioRef.current) {
+      setCurrentTime(audioRef.current.currentTime);
+    }
+  };
+
+  const handleLoadedMetadata = () => {
+    if (audioRef.current) {
+      setDuration(audioRef.current.duration);
+    }
+  };
+
+  const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!audioRef.current || !progressRef.current) return;
+    
+    const rect = progressRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const percentage = x / rect.width;
+    const newTime = percentage * duration;
+    
+    audioRef.current.currentTime = newTime;
+    setCurrentTime(newTime);
+  };
+
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVolume = parseFloat(e.target.value);
+    setVolume(newVolume);
+    if (audioRef.current) {
+      audioRef.current.volume = newVolume;
+    }
+    if (newVolume === 0) {
+      setIsMuted(true);
+    } else if (isMuted) {
+      setIsMuted(false);
+    }
+  };
+
+  const toggleMute = () => {
+    if (audioRef.current) {
+      if (isMuted) {
+        audioRef.current.volume = volume;
+        setIsMuted(false);
+      } else {
+        audioRef.current.volume = 0;
+        setIsMuted(true);
+      }
+    }
+  };
+
+  const changeSpeed = () => {
+    const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
+    const currentIndex = speeds.indexOf(playbackSpeed);
+    const nextSpeed = speeds[(currentIndex + 1) % speeds.length];
+    setPlaybackSpeed(nextSpeed);
+    if (audioRef.current) {
+      audioRef.current.playbackRate = nextSpeed;
+    }
+  };
+
+  const skip = (seconds: number) => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = Math.max(0, Math.min(duration, audioRef.current.currentTime + seconds));
+    }
+  };
+
+  const handleDownload = () => {
+    // Simulate download - in real app, this would download the actual recording
+    const link = document.createElement('a');
+    link.href = '#'; // Replace with actual recording URL
+    link.download = `recording-${session.session_id}.mp3`;
+    link.click();
+  };
+
+  const formatTimeDisplay = (seconds: number) => {
+    if (!seconds || isNaN(seconds)) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   if (!session) return null;
 
@@ -136,7 +238,7 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
               ) : transcripts && transcripts.length > 0 ? (
                 <>
                   <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mb-2">
-                    Conversation started at {formatDateTime(session.start_time)}
+                    Conversation started on {formatDateTime(session.start_time)}
                   </p>
                   
                   {transcripts.map((transcript: any, index: number) => (
@@ -195,15 +297,108 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
 
           {/* Session Details */}
           <div className="common-bg-icons p-3 sm:p-4 rounded-lg sm:rounded-xl">
-            <h3 className="text-sm sm:text-base font-semibold text-slate-800 dark:text-white mb-3">
-              Session Details
-            </h3>
-            <button className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/>
+            <h3 className="text-sm sm:text-base font-semibold text-slate-800 dark:text-white mb-3 flex items-center gap-2">
+              <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.37 4.37 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z"/>
               </svg>
-              <span className="text-sm font-medium">Play Recording</span>
-            </button>
+              Call Recording
+            </h3>
+            
+            {/* Audio Player */}
+            <div className="bg-slate-50 dark:bg-slate-900/30 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+              {/* Hidden audio element */}
+              <audio
+                ref={audioRef}
+                onTimeUpdate={handleTimeUpdate}
+                onLoadedMetadata={handleLoadedMetadata}
+                onEnded={() => setIsPlaying(false)}
+                src="#" // Replace with actual recording URL when available
+              />
+              
+              {/* Progress bar */}
+              <div
+                ref={progressRef}
+                onClick={handleProgressClick}
+                className="relative h-1 bg-slate-300 dark:bg-slate-700 rounded-full cursor-pointer mb-2"
+              >
+                <div
+                  className="absolute top-0 left-0 h-full bg-blue-600 rounded-full transition-all"
+                  style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+                />
+              </div>
+
+              {/* Controls */}
+              <div className="flex items-center justify-between gap-3">
+                {/* Time display */}
+                <span className="text-xs text-slate-600 dark:text-slate-400 w-10">
+                  {formatTimeDisplay(currentTime)}
+                </span>
+
+                {/* Player controls */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => skip(-10)}
+                    className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors"
+                    title="Rewind 10s"
+                  >
+                    <SkipBack className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                  </button>
+                  
+                  <button
+                    onClick={togglePlayPause}
+                    className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full transition-colors"
+                    title={isPlaying ? 'Pause' : 'Play'}
+                  >
+                    {isPlaying ? (
+                      <Pause className="w-4 h-4" fill="currentColor" />
+                    ) : (
+                      <Play className="w-4 h-4 ml-0.5" fill="currentColor" />
+                    )}
+                  </button>
+                  
+                  <button
+                    onClick={() => skip(10)}
+                    className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors"
+                    title="Forward 10s"
+                  >
+                    <SkipForward className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                  </button>
+
+                  <button
+                    onClick={changeSpeed}
+                    className="px-2 py-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors text-xs text-slate-600 dark:text-slate-400"
+                    title="Playback speed"
+                  >
+                    {playbackSpeed}x
+                  </button>
+
+                  <button
+                    onClick={toggleMute}
+                    className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors"
+                    title={isMuted ? 'Unmute' : 'Mute'}
+                  >
+                    {isMuted ? (
+                      <VolumeX className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                    ) : (
+                      <Volume2 className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                    )}
+                  </button>
+                  
+                  <button
+                    onClick={handleDownload}
+                    className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors"
+                    title="Download recording"
+                  >
+                    <Download className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                  </button>
+                </div>
+
+                {/* Duration */}
+                <span className="text-xs text-slate-600 dark:text-slate-400 w-10 text-right">
+                  {formatTimeDisplay(duration || session.duration_seconds || 0)}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </div>

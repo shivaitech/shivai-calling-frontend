@@ -5,7 +5,7 @@ import { agentAPI, ApiAgent, PublicationResponse, publishAgent, unpublishAgent, 
 export interface Agent {
   id: string;
   name: string;
-  status: "Draft" | "Training" | "Published";
+  status: "Pending" | "Published";
   persona: string;
   language: string;
   greeting_message?: {
@@ -357,13 +357,13 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({
       if (isStaticAgent(id)) {
         setAgents((prev) =>
           prev.map((agent) =>
-            agent.id === id ? { ...agent, status: "Draft" } : agent
+            agent.id === id ? { ...agent, status: "Pending" } : agent
           )
         );
 
         if (currentAgent?.id === id) {
           setCurrentAgent((prev) =>
-            prev ? { ...prev, status: "Draft" } : null
+            prev ? { ...prev, status: "Pending" } : null
           );
         }
         return { success: true, message: "Static agent unpublished successfully" };
@@ -376,13 +376,13 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({
         // Update local state directly without calling agents API
         setAgents((prev) =>
           prev.map((agent) =>
-            agent.id === id ? { ...agent, status: "Draft" } : agent
+            agent.id === id ? { ...agent, status: "Pending" } : agent
           )
         );
 
         if (currentAgent?.id === id) {
           setCurrentAgent((prev) =>
-            prev ? { ...prev, status: "Draft" } : null
+            prev ? { ...prev, status: "Pending" } : null
           );
         }
       } else {

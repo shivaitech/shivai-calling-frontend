@@ -31,7 +31,7 @@ apiClient.interceptors.request.use((config) => {
 export interface ApiAgent {
   id: string;
   name: string;
-  status: 'Draft' | 'Training' | 'Published';
+  status: 'Pending' | 'Published';
   personality: string;
   language: string;
   voice: string;
@@ -65,7 +65,7 @@ interface CreateAgentRequest {
   persona: string;
   language: string;
   voice: string;
-  status?: 'Draft' | 'Training' | 'Published';
+  status?: 'Pending' | 'Published';
 }
 
 interface UpdateAgentRequest {
@@ -73,7 +73,7 @@ interface UpdateAgentRequest {
   persona?: string;
   language?: string;
   voice?: string;
-  status?: 'Draft' | 'Training' | 'Published';
+  status?: 'Pending' | 'Published';
 }
 
 export interface PublicationRequest {
@@ -114,7 +114,7 @@ class AgentAPI {
       {
         id: '2',
         name: 'Ami support assistant',
-        status: 'Draft',
+        status: 'Pending',
         personality: 'Persuasive (Sales)',
         language: 'Hindi',
         voice: 'Arjun - Friendly',
@@ -129,7 +129,7 @@ class AgentAPI {
       {
         id: '3',
         name: 'Maya customer care',
-        status: 'Training',
+        status: 'Pending',
         personality: 'Professional',
         language: 'English (US)',
         voice: 'Emma - Warm',
@@ -283,8 +283,8 @@ class AgentAPI {
   // Publication API functions
   async publishAgent(agentId: string): Promise<PublicationResponse> {
     try {
-      const response: AxiosResponse<PublicationResponse> = await apiClient.patch(
-        `/publications/update`,
+      const response: AxiosResponse<PublicationResponse> = await apiClient.post(
+        `/publications/publish`,
         {
           agent_id: agentId,
           is_published: true,
@@ -301,8 +301,8 @@ class AgentAPI {
 
   async unpublishAgent(agentId: string): Promise<PublicationResponse> {
     try {
-      const response: AxiosResponse<PublicationResponse> = await apiClient.patch( // Changed to patch as per backend update pattern
-        `/publications/update`,
+      const response: AxiosResponse<PublicationResponse> = await apiClient.post( // Changed to patch as per backend update pattern
+          `/publications/publish`,
         {
           agent_id: agentId,
           is_published: false,

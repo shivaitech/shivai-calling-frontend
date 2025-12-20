@@ -435,7 +435,7 @@ const AgentManagement = () => {
     if (isCreate) {
       addAgent({
         name: formData.name,
-        status: "Draft",
+        status: "Pending",
         persona: formData.persona,
         language: formData.language,
         voice: formData.voice,
@@ -1153,9 +1153,14 @@ const AgentManagement = () => {
         const matchesSearch = agent.name
           .toLowerCase()
           .includes(searchTerm.toLowerCase());
+        
+        // Map status to 'live' or 'pending'
+        const isLive = agent.status === "Published" || (agent as any).is_active;
+        const agentStatus = isLive ? "live" : "pending";
+        
         const matchesStatus =
           statusFilter === "all" ||
-          agent.status.toLowerCase() === statusFilter.toLowerCase();
+          agentStatus === statusFilter.toLowerCase();
         return matchesSearch && matchesStatus;
       })
     : [];
@@ -1179,21 +1184,21 @@ const AgentManagement = () => {
             <div className="bg-white/50 flex items-center justify-center gap-1.5 dark:bg-slate-800/50 rounded-lg px-2 lg:px-6 py-2 lg:py-2 text-center shadow-sm transition-all duration-200 hover:shadow-md">
               <p className="text-base lg:text-2xl font-bold text-green-600 dark:text-green-400">
                 {isDeveloper
-                  ? agents.filter((a) => a.status === "Published").length
+                  ? agents.filter((a) => a.status === "Published" || (a as any).is_active).length
                   : 0}
               </p>
               <p className="text-[10px] lg:text-sm font-medium text-slate-600 dark:text-slate-400">
-                Active
+                Live
               </p>
             </div>
             <div className="bg-white/50 flex items-center justify-center gap-1.5 dark:bg-slate-800/50 rounded-lg px-2 lg:px-6 py-2 lg:py-2 text-center shadow-sm transition-all duration-200 hover:shadow-md">
-              <p className="text-base lg:text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+              <p className="text-base lg:text-2xl font-bold text-orange-600 dark:text-orange-400">
                 {isDeveloper
-                  ? agents.filter((a) => a.status === "Training").length
+                  ? agents.filter((a) => a.status !== "Published" && !(a as any).is_active).length
                   : 0}
               </p>
               <p className="text-[10px] lg:text-sm font-medium text-slate-600 dark:text-slate-400">
-                Training
+                Pending
               </p>
             </div>
           </div>
@@ -1317,14 +1322,12 @@ const AgentManagement = () => {
                       </div>
                       <span
                         className={`px-2 py-1 rounded-full text-xs font-medium flex-shrink-0 ${
-                          agent.status === "Published"
+                          agent.status === "Published" || (agent as any).is_active
                             ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
-                            : agent.status === "Training"
-                            ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400"
-                            : "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
+                            : "bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400"
                         }`}
                       >
-                        {agent.status}
+                        {agent.status === "Published" || (agent as any).is_active ? "Live" : "Pending"}
                       </span>
                     </div>
                   </div>
@@ -1524,14 +1527,12 @@ const AgentManagement = () => {
                           <div className="flex items-center gap-1">
                             <span
                               className={`px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-xs font-medium flex-shrink-0 ${
-                                currentAgent.status === "Published"
+                                currentAgent.status === "Published" || (currentAgent as any).is_active
                                   ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
-                                  : currentAgent.status === "Training"
-                                  ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400"
-                                  : "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
+                                  : "bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400"
                               }`}
                             >
-                              {currentAgent.status}
+                              {currentAgent.status === "Published" || (currentAgent as any).is_active ? "Live" : "Pending"}
                             </span>
                           </div>
                         </div>
@@ -2494,14 +2495,12 @@ const AgentManagement = () => {
                             <div className="flex items-center gap-1 mt-0 md:mt-2 lg:mt-0">
                               <span
                                 className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium flex-shrink-0 self-start ${
-                                  currentAgent.status === "Published"
+                                  currentAgent.status === "Published" || (currentAgent as any).is_active
                                     ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
-                                    : currentAgent.status === "Training"
-                                    ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400"
-                                    : "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
+                                    : "bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400"
                                 }`}
                               >
-                                {currentAgent.status}
+                                {currentAgent.status === "Published" || (currentAgent as any).is_active ? "Live" : "Pending"}
                               </span>
                             </div>
                           </>
