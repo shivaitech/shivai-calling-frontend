@@ -17,13 +17,15 @@ import {
   ChevronDown,
   Phone,
   MapPin,
+  XCircle,
 } from "lucide-react";
 
 const Analytics = () => {
   const { user } = useAuth();
   const [timeRange, setTimeRange] = useState("all");
   const [deviceFilter, setDeviceFilter] = useState("all");
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(""); // For input value only
+  const [searchQuery, setSearchQuery] = useState(""); // For API calls
   const [selectedEmployee, setSelectedEmployee] = useState("");
   const [agentsList, setAgentsList] = useState<any[]>([]);
   const [sessionHistory, setSessionHistory] = useState<any[]>([]);
@@ -35,11 +37,37 @@ const Analytics = () => {
   const [totalSessions, setTotalSessions] = useState(0);
   const pageSize = 10;
 
+  // Date range state
+  const [dateRange, setDateRange] = useState({
+    startDate: "",
+    endDate: "",
+    preset: "all", // all, today, week, month, custom
+  });
+
   // Check if current user is developer
   const isDeveloper = isDeveloperUser(user?.email);
 
   // Get real agents from API
   const employees = isDeveloper ? agentsList : [];
+
+  // Debounced search effect - separate from API calls
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setSearchQuery(searchTerm);
+      if (currentPage !== 1) {
+        setCurrentPage(1); // Reset to first page for new search
+      }
+    }, 500); // 500ms debounce
+
+    return () => clearTimeout(timeout);
+  }, [searchTerm]);
+
+  // Reset to first page when filters change (but not search - handled above)
+  useEffect(() => {
+    if (currentPage !== 1) {
+      setCurrentPage(1);
+    }
+  }, [deviceFilter, dateRange]);
 
   // Load agents on mount
   useEffect(() => {
@@ -81,7 +109,37 @@ const Analytics = () => {
 
     try {
       console.log("🔄 Fetching sessions for agent:", agentId, "page:", page);
-      const response = await agentAPI.getAgentSessions(agentId);
+      
+      // Build API query parameters
+      const queryParams = new URLSearchParams({
+        page: page.toString(),
+        limit: pageSize.toString(),
+      });
+
+      // Add device type filter
+      if (deviceFilter !== "all") {
+        queryParams.append("deviceType", deviceFilter);
+      }
+
+      // Add date range filters
+      if (dateRange.startDate) {
+        queryParams.append("startDate", dateRange.startDate);
+      }
+      if (dateRange.endDate) {
+        queryParams.append("endDate", dateRange.endDate);
+      }
+
+      // Add search term if exists
+      if (searchQuery.trim()) {
+        queryParams.append("q", searchQuery.trim());
+      }
+
+      // Convert query params to string
+      const payload = queryParams.toString();
+      console.log("API Query Params:", payload);
+      
+      // Call API with query parameters
+      const response = await agentAPI.getAgentSessions(payload);
 
       // Use server-side pagination data
       const sessions = response?.sessions || [];
@@ -121,7 +179,62 @@ const Analytics = () => {
       setCurrentPage(1);
       fetchSessionHistory(selectedEmployee, 1);
     }
-  }, [selectedEmployee, isDeveloper]);
+  }, [selectedEmployee, isDeveloper, deviceFilter, dateRange, searchQuery]);
+
+  // Filter handlers
+  const handleDeviceTypeFilter = (deviceType: string) => {
+    setDeviceFilter(deviceType);
+  };
+
+  const handleDatePresetFilter = (preset: string) => {
+    const today = new Date();
+    let startDate = "";
+    let endDate = "";
+
+    switch (preset) {
+      case "today":
+        startDate = today.toISOString().split("T")[0];
+        endDate = startDate;
+        break;
+      case "week":
+        const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+        startDate = weekAgo.toISOString().split("T")[0];
+        endDate = today.toISOString().split("T")[0];
+        break;
+      case "month":
+        const monthAgo = new Date(
+          today.getFullYear(),
+          today.getMonth() - 1,
+          today.getDate()
+        );
+        startDate = monthAgo.toISOString().split("T")[0];
+        endDate = today.toISOString().split("T")[0];
+        break;
+      case "all":
+      default:
+        startDate = "";
+        endDate = "";
+        break;
+    }
+
+    setDateRange({
+      startDate,
+      endDate,
+      preset,
+    });
+  };
+
+  const handleResetFilters = () => {
+    setSearchTerm("");
+    setSearchQuery("");
+    setDeviceFilter("all");
+    setDateRange({
+      startDate: "",
+      endDate: "",
+      preset: "all",
+    });
+    setCurrentPage(1);
+  };
 
   // Calculate dynamic stats
   const calculateStats = () => {
@@ -424,7 +537,7 @@ const Analytics = () => {
               <div className="relative">
                 <select
                   value={deviceFilter}
-                  onChange={(e) => setDeviceFilter(e.target.value)}
+                  onChange={(e) => handleDeviceTypeFilter(e.target.value)}
                   disabled={!isDeveloper}
                   className={`px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-sm appearance-none pr-8 touch-manipulation ${
                     isDeveloper
@@ -435,15 +548,15 @@ const Analytics = () => {
                   <option value="all">All Devices</option>
                   <option value="mobile">Mobile</option>
                   <option value="desktop">Desktop</option>
-                  <option value="unknown">Unknown</option>
+                  <option value="tablet">Tablet</option>
                 </select>
                 <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
               </div>
 
               <div className="relative">
                 <select
-                  value={timeRange}
-                  onChange={(e) => setTimeRange(e.target.value)}
+                  value={dateRange.preset}
+                  onChange={(e) => handleDatePresetFilter(e.target.value)}
                   disabled={!isDeveloper}
                   className={`px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-sm appearance-none pr-8 touch-manipulation ${
                     isDeveloper
@@ -459,6 +572,24 @@ const Analytics = () => {
                 <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
               </div>
 
+              {/* Clear Filters Button - Icon */}
+              {(searchTerm ||
+                deviceFilter !== "all" ||
+                dateRange.preset !== "all") && (
+                <button
+                  onClick={handleResetFilters}
+                  disabled={!isDeveloper}
+                  className={`p-2 rounded-lg border transition-colors ${
+                    isDeveloper
+                      ? "border-slate-200 dark:border-slate-700 hover:bg-red-50 hover:border-red-300 hover:text-red-600 dark:hover:bg-red-900/20"
+                      : "border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 cursor-not-allowed opacity-50"
+                  }`}
+                  title="Clear all filters"
+                >
+                  <XCircle className="w-4 h-4" />
+                </button>
+              )}
+
               <button
                 disabled={!isDeveloper}
                 className={`p-2 border rounded-lg transition-colors ${
@@ -466,6 +597,8 @@ const Analytics = () => {
                     ? "border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700"
                     : "border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 cursor-not-allowed opacity-50"
                 }`}
+                onClick={() => fetchSessionHistory(selectedEmployee, currentPage)}
+                title="Refresh sessions"
               >
                 <Filter className="w-4 h-4 text-slate-600 dark:text-slate-400" />
               </button>

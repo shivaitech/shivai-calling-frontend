@@ -301,7 +301,7 @@ class AgentAPI {
 
   async unpublishAgent(agentId: string): Promise<PublicationResponse> {
     try {
-      const response: AxiosResponse<PublicationResponse> = await apiClient.post( // Changed to patch as per backend update pattern
+      const response: AxiosResponse<PublicationResponse> = await apiClient.post( 
           `/publications/publish`,
         {
           agent_id: agentId,
@@ -334,7 +334,6 @@ class AgentAPI {
     }
   }
 
-  // Get session transcripts
   async getSessionTranscripts(sessionId: string): Promise<any> {
     try {
       const response: AxiosResponse<{ success: boolean; data: any; message?: string }> = 

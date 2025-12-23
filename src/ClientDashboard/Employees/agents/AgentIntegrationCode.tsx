@@ -187,32 +187,7 @@ const AgentIntegrationCode: React.FC<AgentIntegrationCodeProps> = ({
               </button>
             </div>
 
-            {/* Features info */}
-            <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-              <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
-                🚀 Live Features Included:
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
-                <div className="text-xs text-blue-700 dark:text-blue-300">
-                  • Theme: {widgetConfig.theme.primaryColor}
-                </div>
-                <div className="text-xs text-blue-700 dark:text-blue-300">
-                  • Position: {widgetConfig.ui.position}
-                </div>
-                <div className="text-xs text-blue-700 dark:text-blue-300">
-                  • Voice: {widgetConfig.features.voiceEnabled ? 'Enabled' : 'Disabled'}
-                </div>
-                <div className="text-xs text-blue-700 dark:text-blue-300">
-                  • Auto-open: {widgetConfig.ui.autoOpen ? 'Yes' : 'No'}
-                </div>
-                <div className="text-xs text-blue-700 dark:text-blue-300">
-                  • Company: {widgetConfig.content.companyName}
-                </div>
-                <div className="text-xs text-blue-700 dark:text-blue-300">
-                  • Size: {widgetConfig.ui.chatWidth} x {widgetConfig.ui.chatHeight}
-                </div>
-              </div>
-            </div>
+          
 
             {/* Installation help */}
             <div className="mt-4 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
@@ -226,11 +201,7 @@ const AgentIntegrationCode: React.FC<AgentIntegrationCodeProps> = ({
                 <li>To update: copy new script when you change settings</li>
               </ol>
               
-              <div className="mt-3 p-2 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-800">
-                <p className="text-xs text-green-800 dark:text-green-200">
-                  ✨ <strong>Simple & Clean:</strong> Just one script tag with all your settings included in the URL!
-                </p>
-              </div>
+            
             </div>
           </div>
         </div>

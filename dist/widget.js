@@ -4636,30 +4636,10 @@
     } catch (e) {
       console.warn("Could not play call-end sound:", e);
     }
+    
+    // Clear currentCallId without API call
     if (window.currentCallId) {
-      try {
-        updateStatus("Disconnecting...", "connecting");
-        const response = await fetch(
-          "https://shivai-com-backend.onrender.com/api/v1/calls/end-call",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              callId: window.currentCallId,
-            }),
-          }
-        );
-        if (response.ok) {
-          const data = await response.json();
-          console.log("Call ended successfully:", data);
-        }
-      } catch (error) {
-        console.error("Error ending call:", error);
-      } finally {
-        window.currentCallId = null;
-      }
+      window.currentCallId = null;
     }
 
     // Disconnect LiveKit room
