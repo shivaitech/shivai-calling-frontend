@@ -495,7 +495,9 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
               </div>
             ) : callSummary?.leads && callSummary.leads.length > 0 ? (
               <div className="space-y-4">
-                {callSummary.leads.map((lead: any, leadIndex: number) => (
+                {callSummary.leads
+                  .filter((lead: any) => lead.callId === (session.session_id || session.id))
+                  .map((lead: any, leadIndex: number) => (
                   <div key={lead.id || leadIndex} className="border border-slate-200 dark:border-slate-700 rounded-lg p-3 sm:p-4 space-y-3">
                     {/* Call ID and Date */}
                     <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-700">
