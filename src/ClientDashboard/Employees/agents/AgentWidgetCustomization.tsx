@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Smartphone, Monitor, Save, RefreshCw } from "lucide-react";
+import { Smartphone, Monitor, Save, RefreshCw, Settings2 } from "lucide-react";
 import GlassCard from "../../../components/GlassCard";
 
 interface WidgetConfig {
@@ -172,11 +172,11 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
     setHasUnsavedChanges(true);
 
     // Emit event for integration code real-time updates
-    const event = new CustomEvent('widgetConfigUpdated', {
+    const event = new CustomEvent("widgetConfigUpdated", {
       detail: {
         agentId,
         config: newConfig,
-      }
+      },
     });
     window.dispatchEvent(event);
 
@@ -303,11 +303,11 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
       setPreviewKey((prev) => prev + 1);
 
       // Emit event for integration code real-time updates
-      const event = new CustomEvent('widgetConfigUpdated', {
+      const event = new CustomEvent("widgetConfigUpdated", {
         detail: {
           agentId,
           config: widgetConfig,
-        }
+        },
       });
       window.dispatchEvent(event);
 
@@ -418,11 +418,11 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
     setHasUnsavedChanges(true);
 
     // Emit event for integration code real-time updates
-    const event = new CustomEvent('widgetConfigUpdated', {
+    const event = new CustomEvent("widgetConfigUpdated", {
       detail: {
         agentId,
         config: newConfig,
-      }
+      },
     });
     window.dispatchEvent(event);
 
@@ -452,7 +452,14 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
         {!isLoading && (
           <>
             <h3 className="text-lg sm:text-xl font-semibold text-slate-800 dark:text-white mb-4 flex items-center gap-3">
-              Widget Customization
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <div className="w-5 h-5 sm:w-6 sm:h-6 bg-slate-50 dark:bg-slate-800 rounded-lg flex items-center justify-center">
+                  <Settings2 className="w-3 h-3 text-slate-600 dark:text-slate-400" />
+                </div>
+                <h3 className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-white">
+                  Widget Customization
+                </h3>
+              </div>
               {hasUnsavedChanges && (
                 <span className="text-xs bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 px-2 py-1 rounded-full">
                   Unsaved changes
@@ -530,14 +537,20 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                             onChange={handleLogoUpload}
                             className="hidden"
                           />
-                          
+
                           {/* Preview Box with Upload/Remove */}
                           <div className="relative w-full h-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600 overflow-hidden">
                             {logoPreview || widgetConfig.content.companyLogo ? (
                               <>
-                                <label htmlFor="logo-upload" className="cursor-pointer block w-full h-full">
+                                <label
+                                  htmlFor="logo-upload"
+                                  className="cursor-pointer block w-full h-full"
+                                >
                                   <img
-                                    src={logoPreview || widgetConfig.content.companyLogo}
+                                    src={
+                                      logoPreview ||
+                                      widgetConfig.content.companyLogo
+                                    }
                                     alt="Company Logo"
                                     className="w-full h-full object-contain p-3"
                                   />
@@ -552,8 +565,18 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                                   className="absolute top-2 left-2 p-1.5 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg transition-all duration-200 hover:scale-110 z-10"
                                   title="Remove logo"
                                 >
-                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                                  <svg
+                                    className="w-3.5 h-3.5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2.5}
+                                      d="M6 18L18 6M6 6l12 12"
+                                    />
                                   </svg>
                                 </button>
                               </>
@@ -562,15 +585,25 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                                 htmlFor="logo-upload"
                                 className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                               >
-                                <svg className="w-10 h-10 text-slate-400 dark:text-slate-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                <svg
+                                  className="w-10 h-10 text-slate-400 dark:text-slate-500 mb-2"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={1.5}
+                                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                                  />
                                 </svg>
-                                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Upload</span>
+                                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                                  Upload
+                                </span>
                               </label>
                             )}
                           </div>
-                          
-                         
                         </div>
                       </div>
 

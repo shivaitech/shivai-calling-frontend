@@ -350,6 +350,23 @@ class AgentAPI {
     }
   }
 
+  // Get call summary for an agent
+  async getCallSummary(agentId: string): Promise<any> {
+    try {
+      const response: AxiosResponse<{ success: boolean; data: any; message?: string }> = 
+        await apiClient.get(`/leads/agent/${agentId}`);
+      
+      if (response.data.success && response.data.data) {
+        return response.data.data;
+      }
+      
+      throw new Error(response.data.message || 'Failed to fetch call summary');
+    } catch (error: any) {
+      console.error('Error fetching call summary:', error);
+      throw error;
+    }
+  }
+
   isStaticAgent(agentId: string): boolean {
     return agentId?.startsWith('static-') || agentId?.includes('demo-') || (agentId?.length < 10 && !agentId.includes('-'));
   }

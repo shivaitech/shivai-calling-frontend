@@ -221,7 +221,7 @@ const AgentManagement = () => {
     setSessionError(null);
     
     try {
-      const response = await agentAPI.getAgentSessions(agentId);
+      const response = await agentAPI.getAgentSessions("",agentId);
       // response is already response.data.data from the API service
       // which contains { sessions: [...], pagination: {...} }
       const sessions = response?.sessions || [];

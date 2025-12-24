@@ -18,6 +18,7 @@ import {
   Moon,
   ChevronLeft,
   History,
+  ChevronRight,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -89,7 +90,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed }) => {
             animate={{ rotate: isCollapsed ? 0 : 180 }}
             transition={{ duration: 0.3 }}
           >
-            <ChevronLeft className="w-4 h-4 text-slate-600 dark:text-slate-300" />
+            <ChevronRight className="w-4 h-4 text-slate-600 dark:text-slate-300" />
           </motion.div>
         </motion.button>
 
