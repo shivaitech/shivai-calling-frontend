@@ -139,7 +139,7 @@ const Analytics = () => {
       console.log("API Query Params:", payload);
       
       // Call API with query parameters
-      const response = await agentAPI.getAgentSessions(payload);
+      const response = await agentAPI.getAgentSessions(payload, agentId);
 
       // Use server-side pagination data
       const sessions = response?.sessions || [];

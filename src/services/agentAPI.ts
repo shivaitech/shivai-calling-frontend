@@ -318,10 +318,10 @@ class AgentAPI {
   }
 
   // Get agent session history
-  async getAgentSessions(agentId: string): Promise<any> {
+  async getAgentSessions(payload: string, agentId: string): Promise<any> {
     try {
       const response: AxiosResponse<{ success: boolean; data: any; message?: string }> = 
-        await apiClient.get(`/agent-sessions/agent/${agentId}`);
+        await apiClient.get(`/agent-sessions/agent/${agentId}?${payload}`);
       
       if (response.data.success && response.data.data) {
         return response.data.data;
