@@ -231,6 +231,18 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
     customCSS: "",
   });
 
+  // Update widget config when agent changes
+  useEffect(() => {
+    setWidgetConfig(prev => ({
+      ...prev,
+      content: {
+        ...prev.content,
+        welcomeMessage: `Hi! I'm ${agentName}. How can I help you today?`,
+        companyName: agentName,
+      }
+    }));
+  }, [agentName]);
+
   useEffect(() => {
     const loadWidgetConfig = async () => {
       setIsLoading(true);

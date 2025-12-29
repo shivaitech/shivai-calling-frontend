@@ -141,7 +141,7 @@ const AgentIntegrationCode: React.FC<AgentIntegrationCodeProps> = ({
       v: Date.now().toString()
     });
 
-    const widgetUrl = `https://callshivai.com/widget.js?${params.toString()}`;
+    const widgetUrl = `https://callshivai.com/widget2.js?${params.toString()}`;
 
     return `<script src="${widgetUrl}"></script>`;
   };

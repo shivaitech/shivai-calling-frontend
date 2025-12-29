@@ -14,16 +14,11 @@ import {
   Target,
   Play,
   CheckCircle,
-  AlertCircle,
   BarChart3,
   MessageSquare,
-  Users,
   TrendingUp,
-  Clock,
   Zap,
-  Book,
   Lightbulb,
-  Settings,
   Download,
   ChevronDown,
   ArrowLeft,
@@ -580,7 +575,7 @@ const Training = () => {
                       className={`inline-flex w-fit px-3 py-1 rounded-full text-xs sm:text-sm font-medium ${
                         selectedAgentData.status === "Published"
                           ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
-                          : selectedAgentData.status === "Training"
+                          : selectedAgentData.status === "Pending"
                           ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400"
                           : "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
                       }`}

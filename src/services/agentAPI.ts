@@ -62,10 +62,18 @@ interface AgentsResponse {
 
 interface CreateAgentRequest {
   name: string;
-  persona: string;
+  gender: string;
+  business_process: string;
+  industry: string;
+  personality: string;
   language: string;
   voice: string;
-  status?: 'Pending' | 'Published';
+  custom_instructions: string;
+  guardrails_level: string;
+  response_style: string;
+  max_response_length: string;
+  context_window: string;
+  temperature: number;
 }
 
 interface UpdateAgentRequest {
@@ -219,7 +227,7 @@ class AgentAPI {
   async createAgent(agentData: CreateAgentRequest): Promise<ApiAgent> {
     try {
       const response: AxiosResponse<{ success: boolean; data: ApiAgent; message?: string }> = 
-        await apiClient.post('/agents', agentData);
+        await apiClient.post('/agents/create-agent', agentData);
       
       if (response.data.success && response.data.data) {
         return {
