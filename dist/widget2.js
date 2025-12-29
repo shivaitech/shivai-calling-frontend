@@ -121,7 +121,7 @@
       const scriptTags = document.getElementsByTagName('script');
       for (let i = scriptTags.length - 1; i >= 0; i--) {
         const script = scriptTags[i];
-        if (script.src && script.src.includes('/widget.js')) {
+        if (script.src && script.src.includes('/widget2.js')) {
           try {
             const url = new URL(script.src);
             const urlCompanyName = url.searchParams.get('companyName');
@@ -205,7 +205,7 @@
   async function checkAgentStatusOnLoad() {
     try {
       // Get agent ID from configuration (dynamic)
-      let agentId = "id123"; // default fallback
+      let agentId = null;
       
       // First try to get from URL parameters of the widget script
       const scriptTags = document.getElementsByTagName('script');
@@ -213,7 +213,7 @@
       
       for (let i = scriptTags.length - 1; i >= 0; i--) {
         const script = scriptTags[i];
-        if (script.src && script.src.includes('/widget.js')) {
+        if (script.src && script.src.includes('/widget2.js')) {
           const url = new URL(script.src);
           const urlAgentId = url.searchParams.get('agentId');
           if (urlAgentId) {
@@ -241,6 +241,14 @@
           agentId = document.currentScript.getAttribute('data-agent-id');
           console.log("🎯 Using agentId from current script for status check:", agentId);
         }
+      }
+      
+      // If no agentId found, set status to inactive
+      if (!agentId) {
+        console.warn('⚠️ No agentId found in script URL or configuration');
+        agentStatus.active = false;
+        agentStatus.message = 'Agent ID not configured. Please check your widget installation.';
+        return;
       }
       
       console.log('🔍 Checking agent status for ID:', agentId);
@@ -4015,7 +4023,7 @@
       
       for (let i = scriptTags.length - 1; i >= 0; i--) {
         const script = scriptTags[i];
-        if (script.src && script.src.includes('/widget.js')) {
+        if (script.src && script.src.includes('/widget2.js')) {
           const url = new URL(script.src);
           const urlAgentId = url.searchParams.get('agentId');
           if (urlAgentId) {
