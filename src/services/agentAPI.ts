@@ -101,56 +101,6 @@ export interface PublicationResponse {
 }
 
 class AgentAPI {
-  // Static agents fallback method
-  private getStaticAgents(): ApiAgent[] {
-    return [
-      {
-        id: '1',
-        name: 'Ricky sales machine',
-        status: 'Published',
-        personality: 'Empathetic',
-        language: 'English (US)',
-        voice: 'Sarah - Professional',
-        createdAt: new Date('2024-01-15').toISOString(),
-        stats: {
-          conversations: 1247,
-          successRate: 94.2,
-          avgResponseTime: 1.2,
-          activeUsers: 328
-        }
-      },
-      {
-        id: '2',
-        name: 'Ami support assistant',
-        status: 'Pending',
-        personality: 'Persuasive (Sales)',
-        language: 'Hindi',
-        voice: 'Arjun - Friendly',
-        createdAt: new Date('2024-01-20').toISOString(),
-        stats: {
-          conversations: 0,
-          successRate: 0,
-          avgResponseTime: 0,
-          activeUsers: 0
-        }
-      },
-      {
-        id: '3',
-        name: 'Maya customer care',
-        status: 'Pending',
-        personality: 'Professional',
-        language: 'English (US)',
-        voice: 'Emma - Warm',
-        createdAt: new Date('2024-01-25').toISOString(),
-        stats: {
-          conversations: 45,
-          successRate: 87.5,
-          avgResponseTime: 2.1,
-          activeUsers: 12
-        }
-      }
-    ];
-  }
 
   // Get all agents
   async getAgents(): Promise<ApiAgent[]> {
@@ -168,24 +118,13 @@ class AgentAPI {
           }
         }));
         
-        // If API returns empty array, use static data
-        if (agents.length === 0) {
-          console.log('API returned empty agents array, using fallback static data');
-          return this.getStaticAgents();
-        }
-        
         return agents;
       }
       
-      // If response structure is invalid, use static data
-      console.log('Invalid API response structure, using fallback static data');
-      return this.getStaticAgents();
+      return [];
     } catch (error: any) {
       console.error('Error fetching agents:', error);
-      
-      // Return fallback static data if API fails
-      console.log('API request failed, using fallback static agent data');
-      return this.getStaticAgents();
+      throw error;
     }
   }
 
@@ -210,15 +149,6 @@ class AgentAPI {
       throw new Error(response.data.message || 'Agent not found');
     } catch (error: any) {
       console.error('Error fetching agent:', error);
-      
-      // Try to find agent in static data as fallback
-      const staticAgents = this.getStaticAgents();
-      const agent = staticAgents.find(a => a.id === id);
-      if (agent) {
-        console.log('Using fallback static agent data for ID:', id);
-        return agent;
-      }
-      
       throw error;
     }
   }
@@ -375,9 +305,6 @@ class AgentAPI {
     }
   }
 
-  isStaticAgent(agentId: string): boolean {
-    return agentId?.startsWith('static-') || agentId?.includes('demo-') || (agentId?.length < 10 && !agentId.includes('-'));
-  }
 }
 
 export const agentAPI = new AgentAPI();
@@ -388,6 +315,3 @@ export const publishAgent = (agentId: string): Promise<PublicationResponse> =>
 
 export const unpublishAgent = (agentId: string): Promise<PublicationResponse> => 
   agentAPI.unpublishAgent(agentId);
-
-export const isStaticAgent = (agentId: string): boolean => 
-  agentAPI.isStaticAgent(agentId);

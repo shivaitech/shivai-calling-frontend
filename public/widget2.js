@@ -3228,6 +3228,11 @@
       clearInterval(messageInterval);
       messageInterval = null;
     }
+    
+    // Re-check agent status when widget opens to ensure UI is up-to-date
+    checkAgentStatusOnLoad().then(() => {
+      updateLandingViewBasedOnStatus();
+    });
   }
   function closeWidget() {
     console.log("🔴 Widget closing - checking call state");

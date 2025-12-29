@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
-import { agentAPI, ApiAgent, PublicationResponse, publishAgent, unpublishAgent, isStaticAgent } from "../services/agentAPI";
+import { agentAPI, ApiAgent, PublicationResponse, publishAgent, unpublishAgent } from "../services/agentAPI";
 
 export interface Agent {
   id: string;
@@ -305,23 +305,7 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       setError(null);
 
-      // Check if it's a static agent - use existing flow
-      if (isStaticAgent(id)) {
-        setAgents((prev) =>
-          prev.map((agent) =>
-            agent.id === id ? { ...agent, status: "Published" } : agent
-          )
-        );
-
-        if (currentAgent?.id === id) {
-          setCurrentAgent((prev) =>
-            prev ? { ...prev, status: "Published" } : null
-          );
-        }
-        return { success: true, message: "Static agent published successfully" };
-      }
-
-      // For API agents, use publication endpoint
+      // Use publication endpoint
       const response = await publishAgent(id);
 
       if (response.success) {
@@ -353,23 +337,7 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       setError(null);
 
-      // Check if it's a static agent - use existing flow
-      if (isStaticAgent(id)) {
-        setAgents((prev) =>
-          prev.map((agent) =>
-            agent.id === id ? { ...agent, status: "Pending" } : agent
-          )
-        );
-
-        if (currentAgent?.id === id) {
-          setCurrentAgent((prev) =>
-            prev ? { ...prev, status: "Pending" } : null
-          );
-        }
-        return { success: true, message: "Static agent unpublished successfully" };
-      }
-
-      // For API agents, use publication endpoint
+      // Use publication endpoint
       const response = await unpublishAgent(id);
 
       if (response.success) {
