@@ -47,7 +47,7 @@ const AgentManagement = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { agents, currentAgent, setCurrentAgent, updateAgent, publishAgentStatus, unpublishAgentStatus, refreshAgents } =
+  const { agents, currentAgent, setCurrentAgent, updateAgent, publishAgentStatus, unpublishAgentStatus, refreshAgents, deleteAgent } =
     useAgent();
   const { user } = useAuth();
 
@@ -79,6 +79,9 @@ const AgentManagement = () => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [showQRModal, setShowQRModal] = useState(false);
   const [showTestChat, setShowTestChat] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [agentToDelete, setAgentToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [activeTestTab, setActiveTestTab] = useState<'call' | 'conversation'>('call');
   const [isCallActive, setIsCallActive] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
@@ -283,6 +286,39 @@ const AgentManagement = () => {
         return next;
       });
     }
+  };
+
+  const handleDeleteClick = (agentId: string) => {
+    setAgentToDelete(agentId);
+    setShowDeleteConfirm(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!agentToDelete) return;
+    
+    setIsDeleting(true);
+    try {
+      await deleteAgent(agentToDelete);
+      await refreshAgents();
+      console.log('✅ Agent deleted successfully');
+      setShowDeleteConfirm(false);
+      setAgentToDelete(null);
+      
+      // If we're viewing the deleted agent, navigate back to list
+      if (currentAgent?.id === agentToDelete) {
+        navigate('/agents');
+      }
+    } catch (error: any) {
+      console.error('❌ Error deleting agent:', error);
+      alert(error.message || 'Failed to delete agent. Please try again.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteConfirm(false);
+    setAgentToDelete(null);
   };
 
   const handleTestSend = async () => {
@@ -1216,7 +1252,11 @@ const AgentManagement = () => {
                     <Copy className="w-4 h-4" />
                   </button>
 
-                  <button className="p-2.5 text-slate-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 active:scale-95">
+                  <button 
+                    onClick={() => handleDeleteClick(agent.id)}
+                    className="p-2.5 text-slate-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 active:scale-95"
+                    title="Delete agent"
+                  >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
@@ -1263,6 +1303,51 @@ const AgentManagement = () => {
                 Clear Filters
               </button>
             )}
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-xl border border-slate-200 dark:border-slate-700">
+              <div className="p-6">
+                <div className="flex items-center justify-center w-12 h-12 bg-red-100 dark:bg-red-900/20 rounded-full mx-auto mb-4">
+                  <Trash2 className="w-6 h-6 text-red-600 dark:text-red-400" />
+                </div>
+                <h3 className="text-xl font-semibold text-slate-800 dark:text-white text-center mb-2">
+                  Delete Agent?
+                </h3>
+                <p className="text-sm text-slate-600 dark:text-slate-400 text-center mb-6">
+                  Are you sure you want to delete this agent? This action cannot be undone and all associated data will be permanently removed.
+                </p>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleDeleteCancel}
+                    disabled={isDeleting}
+                    className="flex-1 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleDeleteConfirm}
+                    disabled={isDeleting}
+                    className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isDeleting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                        <span>Deleting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="w-4 h-4" />
+                        <span>Delete</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -1751,6 +1836,51 @@ const AgentManagement = () => {
             agent={currentAgent}
             onClose={() => setShowQRModal(false)}
           />
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-xl border border-slate-200 dark:border-slate-700">
+              <div className="p-6">
+                <div className="flex items-center justify-center w-12 h-12 bg-red-100 dark:bg-red-900/20 rounded-full mx-auto mb-4">
+                  <Trash2 className="w-6 h-6 text-red-600 dark:text-red-400" />
+                </div>
+                <h3 className="text-xl font-semibold text-slate-800 dark:text-white text-center mb-2">
+                  Delete Agent?
+                </h3>
+                <p className="text-sm text-slate-600 dark:text-slate-400 text-center mb-6">
+                  Are you sure you want to delete this agent? This action cannot be undone and all associated data will be permanently removed.
+                </p>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleDeleteCancel}
+                    disabled={isDeleting}
+                    className="flex-1 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleDeleteConfirm}
+                    disabled={isDeleting}
+                    className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {isDeleting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                        <span>Deleting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="w-4 h-4" />
+                        <span>Delete</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Quick Actions - Bottom Section */}

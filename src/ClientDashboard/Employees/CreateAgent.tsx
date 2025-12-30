@@ -311,11 +311,11 @@ const CreateAgent = () => {
         </div>
       </GlassCard>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-4 sm:gap-6 lg:gap-8">
-        <div className="space-y-4 sm:space-y-6 min-w-0">
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-4 sm:gap-6 lg:gap-8 overflow-visible">
+        <div className="space-y-4 sm:space-y-6 min-w-0 overflow-visible">
           {/* Identity Section */}
-          <GlassCard>
-            <div className="p-4 sm:p-5 lg:p-6">
+          <GlassCard className="overflow-visible">
+            <div className="p-4 sm:p-5 lg:p-6 overflow-visible">
               <div className="flex items-center gap-2 mb-3 sm:mb-4">
                 <User className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                 <h3 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
@@ -326,7 +326,54 @@ const CreateAgent = () => {
                 Define your agent's basic identity and personality
               </p>
 
-              <div className="space-y-4 sm:space-y-6">
+              <div className="space-y-4 sm:space-y-6 overflow-visible">
+                {/* Template Suggestions - Mobile Only */}
+                <div className="lg:hidden">
+                
+
+                  {formData.businessProcess && formData.industry ? (
+                    <div className="space-y-4">
+                      <div className="common-bg-icons p-4 rounded-xl">
+                        <h4 className="font-semibold text-slate-800 dark:text-white mb-2">
+                          {template.name}
+                        </h4>
+                        <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
+                          {template.description}
+                        </p>
+                        <div className="space-y-2 mb-4">
+                          <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                            Key Features:
+                          </p>
+                          <ul className="space-y-1">
+                            {template.features.map((feature, idx) => (
+                              <li
+                                key={idx}
+                                className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-2"
+                              >
+                                <span className="w-1 h-1 bg-blue-500 rounded-full"></span>
+                                {feature}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                        <button
+                          onClick={applyTemplate}
+                          className="w-full common-button-bg px-4 py-2 rounded-lg text-sm"
+                        >
+                          Apply Template
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-6 common-bg-icons rounded-xl">
+                      <Lightbulb className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                        Select a business process and industry to see template recommendations
+                      </p>
+                    </div>
+                  )}
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                     Agent Name *
@@ -340,8 +387,8 @@ const CreateAgent = () => {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 overflow-visible">
+                  <div className="overflow-visible relative z-20">
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                       Business Process <span className="text-red-500">*</span>
                     </label>
@@ -353,7 +400,7 @@ const CreateAgent = () => {
                     />
                   </div>
 
-                  <div>
+                  <div className="overflow-visible relative z-20">
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                       Industry <span className="text-red-500">*</span>
                     </label>
@@ -366,8 +413,8 @@ const CreateAgent = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 overflow-visible">
+                  <div className="overflow-visible relative z-10">
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                       Gender
                     </label>
@@ -379,7 +426,7 @@ const CreateAgent = () => {
                     />
                   </div>
 
-                  <div>
+                  <div className="overflow-visible relative z-10">
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                       Persona
                     </label>
@@ -398,8 +445,8 @@ const CreateAgent = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 overflow-visible">
+                  <div className="overflow-visible relative z-10">
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                       Language
                     </label>
@@ -430,7 +477,7 @@ const CreateAgent = () => {
                     />
                   </div>
 
-                  <div>
+                  <div className="overflow-visible relative z-10">
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                       Voice
                     </label>
@@ -467,8 +514,8 @@ const CreateAgent = () => {
           </GlassCard>
 
           {/* Advanced Settings */}
-          <GlassCard>
-            <div className="p-4 sm:p-5 lg:p-6 z-[99] relative">
+          <GlassCard className="overflow-visible">
+            <div className="p-4 sm:p-5 lg:p-6 overflow-visible relative">
               <div className="flex items-center gap-2 mb-3 sm:mb-4">
                 <Settings className="w-5 h-5 text-purple-600 dark:text-purple-400" />
                 <h3 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
@@ -476,8 +523,8 @@ const CreateAgent = () => {
                 </h3>
               </div>
 
-              <div className="space-y-4 sm:space-y-6">
-                <div>
+              <div className="space-y-4 sm:space-y-6 overflow-visible">
+                <div className="overflow-visible relative z-10">
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                     Guardrails Level
                   </label>
@@ -493,7 +540,7 @@ const CreateAgent = () => {
                   />
                 </div>
 
-                <div>
+                <div className="overflow-visible relative z-10">
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                     Response Style
                   </label>
@@ -505,7 +552,7 @@ const CreateAgent = () => {
                   />
                 </div>
 
-                <div>
+                <div className="overflow-visible relative z-10">
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                     Max Response Length
                   </label>
@@ -517,7 +564,7 @@ const CreateAgent = () => {
                   />
                 </div>
 
-                <div>
+                <div className="overflow-visible relative z-10">
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                     Context Window
                   </label>
@@ -553,18 +600,11 @@ const CreateAgent = () => {
         </div>
 
         {/* Sidebar */}
-        <div className="space-y-4 sm:space-y-6">
-          <GlassCard>
+        <div className="space-y-4 sm:space-y-6 overflow-visible">
+          {/* Template Suggestions - Desktop Only */}
+          <GlassCard className="hidden lg:block">
             <div className="p-4 sm:p-5 lg:p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <Sparkles className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
-                <h3 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
-                  AI Template Suggestions
-                </h3>
-              </div>
-              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-                Based on your selections, we recommend:
-              </p>
+            
 
               {formData.businessProcess && formData.industry ? (
                 <div className="space-y-4">

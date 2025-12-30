@@ -18,6 +18,10 @@ import {
   Phone,
   MapPin,
   XCircle,
+  Smartphone,
+  Monitor,
+  Tablet,
+  Globe,
 } from "lucide-react";
 
 const Analytics = () => {
@@ -658,6 +662,22 @@ const Analytics = () => {
                   });
                 };
 
+                const getDeviceIcon = (deviceType: string) => {
+                  const type = deviceType?.toLowerCase() || "";
+                  if (type.includes("mobile") || type.includes("phone")) return Smartphone;
+                  if (type.includes("tablet")) return Tablet;
+                  return Monitor;
+                };
+
+                // Handle both snake_case and camelCase, and normalize the value
+                const deviceType = session?.device?.device_type || session.deviceType || "";
+                const DeviceIcon = getDeviceIcon(deviceType);
+                
+                // Properly capitalize the device label
+                const deviceLabel = deviceType 
+                  ? deviceType.charAt(0).toUpperCase() + deviceType.slice(1).toLowerCase()
+                  : "Desktop";
+
                 return (
                   <div
                     key={session.session_id || session.id}
@@ -687,16 +707,25 @@ const Analytics = () => {
                           </button>
                         </div>
 
-                        {/* Agent Info */}
-                        <div className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/30 px-3 py-1.5 rounded-lg">
-                          {session.agent?.name && (
-                            <>
-                              <span className="font-medium">{session.agent.name}</span>
-                              <span>•</span>
-                            </>
+                        {/* Device and Location Info */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          {/* Device Type Badge */}
+                          <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900/30 px-3 py-1.5 rounded-lg text-xs">
+                            <DeviceIcon className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
+                            <span className="font-medium text-slate-700 dark:text-slate-300">{deviceLabel}</span>
+                          </div>
+                          
+                          {/* Location Badge */}
+                          {(session.location?.city || session.location?.country) && (
+                            <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900/30 px-3 py-1.5 rounded-lg text-xs">
+                              <MapPin className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
+                              <span className="font-medium text-slate-700 dark:text-slate-300">
+                                {session.location?.city && session.location?.country 
+                                  ? `${session.location.city}, ${session.location.country}`
+                                  : session.location?.city || session.location?.country || "Unknown"}
+                              </span>
+                            </div>
                           )}
-                          <MapPin className="w-3 h-3" />
-                          <span>{session.user_ip || "Unknown IP"}</span>
                         </div>
 
                         {/* Status Badge */}
@@ -740,16 +769,6 @@ const Analytics = () => {
                               {session.total_messages || 0}
                             </p>
                           </div>
-                        </div>
-
-                        {/* Location */}
-                        <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 pt-2 border-t border-slate-200 dark:border-slate-700">
-                          <MapPin className="w-3.5 h-3.5" />
-                          <span>
-                            {session.location?.city ||
-                              session.user_ip ||
-                              "Unknown"}
-                          </span>
                         </div>
                       </div>
                     </div>

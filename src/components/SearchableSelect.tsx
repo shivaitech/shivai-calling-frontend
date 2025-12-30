@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, ChevronDown, Check } from 'lucide-react';
 
 interface Option {
@@ -27,6 +28,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const [dropdownPosition, setDropdownPosition] = useState<'top' | 'bottom'>('bottom');
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
 
@@ -55,7 +57,15 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
       const position = spaceBelow < dropdownHeight && rect.top > dropdownHeight ? 'top' : 'bottom';
       setDropdownPosition(position);
       
-     
+      // Set absolute positioning based on button position
+      setDropdownStyle({
+        position: 'fixed',
+        left: `${rect.left}px`,
+        top: position === 'bottom' ? `${rect.bottom + 4}px` : 'auto',
+        bottom: position === 'top' ? `${window.innerHeight - rect.top + 4}px` : 'auto',
+        width: `${rect.width}px`,
+        zIndex: 99999,
+      });
     }
   }, []);
 
@@ -78,7 +88,12 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      if (
+        containerRef.current && 
+        !containerRef.current.contains(event.target as Node) &&
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
         setIsOpen(false);
         setSearchTerm('');
       }
@@ -112,9 +127,10 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
         <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ml-2 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
-      {isOpen && (
+      {isOpen && createPortal(
         <div 
-          className="absolute top-14 w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-80 overflow-y-auto z-[99999] no-scrollbar"
+          ref={dropdownRef}
+          className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-80 overflow-y-auto no-scrollbar"
           style={dropdownStyle}
         >
           {/* Search */}
@@ -163,7 +179,8 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

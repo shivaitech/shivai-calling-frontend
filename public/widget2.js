@@ -4066,7 +4066,7 @@
       }
 
       const response = await fetch(
-        "https://token-server-i5u4.onrender.com/token",
+        "https://python.service.callshivai.com/token",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
