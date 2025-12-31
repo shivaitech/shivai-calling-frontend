@@ -1,6 +1,6 @@
 import axios, { AxiosResponse } from "axios";
 
-const API_BASE_URL = "https://shivai-com-backend.onrender.com/api/v1";
+const API_BASE_URL = "https://nodejs.service.callshivai.com/api/v1";
 
 // Create axios instance with default config
 const apiClient = axios.create({

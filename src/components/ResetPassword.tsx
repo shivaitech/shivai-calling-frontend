@@ -135,7 +135,7 @@ const ResetPassword: React.FC<ResetPasswordProps> = ({
 
     try {
       const { data } = await axios.post(
-        "https://shivai-com-backend.onrender.com/api/v1/auth/reset-password",
+        "https://nodejs.service.callshivai.com/api/v1/auth/reset-password",
         {
           token: token,
           newPassword: password,

@@ -3184,7 +3184,7 @@
       languageSelect.disabled = false;
     }
     if (window.currentCallId) {
-      fetch("https://shivai-com-backend.onrender.com/api/v1/calls/end-call", {
+      fetch("https://nodejs.service.callshivai.com/api/v1/calls/end-call", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ callId: window.currentCallId }),
