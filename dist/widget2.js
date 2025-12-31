@@ -4040,12 +4040,10 @@
         }
       }
       
-      // If not found in URL, try SHIVAI_CONFIG (for preview)
       if (!foundFromUrl && window.SHIVAI_CONFIG && window.SHIVAI_CONFIG.agentId) {
         agentId = window.SHIVAI_CONFIG.agentId;
         console.log("🎯 Using agentId from SHIVAI_CONFIG:", agentId);
       } 
-      // Then try to get from script data attributes (for production)
       else if (!foundFromUrl) {
         console.log("🔍 SHIVAI_CONFIG not found, checking script attributes...");
         const scriptElements = document.querySelectorAll('script[data-agent-id]');
@@ -4055,7 +4053,6 @@
           agentId = scriptElements[scriptElements.length - 1].getAttribute('data-agent-id');
           console.log("🎯 Using agentId from script data attribute:", agentId);
         }
-        // Try to get from current script if available
         else if (document.currentScript && document.currentScript.getAttribute('data-agent-id')) {
           agentId = document.currentScript.getAttribute('data-agent-id');
           console.log("🎯 Using agentId from current script:", agentId);
