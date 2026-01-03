@@ -2,16 +2,14 @@ import axios, { AxiosResponse } from "axios";
 
 const API_BASE_URL = "https://nodejs.service.callshivai.com/api/v1";
 
-// Create axios instance with default config
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000, // 10 seconds timeout
+  timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Add token to requests if available
 apiClient.interceptors.request.use((config) => {
   const tokens = localStorage.getItem("auth_tokens");
   if (tokens) {
@@ -27,7 +25,6 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
-// Agent interface matching backend response
 export interface ApiAgent {
   id: string;
   name: string;
@@ -38,7 +35,7 @@ export interface ApiAgent {
   createdAt: string;
   updatedAt?: string;
   greeting_message?: {
-    [key: string]: string; // Language codes as keys with greeting text as values
+    [key: string]: string;
   };
   stats?: {
     conversations: number;

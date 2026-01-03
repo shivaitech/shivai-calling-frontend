@@ -402,7 +402,7 @@ const Analytics = () => {
           </div>
           {isDeveloper && employees.length > 1 && (
             <span className="text-xs text-slate-500 dark:text-slate-400 italic">
-              ({employees.length} more agents)
+              ({employees.length-1} more agents)
             </span>
           )}
         </div>
@@ -519,7 +519,6 @@ const Analytics = () => {
             </h3>
           </div>
 
-          {/* Filters */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 mb-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -576,7 +575,6 @@ const Analytics = () => {
                 <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
               </div>
 
-              {/* Clear Filters Button - Icon */}
               {(searchTerm ||
                 deviceFilter !== "all" ||
                 dateRange.preset !== "all") && (
@@ -609,7 +607,6 @@ const Analytics = () => {
             </div>
           </div>
 
-          {/* Session Cards */}
           <div className="space-y-3">
             {sessionLoading ? (
               <div className="flex items-center justify-center py-12">

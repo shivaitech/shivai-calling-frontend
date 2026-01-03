@@ -460,7 +460,7 @@ const AuthModel: React.FC<AuthModelProps> = ({
                           ? "border-black"
                           : ""
                       }`}
-                      placeholder="Confirm your password"
+                      placeholder="Password"
                       required
                       disabled={isLoading}
                       autoComplete="off"
@@ -505,7 +505,7 @@ const AuthModel: React.FC<AuthModelProps> = ({
                         ? "border-emerald-500"
                         : ""
                     }`}
-                    placeholder="Password"
+                    placeholder="Enter Password"
                     required
                     disabled={isLoading}
                     autoComplete="off"

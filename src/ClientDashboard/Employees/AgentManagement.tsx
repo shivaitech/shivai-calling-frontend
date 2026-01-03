@@ -1117,6 +1117,7 @@ const AgentManagement = () => {
                 </button>
               </div>
             )}
+            
           </div>
         </GlassCard>
 
@@ -1260,6 +1261,7 @@ const AgentManagement = () => {
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
+
               </div>
             </GlassCard>
           ))}
@@ -1350,6 +1352,7 @@ const AgentManagement = () => {
             </div>
           </div>
         )}
+
       </div>
     );
   }
