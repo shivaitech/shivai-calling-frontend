@@ -113,7 +113,7 @@ const Analytics = () => {
 
     try {
       console.log("🔄 Fetching sessions for agent:", agentId, "page:", page);
-      
+
       // Build API query parameters
       const queryParams = new URLSearchParams({
         page: page.toString(),
@@ -141,7 +141,7 @@ const Analytics = () => {
       // Convert query params to string
       const payload = queryParams.toString();
       console.log("API Query Params:", payload);
-      
+
       // Call API with query parameters
       const response = await agentAPI.getAgentSessions(payload, agentId);
 
@@ -369,44 +369,46 @@ const Analytics = () => {
   return (
     <div className="space-y-4 sm:space-y-6 w-full max-w-full overflow-hidden">
       {/* Header with Employee Selector */}
-      <div className="mb-4">
-        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-          <div className="relative">
-            <select
-              value={selectedEmployee}
-              onChange={(e) => setSelectedEmployee(e.target.value)}
-              disabled={!isDeveloper}
-              className={`text-sm sm:text-base font-semibold px-3 py-1.5 pr-8 rounded-lg border-2 appearance-none cursor-pointer transition-all ${
-                isDeveloper
-                  ? "bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-blue-200 dark:border-blue-700 text-slate-800 dark:text-white hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md"
-                  : "bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed"
-              } focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
-            >
-              {employees.map((employee) => (
-                <option
-                  key={employee.id}
-                  value={employee.id}
-                  className="bg-white dark:bg-slate-800 text-slate-800 dark:text-white"
-                >
-                  {employee.name}
-                </option>
-              ))}
-            </select>
-            <ChevronDown
-              className={`absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 pointer-events-none transition-colors ${
-                isDeveloper
-                  ? "text-blue-600 dark:text-blue-400"
-                  : "text-gray-400"
-              }`}
-            />
+      {isDeveloper && employees?.length > 0 && (
+        <div className="mb-4">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            <div className="relative">
+              <select
+                value={selectedEmployee}
+                onChange={(e) => setSelectedEmployee(e.target.value)}
+                disabled={!isDeveloper}
+                className={`text-sm sm:text-base font-semibold px-3 py-1.5 pr-8 rounded-lg border-2 appearance-none cursor-pointer transition-all ${
+                  isDeveloper
+                    ? "bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-blue-200 dark:border-blue-700 text-slate-800 dark:text-white hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md"
+                    : "bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed"
+                } focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+              >
+                {employees?.map((employee) => (
+                  <option
+                    key={employee.id}
+                    value={employee.id}
+                    className="bg-white dark:bg-slate-800 text-slate-800 dark:text-white"
+                  >
+                    {employee.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                className={`absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 pointer-events-none transition-colors ${
+                  isDeveloper
+                    ? "text-blue-600 dark:text-blue-400"
+                    : "text-gray-400"
+                }`}
+              />
+            </div>
+            {isDeveloper && employees.length > 1 && (
+              <span className="text-xs text-slate-500 dark:text-slate-400 italic">
+                ({employees.length - 1} more agents)
+              </span>
+            )}
           </div>
-          {isDeveloper && employees.length > 1 && (
-            <span className="text-xs text-slate-500 dark:text-slate-400 italic">
-              ({employees.length-1} more agents)
-            </span>
-          )}
         </div>
-      </div>
+      )}
 
       {/* Stats Section - Mobile Slider, Desktop Grid */}
       <div className="stats-section">
@@ -599,7 +601,9 @@ const Analytics = () => {
                     ? "border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700"
                     : "border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 cursor-not-allowed opacity-50"
                 }`}
-                onClick={() => fetchSessionHistory(selectedEmployee, currentPage)}
+                onClick={() =>
+                  fetchSessionHistory(selectedEmployee, currentPage)
+                }
                 title="Refresh sessions"
               >
                 <Filter className="w-4 h-4 text-slate-600 dark:text-slate-400" />
@@ -661,18 +665,21 @@ const Analytics = () => {
 
                 const getDeviceIcon = (deviceType: string) => {
                   const type = deviceType?.toLowerCase() || "";
-                  if (type.includes("mobile") || type.includes("phone")) return Smartphone;
+                  if (type.includes("mobile") || type.includes("phone"))
+                    return Smartphone;
                   if (type.includes("tablet")) return Tablet;
                   return Monitor;
                 };
 
                 // Handle both snake_case and camelCase, and normalize the value
-                const deviceType = session?.device?.device_type || session.deviceType || "";
+                const deviceType =
+                  session?.device?.device_type || session.deviceType || "";
                 const DeviceIcon = getDeviceIcon(deviceType);
-                
+
                 // Properly capitalize the device label
-                const deviceLabel = deviceType 
-                  ? deviceType.charAt(0).toUpperCase() + deviceType.slice(1).toLowerCase()
+                const deviceLabel = deviceType
+                  ? deviceType.charAt(0).toUpperCase() +
+                    deviceType.slice(1).toLowerCase()
                   : "Desktop";
 
                 return (
@@ -689,7 +696,9 @@ const Analytics = () => {
                               <Phone className="w-4 h-4 text-blue-500 dark:text-blue-400" />
                             </div>
                             <div>
-                              <p className="text-xs text-slate-500 dark:text-slate-400">Session ID</p>
+                              <p className="text-xs text-slate-500 dark:text-slate-400">
+                                Session ID
+                              </p>
                               <span className="text-sm font-mono font-semibold text-blue-600 dark:text-blue-400">
                                 {session.session_id || "N/A"}
                               </span>
@@ -700,7 +709,9 @@ const Analytics = () => {
                             className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg transition-all duration-200 text-xs font-medium"
                           >
                             <Eye className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline">View Details</span>
+                            <span className="hidden sm:inline">
+                              View Details
+                            </span>
                           </button>
                         </div>
 
@@ -709,17 +720,23 @@ const Analytics = () => {
                           {/* Device Type Badge */}
                           <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900/30 px-3 py-1.5 rounded-lg text-xs">
                             <DeviceIcon className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
-                            <span className="font-medium text-slate-700 dark:text-slate-300">{deviceLabel}</span>
+                            <span className="font-medium text-slate-700 dark:text-slate-300">
+                              {deviceLabel}
+                            </span>
                           </div>
-                          
+
                           {/* Location Badge */}
-                          {(session.location?.city || session.location?.country) && (
+                          {(session.location?.city ||
+                            session.location?.country) && (
                             <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900/30 px-3 py-1.5 rounded-lg text-xs">
                               <MapPin className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
                               <span className="font-medium text-slate-700 dark:text-slate-300">
-                                {session.location?.city && session.location?.country 
+                                {session.location?.city &&
+                                session.location?.country
                                   ? `${session.location.city}, ${session.location.country}`
-                                  : session.location?.city || session.location?.country || "Unknown"}
+                                  : session.location?.city ||
+                                    session.location?.country ||
+                                    "Unknown"}
                               </span>
                             </div>
                           )}
