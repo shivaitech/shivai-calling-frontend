@@ -135,7 +135,7 @@ const ResetPassword: React.FC<ResetPasswordProps> = ({
 
     try {
       const { data } = await axios.post(
-        "https://nodejs.service.callshivai.com/api/v1/auth/reset-password",
+        `${import.meta.env.VITE_API_BASE_URL}/auth/reset-password`,
         {
           token: token,
           newPassword: password,

@@ -1,6 +1,7 @@
 import axios, { AxiosResponse } from "axios";
 
-const API_BASE_URL = "https://nodejs.service.callshivai.com/api/v1";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
 
 interface LoginRequest {
   email: string;
