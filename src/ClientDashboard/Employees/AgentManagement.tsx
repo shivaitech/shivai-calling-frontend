@@ -1117,7 +1117,7 @@ const AgentManagement = () => {
                 </button>
               </div>
             )}
-            
+
           </div>
         </GlassCard>
 
@@ -2027,24 +2027,7 @@ const AgentManagement = () => {
                     </div>
                   </button>
 
-                  <button 
-                    onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })}
-                    className="common-bg-icons hover:shadow-md transition-all duration-200 p-3 sm:p-4 rounded-lg touch-manipulation group"
-                  >
-                    <div className="flex flex-col items-center gap-2 sm:gap-3">
-                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-orange-50 dark:bg-orange-900/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 text-orange-600 dark:text-orange-400" />
-                      </div>
-                      <div className="text-center">
-                        <p className="text-sm sm:text-base font-medium text-slate-800 dark:text-white">
-                          View Call Analytics
-                        </p>
-                        <p className="text-xs text-slate-600 dark:text-slate-400">
-                          See performance data
-                        </p>
-                      </div>
-                    </div>
-                  </button>
+                
                 </div>
               </div>
             </GlassCard>
