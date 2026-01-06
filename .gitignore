@@ -23,5 +23,6 @@ node_modules
 *.sln
 *.sw?
 .env
-.env.development
+.env.*
 .env.production
+.env.development
