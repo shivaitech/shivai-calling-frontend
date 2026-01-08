@@ -98,77 +98,145 @@
   };
 
   let liveMessages = [
-    "📞 Call ShivAI!",
-    "📞 Call ShivAI!",
-    "📞 Call ShivAI!",
-    "📞 Call ShivAI!",
+    "📞 Call Now!",
+    "📞 Call Now!",
+    "📞 Call Now!",
+    "📞 Call Now!",
   ];
 
-  // Helper function to get company info from URL parameters
+  // Helper function to get company info from API widget config, URL parameters, or defaults
   function getCompanyInfo() {
     let companyName = "ShivAI";
     let companyDescription = "AI-Powered Support";
-    let agentName = "AI Assistant";
+    let agentName = "AI Employee";
     let companyLogo = ""; // Empty means use default ShivAI logo
     let themeColors = {
       primaryColor: "#4b5563",
       secondaryColor: "#ffffff", 
       accentColor: "#2563eb"
     };
+    let configSource = "defaults";
     
     try {
-      // Get from URL parameters
-      const scriptTags = document.getElementsByTagName('script');
-      for (let i = scriptTags.length - 1; i >= 0; i--) {
-        const script = scriptTags[i];
-        if (script.src && script.src.includes('/widget2.js')) {
-          try {
-            const url = new URL(script.src);
-            const urlCompanyName = url.searchParams.get('companyName');
-            const urlCompanyDescription = url.searchParams.get('companyDescription');
-            const urlAgentName = url.searchParams.get('agentName');
-            if (urlCompanyName) {
-              companyName = decodeURIComponent(urlCompanyName);
-              console.log("🏢 Using companyName from URL parameter:", companyName);
-            }
-            if (urlCompanyDescription) {
-              companyDescription = decodeURIComponent(urlCompanyDescription);
-              console.log("📄 Using companyDescription from URL parameter:", companyDescription);
-            }
-            if (urlAgentName) {
-              agentName = decodeURIComponent(urlAgentName);
-              console.log("🤖 Using agentName from URL parameter:", agentName);
-            }
-            break;
-          } catch (urlError) {
-            console.warn("⚠️ Error parsing script URL:", urlError);
-            continue;
+      // ✅ PRIORITY 1: Check for API widget configuration (from AgentWidgetCustomization component)
+      if (window.SHIVAI_WIDGET_CONFIG && typeof window.SHIVAI_WIDGET_CONFIG === 'object') {
+        console.log("📦 API Widget Config found, using as primary source:", window.SHIVAI_WIDGET_CONFIG);
+        
+        const widget = window.SHIVAI_WIDGET_CONFIG;
+        
+        // Map API response fields to component structure
+        if (widget.ai_employee_name) {
+          companyName = widget.ai_employee_name;
+          console.log("🏢 Using ai_employee_name from API widget config:", companyName);
+        }
+        
+        if (widget.ai_employee_description) {
+          companyDescription = widget.ai_employee_description;
+          console.log("📄 Using ai_employee_description from API widget config:", companyDescription);
+        }
+        
+        if (widget.company_logo) {
+          companyLogo = widget.company_logo;
+          console.log("🖼️ Using company_logo from API widget config (S3 URL)");
+        }
+        
+        // Map color fields from API response
+        if (widget.primary_color) {
+          themeColors.primaryColor = widget.primary_color;
+        }
+        if (widget.gradient_start) {
+          themeColors.secondaryColor = widget.gradient_start;
+        }
+        if (widget.gradient_end) {
+          themeColors.accentColor = widget.gradient_end;
+        }
+        
+        console.log("🎨 Using theme colors from API widget config:", themeColors);
+        configSource = "API widget config";
+      }
+      
+      // ✅ PRIORITY 2: Check SHIVAI_CONFIG (legacy component state)
+      else if (window.SHIVAI_CONFIG && typeof window.SHIVAI_CONFIG === 'object') {
+        console.log("📦 SHIVAI_CONFIG found, using as fallback source");
+        
+        const config = window.SHIVAI_CONFIG;
+        
+        if (config.content) {
+          if (config.content.companyName) {
+            companyName = config.content.companyName;
+            console.log("🏢 Using companyName from SHIVAI_CONFIG:", companyName);
+          }
+          if (config.content.companyDescription) {
+            companyDescription = config.content.companyDescription;
+            console.log("📄 Using companyDescription from SHIVAI_CONFIG:", companyDescription);
+          }
+          if (config.content.companyLogo) {
+            companyLogo = config.content.companyLogo;
+            console.log("🖼️ Using companyLogo from SHIVAI_CONFIG");
           }
         }
+        
+        if (config.theme) {
+          if (config.theme.primaryColor) {
+            themeColors.primaryColor = config.theme.primaryColor;
+          }
+          if (config.theme.secondaryColor) {
+            themeColors.secondaryColor = config.theme.secondaryColor;
+          }
+          if (config.theme.accentColor) {
+            themeColors.accentColor = config.theme.accentColor;
+          }
+          console.log("🎨 Using theme colors from SHIVAI_CONFIG:", themeColors);
+        }
+        
+        configSource = "SHIVAI_CONFIG";
       }
       
-      // Get company logo from SHIVAI_CONFIG (not URL to avoid length issues)
-      if (window.SHIVAI_CONFIG && window.SHIVAI_CONFIG.content && window.SHIVAI_CONFIG.content.companyLogo) {
-        companyLogo = window.SHIVAI_CONFIG.content.companyLogo;
-        console.log("🖼️ Using companyLogo from SHIVAI_CONFIG");
-      }
-      
-      // Get theme colors from SHIVAI_CONFIG
-      if (window.SHIVAI_CONFIG && window.SHIVAI_CONFIG.theme) {
-        if (window.SHIVAI_CONFIG.theme.primaryColor) {
-          themeColors.primaryColor = window.SHIVAI_CONFIG.theme.primaryColor;
+      // ✅ PRIORITY 3: Check URL parameters (legacy fallback)
+      else {
+        console.log("📝 No API/component config found, checking URL parameters as fallback");
+        
+        const scriptTags = document.getElementsByTagName('script');
+        for (let i = scriptTags.length - 1; i >= 0; i--) {
+          const script = scriptTags[i];
+          if (script.src && script.src.includes('/widget2.js')) {
+            try {
+              const url = new URL(script.src);
+              const urlCompanyName = url.searchParams.get('companyName');
+              const urlCompanyDescription = url.searchParams.get('companyDescription');
+              const urlAgentName = url.searchParams.get('agentName');
+              const urlCompanyLogo = url.searchParams.get('companyLogo');
+              
+              if (urlCompanyName) {
+                companyName = decodeURIComponent(urlCompanyName);
+                console.log("🏢 Using companyName from URL parameter:", companyName);
+              }
+              if (urlCompanyDescription) {
+                companyDescription = decodeURIComponent(urlCompanyDescription);
+                console.log("📄 Using companyDescription from URL parameter:", companyDescription);
+              }
+              if (urlAgentName) {
+                agentName = decodeURIComponent(urlAgentName);
+                console.log("🤖 Using agentName from URL parameter:", agentName);
+              }
+              if (urlCompanyLogo) {
+                companyLogo = decodeURIComponent(urlCompanyLogo);
+                console.log("🖼️ Using companyLogo from URL parameter");
+              }
+              break;
+            } catch (urlError) {
+              console.warn("⚠️ Error parsing script URL:", urlError);
+              continue;
+            }
+          }
         }
-        if (window.SHIVAI_CONFIG.theme.secondaryColor) {
-          themeColors.secondaryColor = window.SHIVAI_CONFIG.theme.secondaryColor;
-        }
-        if (window.SHIVAI_CONFIG.theme.accentColor) {
-          themeColors.accentColor = window.SHIVAI_CONFIG.theme.accentColor;
-        }
-        console.log("🎨 Using theme colors from SHIVAI_CONFIG:", themeColors);
+        
+        configSource = "URL parameters";
       }
       
     } catch (error) {
-      console.warn("⚠️ Error getting company info from URL parameters, using defaults:", error);
+      console.warn("⚠️ Error getting company info, using defaults:", error);
+      configSource = "defaults";
     }
     
     const result = { 
@@ -176,11 +244,13 @@
       description: companyDescription,
       agentName: agentName,
       logo: companyLogo,
-      theme: themeColors
+      theme: themeColors,
+      configSource: configSource
     };
-    console.log("✅ Final company info being used:", result);
+    console.log(`✅ Final company info being used (source: ${configSource}):`, result);
     return result;
   }
+  
   let currentMessageIndex = 0;
   let messageInterval = null;
   let triggerBtn = null;
@@ -264,6 +334,26 @@
           : '';
         
         console.log('📊 Agent status set to:', agentStatus);
+        
+        // ✅ Extract and set widget configuration from API response
+        if (agentRes?.widget) {
+          window.SHIVAI_WIDGET_CONFIG = agentRes.widget;
+          console.log('📦 Widget configuration set from API:', window.SHIVAI_WIDGET_CONFIG);
+          console.log('🎨 Available widget properties:');
+          console.log('  - ai_employee_name:', agentRes.widget.ai_employee_name);
+          console.log('  - ai_employee_description:', agentRes.widget.ai_employee_description);
+          console.log('  - company_logo:', agentRes.widget.company_logo ? '✅ Present (S3 URL)' : '❌ Not set');
+          console.log('  - primary_color:', agentRes.widget.primary_color);
+          console.log('  - gradient_start:', agentRes.widget.gradient_start);
+          console.log('  - gradient_end:', agentRes.widget.gradient_end);
+          console.log('  - text_color:', agentRes.widget.text_color);
+          console.log('  - position:', agentRes.widget.position);
+          
+          // Refresh the widget UI with new company info if widget is already created
+          refreshWidgetContent();
+        } else {
+          console.log('ℹ️ No widget configuration found in agent response - getCompanyInfo() will use URL parameters or defaults');
+        }
       } else {
         console.warn('⚠️ Could not fetch agent status, defaulting to inactive');
         agentStatus.active = false;
@@ -386,12 +476,56 @@
     console.log("🎨 Widget theme refreshed with new colors");
   }
 
+  // Function to refresh widget content with updated company info
+  function refreshWidgetContent() {
+    if (!widgetContainer) {
+      console.log("📝 Widget not created yet, content will be updated on creation");
+      return;
+    }
+
+    console.log("🔄 Refreshing widget content with latest company info...");
+    const companyInfo = getCompanyInfo();
+    console.log("🏢 Using refreshed company info:", companyInfo);
+
+    // Update landing view content
+    const widgetTitle = document.querySelector('.widget-title');
+    if (widgetTitle) {
+      widgetTitle.textContent = companyInfo.name;
+      console.log("✅ Updated landing view widget title to:", companyInfo.agentName);
+    }
+
+    const widgetSubtitle = document.querySelector('.widget-subtitle');
+    if (widgetSubtitle) {
+      widgetSubtitle.textContent = companyInfo.description + '.';
+      console.log("✅ Updated landing view description to:", companyInfo.description);
+    }
+
+    const widgetAvatar = document.querySelector('.widget-avatar');
+    if (widgetAvatar && companyInfo.logo) {
+      widgetAvatar.innerHTML = `<img src="${companyInfo.logo}" alt="${companyInfo.name} Logo" style="width: 100%; height: 100%; object-fit: cover; border-radius: 12px;">`;
+      console.log("✅ Updated landing view logo to:", companyInfo.logo);
+    }
+
+    // Update call view content
+    const callInfoName = document.querySelector('.call-info-name');
+    if (callInfoName) {
+      callInfoName.textContent = companyInfo.agentName;
+      console.log("✅ Updated call view agent name to:", companyInfo.agentName);
+    }
+
+    // Update the action area based on agent status
+    updateLandingViewBasedOnStatus();
+    
+    console.log("✅ Widget content refresh completed");
+  }
+
   // Expose refresh function globally for theme updates
   window.ShivAIWidget = window.ShivAIWidget || {};
   window.ShivAIWidget.refreshTheme = refreshWidgetTheme;
+  window.ShivAIWidget.refreshContent = refreshWidgetContent;
 
   async function initWidget() {
-    // Check agent status first
+    // Check agent status first and wait for it to complete
     await checkAgentStatusOnLoad();
     createWidgetUI();
     setupEventListeners();
@@ -1188,7 +1322,7 @@
             }
             </div>
             <div class="header-text">
-              <div class="widget-title">${companyInfo.agentName}</div>
+              <div class="widget-title">${companyInfo.name}</div>
               <div class="widget-subtitle">${companyInfo.description}.</div>
             </div>
           </div>

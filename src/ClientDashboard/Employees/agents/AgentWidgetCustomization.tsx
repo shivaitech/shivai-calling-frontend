@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Smartphone, Monitor, Save, RefreshCw, Settings2 } from "lucide-react";
 import GlassCard from "../../../components/GlassCard";
+import { agentAPI } from "../../../services/agentAPI";
 
 interface WidgetConfig {
   theme: {
@@ -231,31 +232,165 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
     customCSS: "",
   });
 
-  // Update widget config when agent changes
+  // Update widget config when agent changes (only if no saved config exists)
   useEffect(() => {
-    setWidgetConfig(prev => ({
-      ...prev,
-      content: {
-        ...prev.content,
-        welcomeMessage: `Hi! I'm ${agentName}. How can I help you today?`,
-        companyName: agentName,
-      }
-    }));
-  }, [agentName]);
+    console.log("🔄 Agent name effect triggered. agentName:", agentName, "lastSaved:", !!lastSaved);
+    // Only update defaults if we haven't loaded a saved config yet
+    if (!lastSaved) {
+      console.log("✅ No saved config found, setting defaults for agent:", agentName);
+      console.log("🧹 Also clearing any cached logo preview");
+      setLogoPreview(""); // Clear any cached logo
+      setWidgetConfig((prev) => ({
+        ...prev,
+        content: {
+          ...prev.content,
+          welcomeMessage: `Hi! I'm ${agentName}. How can I help you today?`,
+          companyName: agentName,
+          companyLogo: "", // Explicitly clear logo
+        },
+      }));
+    } else {
+      console.log("⏭️ Saved config exists, skipping defaults override");
+    }
+  }, [agentName, lastSaved]); // Add lastSaved as dependency to prevent override
 
   useEffect(() => {
     const loadWidgetConfig = async () => {
       setIsLoading(true);
+      // Clear any existing logo preview at start
+      setLogoPreview("");
+      console.log("🔄 Cleared logo preview at start of load");
+      
       try {
-        const response = await fetch(`/api/agents/${agentId}/widget-config`);
+        console.log("🔄 Loading widget config for agentId:", agentId);
+        const response = await fetch(`https://nodejs.service.callshivai.com/api/v1/agents/${agentId}`);
         if (response.ok) {
-          const config = await response.json();
-          setWidgetConfig(config);
-          setLastSaved(new Date(config.updatedAt || Date.now()));
-          console.log("✅ Widget configuration loaded");
+          const data = await response.json();
+          console.log("📦 API Response:", data);
+
+          // Check if agent and widget configuration exists in response
+          const agent = data?.data?.agent;
+          if (agent?.widget) {
+            console.log("✅ Widget configuration found, prefilling form...");
+            const widget = agent.widget;
+            
+            console.log("🔍 API Widget data:");
+            console.log("  ai_employee_name:", widget.ai_employee_name);
+            console.log("  ai_employee_description:", widget.ai_employee_description);
+            console.log("  company_logo:", widget.company_logo);
+            console.log("  primary_color:", widget.primary_color);
+            console.log("  gradient_end:", widget.gradient_end);
+
+            // Map API response to widget config state
+            const loadedConfig: WidgetConfig = {
+              theme: {
+                primaryColor: widget.primary_color || "#4b5563",
+                secondaryColor: widget.gradient_start || "#6b7280",
+                accentColor: widget.gradient_end || "#374151",
+                borderRadius: "16px",
+                buttonStyle: "floating",
+                widgetStyle: "modern",
+              },
+              ui: {
+                position: widget.position || "bottom-right",
+                buttonSize: "medium",
+                chatHeight: "320px",
+                chatWidth: "380px",
+                autoOpen: false,
+                minimizeButton: true,
+                draggable: true,
+              },
+              content: {
+                welcomeMessage:
+                  widget.welcome_message ||
+                  `Hi! I'm ${agentName}. How can I help you today?`,
+                companyName: widget.ai_employee_name || agentName,
+                companyDescription:
+                  widget.ai_employee_description ||
+                  "AI-Powered Support - We offer 24/7 voice support to handle your business calls effieciently and professionally.",
+                companyLogo: widget.company_logo || "",
+                placeholderText: "Type your message...",
+                offlineMessage: "We're currently offline. Please leave a message.",
+              },
+              features: {
+                voiceEnabled: true,
+                soundEffects: true,
+                showBranding: true,
+                messageHistory: true,
+                typingIndicator: true,
+                fileUpload: false,
+              },
+              customCSS: "",
+            };
+
+            console.log("🔄 Setting widget config with loaded data:");
+            console.log("  companyName:", loadedConfig.content.companyName);
+            console.log("  companyDescription:", loadedConfig.content.companyDescription);
+            console.log("  companyLogo:", loadedConfig.content.companyLogo);
+            console.log("  primaryColor:", loadedConfig.theme.primaryColor);
+            
+            setWidgetConfig(loadedConfig);
+            
+            // Set logo preview if widget has a logo URL
+            if (widget.company_logo) {
+              console.log("🖼️ Raw company_logo from API:", widget.company_logo);
+              console.log("🖼️ Logo URL type:", typeof widget.company_logo);
+              console.log("🖼️ Logo URL length:", widget.company_logo.length);
+              
+              // Set logo preview immediately to avoid delay
+              setLogoPreview(widget.company_logo);
+              console.log("✅ Logo preview set immediately:", widget.company_logo);
+              
+              // Test if the logo URL is accessible in background (optional validation)
+              const logoImg = new Image();
+              logoImg.onload = () => {
+                console.log("✅ Logo validation: loaded successfully");
+              };
+              logoImg.onerror = (error) => {
+                console.error("❌ Logo validation: failed to load", error);
+                console.warn("⚠️ Logo URL might be invalid but still showing it");
+              };
+              logoImg.src = widget.company_logo;
+            } else {
+              console.log("ℹ️ No company_logo found in widget data");
+              // Clear logo preview if no logo in API response
+              setLogoPreview("");
+            }
+            
+            setLastSaved(
+              new Date(widget.updatedAt || widget.createdAt || Date.now())
+            );
+            console.log("✅ Widget configuration loaded and prefilled");
+          } else {
+            console.log("ℹ️ No agent or widget configuration found in API response");
+            console.log("🔍 Response structure:", {
+              hasData: !!data?.data,
+              hasAgent: !!data?.data?.agent,
+              hasWidget: !!data?.data?.agent?.widget,
+              dataKeys: data?.data ? Object.keys(data.data) : 'no data',
+              agentKeys: data?.data?.agent ? Object.keys(data.data.agent) : 'no agent'
+            });
+            
+            // Explicitly clear logo and reset to defaults for new agent
+            console.log("🧹 Clearing logo preview and resetting to defaults");
+            setLogoPreview("");
+            setWidgetConfig((prev) => ({
+              ...prev,
+              content: {
+                ...prev.content,
+                companyLogo: "",
+                companyName: agentName,
+                companyDescription: "AI-Powered Support - We offer 24/7 voice support to handle your business calls effieciently and professionally.",
+                welcomeMessage: `Hi! I'm ${agentName}. How can I help you today?`,
+              }
+            }));
+            console.log("✅ Reset to clean defaults for new agent");
+          }
+        } else {
+          console.error("❌ Failed to fetch widget config:", response.status, response.statusText);
         }
       } catch (error) {
-        console.error("Failed to load widget configuration:", error);
+        console.error("❌ Failed to load widget configuration:", error);
       } finally {
         setIsLoading(false);
       }
@@ -269,49 +404,161 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
         clearTimeout(configTimeoutRef.current);
       }
     };
-  }, [agentId]);
+  }, [agentId, agentName]);
 
   // Handle logo file upload
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result as string;
-        setLogoPreview(base64);
-        updateConfig("content", "companyLogo", base64);
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    // File type validation
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      showToast('Please select a valid image file (JPG, PNG, GIF, or WebP)', 'error');
+      e.target.value = ''; // Clear the input
+      return;
     }
+
+    // File size validation (200KB = 200 * 1024 bytes)
+    const maxSizeInBytes = 200 * 1024; // 200KB
+    if (file.size > maxSizeInBytes) {
+      const fileSizeInKB = Math.round(file.size / 1024);
+      showToast(`Logo file size (${fileSizeInKB}KB) exceeds the maximum limit of 200KB. Please choose a smaller image.`, 'error');
+      e.target.value = ''; // Clear the input
+      return;
+    }
+
+    // File name validation
+    if (file.name.length > 100) {
+      showToast('Logo file name is too long. Please rename the file and try again.', 'error');
+      e.target.value = ''; // Clear the input
+      return;
+    }
+
+    // If all validations pass, process the file
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result as string;
+      setLogoPreview(base64);
+      updateConfig("content", "companyLogo", base64);
+      
+      const fileSizeInKB = Math.round(file.size / 1024);
+      showToast(`Logo uploaded successfully (${fileSizeInKB}KB)`, 'success');
+    };
+    
+    reader.onerror = () => {
+      showToast('Error reading the logo file. Please try again.', 'error');
+      e.target.value = ''; // Clear the input
+    };
+    
+    reader.readAsDataURL(file);
+  };
+
+  // Toast notification function
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    const toastColors = {
+      success: 'bg-green-500',
+      error: 'bg-red-500', 
+      info: 'bg-blue-500'
+    };
+
+    const toastIcons = {
+      success: '✅',
+      error: '❌',
+      info: 'ℹ️'
+    };
+
+    const toast = document.createElement('div');
+    toast.className = `fixed top-4 right-4 ${toastColors[type]} text-white px-4 py-3 rounded-lg shadow-lg z-50 transition-all transform translate-x-0 opacity-100 max-w-md`;
+    toast.innerHTML = `
+      <div class="flex items-start gap-3">
+        <span class="text-lg">${toastIcons[type]}</span>
+        <div class="flex-1">
+          <div class="font-medium text-sm leading-tight">${message}</div>
+        </div>
+        <button onclick="this.parentElement.parentElement.remove()" class="ml-2 text-white/80 hover:text-white text-lg leading-none">&times;</button>
+      </div>
+    `;
+
+    document.body.appendChild(toast);
+
+    // Auto remove after 5 seconds for error messages, 3 seconds for others
+    const autoRemoveTime = type === 'error' ? 5000 : 3000;
+    setTimeout(() => {
+      if (toast.parentElement) {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(100%)';
+        setTimeout(() => {
+          toast.remove();
+        }, 300);
+      }
+    }, autoRemoveTime);
   };
 
   const saveWidgetConfig = async () => {
     setIsSaving(true);
     try {
-      const response = await fetch(`/api/agents/${agentId}/widget-config`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          agentId,
-          config: widgetConfig,
-          timestamp: new Date().toISOString(),
-        }),
-      });
+      let finalLogoUrl = widgetConfig.content.companyLogo;
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      // Step 1: If logo is base64 (local preview), upload it first
+      if (finalLogoUrl && finalLogoUrl.startsWith("data:image")) {
+        console.log("📤 Logo is local, uploading to server first...");
+
+        // Convert base64 to blob
+        const response = await fetch(finalLogoUrl);
+        const blob = await response.blob();
+
+        // Create a File object from the blob
+        const file = new File([blob], "logo.png", { type: blob.type });
+
+        // Upload the file
+        const uploadResponse = await agentAPI.uploadLogo(file);
+        console.log("✅ Logo uploaded successfully");
+
+        // Extract the URL from upload response
+        if (uploadResponse?.logo_url) {
+          finalLogoUrl = uploadResponse.logo_url;
+          console.log("✅ Using server logo URL:", finalLogoUrl);
+        } else if (uploadResponse?.data?.logo_url) {
+          finalLogoUrl = uploadResponse.data.logo_url;
+        } else if (uploadResponse?.data?.data?.logo_url) {
+          finalLogoUrl = uploadResponse.data.data.logo_url;
+        } else {
+          console.warn("⚠️ No logo URL in upload response, using local URL");
+        }
       }
 
-      await response.json(); // Consume response
+      // Step 2: Save widget configuration with final logo URL
+      console.log("📤 Saving widget configuration...");
+      const widgetData = {
+        agent_id: agentId,
+        company_logo: finalLogoUrl,
+        ai_employee_name: widgetConfig.content.companyName,
+        ai_employee_description: widgetConfig.content.companyDescription,
+        theme: "shivai-blue",
+        position: widgetConfig.ui.position,
+        button_text: "Call ShivAI!",
+        welcome_message: widgetConfig.content.welcomeMessage,
+        primary_color: widgetConfig.theme.primaryColor,
+        gradient_start: widgetConfig.theme.primaryColor,
+        gradient_end: widgetConfig.theme.accentColor,
+      };
+
+      const saveResponse = await agentAPI.saveWidgetConfig(widgetData);
+      console.log("✅ Widget configuration saved successfully:", saveResponse);
+
+      // Update local config with the final logo URL
+      setWidgetConfig((prev) => ({
+        ...prev,
+        content: {
+          ...prev.content,
+          companyLogo: finalLogoUrl,
+        },
+      }));
+
       setLastSaved(new Date());
       setHasUnsavedChanges(false);
 
-      // Update widget.js with new configuration
-      await updateWidgetJS();
-
-      // Refresh preview
       setPreviewKey((prev) => prev + 1);
 
       // Emit event for integration code real-time updates
@@ -323,20 +570,19 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
       });
       window.dispatchEvent(event);
 
-      console.log("✅ Widget configuration saved successfully");
-
       // Show success notification
-      const notification = document.createElement("div");
-      notification.className =
-        "fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 transition-all";
-      notification.textContent = "Widget configuration saved!";
-      document.body.appendChild(notification);
-      setTimeout(() => {
-        notification.remove();
-      }, 3000);
+      showToast('Widget configuration saved successfully!', 'success');
     } catch (error) {
-      console.error("Failed to save widget configuration:", error);
-      alert("Failed to save widget configuration. Please try again.");
+      console.error("❌ Error saving widget configuration:", error);
+
+      // Show error notification with details
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred";
+      showToast(`Failed to save widget configuration: ${errorMessage}`, 'error');
+
+      alert(
+        "Failed to save widget configuration. Please check the console for details and try again."
+      );
     } finally {
       setIsSaving(false);
     }
@@ -511,11 +757,16 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                   onClick={saveWidgetConfig}
                   disabled={isSaving || !hasUnsavedChanges}
                   className="common-button-bg text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+                  title={
+                    isSaving
+                      ? "Saving widget configuration..."
+                      : "Save all changes to backend"
+                  }
                 >
                   {isSaving ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Saving...
+                      Uploading & Saving...
                     </>
                   ) : (
                     <>
@@ -539,7 +790,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                     <div className="space-y-4">
                       <div>
                         <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">
-                          Company Logo
+                          Company Logo <span className="text-slate-400">(Max: 200KB)</span>
                         </label>
                         <div className="relative group w-32 h-32">
                           <input
@@ -552,19 +803,27 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
 
                           {/* Preview Box with Upload/Remove */}
                           <div className="relative w-full h-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600 overflow-hidden">
-                            {logoPreview || widgetConfig.content.companyLogo ? (
+                            {logoPreview ? (
                               <>
+                                {console.log("🖼️ Rendering logo with preview:", logoPreview.substring(0, 50) + "...")}
                                 <label
                                   htmlFor="logo-upload"
                                   className="cursor-pointer block w-full h-full"
                                 >
                                   <img
-                                    src={
-                                      logoPreview ||
-                                      widgetConfig.content.companyLogo
-                                    }
+                                    src={logoPreview}
                                     alt="Company Logo"
                                     className="w-full h-full object-contain p-3"
+                                    onLoad={() => {
+                                      console.log("✅ Logo image rendered successfully");
+                                    }}
+                                    onError={(e) => {
+                                      console.error("❌ Logo image failed to render:", e.currentTarget.src);
+                                      console.error("❌ Error details:", e);
+                                      // Clear the preview if image fails to load
+                                      setLogoPreview("");
+                                    }}
+                                    crossOrigin="anonymous"
                                   />
                                 </label>
                                 {/* Remove Button - Top Left */}
@@ -593,10 +852,12 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                                 </button>
                               </>
                             ) : (
-                              <label
-                                htmlFor="logo-upload"
-                                className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                              >
+                              <>
+                                {console.log("📋 Rendering upload placeholder - no logo preview")}
+                                <label
+                                  htmlFor="logo-upload"
+                                  className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                                >
                                 <svg
                                   className="w-10 h-10 text-slate-400 dark:text-slate-500 mb-2"
                                   fill="none"
@@ -613,7 +874,8 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                                 <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
                                   Upload
                                 </span>
-                              </label>
+                                </label>
+                              </>
                             )}
                           </div>
                         </div>
@@ -915,7 +1177,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
         
       
 
-
+                        
 
 <div class="demo-text">
   <strong> Test Your AI Employee Widget:</strong>

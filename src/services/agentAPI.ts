@@ -6,7 +6,7 @@ const apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: 10000,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
 });
 
@@ -28,7 +28,7 @@ apiClient.interceptors.request.use((config) => {
 export interface ApiAgent {
   id: string;
   name: string;
-  status: 'Pending' | 'Published';
+  status: "Pending" | "Published";
   personality: string;
   language: string;
   voice: string;
@@ -44,7 +44,6 @@ export interface ApiAgent {
     activeUsers: number;
   };
 }
-
 
 interface AgentsResponse {
   success: boolean;
@@ -78,7 +77,7 @@ interface UpdateAgentRequest {
   persona?: string;
   language?: string;
   voice?: string;
-  status?: 'Pending' | 'Published';
+  status?: "Pending" | "Published";
 }
 
 export interface PublicationRequest {
@@ -98,29 +97,30 @@ export interface PublicationResponse {
 }
 
 class AgentAPI {
-
   // Get all agents
   async getAgents(): Promise<ApiAgent[]> {
     try {
-      const response: AxiosResponse<AgentsResponse> = await apiClient.get('/agents');
-      
+      const response: AxiosResponse<AgentsResponse> = await apiClient.get(
+        "/agents"
+      );
+
       if (response.data.success && response.data.data.agents) {
-        const agents = response.data.data.agents.map(agent => ({
+        const agents = response.data.data.agents.map((agent) => ({
           ...agent,
           stats: agent.stats || {
             conversations: 0,
             successRate: 0,
             avgResponseTime: 0,
-            activeUsers: 0
-          }
+            activeUsers: 0,
+          },
         }));
-        
+
         return agents;
       }
-      
+
       return [];
     } catch (error: any) {
-      console.error('Error fetching agents:', error);
+      console.error("Error fetching agents:", error);
       throw error;
     }
   }
@@ -128,9 +128,12 @@ class AgentAPI {
   // Get agent by ID
   async getAgent(id: string): Promise<ApiAgent> {
     try {
-      const response: AxiosResponse<{ success: boolean; data: ApiAgent; message?: string }> = 
-        await apiClient.get(`/agents/${id}`);
-      
+      const response: AxiosResponse<{
+        success: boolean;
+        data: ApiAgent;
+        message?: string;
+      }> = await apiClient.get(`/agents/${id}`);
+
       if (response.data.success && response.data.data) {
         return {
           ...response.data.data,
@@ -138,14 +141,14 @@ class AgentAPI {
             conversations: 0,
             successRate: 0,
             avgResponseTime: 0,
-            activeUsers: 0
-          }
+            activeUsers: 0,
+          },
         };
       }
-      
-      throw new Error(response.data.message || 'Agent not found');
+
+      throw new Error(response.data.message || "Agent not found");
     } catch (error: any) {
-      console.error('Error fetching agent:', error);
+      console.error("Error fetching agent:", error);
       throw error;
     }
   }
@@ -153,9 +156,12 @@ class AgentAPI {
   // Create a new agent
   async createAgent(agentData: CreateAgentRequest): Promise<ApiAgent> {
     try {
-      const response: AxiosResponse<{ success: boolean; data: ApiAgent; message?: string }> = 
-        await apiClient.post('/agents/create-agent', agentData);
-      
+      const response: AxiosResponse<{
+        success: boolean;
+        data: ApiAgent;
+        message?: string;
+      }> = await apiClient.post("/agents/create-agent", agentData);
+
       if (response.data.success && response.data.data) {
         return {
           ...response.data.data,
@@ -163,24 +169,30 @@ class AgentAPI {
             conversations: 0,
             successRate: 0,
             avgResponseTime: 0,
-            activeUsers: 0
-          }
+            activeUsers: 0,
+          },
         };
       }
-      
-      throw new Error(response.data.message || 'Failed to create agent');
+
+      throw new Error(response.data.message || "Failed to create agent");
     } catch (error: any) {
-      console.error('Error creating agent:', error);
+      console.error("Error creating agent:", error);
       throw error;
     }
   }
 
   // Update an existing agent
-  async updateAgent(id: string, agentData: UpdateAgentRequest): Promise<ApiAgent> {
+  async updateAgent(
+    id: string,
+    agentData: UpdateAgentRequest
+  ): Promise<ApiAgent> {
     try {
-      const response: AxiosResponse<{ success: boolean; data: ApiAgent; message?: string }> = 
-        await apiClient.put(`/agents/${id}`, agentData);
-      
+      const response: AxiosResponse<{
+        success: boolean;
+        data: ApiAgent;
+        message?: string;
+      }> = await apiClient.put(`/agents/${id}`, agentData);
+
       if (response.data.success && response.data.data) {
         return {
           ...response.data.data,
@@ -188,14 +200,14 @@ class AgentAPI {
             conversations: 0,
             successRate: 0,
             avgResponseTime: 0,
-            activeUsers: 0
-          }
+            activeUsers: 0,
+          },
         };
       }
-      
-      throw new Error(response.data.message || 'Failed to update agent');
+
+      throw new Error(response.data.message || "Failed to update agent");
     } catch (error: any) {
-      console.error('Error updating agent:', error);
+      console.error("Error updating agent:", error);
       throw error;
     }
   }
@@ -203,14 +215,14 @@ class AgentAPI {
   // Delete an agent
   async deleteAgent(id: string): Promise<void> {
     try {
-      const response: AxiosResponse<{ success: boolean; message?: string }> = 
+      const response: AxiosResponse<{ success: boolean; message?: string }> =
         await apiClient.delete(`/agents/${id}`);
-      
+
       if (!response.data.success) {
-        throw new Error(response.data.message || 'Failed to delete agent');
+        throw new Error(response.data.message || "Failed to delete agent");
       }
     } catch (error: any) {
-      console.error('Error deleting agent:', error);
+      console.error("Error deleting agent:", error);
       throw error;
     }
   }
@@ -236,8 +248,8 @@ class AgentAPI {
 
   async unpublishAgent(agentId: string): Promise<PublicationResponse> {
     try {
-      const response: AxiosResponse<PublicationResponse> = await apiClient.post( 
-          `/publications/publish`,
+      const response: AxiosResponse<PublicationResponse> = await apiClient.post(
+        `/publications/publish`,
         {
           agent_id: agentId,
           is_published: false,
@@ -255,32 +267,42 @@ class AgentAPI {
   // Get agent session history
   async getAgentSessions(payload: string, agentId: string): Promise<any> {
     try {
-      const response: AxiosResponse<{ success: boolean; data: any; message?: string }> = 
-        await apiClient.get(`/agent-sessions/agent/${agentId}?${payload}`);
-      
+      const response: AxiosResponse<{
+        success: boolean;
+        data: any;
+        message?: string;
+      }> = await apiClient.get(`/agent-sessions/agent/${agentId}?${payload}`);
+
       if (response.data.success && response.data.data) {
         return response.data.data;
       }
-      
-      throw new Error(response.data.message || 'Failed to fetch agent sessions');
+
+      throw new Error(
+        response.data.message || "Failed to fetch agent sessions"
+      );
     } catch (error: any) {
-      console.error('Error fetching agent sessions:', error);
+      console.error("Error fetching agent sessions:", error);
       throw error;
     }
   }
 
   async getSessionTranscripts(sessionId: string): Promise<any> {
     try {
-      const response: AxiosResponse<{ success: boolean; data: any; message?: string }> = 
-        await apiClient.get(`/agent-sessions/${sessionId}/transcripts`);
-      
+      const response: AxiosResponse<{
+        success: boolean;
+        data: any;
+        message?: string;
+      }> = await apiClient.get(`/agent-sessions/${sessionId}/transcripts`);
+
       if (response.data.success && response.data.data) {
         return response.data.data;
       }
-      
-      throw new Error(response.data.message || 'Failed to fetch session transcripts');
+
+      throw new Error(
+        response.data.message || "Failed to fetch session transcripts"
+      );
     } catch (error: any) {
-      console.error('Error fetching session transcripts:', error);
+      console.error("Error fetching session transcripts:", error);
       throw error;
     }
   }
@@ -288,27 +310,72 @@ class AgentAPI {
   // Get call summary for an agent
   async getCallSummary(agentId: string): Promise<any> {
     try {
-      const response: AxiosResponse<{ success: boolean; data: any; message?: string }> = 
-        await apiClient.get(`/leads/agent/${agentId}`);
-      
+      const response: AxiosResponse<{
+        success: boolean;
+        data: any;
+        message?: string;
+      }> = await apiClient.get(`/leads/agent/${agentId}`);
+
       if (response.data.success && response.data.data) {
         return response.data.data;
       }
-      
-      throw new Error(response.data.message || 'Failed to fetch call summary');
+
+      throw new Error(response.data.message || "Failed to fetch call summary");
     } catch (error: any) {
-      console.error('Error fetching call summary:', error);
+      console.error("Error fetching call summary:", error);
       throw error;
     }
   }
 
+  // Widget Configuration API
+  async saveWidgetConfig(widgetData: {
+    agent_id: string;
+    company_logo?: string;
+    ai_employee_name: string;
+    ai_employee_description: string;
+    theme?: string;
+    position?: string;
+    button_text?: string;
+    welcome_message?: string;
+    allowed_domains?: string[];
+  }): Promise<any> {
+    try {
+      const response: AxiosResponse<{
+        success: boolean;
+        data: any;
+        message?: string;
+      }> = await apiClient.post(`/widgets`, widgetData); // Assuming PUT for saving configuration
+
+      return response.data;
+    } catch (error: any) {
+      console.error("Error saving widget configuration:", error);
+      throw error;
+    }
+  }
+
+  // Logo Upload API
+  async uploadLogo(file: File): Promise<any> {
+    try {
+      const formData = new FormData();
+      formData.append("logo", file);
+      const response = await apiClient.post("/upload/logo", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error("Error uploading logo:", error);
+      throw error;
+    }
+  }
 }
 
 export const agentAPI = new AgentAPI();
 
 // Export convenience functions
-export const publishAgent = (agentId: string): Promise<PublicationResponse> => 
+export const publishAgent = (agentId: string): Promise<PublicationResponse> =>
   agentAPI.publishAgent(agentId);
 
-export const unpublishAgent = (agentId: string): Promise<PublicationResponse> => 
+export const unpublishAgent = (agentId: string): Promise<PublicationResponse> =>
   agentAPI.unpublishAgent(agentId);

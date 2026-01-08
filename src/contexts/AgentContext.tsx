@@ -366,9 +366,7 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const refreshAgents = async () => {
-    if (isAgentPage) {
-      await loadAgents();
-    }
+    await loadAgents();
   };
 
   return (

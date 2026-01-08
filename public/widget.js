@@ -127,6 +127,7 @@
             const urlCompanyName = url.searchParams.get('companyName');
             const urlCompanyDescription = url.searchParams.get('companyDescription');
             const urlAgentName = url.searchParams.get('agentName');
+            const urlCompanyLogo = url.searchParams.get('companyLogo');
             if (urlCompanyName) {
               companyName = decodeURIComponent(urlCompanyName);
               console.log("🏢 Using companyName from URL parameter:", companyName);
@@ -139,6 +140,12 @@
               agentName = decodeURIComponent(urlAgentName);
               console.log("🤖 Using agentName from URL parameter:", agentName);
             }
+            if (urlCompanyLogo) {
+              companyLogo = decodeURIComponent(urlCompanyLogo);
+              console.log("🖼️ Using companyLogo from URL parameter");
+              console.log("🖼️ Logo length:", companyLogo.length);
+              console.log("🖼️ Logo preview:", companyLogo.substring(0, 100));
+            }
             break;
           } catch (urlError) {
             console.warn("⚠️ Error parsing script URL:", urlError);
@@ -147,8 +154,8 @@
         }
       }
       
-      // Get company logo from SHIVAI_CONFIG (not URL to avoid length issues)
-      if (window.SHIVAI_CONFIG && window.SHIVAI_CONFIG.content && window.SHIVAI_CONFIG.content.companyLogo) {
+      // Get company logo from SHIVAI_CONFIG if not already from URL
+      if (!companyLogo && window.SHIVAI_CONFIG && window.SHIVAI_CONFIG.content && window.SHIVAI_CONFIG.content.companyLogo) {
         companyLogo = window.SHIVAI_CONFIG.content.companyLogo;
         console.log("🖼️ Using companyLogo from SHIVAI_CONFIG");
       }
@@ -1077,6 +1084,9 @@
     // Get company info for dynamic content
     const companyInfo = getCompanyInfo();
     console.log("🏢 Using company info:", companyInfo);
+    console.log("🖼️ Final logo being used:", companyInfo.logo);
+    console.log("🖼️ Logo exists:", !!companyInfo.logo);
+    console.log("🖼️ Logo length:", companyInfo.logo?.length || 0);
     
     landingView.innerHTML = `
       <div class="widget-header">

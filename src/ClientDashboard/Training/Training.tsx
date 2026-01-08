@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation, useParams } from "react-router-dom";
 import toast from 'react-hot-toast';
 import GlassCard from "../../components/GlassCard";
 import { useAgent } from "../../contexts/AgentContext";
 import { useAuth } from "../../contexts/AuthContext";
 import { isDeveloperUser } from "../../lib/utils";
+import { agentAPI } from "../../services/agentAPI";
 import Slider from "react-slick";
 import {
   Brain,
@@ -26,7 +27,7 @@ import {
 } from "lucide-react";
 
 const Training = () => {
-  const { agents, currentAgent } = useAgent();
+  const { agents, currentAgent, refreshAgents } = useAgent();
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -41,7 +42,31 @@ const Training = () => {
     agentIdFromUrl || currentAgent?.id || ""
   );
 
+  // Local state to store fetched agents
+  const [localAgents, setLocalAgents] = useState<any[]>([]);
+
   const [trainingProgress, setTrainingProgress] = useState(0);
+
+  // Fetch latest agents directly from API on component mount
+  useEffect(() => {
+    const loadAgents = async () => {
+      try {
+        const fetchedAgents = await agentAPI.getAgents();
+        console.log("Agents loaded:", fetchedAgents);
+        // Store agents in local state
+        setLocalAgents(fetchedAgents);
+        // Update the selected agent if agents are loaded
+        if (fetchedAgents.length > 0 && !selectedAgent) {
+          setSelectedAgent(fetchedAgents[0].id);
+        }
+      } catch (error) {
+        console.error("Failed to load agents from API:", error);
+        toast.error("Failed to load agents. Please refresh the page.");
+      }
+    };
+
+    loadAgents();
+  }, []);
   const [isTraining, setIsTraining] = useState(false);
   const [activeTab, setActiveTab] = useState("knowledge");
   const [urls, setUrls] = useState<string[]>(["", ""]);
@@ -344,7 +369,7 @@ const Training = () => {
     return savedSections.knowledge && savedSections.examples && savedSections.intents;
   };
 
-  const selectedAgentData = agents.find((agent) => agent.id === selectedAgent);
+  const selectedAgentData = localAgents.find((agent) => agent.id === selectedAgent);
 
   const trainingTabs = [
     { id: "knowledge", label: "Knowledge Base", icon: Database },
@@ -552,7 +577,7 @@ const Training = () => {
                         onChange={(e) => setSelectedAgent(e.target.value)}
                         className="common-bg-icons w-full px-3 py-2 sm:px-4 sm:py-2 appearance-none pr-8 sm:pr-10 font-medium text-sm sm:text-base"
                       >
-                        {agents.map((agent) => (
+                        {localAgents.map((agent) => (
                           <option key={agent.id} value={agent.id}>
                             {agent.name}
                           </option>
@@ -564,11 +589,15 @@ const Training = () => {
 
                   {/* Agent Details Row - Mobile Optimized */}
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-                    <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                      <span>{selectedAgentData.language}</span>
+                    <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                      <span className="font-medium capitalize">{selectedAgentData.gender || 'N/A'}</span>
                       <span className="text-slate-400">•</span>
-                      <span className="truncate">
-                        {selectedAgentData.persona}
+                      <span className="truncate capitalize">
+                        {selectedAgentData.personality || selectedAgentData.persona || 'N/A'}
+                      </span>
+                      <span className="text-slate-400">•</span>
+                      <span className="truncate capitalize">
+                        {selectedAgentData.voice || 'N/A'}
                       </span>
                     </div>
                     <span
@@ -682,7 +711,7 @@ const Training = () => {
                       className="common-bg-icons w-full px-4 py-3 rounded-xl appearance-none pr-10 font-medium text-center text-sm sm:text-base"
                     >
                       <option value="">Choose an agent...</option>
-                      {agents.map((agent) => (
+                      {localAgents.map((agent) => (
                         <option key={agent.id} value={agent.id}>
                           {agent.name}
                         </option>
