@@ -322,7 +322,7 @@
       }
       
       console.log('🔍 Checking agent status for ID:', agentId);
-      const response = await fetch(`https://nodejs.service.callshivai.com/api/v1/agents/${agentId}`);
+      const response = await fetch(`https://nodejs.service.callshivai.com/api/v1/agent-configs/${agentId}`);
       
       if (response.ok) {
         const data = await response.json();
