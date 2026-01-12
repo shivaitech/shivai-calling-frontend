@@ -148,11 +148,56 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
   };
 
   const handleDownload = () => {
-    // Simulate download - in real app, this would download the actual recording
-    const link = document.createElement('a');
-    link.href = '#'; // Replace with actual recording URL
-    link.download = `recording-${session.session_id}.mp3`;
-    link.click();
+    const recordingUrl = session?.recording?.url;
+    if (!recordingUrl) {
+      showToast('Recording not available for download', 'error');
+      return;
+    }
+
+    try {
+      // Create a temporary link element
+      const link = document.createElement('a');
+      link.href = recordingUrl;
+      link.download = `recording-${session.session_id || session.id}.mp3`;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      
+      // Trigger download
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      showToast('Recording download started', 'success');
+    } catch (error) {
+      console.error('Download error:', error);
+      showToast('Failed to download recording', 'error');
+    }
+  };
+
+  // Toast notification function
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    const toastColors = {
+      success: 'bg-green-500',
+      error: 'bg-red-500',
+      info: 'bg-blue-500'
+    };
+
+    const toast = document.createElement('div');
+    toast.className = `fixed top-4 right-4 ${toastColors[type]} text-white px-4 py-3 rounded-lg shadow-lg z-[100] transition-all`;
+    toast.innerHTML = `
+      <div class="flex items-center gap-2">
+        <span class="text-sm">${message}</span>
+        <button onclick="this.parentElement.parentElement.remove()" class="ml-2 text-white/80 hover:text-white">&times;</button>
+      </div>
+    `;
+    
+    document.body.appendChild(toast);
+    setTimeout(() => {
+      if (toast.parentElement) {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+      }
+    }, 3000);
   };
 
   const formatTimeDisplay = (seconds: number) => {
@@ -380,98 +425,133 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
             
             {/* Audio Player */}
             <div className="bg-slate-50 dark:bg-slate-900/30 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
-              {/* Hidden audio element */}
-              <audio
-                ref={audioRef}
-                onTimeUpdate={handleTimeUpdate}
-                onLoadedMetadata={handleLoadedMetadata}
-                onEnded={() => setIsPlaying(false)}
-                src="#" // Replace with actual recording URL when available
-              />
-              
-              {/* Progress bar */}
-              <div
-                ref={progressRef}
-                onClick={handleProgressClick}
-                className="relative h-1 bg-slate-300 dark:bg-slate-700 rounded-full cursor-pointer mb-2"
-              >
-                <div
-                  className="absolute top-0 left-0 h-full bg-blue-600 rounded-full transition-all"
-                  style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
-                />
-              </div>
-
-              {/* Controls */}
-              <div className="flex items-center justify-between gap-3">
-                {/* Time display */}
-                <span className="text-xs text-slate-600 dark:text-slate-400 w-10">
-                  {formatTimeDisplay(currentTime)}
-                </span>
-
-                {/* Player controls */}
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => skip(-10)}
-                    className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors"
-                    title="Rewind 10s"
-                  >
-                    <SkipBack className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                  </button>
+              {session?.recording?.url ? (
+                <>
+                  {/* Hidden audio element */}
+                  <audio
+                    ref={audioRef}
+                    onTimeUpdate={handleTimeUpdate}
+                    onLoadedMetadata={handleLoadedMetadata}
+                    onEnded={() => setIsPlaying(false)}
+                    src={session.recording.url}
+                  />
                   
-                  <button
-                    onClick={togglePlayPause}
-                    className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full transition-colors"
-                    title={isPlaying ? 'Pause' : 'Play'}
-                  >
-                    {isPlaying ? (
-                      <Pause className="w-4 h-4" fill="currentColor" />
-                    ) : (
-                      <Play className="w-4 h-4 ml-0.5" fill="currentColor" />
-                    )}
-                  </button>
+                  {/* Recording Status Badge */}
+                  {session.recording.status && (
+                    <div className="mb-3 flex items-center gap-2">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
+                        session.recording.status === 'completed' 
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400'
+                          : session.recording.status === 'processing'
+                          ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400'
+                          : 'bg-slate-100 text-slate-700 dark:bg-slate-900/20 dark:text-slate-400'
+                      }`}>
+                        <div className={`w-1.5 h-1.5 rounded-full ${
+                          session.recording.status === 'completed' ? 'bg-green-500' : 'bg-yellow-500'
+                        }`} />
+                        {session.recording.status === 'completed' ? 'Recording Available' : 'Processing'}
+                      </span>
+                      {session.recording.egress_id && (
+                        <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                          ID: {session.recording.egress_id.substring(0, 12)}...
+                        </span>
+                      )}
+                    </div>
+                  )}
                   
-                  <button
-                    onClick={() => skip(10)}
-                    className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors"
-                    title="Forward 10s"
+                  {/* Progress bar */}
+                  <div
+                    ref={progressRef}
+                    onClick={handleProgressClick}
+                    className="relative h-1 bg-slate-300 dark:bg-slate-700 rounded-full cursor-pointer mb-2"
                   >
-                    <SkipForward className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                  </button>
+                    <div
+                      className="absolute top-0 left-0 h-full bg-blue-600 rounded-full transition-all"
+                      style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+                    />
+                  </div>
 
-                  <button
-                    onClick={changeSpeed}
-                    className="px-2 py-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors text-xs text-slate-600 dark:text-slate-400"
-                    title="Playback speed"
-                  >
-                    {playbackSpeed}x
-                  </button>
+                  {/* Controls */}
+                  <div className="flex items-center justify-between gap-3">
+                    {/* Time display */}
+                    <span className="text-xs text-slate-600 dark:text-slate-400 w-10">
+                      {formatTimeDisplay(currentTime)}
+                    </span>
 
-                  <button
-                    onClick={toggleMute}
-                    className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors"
-                    title={isMuted ? 'Unmute' : 'Mute'}
-                  >
-                    {isMuted ? (
-                      <VolumeX className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                    ) : (
-                      <Volume2 className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                    )}
-                  </button>
-                  
-                  <button
-                    onClick={handleDownload}
-                    className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors"
-                    title="Download recording"
-                  >
-                    <Download className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                  </button>
+                    {/* Player controls */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => skip(-10)}
+                        className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors"
+                        title="Rewind 10s"
+                      >
+                        <SkipBack className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                      </button>
+                      
+                      <button
+                        onClick={togglePlayPause}
+                        className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full transition-colors"
+                        title={isPlaying ? 'Pause' : 'Play'}
+                      >
+                        {isPlaying ? (
+                          <Pause className="w-4 h-4" fill="currentColor" />
+                        ) : (
+                          <Play className="w-4 h-4 ml-0.5" fill="currentColor" />
+                        )}
+                      </button>
+                      
+                      <button
+                        onClick={() => skip(10)}
+                        className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors"
+                        title="Forward 10s"
+                      >
+                        <SkipForward className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                      </button>
+
+                      <button
+                        onClick={changeSpeed}
+                        className="px-2 py-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors text-xs text-slate-600 dark:text-slate-400"
+                        title="Playback speed"
+                      >
+                        {playbackSpeed}x
+                      </button>
+
+                      <button
+                        onClick={toggleMute}
+                        className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors"
+                        title={isMuted ? 'Unmute' : 'Mute'}
+                      >
+                        {isMuted ? (
+                          <VolumeX className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                        ) : (
+                          <Volume2 className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Duration */}
+                    <span className="text-xs text-slate-600 dark:text-slate-400 w-10 text-right">
+                      {formatTimeDisplay(duration || session.duration_seconds || 0)}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-8">
+                  <div className="w-12 h-12 bg-slate-200 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <svg className="w-6 h-6 text-slate-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.37 4.37 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z"/>
+                    </svg>
+                  </div>
+                  <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">Recording not available</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-500">
+                    {session?.recording?.enabled === false 
+                      ? 'Recording was disabled for this session' 
+                      : session?.recording?.status === 'processing'
+                      ? 'Recording is being processed'
+                      : 'No recording found for this session'}
+                  </p>
                 </div>
-
-                {/* Duration */}
-                <span className="text-xs text-slate-600 dark:text-slate-400 w-10 text-right">
-                  {formatTimeDisplay(duration || session.duration_seconds || 0)}
-                </span>
-              </div>
+              )}
             </div>
           </div>
 
