@@ -147,7 +147,7 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
     }
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     const recordingUrl = session?.recording?.url;
     if (!recordingUrl) {
       showToast('Recording not available for download', 'error');
@@ -155,19 +155,31 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
     }
 
     try {
-      // Create a temporary link element
+      showToast('Downloading recording...', 'info');
+      
+      // Fetch the file as a blob
+      const response = await fetch(recordingUrl);
+      if (!response.ok) {
+        throw new Error('Failed to fetch recording');
+      }
+      
+      const blob = await response.blob();
+      
+      // Create a blob URL and trigger download
+      const blobUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
-      link.href = recordingUrl;
+      link.href = blobUrl;
       link.download = `recording-${session.session_id || session.id}.mp3`;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
       
       // Trigger download
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       
-      showToast('Recording download started', 'success');
+      // Clean up the blob URL
+      window.URL.revokeObjectURL(blobUrl);
+      
+      showToast('Recording downloaded successfully', 'success');
     } catch (error) {
       console.error('Download error:', error);
       showToast('Failed to download recording', 'error');
@@ -526,6 +538,14 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
                         ) : (
                           <Volume2 className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                         )}
+                      </button>
+
+                      <button
+                        onClick={handleDownload}
+                        className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors"
+                        title="Download recording"
+                      >
+                        <Download className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                       </button>
                     </div>
 

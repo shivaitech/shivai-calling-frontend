@@ -22,6 +22,7 @@ const TopBar = lazy(() => import("./components/TopBar"));
 const Overview = lazy(() => import("./ClientDashboard/Dashboard/Overview"));
 const AgentManagement = lazy(() => import("./ClientDashboard/Employees/AgentManagement"));
 const CreateAgent = lazy(() => import("./ClientDashboard/Employees/CreateAgent"));
+const EditAgent = lazy(() => import("./ClientDashboard/Employees/EditAgent"));
 const Training = lazy(() => import("./ClientDashboard/Training/Training"));
 const Workflows = lazy(() => import("./ClientDashboard/Workflows/Workflows"));
 const Analytics = lazy(() => import("./ClientDashboard/Analytics/Analytics"));
@@ -149,7 +150,7 @@ function AppContent() {
                       <Route path="/agents/:id" element={<AgentManagement />} />
                       <Route
                         path="/agents/:id/edit"
-                        element={<AgentManagement />}
+                        element={<EditAgent />}
                       />
                       <Route path="/agents/:id/train" element={<Training />} />
                       <Route path="/training" element={<Training />} />

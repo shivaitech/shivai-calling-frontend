@@ -25,6 +25,23 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
+// Response interceptor to handle token expiration
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    // Check if error is 401 (Unauthorized) - token expired or invalid
+    if (error.response?.status === 401) {
+      // Clear auth tokens from localStorage
+      localStorage.removeItem("auth_tokens");
+
+      // Redirect to landing page
+      window.location.href = "/landing";
+    }
+
+    return Promise.reject(error);
+  }
+);
+
 export interface ApiAgent {
   id: string;
   name: string;
@@ -34,9 +51,19 @@ export interface ApiAgent {
   voice: string;
   createdAt: string;
   updatedAt?: string;
+  gender?: string;
+  business_process?: string;
+  industry?: string;
+  custom_instructions?: string;
+  guardrails_level?: string;
+  response_style?: string;
+  max_response_length?: string;
+  context_window?: string;
+  temperature?: number;
   greeting_message?: {
     [key: string]: string;
   };
+
   stats?: {
     conversations: number;
     successRate: number;
@@ -75,8 +102,18 @@ interface CreateAgentRequest {
 interface UpdateAgentRequest {
   name?: string;
   persona?: string;
+  personality?: string;
   language?: string;
   voice?: string;
+  gender?: string;
+  business_process?: string;
+  industry?: string;
+  custom_instructions?: string;
+  guardrails_level?: string;
+  response_style?: string;
+  max_response_length?: string;
+  context_window?: string;
+  temperature?: number;
   status?: "Pending" | "Published";
 }
 
@@ -126,17 +163,25 @@ class AgentAPI {
   }
 
   // Get agent by ID
-  async getAgent(id: string): Promise<ApiAgent> {
+  async getAgent(id: string): Promise<{ agent: ApiAgent }> {
     try {
       const response: AxiosResponse<{
         success: boolean;
-        data: ApiAgent;
+        data?: {
+          agent: ApiAgent;
+          stats?: {
+            conversations: number;
+            successRate: number;
+            avgResponseTime: number;
+            activeUsers: number;
+          };
+        };
         message?: string;
       }> = await apiClient.get(`/agents/${id}`);
 
-      if (response.data.success && response.data.data) {
-        return {
-          ...response.data.data,
+      if (response.data.success && response.data.data?.agent) {
+        const agent = {
+          ...response.data.data.agent,
           stats: response.data.data.stats || {
             conversations: 0,
             successRate: 0,
@@ -144,6 +189,7 @@ class AgentAPI {
             activeUsers: 0,
           },
         };
+        return { agent };
       }
 
       throw new Error(response.data.message || "Agent not found");
