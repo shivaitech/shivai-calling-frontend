@@ -50,6 +50,26 @@ body {
   }
 }
 
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out forwards;
+}
+
+/* Safe area padding for mobile devices with notches/home indicators */
+.pb-safe {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
 /* Training Component Mobile Enhancements */
 .scrollbar-hide {
   -ms-overflow-style: none;
@@ -170,6 +190,94 @@ body {
   .xs\:inline {
     display: inline;
   }
+}
+
+/* Theme Slider Styles */
+.theme-slider-container {
+  position: relative;
+  /* padding: 0 42px; */
+}
+
+.theme-slider-container .slick-list {
+  margin: 0 -4px;
+}
+
+.theme-slider-container .slick-track {
+  display: flex !important;
+  align-items: stretch;
+}
+
+.theme-slider-container .slick-slide {
+  padding: 0 4px;
+  height: auto;
+}
+
+.theme-slider-container .slick-slide > div {
+  height: 100%;
+}
+
+/* Custom Arrow Buttons */
+.theme-slider-container .slick-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.95) !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 50%;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.theme-slider-container .slick-arrow:hover {
+  background: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.theme-slider-container .slick-arrow svg {
+  width: 16px;
+  height: 16px;
+  color: #475569;
+}
+
+.theme-slider-container .slick-prev {
+  left: -6px;
+}
+
+.theme-slider-container .slick-next {
+  right: -6px;
+}
+
+.theme-slider-container .slick-arrow:before {
+  display: none !important;
+}
+
+.theme-slider-container .slick-disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+:root.dark .theme-slider-container .slick-arrow {
+  background: rgba(30, 41, 59, 0.95) !important;
+  border-color: #475569 !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+:root.dark .theme-slider-container .slick-arrow:hover {
+  background: #334155 !important;
+  border-color: #64748b !important;
+}
+
+:root.dark .theme-slider-container .slick-arrow svg {
+  color: #94a3b8;
 }
 
 /* Training Stats Slider Styles */

@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import { useState, useEffect } from 'react';
 import GlassCard from '../../components/GlassCard';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { authAPI } from '../../services/authAPI';
 import { 
   User, 
   Bell, 
@@ -16,18 +18,24 @@ import {
   RefreshCw,
   Trash2,
   Plus,
-  ChevronDown
+  ChevronDown,
+  Loader2,
+  Check
 } from 'lucide-react';
 
 const Settings = () => {
   const { isDark, toggleTheme } = useTheme();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
   const [showApiKey, setShowApiKey] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   const [profile, setProfile] = useState({
-    name: 'John Doe',
-    email: 'john.doe@company.com',
-    company: 'Acme Corp',
+    name: '',
+    email: '',
+    company: '',
     timezone: 'Asia/Kolkata',
     language: 'English'
   });
@@ -119,7 +127,67 @@ const Settings = () => {
 
   const roles = ['Admin', 'Editor', 'Viewer'];
 
-  const handleSaveProfile = () => {
+  // Fetch profile data on mount
+  useEffect(() => {
+    const fetchProfile = async () => {
+      setIsLoading(true);
+      try {
+        const data = await authAPI.getUserProfile();
+        if (data?.user) {
+          setProfile({
+            name: data.user.fullName || user?.fullName || '',
+            email: data.user.email || user?.email || '',
+            company: data.user.company || '',
+            timezone: data.user.timezone || 'Asia/Kolkata',
+            language: data.user.language || 'English'
+          });
+        } else if (user) {
+          // Fallback to auth context user
+          setProfile({
+            name: user.fullName || '',
+            email: user.email || '',
+            company: '',
+            timezone: 'Asia/Kolkata',
+            language: 'English'
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch profile:', error);
+        // Fallback to auth context user on error
+        if (user) {
+          setProfile({
+            name: user.fullName || '',
+            email: user.email || '',
+            company: '',
+            timezone: 'Asia/Kolkata',
+            language: 'English'
+          });
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, [user]);
+
+  const handleSaveProfile = async () => {
+    setIsSaving(true);
+    setSaveSuccess(false);
+    try {
+      await authAPI.updateProfile({
+        fullName: profile.name,
+        company: profile.company,
+        timezone: profile.timezone,
+        language: profile.language
+      });
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (error) {
+      console.error('Failed to save profile:', error);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleSaveNotifications = () => {
@@ -164,104 +232,121 @@ const Settings = () => {
                 Profile Settings
               </h3>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    Full Name
-                  </label>
-                  <input
-                    type="text"
-                    value={profile.name}
-                    onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-                    className="common-bg-icons w-full text-sm"
-                  />
+              {isLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
                 </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                        Full Name
+                      </label>
+                      <input
+                        type="text"
+                        value={profile.name}
+                        onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+                        placeholder="Enter your full name"
+                        className="common-bg-icons w-full px-4 py-3 rounded-xl text-sm text-slate-800 dark:text-white placeholder:text-slate-400 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    Email Address
-                  </label>
-                  <input
-                    type="email"
-                    value={profile.email}
-                    onChange={(e) => setProfile({ ...profile, email: e.target.value })}
-                    className="common-bg-icons w-full"
-                  />
-                </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                        Email Address
+                      </label>
+                      <input
+                        type="email"
+                        value={profile.email}
+                        disabled
+                        className="common-bg-icons w-full px-4 py-3 rounded-xl text-sm text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-75"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    Company
-                  </label>
-                  <input
-                    type="text"
-                    value={profile.company}
-                    onChange={(e) => setProfile({ ...profile, company: e.target.value })}
-                    className="common-bg-icons w-full"
-                  />
-                </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                        Company
+                      </label>
+                      <input
+                        type="text"
+                        value={profile.company}
+                        onChange={(e) => setProfile({ ...profile, company: e.target.value })}
+                        placeholder="Enter your company name"
+                        className="common-bg-icons w-full px-4 py-3 rounded-xl text-sm text-slate-800 dark:text-white placeholder:text-slate-400 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    Timezone
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={profile.timezone}
-                      onChange={(e) => setProfile({ ...profile, timezone: e.target.value })}
-                      className="common-bg-icons w-full appearance-none pr-10"
-                    >
-                      {timezones.map(tz => (
-                        <option key={tz} value={tz}>{tz}</option>
-                      ))}
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                        Timezone
+                      </label>
+                      <div className="relative">
+                        <select
+                          value={profile.timezone}
+                          onChange={(e) => setProfile({ ...profile, timezone: e.target.value })}
+                          className="common-bg-icons w-full px-4 py-3 rounded-xl text-sm text-slate-800 dark:text-white border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all appearance-none pr-10 cursor-pointer"
+                        >
+                          {timezones.map(tz => (
+                            <option key={tz} value={tz}>{tz}</option>
+                          ))}
+                        </select>
+                        <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                        Language
+                      </label>
+                      <div className="relative">
+                        <select
+                          value={profile.language}
+                          onChange={(e) => setProfile({ ...profile, language: e.target.value })}
+                          className="common-bg-icons w-full px-4 py-3 rounded-xl text-sm text-slate-800 dark:text-white border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all appearance-none pr-10 cursor-pointer"
+                        >
+                          {languages.map(lang => (
+                            <option key={lang} value={lang}>{lang}</option>
+                          ))}
+                        </select>
+                        <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                        Theme
+                      </label>
+                      <button
+                        onClick={toggleTheme}
+                        className="common-bg-icons flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sm border border-slate-200 dark:border-slate-700 hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
+                      >
+                        <Globe className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                        <span className="text-slate-800 dark:text-white">
+                          {isDark ? 'Dark Mode' : 'Light Mode'}
+                        </span>
+                      </button>
+                    </div>
                   </div>
-                </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    Language
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={profile.language}
-                      onChange={(e) => setProfile({ ...profile, language: e.target.value })}
-                      className="common-bg-icons w-full appearance-none pr-10"
+                  <div className="flex justify-end pt-4 border-t border-slate-200 dark:border-slate-700">
+                    <button
+                      onClick={handleSaveProfile}
+                      disabled={isSaving}
+                      className="common-button-bg flex items-center gap-2 px-6 py-2.5 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                     >
-                      {languages.map(lang => (
-                        <option key={lang} value={lang}>{lang}</option>
-                      ))}
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                      {isSaving ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : saveSuccess ? (
+                        <Check className="w-4 h-4" />
+                      ) : (
+                        <Save className="w-4 h-4" />
+                      )}
+                      {isSaving ? 'Saving...' : saveSuccess ? 'Saved!' : 'Save Changes'}
+                    </button>
                   </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    Theme
-                  </label>
-                  <button
-                    onClick={toggleTheme}
-                    className="common-bg-icons flex items-center gap-3 w-full"
-                  >
-                    <Globe className="w-5 h-5 text-slate-600 dark:text-slate-400" />
-                    <span className="text-slate-800 dark:text-white">
-                      {isDark ? 'Dark Mode' : 'Light Mode'}
-                    </span>
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex justify-end">
-                <button
-                  onClick={handleSaveProfile}
-                  className="common-button-bg flex items-center gap-2"
-                >
-                  <Save className="w-4 h-4" />
-                  Save Changes
-                </button>
-              </div>
+                </>
+              )}
             </div>
           )}
 

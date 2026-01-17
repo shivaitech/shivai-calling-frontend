@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation, useParams } from "react-router-dom";
-import toast from 'react-hot-toast';
+import toast from "react-hot-toast";
 import GlassCard from "../../components/GlassCard";
 import { useAgent } from "../../contexts/AgentContext";
 import { useAuth } from "../../contexts/AuthContext";
@@ -24,6 +24,8 @@ import {
   ChevronDown,
   ArrowLeft,
   Bot,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 
 const Training = () => {
@@ -70,12 +72,17 @@ const Training = () => {
   const [isTraining, setIsTraining] = useState(false);
   const [activeTab, setActiveTab] = useState("knowledge");
   const [urls, setUrls] = useState<string[]>(["", ""]);
-  const [objections, setObjections] = useState<{objection: string, response: string}[]>([
-    { objection: "", response: "" }
-  ]);
-  const [intents, setIntents] = useState<{name: string, phrases: string, response: string}[]>([
-    { name: "", phrases: "", response: "" }
-  ]);
+  const [objections, setObjections] = useState<
+    { objection: string; response: string }[]
+  >([{ objection: "", response: "" }]);
+  const [intents, setIntents] = useState<
+    { name: string; phrases: string; response: string }[]
+  >([{ name: "", phrases: "", response: "" }]);
+
+  // Conversation examples state
+  const [conversationExamples, setConversationExamples] = useState<
+    { customerInput: string; expectedResponse: string }[]
+  >([{ customerInput: "", expectedResponse: "" }]);
   const [testMessage, setTestMessage] = useState("");
   const [aiResponse, setAiResponse] = useState("");
   const [isTestingResponse, setIsTestingResponse] = useState(false);
@@ -85,15 +92,59 @@ const Training = () => {
     responseTime: 0,
     confidenceLevel: 0,
     intentRecognition: 0,
-    totalTests: 0
+    totalTests: 0,
   });
   const [savedSections, setSavedSections] = useState({
     knowledge: false,
     examples: false,
-    intents: false
+    intents: false,
   });
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+
+  // System prompt state
+  const [systemPrompt, setSystemPrompt] = useState("");
+  const [firstMessage, setFirstMessage] = useState("");
+  const [manualKnowledge, setManualKnowledge] = useState("");
+  const [isGeneratingPrompt, setIsGeneratingPrompt] = useState(false);
+  const [generatedPrompt, setGeneratedPrompt] = useState("");
+  const [showGeneratedPrompt, setShowGeneratedPrompt] = useState(false);
+
+  // First message AI generation state
+  const [isGeneratingFirstMessage, setIsGeneratingFirstMessage] =
+    useState(false);
+  const [generatedFirstMessage, setGeneratedFirstMessage] = useState("");
+  const [showGeneratedFirstMessage, setShowGeneratedFirstMessage] =
+    useState(false);
+
+  // Manual knowledge AI generation state
+  const [isGeneratingKnowledge, setIsGeneratingKnowledge] = useState(false);
+  const [generatedKnowledge, setGeneratedKnowledge] = useState("");
+  const [showGeneratedKnowledge, setShowGeneratedKnowledge] = useState(false);
+
+  // Call script state
+  const [openingScript, setOpeningScript] = useState("");
+  const [keyTalkingPoints, setKeyTalkingPoints] = useState("");
+  const [closingScript, setClosingScript] = useState("");
+
+  // Call script AI generation state
+  const [isGeneratingOpeningScript, setIsGeneratingOpeningScript] =
+    useState(false);
+  const [generatedOpeningScript, setGeneratedOpeningScript] = useState("");
+  const [showGeneratedOpeningScript, setShowGeneratedOpeningScript] =
+    useState(false);
+
+  const [isGeneratingTalkingPoints, setIsGeneratingTalkingPoints] =
+    useState(false);
+  const [generatedTalkingPoints, setGeneratedTalkingPoints] = useState("");
+  const [showGeneratedTalkingPoints, setShowGeneratedTalkingPoints] =
+    useState(false);
+
+  const [isGeneratingClosingScript, setIsGeneratingClosingScript] =
+    useState(false);
+  const [generatedClosingScript, setGeneratedClosingScript] = useState("");
+  const [showGeneratedClosingScript, setShowGeneratedClosingScript] =
+    useState(false);
 
   const addUrl = () => {
     setUrls([...urls, ""]);
@@ -121,7 +172,11 @@ const Training = () => {
     }
   };
 
-  const updateObjection = (index: number, field: 'objection' | 'response', value: string) => {
+  const updateObjection = (
+    index: number,
+    field: "objection" | "response",
+    value: string
+  ) => {
     const newObjections = [...objections];
     newObjections[index][field] = value;
     setObjections(newObjections);
@@ -137,52 +192,97 @@ const Training = () => {
     }
   };
 
-  const updateIntent = (index: number, field: 'name' | 'phrases' | 'response', value: string) => {
+  const updateIntent = (
+    index: number,
+    field: "name" | "phrases" | "response",
+    value: string
+  ) => {
     const newIntents = [...intents];
     newIntents[index][field] = value;
     setIntents(newIntents);
   };
 
+  // Conversation example functions
+  const addConversationExample = () => {
+    setConversationExamples([
+      ...conversationExamples,
+      { customerInput: "", expectedResponse: "" },
+    ]);
+  };
+
+  const removeConversationExample = (index: number) => {
+    if (conversationExamples.length > 1) {
+      setConversationExamples(
+        conversationExamples.filter((_, i) => i !== index)
+      );
+    }
+  };
+
+  const updateConversationExample = (
+    index: number,
+    field: "customerInput" | "expectedResponse",
+    value: string
+  ) => {
+    const newExamples = [...conversationExamples];
+    newExamples[index][field] = value;
+    setConversationExamples(newExamples);
+  };
+
   const handleTestResponse = () => {
     if (!testMessage.trim()) return;
-    
+
     setIsTestingResponse(true);
-    
+
     // Simulate AI processing time
     setTimeout(() => {
       // Generate a response based on the test message
       let response = "";
       const lowerMessage = testMessage.toLowerCase();
-      
+
       if (lowerMessage.includes("hi") || lowerMessage.includes("hello")) {
         response = "Hello! I'm your AI assistant. How can I help you today?";
-      } else if (lowerMessage.includes("price") || lowerMessage.includes("cost")) {
-        response = "Our pricing starts at $99/month for the basic plan. Would you like me to explain the different options available?";
-      } else if (lowerMessage.includes("help") || lowerMessage.includes("support")) {
-        response = "I'm here to help! Please tell me what specific assistance you need and I'll do my best to guide you.";
-      } else if (lowerMessage.includes("book") || lowerMessage.includes("schedule")) {
-        response = "I'd be happy to help you schedule an appointment. What date and time works best for you?";
+      } else if (
+        lowerMessage.includes("price") ||
+        lowerMessage.includes("cost")
+      ) {
+        response =
+          "Our pricing starts at $99/month for the basic plan. Would you like me to explain the different options available?";
+      } else if (
+        lowerMessage.includes("help") ||
+        lowerMessage.includes("support")
+      ) {
+        response =
+          "I'm here to help! Please tell me what specific assistance you need and I'll do my best to guide you.";
+      } else if (
+        lowerMessage.includes("book") ||
+        lowerMessage.includes("schedule")
+      ) {
+        response =
+          "I'd be happy to help you schedule an appointment. What date and time works best for you?";
       } else {
-        response = "Thank you for your message. I understand you're asking about '" + testMessage + "'. Let me help you with that.";
+        response =
+          "Thank you for your message. I understand you're asking about '" +
+          testMessage +
+          "'. Let me help you with that.";
       }
-      
+
       setAiResponse(response);
       setIsTestingResponse(false);
-      
+
       // Update metrics after each test
-      setTestMetrics(prev => {
+      setTestMetrics((prev) => {
         const newTotalTests = prev.totalTests + 1;
         const randomAccuracy = Math.floor(Math.random() * 15) + 85; // 85-100%
         const randomResponseTime = (Math.random() * 2 + 0.5).toFixed(1); // 0.5-2.5s
         const randomConfidence = Math.floor(Math.random() * 20) + 80; // 80-100%
         const randomIntent = Math.floor(Math.random() * 25) + 75; // 75-100%
-        
+
         return {
           accuracyScore: randomAccuracy,
           responseTime: parseFloat(randomResponseTime),
           confidenceLevel: randomConfidence,
           intentRecognition: randomIntent,
-          totalTests: newTotalTests
+          totalTests: newTotalTests,
         };
       });
     }, 1500);
@@ -190,120 +290,141 @@ const Training = () => {
 
   const handleTestAudio = () => {
     if (!testMessage.trim()) return;
-    
+
     setIsTestingAudio(true);
-    
+
     // Generate a response first (similar to handleTestResponse)
     let response = "";
     const lowerMessage = testMessage.toLowerCase();
-    
+
     if (lowerMessage.includes("hi") || lowerMessage.includes("hello")) {
       response = "Hello! I'm your AI assistant. How can I help you today?";
-    } else if (lowerMessage.includes("price") || lowerMessage.includes("cost")) {
-      response = "Our pricing starts at $99/month for the basic plan. Would you like me to explain the different options available?";
-    } else if (lowerMessage.includes("help") || lowerMessage.includes("support")) {
-      response = "I'm here to help! Please tell me what specific assistance you need and I'll do my best to guide you.";
-    } else if (lowerMessage.includes("book") || lowerMessage.includes("schedule")) {
-      response = "I'd be happy to help you schedule an appointment. What date and time works best for you?";
+    } else if (
+      lowerMessage.includes("price") ||
+      lowerMessage.includes("cost")
+    ) {
+      response =
+        "Our pricing starts at $99/month for the basic plan. Would you like me to explain the different options available?";
+    } else if (
+      lowerMessage.includes("help") ||
+      lowerMessage.includes("support")
+    ) {
+      response =
+        "I'm here to help! Please tell me what specific assistance you need and I'll do my best to guide you.";
+    } else if (
+      lowerMessage.includes("book") ||
+      lowerMessage.includes("schedule")
+    ) {
+      response =
+        "I'd be happy to help you schedule an appointment. What date and time works best for you?";
     } else {
-      response = "Thank you for your message. I understand you're asking about '" + testMessage + "'. Let me help you with that.";
+      response =
+        "Thank you for your message. I understand you're asking about '" +
+        testMessage +
+        "'. Let me help you with that.";
     }
-    
+
     // Set the AI response
     setAiResponse(response);
-    
+
     // Update metrics after each test
-    setTestMetrics(prev => {
+    setTestMetrics((prev) => {
       const newTotalTests = prev.totalTests + 1;
       const randomAccuracy = Math.floor(Math.random() * 15) + 85; // 85-100%
       const randomResponseTime = (Math.random() * 2 + 0.5).toFixed(1); // 0.5-2.5s
       const randomConfidence = Math.floor(Math.random() * 20) + 80; // 80-100%
       const randomIntent = Math.floor(Math.random() * 25) + 75; // 75-100%
-      
+
       return {
         accuracyScore: randomAccuracy,
         responseTime: parseFloat(randomResponseTime),
         confidenceLevel: randomConfidence,
         intentRecognition: randomIntent,
-        totalTests: newTotalTests
+        totalTests: newTotalTests,
       };
     });
-    
+
     // Use Web Speech API for text-to-speech
-    if ('speechSynthesis' in window) {
+    if ("speechSynthesis" in window) {
       // Cancel any ongoing speech
       speechSynthesis.cancel();
-      
+
       const utterance = new SpeechSynthesisUtterance(response);
-      
+
       // Configure voice settings
       utterance.rate = 1.0; // Normal speed
       utterance.pitch = 1.0; // Normal pitch
       utterance.volume = 1.0; // Full volume
-      
+
       // Try to find a professional female voice - more aggressive filtering
       const voices = speechSynthesis.getVoices();
-      
+
       // First, filter out any voices that are clearly male
-      const nonMaleVoices = voices.filter(voice => 
-        !voice.name.toLowerCase().includes('male') &&
-        !voice.name.toLowerCase().includes('man') &&
-        !voice.name.toLowerCase().includes('guy') &&
-        !voice.name.toLowerCase().includes('boy') &&
-        !voice.name.toLowerCase().includes('david') &&
-        !voice.name.toLowerCase().includes('alex') &&
-        !voice.name.toLowerCase().includes('tom') &&
-        !voice.name.toLowerCase().includes('john') &&
-        !voice.name.toLowerCase().includes('mark') &&
-        !voice.name.toLowerCase().includes('daniel') &&
-        !voice.name.toLowerCase().includes('fred') &&
-        !voice.name.toLowerCase().includes('jorge')
+      const nonMaleVoices = voices.filter(
+        (voice) =>
+          !voice.name.toLowerCase().includes("male") &&
+          !voice.name.toLowerCase().includes("man") &&
+          !voice.name.toLowerCase().includes("guy") &&
+          !voice.name.toLowerCase().includes("boy") &&
+          !voice.name.toLowerCase().includes("david") &&
+          !voice.name.toLowerCase().includes("alex") &&
+          !voice.name.toLowerCase().includes("tom") &&
+          !voice.name.toLowerCase().includes("john") &&
+          !voice.name.toLowerCase().includes("mark") &&
+          !voice.name.toLowerCase().includes("daniel") &&
+          !voice.name.toLowerCase().includes("fred") &&
+          !voice.name.toLowerCase().includes("jorge")
       );
-      
+
       // Then look for explicitly female voices
-      const femaleVoice = nonMaleVoices.find(voice => 
-        voice.name.toLowerCase().includes('female') || 
-        voice.name.toLowerCase().includes('sarah') ||
-        voice.name.toLowerCase().includes('samantha') ||
-        voice.name.toLowerCase().includes('karen') ||
-        voice.name.toLowerCase().includes('susan') ||
-        voice.name.toLowerCase().includes('anna') ||
-        voice.name.toLowerCase().includes('emma') ||
-        voice.name.toLowerCase().includes('zira') ||
-        voice.name.toLowerCase().includes('hazel') ||
-        voice.name.toLowerCase().includes('fiona') ||
-        voice.name.toLowerCase().includes('kate') ||
-        voice.name.toLowerCase().includes('victoria') ||
-        voice.name.toLowerCase().includes('allison') ||
-        voice.name.toLowerCase().includes('ava') ||
-        voice.name.toLowerCase().includes('serena') ||
-        voice.name.toLowerCase().includes('tessa')
-      ) || nonMaleVoices.find(voice => voice.lang.startsWith('en-US'))
-        || nonMaleVoices.find(voice => voice.lang.startsWith('en')) 
-        || nonMaleVoices[0]
-        || voices[0];
-      
+      const femaleVoice =
+        nonMaleVoices.find(
+          (voice) =>
+            voice.name.toLowerCase().includes("female") ||
+            voice.name.toLowerCase().includes("sarah") ||
+            voice.name.toLowerCase().includes("samantha") ||
+            voice.name.toLowerCase().includes("karen") ||
+            voice.name.toLowerCase().includes("susan") ||
+            voice.name.toLowerCase().includes("anna") ||
+            voice.name.toLowerCase().includes("emma") ||
+            voice.name.toLowerCase().includes("zira") ||
+            voice.name.toLowerCase().includes("hazel") ||
+            voice.name.toLowerCase().includes("fiona") ||
+            voice.name.toLowerCase().includes("kate") ||
+            voice.name.toLowerCase().includes("victoria") ||
+            voice.name.toLowerCase().includes("allison") ||
+            voice.name.toLowerCase().includes("ava") ||
+            voice.name.toLowerCase().includes("serena") ||
+            voice.name.toLowerCase().includes("tessa")
+        ) ||
+        nonMaleVoices.find((voice) => voice.lang.startsWith("en-US")) ||
+        nonMaleVoices.find((voice) => voice.lang.startsWith("en")) ||
+        nonMaleVoices[0] ||
+        voices[0];
+
       // Force higher pitch for more feminine sound
       if (femaleVoice) {
         utterance.voice = femaleVoice;
         utterance.pitch = 1.2; // Higher pitch for more feminine sound
       }
-      
+
       utterance.onend = () => {
         setIsTestingAudio(false);
       };
-      
+
       utterance.onerror = () => {
         setIsTestingAudio(false);
-        console.error('Speech synthesis error');
+        console.error("Speech synthesis error");
       };
-      
+
       speechSynthesis.speak(utterance);
     } else {
       // Fallback: simulate audio test
       setTimeout(() => {
         setIsTestingAudio(false);
-        alert('Audio test completed! (Speech synthesis not supported in this browser)');
+        alert(
+          "Audio test completed! (Speech synthesis not supported in this browser)"
+        );
       }, 3000);
     }
   };
@@ -312,29 +433,35 @@ const Training = () => {
     const files = event.target.files;
     if (files) {
       const fileArray = Array.from(files);
-      const validFiles = fileArray.filter(file => {
-        const validTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain', 'text/csv'];
+      const validFiles = fileArray.filter((file) => {
+        const validTypes = [
+          "application/pdf",
+          "application/msword",
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "text/plain",
+          "text/csv",
+        ];
         const maxSize = 10 * 1024 * 1024; // 10MB
-        
+
         if (!validTypes.includes(file.type)) {
           toast.error(`${file.name} is not a supported file type`);
           return false;
         }
-        
+
         if (file.size > maxSize) {
           toast.error(`${file.name} is too large (max 10MB)`);
           return false;
         }
-        
+
         return true;
       });
-      
+
       if (validFiles.length > 0) {
         setIsUploading(true);
-        
+
         // Simulate upload process
         setTimeout(() => {
-          setUploadedFiles(prev => [...prev, ...validFiles]);
+          setUploadedFiles((prev) => [...prev, ...validFiles]);
           setIsUploading(false);
           toast.success(`${validFiles.length} file(s) uploaded successfully!`);
         }, 2000);
@@ -343,33 +470,489 @@ const Training = () => {
   };
 
   const removeFile = (index: number) => {
-    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
-    toast.success('File removed');
+    setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
+    toast.success("File removed");
+  };
+
+  // AI-assisted prompt generation using API
+  const generateAIPrompt = async () => {
+    setIsGeneratingPrompt(true);
+    setShowGeneratedPrompt(false);
+    console.log(selectedAgentData);
+
+    try {
+      const agentName = selectedAgentData?.name || "AI Assistant";
+      const userInput = systemPrompt.trim();
+
+      // Gather agent details for context
+      const agentDetails = {
+        name: agentName,
+        gender: selectedAgentData?.gender || "not specified",
+        voice: selectedAgentData?.voice || "not specified",
+        personality:
+          selectedAgentData?.personality ||
+          selectedAgentData?.persona ||
+          "professional",
+        language: selectedAgentData?.language || "English",
+        template:
+          selectedAgentData?.template ||
+          selectedAgentData?.agentType ||
+          "general",
+        industry: selectedAgentData?.industry || "not specified",
+        useCase:
+          selectedAgentData?.useCase ||
+          selectedAgentData?.use_case ||
+          "customer support",
+      };
+
+      const promptSuffix =
+        " Ensure the prompt is clear, concise, short and professional.";
+
+      // Build detailed context for AI
+      const agentContext = `
+Agent Details:
+- Name: ${agentDetails.name}
+- Gender: ${agentDetails.gender}
+- Voice Style: ${agentDetails.voice}
+- Personality: ${agentDetails.personality}
+- Language: ${agentDetails.language}
+- Template/Type: ${agentDetails.template}
+- Industry: ${agentDetails.industry}
+- Use Case: ${agentDetails.useCase}
+`.trim();
+
+      // Build the prompt to send to the API
+      const promptText = userInput
+        ? `Enhance and improve this system prompt for an AI assistant with the following details:
+
+${agentContext}
+
+Current prompt to enhance: ${userInput}
+
+${promptSuffix}`
+        : `Generate a professional system prompt for an AI assistant with the following details:
+
+${agentContext}
+
+The agent should handle customer inquiries professionally and efficiently based on its personality, voice style, and use case.
+
+${promptSuffix}`;
+
+      // Call the generate prompt API
+      const response = await agentAPI.generatePrompt(promptText);
+
+      // Extract generated text from response.data.generation.response
+      const generated =
+        response?.data?.generation?.response ||
+        response?.generation?.response ||
+        response?.response;
+
+      if (generated && typeof generated === "string") {
+        setGeneratedPrompt(generated);
+        setShowGeneratedPrompt(true);
+      } else {
+        throw new Error("Invalid response format");
+      }
+    } catch (error) {
+      console.error("Failed to generate prompt:", error);
+      toast.error("Failed to generate prompt. Please try again.");
+    } finally {
+      setIsGeneratingPrompt(false);
+    }
+  };
+
+  const applyGeneratedPrompt = () => {
+    setSystemPrompt(generatedPrompt);
+    setShowGeneratedPrompt(false);
+    setGeneratedPrompt("");
+    toast.success("Prompt applied successfully!");
+  };
+
+  const cancelGeneratedPrompt = () => {
+    setShowGeneratedPrompt(false);
+    setGeneratedPrompt("");
+  };
+
+  // AI-assisted first message generation
+  const generateAIFirstMessage = async () => {
+    setIsGeneratingFirstMessage(true);
+    setShowGeneratedFirstMessage(false);
+
+    try {
+      const agentName = selectedAgentData?.name || "AI Assistant";
+      const userInput = firstMessage.trim();
+
+      const agentDetails = {
+        name: agentName,
+        gender: selectedAgentData?.gender || "not specified",
+        voice: selectedAgentData?.voice || "not specified",
+        personality:
+          selectedAgentData?.personality ||
+          selectedAgentData?.persona ||
+          "professional",
+        language: selectedAgentData?.language || "English",
+        template:
+          selectedAgentData?.template ||
+          selectedAgentData?.agentType ||
+          "general",
+        industry: selectedAgentData?.industry || "not specified",
+        useCase:
+          selectedAgentData?.useCase ||
+          selectedAgentData?.use_case ||
+          "customer support",
+      };
+
+      const agentContext = `
+Agent Details:
+- Name: ${agentDetails.name}
+- Gender: ${agentDetails.gender}
+- Voice Style: ${agentDetails.voice}
+- Personality: ${agentDetails.personality}
+- Language: ${agentDetails.language}
+- Template/Type: ${agentDetails.template}
+- Industry: ${agentDetails.industry}
+- Use Case: ${agentDetails.useCase}
+`.trim();
+
+      const promptText = userInput
+        ? `Enhance and improve this greeting/first message for an AI assistant:\n\n${agentContext}\n\nCurrent greeting to enhance: ${userInput}\n\nGenerate a warm, professional greeting that matches the agent's personality and use case. Keep it concise (1-2 sentences).`
+        : `Generate a professional greeting/first message for an AI assistant:\n\n${agentContext}\n\nCreate a warm, welcoming greeting that the agent will use to start conversations. Keep it concise (1-2 sentences) and match the agent's personality.`;
+
+      const response = await agentAPI.generatePrompt(promptText);
+      const generated =
+        response?.data?.generation?.response ||
+        response?.generation?.response ||
+        response?.response;
+
+      if (generated && typeof generated === "string") {
+        setGeneratedFirstMessage(generated);
+        setShowGeneratedFirstMessage(true);
+      } else {
+        throw new Error("Invalid response format");
+      }
+    } catch (error) {
+      console.error("Failed to generate first message:", error);
+      toast.error("Failed to generate first message. Please try again.");
+    } finally {
+      setIsGeneratingFirstMessage(false);
+    }
+  };
+
+  const applyGeneratedFirstMessage = () => {
+    setFirstMessage(generatedFirstMessage);
+    setShowGeneratedFirstMessage(false);
+    setGeneratedFirstMessage("");
+    toast.success("First message applied successfully!");
+  };
+
+  const cancelGeneratedFirstMessage = () => {
+    setShowGeneratedFirstMessage(false);
+    setGeneratedFirstMessage("");
+  };
+
+  // AI-assisted manual knowledge generation
+  const generateAIKnowledge = async () => {
+    setIsGeneratingKnowledge(true);
+    setShowGeneratedKnowledge(false);
+
+    try {
+      const agentName = selectedAgentData?.name || "AI Assistant";
+      const userInput = manualKnowledge.trim();
+
+      const agentDetails = {
+        name: agentName,
+        gender: selectedAgentData?.gender || "not specified",
+        voice: selectedAgentData?.voice || "not specified",
+        personality:
+          selectedAgentData?.personality ||
+          selectedAgentData?.persona ||
+          "professional",
+        language: selectedAgentData?.language || "English",
+        template:
+          selectedAgentData?.template ||
+          selectedAgentData?.agentType ||
+          "general",
+        industry: selectedAgentData?.industry || "not specified",
+        useCase:
+          selectedAgentData?.useCase ||
+          selectedAgentData?.use_case ||
+          "customer support",
+      };
+
+      const agentContext = `
+Agent Details:
+- Name: ${agentDetails.name}
+- Gender: ${agentDetails.gender}
+- Personality: ${agentDetails.personality}
+- Language: ${agentDetails.language}
+- Template/Type: ${agentDetails.template}
+- Industry: ${agentDetails.industry}
+- Use Case: ${agentDetails.useCase}
+`.trim();
+
+      const promptText = userInput
+        ? `Enhance and expand this knowledge base content for an AI assistant:\n\n${agentContext}\n\nCurrent knowledge to enhance:\n${userInput}\n\nImprove and expand this content with relevant FAQs, policies, and product information that would be useful for the agent's use case. Format it clearly with sections.`
+        : `Generate sample knowledge base content for an AI assistant:\n\n${agentContext}\n\nCreate helpful FAQs, policies, and product information relevant to this agent's industry and use case. Format it clearly with sections and bullet points.`;
+
+      const response = await agentAPI.generatePrompt(promptText);
+      const generated =
+        response?.data?.generation?.response ||
+        response?.generation?.response ||
+        response?.response;
+
+      if (generated && typeof generated === "string") {
+        setGeneratedKnowledge(generated);
+        setShowGeneratedKnowledge(true);
+      } else {
+        throw new Error("Invalid response format");
+      }
+    } catch (error) {
+      console.error("Failed to generate knowledge:", error);
+      toast.error("Failed to generate knowledge. Please try again.");
+    } finally {
+      setIsGeneratingKnowledge(false);
+    }
+  };
+
+  const applyGeneratedKnowledge = () => {
+    setManualKnowledge(generatedKnowledge);
+    setShowGeneratedKnowledge(false);
+    setGeneratedKnowledge("");
+    toast.success("Knowledge applied successfully!");
+  };
+
+  const cancelGeneratedKnowledge = () => {
+    setShowGeneratedKnowledge(false);
+    setGeneratedKnowledge("");
+  };
+
+  // AI-assisted opening script generation
+  const generateAIOpeningScript = async () => {
+    setIsGeneratingOpeningScript(true);
+    setShowGeneratedOpeningScript(false);
+
+    try {
+      const agentName = selectedAgentData?.name || "AI Assistant";
+      const userInput = openingScript.trim();
+
+      const agentDetails = {
+        name: agentName,
+        gender: selectedAgentData?.gender || "not specified",
+        personality:
+          selectedAgentData?.personality ||
+          selectedAgentData?.persona ||
+          "professional",
+        language: selectedAgentData?.language || "English",
+        template:
+          selectedAgentData?.template ||
+          selectedAgentData?.agentType ||
+          "general",
+        industry: selectedAgentData?.industry || "not specified",
+        useCase:
+          selectedAgentData?.useCase ||
+          selectedAgentData?.use_case ||
+          "customer support",
+      };
+
+      const agentContext = `Agent: ${agentDetails.name}, ${agentDetails.personality} personality, ${agentDetails.industry} industry, ${agentDetails.useCase} use case.`;
+
+      const promptText = userInput
+        ? `Improve this opening script for ${agentContext}:\n\n${userInput}\n\nMake it professional, warm, and engaging. Keep it concise (2-3 sentences).`
+        : `Generate an opening script for ${agentContext}\n\nCreate a professional, warm opening that introduces the agent and establishes the purpose of the call. Keep it concise (2-3 sentences).`;
+
+      const response = await agentAPI.generatePrompt(promptText);
+      const generated =
+        response?.data?.generation?.response ||
+        response?.generation?.response ||
+        response?.response;
+
+      if (generated && typeof generated === "string") {
+        setGeneratedOpeningScript(generated);
+        setShowGeneratedOpeningScript(true);
+      } else {
+        throw new Error("Invalid response format");
+      }
+    } catch (error) {
+      console.error("Failed to generate opening script:", error);
+      toast.error("Failed to generate opening script. Please try again.");
+    } finally {
+      setIsGeneratingOpeningScript(false);
+    }
+  };
+
+  const applyGeneratedOpeningScript = () => {
+    setOpeningScript(generatedOpeningScript);
+    setShowGeneratedOpeningScript(false);
+    setGeneratedOpeningScript("");
+    toast.success("Opening script applied!");
+  };
+
+  const cancelGeneratedOpeningScript = () => {
+    setShowGeneratedOpeningScript(false);
+    setGeneratedOpeningScript("");
+  };
+
+  // AI-assisted key talking points generation
+  const generateAITalkingPoints = async () => {
+    setIsGeneratingTalkingPoints(true);
+    setShowGeneratedTalkingPoints(false);
+
+    try {
+      const agentName = selectedAgentData?.name || "AI Assistant";
+      const userInput = keyTalkingPoints.trim();
+      const promptSuffix =
+        " Format the response as clear,short, concise bullet points,sorted by importance.";
+
+      const agentDetails = {
+        name: agentName,
+        gender: selectedAgentData?.gender || "not specified",
+        personality:
+          selectedAgentData?.personality ||
+          selectedAgentData?.persona ||
+          "professional",
+        language: selectedAgentData?.language || "English",
+        template:
+          selectedAgentData?.template ||
+          selectedAgentData?.agentType ||
+          "general",
+        industry: selectedAgentData?.industry || "not specified",
+        useCase:
+          selectedAgentData?.useCase ||
+          selectedAgentData?.use_case ||
+          "customer support",
+      };
+
+      const agentContext = `Agent: ${agentDetails.name}, ${agentDetails.personality} personality, ${agentDetails.industry} industry, ${agentDetails.useCase} use case.`;
+
+      const promptText = userInput
+        ? `Improve these key talking points for ${agentContext}:\n\n${userInput}\n\nEnhance with clear, persuasive bullet points covering benefits, features, and value propositions.${promptSuffix}`
+        : `Generate key talking points for ${agentContext}\n\nCreate 5-7 bullet points covering product benefits, pricing highlights, common objection handling, and call to action. Format as bullet points.${promptSuffix}  `;
+
+      const response = await agentAPI.generatePrompt(promptText);
+      const generated =
+        response?.data?.generation?.response ||
+        response?.generation?.response ||
+        response?.response;
+
+      if (generated && typeof generated === "string") {
+        setGeneratedTalkingPoints(generated);
+        setShowGeneratedTalkingPoints(true);
+      } else {
+        throw new Error("Invalid response format");
+      }
+    } catch (error) {
+      console.error("Failed to generate talking points:", error);
+      toast.error("Failed to generate talking points. Please try again.");
+    } finally {
+      setIsGeneratingTalkingPoints(false);
+    }
+  };
+
+  const applyGeneratedTalkingPoints = () => {
+    setKeyTalkingPoints(generatedTalkingPoints);
+    setShowGeneratedTalkingPoints(false);
+    setGeneratedTalkingPoints("");
+    toast.success("Talking points applied!");
+  };
+
+  const cancelGeneratedTalkingPoints = () => {
+    setShowGeneratedTalkingPoints(false);
+    setGeneratedTalkingPoints("");
+  };
+
+  // AI-assisted closing script generation
+  const generateAIClosingScript = async () => {
+    setIsGeneratingClosingScript(true);
+    setShowGeneratedClosingScript(false);
+
+    try {
+      const agentName = selectedAgentData?.name || "AI Assistant";
+      const userInput = closingScript.trim();
+
+      const agentDetails = {
+        name: agentName,
+        gender: selectedAgentData?.gender || "not specified",
+        personality:
+          selectedAgentData?.personality ||
+          selectedAgentData?.persona ||
+          "professional",
+        language: selectedAgentData?.language || "English",
+        template:
+          selectedAgentData?.template ||
+          selectedAgentData?.agentType ||
+          "general",
+        industry: selectedAgentData?.industry || "not specified",
+        useCase:
+          selectedAgentData?.useCase ||
+          selectedAgentData?.use_case ||
+          "customer support",
+      };
+
+      const agentContext = `Agent: ${agentDetails.name}, ${agentDetails.personality} personality, ${agentDetails.industry} industry, ${agentDetails.useCase} use case.`;
+
+      const promptText = userInput
+        ? `Improve this closing script for ${agentContext}:\n\n${userInput}\n\nMake it professional, courteous, and include a clear next step or call to action. Keep it concise.`
+        : `Generate a closing script for ${agentContext}\n\nCreate a professional closing that thanks the customer, summarizes next steps, and leaves a positive impression. Keep it concise (2-3 sentences).`;
+
+      const response = await agentAPI.generatePrompt(promptText);
+      const generated =
+        response?.data?.generation?.response ||
+        response?.generation?.response ||
+        response?.response;
+
+      if (generated && typeof generated === "string") {
+        setGeneratedClosingScript(generated);
+        setShowGeneratedClosingScript(true);
+      } else {
+        throw new Error("Invalid response format");
+      }
+    } catch (error) {
+      console.error("Failed to generate closing script:", error);
+      toast.error("Failed to generate closing script. Please try again.");
+    } finally {
+      setIsGeneratingClosingScript(false);
+    }
+  };
+
+  const applyGeneratedClosingScript = () => {
+    setClosingScript(generatedClosingScript);
+    setShowGeneratedClosingScript(false);
+    setGeneratedClosingScript("");
+    toast.success("Closing script applied!");
+  };
+
+  const cancelGeneratedClosingScript = () => {
+    setShowGeneratedClosingScript(false);
+    setGeneratedClosingScript("");
   };
 
   const saveKnowledgeBase = () => {
     // Here you would normally save to backend
-    setSavedSections(prev => ({ ...prev, knowledge: true }));
-    toast.success('Knowledge base saved successfully!');
+    setSavedSections((prev) => ({ ...prev, knowledge: true }));
+    toast.success("Knowledge base saved successfully!");
   };
 
   const saveTrainingExamples = () => {
     // Here you would normally save to backend
-    setSavedSections(prev => ({ ...prev, examples: true }));
-    toast.success('Training examples saved successfully!');
+    setSavedSections((prev) => ({ ...prev, examples: true }));
+    toast.success("Training examples saved successfully!");
   };
 
   const saveIntentTraining = () => {
     // Here you would normally save to backend
-    setSavedSections(prev => ({ ...prev, intents: true }));
-    toast.success('Intent training saved successfully!');
+    setSavedSections((prev) => ({ ...prev, intents: true }));
+    toast.success("Intent training saved successfully!");
   };
 
   const canStartTraining = () => {
-    return savedSections.knowledge && savedSections.examples && savedSections.intents;
+    return (
+      savedSections.knowledge && savedSections.examples && savedSections.intents
+    );
   };
 
-  const selectedAgentData = localAgents.find((agent) => agent.id === selectedAgent);
+  const selectedAgentData = localAgents.find(
+    (agent) => agent.id === selectedAgent
+  );
 
   const trainingTabs = [
     { id: "knowledge", label: "Knowledge Base", icon: Database },
@@ -407,30 +990,42 @@ const Training = () => {
         { label: "Intents Trained", value: "0", icon: Target, color: "orange" },
       ];
 
-  const   trainingMetrics = isDeveloper
+  const trainingMetrics = isDeveloper
     ? [
         {
           label: "Accuracy Score",
           value: `${testMetrics.accuracyScore}%`,
-          change: testMetrics.totalTests > 0 ? `+${(Math.random() * 3 + 0.5).toFixed(1)}%` : "No data",
+          change:
+            testMetrics.totalTests > 0
+              ? `+${(Math.random() * 3 + 0.5).toFixed(1)}%`
+              : "No data",
           trend: "up",
         },
         {
           label: "Response Time",
           value: `${testMetrics.responseTime}s`,
-          change: testMetrics.totalTests > 0 ? `-${(Math.random() * 0.5 + 0.1).toFixed(1)}s` : "No data",
+          change:
+            testMetrics.totalTests > 0
+              ? `-${(Math.random() * 0.5 + 0.1).toFixed(1)}s`
+              : "No data",
           trend: "down",
         },
         {
           label: "Confidence Level",
           value: `${testMetrics.confidenceLevel}%`,
-          change: testMetrics.totalTests > 0 ? `+${(Math.random() * 5 + 1).toFixed(1)}%` : "No data",
+          change:
+            testMetrics.totalTests > 0
+              ? `+${(Math.random() * 5 + 1).toFixed(1)}%`
+              : "No data",
           trend: "up",
         },
         {
           label: "Intent Recognition",
           value: `${testMetrics.intentRecognition}%`,
-          change: testMetrics.totalTests > 0 ? `+${(Math.random() * 2 + 0.5).toFixed(1)}%` : "No data",
+          change:
+            testMetrics.totalTests > 0
+              ? `+${(Math.random() * 2 + 0.5).toFixed(1)}%`
+              : "No data",
           trend: "up",
         },
       ]
@@ -590,14 +1185,18 @@ const Training = () => {
                   {/* Agent Details Row - Mobile Optimized */}
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
                     <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                      <span className="font-medium capitalize">{selectedAgentData.gender || 'N/A'}</span>
-                      <span className="text-slate-400">•</span>
-                      <span className="truncate capitalize">
-                        {selectedAgentData.personality || selectedAgentData.persona || 'N/A'}
+                      <span className="font-medium capitalize">
+                        {selectedAgentData.gender || "N/A"}
                       </span>
                       <span className="text-slate-400">•</span>
                       <span className="truncate capitalize">
-                        {selectedAgentData.voice || 'N/A'}
+                        {selectedAgentData.personality ||
+                          selectedAgentData.persona ||
+                          "N/A"}
+                      </span>
+                      <span className="text-slate-400">•</span>
+                      <span className="truncate capitalize">
+                        {selectedAgentData.voice || "N/A"}
                       </span>
                     </div>
                     <span
@@ -762,7 +1361,7 @@ const Training = () => {
                       </h3>
 
                       <div className="space-y-4 sm:space-y-6">
-                          <div>
+                        <div>
                           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
                             📄 Upload Knowledge Documents
                             <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
@@ -812,7 +1411,10 @@ const Training = () => {
                                 Uploaded Files ({uploadedFiles.length})
                               </h4>
                               {uploadedFiles.map((file, index) => (
-                                <div key={index} className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                                <div
+                                  key={index}
+                                  className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg"
+                                >
                                   <div className="flex items-center gap-3">
                                     <div className="w-8 h-8 bg-green-100 dark:bg-green-800 rounded-lg flex items-center justify-center">
                                       <FileText className="w-4 h-4 text-green-600 dark:text-green-300" />
@@ -822,7 +1424,8 @@ const Training = () => {
                                         {file.name}
                                       </p>
                                       <p className="text-xs text-green-600 dark:text-green-400">
-                                        {(file.size / 1024 / 1024).toFixed(2)} MB
+                                        {(file.size / 1024 / 1024).toFixed(2)}{" "}
+                                        MB
                                       </p>
                                     </div>
                                   </div>
@@ -847,13 +1450,71 @@ const Training = () => {
                               (Core behavior and personality)
                             </span>
                           </label>
-                          <textarea
-                            placeholder="Define your agent's role, personality, and core instructions. E.g., 'You are a friendly sales assistant for ShivAI. Your goal is to help customers understand our AI calling platform...'"
-                            rows={5}
-                            className="common-bg-icons w-full px-4 py-3 rounded-xl resize-none text-sm sm:text-base"
-                          />
+
+                          {/* Textarea with AI Assist button inside */}
+                          <div className="relative">
+                            <textarea
+                              value={systemPrompt}
+                              onChange={(e) => setSystemPrompt(e.target.value)}
+                              placeholder="Define your agent's role, personality, and core instructions. E.g., 'You are a friendly sales assistant for ShivAI. Your goal is to help customers understand our AI calling platform...'"
+                              rows={5}
+                              className="common-bg-icons w-full px-4 py-3 pb-12 rounded-xl resize-none text-sm sm:text-base border border-slate-200 dark:border-slate-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                            />
+                            {/* AI Assist button inside textarea */}
+                            <button
+                              onClick={generateAIPrompt}
+                              disabled={isGeneratingPrompt}
+                              className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white text-xs font-medium rounded-lg transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {isGeneratingPrompt ? (
+                                <>
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  <span>Generating...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Sparkles className="w-3.5 h-3.5" />
+                                  <span>AI Assist</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+
+                          {/* Generated Prompt Preview */}
+                          {showGeneratedPrompt && generatedPrompt && (
+                            <div className="mt-3 p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 border border-purple-200 dark:border-purple-700 rounded-xl">
+                              <div className="flex items-center gap-2 mb-3">
+                                <Sparkles className="w-4 h-4 text-purple-500" />
+                                <span className="text-sm font-medium text-purple-700 dark:text-purple-300">
+                                  AI Generated Prompt
+                                </span>
+                              </div>
+                              <div className="bg-white dark:bg-slate-800 rounded-lg p-3 mb-3 max-h-48 overflow-y-auto">
+                                <pre className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-sans">
+                                  {generatedPrompt}
+                                </pre>
+                              </div>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={applyGeneratedPrompt}
+                                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white text-sm font-medium rounded-lg transition-all"
+                                >
+                                  <CheckCircle className="w-4 h-4" />
+                                  Add
+                                </button>
+                                <button
+                                  onClick={cancelGeneratedPrompt}
+                                  className="px-4 py-2 common-bg-icons text-slate-700 dark:text-slate-300 text-sm font-medium rounded-lg hover:shadow-sm transition-all"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
                           <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                            This defines how your agent behaves and responds in all conversations
+                            This defines how your agent behaves and responds in
+                            all conversations
                           </p>
                         </div>
 
@@ -865,18 +1526,74 @@ const Training = () => {
                               (How agent starts conversations)
                             </span>
                           </label>
-                          <textarea
-                            placeholder="Hi! This is Sarah from ShivAI. How can I help you today?"
-                            rows={3}
-                            className="common-bg-icons w-full px-4 py-3 rounded-xl resize-none text-sm sm:text-base"
-                          />
+                          <div className="relative">
+                            <textarea
+                              value={firstMessage}
+                              onChange={(e) => setFirstMessage(e.target.value)}
+                              placeholder="Hi! This is Sarah from ShivAI. How can I help you today?"
+                              rows={3}
+                              className="common-bg-icons w-full px-4 py-3 pb-12 rounded-xl resize-none text-sm sm:text-base border border-slate-200 dark:border-slate-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                            />
+                            <button
+                              onClick={generateAIFirstMessage}
+                              disabled={isGeneratingFirstMessage}
+                              className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white text-xs font-medium rounded-lg transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {isGeneratingFirstMessage ? (
+                                <>
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  <span>Generating...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Sparkles className="w-3.5 h-3.5" />
+                                  <span>AI Assist</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+
+                          {/* Generated First Message Preview */}
+                          {showGeneratedFirstMessage &&
+                            generatedFirstMessage && (
+                              <div className="mt-3 p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 border border-purple-200 dark:border-purple-700 rounded-xl">
+                                <div className="flex items-center gap-2 mb-3">
+                                  <Sparkles className="w-4 h-4 text-purple-500" />
+                                  <span className="text-sm font-medium text-purple-700 dark:text-purple-300">
+                                    AI Generated Greeting
+                                  </span>
+                                </div>
+                                <div className="bg-white dark:bg-slate-800 rounded-lg p-3 mb-3 max-h-32 overflow-y-auto">
+                                  <pre className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-sans">
+                                    {generatedFirstMessage}
+                                  </pre>
+                                </div>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={applyGeneratedFirstMessage}
+                                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white text-sm font-medium rounded-lg transition-all"
+                                  >
+                                    <CheckCircle className="w-4 h-4" />
+                                    Add
+                                  </button>
+                                  <button
+                                    onClick={cancelGeneratedFirstMessage}
+                                    className="px-4 py-2 common-bg-icons text-slate-700 dark:text-slate-300 text-sm font-medium rounded-lg hover:shadow-sm transition-all"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
                           <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                            The opening message when a call starts or customer initiates chat
+                            The opening message when a call starts or customer
+                            initiates chat
                           </p>
                         </div>
 
                         {/* Mobile-Optimized File Upload */}
-                      
+
                         {/* URL-based Knowledge */}
                         <div>
                           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
@@ -893,8 +1610,12 @@ const Training = () => {
                                   <input
                                     type="url"
                                     value={url}
-                                    onChange={(e) => updateUrl(index, e.target.value)}
-                                    placeholder={`https://example${index + 1}.com/${index === 0 ? 'help' : 'faq'}`}
+                                    onChange={(e) =>
+                                      updateUrl(index, e.target.value)
+                                    }
+                                    placeholder={`https://example${
+                                      index + 1
+                                    }.com/${index === 0 ? "help" : "faq"}`}
                                     className="common-bg-icons flex-1 px-3 py-2 rounded-lg text-sm border border-slate-200 dark:border-slate-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
                                   />
                                   {urls.length > 1 && (
@@ -910,7 +1631,7 @@ const Training = () => {
                                 </div>
                               ))}
                             </div>
-                            
+
                             <button
                               type="button"
                               onClick={addUrl}
@@ -932,13 +1653,71 @@ const Training = () => {
                               (FAQs, policies, product info)
                             </span>
                           </label>
-                          <textarea
-                            placeholder="Enter knowledge, FAQs, policies, or any information your agent should know..."
-                            rows={5}
-                            className="common-bg-icons w-full px-3 py-2 rounded-lg text-sm border border-slate-200 dark:border-slate-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors resize-none"
-                          />
+                          <div className="relative">
+                            <textarea
+                              value={manualKnowledge}
+                              onChange={(e) =>
+                                setManualKnowledge(e.target.value)
+                              }
+                              placeholder="Enter knowledge, FAQs, policies, or any information your agent should know..."
+                              rows={5}
+                              className="common-bg-icons w-full px-3 py-2 pb-12 rounded-lg text-sm border border-slate-200 dark:border-slate-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors resize-none"
+                            />
+                            <button
+                              onClick={generateAIKnowledge}
+                              disabled={isGeneratingKnowledge}
+                              className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white text-xs font-medium rounded-lg transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {isGeneratingKnowledge ? (
+                                <>
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  <span>Generating...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Sparkles className="w-3.5 h-3.5" />
+                                  <span>AI Assist</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+
+                          {/* Generated Knowledge Preview */}
+                          {showGeneratedKnowledge && generatedKnowledge && (
+                            <div className="mt-3 p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 border border-purple-200 dark:border-purple-700 rounded-xl">
+                              <div className="flex items-center gap-2 mb-3">
+                                <Sparkles className="w-4 h-4 text-purple-500" />
+                                <span className="text-sm font-medium text-purple-700 dark:text-purple-300">
+                                  AI Generated Knowledge
+                                </span>
+                              </div>
+                              <div className="bg-white dark:bg-slate-800 rounded-lg p-3 mb-3 max-h-48 overflow-y-auto">
+                                <pre className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-sans">
+                                  {generatedKnowledge}
+                                </pre>
+                              </div>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={applyGeneratedKnowledge}
+                                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white text-sm font-medium rounded-lg transition-all"
+                                >
+                                  <CheckCircle className="w-4 h-4" />
+                                  Add
+                                </button>
+                                <button
+                                  onClick={cancelGeneratedKnowledge}
+                                  className="px-4 py-2 common-bg-icons text-slate-700 dark:text-slate-300 text-sm font-medium rounded-lg hover:shadow-sm transition-all"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
                           <div className="mt-2 flex justify-between items-center">
-                            <span className="text-xs text-slate-500">Detailed, relevant information works best</span>
+                            <span className="text-xs text-slate-500">
+                              Detailed, relevant information works best
+                            </span>
                             <button
                               disabled={!isDeveloper}
                               className={`text-xs px-2 py-1 rounded transition-colors ${
@@ -960,12 +1739,14 @@ const Training = () => {
                             className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                               isDeveloper
                                 ? savedSections.knowledge
-                                 ? "bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800"
-                                : "common-button-bg"
-                              : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50"
+                                  ? "bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800"
+                                  : "common-button-bg"
+                                : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50"
                             }`}
                           >
-                            {savedSections.knowledge ? "✓ Saved" : "Save Knowledge"}
+                            {savedSections.knowledge
+                              ? "✓ Saved"
+                              : "Save Knowledge"}
                           </button>
                         </div>
                       </div>
@@ -992,31 +1773,193 @@ const Training = () => {
                               <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
                                 Opening Script:
                               </label>
-                              <textarea
-                                placeholder="Hi, this is [Agent Name] calling from [Company]. Is this a good time to talk about [Purpose]?"
-                                rows={3}
-                                className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base resize-none"
-                              />
+                              <div className="relative">
+                                <textarea
+                                  value={openingScript}
+                                  onChange={(e) =>
+                                    setOpeningScript(e.target.value)
+                                  }
+                                  placeholder="Hi, this is [Agent Name] calling from [Company]. Is this a good time to talk about [Purpose]?"
+                                  rows={3}
+                                  className="common-bg-icons w-full px-4 py-3 pb-12 rounded-lg text-sm sm:text-base resize-none"
+                                />
+                                <button
+                                  onClick={generateAIOpeningScript}
+                                  disabled={isGeneratingOpeningScript}
+                                  className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white text-xs font-medium rounded-lg transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  {isGeneratingOpeningScript ? (
+                                    <>
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                      <span>Generating...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Sparkles className="w-3.5 h-3.5" />
+                                      <span>AI Assist</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                              {showGeneratedOpeningScript &&
+                                generatedOpeningScript && (
+                                  <div className="mt-3 p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 border border-purple-200 dark:border-purple-700 rounded-xl">
+                                    <div className="flex items-center gap-2 mb-3">
+                                      <Sparkles className="w-4 h-4 text-purple-500" />
+                                      <span className="text-sm font-medium text-purple-700 dark:text-purple-300">
+                                        AI Generated Opening
+                                      </span>
+                                    </div>
+                                    <div className="bg-white dark:bg-slate-800 rounded-lg p-3 mb-3 max-h-32 overflow-y-auto">
+                                      <pre className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-sans">
+                                        {generatedOpeningScript}
+                                      </pre>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={applyGeneratedOpeningScript}
+                                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white text-sm font-medium rounded-lg transition-all"
+                                      >
+                                        <CheckCircle className="w-4 h-4" />
+                                        Add
+                                      </button>
+                                      <button
+                                        onClick={cancelGeneratedOpeningScript}
+                                        className="px-4 py-2 common-bg-icons text-slate-700 dark:text-slate-300 text-sm font-medium rounded-lg hover:shadow-sm transition-all"
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
                             </div>
                             <div>
                               <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
                                 Key Talking Points:
                               </label>
-                              <textarea
-                                placeholder="• Product benefits&#10;• Pricing details&#10;• Common objection handling&#10;• Call to action"
-                                rows={4}
-                                className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base resize-none"
-                              />
+                              <div className="relative">
+                                <textarea
+                                  value={keyTalkingPoints}
+                                  onChange={(e) =>
+                                    setKeyTalkingPoints(e.target.value)
+                                  }
+                                  placeholder="• Product benefits&#10;• Pricing details&#10;• Common objection handling&#10;• Call to action"
+                                  rows={4}
+                                  className="common-bg-icons w-full px-4 py-3 pb-12 rounded-lg text-sm sm:text-base resize-none"
+                                />
+                                <button
+                                  onClick={generateAITalkingPoints}
+                                  disabled={isGeneratingTalkingPoints}
+                                  className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white text-xs font-medium rounded-lg transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  {isGeneratingTalkingPoints ? (
+                                    <>
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                      <span>Generating...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Sparkles className="w-3.5 h-3.5" />
+                                      <span>AI Assist</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                              {showGeneratedTalkingPoints &&
+                                generatedTalkingPoints && (
+                                  <div className="mt-3 p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 border border-purple-200 dark:border-purple-700 rounded-xl">
+                                    <div className="flex items-center gap-2 mb-3">
+                                      <Sparkles className="w-4 h-4 text-purple-500" />
+                                      <span className="text-sm font-medium text-purple-700 dark:text-purple-300">
+                                        AI Generated Talking Points
+                                      </span>
+                                    </div>
+                                    <div className="bg-white dark:bg-slate-800 rounded-lg p-3 mb-3 max-h-40 overflow-y-auto">
+                                      <pre className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-sans">
+                                        {generatedTalkingPoints}
+                                      </pre>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={applyGeneratedTalkingPoints}
+                                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white text-sm font-medium rounded-lg transition-all"
+                                      >
+                                        <CheckCircle className="w-4 h-4" />
+                                        Add
+                                      </button>
+                                      <button
+                                        onClick={cancelGeneratedTalkingPoints}
+                                        className="px-4 py-2 common-bg-icons text-slate-700 dark:text-slate-300 text-sm font-medium rounded-lg hover:shadow-sm transition-all"
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
                             </div>
                             <div>
                               <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
                                 Closing Script:
                               </label>
-                              <textarea
-                                placeholder="Thank you for your time. I'll send you the information we discussed. Is there anything else I can help you with?"
-                                rows={3}
-                                className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base resize-none"
-                              />
+                              <div className="relative">
+                                <textarea
+                                  value={closingScript}
+                                  onChange={(e) =>
+                                    setClosingScript(e.target.value)
+                                  }
+                                  placeholder="Thank you for your time. I'll send you the information we discussed. Is there anything else I can help you with?"
+                                  rows={3}
+                                  className="common-bg-icons w-full px-4 py-3 pb-12 rounded-lg text-sm sm:text-base resize-none"
+                                />
+                                <button
+                                  onClick={generateAIClosingScript}
+                                  disabled={isGeneratingClosingScript}
+                                  className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white text-xs font-medium rounded-lg transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  {isGeneratingClosingScript ? (
+                                    <>
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                      <span>Generating...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Sparkles className="w-3.5 h-3.5" />
+                                      <span>AI Assist</span>
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                              {showGeneratedClosingScript &&
+                                generatedClosingScript && (
+                                  <div className="mt-3 p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 border border-purple-200 dark:border-purple-700 rounded-xl">
+                                    <div className="flex items-center gap-2 mb-3">
+                                      <Sparkles className="w-4 h-4 text-purple-500" />
+                                      <span className="text-sm font-medium text-purple-700 dark:text-purple-300">
+                                        AI Generated Closing
+                                      </span>
+                                    </div>
+                                    <div className="bg-white dark:bg-slate-800 rounded-lg p-3 mb-3 max-h-32 overflow-y-auto">
+                                      <pre className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-sans">
+                                        {generatedClosingScript}
+                                      </pre>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={applyGeneratedClosingScript}
+                                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white text-sm font-medium rounded-lg transition-all"
+                                      >
+                                        <CheckCircle className="w-4 h-4" />
+                                        Add
+                                      </button>
+                                      <button
+                                        onClick={cancelGeneratedClosingScript}
+                                        className="px-4 py-2 common-bg-icons text-slate-700 dark:text-slate-300 text-sm font-medium rounded-lg hover:shadow-sm transition-all"
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
                             </div>
                           </div>
                         </div>
@@ -1027,39 +1970,72 @@ const Training = () => {
                             Sample Conversation Examples
                           </h4>
                           <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-                            Provide example conversations to improve agent responses
+                            Provide example conversations to improve agent
+                            responses
                           </p>
-                          <div className="space-y-4">
-                            <div>
-                              <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
-                                Customer Input:
-                              </label>
-                              <input
-                                type="text"
-                                placeholder="What the customer might say..."
-                                className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
-                                Expected Response:
-                              </label>
-                              <textarea
-                                placeholder="How the agent should respond..."
-                                rows={4}
-                                className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base resize-none"
-                              />
-                            </div>
+                          <div className="space-y-6">
+                            {conversationExamples.map((example, index) => (
+                              <div
+                                key={index}
+                                className="space-y-4 p-4 border border-slate-200 dark:border-slate-700 rounded-lg relative"
+                              >
+                                {conversationExamples.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      removeConversationExample(index)
+                                    }
+                                    className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors text-xs"
+                                    title="Remove"
+                                  >
+                                    ✕
+                                  </button>
+                                )}
+                                <div className="pr-8">
+                                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
+                                    Customer Input {index + 1}:
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={example.customerInput}
+                                    onChange={(e) =>
+                                      updateConversationExample(
+                                        index,
+                                        "customerInput",
+                                        e.target.value
+                                      )
+                                    }
+                                    placeholder="What the customer might say..."
+                                    className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
+                                    Expected Response:
+                                  </label>
+                                  <textarea
+                                    value={example.expectedResponse}
+                                    onChange={(e) =>
+                                      updateConversationExample(
+                                        index,
+                                        "expectedResponse",
+                                        e.target.value
+                                      )
+                                    }
+                                    placeholder="How the agent should respond..."
+                                    rows={3}
+                                    className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base resize-none"
+                                  />
+                                </div>
+                              </div>
+                            ))}
                             <div className="flex flex-wrap gap-2">
                               <button
-                                disabled={!isDeveloper}
-                                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                  isDeveloper
-                                    ? "bg-blue-600 hover:bg-blue-700 text-white"
-                                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                                }`}
+                                type="button"
+                                onClick={addConversationExample}
+                                className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
                               >
-                                Add Example
+                                + Add More Example
                               </button>
                               <button
                                 disabled={!isDeveloper}
@@ -1093,11 +2069,15 @@ const Training = () => {
                             Objection Handling
                           </h4>
                           <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-                            Train your agent to handle common objections professionally
+                            Train your agent to handle common objections
+                            professionally
                           </p>
                           <div className="space-y-6">
                             {objections.map((objection, index) => (
-                              <div key={index} className="space-y-4 p-4 border border-slate-200 dark:border-slate-700 rounded-lg relative">
+                              <div
+                                key={index}
+                                className="space-y-4 p-4 border border-slate-200 dark:border-slate-700 rounded-lg relative"
+                              >
                                 {objections.length > 1 && (
                                   <button
                                     type="button"
@@ -1115,7 +2095,13 @@ const Training = () => {
                                   <input
                                     type="text"
                                     value={objection.objection}
-                                    onChange={(e) => updateObjection(index, 'objection', e.target.value)}
+                                    onChange={(e) =>
+                                      updateObjection(
+                                        index,
+                                        "objection",
+                                        e.target.value
+                                      )
+                                    }
                                     placeholder="e.g., 'It's too expensive' or 'I'm not interested'"
                                     className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base"
                                   />
@@ -1126,7 +2112,13 @@ const Training = () => {
                                   </label>
                                   <textarea
                                     value={objection.response}
-                                    onChange={(e) => updateObjection(index, 'response', e.target.value)}
+                                    onChange={(e) =>
+                                      updateObjection(
+                                        index,
+                                        "response",
+                                        e.target.value
+                                      )
+                                    }
                                     placeholder="How should the agent respond to this objection?"
                                     rows={3}
                                     className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base resize-none"
@@ -1170,7 +2162,9 @@ const Training = () => {
                               : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50"
                           }`}
                         >
-                          {savedSections.examples ? "✓ Training Examples Saved" : "Save Training Examples"}
+                          {savedSections.examples
+                            ? "✓ Training Examples Saved"
+                            : "Save Training Examples"}
                         </button>
                       </div>
                     </div>
@@ -1246,7 +2240,10 @@ const Training = () => {
                           </p>
                           <div className="space-y-6">
                             {intents.map((intent, index) => (
-                              <div key={index} className="space-y-4 p-4 border border-slate-200 dark:border-slate-700 rounded-lg relative">
+                              <div
+                                key={index}
+                                className="space-y-4 p-4 border border-slate-200 dark:border-slate-700 rounded-lg relative"
+                              >
                                 {intents.length > 1 && (
                                   <button
                                     type="button"
@@ -1264,7 +2261,13 @@ const Training = () => {
                                   <input
                                     type="text"
                                     value={intent.name}
-                                    onChange={(e) => updateIntent(index, 'name', e.target.value)}
+                                    onChange={(e) =>
+                                      updateIntent(
+                                        index,
+                                        "name",
+                                        e.target.value
+                                      )
+                                    }
                                     placeholder="e.g., pricing_inquiry, support_request, booking_request"
                                     className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base"
                                   />
@@ -1275,7 +2278,13 @@ const Training = () => {
                                   </label>
                                   <textarea
                                     value={intent.phrases}
-                                    onChange={(e) => updateIntent(index, 'phrases', e.target.value)}
+                                    onChange={(e) =>
+                                      updateIntent(
+                                        index,
+                                        "phrases",
+                                        e.target.value
+                                      )
+                                    }
                                     placeholder="How much does it cost?&#10;What's your pricing?&#10;Can you tell me the price?&#10;What are your rates?"
                                     rows={4}
                                     className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base resize-none"
@@ -1287,7 +2296,13 @@ const Training = () => {
                                   </label>
                                   <textarea
                                     value={intent.response}
-                                    onChange={(e) => updateIntent(index, 'response', e.target.value)}
+                                    onChange={(e) =>
+                                      updateIntent(
+                                        index,
+                                        "response",
+                                        e.target.value
+                                      )
+                                    }
                                     placeholder="Our pricing starts at $99/month for the basic plan..."
                                     rows={3}
                                     className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base resize-none"
@@ -1337,21 +2352,36 @@ const Training = () => {
                           </p>
                           <div className="space-y-3">
                             <label className="flex items-center gap-3 cursor-pointer">
-                              <input type="checkbox" className="w-4 h-4 rounded" />
+                              <input
+                                type="checkbox"
+                                className="w-4 h-4 rounded"
+                              />
                               <span className="text-sm text-slate-700 dark:text-slate-300">
                                 End call when objective is completed
                               </span>
                             </label>
                             <label className="flex items-center gap-3 cursor-pointer">
-                              <input type="checkbox" className="w-4 h-4 rounded" />
+                              <input
+                                type="checkbox"
+                                className="w-4 h-4 rounded"
+                              />
                               <span className="text-sm text-slate-700 dark:text-slate-300">
                                 End call on explicit customer request
                               </span>
                             </label>
                             <label className="flex items-center gap-3 cursor-pointer">
-                              <input type="checkbox" className="w-4 h-4 rounded" />
+                              <input
+                                type="checkbox"
+                                className="w-4 h-4 rounded"
+                              />
                               <span className="text-sm text-slate-700 dark:text-slate-300">
-                                Maximum call duration: <input type="number" placeholder="15" className="common-bg-icons w-16 px-2 py-1 rounded ml-2 text-center" /> minutes
+                                Maximum call duration:{" "}
+                                <input
+                                  type="number"
+                                  placeholder="15"
+                                  className="common-bg-icons w-16 px-2 py-1 rounded ml-2 text-center"
+                                />{" "}
+                                minutes
                               </span>
                             </label>
                           </div>
@@ -1371,7 +2401,9 @@ const Training = () => {
                               : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50"
                           }`}
                         >
-                          {savedSections.intents ? "✓ Intent Training Saved" : "Save Intent Training"}
+                          {savedSections.intents
+                            ? "✓ Intent Training Saved"
+                            : "Save Intent Training"}
                         </button>
                       </div>
                     </div>
@@ -1402,14 +2434,22 @@ const Training = () => {
                             <div className="flex flex-col sm:flex-row gap-3">
                               <button
                                 onClick={handleTestResponse}
-                                disabled={!isDeveloper || !testMessage.trim() || isTestingResponse}
+                                disabled={
+                                  !isDeveloper ||
+                                  !testMessage.trim() ||
+                                  isTestingResponse
+                                }
                                 className={`w-full sm:w-auto touch-manipulation ${
-                                  isDeveloper && testMessage.trim() && !isTestingResponse
+                                  isDeveloper &&
+                                  testMessage.trim() &&
+                                  !isTestingResponse
                                     ? "common-button-bg"
                                     : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50 px-6 py-3 rounded-lg"
                                 }`}
                               >
-                                {isTestingResponse ? "Testing..." : "Test Response"}
+                                {isTestingResponse
+                                  ? "Testing..."
+                                  : "Test Response"}
                               </button>
                               <button
                                 onClick={handleTestAudio}
@@ -1421,60 +2461,82 @@ const Training = () => {
                                 }`}
                               >
                                 <Play className="w-4 h-4" />
-                                {isTestingAudio ? "Playing..." : "Test Audio Response"}
+                                {isTestingAudio
+                                  ? "Playing..."
+                                  : "Test Audio Response"}
                               </button>
                             </div>
-                            
+
                             {/* AI Response Display */}
                             {(aiResponse || isTestingResponse) && (
-                              <div className={`mt-4 p-4 border rounded-lg transition-all duration-300 ${
-                                isTestingAudio 
-                                  ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800" 
-                                  : "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800"
-                              }`}>
+                              <div
+                                className={`mt-4 p-4 border rounded-lg transition-all duration-300 ${
+                                  isTestingAudio
+                                    ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800"
+                                    : "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800"
+                                }`}
+                              >
                                 <div className="flex items-start gap-3">
-                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-300 ${
-                                    isTestingAudio 
-                                      ? "bg-green-100 dark:bg-green-800 animate-pulse" 
-                                      : "bg-blue-100 dark:bg-blue-800"
-                                  }`}>
-                                    <Bot className={`w-4 h-4 ${
-                                      isTestingAudio 
-                                        ? "text-green-600 dark:text-green-300" 
-                                        : "text-blue-600 dark:text-blue-300"
-                                    }`} />
+                                  <div
+                                    className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-300 ${
+                                      isTestingAudio
+                                        ? "bg-green-100 dark:bg-green-800 animate-pulse"
+                                        : "bg-blue-100 dark:bg-blue-800"
+                                    }`}
+                                  >
+                                    <Bot
+                                      className={`w-4 h-4 ${
+                                        isTestingAudio
+                                          ? "text-green-600 dark:text-green-300"
+                                          : "text-blue-600 dark:text-blue-300"
+                                      }`}
+                                    />
                                   </div>
                                   <div className="flex-1">
                                     <div className="flex items-center gap-2 mb-1">
-                                      <p className={`text-sm font-medium ${
-                                        isTestingAudio 
-                                          ? "text-green-800 dark:text-green-200" 
-                                          : "text-blue-800 dark:text-blue-200"
-                                      }`}>
+                                      <p
+                                        className={`text-sm font-medium ${
+                                          isTestingAudio
+                                            ? "text-green-800 dark:text-green-200"
+                                            : "text-blue-800 dark:text-blue-200"
+                                        }`}
+                                      >
                                         AI Agent Response:
                                       </p>
                                       {isTestingAudio && (
                                         <div className="flex items-center gap-1 text-green-600 dark:text-green-400">
                                           <div className="flex space-x-1">
                                             <div className="w-1 h-3 bg-green-600 dark:bg-green-400 rounded-full animate-pulse"></div>
-                                            <div className="w-1 h-3 bg-green-600 dark:bg-green-400 rounded-full animate-pulse" style={{animationDelay: '0.1s'}}></div>
-                                            <div className="w-1 h-3 bg-green-600 dark:bg-green-400 rounded-full animate-pulse" style={{animationDelay: '0.2s'}}></div>
+                                            <div
+                                              className="w-1 h-3 bg-green-600 dark:bg-green-400 rounded-full animate-pulse"
+                                              style={{ animationDelay: "0.1s" }}
+                                            ></div>
+                                            <div
+                                              className="w-1 h-3 bg-green-600 dark:bg-green-400 rounded-full animate-pulse"
+                                              style={{ animationDelay: "0.2s" }}
+                                            ></div>
                                           </div>
-                                          <span className="text-xs font-medium">Speaking...</span>
+                                          <span className="text-xs font-medium">
+                                            Speaking...
+                                          </span>
                                         </div>
                                       )}
                                     </div>
                                     {isTestingResponse ? (
                                       <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
                                         <div className="animate-spin w-4 h-4 border-2 border-blue-600 dark:border-blue-400 border-t-transparent rounded-full"></div>
-                                        <span className="text-sm">Generating response...</span>
+                                        <span className="text-sm">
+                                          Generating response...
+                                        </span>
                                       </div>
                                     ) : (
-                                      <p className={`text-sm leading-relaxed ${
-                                        isTestingAudio 
-                                          ? "text-green-700 dark:text-green-300" 
-                                          : "text-blue-700 dark:text-blue-300"
-                                      }`}>
+                                      <p
+                                        className={`text-sm leading-relaxed ${
+                                          isTestingAudio
+                                            ? "text-green-700 dark:text-green-300"
+                                            : "text-blue-700 dark:text-blue-300"
+                                        }`}
+                                      >
                                         {aiResponse}
                                       </p>
                                     )}
@@ -1482,14 +2544,21 @@ const Training = () => {
                                 </div>
                               </div>
                             )}
-                            
+
                             {/* Test Statistics */}
                             {testMetrics.totalTests > 0 && (
                               <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
                                 <p className="text-sm text-green-700 dark:text-green-300">
-                                  <strong>Tests Completed:</strong> {testMetrics.totalTests} | 
-                                  <strong className="ml-2">Latest Accuracy:</strong> {testMetrics.accuracyScore}% | 
-                                  <strong className="ml-2">Response Time:</strong> {testMetrics.responseTime}s
+                                  <strong>Tests Completed:</strong>{" "}
+                                  {testMetrics.totalTests} |
+                                  <strong className="ml-2">
+                                    Latest Accuracy:
+                                  </strong>{" "}
+                                  {testMetrics.accuracyScore}% |
+                                  <strong className="ml-2">
+                                    Response Time:
+                                  </strong>{" "}
+                                  {testMetrics.responseTime}s
                                 </p>
                               </div>
                             )}
@@ -1546,7 +2615,7 @@ const Training = () => {
                       <div className="common-bg-icons w-12 h-12 sm:w-16 sm:h-16 rounded-xl flex items-center justify-center mx-auto mb-4">
                         <Brain className="w-6 h-6 sm:w-8 sm:h-8 text-slate-600 dark:text-slate-400" />
                       </div>
-                      
+
                       {/* Training Requirements */}
                       <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
                         <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
@@ -1555,25 +2624,37 @@ const Training = () => {
                         <div className="space-y-1 text-xs text-blue-700 dark:text-blue-300">
                           <div className="flex items-center gap-2">
                             {savedSections.knowledge ? (
-                              <span className="w-4 h-4 bg-green-500 text-white rounded-full flex items-center justify-center text-xs">✓</span>
+                              <span className="w-4 h-4 bg-green-500 text-white rounded-full flex items-center justify-center text-xs">
+                                ✓
+                              </span>
                             ) : (
-                              <span className="w-4 h-4 bg-gray-300 dark:bg-gray-600 rounded-full flex items-center justify-center text-xs">○</span>
+                              <span className="w-4 h-4 bg-gray-300 dark:bg-gray-600 rounded-full flex items-center justify-center text-xs">
+                                ○
+                              </span>
                             )}
                             <span>Knowledge Base saved</span>
                           </div>
                           <div className="flex items-center gap-2">
                             {savedSections.examples ? (
-                              <span className="w-4 h-4 bg-green-500 text-white rounded-full flex items-center justify-center text-xs">✓</span>
+                              <span className="w-4 h-4 bg-green-500 text-white rounded-full flex items-center justify-center text-xs">
+                                ✓
+                              </span>
                             ) : (
-                              <span className="w-4 h-4 bg-gray-300 dark:bg-gray-600 rounded-full flex items-center justify-center text-xs">○</span>
+                              <span className="w-4 h-4 bg-gray-300 dark:bg-gray-600 rounded-full flex items-center justify-center text-xs">
+                                ○
+                              </span>
                             )}
                             <span>Training Examples saved</span>
                           </div>
                           <div className="flex items-center gap-2">
                             {savedSections.intents ? (
-                              <span className="w-4 h-4 bg-green-500 text-white rounded-full flex items-center justify-center text-xs">✓</span>
+                              <span className="w-4 h-4 bg-green-500 text-white rounded-full flex items-center justify-center text-xs">
+                                ✓
+                              </span>
                             ) : (
-                              <span className="w-4 h-4 bg-gray-300 dark:bg-gray-600 rounded-full flex items-center justify-center text-xs">○</span>
+                              <span className="w-4 h-4 bg-gray-300 dark:bg-gray-600 rounded-full flex items-center justify-center text-xs">
+                                ○
+                              </span>
                             )}
                             <span>Intent Training saved</span>
                           </div>
@@ -1581,10 +2662,9 @@ const Training = () => {
                       </div>
 
                       <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mb-4 sm:mb-6">
-                        {canStartTraining() 
+                        {canStartTraining()
                           ? "All requirements complete! Ready to train your agent."
-                          : "Please save all training sections before starting training."
-                        }
+                          : "Please save all training sections before starting training."}
                       </p>
                       <button
                         onClick={handleStartTraining}
@@ -1595,7 +2675,9 @@ const Training = () => {
                             : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50"
                         }`}
                       >
-                        {canStartTraining() ? "Start Training" : "Save All Sections First"}
+                        {canStartTraining()
+                          ? "Start Training"
+                          : "Save All Sections First"}
                       </button>
                     </div>
                   )}

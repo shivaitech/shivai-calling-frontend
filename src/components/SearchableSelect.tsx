@@ -15,6 +15,7 @@ interface SearchableSelectProps {
   placeholder?: string;
   className?: string;
   groupBy?: boolean;
+  disabled?: boolean;
 }
 
 const SearchableSelect: React.FC<SearchableSelectProps> = ({
@@ -23,7 +24,8 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
   onChange,
   placeholder = 'Select option...',
   className = '',
-  groupBy = false
+  groupBy = false,
+  disabled = false
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -112,14 +114,17 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
   };
 
   const handleToggle = () => {
+    if (disabled) return;
     setIsOpen(!isOpen);
   };
 
   return (
     <div ref={containerRef} className={`relative ${className}`}>
       <button
+        type="button"
         onClick={handleToggle}
-        className="w-full flex items-center justify-between px-4 py-3 bg-white/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-white"
+        disabled={disabled}
+        className={`w-full flex items-center justify-between px-4 py-3 bg-white/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-800 dark:text-white relative z-10 ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
       >
         <span className={selectedOption ? '' : 'text-slate-500 dark:text-slate-400'}>
           {selectedOption?.label || placeholder}
@@ -130,8 +135,11 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
       {isOpen && createPortal(
         <div 
           ref={dropdownRef}
-          className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-80 overflow-y-auto no-scrollbar"
-          style={dropdownStyle}
+          className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-80 overflow-y-auto no-scrollbar z-[99999]"
+          style={{
+            ...dropdownStyle,
+            pointerEvents: 'auto',
+          }}
         >
           {/* Search */}
           <div className="p-3 border-b border-slate-200 dark:border-slate-700">

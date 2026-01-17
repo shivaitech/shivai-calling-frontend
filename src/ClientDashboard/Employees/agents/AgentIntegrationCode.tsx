@@ -120,30 +120,9 @@ const AgentIntegrationCode: React.FC<AgentIntegrationCodeProps> = ({
     };
   }, [currentAgent.id]);
 
-  // Generate the JavaScript embed code with all configurations in URL
+  // Generate short JavaScript embed code with only agentId
   const generateEmbedCode = () => {
-    // Build URL parameters from widget configuration
-    const params = new URLSearchParams({
-      agentId: currentAgent.id,
-      agentName: currentAgent.name,
-      language: currentAgent.language,
-      primaryColor: widgetConfig.theme.primaryColor,
-      secondaryColor: widgetConfig.theme.secondaryColor,
-      accentColor: widgetConfig.theme.accentColor,
-      position: widgetConfig.ui.position,
-      chatWidth: widgetConfig.ui.chatWidth,
-      chatHeight: widgetConfig.ui.chatHeight,
-      autoOpen: widgetConfig.ui.autoOpen.toString(),
-      voiceEnabled: widgetConfig.features.voiceEnabled.toString(),
-      companyName: widgetConfig.content.companyName,
-      companyDescription: widgetConfig.content.companyDescription,
-      welcomeMessage: widgetConfig.content.welcomeMessage,
-      v: Date.now().toString()
-    });
-
-    const widgetUrl = `https://callshivai.com/widget2.js?${params.toString()}`;
-
-    return `<script src="${widgetUrl}"></script>`;
+    return `<script src="https://callshivai.com/widget2.js?agentId=${currentAgent.id}"></script>`;
   };
 
   const embedCode = generateEmbedCode();
@@ -160,7 +139,7 @@ const AgentIntegrationCode: React.FC<AgentIntegrationCodeProps> = ({
             Widget Integration Code
           </h3>
           <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-            Copy and paste this script tag into your website's HTML. All your widget customizations are included in the URL.
+            Copy and paste this script tag into your website's HTML. The widget will automatically load your saved customizations.
           </p>
 
           <div>

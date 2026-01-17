@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, FileText, Clock, MapPin, Calendar, Users, MessageSquare, Loader2, Bot, Play, Pause, Download, Volume2, VolumeX, SkipBack, SkipForward, TrendingUp, CheckCircle, XCircle, Phone, Mail } from "lucide-react";
+import { X, FileText, Clock, MapPin, Calendar, Users, MessageSquare, Loader2, Bot, Play, Pause, Download, Volume2, VolumeX, SkipBack, SkipForward, TrendingUp, CheckCircle, XCircle, Phone, Mail, Share2 } from "lucide-react";
 import { agentAPI } from '../../../services/agentAPI';
 
 interface SessionTranscriptModalProps {
@@ -183,6 +183,40 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
     } catch (error) {
       console.error('Download error:', error);
       showToast('Failed to download recording', 'error');
+    }
+  };
+
+  const handleShare = async () => {
+    const recordingUrl = session?.recording?.url;
+    if (!recordingUrl) {
+      showToast('Recording not available for sharing', 'error');
+      return;
+    }
+
+    const shareData = {
+      title: `Call Recording - ${session.session_id || session.id}`,
+      text: `Listen to this call recording from ${session.start_time ? new Date(session.start_time).toLocaleDateString() : 'ShivAI'}`,
+      url: recordingUrl
+    };
+
+    try {
+      if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+        await navigator.share(shareData);
+      } else {
+        // Fallback: copy URL to clipboard
+        await navigator.clipboard.writeText(recordingUrl);
+        showToast('Recording URL copied to clipboard', 'success');
+      }
+    } catch (error: any) {
+      if (error.name !== 'AbortError') {
+        // Fallback to clipboard if share was cancelled or failed
+        try {
+          await navigator.clipboard.writeText(recordingUrl);
+          showToast('Recording URL copied to clipboard', 'success');
+        } catch {
+          showToast('Failed to share recording', 'error');
+        }
+      }
     }
   };
 
@@ -546,6 +580,14 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
                         title="Download recording"
                       >
                         <Download className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                      </button>
+
+                      <button
+                        onClick={handleShare}
+                        className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors"
+                        title="Share recording"
+                      >
+                        <Share2 className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                       </button>
                     </div>
 

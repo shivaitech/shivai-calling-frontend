@@ -13,18 +13,24 @@ import {
   Settings,
   Sparkles,
   Lightbulb,
+  Loader2,
+  X,
+  CheckCircle,
 } from "lucide-react";
 
 const CreateAgent = () => {
   const navigate = useNavigate();
   const { refreshAgents } = useAgent();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isApplyingTemplate, setIsApplyingTemplate] = useState(false);
+  const [templateApplied, setTemplateApplied] = useState(false);
 
   const [formData, setFormData] = useState({
     name: "",
     gender: "female",
     businessProcess: "",
     industry: "",
+    subIndustry: "",
     persona: "Empathetic",
     language: "English (US)",
     voice: "alloy",
@@ -77,6 +83,175 @@ const CreateAgent = () => {
     { value: "entertainment", label: "Entertainment" },
     { value: "other", label: "Other" },
   ];
+
+  const subIndustries: Record<string, { value: string; label: string }[]> = {
+    "real-estate": [
+      { value: "residential", label: "Residential" },
+      { value: "commercial", label: "Commercial" },
+      { value: "property-management", label: "Property Management" },
+      { value: "real-estate-investment", label: "Real Estate Investment" },
+    ],
+    "healthcare": [
+      { value: "hospitals", label: "Hospitals" },
+      { value: "clinics", label: "Clinics" },
+      { value: "mental-health", label: "Mental Health" },
+      { value: "home-healthcare", label: "Home Healthcare" },
+      { value: "medical-devices", label: "Medical Devices" },
+      { value: "pharmaceuticals", label: "Pharmaceuticals" },
+    ],
+    "dental": [
+      { value: "general-dentistry", label: "General Dentistry" },
+      { value: "orthodontics", label: "Orthodontics" },
+      { value: "cosmetic-dentistry", label: "Cosmetic Dentistry" },
+      { value: "pediatric-dentistry", label: "Pediatric Dentistry" },
+    ],
+    "fitness": [
+      { value: "gyms", label: "Gyms & Fitness Centers" },
+      { value: "yoga-studios", label: "Yoga Studios" },
+      { value: "personal-training", label: "Personal Training" },
+      { value: "wellness-spas", label: "Wellness Spas" },
+    ],
+    "education": [
+      { value: "k12", label: "K-12 Schools" },
+      { value: "higher-education", label: "Higher Education" },
+      { value: "online-learning", label: "Online Learning" },
+      { value: "tutoring", label: "Tutoring Services" },
+      { value: "vocational", label: "Vocational Training" },
+    ],
+    "finance": [
+      { value: "banking", label: "Banking" },
+      { value: "investment", label: "Investment Services" },
+      { value: "wealth-management", label: "Wealth Management" },
+      { value: "lending", label: "Lending & Mortgages" },
+      { value: "fintech", label: "Fintech" },
+    ],
+    "insurance": [
+      { value: "health-insurance", label: "Health Insurance" },
+      { value: "life-insurance", label: "Life Insurance" },
+      { value: "auto-insurance", label: "Auto Insurance" },
+      { value: "property-insurance", label: "Property Insurance" },
+      { value: "business-insurance", label: "Business Insurance" },
+    ],
+    "ecommerce": [
+      { value: "fashion", label: "Fashion & Apparel" },
+      { value: "electronics", label: "Electronics" },
+      { value: "food-beverage", label: "Food & Beverage" },
+      { value: "home-garden", label: "Home & Garden" },
+      { value: "marketplace", label: "Marketplace" },
+    ],
+    "retail": [
+      { value: "grocery", label: "Grocery" },
+      { value: "fashion-retail", label: "Fashion Retail" },
+      { value: "electronics-retail", label: "Electronics Retail" },
+      { value: "pharmacy", label: "Pharmacy" },
+      { value: "department-stores", label: "Department Stores" },
+    ],
+    "technology": [
+      { value: "software-development", label: "Software Development" },
+      { value: "it-services", label: "IT Services" },
+      { value: "cybersecurity", label: "Cybersecurity" },
+      { value: "cloud-services", label: "Cloud Services" },
+      { value: "ai-ml", label: "AI & Machine Learning" },
+    ],
+    "saas": [
+      { value: "crm", label: "CRM" },
+      { value: "erp", label: "ERP" },
+      { value: "marketing-automation", label: "Marketing Automation" },
+      { value: "project-management", label: "Project Management" },
+      { value: "hr-software", label: "HR Software" },
+    ],
+    "legal": [
+      { value: "corporate-law", label: "Corporate Law" },
+      { value: "family-law", label: "Family Law" },
+      { value: "criminal-law", label: "Criminal Law" },
+      { value: "immigration-law", label: "Immigration Law" },
+      { value: "intellectual-property", label: "Intellectual Property" },
+    ],
+    "consulting": [
+      { value: "management-consulting", label: "Management Consulting" },
+      { value: "strategy-consulting", label: "Strategy Consulting" },
+      { value: "it-consulting", label: "IT Consulting" },
+      { value: "hr-consulting", label: "HR Consulting" },
+    ],
+    "accounting": [
+      { value: "tax-services", label: "Tax Services" },
+      { value: "audit", label: "Audit" },
+      { value: "bookkeeping", label: "Bookkeeping" },
+      { value: "payroll", label: "Payroll Services" },
+    ],
+    "hospitality": [
+      { value: "hotels", label: "Hotels" },
+      { value: "resorts", label: "Resorts" },
+      { value: "event-venues", label: "Event Venues" },
+      { value: "vacation-rentals", label: "Vacation Rentals" },
+    ],
+    "restaurants": [
+      { value: "fine-dining", label: "Fine Dining" },
+      { value: "casual-dining", label: "Casual Dining" },
+      { value: "fast-food", label: "Fast Food" },
+      { value: "cafes", label: "Cafes & Coffee Shops" },
+      { value: "catering", label: "Catering" },
+    ],
+    "automotive": [
+      { value: "dealerships", label: "Dealerships" },
+      { value: "auto-repair", label: "Auto Repair" },
+      { value: "car-rental", label: "Car Rental" },
+      { value: "auto-parts", label: "Auto Parts" },
+    ],
+    "construction": [
+      { value: "residential-construction", label: "Residential Construction" },
+      { value: "commercial-construction", label: "Commercial Construction" },
+      { value: "renovation", label: "Renovation" },
+      { value: "specialty-trades", label: "Specialty Trades" },
+    ],
+    "manufacturing": [
+      { value: "industrial", label: "Industrial Manufacturing" },
+      { value: "consumer-goods", label: "Consumer Goods" },
+      { value: "food-manufacturing", label: "Food Manufacturing" },
+      { value: "electronics-manufacturing", label: "Electronics Manufacturing" },
+    ],
+    "travel": [
+      { value: "travel-agencies", label: "Travel Agencies" },
+      { value: "airlines", label: "Airlines" },
+      { value: "tour-operators", label: "Tour Operators" },
+      { value: "cruise-lines", label: "Cruise Lines" },
+    ],
+    "beauty": [
+      { value: "hair-salons", label: "Hair Salons" },
+      { value: "nail-salons", label: "Nail Salons" },
+      { value: "med-spas", label: "Med Spas" },
+      { value: "barbershops", label: "Barbershops" },
+    ],
+    "home-services": [
+      { value: "plumbing", label: "Plumbing" },
+      { value: "electrical", label: "Electrical" },
+      { value: "hvac", label: "HVAC" },
+      { value: "cleaning", label: "Cleaning Services" },
+      { value: "landscaping", label: "Landscaping" },
+    ],
+    "nonprofit": [
+      { value: "charity", label: "Charity" },
+      { value: "foundations", label: "Foundations" },
+      { value: "religious", label: "Religious Organizations" },
+      { value: "advocacy", label: "Advocacy Groups" },
+    ],
+    "government": [
+      { value: "federal", label: "Federal" },
+      { value: "state", label: "State" },
+      { value: "local", label: "Local" },
+      { value: "public-services", label: "Public Services" },
+    ],
+    "entertainment": [
+      { value: "media", label: "Media & Broadcasting" },
+      { value: "gaming", label: "Gaming" },
+      { value: "events", label: "Events & Concerts" },
+      { value: "sports", label: "Sports" },
+    ],
+    "other": [
+      { value: "general", label: "General" },
+      { value: "custom", label: "Custom" },
+    ],
+  };
 
   const genders = [
     { value: "female", label: "Female" },
@@ -133,13 +308,31 @@ const CreateAgent = () => {
   };
 
   const applyTemplate = () => {
-    const template = getTemplate();
+    setIsApplyingTemplate(true);
+    // Simulate loading for better UX
+    setTimeout(() => {
+      const template = getTemplate();
+      setFormData((prev) => ({
+        ...prev,
+        persona: template.persona,
+        customInstructions: template.customInstructions,
+        guardrailsLevel: template.guardrailsLevel,
+      }));
+      setIsApplyingTemplate(false);
+      setTemplateApplied(true);
+      toast.success("Template applied successfully!");
+    }, 800);
+  };
+
+  const removeTemplate = () => {
     setFormData((prev) => ({
       ...prev,
-      persona: template.persona,
-      customInstructions: template.customInstructions,
-      guardrailsLevel: template.guardrailsLevel,
+      persona: "Empathetic",
+      customInstructions: "",
+      guardrailsLevel: "Medium",
     }));
+    setTemplateApplied(false);
+    toast.success("Template removed");
   };
 
   const handleSave = async () => {
@@ -174,6 +367,7 @@ const CreateAgent = () => {
         gender: formData.gender,
         business_process: formData.businessProcess.replace(/-/g, '_'),
         industry: formData.industry,
+        sub_industry: formData.subIndustry || undefined,
         personality: formData.persona.toLowerCase().replace(/\s*\(.*?\)/g, ''),
         language: formData.language === "English (US)" ? "en-US" : formData.language,
         voice: formData.voice,
@@ -259,8 +453,6 @@ const CreateAgent = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6 w-full max-w-full overflow-visible">
-      <Toaster position="top-right" />
-      {/* Header */}
       <GlassCard>
         <div className="p-4 sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -327,53 +519,6 @@ const CreateAgent = () => {
               </p>
 
               <div className="space-y-4 sm:space-y-6 overflow-visible">
-                {/* Template Suggestions - Mobile Only */}
-                <div className="lg:hidden">
-                
-
-                  {formData.businessProcess && formData.industry ? (
-                    <div className="space-y-4">
-                      <div className="common-bg-icons p-4 rounded-xl">
-                        <h4 className="font-semibold text-slate-800 dark:text-white mb-2">
-                          {template.name}
-                        </h4>
-                        <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
-                          {template.description}
-                        </p>
-                        <div className="space-y-2 mb-4">
-                          <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                            Key Features:
-                          </p>
-                          <ul className="space-y-1">
-                            {template.features.map((feature, idx) => (
-                              <li
-                                key={idx}
-                                className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-2"
-                              >
-                                <span className="w-1 h-1 bg-blue-500 rounded-full"></span>
-                                {feature}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                        <button
-                          onClick={applyTemplate}
-                          className="w-full common-button-bg px-4 py-2 rounded-lg text-sm"
-                        >
-                          Apply Template
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-center py-6 common-bg-icons rounded-xl">
-                      <Lightbulb className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
-                      <p className="text-sm text-slate-500 dark:text-slate-400">
-                        Select a business process and industry to see template recommendations
-                      </p>
-                    </div>
-                  )}
-                </div>
-
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                     Agent Name *
@@ -407,11 +552,100 @@ const CreateAgent = () => {
                     <SearchableSelect
                       options={industries}
                       value={formData.industry}
-                      onChange={(value) => setFormData({ ...formData, industry: value })}
+                      onChange={(value) => setFormData({ ...formData, industry: value, subIndustry: "" })}
                       placeholder="Select industry..."
                     />
                   </div>
                 </div>
+
+                {/* Sub Industry Field */}
+                <div className="overflow-visible relative z-15">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                    Sub Industry
+                  </label>
+                  <SearchableSelect
+                    options={formData.industry ? (subIndustries[formData.industry] || []) : []}
+                    value={formData.subIndustry}
+                    onChange={(value) => setFormData({ ...formData, subIndustry: value })}
+                    placeholder={formData.industry ? "Select sub-industry..." : "Select an industry first"}
+                    disabled={!formData.industry}
+                  />
+                  {!formData.industry && (
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      Please select an industry first to see available sub-industries
+                    </p>
+                  )}
+                </div>
+
+                {/* Template Hint - Mobile Only (shows before template) */}
+                {(!formData.businessProcess || !formData.industry) && (
+                  <div className="lg:hidden flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-xl">
+                    <Sparkles className="w-4 h-4 text-blue-500 flex-shrink-0" />
+                    <p className="text-xs text-blue-700 dark:text-blue-300">
+                      Select business process & industry to see AI template suggestions
+                    </p>
+                  </div>
+                )}
+
+                {/* Template Suggestions - Mobile Only */}
+                {formData.businessProcess && formData.industry && (
+                  <div className="lg:hidden">
+                    <div className="common-bg-icons p-4 rounded-xl">
+                      <h4 className="font-semibold text-slate-800 dark:text-white mb-2">
+                        {template.name}
+                      </h4>
+                      <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
+                        {template.description}
+                      </p>
+                      <div className="space-y-2 mb-4">
+                        <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                          Key Features:
+                        </p>
+                        <ul className="space-y-1">
+                          {template.features.map((feature, idx) => (
+                            <li
+                              key={idx}
+                              className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-2"
+                            >
+                              <span className="w-1 h-1 bg-blue-500 rounded-full"></span>
+                              {feature}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      {templateApplied ? (
+                        <>
+                          <div className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg mb-2">
+                            <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
+                            <span className="text-sm font-medium text-green-700 dark:text-green-300">Template Applied</span>
+                          </div>
+                          <button
+                            onClick={removeTemplate}
+                            className="w-full common-button-bg2 px-4 py-2 rounded-lg text-sm flex items-center justify-center gap-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                          >
+                            <X className="w-4 h-4" />
+                            Remove Template
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={applyTemplate}
+                          disabled={isApplyingTemplate}
+                          className="w-full common-button-bg px-4 py-2 rounded-lg text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                          {isApplyingTemplate ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Applying...
+                            </>
+                          ) : (
+                            "Apply Template"
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 overflow-visible">
                   <div className="overflow-visible relative z-10">
@@ -631,12 +865,36 @@ const CreateAgent = () => {
                         ))}
                       </ul>
                     </div>
-                    <button
-                      onClick={applyTemplate}
-                      className="w-full common-button-bg px-4 py-2 rounded-lg text-sm"
-                    >
-                      Apply Template
-                    </button>
+                    {templateApplied ? (
+                      <>
+                        <div className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg mb-2">
+                          <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
+                          <span className="text-sm font-medium text-green-700 dark:text-green-300">Template Applied</span>
+                        </div>
+                        <button
+                          onClick={removeTemplate}
+                          className="w-full common-button-bg2 px-4 py-2 rounded-lg text-sm flex items-center justify-center gap-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                        >
+                          <X className="w-4 h-4" />
+                          Remove Template
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={applyTemplate}
+                        disabled={isApplyingTemplate}
+                        className="w-full common-button-bg px-4 py-2 rounded-lg text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                      >
+                        {isApplyingTemplate ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Applying...
+                          </>
+                        ) : (
+                          "Apply Template"
+                        )}
+                      </button>
+                    )}
                   </div>
                 </div>
               ) : (

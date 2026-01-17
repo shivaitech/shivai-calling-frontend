@@ -17,6 +17,7 @@ const EditAgent = () => {
     gender: "female",
     businessProcess: "",
     industry: "",
+    subIndustry: "",
     persona: "Empathetic",
     language: "en-US",
     voice: "alloy",
@@ -111,6 +112,11 @@ const EditAgent = () => {
     return apiValue.replace(/_/g, '-') || '';
   };
 
+  const mapSubIndustry = (apiValue: string | undefined) => {
+    if (!apiValue) return '';
+    return apiValue.replace(/_/g, '-') || '';
+  };
+
   useEffect(() => {
     const fetchAgentData = async () => {
       if (!id) return;
@@ -146,6 +152,7 @@ const EditAgent = () => {
           gender: agentData.gender || "female",
           businessProcess: mapBusinessProcess(agentData.business_process),
           industry: mapIndustry(agentData.industry),
+          subIndustry: mapSubIndustry(agentData.sub_industry),
           persona: mapPersonality(agentData.personality),
           language: agentData.language || "en-US",
           voice: agentData.voice || "alloy",
@@ -209,6 +216,175 @@ const EditAgent = () => {
     { value: "entertainment", label: "Entertainment" },
     { value: "other", label: "Other" },
   ];
+
+  const subIndustries: Record<string, { value: string; label: string }[]> = {
+    "real-estate": [
+      { value: "residential", label: "Residential" },
+      { value: "commercial", label: "Commercial" },
+      { value: "property-management", label: "Property Management" },
+      { value: "real-estate-investment", label: "Real Estate Investment" },
+    ],
+    "healthcare": [
+      { value: "hospitals", label: "Hospitals" },
+      { value: "clinics", label: "Clinics" },
+      { value: "mental-health", label: "Mental Health" },
+      { value: "home-healthcare", label: "Home Healthcare" },
+      { value: "medical-devices", label: "Medical Devices" },
+      { value: "pharmaceuticals", label: "Pharmaceuticals" },
+    ],
+    "dental": [
+      { value: "general-dentistry", label: "General Dentistry" },
+      { value: "orthodontics", label: "Orthodontics" },
+      { value: "cosmetic-dentistry", label: "Cosmetic Dentistry" },
+      { value: "pediatric-dentistry", label: "Pediatric Dentistry" },
+    ],
+    "fitness": [
+      { value: "gyms", label: "Gyms & Fitness Centers" },
+      { value: "yoga-studios", label: "Yoga Studios" },
+      { value: "personal-training", label: "Personal Training" },
+      { value: "wellness-spas", label: "Wellness Spas" },
+    ],
+    "education": [
+      { value: "k12", label: "K-12 Schools" },
+      { value: "higher-education", label: "Higher Education" },
+      { value: "online-learning", label: "Online Learning" },
+      { value: "tutoring", label: "Tutoring Services" },
+      { value: "vocational", label: "Vocational Training" },
+    ],
+    "finance": [
+      { value: "banking", label: "Banking" },
+      { value: "investment", label: "Investment Services" },
+      { value: "wealth-management", label: "Wealth Management" },
+      { value: "lending", label: "Lending & Mortgages" },
+      { value: "fintech", label: "Fintech" },
+    ],
+    "insurance": [
+      { value: "health-insurance", label: "Health Insurance" },
+      { value: "life-insurance", label: "Life Insurance" },
+      { value: "auto-insurance", label: "Auto Insurance" },
+      { value: "property-insurance", label: "Property Insurance" },
+      { value: "business-insurance", label: "Business Insurance" },
+    ],
+    "ecommerce": [
+      { value: "fashion", label: "Fashion & Apparel" },
+      { value: "electronics", label: "Electronics" },
+      { value: "food-beverage", label: "Food & Beverage" },
+      { value: "home-garden", label: "Home & Garden" },
+      { value: "marketplace", label: "Marketplace" },
+    ],
+    "retail": [
+      { value: "grocery", label: "Grocery" },
+      { value: "fashion-retail", label: "Fashion Retail" },
+      { value: "electronics-retail", label: "Electronics Retail" },
+      { value: "pharmacy", label: "Pharmacy" },
+      { value: "department-stores", label: "Department Stores" },
+    ],
+    "technology": [
+      { value: "software-development", label: "Software Development" },
+      { value: "it-services", label: "IT Services" },
+      { value: "cybersecurity", label: "Cybersecurity" },
+      { value: "cloud-services", label: "Cloud Services" },
+      { value: "ai-ml", label: "AI & Machine Learning" },
+    ],
+    "saas": [
+      { value: "crm", label: "CRM" },
+      { value: "erp", label: "ERP" },
+      { value: "marketing-automation", label: "Marketing Automation" },
+      { value: "project-management", label: "Project Management" },
+      { value: "hr-software", label: "HR Software" },
+    ],
+    "legal": [
+      { value: "corporate-law", label: "Corporate Law" },
+      { value: "family-law", label: "Family Law" },
+      { value: "criminal-law", label: "Criminal Law" },
+      { value: "immigration-law", label: "Immigration Law" },
+      { value: "intellectual-property", label: "Intellectual Property" },
+    ],
+    "consulting": [
+      { value: "management-consulting", label: "Management Consulting" },
+      { value: "strategy-consulting", label: "Strategy Consulting" },
+      { value: "it-consulting", label: "IT Consulting" },
+      { value: "hr-consulting", label: "HR Consulting" },
+    ],
+    "accounting": [
+      { value: "tax-services", label: "Tax Services" },
+      { value: "audit", label: "Audit" },
+      { value: "bookkeeping", label: "Bookkeeping" },
+      { value: "payroll", label: "Payroll Services" },
+    ],
+    "hospitality": [
+      { value: "hotels", label: "Hotels" },
+      { value: "resorts", label: "Resorts" },
+      { value: "event-venues", label: "Event Venues" },
+      { value: "vacation-rentals", label: "Vacation Rentals" },
+    ],
+    "restaurants": [
+      { value: "fine-dining", label: "Fine Dining" },
+      { value: "casual-dining", label: "Casual Dining" },
+      { value: "fast-food", label: "Fast Food" },
+      { value: "cafes", label: "Cafes & Coffee Shops" },
+      { value: "catering", label: "Catering" },
+    ],
+    "automotive": [
+      { value: "dealerships", label: "Dealerships" },
+      { value: "auto-repair", label: "Auto Repair" },
+      { value: "car-rental", label: "Car Rental" },
+      { value: "auto-parts", label: "Auto Parts" },
+    ],
+    "construction": [
+      { value: "residential-construction", label: "Residential Construction" },
+      { value: "commercial-construction", label: "Commercial Construction" },
+      { value: "renovation", label: "Renovation" },
+      { value: "specialty-trades", label: "Specialty Trades" },
+    ],
+    "manufacturing": [
+      { value: "industrial", label: "Industrial Manufacturing" },
+      { value: "consumer-goods", label: "Consumer Goods" },
+      { value: "food-manufacturing", label: "Food Manufacturing" },
+      { value: "electronics-manufacturing", label: "Electronics Manufacturing" },
+    ],
+    "travel": [
+      { value: "travel-agencies", label: "Travel Agencies" },
+      { value: "airlines", label: "Airlines" },
+      { value: "tour-operators", label: "Tour Operators" },
+      { value: "cruise-lines", label: "Cruise Lines" },
+    ],
+    "beauty": [
+      { value: "hair-salons", label: "Hair Salons" },
+      { value: "nail-salons", label: "Nail Salons" },
+      { value: "med-spas", label: "Med Spas" },
+      { value: "barbershops", label: "Barbershops" },
+    ],
+    "home-services": [
+      { value: "plumbing", label: "Plumbing" },
+      { value: "electrical", label: "Electrical" },
+      { value: "hvac", label: "HVAC" },
+      { value: "cleaning", label: "Cleaning Services" },
+      { value: "landscaping", label: "Landscaping" },
+    ],
+    "nonprofit": [
+      { value: "charity", label: "Charity" },
+      { value: "foundations", label: "Foundations" },
+      { value: "religious", label: "Religious Organizations" },
+      { value: "advocacy", label: "Advocacy Groups" },
+    ],
+    "government": [
+      { value: "federal", label: "Federal" },
+      { value: "state", label: "State" },
+      { value: "local", label: "Local" },
+      { value: "public-services", label: "Public Services" },
+    ],
+    "entertainment": [
+      { value: "media", label: "Media & Broadcasting" },
+      { value: "gaming", label: "Gaming" },
+      { value: "events", label: "Events & Concerts" },
+      { value: "sports", label: "Sports" },
+    ],
+    "other": [
+      { value: "general", label: "General" },
+      { value: "custom", label: "Custom" },
+    ],
+  };
 
   const genders = [
     { value: "female", label: "Female" },
@@ -309,6 +485,7 @@ const EditAgent = () => {
           gender: formData.gender,
           business_process: formData.businessProcess.replace(/-/g, '_'),
           industry: formData.industry.replace(/-/g, '_'),
+          sub_industry: formData.subIndustry ? formData.subIndustry.replace(/-/g, '_') : undefined,
           custom_instructions: formData.customInstructions,
           guardrails_level: guardrailsToApi(formData.guardrailsLevel),
           response_style: responseStyleToApi(formData.responseStyle),
@@ -323,7 +500,6 @@ const EditAgent = () => {
         toast.dismiss(loadingToast);
         toast.success("Agent updated successfully!");
         
-        // Navigate back to agents listing page
         navigate('/agents', { state: { refresh: true } });
       } catch (error) {
         toast.dismiss(loadingToast);
@@ -479,11 +655,32 @@ const EditAgent = () => {
                       options={industries}
                       value={formData.industry}
                       onChange={(value) =>
-                        setFormData({ ...formData, industry: value })
+                        setFormData({ ...formData, industry: value, subIndustry: "" })
                       }
                       placeholder="Select industry..."
                     />
                   </div>
+                </div>
+
+                {/* Sub Industry */}
+                <div>
+                  <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
+                    Sub Industry
+                  </label>
+                  <SearchableSelect
+                    options={formData.industry ? (subIndustries[formData.industry] || []) : []}
+                    value={formData.subIndustry}
+                    onChange={(value) =>
+                      setFormData({ ...formData, subIndustry: value })
+                    }
+                    placeholder={formData.industry ? "Select sub-industry..." : "Select an industry first"}
+                    disabled={!formData.industry}
+                  />
+                  {!formData.industry && (
+                    <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-1.5">
+                      Please select an industry first to see available sub-industries
+                    </p>
+                  )}
                 </div>
 
                 {/* Gender */}

@@ -349,8 +349,8 @@
           console.log('  - text_color:', agentRes.widget.text_color);
           console.log('  - position:', agentRes.widget.position);
           
-          // Refresh the widget UI with new company info if widget is already created
-          refreshWidgetContent();
+          // Note: Widget UI will be created after this function completes in initWidget()
+          // refreshWidgetContent() will be called there after createWidgetUI()
         } else {
           console.log('ℹ️ No widget configuration found in agent response - getCompanyInfo() will use URL parameters or defaults');
         }
@@ -491,12 +491,12 @@
     const widgetTitle = document.querySelector('.widget-title');
     if (widgetTitle) {
       widgetTitle.textContent = companyInfo.name;
-      console.log("✅ Updated landing view widget title to:", companyInfo.agentName);
+      console.log("✅ Updated landing view widget title to:", companyInfo.name);
     }
 
     const widgetSubtitle = document.querySelector('.widget-subtitle');
     if (widgetSubtitle) {
-      widgetSubtitle.textContent = companyInfo.description + '.';
+      widgetSubtitle.textContent = companyInfo.description;
       console.log("✅ Updated landing view description to:", companyInfo.description);
     }
 
@@ -509,12 +509,22 @@
     // Update call view content
     const callInfoName = document.querySelector('.call-info-name');
     if (callInfoName) {
-      callInfoName.textContent = companyInfo.agentName;
-      console.log("✅ Updated call view agent name to:", companyInfo.agentName);
+      callInfoName.textContent = companyInfo.name;
+      console.log("✅ Updated call view agent name to:", companyInfo.name);
+    }
+    
+    // Also update the call view avatar if it exists
+    const callAvatar = document.querySelector('.call-avatar');
+    if (callAvatar && companyInfo.logo) {
+      callAvatar.innerHTML = `<img src="${companyInfo.logo}" alt="${companyInfo.name} Logo" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">`;
+      console.log("✅ Updated call view avatar");
     }
 
     // Update the action area based on agent status
     updateLandingViewBasedOnStatus();
+    
+    // Refresh theme colors as well
+    refreshWidgetTheme();
     
     console.log("✅ Widget content refresh completed");
   }
@@ -526,10 +536,19 @@
 
   async function initWidget() {
     // Check agent status first and wait for it to complete
+    // This will also fetch and set window.SHIVAI_WIDGET_CONFIG from API
     await checkAgentStatusOnLoad();
+    
+    // Now create the widget UI - getCompanyInfo() will use the API data
     createWidgetUI();
     setupEventListeners();
     initSoundContext();
+    
+    // Refresh content again to ensure all dynamic elements are updated
+    // (in case any elements weren't available during createWidgetUI)
+    setTimeout(() => {
+      refreshWidgetContent();
+    }, 100);
   }
   function initSoundContext() {
     if (!soundsEnabled) return;

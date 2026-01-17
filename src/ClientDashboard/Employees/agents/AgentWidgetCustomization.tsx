@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Smartphone, Monitor, Save, RefreshCw, Settings2 } from "lucide-react";
+import { Smartphone, Monitor, Save, RefreshCw, Settings2, ChevronLeft, ChevronRight } from "lucide-react";
+import Slider from "react-slick";
 import GlassCard from "../../../components/GlassCard";
 import { agentAPI } from "../../../services/agentAPI";
 
@@ -929,14 +930,47 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                       Theme & Colors
                     </h4>
                     <div className="space-y-4">
-                      {/* Gradient Presets */}
+                      {/* Gradient Presets - All in one slider */}
                       <div>
                         <label className="block text-xs text-slate-600 dark:text-slate-400 mb-3">
                           Choose a Gradient Theme
                         </label>
-                        {/* Mobile: Compact Grid */}
-                        <div className="lg:hidden">
-                          <div className="grid grid-cols-3 gap-2">
+                        
+                        <div className="theme-slider-container">
+                          <Slider
+                            dots={false}
+                            infinite={false}
+                            speed={300}
+                            slidesToShow={4}
+                            slidesToScroll={1}
+                            arrows={true}
+                            prevArrow={
+                              <button className="slick-arrow slick-prev" aria-label="Previous">
+                                <ChevronLeft className="w-4 h-4" />
+                              </button>
+                            }
+                            nextArrow={
+                              <button className="slick-arrow slick-next" aria-label="Next">
+                                <ChevronRight className="w-4 h-4" />
+                              </button>
+                            }
+                            responsive={[
+                              {
+                                breakpoint: 1024,
+                                settings: {
+                                  slidesToShow: 3,
+                                  slidesToScroll: 1,
+                                }
+                              },
+                              {
+                                breakpoint: 640,
+                                settings: {
+                                  slidesToShow: 2,
+                                  slidesToScroll: 1,
+                                }
+                              }
+                            ]}
+                          >
                             {gradientPresets.map((preset) => {
                               const isSelected =
                                 widgetConfig.theme.primaryColor ===
@@ -945,101 +979,38 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                                   preset.accentColor;
 
                               return (
-                                <button
-                                  key={preset.id}
-                                  onClick={() => applyGradientPreset(preset)}
-                                  className={`relative group h-14 rounded-lg border-2 transition-all duration-200 ${
-                                    isSelected
-                                      ? "border-blue-500 ring-1 ring-blue-200 dark:ring-blue-800"
-                                      : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
-                                  }`}
-                                  style={{ background: preset.gradient }}
-                                  title={preset.name}
-                                >
-                                  {/* Overlay */}
-                                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent rounded-md"></div>
-
-                                  {/* Content */}
-                                  <div className="relative h-full flex flex-col items-center justify-center text-white">
-                                    <div className="text-[9px] font-medium opacity-90 px-0.5 text-center leading-tight">
-                                      {preset.name}
-                                    </div>
-
-                                    {/* Selection indicator */}
-                                    {isSelected && (
-                                      <div className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center border border-white">
-                                        <svg
-                                          className="w-2.5 h-2.5 text-white"
-                                          fill="currentColor"
-                                          viewBox="0 0 20 20"
-                                        >
-                                          <path
-                                            fillRule="evenodd"
-                                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                            clipRule="evenodd"
-                                          />
-                                        </svg>
+                                <div key={preset.id} className="px-1">
+                                  <button
+                                    onClick={() => applyGradientPreset(preset)}
+                                    className={`relative group w-full h-14 lg:h-16 rounded-lg border-2 transition-all duration-200 ${
+                                      isSelected
+                                        ? "border-blue-500 ring-2 ring-blue-200 dark:ring-blue-800"
+                                        : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
+                                    }`}
+                                    style={{ background: preset.gradient }}
+                                    title={preset.name}
+                                  >
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent rounded-md"></div>
+                                    <div className="relative h-full flex flex-col items-center justify-center text-white">
+                                      <div className="text-[10px] lg:text-xs font-medium opacity-90 px-1 text-center leading-tight">
+                                        {preset.name}
                                       </div>
-                                    )}
-                                  </div>
-                                </button>
+                                      {isSelected && (
+                                        <div className="absolute -top-1 -right-1 w-4 h-4 lg:w-5 lg:h-5 bg-blue-500 rounded-full flex items-center justify-center border border-white">
+                                          <svg className="w-2.5 h-2.5 lg:w-3 lg:h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                          </svg>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </button>
+                                </div>
                               );
                             })}
-                          </div>
+                          </Slider>
                         </div>
 
-                        {/* Desktop: Grid */}
-                        <div className="hidden lg:grid grid-cols-2 gap-3">
-                          {gradientPresets.map((preset) => {
-                            const isSelected =
-                              widgetConfig.theme.primaryColor ===
-                                preset.primaryColor &&
-                              widgetConfig.theme.accentColor ===
-                                preset.accentColor;
-
-                            return (
-                              <button
-                                key={preset.id}
-                                onClick={() => applyGradientPreset(preset)}
-                                className={`relative group h-16 rounded-lg border-2 transition-all duration-200 ${
-                                  isSelected
-                                    ? "border-blue-500 ring-2 ring-blue-200 dark:ring-blue-800"
-                                    : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
-                                }`}
-                                style={{ background: preset.gradient }}
-                                title={preset.name}
-                              >
-                                {/* Overlay */}
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent rounded-md"></div>
-
-                                {/* Content */}
-                                <div className="relative h-full flex flex-col items-center justify-center text-white">
-                                  <div className="text-xs font-medium mb-1 opacity-90">
-                                    {preset.name}
-                                  </div>
-
-                                  {/* Selection indicator */}
-                                  {isSelected && (
-                                    <div className="absolute -top-1 -right-1 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center border-2 border-white">
-                                      <svg
-                                        className="w-3 h-3 text-white"
-                                        fill="currentColor"
-                                        viewBox="0 0 20 20"
-                                      >
-                                        <path
-                                          fillRule="evenodd"
-                                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                          clipRule="evenodd"
-                                        />
-                                      </svg>
-                                    </div>
-                                  )}
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-3">
                           Select a preset theme or customize individual colors
                           below
                         </p>

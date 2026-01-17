@@ -54,6 +54,7 @@ export interface ApiAgent {
   gender?: string;
   business_process?: string;
   industry?: string;
+  sub_industry?: string;
   custom_instructions?: string;
   guardrails_level?: string;
   response_style?: string;
@@ -76,9 +77,15 @@ interface AgentsResponse {
   success: boolean;
   data: {
     agents: ApiAgent[];
-    total: number;
-    page?: number;
-    limit?: number;
+  };
+  meta?: {
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+    };
+    timestamp?: string;
   };
   message?: string;
 }
@@ -158,6 +165,93 @@ class AgentAPI {
       return [];
     } catch (error: any) {
       console.error("Error fetching agents:", error);
+      throw error;
+    }
+  }
+
+  // Get agents with filters and pagination
+  async getAgentsWithFilters(params: {
+    gender?: string;
+    sort?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+    industry?: string;
+    business_process?: string;
+  }): Promise<{
+    agents: ApiAgent[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    try {
+      // Build query string
+      const queryParams = new URLSearchParams();
+      
+      if (params.gender && params.gender !== 'all') {
+        queryParams.append('gender', params.gender);
+      }
+      if (params.sort) {
+        queryParams.append('sort', params.sort);
+      }
+      if (params.search) {
+        queryParams.append('search', params.search);
+      }
+      if (params.page) {
+        queryParams.append('page', params.page.toString());
+      }
+      if (params.limit) {
+        queryParams.append('limit', params.limit.toString());
+      }
+      if (params.industry) {
+        queryParams.append('industry', params.industry);
+      }
+      if (params.business_process) {
+        queryParams.append('business_process', params.business_process);
+      }
+
+      const queryString = queryParams.toString();
+      const url = `/agents${queryString ? `?${queryString}` : ''}`;
+      
+      const response: AxiosResponse<AgentsResponse> = await apiClient.get(url);
+
+      if (response.data.success && response.data.data.agents) {
+        const agents = response.data.data.agents.map((agent) => ({
+          ...agent,
+          stats: agent.stats || {
+            conversations: 0,
+            successRate: 0,
+            avgResponseTime: 0,
+            activeUsers: 0,
+          },
+        }));
+
+        // Extract pagination from meta.pagination
+        const pagination = response.data.meta?.pagination;
+        const total = pagination?.total || agents.length;
+        const page = pagination?.page || 1;
+        const limit = pagination?.limit || 6;
+        const totalPages = pagination?.totalPages || Math.ceil(total / limit);
+
+        return {
+          agents,
+          total,
+          page,
+          limit,
+          totalPages,
+        };
+      }
+
+      return {
+        agents: [],
+        total: 0,
+        page: 1,
+        limit: params.limit || 6,
+        totalPages: 0,
+      };
+    } catch (error: any) {
+      console.error("Error fetching agents with filters:", error);
       throw error;
     }
   }
@@ -412,6 +506,21 @@ class AgentAPI {
       return response.data;
     } catch (error: any) {
       console.error("Error uploading logo:", error);
+      throw error;
+    }
+  }
+
+  // Generate AI Prompt API - with extended timeout for AI generation
+  async generatePrompt(prompt: string): Promise<any> {
+    try {
+      const response = await apiClient.post("/generate-prompt/generate", {
+        prompt,
+      }, {
+        timeout: 120000, // 2 minutes timeout for AI generation
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error("Error generating prompt:", error);
       throw error;
     }
   }

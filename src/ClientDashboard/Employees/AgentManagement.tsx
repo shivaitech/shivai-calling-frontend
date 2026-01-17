@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useParams, useNavigate, useLocation, Navigate } from "react-router-dom";
+import { createPortal } from "react-dom";
+import { useParams, useNavigate, useLocation, Navigate, useSearchParams } from "react-router-dom";
 import GlassCard from "../../components/GlassCard";
 import SearchableSelect from "../../components/SearchableSelect";
+import Pagination from "../../components/Pagination";
 import Tooltip from "../../components/Tooltip";
 import { AgentWidgetCustomization, AgentQRModal, AgentIntegrationCode } from "./agents";
 import { useAgent } from "../../contexts/AgentContext";
@@ -43,10 +45,13 @@ import {
   BarChart3,
 } from "lucide-react";
 
+const AGENTS_PER_PAGE = 6;
+
 const AgentManagement = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { agents, currentAgent, setCurrentAgent, publishAgentStatus, unpublishAgentStatus, refreshAgents, deleteAgent } =
     useAgent();
   const { user } = useAuth();
@@ -75,7 +80,18 @@ const AgentManagement = () => {
   });
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("newest");
+  const [genderFilter, setGenderFilter] = useState("all");
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
+  
+  // Server-side filtered agents state
+  const [filteredAgents, setFilteredAgents] = useState<any[]>([]);
+  const [totalAgents, setTotalAgents] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [isLoadingAgents, setIsLoadingAgents] = useState(false);
+  
+  // Pagination state - read from URL query params
+  const currentPage = parseInt(searchParams.get('page') || '1', 10);
   const [showQRModal, setShowQRModal] = useState(false);
   const [showTestChat, setShowTestChat] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -931,23 +947,102 @@ const AgentManagement = () => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Filter agents based on search and status
-  const filteredAgents = isDeveloper
-    ? agents.filter((agent) => {
-        const matchesSearch = agent.name
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase());
-        
-        // Map status to 'live' or 'pending'
-        const isLive = agent.status === "Published" || (agent as any).is_active;
-        const agentStatus = isLive ? "live" : "pending";
-        
-        const matchesStatus =
-          statusFilter === "all" ||
-          agentStatus === statusFilter.toLowerCase();
-        return matchesSearch && matchesStatus;
-      })
-    : [];
+  // Debounce search term
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
+  
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Fetch agents with filters from API
+  const fetchFilteredAgents = useCallback(async () => {
+    if (!isDeveloper) {
+      setFilteredAgents([]);
+      setTotalAgents(0);
+      setTotalPages(0);
+      return;
+    }
+
+    setIsLoadingAgents(true);
+    try {
+      const result = await agentAPI.getAgentsWithFilters({
+        gender: genderFilter,
+        sort: sortBy,
+        search: debouncedSearchTerm || undefined,
+        page: currentPage,
+        limit: AGENTS_PER_PAGE,
+      });
+
+      setFilteredAgents(result.agents);
+      setTotalAgents(result.total);
+      setTotalPages(result.totalPages);
+    } catch (error) {
+      console.error('Error fetching filtered agents:', error);
+      // Fallback to client-side filtering if API fails
+      const fallbackFiltered = agents
+        .filter((agent) => {
+          const matchesSearch = agent.name
+            .toLowerCase()
+            .includes((debouncedSearchTerm || '').toLowerCase());
+          const agentGender = ((agent as any).gender || "").toLowerCase();
+          const matchesGender =
+            genderFilter === "all" ||
+            agentGender === genderFilter.toLowerCase();
+          return matchesSearch && matchesGender;
+        })
+        .sort((a, b) => {
+          switch (sortBy) {
+            case "a-z":
+              return a.name.localeCompare(b.name);
+            case "z-a":
+              return b.name.localeCompare(a.name);
+            case "newest":
+              return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+            case "oldest":
+              return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+            default:
+              return 0;
+          }
+        });
+      
+      const total = fallbackFiltered.length;
+      const totalPagesCalc = Math.ceil(total / AGENTS_PER_PAGE);
+      const startIndex = (currentPage - 1) * AGENTS_PER_PAGE;
+      const paginatedFallback = fallbackFiltered.slice(startIndex, startIndex + AGENTS_PER_PAGE);
+      
+      setFilteredAgents(paginatedFallback);
+      setTotalAgents(total);
+      setTotalPages(totalPagesCalc);
+    } finally {
+      setIsLoadingAgents(false);
+    }
+  }, [isDeveloper, genderFilter, sortBy, debouncedSearchTerm, currentPage, agents]);
+
+  // Fetch agents when filters or page changes
+  useEffect(() => {
+    fetchFilteredAgents();
+  }, [fetchFilteredAgents]);
+
+  // Paginated agents are now directly from API response
+  const paginatedAgents = filteredAgents;
+
+  // Handle page change
+  const handlePageChange = (page: number) => {
+    setSearchParams({ page: page.toString() });
+    // Scroll to top of the page when page changes
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    if (currentPage > 1) {
+      // Reset to page 1 when search, gender or sort changes
+      setSearchParams({ page: '1' });
+    }
+  }, [debouncedSearchTerm, genderFilter, sortBy]);
 
   // MAIN AGENT LIST PAGE
   if (isList) {
@@ -982,7 +1077,7 @@ const AgentManagement = () => {
                   : 0}
               </p>
               <p className="text-[10px] lg:text-sm font-medium text-slate-600 dark:text-slate-400">
-                Pending
+                Unpublished
               </p>
             </div>
           </div>
@@ -1020,50 +1115,81 @@ const AgentManagement = () => {
                 />
               </div>
 
-              {/* Status Filter */}
-              <div className="hidden lg:block min-w-[180px]">
+              {/* Gender Filter */}
+              <div className="hidden lg:block min-w-[140px]">
                 <SearchableSelect
                   options={[
-                    { value: "all", label: "All Status" },
-                    { value: "published", label: "Published" },
-                    { value: "draft", label: "Draft" },
-                    { value: "training", label: "Training" },
+                    { value: "all", label: "All Gender" },
+                    { value: "male", label: "Male" },
+                    { value: "female", label: "Female" },
                   ]}
-                  value={statusFilter}
-                  onChange={(value) => setStatusFilter(value)}
-                  placeholder="Filter by status..."
+                  value={genderFilter}
+                  onChange={(value) => setGenderFilter(value)}
+                  placeholder="Filter by gender..."
+                />
+              </div>
+
+              {/* Sort By */}
+              <div className="hidden lg:block min-w-[140px]">
+                <SearchableSelect
+                  options={[
+                    { value: "newest", label: "Newest" },
+                    { value: "oldest", label: "Oldest" },
+                    { value: "a-z", label: "A to Z" },
+                    { value: "z-a", label: "Z to A" },
+                  ]}
+                  value={sortBy}
+                  onChange={(value) => setSortBy(value)}
+                  placeholder="Sort by..."
                 />
               </div>
 
               {/* Filter Button - Mobile Only */}
-              <button className="lg:hidden flex items-center justify-center common-button-bg2 p-2.5 rounded-lg active:scale-95">
+              <button 
+                onClick={() => setShowMobileFilters(true)}
+                className="lg:hidden flex items-center justify-center common-button-bg2 p-2.5 rounded-lg active:scale-95 relative"
+              >
                 <Filter className="w-4 h-4" />
+                {(genderFilter !== "all" || sortBy !== "newest") && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full"></span>
+                )}
               </button>
             </div>
 
             {/* Active Filters Display */}
-            {(searchTerm || statusFilter !== "all") && (
+            {(searchTerm || genderFilter !== "all" || sortBy !== "newest") && (
               <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
                 <span className="text-xs text-slate-500 dark:text-slate-400">
                   Active filters:
                 </span>
                 {searchTerm && (
-                  <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-xs flex items-center gap-1">
+                  <span className="px-2 py-1 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-full text-xs flex items-center gap-1">
                     "{searchTerm}"
                     <button
                       onClick={() => setSearchTerm("")}
-                      className="hover:bg-blue-200 dark:hover:bg-blue-800/50 rounded-full p-0.5"
+                      className="hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full p-0.5"
                     >
                       ✕
                     </button>
                   </span>
                 )}
-                {statusFilter !== "all" && (
-                  <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-full text-xs flex items-center gap-1">
-                    Status: {statusFilter}
+                {genderFilter !== "all" && (
+                  <span className="px-2 py-1 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-full text-xs flex items-center gap-1">
+                    Gender: {genderFilter}
                     <button
-                      onClick={() => setStatusFilter("all")}
-                      className="hover:bg-green-200 dark:hover:bg-green-800/50 rounded-full p-0.5"
+                      onClick={() => setGenderFilter("all")}
+                      className="hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full p-0.5"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                )}
+                {sortBy !== "newest" && (
+                  <span className="px-2 py-1 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-full text-xs flex items-center gap-1">
+                    Sort: {sortBy === "a-z" ? "A to Z" : sortBy === "z-a" ? "Z to A" : sortBy === "oldest" ? "Oldest" : sortBy}
+                    <button
+                      onClick={() => setSortBy("newest")}
+                      className="hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full p-0.5"
                     >
                       ✕
                     </button>
@@ -1072,7 +1198,8 @@ const AgentManagement = () => {
                 <button
                   onClick={() => {
                     setSearchTerm("");
-                    setStatusFilter("all");
+                    setGenderFilter("all");
+                    setSortBy("newest");
                   }}
                   className="text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 underline"
                 >
@@ -1084,9 +1211,37 @@ const AgentManagement = () => {
           </div>
         </GlassCard>
 
+        {/* Loading State */}
+        {isLoadingAgents && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
+            {[...Array(AGENTS_PER_PAGE)].map((_, index) => (
+              <GlassCard key={index}>
+                <div className="p-4 sm:p-5 lg:p-6 animate-pulse">
+                  <div className="flex items-start gap-3 mb-4">
+                    <div className="w-10 sm:w-12 h-10 sm:h-12 bg-slate-200 dark:bg-slate-700 rounded-xl"></div>
+                    <div className="flex-1">
+                      <div className="h-4 bg-slate-200 dark:bg-slate-700 rounded w-3/4 mb-2"></div>
+                      <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-1/2"></div>
+                    </div>
+                  </div>
+                  <div className="space-y-2 mb-4">
+                    <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-full"></div>
+                    <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-2/3"></div>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded flex-1"></div>
+                    <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded w-10"></div>
+                  </div>
+                </div>
+              </GlassCard>
+            ))}
+          </div>
+        )}
+
         {/* Mobile-First Agent Grid */}
+        {!isLoadingAgents && paginatedAgents.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
-          {filteredAgents.map((agent) => (
+          {paginatedAgents.map((agent) => (
             <GlassCard key={agent.id} hover>
               <div className="p-4 sm:p-5 lg:p-6">
                 {/* Agent Header - Mobile Optimized */}
@@ -1112,7 +1267,7 @@ const AgentManagement = () => {
                             : "bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400"
                         }`}
                       >
-                        {agent.status === "Published" || (agent as any).is_active ? "Live" : "Pending"}
+                        {agent.status === "Published" || (agent as any).is_active ? "Live" : "Unpublished"}
                       </span>
                     </div>
                   </div>
@@ -1133,7 +1288,7 @@ const AgentManagement = () => {
                       Created:
                     </span>
                     <span className="text-slate-800 dark:text-white ml-2">
-                      {agent.createdAt.toLocaleDateString()}
+                      {new Date(agent.createdAt).toLocaleDateString()}
                     </span>
                   </div>
                 </div>
@@ -1229,22 +1384,36 @@ const AgentManagement = () => {
             </GlassCard>
           ))}
         </div>
+        )}
+
+        {/* Pagination */}
+        {totalAgents > 0 && (
+          <div className="mt-4 lg:mt-6">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={totalAgents}
+              itemsPerPage={AGENTS_PER_PAGE}
+              onPageChange={handlePageChange}
+            />
+          </div>
+        )}
 
         {/* Mobile-Optimized Empty State */}
-        {filteredAgents.length === 0 && (
+        {filteredAgents.length === 0 && !isLoadingAgents && (
           <div className="text-center py-12 lg:py-16 px-4">
             <Bot className="w-20 lg:w-24 h-20 lg:h-24 text-slate-300 dark:text-slate-600 mx-auto mb-6" />
             <h3 className="text-xl lg:text-2xl font-medium text-slate-600 dark:text-slate-400 mb-3">
-              {searchTerm || statusFilter !== "all"
+              {searchTerm || genderFilter !== "all"
                 ? "No agents found"
                 : "No agents created yet"}
             </h3>
             <p className="text-sm lg:text-base text-slate-500 dark:text-slate-500 max-w-md lg:max-w-lg mx-auto mb-6 leading-relaxed">
-              {searchTerm || statusFilter !== "all"
+              {searchTerm || genderFilter !== "all"
                 ? "Try adjusting your search or filter criteria to find what you're looking for"
                 : "Create your first AI agent to get started with automated conversations and boost your business efficiency"}
             </p>
-            {!searchTerm && statusFilter === "all" && isDeveloper && (
+            {!searchTerm && genderFilter === "all" && isDeveloper && (
               <div className="space-y-3">
                 <button
                   onClick={() => navigate("/agents/create")}
@@ -1257,11 +1426,11 @@ const AgentManagement = () => {
                 </p>
               </div>
             )}
-            {(searchTerm || statusFilter !== "all") && (
+            {(searchTerm || genderFilter !== "all") && (
               <button
                 onClick={() => {
                   setSearchTerm("");
-                  setStatusFilter("all");
+                  setGenderFilter("all");
                 }}
                 className="w-full sm:w-auto common-button-bg2 px-6 py-2.5 rounded-lg"
               >
@@ -1316,6 +1485,111 @@ const AgentManagement = () => {
           </div>
         )}
 
+        {/* Mobile Filter Panel - Bottom Sheet (Portal) */}
+        {showMobileFilters && createPortal(
+          <div className="lg:hidden">
+            {/* Backdrop */}
+            <div 
+              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9998]"
+              onClick={() => setShowMobileFilters(false)}
+            />
+            {/* Bottom Sheet */}
+            <div className="fixed inset-x-0 bottom-0 z-[9999] animate-slide-up">
+              <div className="bg-white dark:bg-slate-800 rounded-t-3xl shadow-2xl max-h-[85vh] overflow-hidden">
+                {/* Handle Bar */}
+                <div className="flex justify-center pt-3 pb-2">
+                  <div className="w-10 h-1 bg-slate-300 dark:bg-slate-600 rounded-full"></div>
+                </div>
+                
+                {/* Header */}
+                <div className="flex items-center justify-between px-5 pb-4 border-b border-slate-200 dark:border-slate-700">
+                  <h3 className="text-lg font-semibold text-slate-800 dark:text-white">Filters & Sort</h3>
+                  <button 
+                    onClick={() => setShowMobileFilters(false)}
+                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
+                  >
+                    <X className="w-5 h-5 text-slate-500" />
+                  </button>
+                </div>
+                
+                {/* Content */}
+                <div className="px-5 py-4 space-y-5 overflow-y-auto max-h-[50vh]">
+                  {/* Gender Filter */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Gender</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { value: "all", label: "All" },
+                        { value: "male", label: "Male" },
+                        { value: "female", label: "Female" },
+                      ].map((option) => (
+                        <button
+                          key={option.value}
+                          onClick={() => setGenderFilter(option.value)}
+                          className={`py-2.5 px-3 rounded-xl text-sm font-medium transition-all ${
+                            genderFilter === option.value
+                              ? "bg-blue-500 text-white shadow-md"
+                              : "bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Sort By */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Sort By</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { value: "newest", label: "Newest" },
+                        { value: "oldest", label: "Oldest" },
+                        { value: "a-z", label: "A → Z" },
+                        { value: "z-a", label: "Z → A" },
+                      ].map((option) => (
+                        <button
+                          key={option.value}
+                          onClick={() => setSortBy(option.value)}
+                          className={`py-2.5 px-3 rounded-xl text-sm font-medium transition-all ${
+                            sortBy === option.value
+                              ? "bg-blue-500 text-white shadow-md"
+                              : "bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer Actions */}
+                <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 pb-safe">
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        setGenderFilter("all");
+                        setSortBy("newest");
+                      }}
+                      className="flex-1 py-3 border border-slate-300 dark:border-slate-600 rounded-xl text-slate-700 dark:text-slate-300 font-medium active:scale-[0.98] transition-transform"
+                    >
+                      Reset
+                    </button>
+                    <button
+                      onClick={() => setShowMobileFilters(false)}
+                      className="flex-1 py-3 common-button-bg rounded-xl font-medium active:scale-[0.98] transition-transform"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
       </div>
     );
   }
@@ -1368,7 +1642,7 @@ const AgentManagement = () => {
                                   : "bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400"
                               }`}
                             >
-                              {currentAgent.status === "Published" || (currentAgent as any).is_active ? "Live" : "Pending"}
+                              {currentAgent.status === "Published" || (currentAgent as any).is_active ? "Live" : "Unpublished"}
                             </span>
                           </div>
                         </div>
@@ -1766,7 +2040,7 @@ const AgentManagement = () => {
                       </span>
                     </div>
                     <p className="text-sm font-semibold text-slate-800 dark:text-white">
-                      {currentAgent.createdAt.toLocaleDateString()}
+                      {new Date(currentAgent.createdAt).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
