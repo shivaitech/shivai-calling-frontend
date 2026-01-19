@@ -1464,7 +1464,7 @@ Agent Details:
                             <button
                               onClick={generateAIPrompt}
                               disabled={isGeneratingPrompt}
-                              className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white text-xs font-medium rounded-lg transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 text-xs font-medium rounded-lg transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               {isGeneratingPrompt ? (
                                 <>
@@ -1489,15 +1489,17 @@ Agent Details:
                                   AI Generated Prompt
                                 </span>
                               </div>
-                              <div className="bg-white dark:bg-slate-800 rounded-lg p-3 mb-3 max-h-48 overflow-y-auto">
-                                <pre className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-sans">
-                                  {generatedPrompt}
-                                </pre>
+                              <div className="bg-white dark:bg-slate-800 rounded-lg mb-3">
+                                <textarea
+                                  value={generatedPrompt}
+                                  onChange={(e) => setGeneratedPrompt(e.target.value)}
+                                  className="w-full h-48 p-3 text-sm text-slate-700 dark:text-slate-300 bg-transparent resize-none focus:outline-none focus:ring-2 focus:ring-purple-300 rounded-lg"
+                                />
                               </div>
                               <div className="flex gap-2">
                                 <button
                                   onClick={applyGeneratedPrompt}
-                                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white text-sm font-medium rounded-lg transition-all"
+                                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 text-sm font-medium rounded-lg transition-all"
                                 >
                                   <CheckCircle className="w-4 h-4" />
                                   Add
@@ -1537,7 +1539,7 @@ Agent Details:
                             <button
                               onClick={generateAIFirstMessage}
                               disabled={isGeneratingFirstMessage}
-                              className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white text-xs font-medium rounded-lg transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 text-xs font-medium rounded-lg transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               {isGeneratingFirstMessage ? (
                                 <>
@@ -1563,15 +1565,17 @@ Agent Details:
                                     AI Generated Greeting
                                   </span>
                                 </div>
-                                <div className="bg-white dark:bg-slate-800 rounded-lg p-3 mb-3 max-h-32 overflow-y-auto">
-                                  <pre className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-sans">
-                                    {generatedFirstMessage}
-                                  </pre>
+                                <div className="bg-white dark:bg-slate-800 rounded-lg mb-3">
+                                  <textarea
+                                    value={generatedFirstMessage}
+                                    onChange={(e) => setGeneratedFirstMessage(e.target.value)}
+                                    className="w-full h-32 p-3 text-sm text-slate-700 dark:text-slate-300 bg-transparent resize-none focus:outline-none focus:ring-2 focus:ring-purple-300 rounded-lg"
+                                  />
                                 </div>
                                 <div className="flex gap-2">
                                   <button
                                     onClick={applyGeneratedFirstMessage}
-                                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white text-sm font-medium rounded-lg transition-all"
+                                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 text-sm font-medium rounded-lg transition-all"
                                   >
                                     <CheckCircle className="w-4 h-4" />
                                     Add
@@ -1606,7 +1610,7 @@ Agent Details:
                             {/* URL Input List */}
                             <div className="space-y-2">
                               {urls.map((url, index) => (
-                                <div key={index} className="flex gap-2">
+                                <div key={index} className="flex items-center gap-2">
                                   <input
                                     type="url"
                                     value={url}
@@ -1616,13 +1620,13 @@ Agent Details:
                                     placeholder={`https://example${
                                       index + 1
                                     }.com/${index === 0 ? "help" : "faq"}`}
-                                    className="common-bg-icons flex-1 px-3 py-2 rounded-lg text-sm border border-slate-200 dark:border-slate-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
+                                    className="common-bg-icons flex-1 min-w-0 px-3 py-2 rounded-lg text-sm border border-slate-200 dark:border-slate-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors"
                                   />
                                   {urls.length > 1 && (
                                     <button
                                       type="button"
                                       onClick={() => removeUrl(index)}
-                                      className="w-8 h-8 flex items-center justify-center text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors text-sm"
+                                      className="flex-shrink-0 w-8 h-8 flex items-center justify-center text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors text-sm"
                                       title="Remove"
                                     >
                                       ✕
@@ -1666,7 +1670,7 @@ Agent Details:
                             <button
                               onClick={generateAIKnowledge}
                               disabled={isGeneratingKnowledge}
-                              className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white text-xs font-medium rounded-lg transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 text-xs font-medium rounded-lg transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               {isGeneratingKnowledge ? (
                                 <>
@@ -1691,15 +1695,17 @@ Agent Details:
                                   AI Generated Knowledge
                                 </span>
                               </div>
-                              <div className="bg-white dark:bg-slate-800 rounded-lg p-3 mb-3 max-h-48 overflow-y-auto">
-                                <pre className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-sans">
-                                  {generatedKnowledge}
-                                </pre>
+                              <div className="bg-white dark:bg-slate-800 rounded-lg mb-3">
+                                <textarea
+                                  value={generatedKnowledge}
+                                  onChange={(e) => setGeneratedKnowledge(e.target.value)}
+                                  className="w-full h-48 p-3 text-sm text-slate-700 dark:text-slate-300 bg-transparent resize-none focus:outline-none focus:ring-2 focus:ring-purple-300 rounded-lg"
+                                />
                               </div>
                               <div className="flex gap-2">
                                 <button
                                   onClick={applyGeneratedKnowledge}
-                                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white text-sm font-medium rounded-lg transition-all"
+                                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 text-sm font-medium rounded-lg transition-all"
                                 >
                                   <CheckCircle className="w-4 h-4" />
                                   Add
@@ -1786,7 +1792,7 @@ Agent Details:
                                 <button
                                   onClick={generateAIOpeningScript}
                                   disabled={isGeneratingOpeningScript}
-                                  className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white text-xs font-medium rounded-lg transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 text-xs font-medium rounded-lg transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   {isGeneratingOpeningScript ? (
                                     <>
@@ -1810,15 +1816,17 @@ Agent Details:
                                         AI Generated Opening
                                       </span>
                                     </div>
-                                    <div className="bg-white dark:bg-slate-800 rounded-lg p-3 mb-3 max-h-32 overflow-y-auto">
-                                      <pre className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-sans">
-                                        {generatedOpeningScript}
-                                      </pre>
+                                    <div className="bg-white dark:bg-slate-800 rounded-lg mb-3">
+                                      <textarea
+                                        value={generatedOpeningScript}
+                                        onChange={(e) => setGeneratedOpeningScript(e.target.value)}
+                                        className="w-full h-32 p-3 text-sm text-slate-700 dark:text-slate-300 bg-transparent resize-none focus:outline-none focus:ring-2 focus:ring-purple-300 rounded-lg"
+                                      />
                                     </div>
                                     <div className="flex gap-2">
                                       <button
                                         onClick={applyGeneratedOpeningScript}
-                                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white text-sm font-medium rounded-lg transition-all"
+                                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 text-sm font-medium rounded-lg transition-all"
                                       >
                                         <CheckCircle className="w-4 h-4" />
                                         Add
@@ -1850,7 +1858,7 @@ Agent Details:
                                 <button
                                   onClick={generateAITalkingPoints}
                                   disabled={isGeneratingTalkingPoints}
-                                  className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white text-xs font-medium rounded-lg transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 text-xs font-medium rounded-lg transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   {isGeneratingTalkingPoints ? (
                                     <>
@@ -1874,15 +1882,17 @@ Agent Details:
                                         AI Generated Talking Points
                                       </span>
                                     </div>
-                                    <div className="bg-white dark:bg-slate-800 rounded-lg p-3 mb-3 max-h-40 overflow-y-auto">
-                                      <pre className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-sans">
-                                        {generatedTalkingPoints}
-                                      </pre>
+                                    <div className="bg-white dark:bg-slate-800 rounded-lg mb-3">
+                                      <textarea
+                                        value={generatedTalkingPoints}
+                                        onChange={(e) => setGeneratedTalkingPoints(e.target.value)}
+                                        className="w-full h-40 p-3 text-sm text-slate-700 dark:text-slate-300 bg-transparent resize-none focus:outline-none focus:ring-2 focus:ring-purple-300 rounded-lg"
+                                      />
                                     </div>
                                     <div className="flex gap-2">
                                       <button
                                         onClick={applyGeneratedTalkingPoints}
-                                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white text-sm font-medium rounded-lg transition-all"
+                                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 text-sm font-medium rounded-lg transition-all"
                                       >
                                         <CheckCircle className="w-4 h-4" />
                                         Add
@@ -1914,7 +1924,7 @@ Agent Details:
                                 <button
                                   onClick={generateAIClosingScript}
                                   disabled={isGeneratingClosingScript}
-                                  className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white text-xs font-medium rounded-lg transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 text-xs font-medium rounded-lg transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   {isGeneratingClosingScript ? (
                                     <>
@@ -1938,15 +1948,17 @@ Agent Details:
                                         AI Generated Closing
                                       </span>
                                     </div>
-                                    <div className="bg-white dark:bg-slate-800 rounded-lg p-3 mb-3 max-h-32 overflow-y-auto">
-                                      <pre className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap font-sans">
-                                        {generatedClosingScript}
-                                      </pre>
+                                    <div className="bg-white dark:bg-slate-800 rounded-lg mb-3">
+                                      <textarea
+                                        value={generatedClosingScript}
+                                        onChange={(e) => setGeneratedClosingScript(e.target.value)}
+                                        className="w-full h-32 p-3 text-sm text-slate-700 dark:text-slate-300 bg-transparent resize-none focus:outline-none focus:ring-2 focus:ring-purple-300 rounded-lg"
+                                      />
                                     </div>
                                     <div className="flex gap-2">
                                       <button
                                         onClick={applyGeneratedClosingScript}
-                                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-600 hover:to-blue-600 text-white text-sm font-medium rounded-lg transition-all"
+                                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 text-sm font-medium rounded-lg transition-all"
                                       >
                                         <CheckCircle className="w-4 h-4" />
                                         Add

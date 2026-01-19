@@ -487,7 +487,6 @@
     const companyInfo = getCompanyInfo();
     console.log("🏢 Using refreshed company info:", companyInfo);
 
-    // Update landing view content
     const widgetTitle = document.querySelector('.widget-title');
     if (widgetTitle) {
       widgetTitle.textContent = companyInfo.name;
@@ -506,24 +505,19 @@
       console.log("✅ Updated landing view logo to:", companyInfo.logo);
     }
 
-    // Update call view content
     const callInfoName = document.querySelector('.call-info-name');
     if (callInfoName) {
       callInfoName.textContent = companyInfo.name;
       console.log("✅ Updated call view agent name to:", companyInfo.name);
     }
     
-    // Also update the call view avatar if it exists
     const callAvatar = document.querySelector('.call-avatar');
     if (callAvatar && companyInfo.logo) {
       callAvatar.innerHTML = `<img src="${companyInfo.logo}" alt="${companyInfo.name} Logo" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">`;
       console.log("✅ Updated call view avatar");
     }
 
-    // Update the action area based on agent status
     updateLandingViewBasedOnStatus();
-    
-    // Refresh theme colors as well
     refreshWidgetTheme();
     
     console.log("✅ Widget content refresh completed");
@@ -1946,28 +1940,34 @@
       }
       .shivai-neon-pulse {
       overflow: visible;
+      contain: layout;
       }
       .shivai-neon-pulse::before,
       .shivai-neon-pulse::after {
       content: "";
       position: absolute;
-      inset: -4px;
+      top: 50%;
+      left: 50%;
+      width: 100%;
+      height: 100%;
+      transform: translate(-50%, -50%) scale(1);
       border: 2px solid rgba(107, 114, 128, 0.6);
       border-radius: 50%;
       animation: neonPulseOut 2s ease-out infinite;
       opacity: 0;
       pointer-events: none;
+      will-change: transform, opacity;
       }
       .shivai-neon-pulse::after {
       animation-delay: 1s;
       }
       @keyframes neonPulseOut {
       0% {
-        transform: scale(1);
+        transform: translate(-50%, -50%) scale(1);
         opacity: 1;
       }
       100% {
-        transform: scale(1.5);
+        transform: translate(-50%, -50%) scale(1.5);
         opacity: 0;
       }
       }

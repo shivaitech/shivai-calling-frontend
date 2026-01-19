@@ -238,40 +238,53 @@ const Overview = () => {
                   )}
                 </div>
               ) : (
-                agents.map((agent) => (
-                  <div
-                    key={agent.id}
-                    className="flex items-center border justify-between px-3 py-3   bg-slate-50/50 dark:bg-slate-700/30 rounded-xl hover:bg-slate-100/50 dark:hover:bg-slate-700/50 transition-colors duration-200"
+                agents
+                  ?.filter((itm, id) => id < 4)
+                  .map((agent) => (
+                    <div
+                      key={agent.id}
+                      onClick={()=>navigate(`/agents/${agent?.id}`)}
+                      className="flex items-center border justify-between px-3 py-3   bg-slate-50/50 dark:bg-slate-700/30 rounded-xl hover:bg-slate-100/50 dark:hover:bg-slate-700/50 transition-colors duration-200"
+                    >
+                      <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                        <div className="w-7 sm:w-10 h-7 sm:h-10 common-bg-icons border-none flex items-center justify-center flex-shrink-0">
+                          <Bot className="w-3 sm:w-5 h-3 sm:h-5 text-blue-800" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm sm:text-base font-medium text-slate-800 dark:text-white truncate">
+                            {agent.name}
+                          </p>
+                          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 truncate">
+                            {agent.language} • {agent.persona}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            agent.status === "Published"
+                              ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
+                              : agent.status === "Pending"
+                              ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400"
+                              : "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
+                          }`}
+                        >
+                          {agent.status}
+                        </span>
+                        <Activity className="w-3 sm:w-4 h-3 sm:h-4 text-green-500" />
+                      </div>
+                    </div>
+                  ))
+              )}
+              {agents.length > 4 && isDeveloper && (
+                <div className="text-center mt-2 sm:mt-3">
+                  <button
+                    onClick={() => navigate("/agents")}
+                    className="text-sm sm:text-base text-blue-600 dark:text-blue-400 hover:underline"
                   >
-                    <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-                      <div className="w-7 sm:w-10 h-7 sm:h-10 common-bg-icons border-none flex items-center justify-center flex-shrink-0">
-                        <Bot className="w-3 sm:w-5 h-3 sm:h-5 text-blue-800" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm sm:text-base font-medium text-slate-800 dark:text-white truncate">
-                          {agent.name}
-                        </p>
-                        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 truncate">
-                          {agent.language} • {agent.persona}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          agent.status === "Published"
-                            ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
-                            : agent.status === "Training"
-                            ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400"
-                            : "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300"
-                        }`}
-                      >
-                        {agent.status}
-                      </span>
-                      <Activity className="w-3 sm:w-4 h-3 sm:h-4 text-green-500" />
-                    </div>
-                  </div>
-                ))
+                    View All Agents
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -468,24 +481,24 @@ const Overview = () => {
               onClick={() => isDeveloper && navigate("/monitoring")}
               disabled={!isDeveloper}
               className={`p-4 text-left rounded-xl transition-all duration-300 border ${
-              isDeveloper
-                ? "common-bg-icons dark:border-green-700/30 hover:shadow-lg transform hover:scale-[1.02] group cursor-pointer"
-                : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 opacity-50 cursor-not-allowed"
+                isDeveloper
+                  ? "common-bg-icons dark:border-green-700/30 hover:shadow-lg transform hover:scale-[1.02] group cursor-pointer"
+                  : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 opacity-50 cursor-not-allowed"
               }`}
             >
               <div
-              style={{
-                padding: "12px",
-              }}
-              className="common-button-bg  dark:bg-green-900/30 rounded-lg w-auto  max-w-14 mb-3  items-center"
+                style={{
+                  padding: "12px",
+                }}
+                className="common-button-bg  dark:bg-green-900/30 rounded-lg w-auto  max-w-14 mb-3  items-center"
               >
-              <MessageSquare className="w-6 h-6  text-white dark:text-green-400 group-hover:scale-110 transition-transform duration-200" />
+                <MessageSquare className="w-6 h-6  text-white dark:text-green-400 group-hover:scale-110 transition-transform duration-200" />
               </div>
               <p className="text-base font-medium text-slate-800 dark:text-white mb-1">
-              Conversations
+                Conversations
               </p>
               <p className="text-sm text-slate-600 dark:text-slate-400">
-              Monitor interactions
+                Monitor interactions
               </p>
             </button>
 
@@ -493,24 +506,24 @@ const Overview = () => {
               onClick={() => isDeveloper && navigate("/training")}
               disabled={!isDeveloper}
               className={`p-4 text-left rounded-xl transition-all duration-300 border ${
-              isDeveloper
-                ? "common-bg-icons dark:border-orange-700/30 hover:shadow-lg transform hover:scale-[1.02] group cursor-pointer"
-                : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 opacity-50 cursor-not-allowed"
+                isDeveloper
+                  ? "common-bg-icons dark:border-orange-700/30 hover:shadow-lg transform hover:scale-[1.02] group cursor-pointer"
+                  : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 opacity-50 cursor-not-allowed"
               }`}
             >
               <div
-              style={{
-                padding: "12px",
-              }}
-              className="common-button-bg dark:bg-orange-900/30 rounded-lg w-auto max-w-14 mb-3 items-center"
+                style={{
+                  padding: "12px",
+                }}
+                className="common-button-bg dark:bg-orange-900/30 rounded-lg w-auto max-w-14 mb-3 items-center"
               >
-              <Activity className="w-6 h-6 text-white dark:text-orange-400 group-hover:scale-110 transition-transform duration-200" />
+                <Activity className="w-6 h-6 text-white dark:text-orange-400 group-hover:scale-110 transition-transform duration-200" />
               </div>
               <p className="text-base font-medium text-slate-800 dark:text-white mb-1">
-              Training
+                Training
               </p>
               <p className="text-sm text-slate-600 dark:text-slate-400">
-              Improve AI models
+                Improve AI models
               </p>
             </button>
 
@@ -518,24 +531,24 @@ const Overview = () => {
               onClick={() => isDeveloper && navigate("/settings")}
               disabled={!isDeveloper}
               className={`p-4 text-left rounded-xl transition-all duration-300 border ${
-              isDeveloper
-                ? "common-bg-icons dark:border-purple-700/30 hover:shadow-lg transform hover:scale-[1.02] group cursor-pointer"
-                : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 opacity-50 cursor-not-allowed"
+                isDeveloper
+                  ? "common-bg-icons dark:border-purple-700/30 hover:shadow-lg transform hover:scale-[1.02] group cursor-pointer"
+                  : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 opacity-50 cursor-not-allowed"
               }`}
             >
               <div
-              style={{
-                padding: "12px",
-              }}
-              className="common-button-bg dark:bg-purple-900/30 rounded-lg w-auto max-w-14 mb-3 items-center"
+                style={{
+                  padding: "12px",
+                }}
+                className="common-button-bg dark:bg-purple-900/30 rounded-lg w-auto max-w-14 mb-3 items-center"
               >
-              <Users className="w-6 h-6 text-white dark:text-purple-400 group-hover:scale-110 transition-transform duration-200" />
+                <Users className="w-6 h-6 text-white dark:text-purple-400 group-hover:scale-110 transition-transform duration-200" />
               </div>
               <p className="text-base font-medium text-slate-800 dark:text-white mb-1">
-              Team Settings
+                Team Settings
               </p>
               <p className="text-sm text-slate-600 dark:text-slate-400">
-              Manage permissions
+                Manage permissions
               </p>
             </button>
           </div>

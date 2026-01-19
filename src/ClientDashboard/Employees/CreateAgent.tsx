@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import toast, { Toaster } from "react-hot-toast";
+import toast from "react-hot-toast";
 import { agentAPI } from "../../services/agentAPI";
 import GlassCard from "../../components/GlassCard";
 import SearchableSelect from "../../components/SearchableSelect";
@@ -16,6 +16,8 @@ import {
   Loader2,
   X,
   CheckCircle,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 const CreateAgent = () => {
@@ -24,6 +26,16 @@ const CreateAgent = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isApplyingTemplate, setIsApplyingTemplate] = useState(false);
   const [templateApplied, setTemplateApplied] = useState(false);
+
+  // AI generation state for custom instructions
+  const [isGeneratingInstructions, setIsGeneratingInstructions] = useState(false);
+  const [generatedInstructions, setGeneratedInstructions] = useState("");
+  const [showGeneratedInstructions, setShowGeneratedInstructions] = useState(false);
+
+  // Template modal state
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [selectedTemplateKey, setSelectedTemplateKey] = useState<string | null>(null);
+  const [currentSlide, setCurrentSlide] = useState(0);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -51,7 +63,7 @@ const CreateAgent = () => {
     { value: "order-processing", label: "Order Processing", group: "Operations" },
     { value: "technical-support", label: "Technical Support", group: "Support" },
     { value: "billing-inquiries", label: "Billing Inquiries", group: "Support" },
-    { value: "feedback-collection", label: "Feedback Collection", group: "Operations" },
+    { value: "feedback-collection", label: "Feedback Collection", group: "Operations" },   
     { value: "onboarding", label: "Customer Onboarding", group: "Operations" },
   ];
 
@@ -84,12 +96,12 @@ const CreateAgent = () => {
     { value: "other", label: "Other" },
   ];
 
-  const subIndustries: Record<string, { value: string; label: string }[]> = {
+  const subIndustries: Record<string, { value: string; label: string }[]> = {     
     "real-estate": [
       { value: "residential", label: "Residential" },
       { value: "commercial", label: "Commercial" },
       { value: "property-management", label: "Property Management" },
-      { value: "real-estate-investment", label: "Real Estate Investment" },
+      { value: "real-estate-investment", label: "Real Estate Investment" },    
     ],
     "healthcare": [
       { value: "hospitals", label: "Hospitals" },
@@ -102,52 +114,52 @@ const CreateAgent = () => {
     "dental": [
       { value: "general-dentistry", label: "General Dentistry" },
       { value: "orthodontics", label: "Orthodontics" },
-      { value: "cosmetic-dentistry", label: "Cosmetic Dentistry" },
-      { value: "pediatric-dentistry", label: "Pediatric Dentistry" },
+      { value: "cosmetic-dentistry", label: "Cosmetic Dentistry" },      
+      { value: "pediatric-dentistry", label: "Pediatric Dentistry" },     
     ],
     "fitness": [
       { value: "gyms", label: "Gyms & Fitness Centers" },
       { value: "yoga-studios", label: "Yoga Studios" },
-      { value: "personal-training", label: "Personal Training" },
+      { value: "personal-training", label: "Personal Training" },      
       { value: "wellness-spas", label: "Wellness Spas" },
     ],
     "education": [
-      { value: "k12", label: "K-12 Schools" },
-      { value: "higher-education", label: "Higher Education" },
-      { value: "online-learning", label: "Online Learning" },
-      { value: "tutoring", label: "Tutoring Services" },
-      { value: "vocational", label: "Vocational Training" },
+      { value: "k12", label: "K-12 Schools" },  
+      { value: "higher-education", label: "Higher Education" },        
+      { value: "online-learning", label: "Online Learning" },      
+      { value: "tutoring", label: "Tutoring Services" },           
+      { value: "vocational", label: "Vocational Training" },            
     ],
     "finance": [
       { value: "banking", label: "Banking" },
       { value: "investment", label: "Investment Services" },
-      { value: "wealth-management", label: "Wealth Management" },
+      { value: "wealth-management", label: "Wealth Management" },           
       { value: "lending", label: "Lending & Mortgages" },
       { value: "fintech", label: "Fintech" },
     ],
     "insurance": [
-      { value: "health-insurance", label: "Health Insurance" },
+      { value: "health-insurance", label: "Health Insurance" },        
       { value: "life-insurance", label: "Life Insurance" },
       { value: "auto-insurance", label: "Auto Insurance" },
-      { value: "property-insurance", label: "Property Insurance" },
-      { value: "business-insurance", label: "Business Insurance" },
+      { value: "property-insurance", label: "Property Insurance" },        
+      { value: "business-insurance", label: "Business Insurance" },     
     ],
     "ecommerce": [
       { value: "fashion", label: "Fashion & Apparel" },
       { value: "electronics", label: "Electronics" },
-      { value: "food-beverage", label: "Food & Beverage" },
+      { value: "food-beverage", label: "Food & Beverage" },                
       { value: "home-garden", label: "Home & Garden" },
       { value: "marketplace", label: "Marketplace" },
     ],
     "retail": [
       { value: "grocery", label: "Grocery" },
       { value: "fashion-retail", label: "Fashion Retail" },
-      { value: "electronics-retail", label: "Electronics Retail" },
+      { value: "electronics-retail", label: "Electronics Retail" },            
       { value: "pharmacy", label: "Pharmacy" },
-      { value: "department-stores", label: "Department Stores" },
+      { value: "department-stores", label: "Department Stores" },          
     ],
     "technology": [
-      { value: "software-development", label: "Software Development" },
+      { value: "software-development", label: "Software Development" },        
       { value: "it-services", label: "IT Services" },
       { value: "cybersecurity", label: "Cybersecurity" },
       { value: "cloud-services", label: "Cloud Services" },
@@ -258,60 +270,105 @@ const CreateAgent = () => {
     { value: "male", label: "Male" },
   ];
 
-  const templates = {
-    "customer-support-real-estate": {
-      name: "Real Estate Support Agent",
-      description: "Handles property inquiries, scheduling viewings, and providing property information",
-      features: ["Property Search", "Viewing Scheduling", "Market Updates", "Document Assistance"],
-      persona: "Formal",
-      customInstructions: "You are a knowledgeable real estate assistant. Help clients with property inquiries, schedule viewings, provide market insights, and assist with documentation. Always be professional and detail-oriented.",
-      guardrailsLevel: "High",
-    },
-    "sales-marketing-healthcare": {
-      name: "Healthcare Sales Assistant",
-      description: "Promotes healthcare services, books consultations, and provides service information",
-      features: ["Service Promotion", "Consultation Booking", "Insurance Queries", "Health Education"],
+  const templates: Record<string, {
+    name: string;
+    description: string;
+    features: string[];
+    persona: string;
+    customInstructions: string;
+    guardrailsLevel: string;
+    icon?: string;
+  }> = {
+    "customer-support-general": {
+      name: "Customer Support Agent",
+      description: "Handles customer inquiries, resolves issues, and provides product/service information",
+      features: ["Issue Resolution", "FAQ Handling", "Escalation Management", "Customer Satisfaction"],
       persona: "Empathetic",
-      customInstructions: "You are a caring healthcare sales assistant. Help patients understand services, book appointments, answer insurance questions, and provide health education. Always prioritize patient care and privacy.",
-      guardrailsLevel: "High",
-    },
-    "appointment-setting-dental": {
-      name: "Dental Appointment Scheduler",
-      description: "Schedules dental appointments, handles cancellations, and provides dental care information",
-      features: ["Appointment Booking", "Reminder Calls", "Treatment Info", "Insurance Verification"],
-      persona: "Reassuring (Support)",
-      customInstructions: "You are a friendly dental appointment scheduler. Help patients book appointments, provide treatment information, handle insurance verification, and ease dental anxiety with reassuring communication.",
+      customInstructions: "You are a helpful customer support agent. Listen carefully to customer concerns, provide accurate information, resolve issues efficiently, and maintain a friendly, professional tone. Always aim for first-contact resolution.",
       guardrailsLevel: "Medium",
+      icon: "🎧",
     },
-    "lead-qualification-saas": {
-      name: "SaaS Lead Qualifier",
-      description: "Qualifies software leads, demos features, and nurtures prospects through the sales funnel",
-      features: ["Lead Scoring", "Demo Scheduling", "Feature Explanation", "Pricing Information"],
+    "sales-outbound": {
+      name: "Sales Outreach Agent",
+      description: "Engages prospects, qualifies leads, and schedules demos or consultations",
+      features: ["Lead Qualification", "Product Pitching", "Objection Handling", "Demo Scheduling"],
       persona: "Persuasive (Sales)",
-      customInstructions: "You are a tech-savvy SaaS sales assistant. Qualify leads by understanding their needs, explain software features, schedule demos, and provide pricing information. Focus on value proposition and ROI.",
+      customInstructions: "You are a professional sales agent. Engage prospects warmly, understand their needs, present value propositions effectively, handle objections gracefully, and guide them towards scheduling demos or making decisions.",
       guardrailsLevel: "Medium",
+      icon: "💼",
+    },
+    "appointment-scheduler": {
+      name: "Appointment Scheduler",
+      description: "Books appointments, handles rescheduling, and sends reminders",
+      features: ["Appointment Booking", "Calendar Management", "Reminder Calls", "Cancellation Handling"],
+      persona: "Friendly",
+      customInstructions: "You are an efficient appointment scheduler. Help customers book, reschedule, or cancel appointments. Confirm details clearly, provide reminders, and ensure a smooth scheduling experience.",
+      guardrailsLevel: "Low",
+      icon: "📅",
+    },
+    "lead-qualifier": {
+      name: "Lead Qualification Agent",
+      description: "Qualifies inbound leads by gathering information and assessing fit",
+      features: ["Lead Scoring", "Information Gathering", "Needs Assessment", "Handoff to Sales"],
+      persona: "Formal",
+      customInstructions: "You are a professional lead qualifier. Ask relevant questions to understand prospect needs, budget, timeline, and decision-making process. Score leads accurately and provide clear handoff notes to the sales team.",
+      guardrailsLevel: "Medium",
+      icon: "🎯",
+    },
+    "technical-support": {
+      name: "Technical Support Agent",
+      description: "Provides technical assistance, troubleshooting, and product guidance",
+      features: ["Troubleshooting", "Product Guidance", "Issue Escalation", "Documentation"],
+      persona: "Reassuring (Support)",
+      customInstructions: "You are a knowledgeable technical support agent. Guide users through troubleshooting steps, explain technical concepts clearly, and escalate complex issues when needed. Always ensure the user feels supported.",
+      guardrailsLevel: "High",
+      icon: "🔧",
+    },
+    "onboarding-specialist": {
+      name: "Onboarding Specialist",
+      description: "Guides new customers through setup, training, and initial experience",
+      features: ["Setup Assistance", "Feature Training", "Best Practices", "Progress Tracking"],
+      persona: "Friendly",
+      customInstructions: "You are a welcoming onboarding specialist. Help new customers get started, explain features step-by-step, share best practices, and ensure they feel confident using the product or service.",
+      guardrailsLevel: "Low",
+      icon: "🚀",
     },
   };
 
-  const getTemplate = () => {
-    const key = `${formData.businessProcess}-${formData.industry}`;
-    return (
-      templates[key as keyof typeof templates] || {
-        name: `${businessProcesses.find((bp) => bp.value === formData.businessProcess)?.label || "Custom"} Agent`,
-        description: `Handles ${businessProcesses.find((bp) => bp.value === formData.businessProcess)?.label?.toLowerCase() || "various tasks"} for ${industries.find((ind) => ind.value === formData.industry)?.label?.toLowerCase() || "your business"}`,
-        features: ["Customer Interaction", "Query Resolution", "Information Provision", "Process Automation"],
-        persona: "Friendly",
-        customInstructions: `You are a professional AI assistant specializing in ${businessProcesses.find((bp) => bp.value === formData.businessProcess)?.label?.toLowerCase() || "customer service"} for the ${industries.find((ind) => ind.value === formData.industry)?.label?.toLowerCase() || "business"} industry. Provide helpful, accurate, and timely assistance to users.`,
-        guardrailsLevel: "Medium",
-      }
-    );
+  // Get all available templates as an array
+  const getAllTemplates = () => {
+    return Object.entries(templates).map(([key, template]) => ({
+      key,
+      ...template,
+    }));
   };
 
-  const applyTemplate = () => {
+  // Get recommended template based on selection
+  const getRecommendedTemplate = () => {
+    const key = `${formData.businessProcess}-${formData.industry}`;
+    if (templates[key]) {
+      return { key, ...templates[key] };
+    }
+    // Return a default recommendation based on business process
+    if (formData.businessProcess === "customer-support") return { key: "customer-support-general", ...templates["customer-support-general"] };
+    if (formData.businessProcess === "sales-marketing") return { key: "sales-outbound", ...templates["sales-outbound"] };
+    if (formData.businessProcess === "appointment-setting") return { key: "appointment-scheduler", ...templates["appointment-scheduler"] };
+    if (formData.businessProcess === "lead-qualification") return { key: "lead-qualifier", ...templates["lead-qualifier"] };
+    if (formData.businessProcess === "technical-support") return { key: "technical-support", ...templates["technical-support"] };
+    if (formData.businessProcess === "onboarding") return { key: "onboarding-specialist", ...templates["onboarding-specialist"] };
+    return { key: "customer-support-general", ...templates["customer-support-general"] };
+  };
+
+  // Apply selected template from modal
+  const applySelectedTemplate = () => {
+    if (!selectedTemplateKey || !templates[selectedTemplateKey]) {
+      toast.error("Please select a template");
+      return;
+    }
+    
     setIsApplyingTemplate(true);
-    // Simulate loading for better UX
     setTimeout(() => {
-      const template = getTemplate();
+      const template = templates[selectedTemplateKey];
       setFormData((prev) => ({
         ...prev,
         persona: template.persona,
@@ -320,6 +377,8 @@ const CreateAgent = () => {
       }));
       setIsApplyingTemplate(false);
       setTemplateApplied(true);
+      setShowTemplateModal(false);
+      setSelectedTemplateKey(null);
       toast.success("Template applied successfully!");
     }, 800);
   };
@@ -333,6 +392,58 @@ const CreateAgent = () => {
     }));
     setTemplateApplied(false);
     toast.success("Template removed");
+  };
+
+  // AI generation functions for custom instructions
+  const generateCustomInstructions = async () => {
+    if (!formData.businessProcess || !formData.industry) {
+      toast.error("Please select a business process and industry first");
+      return;
+    }
+
+    setIsGeneratingInstructions(true);
+    try {
+      const businessProcessLabel = businessProcesses.find((bp) => bp.value === formData.businessProcess)?.label || formData.businessProcess;
+      const industryLabel = industries.find((ind) => ind.value === formData.industry)?.label || formData.industry;
+      const subIndustryLabel = formData.subIndustry && subIndustries[formData.industry]
+        ? subIndustries[formData.industry].find((si) => si.value === formData.subIndustry)?.label
+        : null;
+
+      const promptText = formData.customInstructions
+        ? `Enhance and improve these custom instructions for an AI assistant:\n\nAgent Details:\n- Name: ${formData.name || "AI Assistant"}\n- Business Process: ${businessProcessLabel}\n- Industry: ${industryLabel}${subIndustryLabel ? `\n- Sub-Industry: ${subIndustryLabel}` : ""}\n- Persona: ${formData.persona}\n\nCurrent instructions to enhance: ${formData.customInstructions}\n\nProvide improved, detailed, and professional custom instructions that guide the AI agent's behavior, tone, and capabilities.`
+        : `Generate professional custom instructions for an AI assistant with the following details:\n\nAgent Details:\n- Name: ${formData.name || "AI Assistant"}\n- Business Process: ${businessProcessLabel}\n- Industry: ${industryLabel}${subIndustryLabel ? `\n- Sub-Industry: ${subIndustryLabel}` : ""}\n- Persona: ${formData.persona}\n\nCreate detailed custom instructions that define the AI agent's behavior, communication style, capabilities, boundaries, and best practices for handling customer interactions in this specific industry and use case.`;
+
+      const response = await agentAPI.generatePrompt(promptText);
+
+      const generated =
+        response?.data?.generation?.response ||
+        response?.generation?.response ||
+        response?.response;
+
+      if (generated && typeof generated === "string") {
+        setGeneratedInstructions(generated);
+        setShowGeneratedInstructions(true);
+      } else {
+        throw new Error("Invalid response format");
+      }
+    } catch (error) {
+      console.error("Failed to generate instructions:", error);
+      toast.error("Failed to generate instructions. Please try again.");
+    } finally {
+      setIsGeneratingInstructions(false);
+    }
+  };
+
+  const applyGeneratedInstructions = () => {
+    setFormData((prev) => ({ ...prev, customInstructions: generatedInstructions }));
+    setShowGeneratedInstructions(false);
+    setGeneratedInstructions("");
+    toast.success("Instructions applied successfully!");
+  };
+
+  const cancelGeneratedInstructions = () => {
+    setShowGeneratedInstructions(false);
+    setGeneratedInstructions("");
   };
 
   const handleSave = async () => {
@@ -448,8 +559,6 @@ const CreateAgent = () => {
     { value: "Standard (8K tokens)", label: "Standard (8K tokens)" },
     { value: "Large (16K tokens)", label: "Large (16K tokens)" },
   ];
-
-  const template = getTemplate();
 
   return (
     <div className="space-y-4 sm:space-y-6 w-full max-w-full overflow-visible">
@@ -590,60 +699,44 @@ const CreateAgent = () => {
                 {/* Template Suggestions - Mobile Only */}
                 {formData.businessProcess && formData.industry && (
                   <div className="lg:hidden">
-                    <div className="common-bg-icons p-4 rounded-xl">
-                      <h4 className="font-semibold text-slate-800 dark:text-white mb-2">
-                        {template.name}
-                      </h4>
-                      <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
-                        {template.description}
-                      </p>
-                      <div className="space-y-2 mb-4">
-                        <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                          Key Features:
-                        </p>
-                        <ul className="space-y-1">
-                          {template.features.map((feature, idx) => (
-                            <li
-                              key={idx}
-                              className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-2"
-                            >
-                              <span className="w-1 h-1 bg-blue-500 rounded-full"></span>
-                              {feature}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                      {templateApplied ? (
-                        <>
-                          <div className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg mb-2">
-                            <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
-                            <span className="text-sm font-medium text-green-700 dark:text-green-300">Template Applied</span>
-                          </div>
-                          <button
-                            onClick={removeTemplate}
-                            className="w-full common-button-bg2 px-4 py-2 rounded-lg text-sm flex items-center justify-center gap-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
-                          >
-                            <X className="w-4 h-4" />
-                            Remove Template
-                          </button>
-                        </>
-                      ) : (
+                    {templateApplied ? (
+                      <div className="common-bg-icons p-4 rounded-xl">
+                        <div className="flex items-center justify-center gap-2 px-4 py-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg mb-3">
+                          <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
+                          <span className="text-sm font-medium text-green-700 dark:text-green-300">Template Applied</span>
+                        </div>
                         <button
-                          onClick={applyTemplate}
-                          disabled={isApplyingTemplate}
-                          className="w-full common-button-bg px-4 py-2 rounded-lg text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                          onClick={removeTemplate}
+                          className="w-full common-button-bg2 px-4 py-2 rounded-lg text-sm flex items-center justify-center gap-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
                         >
-                          {isApplyingTemplate ? (
-                            <>
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                              Applying...
-                            </>
-                          ) : (
-                            "Apply Template"
-                          )}
+                          <X className="w-4 h-4" />
+                          Remove Template
                         </button>
-                      )}
-                    </div>
+                      </div>
+                    ) : (
+                      <div className="common-bg-icons p-4 rounded-xl">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center">
+                            <Sparkles className="w-5 h-5 text-white" />
+                          </div>
+                          <div>
+                            <h4 className="font-semibold text-slate-800 dark:text-white text-sm">
+                              Pre-built Templates Available
+                            </h4>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                              We have templates that fit your requirements
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setShowTemplateModal(true)}
+                          className="w-full common-button-bg px-4 py-2.5 rounded-lg text-sm flex items-center justify-center gap-2"
+                        >
+                          <Lightbulb className="w-4 h-4" />
+                          View Templates
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -732,9 +825,29 @@ const CreateAgent = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    Custom Instructions <span className="text-red-500">*</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                      Custom Instructions <span className="text-red-500">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={generateCustomInstructions}
+                      disabled={isGeneratingInstructions || !formData.businessProcess || !formData.industry}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 text-xs font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isGeneratingInstructions ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Generating...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>AI Assist</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                   <textarea
                     value={formData.customInstructions}
                     onChange={(e) => setFormData({ ...formData, customInstructions: e.target.value })}
@@ -742,6 +855,43 @@ const CreateAgent = () => {
                     rows={4}
                     className="common-bg-icons w-full px-4 py-3 rounded-xl resize-none text-sm sm:text-base"
                   />
+                  {(!formData.businessProcess || !formData.industry) && (
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      Select business process and industry above to enable AI Assist
+                    </p>
+                  )}
+                  {showGeneratedInstructions && generatedInstructions && (
+                    <div className="mt-3 p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 border border-purple-200 dark:border-purple-700 rounded-xl">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Sparkles className="w-4 h-4 text-purple-500" />
+                        <span className="text-sm font-medium text-purple-700 dark:text-purple-300">
+                          AI Generated Instructions
+                        </span>
+                      </div>
+                      <div className="bg-white dark:bg-slate-800 rounded-lg mb-3">
+                        <textarea
+                          value={generatedInstructions}
+                          onChange={(e) => setGeneratedInstructions(e.target.value)}
+                          className="w-full h-40 p-3 text-sm text-slate-700 dark:text-slate-300 bg-transparent resize-none focus:outline-none focus:ring-2 focus:ring-purple-300 rounded-lg"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={applyGeneratedInstructions}
+                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 text-sm font-medium rounded-lg transition-all"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          Add
+                        </button>
+                        <button
+                          onClick={cancelGeneratedInstructions}
+                          className="px-4 py-2 common-bg-icons text-slate-700 dark:text-slate-300 text-sm font-medium rounded-lg hover:shadow-sm transition-all"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -838,65 +988,48 @@ const CreateAgent = () => {
           {/* Template Suggestions - Desktop Only */}
           <GlassCard className="hidden lg:block">
             <div className="p-4 sm:p-5 lg:p-6">
-            
-
               {formData.businessProcess && formData.industry ? (
-                <div className="space-y-4">
-                  <div className="common-bg-icons p-4 rounded-xl">
-                    <h4 className="font-semibold text-slate-800 dark:text-white mb-2">
-                      {template.name}
-                    </h4>
-                    <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
-                      {template.description}
-                    </p>
-                    <div className="space-y-2 mb-4">
-                      <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
-                        Key Features:
-                      </p>
-                      <ul className="space-y-1">
-                        {template.features.map((feature, idx) => (
-                          <li
-                            key={idx}
-                            className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-2"
-                          >
-                            <span className="w-1 h-1 bg-blue-500 rounded-full"></span>
-                            {feature}
-                          </li>
-                        ))}
-                      </ul>
+                templateApplied ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-center gap-2 px-4 py-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
+                      <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
+                      <span className="text-sm font-medium text-green-700 dark:text-green-300">Template Applied</span>
                     </div>
-                    {templateApplied ? (
-                      <>
-                        <div className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg mb-2">
-                          <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
-                          <span className="text-sm font-medium text-green-700 dark:text-green-300">Template Applied</span>
-                        </div>
-                        <button
-                          onClick={removeTemplate}
-                          className="w-full common-button-bg2 px-4 py-2 rounded-lg text-sm flex items-center justify-center gap-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
-                        >
-                          <X className="w-4 h-4" />
-                          Remove Template
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        onClick={applyTemplate}
-                        disabled={isApplyingTemplate}
-                        className="w-full common-button-bg px-4 py-2 rounded-lg text-sm flex items-center justify-center gap-2 disabled:opacity-50"
-                      >
-                        {isApplyingTemplate ? (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                            Applying...
-                          </>
-                        ) : (
-                          "Apply Template"
-                        )}
-                      </button>
-                    )}
+                    <button
+                      onClick={removeTemplate}
+                      className="w-full common-button-bg2 px-4 py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                    >
+                      <X className="w-4 h-4" />
+                      Remove Template
+                    </button>
                   </div>
-                </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0">
+                        <Sparkles className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-slate-800 dark:text-white">
+                          Pre-built Templates
+                        </h4>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          Ready-to-use configurations
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">
+                      We have pre-configured templates that match your selected business process and industry. Choose one to quickly set up your agent with optimal settings.
+                    </p>
+                    <button
+                      onClick={() => setShowTemplateModal(true)}
+                      className="w-full common-button-bg px-4 py-2.5 rounded-xl text-sm flex items-center justify-center gap-2"
+                    >
+                      <Lightbulb className="w-4 h-4" />
+                      View Templates
+                    </button>
+                  </div>
+                )
               ) : (
                 <div className="text-center py-6">
                   <Lightbulb className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
@@ -958,6 +1091,203 @@ const CreateAgent = () => {
           </GlassCard>
         </div>
       </div>
+
+      {/* Template Selection Modal */}
+      {showTemplateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => {
+              setShowTemplateModal(false);
+              setSelectedTemplateKey(null);
+            }}
+          />
+          
+          {/* Modal Content */}
+          <div className="relative bg-white dark:bg-slate-900 rounded-xl sm:rounded-2xl shadow-2xl w-full max-w-[calc(100vw-16px)] sm:max-w-md max-h-[85vh] sm:max-h-[90vh] overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between p-3 sm:p-4 border-b border-slate-200 dark:border-slate-700">
+              <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
+                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center flex-shrink-0">
+                  <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-sm sm:text-base font-semibold text-slate-800 dark:text-white truncate">
+                    Choose a Template
+                  </h2>
+                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 hidden xs:block">
+                    Select a pre-configured template
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowTemplateModal(false);
+                  setSelectedTemplateKey(null);
+                }}
+                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors flex-shrink-0 ml-2"
+              >
+                <X className="w-4 h-4 text-slate-500" />
+              </button>
+            </div>
+
+            {/* Recommended Badge */}
+            {getRecommendedTemplate() && (
+              <div className="px-3 sm:px-4 pt-2 sm:pt-3">
+                <div className="flex items-center gap-1 sm:gap-1.5 text-[10px] sm:text-[11px] text-blue-600 dark:text-blue-400">
+                  <Sparkles className="w-2.5 h-2.5 sm:w-3 sm:h-3 flex-shrink-0" />
+                  <span className="truncate">Recommended: <strong>{getRecommendedTemplate().name}</strong></span>
+                </div>
+              </div>
+            )}
+
+            {/* Templates Carousel */}
+            <div className="p-3 sm:p-4">
+              {(() => {
+                const allTemplates = getAllTemplates();
+                const recommendedKey = getRecommendedTemplate()?.key;
+                const totalSlides = allTemplates.length;
+                
+                const goToSlide = (index: number) => {
+                  if (index < 0) setCurrentSlide(totalSlides - 1);
+                  else if (index >= totalSlides) setCurrentSlide(0);
+                  else setCurrentSlide(index);
+                };
+
+                const tmpl = allTemplates[currentSlide];
+                const isSelected = selectedTemplateKey === tmpl?.key;
+                const isRecommended = recommendedKey === tmpl?.key;
+
+                return (
+                  <div className="relative">
+                    {/* Navigation Arrows */}
+                    <button
+                      onClick={() => goToSlide(currentSlide - 1)}
+                      className="absolute left-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full shadow hover:bg-slate-50 dark:hover:bg-slate-700 transition-all -ml-1 sm:-ml-2"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-600 dark:text-slate-300" />
+                    </button>
+                    <button
+                      onClick={() => goToSlide(currentSlide + 1)}
+                      className="absolute right-0 top-1/2 -translate-y-1/2 z-10 w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full shadow hover:bg-slate-50 dark:hover:bg-slate-700 transition-all -mr-1 sm:-mr-2"
+                    >
+                      <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-600 dark:text-slate-300" />
+                    </button>
+
+                    {/* Template Card */}
+                    <div className="px-4 sm:px-6">
+                      <div
+                        onClick={() => setSelectedTemplateKey(tmpl.key)}
+                        className={`relative p-3 sm:p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                          isSelected
+                            ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-md shadow-blue-500/20"
+                            : "border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600 bg-white dark:bg-slate-800"
+                        }`}
+                      >
+                        {isRecommended && (
+                          <div className="absolute -top-2 sm:-top-2.5 left-1/2 -translate-x-1/2 px-2 sm:px-2.5 py-0.5 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-[9px] sm:text-[10px] font-medium rounded-full shadow whitespace-nowrap">
+                            ✨ Recommended
+                          </div>
+                        )}
+                        
+                        <div className="flex items-start gap-2.5 sm:gap-3">
+                          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-600 flex items-center justify-center text-base sm:text-lg flex-shrink-0">
+                            {tmpl.icon || "🤖"}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-semibold text-slate-800 dark:text-white text-xs sm:text-sm mb-0.5 sm:mb-1 truncate">
+                              {tmpl.name}
+                            </h4>
+                            <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
+                              {tmpl.description}
+                            </p>
+                          </div>
+                          {isSelected && (
+                            <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500 flex-shrink-0" />
+                          )}
+                        </div>
+                        
+                        <div className="flex flex-wrap gap-1 sm:gap-1.5 mt-2.5 sm:mt-3">
+                          {tmpl.features.slice(0, 3).map((feature, idx) => (
+                            <span
+                              key={idx}
+                              className="px-1.5 sm:px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[9px] sm:text-[10px] rounded-full"
+                            >
+                              {feature}
+                            </span>
+                          ))}
+                          {tmpl.features.length > 3 && (
+                            <span className="px-1.5 sm:px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 text-[9px] sm:text-[10px] rounded-full">
+                              +{tmpl.features.length - 3}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-3 sm:gap-4 text-[9px] sm:text-[10px] text-slate-500 dark:text-slate-400 mt-2.5 sm:mt-3 pt-2 sm:pt-2.5 border-t border-slate-100 dark:border-slate-700">
+                          <span>Persona: <strong className="text-slate-700 dark:text-slate-300">{tmpl.persona}</strong></span>
+                          <span>Guardrails: <strong className="text-slate-700 dark:text-slate-300">{tmpl.guardrailsLevel}</strong></span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Dots Navigation */}
+                    <div className="flex items-center justify-center gap-1.5 sm:gap-2 mt-3 sm:mt-4">
+                      {allTemplates.map((_, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => setCurrentSlide(idx)}
+                          className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full transition-all ${
+                            idx === currentSlide
+                              ? "bg-blue-500 w-5 sm:w-6"
+                              : "bg-slate-300 dark:bg-slate-600 hover:bg-slate-400"
+                          }`}
+                        />
+                      ))}
+                    </div>
+
+                    {/* Slide Counter */}
+                    <div className="text-center mt-2 sm:mt-3 text-[10px] sm:text-xs text-slate-500 dark:text-slate-400">
+                      {currentSlide + 1} of {totalSlides}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-2 sm:gap-3 p-3 sm:p-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
+              <button
+                onClick={() => {
+                  setShowTemplateModal(false);
+                  setSelectedTemplateKey(null);
+                }}
+                className="px-3 sm:px-4 py-2 sm:py-2.5 common-button-bg2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={applySelectedTemplate}
+                disabled={!selectedTemplateKey || isApplyingTemplate}
+                className="px-4 sm:px-6 py-2 sm:py-2.5 common-button-bg rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium flex items-center gap-1.5 sm:gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isApplyingTemplate ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" />
+                    <span className="hidden xs:inline">Applying...</span>
+                    <span className="xs:hidden">...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span>Apply</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
