@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { agentAPI } from "../../services/agentAPI";
 import GlassCard from "../../components/GlassCard";
@@ -19,9 +19,14 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
+import { 
+  aiEmployeeTemplates as AGENT_TEMPLATES, 
+  TEMPLATE_KEY_MAPPING 
+} from "../../constants/aiEmployeeTemplates";
 
 const CreateAgent = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { refreshAgents } = useAgent();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isApplyingTemplate, setIsApplyingTemplate] = useState(false);
@@ -37,12 +42,20 @@ const CreateAgent = () => {
   const [selectedTemplateKey, setSelectedTemplateKey] = useState<string | null>(null);
   const [currentSlide, setCurrentSlide] = useState(0);
 
+  // Pre-filled data from quick create modal
+  const prefilledCompany = searchParams.get("company") || "";
+  const prefilledProcess = searchParams.get("process") || "";
+  const prefilledIndustry = searchParams.get("industry") || "";
+  const prefilledSubIndustry = searchParams.get("subIndustry") || "";
+  const prefilledTemplate = searchParams.get("template") || "";
+  const prefilledUrls = searchParams.get("urls")?.split(",").filter(u => u.trim()) || [];
+
   const [formData, setFormData] = useState({
-    name: "",
+    name: prefilledCompany ? `${prefilledCompany} AI Assistant` : "",
     gender: "female",
-    businessProcess: "",
-    industry: "",
-    subIndustry: "",
+    businessProcess: prefilledProcess,
+    industry: prefilledIndustry,
+    subIndustry: prefilledSubIndustry,
     persona: "Empathetic",
     language: "English (US)",
     voice: "alloy",
@@ -53,6 +66,27 @@ const CreateAgent = () => {
     contextWindow: "Standard (8K tokens)",
     temperature: 0.7,
   });
+
+  // Store knowledge base URLs from quick create
+  const [knowledgeBaseUrls] = useState<string[]>(prefilledUrls);
+
+  // Auto-apply template from quick create modal on mount
+  useEffect(() => {
+    if (prefilledTemplate) {
+      const mappedTemplate = TEMPLATE_KEY_MAPPING[prefilledTemplate] || prefilledTemplate;
+      if (AGENT_TEMPLATES[mappedTemplate]) {
+        const template = AGENT_TEMPLATES[mappedTemplate];
+        setFormData((prev) => ({
+          ...prev,
+          persona: template.persona,
+          customInstructions: template.customInstructions,
+          guardrailsLevel: template.guardrailsLevel,
+        }));
+        setTemplateApplied(true);
+        toast.success(`Template "${template.name}" applied!`);
+      }
+    }
+  }, []); // Run only on mount
 
   const businessProcesses = [
     { value: "customer-support", label: "Customer Support", group: "Support" },
@@ -270,70 +304,8 @@ const CreateAgent = () => {
     { value: "male", label: "Male" },
   ];
 
-  const templates: Record<string, {
-    name: string;
-    description: string;
-    features: string[];
-    persona: string;
-    customInstructions: string;
-    guardrailsLevel: string;
-    icon?: string;
-  }> = {
-    "customer-support-general": {
-      name: "Customer Support Agent",
-      description: "Handles customer inquiries, resolves issues, and provides product/service information",
-      features: ["Issue Resolution", "FAQ Handling", "Escalation Management", "Customer Satisfaction"],
-      persona: "Empathetic",
-      customInstructions: "You are a helpful customer support agent. Listen carefully to customer concerns, provide accurate information, resolve issues efficiently, and maintain a friendly, professional tone. Always aim for first-contact resolution.",
-      guardrailsLevel: "Medium",
-      icon: "🎧",
-    },
-    "sales-outbound": {
-      name: "Sales Outreach Agent",
-      description: "Engages prospects, qualifies leads, and schedules demos or consultations",
-      features: ["Lead Qualification", "Product Pitching", "Objection Handling", "Demo Scheduling"],
-      persona: "Persuasive (Sales)",
-      customInstructions: "You are a professional sales agent. Engage prospects warmly, understand their needs, present value propositions effectively, handle objections gracefully, and guide them towards scheduling demos or making decisions.",
-      guardrailsLevel: "Medium",
-      icon: "💼",
-    },
-    "appointment-scheduler": {
-      name: "Appointment Scheduler",
-      description: "Books appointments, handles rescheduling, and sends reminders",
-      features: ["Appointment Booking", "Calendar Management", "Reminder Calls", "Cancellation Handling"],
-      persona: "Friendly",
-      customInstructions: "You are an efficient appointment scheduler. Help customers book, reschedule, or cancel appointments. Confirm details clearly, provide reminders, and ensure a smooth scheduling experience.",
-      guardrailsLevel: "Low",
-      icon: "📅",
-    },
-    "lead-qualifier": {
-      name: "Lead Qualification Agent",
-      description: "Qualifies inbound leads by gathering information and assessing fit",
-      features: ["Lead Scoring", "Information Gathering", "Needs Assessment", "Handoff to Sales"],
-      persona: "Formal",
-      customInstructions: "You are a professional lead qualifier. Ask relevant questions to understand prospect needs, budget, timeline, and decision-making process. Score leads accurately and provide clear handoff notes to the sales team.",
-      guardrailsLevel: "Medium",
-      icon: "🎯",
-    },
-    "technical-support": {
-      name: "Technical Support Agent",
-      description: "Provides technical assistance, troubleshooting, and product guidance",
-      features: ["Troubleshooting", "Product Guidance", "Issue Escalation", "Documentation"],
-      persona: "Reassuring (Support)",
-      customInstructions: "You are a knowledgeable technical support agent. Guide users through troubleshooting steps, explain technical concepts clearly, and escalate complex issues when needed. Always ensure the user feels supported.",
-      guardrailsLevel: "High",
-      icon: "🔧",
-    },
-    "onboarding-specialist": {
-      name: "Onboarding Specialist",
-      description: "Guides new customers through setup, training, and initial experience",
-      features: ["Setup Assistance", "Feature Training", "Best Practices", "Progress Tracking"],
-      persona: "Friendly",
-      customInstructions: "You are a welcoming onboarding specialist. Help new customers get started, explain features step-by-step, share best practices, and ensure they feel confident using the product or service.",
-      guardrailsLevel: "Low",
-      icon: "🚀",
-    },
-  };
+  // Use the constant templates
+  const templates = AGENT_TEMPLATES;
 
   // Get all available templates as an array
   const getAllTemplates = () => {
@@ -472,6 +444,11 @@ const CreateAgent = () => {
     const loadingToast = toast.loading("Creating AI agent...");
 
     try {
+      // Get template key for storing with agent (for Training page)
+      const appliedTemplateKey = prefilledTemplate ? 
+        (TEMPLATE_KEY_MAPPING[prefilledTemplate] || prefilledTemplate) : 
+        (selectedTemplateKey || undefined);
+
       // Prepare API payload
       const payload = {
         name: formData.name,
@@ -488,6 +465,9 @@ const CreateAgent = () => {
         max_response_length: formData.maxResponseLength.split(' ')[0].toLowerCase(),
         context_window: formData.contextWindow.toLowerCase().replace(/\s/g, '_').replace(/\(|\)/g, ''),
         temperature: formData.temperature,
+        // Store template key and training data for Training page
+        template_key: appliedTemplateKey,
+        knowledge_base_urls: knowledgeBaseUrls.length > 0 ? knowledgeBaseUrls : undefined,
       };
 
       // Make API call using agentAPI service
@@ -604,7 +584,7 @@ const CreateAgent = () => {
               >
                 <Save className="w-3.5 sm:w-4 h-3.5 sm:h-4" />
                 <span className="text-sm sm:text-base font-medium">
-                  {isSubmitting ? "Creating..." : "Create Agent"}
+                  {isSubmitting ? "Creating..." : "Save Agent"}
                 </span>
               </button>
             </div>

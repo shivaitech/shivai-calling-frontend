@@ -138,7 +138,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setIsLoading(true);
       setError(null);
       const response = await authAPI.login({ email, password });
-      console.log(response);
       setUser(response.user);
       setTokens(response.tokens);
       return response;

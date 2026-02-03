@@ -67,7 +67,32 @@ const AuthModel: React.FC<AuthModelProps> = ({
     null
   );
   const [isVerifyingCode, setIsVerifyingCode] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
   const navigate = useNavigate();
+
+  // Validate full name - only letters and spaces
+  const validateName = (name: string): boolean => {
+    if (!name.trim()) {
+      setNameError(null);
+      return false;
+    }
+
+    // Only allow letters (any language), spaces, hyphens, and apostrophes
+    const nameRegex = /^[a-zA-Z\s'-]+$/;
+    
+    if (!nameRegex.test(name)) {
+      setNameError("Name can only contain letters, spaces, hyphens, and apostrophes");
+      return false;
+    }
+
+    if (name.trim().length < 2) {
+      setNameError("Name must be at least 2 characters long");
+      return false;
+    }
+
+    setNameError(null);
+    return true;
+  };
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,7 +115,6 @@ const AuthModel: React.FC<AuthModelProps> = ({
     setIsVerifyingCode(true);
 
     try {
-      // Get the pending auth token from localStorage (stored after signup)
       const pendingTokens = localStorage.getItem("pending_auth_tokens");
       let accessToken = "";
 
@@ -99,44 +123,35 @@ const AuthModel: React.FC<AuthModelProps> = ({
         accessToken = tokens.accessToken;
       }
 
-      // Call the API to verify the onboarding code with the auth token
       const response = await authAPI.verifyOnboardingCode(
         onboardingCode,
         accessToken
       );
 
       if (response.success || response.valid) {
-        // Extract data from response
         const data = response.data;
 
-        // Store the verified code in localStorage
         if (data?.code) {
           localStorage.setItem("onboarding_code", data.code);
         } else {
           localStorage.setItem("onboarding_code", onboardingCode);
         }
 
-        // Store user ID if provided
         if (data?.userId) {
           localStorage.setItem("onboarding_user_id", data.userId);
         }
 
-        // Store verification ID if provided
         if (data?.id) {
           localStorage.setItem("onboarding_verification_id", data.id);
         }
 
-        // Close the modal
         setShowOnboardingCodeModal(false);
 
-        // Navigate to onboarding page
         navigate("/onboarding");
       } else {
-        // Show error if code is invalid
         setOnboardingCodeError(response.message || "Invalid onboarding code");
       }
     } catch (error: any) {
-      // Handle API errors
       const errorMessage =
         error?.response?.data?.message ||
         "Failed to verify code. Please try again.";
@@ -184,16 +199,16 @@ const AuthModel: React.FC<AuthModelProps> = ({
     label: string,
     isActive: boolean
   ) => (
-    <div className="flex items-center space-x-1.5">
+    <div className="flex items-center space-x-2">
       {satisfied ? (
-        <CheckCircle className="w-3.5 h-3.5 text-emerald-500" />
+        <CheckCircle className="w-4 h-4 text-emerald-500 flex-shrink-0" />
       ) : (
         <span
-          className={`w-3.5 h-3.5 flex items-center justify-center ${
+          className={`w-4 h-4 flex items-center justify-center flex-shrink-0 ${
             isActive ? "text-red-500" : "text-gray-300"
           }`}
         >
-          {isActive ? <XCircle className="w-3.5 h-3.5" /> : "•"}
+          {isActive ? <XCircle className="w-4 h-4" /> : "•"}
         </span>
       )}
       <span
@@ -273,21 +288,42 @@ const AuthModel: React.FC<AuthModelProps> = ({
                 {/* Name Field */}
                 <div>
                   <label className="auth-label">Full Name</label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
-                    }
-                    className={`auth-input ${
-                      fieldErrors.fullName ? "border-red-500" : ""
-                    }`}
-                    placeholder="Enter your full name"
-                    required
-                    disabled={isLoading}
-                    autoComplete="off"
-                  />
-                  {fieldErrors.fullName && (
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={formData.name}
+                      onChange={(e) => {
+                        const newName = e.target.value;
+                        setFormData({ ...formData, name: newName });
+                        validateName(newName);
+                      }}
+                      className={`auth-input ${
+                        nameError && formData.name
+                          ? "border-red-500 pr-10"
+                          : !nameError && formData.name
+                          ? "border-green-500 pr-10"
+                          : ""
+                      }`}
+                      placeholder="Enter your full name"
+                      required
+                      disabled={isLoading}
+                      autoComplete="off"
+                    />
+                    {/* Validation Icons */}
+                    {formData.name && (
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                        {nameError ? (
+                          <XCircle className="h-5 w-5 text-red-500" />
+                        ) : (
+                          <CheckCircle className="h-5 w-5 text-green-500" />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  {nameError && formData.name && (
+                    <p className="auth-error">{nameError}</p>
+                  )}
+                  {fieldErrors.fullName && !nameError && (
                     <p className="auth-error">{fieldErrors.fullName}</p>
                   )}
                 </div>
@@ -308,8 +344,8 @@ const AuthModel: React.FC<AuthModelProps> = ({
                       } ${
                         emailValidation.error
                           ? "border-red-500"
-                          : emailValidation.isValid
-                          ? "border-black"
+                          : emailValidation.isValid && formData.email
+                          ? "border-emerald-500"
                           : ""
                       }`}
                       placeholder="Email"
@@ -320,16 +356,17 @@ const AuthModel: React.FC<AuthModelProps> = ({
                     <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                       {isValidatingEmail ? (
                         <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
-                      ) : emailValidation.error ? (
+                      ) : emailValidation.error && formData.email ? (
                         <XCircle className="w-4 h-4 text-red-500" />
-                      ) : emailValidation.isValid ? (
+                      ) : emailValidation.isValid && formData.email ? (
                         <CheckCircle className="w-4 h-4 text-emerald-500" />
                       ) : null}
                     </div>
                   </div>
-                  {emailValidation.error ? (
+                  {emailValidation.error && formData.email && (
                     <p className="auth-error">{emailValidation.error}</p>
-                  ) : (
+                  )}
+                  {!emailValidation.error && formData.email && emailValidation.isValid && (
                     <p className="mt-1 text-xs text-gray-500">
                       {AUTH_MESSAGES.helper.signup_email}
                     </p>
@@ -355,8 +392,8 @@ const AuthModel: React.FC<AuthModelProps> = ({
                     } ${
                       emailValidation.error
                         ? "border-red-500"
-                        : emailValidation.isValid
-                        ? "border-black"
+                        : emailValidation.isValid && formData.email
+                        ? "border-emerald-500"
                         : ""
                     }`}
                     placeholder="Email"
@@ -369,7 +406,7 @@ const AuthModel: React.FC<AuthModelProps> = ({
                       <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
                     ) : emailValidation.error ? (
                       <XCircle className="w-4 h-4 text-red-500" />
-                    ) : emailValidation.isValid ? (
+                    ) : emailValidation.isValid && formData.email ? (
                       <CheckCircle className="w-4 h-4 text-emerald-500" />
                     ) : null}
                   </div>
@@ -396,10 +433,10 @@ const AuthModel: React.FC<AuthModelProps> = ({
                       className={`auth-input pr-10 ${
                         shake ? "animate-shake" : ""
                       } ${
-                        passwordValidation.error
+                        passwordValidation.error && formData.password
                           ? "border-red-500"
-                          : passwordValidation.isValid
-                          ? "border-black"
+                          : passwordValidation.isValid && formData.password
+                          ? "border-emerald-500"
                           : ""
                       }`}
                       placeholder="Password"
@@ -420,12 +457,15 @@ const AuthModel: React.FC<AuthModelProps> = ({
                       )}
                     </button>
                   </div>
+                  {passwordValidation.error && formData.password && (
+                    <p className="auth-error mt-1 mb-1">{passwordValidation.error}</p>
+                  )}
                   {!formData.password && (
                     <p className="mt-1 text-xs text-gray-500">
                       {AUTH_MESSAGES.helper.signup_password}
                     </p>
                   )}
-                  {formData.password && (
+                  {formData.password && !passwordValidation.error && (
                     <div className="mt-2 space-y-1">
                       {AUTH_MESSAGES.validation.password_requirements.map(
                         (req) =>
@@ -501,7 +541,7 @@ const AuthModel: React.FC<AuthModelProps> = ({
                     } ${
                       passwordValidation.error
                         ? "border-red-500"
-                        : passwordValidation.isValid
+                        : passwordValidation.isValid && formData.password
                         ? "border-emerald-500"
                         : ""
                     }`}
@@ -523,9 +563,9 @@ const AuthModel: React.FC<AuthModelProps> = ({
                     )}
                   </button>
                 </div>
-                {passwordValidation.error && (
+                {passwordValidation.error && formData.password && (
                   <p className="auth-error">
-                    {AUTH_MESSAGES.error.signin_generic2}
+                    {passwordValidation.error}
                   </p>
                 )}
               </div>
@@ -555,7 +595,10 @@ const AuthModel: React.FC<AuthModelProps> = ({
                 !emailValidation.isValid ||
                 !passwordValidation.isValid ||
                 (authMode === "signup" &&
-                  (!!confirmPasswordError || !formData.confirmPassword))
+                  (!!confirmPasswordError || 
+                   !formData.confirmPassword || 
+                   !!nameError || 
+                   !formData.name))
               }
               className="auth-button auth-button-primary mt-6"
             >

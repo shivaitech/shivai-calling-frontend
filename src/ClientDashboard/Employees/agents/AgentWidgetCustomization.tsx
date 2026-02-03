@@ -746,14 +746,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
 
               {/* Save Button in Header */}
               <div className="ml-auto flex items-center gap-2">
-                <button
-                  onClick={() => setPreviewKey((prev) => prev + 1)}
-                  disabled={activeTab !== "preview"}
-                  className="p-2 text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 disabled:opacity-50 transition-colors"
-                  title="Refresh Preview"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                </button>
+              
                 <button
                   onClick={saveWidgetConfig}
                   disabled={isSaving || !hasUnsavedChanges}

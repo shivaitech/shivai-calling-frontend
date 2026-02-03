@@ -76,10 +76,7 @@ const Landing: React.FC = () => {
         );
       } else {
         const response = await login(formData.email, formData.password);
-        console.log(response);
-
         setShowAuthModal(false);
-
         if (response.codeVerified === false || response.user?.isOnboarded) {
           localStorage.setItem("auth_tokens", JSON.stringify(response.tokens));
           localStorage.setItem("auth_user", JSON.stringify(response.user));
