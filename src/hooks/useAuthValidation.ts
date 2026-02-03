@@ -27,23 +27,34 @@ export const useEmailValidation = (
     isChecking: false,
   });
 
-  const validateEmail = useCallback(
-    debounce(async (email: string) => {
-      if (!email) {
-        setState({ isValid: false, error: null, isChecking: false });
-        return;
-      }
+  // Immediate format validation (no debounce)
+  const validateFormat = useCallback((email: string) => {
+    if (!email) {
+      setState({ isValid: false, error: null, isChecking: false });
+      return false;
+    }
 
-      // Basic email format validation
+    // Basic email format validation - instant feedback
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setState({
+        isValid: false,
+        error: AUTH_MESSAGES.error.email_invalid,
+        isChecking: false,
+      });
+      return false;
+    }
+
+    return true;
+  }, []);
+
+  // API validation (debounced)
+  const validateEmailAPI = useCallback(
+    debounce(async (email: string) => {
+      if (!email) return;
+
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
-        setState({
-          isValid: false,
-          error: AUTH_MESSAGES.error.email_invalid,
-          isChecking: false,
-        });
-        return;
-      }
+      if (!emailRegex.test(email)) return;
 
       try {
         setState((prev) => ({ ...prev, isChecking: true }));
@@ -109,14 +120,21 @@ export const useEmailValidation = (
           isChecking: false,
         });
       }
-    }, 500),
+    }, 300),
     [mode]
   );
 
   useEffect(() => {
-    validateEmail(email);
-    return () => validateEmail.cancel();
-  }, [email, validateEmail]);
+    // First do instant format validation
+    const isValidFormat = validateFormat(email);
+    
+    // Then do API validation if format is valid
+    if (isValidFormat && email) {
+      validateEmailAPI(email);
+    }
+    
+    return () => validateEmailAPI.cancel();
+  }, [email, validateFormat, validateEmailAPI]);
 
   return state;
 };
@@ -141,54 +159,75 @@ export const usePasswordValidation = (
     },
   });
 
-  const validatePassword = useCallback(
-    debounce(async (password: string) => {
-      if (!password) {
-        setState((prev) => ({
-          ...prev,
-          isValid: false,
-          error: null,
-          isChecking: false,
-        }));
-        return;
-      }
+  // Immediate requirement validation (no debounce)
+  const validateRequirements = useCallback((password: string) => {
+    if (!password) {
+      setState((prev) => ({
+        ...prev,
+        isValid: false,
+        error: null,
+        isChecking: false,
+      }));
+      return { isValid: false, requirements: {
+        length: false,
+        lowercase: false,
+        uppercase: false,
+        number: false,
+        special: false,
+      }};
+    }
+
+    const requirements = {
+      length: password.length >= 8,
+      lowercase: /[a-z]/.test(password),
+      uppercase: /[A-Z]/.test(password),
+      number: /[0-9]/.test(password),
+      special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\?]/.test(password),
+    };
+
+    const isValid = Object.values(requirements).every(Boolean);
+    let error = null;
+
+    if (!requirements.length) {
+      error = AUTH_MESSAGES.error.password_too_short;
+    } else if (!requirements.lowercase || !requirements.uppercase || !requirements.number || !requirements.special) {
+      error = AUTH_MESSAGES.error.password_requirements;
+    }
+
+    setState({
+      isValid,
+      error,
+      isChecking: false,
+      requirements,
+    });
+
+    return { isValid, requirements };
+  }, []);
+
+  // API validation for signin (debounced)
+  const validatePasswordAPI = useCallback(
+    debounce(async (password: string, requirements: PasswordRequirements) => {
+      if (!password || mode !== "signin") return;
+      
+      const isValid = Object.values(requirements).every(Boolean);
+      if (!isValid) return;
 
       try {
         setState((prev) => ({ ...prev, isChecking: true }));
-
-        const requirements = {
-          length: password.length >= 8,
-          lowercase: /[a-z]/.test(password),
-          uppercase: /[A-Z]/.test(password),
-          number: /[0-9]/.test(password),
-          special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\?]/.test(password),
-        };
-
-        let isValid = Object.values(requirements).every(Boolean);
-        let error = null;
-
-        if (!requirements.length) {
-          error = AUTH_MESSAGES.error.password_too_short;
-        } else if (!requirements.lowercase || !requirements.uppercase || !requirements.number || !requirements.special) {
-          error = AUTH_MESSAGES.error.password_requirements;
-        }
-
-        if (mode === "signin" && isValid) {
-          await authAPI.validatePassword(password, email, mode);
-        }
-
-        setState({
-          isValid,
-          error,
+        await authAPI.validatePassword(password, email, mode);
+        
+        setState((prev) => ({
+          ...prev,
+          isValid: true,
+          error: null,
           isChecking: false,
-          requirements,
-        });
+        }));
       } catch (error: any) {
         if (mode === "signin" && error.response?.status === 401) {
           const errorMessage = error.response?.data?.message;
           if (
             errorMessage &&
-            errorMessage.toLowerCase().includes("Invalid password")
+            errorMessage.toLowerCase().includes("invalid password")
           ) {
             setState((prev) => ({
               ...prev,
@@ -209,14 +248,21 @@ export const usePasswordValidation = (
           }
         }
       }
-    }, 500),
+    }, 300),
     [email, mode]
   );
 
   useEffect(() => {
-    validatePassword(password);
-    return () => validatePassword.cancel();
-  }, [password, validatePassword]);
+    // First do instant requirement validation
+    const result = validateRequirements(password);
+    
+    // Then do API validation if requirements are met (for signin only)
+    if (mode === "signin" && result.isValid && password) {
+      validatePasswordAPI(password, result.requirements);
+    }
+    
+    return () => validatePasswordAPI.cancel();
+  }, [password, mode, validateRequirements, validatePasswordAPI]);
 
   return state;
 };

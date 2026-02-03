@@ -17,8 +17,6 @@ import {
   FileText,
   Target,
   Globe,
-  Smartphone,
-  Monitor,
   Users,
   Phone,
   Crown,
@@ -717,7 +715,51 @@ const Step3: React.FC<Step3Props> = ({
         }
       }
     }
-  }, [watch("plan"), activeAgentTab, setValue, watch]);
+  }, [watch("plan"), activeAgentTab, setValue]);
+
+  // Sync form data to local state when switching agents
+  useEffect(() => {
+    const currentAgent = watch(`agents.${activeAgentTab}`);
+    if (currentAgent) {
+                // Sync deployment targets from form to local state
+                if (currentAgent.deploymentTargets && Array.isArray(currentAgent.deploymentTargets)) {
+                  setSelectedDeploymentTargets(prev => ({ 
+                    ...prev, 
+                    [activeAgentTab]: currentAgent.deploymentTargets as string[]
+                  }));
+                }                // Sync workflows from form to local state  
+                if (currentAgent.selectedWorkflows && Array.isArray(currentAgent.selectedWorkflows)) {
+                  setSelectedWorkflows(prev => ({ 
+                    ...prev, 
+                    [activeAgentTab]: currentAgent.selectedWorkflows as string[]
+                  }));
+                }                // Sync workflow instructions from form to local state
+                if (currentAgent.workflowInstructions && typeof currentAgent.workflowInstructions === 'object') {
+                  setWorkflowInstructions(prev => ({ 
+                    ...prev, 
+                    [activeAgentTab]: currentAgent.workflowInstructions as Record<string, string>
+                  }));
+                }                // Sync social links from form to local state
+                if (currentAgent.socialLinks && Array.isArray(currentAgent.socialLinks)) {
+                  setSocialLinks(prev => ({
+                    ...prev,
+                    [activeAgentTab]: currentAgent.socialLinks!.length > 0 ? currentAgent.socialLinks as string[] : [""]
+                  }));
+                }                // Sync fallback contacts from form to local state
+                if (currentAgent.fallbackContacts && Array.isArray(currentAgent.fallbackContacts)) {
+                  setFallbackContacts(prev => ({
+                    ...prev,
+                    [activeAgentTab]: currentAgent.fallbackContacts!.length > 0 ? currentAgent.fallbackContacts as string[] : [""]
+                  }));
+                }      // Sync success metrics from form to local state
+      if (currentAgent.successMetrics && Array.isArray(currentAgent.successMetrics)) {
+        setSuccessMetrics(prev => ({
+          ...prev,
+          [activeAgentTab]: currentAgent.successMetrics!.length > 0 ? currentAgent.successMetrics as string[] : [""]
+        }));
+      }
+    }
+  }, [activeAgentTab, watch]);
 
   // Sync form data to local state when switching agents
   useEffect(() => {
@@ -727,7 +769,7 @@ const Step3: React.FC<Step3Props> = ({
       if (currentAgent.deploymentTargets && Array.isArray(currentAgent.deploymentTargets)) {
         setSelectedDeploymentTargets(prev => ({ 
           ...prev, 
-          [activeAgentTab]: currentAgent.deploymentTargets 
+          [activeAgentTab]: currentAgent.deploymentTargets || [] 
         }));
       }
       
@@ -735,7 +777,7 @@ const Step3: React.FC<Step3Props> = ({
       if (currentAgent.selectedWorkflows && Array.isArray(currentAgent.selectedWorkflows)) {
         setSelectedWorkflows(prev => ({ 
           ...prev, 
-          [activeAgentTab]: currentAgent.selectedWorkflows 
+          [activeAgentTab]: currentAgent.selectedWorkflows || [] 
         }));
       }
       
@@ -743,7 +785,7 @@ const Step3: React.FC<Step3Props> = ({
       if (currentAgent.workflowInstructions && typeof currentAgent.workflowInstructions === 'object') {
         setWorkflowInstructions(prev => ({ 
           ...prev, 
-          [activeAgentTab]: currentAgent.workflowInstructions 
+          [activeAgentTab]: currentAgent.workflowInstructions || {} 
         }));
       }
       
@@ -751,7 +793,7 @@ const Step3: React.FC<Step3Props> = ({
       if (currentAgent.socialLinks && Array.isArray(currentAgent.socialLinks)) {
         setSocialLinks(prev => ({
           ...prev,
-          [activeAgentTab]: currentAgent.socialLinks.length > 0 ? currentAgent.socialLinks : [""]
+          [activeAgentTab]: currentAgent.socialLinks && currentAgent.socialLinks.length > 0 ? currentAgent.socialLinks : [""]
         }));
       }
       
@@ -759,7 +801,7 @@ const Step3: React.FC<Step3Props> = ({
       if (currentAgent.fallbackContacts && Array.isArray(currentAgent.fallbackContacts)) {
         setFallbackContacts(prev => ({
           ...prev,
-          [activeAgentTab]: currentAgent.fallbackContacts.length > 0 ? currentAgent.fallbackContacts : [""]
+          [activeAgentTab]: currentAgent.fallbackContacts && currentAgent.fallbackContacts.length > 0 ? currentAgent.fallbackContacts : [""]
         }));
       }
       
@@ -767,7 +809,7 @@ const Step3: React.FC<Step3Props> = ({
       if (currentAgent.successMetrics && Array.isArray(currentAgent.successMetrics)) {
         setSuccessMetrics(prev => ({
           ...prev,
-          [activeAgentTab]: currentAgent.successMetrics.length > 0 ? currentAgent.successMetrics : [""]
+          [activeAgentTab]: currentAgent.successMetrics && currentAgent.successMetrics.length > 0 ? currentAgent.successMetrics : [""]
         }));
       }
     }
@@ -833,16 +875,6 @@ const Step3: React.FC<Step3Props> = ({
     newMetrics[index] = value;
     setSuccessMetrics(prev => ({ ...prev, [activeAgentTab]: newMetrics }));
     setValue(`agents.${activeAgentTab}.successMetrics`, newMetrics);
-  };
-
-  const toggleDeploymentTarget = (target: string) => {
-    const currentTargets = selectedDeploymentTargets[activeAgentTab] || [];
-    const newTargets = currentTargets.includes(target)
-      ? currentTargets.filter((t) => t !== target)
-      : [...currentTargets, target];
-    
-    setSelectedDeploymentTargets(prev => ({ ...prev, [activeAgentTab]: newTargets }));
-    setValue(`agents.${activeAgentTab}.deploymentTargets`, newTargets);
   };
 
   // Workflow integration handlers
@@ -2018,61 +2050,7 @@ const Step3: React.FC<Step3Props> = ({
 
         <div className="bg-white rounded-lg p-3 sm:p-4 shadow-sm">
           <div className="space-y-4 sm:space-y-6">
-            {/* Deployment Targets */}
-            <div>
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-3">
-                Deployment Targets
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3">
-                {[
-                  { value: "website", label: "Website", icon: Globe },
-                  {
-                    value: "mobile-app",
-                    label: "Mobile App",
-                    icon: Smartphone,
-                  },
-                  {
-                    value: "social-webview",
-                    label: "Social Web-view",
-                    icon: Monitor,
-                  },
-                ].map((target) => {
-                  const Icon = target.icon;
-                  const isSelected = (selectedDeploymentTargets[activeAgentTab] || []).includes(
-                    target.value
-                  );
-                  return (
-                    <div
-                      key={target.value}
-                      onClick={() => toggleDeploymentTarget(target.value)}
-                      className={`p-2 sm:p-3 border rounded-lg cursor-pointer transition-colors ${
-                        isSelected
-                          ? "border-blue-500 bg-blue-50"
-                          : "border-gray-200 hover:border-gray-300"
-                      }`}
-                    >
-                      <div className="flex items-center gap-1 sm:gap-2">
-                        <div
-                          className={`w-3 h-3 sm:w-4 sm:h-4 rounded border-2 flex items-center justify-center ${
-                            isSelected
-                              ? "bg-blue-500 border-blue-500"
-                              : "border-gray-300"
-                          }`}
-                        >
-                          {isSelected && (
-                            <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-white rounded-sm"></div>
-                          )}
-                        </div>
-                        <Icon className="w-3 h-3 sm:w-4 sm:h-4 text-gray-600" />
-                        <span className="text-xs sm:text-sm font-medium text-gray-900">
-                          {target.label}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+          
 
             {/* Deployment Service */}
             <div>
@@ -2082,12 +2060,12 @@ const Step3: React.FC<Step3Props> = ({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {[
                   {
-                    value: "shivai",
+                    value: "managed",
                     label: "Shivai will handle deployment",
                     desc: "We will handle implementation with access",
                   },
                   {
-                    value: "client",
+                    value: "self-service",
                     label: "You will handle deployment by yourself",
                     desc: "You will implement at your end",
                   },

@@ -20,6 +20,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
     const path = location.pathname;
     
     if (path === "/dashboard") return "Dashboard";
+    if (path === "/analytics") return "Analytics & Call History";
     if (path.includes("/agents")) {
       if (path.includes("/create")) return "Create Employee";
       if (path.includes("/edit")) return "Edit Employee";
@@ -84,6 +85,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
                 {(() => {
                   const path = location.pathname;
                   if (path === "/dashboard") return "Here's what's happening with your AI Employees and Customers.";
+                  if (path === "/analytics") return "Track call sessions, performance metrics, and conversation history.";
                   if (path.includes("/agents")) {
                     if (path.includes("/create")) return "Configure and customize your new AI agent.";
                     if (path.includes("/edit")) return "Modify your AI agent's settings and capabilities.";

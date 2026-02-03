@@ -50,6 +50,58 @@ body {
   }
 }
 
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(200%);
+  }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.3s ease-out forwards;
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.animate-slideUp {
+  animation: slideUp 0.6s ease-out forwards;
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+}
+
+/* Safe area padding for mobile devices with notches/home indicators */
+.pb-safe {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
 /* Training Component Mobile Enhancements */
 .scrollbar-hide {
   -ms-overflow-style: none;
@@ -58,6 +110,63 @@ body {
 
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
+}
+
+/* Custom Scrollbar Styling for Sliders */
+.overflow-x-auto {
+  scrollbar-width: thin;
+  scrollbar-color: #6366f1 #e2e8f0;
+  padding-bottom: 12px;
+}
+
+.overflow-x-auto::-webkit-scrollbar {
+  height: 10px;
+  background: transparent;
+}
+
+.overflow-x-auto::-webkit-scrollbar-track {
+  background: linear-gradient(to right, #e2e8f0, #cbd5e1, #e2e8f0);
+  border-radius: 12px;
+  margin: 0 16px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #9333ea 100%);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.6), inset 0 1px 2px rgba(255, 255, 255, 0.4);
+  transform: scaleY(1.2);
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb:active {
+  background: linear-gradient(135deg, #4338ca 0%, #6d28d9 50%, #7e22ce 100%);
+}
+
+:root.dark .overflow-x-auto {
+  scrollbar-color: #6366f1 #334155;
+}
+
+:root.dark .overflow-x-auto::-webkit-scrollbar-track {
+  background: linear-gradient(to right, #1e293b, #334155, #1e293b);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+:root.dark .overflow-x-auto::-webkit-scrollbar-thumb {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.2);
+}
+
+:root.dark .overflow-x-auto::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(135deg, #818cf8 0%, #a78bfa 50%, #c084fc 100%);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.7), inset 0 1px 2px rgba(255, 255, 255, 0.3);
 }
 
 /* Touch-optimized interactions */
@@ -113,6 +222,94 @@ body {
   .xs\:inline {
     display: inline;
   }
+}
+
+/* Theme Slider Styles */
+.theme-slider-container {
+  position: relative;
+  /* padding: 0 42px; */
+}
+
+.theme-slider-container .slick-list {
+  margin: 0 -4px;
+}
+
+.theme-slider-container .slick-track {
+  display: flex !important;
+  align-items: stretch;
+}
+
+.theme-slider-container .slick-slide {
+  padding: 0 4px;
+  height: auto;
+}
+
+.theme-slider-container .slick-slide > div {
+  height: 100%;
+}
+
+/* Custom Arrow Buttons */
+.theme-slider-container .slick-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.95) !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 50%;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 10;
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.theme-slider-container .slick-arrow:hover {
+  background: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.theme-slider-container .slick-arrow svg {
+  width: 16px;
+  height: 16px;
+  color: #475569;
+}
+
+.theme-slider-container .slick-prev {
+  left: -6px;
+}
+
+.theme-slider-container .slick-next {
+  right: -6px;
+}
+
+.theme-slider-container .slick-arrow:before {
+  display: none !important;
+}
+
+.theme-slider-container .slick-disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+:root.dark .theme-slider-container .slick-arrow {
+  background: rgba(30, 41, 59, 0.95) !important;
+  border-color: #475569 !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+:root.dark .theme-slider-container .slick-arrow:hover {
+  background: #334155 !important;
+  border-color: #64748b !important;
+}
+
+:root.dark .theme-slider-container .slick-arrow svg {
+  color: #94a3b8;
 }
 
 /* Training Stats Slider Styles */

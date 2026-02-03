@@ -6,7 +6,8 @@ import {
   Navigate,
   useLocation,
 } from "react-router-dom";
-import { AuthProvider } from "./contexts/AuthContext"; // Add AuthProvider
+import { Toaster } from "react-hot-toast";
+import { AuthProvider } from "./contexts/AuthContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { AgentProvider } from "./contexts/AgentContext";
 import ScrollToTop from "./components/ScrollToTop";
@@ -15,80 +16,22 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import GoogleCallback from "./components/GoogleCallback";
 import { oceanDepthsPreset, Orb } from "react-ai-orb";
 
-const Landing = lazy(() =>
-  Promise.all([
-    import("./pages/Landing"),
-    new Promise((resolve) => setTimeout(resolve, 2000)),
-  ]).then(([moduleExports]) => moduleExports)
-);
-const Onboarding = lazy(() =>
-  Promise.all([
-    import("./pages/Onboarding"),
-    new Promise((resolve) => setTimeout(resolve, 100)),
-  ]).then(([moduleExports]) => moduleExports)
-);
-const Sidebar = lazy(() =>
-  Promise.all([
-    import("./components/Sidebar"),
-    new Promise((resolve) => setTimeout(resolve, 100)),
-  ]).then(([moduleExports]) => moduleExports)
-);
-const TopBar = lazy(() =>
-  Promise.all([
-    import("./components/TopBar"),
-    new Promise((resolve) => setTimeout(resolve, 100)),
-  ]).then(([moduleExports]) => moduleExports)
-);
-const Overview = lazy(() =>
-  Promise.all([
-    import("./pages/Overview"),
-    new Promise((resolve) => setTimeout(resolve, 100)),
-  ]).then(([moduleExports]) => moduleExports)
-);
-const AgentManagement = lazy(() =>
-  Promise.all([
-    import("./pages/AgentManagement"),
-    new Promise((resolve) => setTimeout(resolve, 100)),
-  ]).then(([moduleExports]) => moduleExports)
-);
-const Training = lazy(() =>
-  Promise.all([
-    import("./pages/Training"),
-    new Promise((resolve) => setTimeout(resolve, 100)),
-  ]).then(([moduleExports]) => moduleExports)
-);
-const Workflows = lazy(() =>
-  Promise.all([
-    import("./pages/Workflows"),
-    new Promise((resolve) => setTimeout(resolve, 100)),
-  ]).then(([moduleExports]) => moduleExports)
-);
-const Monitoring = lazy(() =>
-  Promise.all([
-    import("./pages/Monitoring"),
-    new Promise((resolve) => setTimeout(resolve, 100)),
-  ]).then(([moduleExports]) => moduleExports)
-);
-const Billing = lazy(() =>
-  Promise.all([
-    import("./pages/Billing"),
-    new Promise((resolve) => setTimeout(resolve, 100)),
-  ]).then(([moduleExports]) => moduleExports)
-);
-const Settings = lazy(() =>
-  Promise.all([
-    import("./pages/Settings"),
-    new Promise((resolve) => setTimeout(resolve, 100)),
-  ]).then(([moduleExports]) => moduleExports)
-);
-const ResetPassword = lazy(() =>
-  Promise.all([
-    import("./components/ResetPassword"),
-    new Promise((resolve) => setTimeout(resolve, 100)),
-  ]).then(([moduleExports]) => moduleExports)
-);
+const Landing = lazy(() => import("./pages/Website/Landing"));
+const Onboarding = lazy(() => import("./pages/Website/Onboarding"));
+const Sidebar = lazy(() => import("./components/Sidebar"));
+const TopBar = lazy(() => import("./components/TopBar"));
+const Overview = lazy(() => import("./ClientDashboard/Dashboard/Overview"));
+const AgentManagement = lazy(() => import("./ClientDashboard/Employees/AgentManagement"));
+const CreateAgent = lazy(() => import("./ClientDashboard/Employees/CreateAgent"));
+const EditAgent = lazy(() => import("./ClientDashboard/Employees/EditAgent"));
+const Training = lazy(() => import("./ClientDashboard/Training/Training"));
+const Workflows = lazy(() => import("./ClientDashboard/Workflows/Workflows"));
+const Analytics = lazy(() => import("./ClientDashboard/Analytics/Analytics"));
+const Monitoring = lazy(() => import("./ClientDashboard/Monitoring/Monitoring"));
+const Billing = lazy(() => import("./ClientDashboard/Billing/Billing"));
+const Settings = lazy(() => import("./ClientDashboard/Settings/Settings"));
+const ResetPassword = lazy(() => import("./components/ResetPassword"));
 
-// Loading fallback component
 function LoadingFallback() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 via-slate-200 to-slate-300 dark:from-slate-900 dark:via-slate-800 dark:to-slate-700">
@@ -160,17 +103,20 @@ function AppContent() {
             />
             <Route path="/auth/google/callback" element={<GoogleCallback />} />
 
+            {/* Catch all other public routes and redirect to landing */}
+            <Route path="*" element={<Navigate to="/landing" replace />} />
+
             {/* Redirect routes to home */}
             <Route
               path="/ai-calling-app"
-              element={<Navigate to="/" replace />}
+              element={<Navigate to="/landing" replace />}
             />
             <Route
               path="/voice-assistant"
-              element={<Navigate to="/" replace />}
+              element={<Navigate to="/landing" replace />}
             />
-            <Route path="/about" element={<Navigate to="/" replace />} />
-            <Route path="/contact" element={<Navigate to="/" replace />} />
+            <Route path="/about" element={<Navigate to="/landing" replace />} />
+            <Route path="/contact" element={<Navigate to="/landing" replace />} />
           </Routes>
         </Suspense>
       ) : (
@@ -200,37 +146,44 @@ function AppContent() {
                       />
                       <Route
                         path="/agents/create"
-                        element={<AgentManagement />}
+                        element={<CreateAgent />}
                       />
                       <Route path="/agents/:id" element={<AgentManagement />} />
                       <Route
                         path="/agents/:id/edit"
-                        element={<AgentManagement />}
+                        element={<EditAgent />}
                       />
                       <Route path="/agents/:id/train" element={<Training />} />
                       <Route path="/training" element={<Training />} />
                       <Route path="/workflows" element={<Workflows />} />
+                      <Route path="/analytics" element={<Analytics />} />
                       <Route path="/monitoring" element={<Monitoring />} />
                       <Route path="/billing" element={<Billing />} />
                       <Route path="/settings" element={<Settings />} />
 
+                      {/* Default route for authenticated users */}
+                      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+
                       {/* Redirect routes to home */}
                       <Route
                         path="/ai-employee"
-                        element={<Navigate to="/" replace />}
+                        element={<Navigate to="/dashboard" replace />}
                       />
                       <Route
                         path="/pricing"
-                        element={<Navigate to="/" replace />}
+                        element={<Navigate to="/dashboard" replace />}
                       />
                       <Route
                         path="/about"
-                        element={<Navigate to="/" replace />}
+                        element={<Navigate to="/dashboard" replace />}
                       />
                       <Route
                         path="/contact"
-                        element={<Navigate to="/" replace />}
+                        element={<Navigate to="/dashboard" replace />}
                       />
+                      
+                      {/* Catch all other routes and redirect to dashboard */}
+                      <Route path="*" element={<Navigate to="/dashboard" replace />} />
                     </Routes>
                   </main>
                 </div>
@@ -258,12 +211,36 @@ function App() {
       {" "}
       {/* Wrap with AuthProvider */}
       <ThemeProvider>
-        <AgentProvider>
-          <Router>
+        <Router>
+          <AgentProvider>
             <ScrollToTop />
             <AppContent />
-          </Router>
-        </AgentProvider>
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                duration: 4000,
+                style: {
+                  background: '#363636',
+                  color: '#fff',
+                },
+                success: {
+                  duration: 3000,
+                  iconTheme: {
+                    primary: '#10B981',
+                    secondary: '#fff',
+                  },
+                },
+                error: {
+                  duration: 5000,
+                  iconTheme: {
+                    primary: '#EF4444',
+                    secondary: '#fff',
+                  },
+                },
+              }}
+            />
+          </AgentProvider>
+        </Router>
       </ThemeProvider>
     </AuthProvider>
   );

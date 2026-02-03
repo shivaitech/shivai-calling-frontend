@@ -1,6 +1,7 @@
 import axios, { AxiosResponse } from "axios";
 
-const API_BASE_URL = "https://shivai-com-backend.onrender.com/api/v1";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
 
 interface LoginRequest {
   email: string;
@@ -25,10 +26,15 @@ interface AuthResponse {
     fullName: string;
     profilePicture?: string;
     emailVerified: boolean;
+    isOnboarded: boolean;
   };
   tokens: {
     accessToken: string;
     refreshToken: string;
+  };
+  codeVerified?: boolean;
+  onboarding?: {
+    _id: string;
   };
 }
 

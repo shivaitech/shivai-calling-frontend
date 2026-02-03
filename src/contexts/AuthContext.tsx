@@ -48,7 +48,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 }) => {
   const [user, setUser] = useState<User | null>(null);
   const [tokens, setTokens] = useState<Tokens | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true); // Set to true initially to prevent premature redirects
   const [error, setError] = useState<string | null>(null);
 
   // Use ref to prevent concurrent requests without causing re-renders
@@ -72,6 +72,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       } catch (error) {
         localStorage.removeItem("auth_tokens");
         localStorage.removeItem("auth_user");
+      } finally {
+        // Always set loading to false after initialization attempt
+        setIsLoading(false);
       }
     };
 
@@ -135,11 +138,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setIsLoading(true);
       setError(null);
       const response = await authAPI.login({ email, password });
-      console.log(response);
       setUser(response.user);
       setTokens(response.tokens);
-      localStorage.setItem("auth_tokens", JSON.stringify(response.tokens));
-      localStorage.setItem("auth_user", JSON.stringify(response.user));
       return response;
     } catch (err: any) {
       const errorMessage = err.response?.data?.message || "Login failed";
@@ -173,7 +173,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setUser(null);
       setTokens(null);
       localStorage.removeItem("auth_tokens");
-
       localStorage.removeItem("auth_user");
       throw new Error(errorMessage);
     } finally {
@@ -208,9 +207,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     } catch (err: any) {
       console.error("Registration error details:", err.response);
 
-      // Handle different error types
       if (err.response?.status === 422) {
-        // Don't set general error for validation - let Landing component handle field errors
         const errorMessage =
           err.response?.data?.message || err.message || "Registration failed";
         setError(errorMessage);

@@ -117,7 +117,7 @@ const ForgotPassword: React.FC<ForgotPasswordProps> = ({
     setError(null);
 
     try {
-      await axios.post("https://shivai-com-backend.onrender.com/api/v1/auth/forgot-password", { email });
+      await axios.post(`${import.meta.env.VITE_API_BASE_URL}/auth/forgot-password`, { email });
       setIsSubmitted(true);
     } catch (err: any) {
       // Handle different error types
