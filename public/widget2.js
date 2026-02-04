@@ -4216,7 +4216,7 @@
       }
 
       const response = await fetch(
-        "https://python.service.callshivai.com/token",
+        "https://voice.callshivai.com/token",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -4236,18 +4236,12 @@
       }
 
       const data = await response.json();
-      console.log("✅ [LiveKit] Token received");
-      
-      // Only set currentCallId after successfully receiving token
       window.currentCallId = callId;
-
-      // Check if connection was cancelled after getting token
       if (!isConnecting) {
         console.log("❌ Connection cancelled after token received");
         return;
       }
 
-      // Handle any pending audio elements (for autoplay policy)
       if (window.pendingAudioElement) {
         window.pendingAudioElement
           .play()
@@ -4255,19 +4249,16 @@
         window.pendingAudioElement = null;
       }
 
-      // Create LiveKit room with enhanced feedback prevention
       room = new LivekitClient.Room({
         adaptiveStream: true,
         dynacast: true,
         audioCaptureDefaults: {
           ...audioConfig,
-          // Enhanced LiveKit feedback prevention
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true, // Enable for feedback prevention
           suppressLocalAudioPlayback: true, // Critical for feedback prevention
         },
-        // Performance optimizations for feedback prevention
         reconnectPolicy: {
           nextRetryDelayInMs: () => 2000, // Slower reconnect to prevent issues
         },
@@ -4282,18 +4273,15 @@
         expWebAudioMix: false, // Disable experimental mixing that can cause feedback
       });
 
-      // ✅ Track remote audio (agent speaking) with optimized settings
       room.on(
         LivekitClient.RoomEvent.TrackSubscribed,
         (track, publication, participant) => {
           if (track.kind === LivekitClient.Track.Kind.Audio) {
-            // Use audio element with feedback prevention settings
             const audioElement = track.attach();
             audioElement.volume = 0.4; // Significantly reduced to prevent feedback
             audioElement.preload = "auto";
             audioElement.autoplay = true;
 
-            // Add audio constraints to prevent feedback
             if (audioElement.setSinkId) {
               try {
                 audioElement.setSinkId("default");
@@ -4317,7 +4305,6 @@
             });
 
             remoteAudioTrack = track;
-            // Start monitoring remote audio with proper feedback prevention
             monitorRemoteAudioLevel(track);
             console.log(
               "🔊 Agent audio track received with feedback prevention"
@@ -4373,7 +4360,6 @@
         isConnected = true;
         retryCount = 0; // Reset retry count on successful connection
 
-        // Show message interface when connected
         showMessageInterface();
 
         // Clear connection timeout

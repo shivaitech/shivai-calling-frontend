@@ -3306,7 +3306,7 @@ const AgentManagement = () => {
                         <h3 className="text-lg sm:text-xl font-semibold text-slate-800 dark:text-white mb-1 sm:mb-2">
                           Train Your AI
                         </h3>
-                        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto px-2">
+                        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-lg mx-auto px-2">
                           Upload your documents, FAQs, or website links. Your AI
                           will learn from these to give accurate,
                           company-specific answers.
@@ -3315,7 +3315,7 @@ const AgentManagement = () => {
 
                       {/* Scrollable Content Container */}
                       <div 
-                        className="max-h-[50vh] overflow-y-auto space-y-3 sm:space-y-4 [&::-webkit-scrollbar]:hidden"
+                        className=" space-y-3 sm:space-y-4 [&::-webkit-scrollbar]:hidden"
                         style={{
                           scrollbarWidth: 'none',
                           msOverflowStyle: 'none'

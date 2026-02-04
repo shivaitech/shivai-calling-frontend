@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LiveKit Agent Test - Latency Optimized</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 700px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #667eea;
+            margin-bottom: 5px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        /* Latency Metrics Display */
+        .latency-metrics {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .metric-card {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .metric-label {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+
+        .metric-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .metric-value.excellent {
+            color: #28a745;
+        }
+
+        .metric-value.good {
+            color: #ffc107;
+        }
+
+        .metric-value.poor {
+            color: #dc3545;
+        }
+
+        .metric-unit {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-weight: 500;
+            text-align: center;
+        }
+
+        .status.disconnected {
+            background: #fee;
+            color: #c33;
+        }
+
+        .status.connecting {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        button {
+            flex: 1;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-connect {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-connect:hover:not(:disabled) {
+            background: #5568d3;
+            transform: translateY(-2px);
+        }
+
+        .btn-disconnect {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-speak {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-speak.active {
+            background: #ff4444;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.7;
+            }
+        }
+
+        .transcript {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        .transcript-item {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 8px;
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .transcript-user {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+        }
+
+        .transcript-assistant {
+            background: #f3e5f5;
+            border-left: 4px solid #9c27b0;
+        }
+
+        .transcript-role {
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #666;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .logs {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            border-radius: 10px;
+            padding: 15px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 3px;
+        }
+
+        .log-info {
+            color: #4fc3f7;
+        }
+
+        .log-success {
+            color: #81c784;
+        }
+
+        .log-error {
+            color: #e57373;
+        }
+
+        .log-user {
+            color: #ffb74d;
+        }
+
+        .log-agent {
+            color: #ba68c8;
+        }
+
+        /* Loading Overlay */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(102, 126, 234, 0.9);
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 1;
+            transition: opacity 0.5s ease-out;
+        }
+
+        .loading-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .loading-text {
+            color: white;
+            font-size: 18px;
+            font-weight: 600;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .loading-subtext {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 14px;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Loading Knowledge Base...</div>
+        <div class="loading-subtext">Preparing AI agent for conversation</div>
+    </div>
+
+    <div class="container">
+        <h1>🎙️ LiveKit Agent - Latency Tracker</h1>
+        <p class="subtitle">Real-time latency monitoring</p>
+
+        <!-- Latency Metrics -->
+        <div class="latency-metrics">
+            <div class="metric-card">
+                <div class="metric-label">Filler</div>
+                <div id="fillerLatency" class="metric-value">--<span class="metric-unit">ms</span></div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Qdrant</div>
+                <div id="qdrantLatency" class="metric-value">--<span class="metric-unit">ms</span></div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">LLM</div>
+                <div id="llmLatency" class="metric-value">--<span class="metric-unit">ms</span></div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">TTS</div>
+                <div id="ttsLatency" class="metric-value">--<span class="metric-unit">ms</span></div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">1st Audio</div>
+                <div id="totalLatency" class="metric-value">--<span class="metric-unit">ms</span></div>
+            </div>
+        </div>
+
+        <div id="status" class="status disconnected">⚫ Disconnected</div>
+
+        <div class="input-group">
+            <label for="serverUrl">Token Server URL:</label>
+            <input type="text" id="serverUrl" value="https://voice.callshivai.com">
+        </div>
+        
+        <div class="input-group">
+            <label for="tenantId">Tenant ID:</label>
+            <input type="text" id="tenantId" value="tenant_123" placeholder="e.g. tenant_123 or healthfirst">
+        </div>
+
+        <div class="input-group">
+            <label for="agentId">Agent ID:</label>
+            <input type="text" id="agentId" placeholder="Paste ObjectId from DB here">
+        </div>
+
+        <div class="controls">
+            <button id="connectBtn" class="btn-connect">Connect</button>
+            <button id="disconnectBtn" class="btn-disconnect" disabled>Disconnect</button>
+        </div>
+
+        <div class="controls">
+            <button id="speakBtn" class="btn-speak" disabled>🎤 Start Speaking</button>
+        </div>
+
+        <div class="transcript" id="transcript">
+            <strong>Conversation:</strong>
+            <div id="transcriptContent"></div>
+        </div>
+
+        <div class="logs" id="logs"></div>
+    </div>
+
+    <script type="module">
+        import * as LiveKitClient from 'https://cdn.skypack.dev/livekit-client@2.5.4';
+
+        const { Room, RoomEvent, Track } = LiveKitClient;
+
+        let room = null;
+        let localAudioTrack = null;
+        let isConnected = false;
+        let isSpeaking = false;
+
+        // Latency tracking
+        let currentMetrics = {
+            filler: 0,
+            qdrant: 0,
+            llm_ttft: 0,
+            tts_ttfa: 0,
+            first_audio: 0
+        };
+
+        const elements = {
+            status: document.getElementById('status'),
+            logs: document.getElementById('logs'),
+            transcriptContent: document.getElementById('transcriptContent'),
+            connectBtn: document.getElementById('connectBtn'),
+            disconnectBtn: document.getElementById('disconnectBtn'),
+            speakBtn: document.getElementById('speakBtn'),
+            serverUrl: document.getElementById('serverUrl'),
+            tenantId: document.getElementById('tenantId'),
+            agentId: document.getElementById('agentId'),
+            fillerLatency: document.getElementById('fillerLatency'),
+            qdrantLatency: document.getElementById('qdrantLatency'),
+            llmLatency: document.getElementById('llmLatency'),
+            ttsLatency: document.getElementById('ttsLatency'),
+            totalLatency: document.getElementById('totalLatency'),
+            loadingOverlay: document.getElementById('loadingOverlay')
+        };
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${timestamp}] ${message}`;
+            elements.logs.appendChild(entry);
+            elements.logs.scrollTop = elements.logs.scrollHeight;
+        }
+
+        function updateStatus(status, message) {
+            elements.status.className = `status ${status}`;
+            const icons = { disconnected: '⚫', connecting: '🟡', connected: '🟢' };
+            elements.status.textContent = `${icons[status]} ${message}`;
+        }
+
+        function updateMetric(element, value) {
+            element.innerHTML = `${Math.round(value)}<span class="metric-unit">ms</span>`;
+
+            // Color coding
+            element.classList.remove('excellent', 'good', 'poor');
+            if (value < 300) element.classList.add('excellent');
+            else if (value < 800) element.classList.add('good');
+            else element.classList.add('poor');
+        }
+
+        function addTranscript(role, text) {
+            const item = document.createElement('div');
+            item.className = `transcript-item transcript-${role}`;
+            item.innerHTML = `
+                <div class="transcript-role">${role}</div>
+                <div>${text}</div>
+            `;
+            elements.transcriptContent.appendChild(item);
+            elements.transcriptContent.scrollTop = elements.transcriptContent.scrollHeight;
+        }
+
+        async function getToken() {
+            const serverUrl = elements.serverUrl.value;
+            const tenantId = elements.tenantId.value.trim();
+            const agentId = elements.agentId.value.trim();
+            const roomName = `test-room-${Date.now()}`;
+
+            if (!agentId) {
+                log('❌ Agent ID is required', 'error');
+                throw new Error("Agent ID is required");
+            }
+
+            log(`Getting token for Agent: ${agentId} (Tenant: ${tenantId})...`, 'info');
+
+            const response = await fetch(`${serverUrl}/token`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    room: roomName, 
+                    language: 'en',
+                    agent_id: agentId,
+                    tenant_id: tenantId 
+                })
+            });
+
+            const data = await response.json();
+            log(`✅ Token received`, 'success');
+            return data;
+        }
+
+        async function connect() {
+            try {
+                updateStatus('connecting', 'Connecting...');
+                // Show loading overlay immediately
+                elements.loadingOverlay.classList.remove('hidden');
+
+                const { token, url } = await getToken();
+
+                room = new Room();
+
+                room.on(RoomEvent.Connected, () => {
+                    log('🟢 Connected', 'success');
+                    updateStatus('connected', 'Connected');
+                    isConnected = true;
+                    elements.connectBtn.disabled = true;
+                    elements.disconnectBtn.disabled = false;
+                    elements.speakBtn.disabled = false;
+                });
+
+                room.on(RoomEvent.Disconnected, () => {
+                    log('🔴 Disconnected', 'info');
+                    updateStatus('disconnected', 'Disconnected');
+                    isConnected = false;
+                    elements.connectBtn.disabled = false;
+                    elements.disconnectBtn.disabled = true;
+                    elements.speakBtn.disabled = true;
+                });
+
+                room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+                    if (track.kind === Track.Kind.Audio) {
+                        const audioElement = track.attach();
+                        document.body.appendChild(audioElement);
+                        log('🔊 Audio connected', 'success');
+                    }
+                });
+
+                room.on(RoomEvent.DataReceived, (payload, participant) => {
+                    try {
+                        const data = JSON.parse(new TextDecoder().decode(payload));
+                        handleDataMessage(data);
+                    } catch (error) {
+                        log(`Parse error: ${error.message}`, 'error');
+                    }
+                });
+
+                await room.connect(url, token);
+                await enableMicrophone();
+
+            } catch (error) {
+                log(`❌ Connection failed: ${error.message}`, 'error');
+                updateStatus('disconnected', 'Failed');
+                elements.connectBtn.disabled = false;
+            }
+        }
+
+        async function enableMicrophone() {
+            try {
+                log('🎤 Enabling mic...', 'info');
+
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const mediaStreamTrack = stream.getAudioTracks()[0];
+                localAudioTrack = new LiveKitClient.LocalAudioTrack(mediaStreamTrack);
+                localAudioTrack.mute();
+
+                await room.localParticipant.publishTrack(localAudioTrack, {
+                    source: Track.Source.Microphone
+                });
+
+                log('✅ Mic ready (muted)', 'success');
+            } catch (error) {
+                log(`❌ Mic error: ${error.message}`, 'error');
+            }
+        }
+
+        async function disconnect() {
+            if (room) {
+                await room.disconnect();
+                room = null;
+            }
+            if (localAudioTrack) {
+                localAudioTrack.stop();
+                localAudioTrack = null;
+            }
+        }
+
+        function handleDataMessage(data) {
+            if (data.type === 'transcript') {
+                const role = data.role === 'user' ? 'user' : 'assistant';
+                if (data.is_final && data.text.trim()) {
+                    log(`${role === 'user' ? '🎤' : '🤖'} ${data.text.substring(0, 50)}...`, role);
+                    addTranscript(role, data.text);
+                }
+            } else if (data.type === 'status') {
+                log(`📊 ${data.text}`, 'info');
+
+                // Handle loading overlay visibility
+                if (data.text.includes('Loading')) {
+                    elements.loadingOverlay.classList.remove('hidden');
+                } else if (data.text === 'Ready') {
+                    elements.loadingOverlay.classList.add('hidden');
+                }
+            } else if (data.type === 'metrics') {
+                // Update latency metrics
+                if (data.data.filler) {
+                    currentMetrics.filler = data.data.filler;
+                    updateMetric(elements.fillerLatency, currentMetrics.filler);
+                    log(`⚡ Filler: ${Math.round(currentMetrics.filler)}ms`, 'info');
+                }
+                if (data.data.qdrant) {
+                    currentMetrics.qdrant = data.data.qdrant;
+                    updateMetric(elements.qdrantLatency, currentMetrics.qdrant);
+                }
+                if (data.data.llm_ttft) {
+                    currentMetrics.llm_ttft = data.data.llm_ttft;
+                    updateMetric(elements.llmLatency, currentMetrics.llm_ttft);
+                }
+                if (data.data.tts_ttfa) {
+                    currentMetrics.tts_ttfa = data.data.tts_ttfa;
+                    updateMetric(elements.ttsLatency, currentMetrics.tts_ttfa);
+                }
+                if (data.data.first_audio) {
+                    currentMetrics.first_audio = data.data.first_audio;
+                    updateMetric(elements.totalLatency, currentMetrics.first_audio);
+                    log(`🔊 First Audio: ${Math.round(currentMetrics.first_audio)}ms`, 'success');
+                }
+            }
+        }
+
+        function toggleMicrophone(enabled) {
+            if (localAudioTrack) {
+                if (enabled) {
+                    localAudioTrack.unmute();
+                } else {
+                    localAudioTrack.mute();
+                }
+            }
+        }
+
+        // Event Listeners
+        elements.connectBtn.addEventListener('click', connect);
+        elements.disconnectBtn.addEventListener('click', disconnect);
+
+        // Click-to-Talk (Toggle)
+        elements.speakBtn.addEventListener('click', () => {
+            if (!isConnected) return;
+
+            if (!isSpeaking) {
+                // Start speaking
+                isSpeaking = true;
+                elements.speakBtn.classList.add('active');
+                elements.speakBtn.textContent = '🔴 Stop Speaking';
+                toggleMicrophone(true);
+            } else {
+                // Stop speaking
+                isSpeaking = false;
+                elements.speakBtn.classList.remove('active');
+                elements.speakBtn.textContent = '🎤 Start Speaking';
+                toggleMicrophone(false);
+            }
+        });
+
+        // Keyboard support (Space bar to toggle)
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && isConnected && document.activeElement.tagName !== 'INPUT') {
+                e.preventDefault();
+                // Prevent auto-repeat from triggering multiple toggles
+                if (!e.repeat) {
+                    elements.speakBtn.click();
+                }
+            }
+        });
+
+        log('✅ Ready - Click Connect', 'success');
+    </script>
+</body>
+
+</html>

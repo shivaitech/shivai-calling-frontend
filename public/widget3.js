@@ -1,19 +1,128 @@
 (function () {
   "use strict";
 
-  // ✅ Load LiveKit SDK dynamically
+  // Domain restriction - only allow widget on specific domains and paths
+  function isAllowedDomain() {
+    const currentHostname = window.location.hostname;
+    const currentPath = window.location.pathname;
+
+    // Allow localhost for testing
+    if (currentHostname === "localhost" || currentHostname === "127.0.0.1") {
+      return true;
+    }
+
+    // For production, only allow callshivai.com on home page and /landing
+    const isCallShivAI =
+      currentHostname === "callshivai.com" ||
+      currentHostname === "www.callshivai.com";
+    const isMasterAdmin = currentHostname === "master.admin.callshivai.com";
+    const isAllowedPath =
+      currentPath === "/" ||
+      currentPath === "/landing" ||
+      currentPath === "/landing/" ||
+      currentPath === "/dashboard" ||
+      currentPath === "/dashboard/clients/";
+
+    // Allow all paths on master.admin subdomain, specific paths on main domain
+    const isAllowed = isMasterAdmin || (isCallShivAI && isAllowedPath);
+
+    if (!isAllowed) {
+      console.warn(
+        `ShivAI Widget: Not authorized for "${currentHostname}${currentPath}"`
+      );
+    }
+
+    return isAllowed;
+  }
+
+  // Exit early if domain is not allowed
+  // if (!isAllowedDomain()) {
+  //   return;
+  // }
+
+  // Real-time URL monitoring to unload widget if URL changes to unauthorized page
+  let lastCheckedUrl = window.location.href;
+
+  function monitorUrlChanges() {
+    const currentUrl = window.location.href;
+
+    if (currentUrl !== lastCheckedUrl) {
+      console.log("🔍 URL changed, checking authorization...");
+      lastCheckedUrl = currentUrl;
+
+      if (!isAllowedDomain()) {
+        console.log("❌ Unauthorized URL detected, unloading widget...");
+        unloadWidget();
+      }
+    }
+  }
+
+  function unloadWidget() {
+    // Disconnect any active calls
+    if (room) {
+      try {
+        room.disconnect();
+      } catch (e) {
+        console.warn("Error disconnecting room:", e);
+      }
+    }
+
+    // Stop all audio
+    stopConnectingSound();
+    stopRingSound();
+
+    // Remove widget elements from DOM
+    if (triggerBtn && triggerBtn.parentNode) {
+      triggerBtn.parentNode.removeChild(triggerBtn);
+    }
+    if (widgetContainer && widgetContainer.parentNode) {
+      widgetContainer.parentNode.removeChild(widgetContainer);
+    }
+    if (messageBubble && messageBubble.parentNode) {
+      messageBubble.parentNode.removeChild(messageBubble);
+    }
+
+    // Clear intervals
+    if (messageInterval) {
+      clearInterval(messageInterval);
+    }
+
+    console.log("✅ Widget unloaded successfully");
+  }
+
+  // Monitor URL changes using multiple methods for compatibility
+
+  // 1. Browser back/forward buttons
+  window.addEventListener("popstate", monitorUrlChanges);
+
+  // 2. History API (pushState/replaceState) - intercept for SPAs
+  const originalPushState = history.pushState;
+  const originalReplaceState = history.replaceState;
+
+  history.pushState = function () {
+    originalPushState.apply(this, arguments);
+    monitorUrlChanges();
+  };
+
+  history.replaceState = function () {
+    originalReplaceState.apply(this, arguments);
+    monitorUrlChanges();
+  };
+
+  // 3. Polling as fallback (for edge cases)
+  setInterval(monitorUrlChanges, 1000);
+
+  // 4. Hash changes
+  window.addEventListener("hashchange", monitorUrlChanges);
+
   function loadLiveKitSDK() {
     return new Promise((resolve, reject) => {
-      // Check if already loaded
       if (typeof LivekitClient !== "undefined") {
         console.log("✅ LiveKit already loaded");
         resolve();
         return;
       }
-
       console.log("📦 Loading LiveKit SDK...");
-
-      // Load livekit-client directly (components-core not needed)
       const clientScript = document.createElement("script");
       clientScript.src =
         "https://unpkg.com/livekit-client@latest/dist/livekit-client.umd.js";
@@ -98,159 +207,11 @@
   };
 
   let liveMessages = [
-    "📞 Call Now!",
-    "📞 Call Now!",
-    "📞 Call Now!",
-    "📞 Call Now!",
+    "📞 Call ShivAI!",
+    "📞 Call ShivAI!",
+    "📞 Call ShivAI!",
+    "📞 Call ShivAI!",
   ];
-
-  // Helper function to get company info from API widget config, URL parameters, or defaults
-  function getCompanyInfo() {
-    let companyName = "ShivAI";
-    let companyDescription = "AI-Powered Support";
-    let agentName = "AI Employee";
-    let companyLogo = ""; // Empty means use default ShivAI logo
-    let themeColors = {
-      primaryColor: "#4b5563",
-      secondaryColor: "#ffffff", 
-      accentColor: "#2563eb"
-    };
-    let configSource = "defaults";
-    
-    try {
-      // ✅ PRIORITY 1: Check for API widget configuration (from AgentWidgetCustomization component)
-      if (window.SHIVAI_WIDGET_CONFIG && typeof window.SHIVAI_WIDGET_CONFIG === 'object') {
-        console.log("📦 API Widget Config found, using as primary source:", window.SHIVAI_WIDGET_CONFIG);
-        
-        const widget = window.SHIVAI_WIDGET_CONFIG;
-        
-        // Map API response fields to component structure
-        if (widget.ai_employee_name) {
-          companyName = widget.ai_employee_name;
-          console.log("🏢 Using ai_employee_name from API widget config:", companyName);
-        }
-        
-        if (widget.ai_employee_description) {
-          companyDescription = widget.ai_employee_description;
-          console.log("📄 Using ai_employee_description from API widget config:", companyDescription);
-        }
-        
-        if (widget.company_logo) {
-          companyLogo = widget.company_logo;
-          console.log("🖼️ Using company_logo from API widget config (S3 URL)");
-        }
-        
-        // Map color fields from API response
-        if (widget.primary_color) {
-          themeColors.primaryColor = widget.primary_color;
-        }
-        if (widget.gradient_start) {
-          themeColors.secondaryColor = widget.gradient_start;
-        }
-        if (widget.gradient_end) {
-          themeColors.accentColor = widget.gradient_end;
-        }
-        
-        console.log("🎨 Using theme colors from API widget config:", themeColors);
-        configSource = "API widget config";
-      }
-      
-      // ✅ PRIORITY 2: Check SHIVAI_CONFIG (legacy component state)
-      else if (window.SHIVAI_CONFIG && typeof window.SHIVAI_CONFIG === 'object') {
-        console.log("📦 SHIVAI_CONFIG found, using as fallback source");
-        
-        const config = window.SHIVAI_CONFIG;
-        
-        if (config.content) {
-          if (config.content.companyName) {
-            companyName = config.content.companyName;
-            console.log("🏢 Using companyName from SHIVAI_CONFIG:", companyName);
-          }
-          if (config.content.companyDescription) {
-            companyDescription = config.content.companyDescription;
-            console.log("📄 Using companyDescription from SHIVAI_CONFIG:", companyDescription);
-          }
-          if (config.content.companyLogo) {
-            companyLogo = config.content.companyLogo;
-            console.log("🖼️ Using companyLogo from SHIVAI_CONFIG");
-          }
-        }
-        
-        if (config.theme) {
-          if (config.theme.primaryColor) {
-            themeColors.primaryColor = config.theme.primaryColor;
-          }
-          if (config.theme.secondaryColor) {
-            themeColors.secondaryColor = config.theme.secondaryColor;
-          }
-          if (config.theme.accentColor) {
-            themeColors.accentColor = config.theme.accentColor;
-          }
-          console.log("🎨 Using theme colors from SHIVAI_CONFIG:", themeColors);
-        }
-        
-        configSource = "SHIVAI_CONFIG";
-      }
-      
-      // ✅ PRIORITY 3: Check URL parameters (legacy fallback)
-      else {
-        console.log("📝 No API/component config found, checking URL parameters as fallback");
-        
-        const scriptTags = document.getElementsByTagName('script');
-        for (let i = scriptTags.length - 1; i >= 0; i--) {
-          const script = scriptTags[i];
-          if (script.src && script.src.includes('/widget2.js')) {
-            try {
-              const url = new URL(script.src);
-              const urlCompanyName = url.searchParams.get('companyName');
-              const urlCompanyDescription = url.searchParams.get('companyDescription');
-              const urlAgentName = url.searchParams.get('agentName');
-              const urlCompanyLogo = url.searchParams.get('companyLogo');
-              
-              if (urlCompanyName) {
-                companyName = decodeURIComponent(urlCompanyName);
-                console.log("🏢 Using companyName from URL parameter:", companyName);
-              }
-              if (urlCompanyDescription) {
-                companyDescription = decodeURIComponent(urlCompanyDescription);
-                console.log("📄 Using companyDescription from URL parameter:", companyDescription);
-              }
-              if (urlAgentName) {
-                agentName = decodeURIComponent(urlAgentName);
-                console.log("🤖 Using agentName from URL parameter:", agentName);
-              }
-              if (urlCompanyLogo) {
-                companyLogo = decodeURIComponent(urlCompanyLogo);
-                console.log("🖼️ Using companyLogo from URL parameter");
-              }
-              break;
-            } catch (urlError) {
-              console.warn("⚠️ Error parsing script URL:", urlError);
-              continue;
-            }
-          }
-        }
-        
-        configSource = "URL parameters";
-      }
-      
-    } catch (error) {
-      console.warn("⚠️ Error getting company info, using defaults:", error);
-      configSource = "defaults";
-    }
-    
-    const result = { 
-      name: companyName, 
-      description: companyDescription,
-      agentName: agentName,
-      logo: companyLogo,
-      theme: themeColors,
-      configSource: configSource
-    };
-    console.log(`✅ Final company info being used (source: ${configSource}):`, result);
-    return result;
-  }
-  
   let currentMessageIndex = 0;
   let messageInterval = null;
   let triggerBtn = null;
@@ -269,280 +230,13 @@
   let callTimerElement = null;
   let callStartTime = null;
   let callTimerInterval = null;
-  let agentStatus = { active: true, message: '' }; // Store agent status
-  
-  // Check agent status when widget loads
-  async function checkAgentStatusOnLoad() {
-    try {
-      // Get agent ID from configuration (dynamic)
-      let agentId = null;
-      
-      // First try to get from URL parameters of the widget script
-      const scriptTags = document.getElementsByTagName('script');
-      let foundFromUrl = false;
-      
-      for (let i = scriptTags.length - 1; i >= 0; i--) {
-        const script = scriptTags[i];
-        if (script.src && script.src.includes('/widget2.js')) {
-          const url = new URL(script.src);
-          const urlAgentId = url.searchParams.get('agentId');
-          if (urlAgentId) {
-            agentId = urlAgentId;
-            foundFromUrl = true;
-            console.log("🎯 Using agentId for status check:", agentId);
-            break;
-          }
-        }
-      }
-      
-      // If not found in URL, try SHIVAI_CONFIG
-      if (!foundFromUrl && window.SHIVAI_CONFIG && window.SHIVAI_CONFIG.agentId) {
-        agentId = window.SHIVAI_CONFIG.agentId;
-        console.log("🎯 Using agentId from SHIVAI_CONFIG for status check:", agentId);
-      } 
-      // Then try to get from script data attributes
-      else if (!foundFromUrl) {
-        const scriptElements = document.querySelectorAll('script[data-agent-id]');
-        if (scriptElements.length > 0) {
-          agentId = scriptElements[scriptElements.length - 1].getAttribute('data-agent-id');
-          console.log("🎯 Using agentId from script data attribute for status check:", agentId);
-        }
-        else if (document.currentScript && document.currentScript.getAttribute('data-agent-id')) {
-          agentId = document.currentScript.getAttribute('data-agent-id');
-          console.log("🎯 Using agentId from current script for status check:", agentId);
-        }
-      }
-      
-      // If no agentId found, set status to inactive
-      if (!agentId) {
-        console.warn('⚠️ No agentId found in script URL or configuration');
-        agentStatus.active = false;
-        agentStatus.message = 'Agent ID not configured. Please check your widget installation.';
-        return;
-      }
-      
-      console.log('🔍 Checking agent status for ID:', agentId);
-      const response = await fetch(`https://nodejs.service.callshivai.com/api/v1/agent-configs/${agentId}`);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('✅ Agent status response:', data);
-        let agentRes = data?.data?.agent
-        agentStatus.active = agentRes?.is_active !== false; // Default to true if not specified
-        agentStatus.message = agentRes?.is_active === false 
-          ? 'AI Employee is currently under maintenance. Please check back later.' 
-          : '';
-        
-        console.log('📊 Agent status set to:', agentStatus);
-        
-        // ✅ Extract and set widget configuration from API response
-        if (agentRes?.widget) {
-          window.SHIVAI_WIDGET_CONFIG = agentRes.widget;
-          console.log('📦 Widget configuration set from API:', window.SHIVAI_WIDGET_CONFIG);
-          console.log('🎨 Available widget properties:');
-          console.log('  - ai_employee_name:', agentRes.widget.ai_employee_name);
-          console.log('  - ai_employee_description:', agentRes.widget.ai_employee_description);
-          console.log('  - company_logo:', agentRes.widget.company_logo ? '✅ Present (S3 URL)' : '❌ Not set');
-          console.log('  - primary_color:', agentRes.widget.primary_color);
-          console.log('  - gradient_start:', agentRes.widget.gradient_start);
-          console.log('  - gradient_end:', agentRes.widget.gradient_end);
-          console.log('  - text_color:', agentRes.widget.text_color);
-          console.log('  - position:', agentRes.widget.position);
-          
-          // Note: Widget UI will be created after this function completes in initWidget()
-          // refreshWidgetContent() will be called there after createWidgetUI()
-        } else {
-          console.log('ℹ️ No widget configuration found in agent response - getCompanyInfo() will use URL parameters or defaults');
-        }
-      } else {
-        console.warn('⚠️ Could not fetch agent status, defaulting to inactive');
-        agentStatus.active = false;
-        agentStatus.message = 'Unable to verify agent status. Please try again later.';
-      }
-    } catch (error) {
-      console.error('❌ Error checking agent status:', error);
-      // Default to inactive on error
-      agentStatus.active = false;
-      agentStatus.message = 'Service temporarily unavailable. Please try again later.';
-    }
-  }
-  
-  // Enhanced microphone permission handler with retry logic
-  async function requestMicrophonePermission(retryCount = 0) {
-    const MAX_RETRIES = 3;
-    
-    console.log(`🎤 Requesting microphone permission (attempt ${retryCount + 1}/${MAX_RETRIES + 1})...`);
-    
-    // Check if we're in secure context
-    if (!window.isSecureContext) {
-      console.error("❌ Not in secure context - HTTPS required");
-      alert("Microphone access requires HTTPS. Please access this page using HTTPS.");
-      return false;
-    }
-    
-    // Check API availability
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      console.error("❌ MediaDevices API not available");
-      alert("Microphone API is not available in your browser. Please use Chrome, Firefox, Safari, or Edge.");
-      return false;
-    }
-    
-    try {
-      // Always try to get user media to trigger permission dialog
-      // This forces the browser to show permission dialog regardless of previous state
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: false,
-          channelCount: 1,
-          sampleRate: 48000,
-          sampleSize: 16,
-          volume: 0.6,
-          latency: 0.05,
-          facingMode: "user",
-          googEchoCancellation: true,
-          googAutoGainControl: false,
-          googNoiseSuppression: true,
-          googHighpassFilter: true,
-          googAudioMirroring: false
-        }
-      });
-      
-      console.log("✅ Microphone permission granted!");
-      console.log("📍 Stream tracks:", stream.getTracks().length);
-      
-      // Stop the test stream immediately
-      stream.getTracks().forEach(track => track.stop());
-      
-      return true;
-      
-    } catch (error) {
-      console.error(`❌ Microphone permission attempt ${retryCount + 1} failed:`, error);
-      
-      // Handle different error types
-      if (error.name === "NotAllowedError") {
-        // Permission denied
-        if (retryCount < MAX_RETRIES) {
-          // Ask user to try again
-          const retry = confirm(
-            `Microphone access is required for voice calls.\n\n` +
-            `Permission was denied. Would you like to try again?\n\n` +
-            `Please click "Allow" when the browser asks for microphone permission.\n\n` +
-            `Attempt ${retryCount + 1} of ${MAX_RETRIES + 1}`
-          );
-          
-          if (retry) {
-            // Wait a bit and retry
-            await new Promise(resolve => setTimeout(resolve, 500));
-            return await requestMicrophonePermission(retryCount + 1);
-          } else {
-            console.log("❌ User cancelled microphone permission retry");
-            return false;
-          }
-        } else {
-          // Max retries reached
-          alert(
-            "Microphone access was denied multiple times.\n\n" +
-            "To use voice calls, please:\n" +
-            "1. Click the microphone icon in your browser's address bar\n" +
-            "2. Select 'Allow' for microphone access\n" +
-            "3. Refresh the page and try again"
-          );
-          return false;
-        }
-      } else if (error.name === "NotFoundError") {
-        alert("No microphone found. Please connect a microphone and try again.");
-        return false;
-      } else if (error.name === "NotSupportedError") {
-        alert("Microphone access is not supported by your browser. Please use Chrome, Firefox, Safari, or Edge.");
-        return false;
-      } else {
-        alert(`Microphone error: ${error.message}. Please check your system settings and try again.`);
-        return false;
-      }
-    }
-  }
-
-  // Function to refresh widget styles with updated theme colors
-  function refreshWidgetTheme() {
-    // Remove existing styles
-    const existingStyles = document.getElementById('shivai-widget-styles');
-    if (existingStyles) {
-      existingStyles.remove();
-    }
-    // Re-add styles with updated theme
-    addWidgetStyles();
-    console.log("🎨 Widget theme refreshed with new colors");
-  }
-
-  // Function to refresh widget content with updated company info
-  function refreshWidgetContent() {
-    if (!widgetContainer) {
-      console.log("📝 Widget not created yet, content will be updated on creation");
-      return;
-    }
-
-    console.log("🔄 Refreshing widget content with latest company info...");
-    const companyInfo = getCompanyInfo();
-    console.log("🏢 Using refreshed company info:", companyInfo);
-
-    const widgetTitle = document.querySelector('.widget-title');
-    if (widgetTitle) {
-      widgetTitle.textContent = companyInfo.name;
-      console.log("✅ Updated landing view widget title to:", companyInfo.name);
-    }
-
-    const widgetSubtitle = document.querySelector('.widget-subtitle');
-    if (widgetSubtitle) {
-      widgetSubtitle.textContent = companyInfo.description;
-      console.log("✅ Updated landing view description to:", companyInfo.description);
-    }
-
-    const widgetAvatar = document.querySelector('.widget-avatar');
-    if (widgetAvatar && companyInfo.logo) {
-      widgetAvatar.innerHTML = `<img src="${companyInfo.logo}" alt="${companyInfo.name} Logo" style="width: 100%; height: 100%; object-fit: cover; border-radius: 12px;">`;
-      console.log("✅ Updated landing view logo to:", companyInfo.logo);
-    }
-
-    const callInfoName = document.querySelector('.call-info-name');
-    if (callInfoName) {
-      callInfoName.textContent = companyInfo.name;
-      console.log("✅ Updated call view agent name to:", companyInfo.name);
-    }
-    
-    const callAvatar = document.querySelector('.call-avatar');
-    if (callAvatar && companyInfo.logo) {
-      callAvatar.innerHTML = `<img src="${companyInfo.logo}" alt="${companyInfo.name} Logo" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">`;
-      console.log("✅ Updated call view avatar");
-    }
-
-    updateLandingViewBasedOnStatus();
-    refreshWidgetTheme();
-    
-    console.log("✅ Widget content refresh completed");
-  }
-
-  // Expose refresh function globally for theme updates
-  window.ShivAIWidget = window.ShivAIWidget || {};
-  window.ShivAIWidget.refreshTheme = refreshWidgetTheme;
-  window.ShivAIWidget.refreshContent = refreshWidgetContent;
-
-  async function initWidget() {
-    // Check agent status first and wait for it to complete
-    // This will also fetch and set window.SHIVAI_WIDGET_CONFIG from API
-    await checkAgentStatusOnLoad();
-    
-    // Now create the widget UI - getCompanyInfo() will use the API data
+  let knowledgeBaseReady = false;
+  let firstResponseReceived = false;
+  let callTimerStarted = false;
+  function initWidget() {
     createWidgetUI();
     setupEventListeners();
     initSoundContext();
-    
-    // Refresh content again to ensure all dynamic elements are updated
-    // (in case any elements weren't available during createWidgetUI)
-    setTimeout(() => {
-      refreshWidgetContent();
-    }, 100);
   }
   function initSoundContext() {
     if (!soundsEnabled) return;
@@ -660,7 +354,9 @@
   function playRingSound() {
     try {
       if (!ringAudio) {
-        ringAudio = new Audio("./assets/Rings/ring1.mp3");
+        ringAudio = new Audio(
+          "https://shivai-s3-bucket.s3.ap-south-1.amazonaws.com/assets/ring1.mp3"
+        );
         ringAudio.loop = true;
         ringAudio.volume = 0.7;
       }
@@ -715,49 +411,44 @@
     });
   }
   async function getClientIP() {
-    try {
+    console.log("🌐 Starting IP detection...");
+
+    const services = [
+      { url: "https://api.ipify.org?format=json", extract: (d) => d.ip },
+      { url: "https://ipapi.co/json/", extract: (d) => d.ip },
+      { url: "https://api.ip.sb/jsonip", extract: (d) => d.ip },
+      { url: "https://ipinfo.io/json", extract: (d) => d.ip },
+    ];
+
+    for (const service of services) {
       try {
-        const response = await fetch("https://ipapi.co/json/", {
-          method: "GET",
+        console.log(`📡 Trying ${service.url}...`);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 3000);
+
+        const response = await fetch(service.url, {
+          signal: controller.signal,
+          mode: "cors",
         });
+        clearTimeout(timeout);
+
         if (response.ok) {
           const data = await response.json();
-          console.log("🌐 [IP] Retrieved via ipapi.co:", data.ip);
-          return data.ip;
+          const ip = service.extract(data);
+          if (ip && ip !== "unknown") {
+            console.log(`✅ Got IP from ${service.url}: ${ip}`);
+            return ip;
+          }
         }
       } catch (e) {
-        console.warn("🌐 [IP] ipapi.co failed:", e.message);
+        console.warn(`❌ ${service.url} failed: ${e.message}`);
       }
-      try {
-        const response = await fetch("https://api.ipify.org?format=json", {
-          method: "GET",
-        });
-        if (response.ok) {
-          const data = await response.json();
-          console.log("🌐 [IP] Retrieved via ipify:", data.ip);
-          return data.ip;
-        }
-      } catch (e) {
-        console.warn("🌐 [IP] ipify failed:", e.message);
-      }
-      try {
-        const response = await fetch("https://ipinfo.io/json", {
-          method: "GET",
-        });
-        if (response.ok) {
-          const data = await response.json();
-          console.log("🌐 [IP] Retrieved via ipinfo.io:", data.ip);
-          return data.ip;
-        }
-      } catch (e) {
-        console.warn("🌐 [IP] ipinfo.io failed:", e.message);
-      }
-      return null;
-    } catch (error) {
-      console.error("🌐 [IP] All IP detection methods failed:", error);
-      return null;
     }
+
+    console.warn('⚠️ All IP services failed, returning "unknown"');
+    return "unknown";
   }
+
   function generateTone(frequency, duration, volume = 0.1) {
     if (!soundContext) return;
     const oscillator = soundContext.createOscillator();
@@ -838,17 +529,16 @@
       // Use the higher of RMS or speech-focused average
       const audioLevel = Math.max(rms, speechAverage * 0.8);
 
-      console.log(
-        `🎤 Audio Level: ${audioLevel.toFixed(2)} (threshold: ${SPEECH_THRESHOLD})`
-      );
-
       if (audioLevel > SPEECH_THRESHOLD) {
         // User is speaking
         if (!latencyMetrics.isSpeaking) {
           latencyMetrics.isSpeaking = true;
           latencyMetrics.userSpeechStartTime = performance.now();
           console.log("👤 User started speaking");
-          updateStatus("🎤 Listening...", "listening");
+          // Only update status if connection is stable (not in connecting state)
+          if (firstResponseReceived && knowledgeBaseReady) {
+            updateStatus("🎤 Listening...", "listening");
+          }
         }
         silenceStart = null;
       } else {
@@ -861,7 +551,10 @@
             latencyMetrics.isSpeaking = false;
             latencyMetrics.userSpeechEndTime = performance.now();
             console.log("👤 User stopped speaking");
-            updateStatus("🤔 Processing...", "speaking");
+            // Only update status if connection is stable (not in connecting state)
+            if (firstResponseReceived && knowledgeBaseReady) {
+              updateStatus("🤔 Processing...", "speaking");
+            }
             silenceStart = null;
           }
         }
@@ -1300,20 +993,13 @@
     widgetContainer.className = "shivai-widget";
     landingView = document.createElement("div");
     landingView.className = "landing-view";
-    
-    // Get company info for dynamic content
-    const companyInfo = getCompanyInfo();
-    console.log("🏢 Using company info:", companyInfo);
-    
     landingView.innerHTML = `
       <div class="widget-header">
         <div class="header-content">
           <button class="widget-close" aria-label="Close widget">×</button>
           <div class="header-info">
             <div class="widget-avatar">
-            ${companyInfo.logo ? 
-              `<img src="${companyInfo.logo}" alt="${companyInfo.name} Logo" style="width: 100%; height: 100%; object-fit: cover; border-radius: 12px;">` :
-              `<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 1500">
+             <svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 1500">
       <defs>
         <style>
           .cls-1 {
@@ -1331,12 +1017,11 @@
       <path class="cls-1" d="m1215.73,825.86c-6.37.43-13.66,1.49-21.51,3.68-22.94,6.41-38.73,19.17-47.51,27.69,7.45,22.45,14.9,44.91,22.35,67.36h137.14v-101.86l-72.84,3.12.57,47.8-18.21-47.8Z"/>
       <polygon class="cls-1" points="1233.94 716.32 1306.21 716.32 1306.21 825.14 1233.94 822.21 1233.94 716.32"/>
       <path class="cls-1" d="m872.77,821c22.25.49,44.49.98,66.74,1.47,18.21-35.7,36.41-71.4,54.62-107.1l-80.12-3.31-48.65,116.61h-5.72l-51.51-116.61h-72.25v27.9l98.72,186h52.22c17.12-33.61,34.25-67.21,51.37-100.82-21.81-1.38-43.62-2.76-65.43-4.14Z"/>
-    </svg>`
-            }
+    </svg>
             </div>
             <div class="header-text">
-              <div class="widget-title">${companyInfo.name}</div>
-              <div class="widget-subtitle">${companyInfo.description}.</div>
+              <div class="widget-title">AI Employee</div>
+              <div class="widget-subtitle">ShivAI offers 24/7 voice support to handle your business calls efficiently and professionally.</div>
             </div>
           </div>
         </div>
@@ -1345,12 +1030,13 @@
         <div class="language-section-landing">
           <label class="language-label-landing">Select your preferred language:</label>
           <select id="shivai-language-landing" class="language-select-styled-landing">
-            <option value="multilingual" selected>🌐 Multilingual</option>
+                     <option value="multilingual" selected>🌐 Multilingual</option>
+
             <option value="ar">🇸🇦 Arabic</option>
             <option value="zh">🇨🇳 Chinese</option>
             <option value="nl">🇳🇱 Dutch</option>
             <option value="en-GB">🇬🇧 English (UK)</option>
-            <option value="en-US">🇺🇸 English (US)</option>
+            <option value="en-US" selected>🇺🇸 English (US)</option>
             <option value="en-IN">🇮🇳 English (India)</option>
             <option value="fr">🇫🇷 French</option>
             <option value="de">🇩🇪 German</option>
@@ -1365,9 +1051,12 @@
             <option value="tr">🇹🇷 Turkish</option>
           </select>
         </div>
-        <div id="landing-action-area">
-          <!-- This will be populated based on agent status -->
-        </div>
+        <button class="start-call-btn mx-auto mb-4" id="start-call-btn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+          </svg>
+          Start Call
+        </button>
         <div class="privacy-text">By using this service you agree to our <span class="privacy-link">T&C</span></div>
       </div>
       <div class="widget-footer" style="padding: 0; margin: 0; background-color: #f9fafb;">
@@ -1392,11 +1081,6 @@
     callView = document.createElement("div");
     callView.className = "call-view";
     callView.style.display = "none";
-    
-    // Get company info for dynamic content
-    const callCompanyInfo = getCompanyInfo();
-    console.log("📞 Using company info for call view:", callCompanyInfo);
-    
     callView.innerHTML = `
     <div class="call-visualizer" id="call-visualizer">
       <div class="call-header">
@@ -1406,7 +1090,7 @@
       </svg>
       </button>
       <div class="call-info">
-      <div class="call-info-name text-2xl">${callCompanyInfo.agentName}</div>
+      <div class="call-info-name text-2xl">ShivAI Employee</div>
       <div class="call-info-status" id="shivai-status">
       <span class="status-text ">Online</span>
       </div>
@@ -1417,7 +1101,8 @@
       <div class="language-section">
       <label class="language-label">Selected preferred language:</label>
       <select id="shivai-language" class="language-select-styled">
-      <option value="multilingual">🌐 Multilingual</option>
+      
+            <option value="multilingual" selected>🌐 Multilingual</option>
       <option value="ar">🇸🇦 Arabic</option>
       <option value="zh">🇨🇳 Chinese</option>
       <option value="nl">🇳🇱 Dutch</option>
@@ -1438,6 +1123,33 @@
       </select>
       </div>
       <div class="messages-container" id="shivai-messages">
+      <!-- Connecting Animation (shown during call initialization) -->
+      <div class="connecting-state" style="display: none;">
+        <div class="connecting-animation">
+          <div class="call-icon-wrapper">
+            <svg class="call-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+            </svg>
+          </div>
+          <div class="connecting-dots">
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+          </div>
+          <div class="ai-icon-wrapper">
+            <svg class="ai-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="10" rx="2"></rect>
+              <circle cx="12" cy="5" r="2"></circle>
+              <path d="M12 7v4"></path>
+              <line x1="8" y1="16" x2="8" y2="16"></line>
+              <line x1="16" y1="16" x2="16" y2="16"></line>
+            </svg>
+          </div>
+        </div>
+        <div class="connecting-text">Connecting to AI Assistant...</div>
+      </div>
+      
+      <!-- Empty State (shown when connected but no messages) -->
       <div class="empty-state">
       <div class="empty-state-icon">👋</div>
       <div class="empty-state-text">Start a conversation to see transcripts here</div>
@@ -1454,15 +1166,15 @@
         <div class="input-field-container" style="flex: 1 !important; position: relative !important; display: flex !important; align-items: center !important; background: white !important; border-radius: 8px !important; border: 1px solid #e1e5ea !important; padding: 8px 16px !important; min-height: 30px  !important; max-height: 120px !important; height:36px !important;  ">
            <div>
 
-        <button id="shivai-attach-btn" class="attach-btn" title="Coming soon..." style="  color: #ccc !important; cursor: not-allowed !important; margin-right: 12px !important; background: transparent !important; border: none !important; display: flex !important; align-items: center !important; justify-content: center !important; padding: 0 !important; opacity: 0.5 !important;" disabled>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <button id="shivai-attach-btn" class="attach-btn" title="Attach files" style="color: #54656f !important; cursor: pointer !important; margin-right: 8px !important; background: transparent !important; border: none !important; display: flex !important; align-items: center !important; justify-content: center !important; padding: 4px !important; border-radius: 50% !important; transition: all 0.2s ease !important;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
           </svg>
         </button>
         
         <!-- Hidden file inputs -->
-        <input type="file" id="shivai-file-input" accept="image/*,video/*,.pdf,.doc,.docx,.txt" style="display: none !important;" multiple>
-        <input type="file" id="shivai-image-input" accept="image/*" style="display: none !important;" multiple>
+        <input type="file" id="shivai-file-input" accept=".pdf,.doc,.docx,.txt,.xls,.xlsx,.ppt,.pptx,.csv,.json,.xml,.zip,.rar" style="display: none !important;" multiple>
+        <input type="file" id="shivai-image-input" accept="image/*,video/*" style="display: none !important;" multiple>
         
         </div>
 
@@ -1480,31 +1192,37 @@
         
       </div>
       
-      <!-- Simplified Attachment Menu Popup -->
-      <div id="shivai-attachment-menu" class="attachment-menu" style="position: absolute !important; bottom: 70px !important; left: 16px !important; background: white !important; border-radius: 12px !important; box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important; padding: 8px !important; display: none !important; z-index: 1000 !important; min-width: 180px !important;">
+      <!-- Compact Attachment Menu Popup -->
+      <div id="shivai-attachment-menu" class="attachment-menu" style="position: absolute !important; bottom: 60px !important; left: 12px !important; background: #ffffff !important; border-radius: 12px !important; box-shadow: 0 2px 12px rgba(0,0,0,0.15) !important; padding: 6px !important; display: none !important; z-index: 1000 !important; min-width: 170px !important; animation: slideUp 0.2s ease !important;">
         
-        <div class="attachment-option" id="shivai-attach-image" style="display: flex !important; align-items: center !important; padding: 12px !important; cursor: pointer !important; border-radius: 8px !important; transition: background 0.2s ease !important;">
-          <div style="width: 36px !important; height: 36px !important; border-radius: 50% !important; background: #7c3aed !important; display: flex !important; align-items: center !important; justify-content: center !important; margin-right: 12px !important;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="white" stroke="white" stroke-width="2">
+        <!-- Photos & Videos option disabled -->
+        <div class="attachment-option" id="shivai-attach-image" style="display: flex !important; align-items: center !important; padding: 8px 10px !important; cursor: not-allowed !important; border-radius: 8px !important; margin-bottom: 2px !important; opacity: 0.5 !important; pointer-events: none !important;">
+          <div style="width: 32px !important; height: 32px !important; border-radius: 50% !important; background: #d1d5db !important; display: flex !important; align-items: center !important; justify-content: center !important; margin-right: 10px !important;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2">
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
               <circle cx="9" cy="9" r="2"></circle>
               <path d="M21 15l-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path>
             </svg>
           </div>
-          <span style="font-size: 14px !important; color: #111b21 !important; font-weight: 500 !important;">Photos & Videos</span>
+          <div>
+            <span style="font-size: 13px !important; color: #9ca3af !important; font-weight: 500 !important; display: block !important; line-height: 1.2 !important;">Photos & Videos</span>
+            <span style="font-size: 11px !important; color: #d1d5db !important;">Coming soon</span>
+          </div>
         </div>
         
-        <div class="attachment-option" id="shivai-attach-document" style="display: flex !important; align-items: center !important; padding: 12px !important; cursor: pointer !important; border-radius: 8px !important; transition: background 0.2s ease !important;">
-          <div style="width: 36px !important; height: 36px !important; border-radius: 50% !important; background: #0ea5e9 !important; display: flex !important; align-items: center !important; justify-content: center !important; margin-right: 12px !important;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="white" stroke="white" stroke-width="2">
+        <div class="attachment-option" id="shivai-attach-document" style="display: flex !important; align-items: center !important; padding: 8px 10px !important; cursor: pointer !important; border-radius: 8px !important; transition: background 0.15s ease !important; margin-bottom: 0 !important;" onmouseover="this.style.background='#f0f2f5'" onmouseout="this.style.background='transparent'">
+          <div style="width: 32px !important; height: 32px !important; border-radius: 50% !important; background: linear-gradient(135deg, #5b5fc7 0%, #3b82f6 100%) !important; display: flex !important; align-items: center !important; justify-content: center !important; margin-right: 10px !important;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
               <polyline points="14,2 14,8 20,8"></polyline>
               <line x1="16" y1="13" x2="8" y2="13"></line>
               <line x1="16" y1="17" x2="8" y2="17"></line>
-              <polyline points="10,9 9,9 8,9"></polyline>
             </svg>
           </div>
-          <span style="font-size: 14px !important; color: #111b21 !important; font-weight: 500 !important;">Documents</span>
+          <div>
+            <span style="font-size: 13px !important; color: #111b21 !important; font-weight: 500 !important; display: block !important; line-height: 1.2 !important;">Documents</span>
+            <span style="font-size: 11px !important; color: #8696a0 !important;">PDF, DOC, XLS, etc.</span>
+          </div>
         </div>
         
       </div>
@@ -1571,71 +1289,7 @@
       );
       // Hide message interface initially (when not connected)
       hideMessageInterface();
-      updateLandingViewBasedOnStatus();
     }, 100);
-  }
-  
-  function updateLandingViewBasedOnStatus() {
-    const actionArea = document.getElementById('landing-action-area');
-    const privacyText = document.querySelector('.privacy-text');
-    if (!actionArea) return;
-    
-    if (agentStatus.active) {
-      // Agent is active - show Start Call button
-      actionArea.innerHTML = `
-        <button class="start-call-btn mx-auto mb-4" id="start-call-btn">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
-          </svg>
-          Start Call
-        </button>
-      `;
-      
-      // Re-attach event listener to the new button
-      const startCallBtn = document.getElementById('start-call-btn');
-      if (startCallBtn) {
-        startCallBtn.addEventListener('click', async (e) => {
-          e.preventDefault();
-          const landingLanguageSelect = document.getElementById(
-            "shivai-language-landing"
-          );
-          if (landingLanguageSelect && languageSelect) {
-            languageSelect.value = landingLanguageSelect.value;
-          }
-          switchToCallView();
-          await handleConnectClick(e);
-        });
-      }
-      
-      // Show privacy text when agent is active
-      if (privacyText) {
-        privacyText.style.display = 'block';
-      }
-    } else {
-      // Show inactive/maintenance message
-      actionArea.innerHTML = `
-        <div class="agent-inactive-message" style="
-          background: #f3f4f6;
-          border: 1px solid #fecaca;
-          border-radius: 8px;
-          padding: 12px 16px;
-          margin: 12px 0;
-          text-align: center;
-        ">
-          <div style="font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 4px;">
-            Our AI Employee is currently offline.
-          </div>
-          <div style="font-size: 13px; color: #6b7280; line-height: 1.4;">
-            We're getting things ready and will be back shortly to assist you.
-          </div>
-        </div>
-      `;
-      
-      // Hide privacy text when agent is not active
-      if (privacyText) {
-        privacyText.style.display = 'none';
-      }
-    }
 
     setDefaultLanguage();
   }
@@ -1667,7 +1321,7 @@
       const baseLang = browserLang.split("-")[0];
       detectedLang = languageMap[baseLang];
     }
-    const defaultLang = "multilingual"; // Default to multilingual
+    const defaultLang = "multilingual" || detectedLang || "multilingual";
     if (languageSelect) {
       languageSelect.value = defaultLang;
     }
@@ -1677,7 +1331,7 @@
     if (landingLanguageSelect) {
       landingLanguageSelect.value = defaultLang;
       console.log(
-        `Default language set to: ${defaultLang} (Browser locale: ${browserLang})`
+        `Auto-detected language: ${defaultLang} (Browser locale: ${browserLang})`
       );
     }
   }
@@ -1708,8 +1362,8 @@
         messageInput.value = ""; // Clear any existing text
       }
       if (sendBtn) {
-        sendBtn.style.setProperty('display', 'none', 'important'); // Hide send button initially
-        sendBtn.style.setProperty('visibility', 'hidden', 'important');
+        sendBtn.style.setProperty("display", "none", "important"); // Hide send button initially
+        sendBtn.style.setProperty("visibility", "hidden", "important");
       }
 
       console.log("📝 Message interface shown - classes:", container.className);
@@ -1893,14 +1547,6 @@
     }
   }
   function addWidgetStyles() {
-    // Get theme colors from company info
-    const companyInfo = getCompanyInfo();
-    const theme = companyInfo.theme || {
-      primaryColor: "#4b5563",
-      secondaryColor: "#ffffff",
-      accentColor: "#2563eb"
-    };
-    
     const styles = `
       .shivai-trigger {
       position: fixed;
@@ -1919,17 +1565,17 @@
       color: #ffffff;
       font-size: 24px;
       transition: all 0.3s ease;
-      background: linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%);
+      background: linear-gradient(135deg, #4b5563 0%, #6b7280 30%, #374151 70%, #1f2937 100%);
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25), 0 2px 8px rgba(0, 0, 0, 0.15);
       }
       .shivai-trigger:hover {
       transform: scale(1.1);
-      background: linear-gradient(135deg, ${theme.accentColor} 0%, ${theme.primaryColor} 100%);
+      background: linear-gradient(135deg, #6b7280 0%, #9ca3af 30%, #4b5563 70%, #374151 100%);
       box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35), 0 4px 12px rgba(0, 0, 0, 0.25);
       }
       .shivai-trigger:active {
       transform: scale(0.95);
-      background: linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.accentColor} 50%, ${theme.primaryColor} 100%);
+      background: linear-gradient(135deg, #374151 0%, #4b5563 30%, #1f2937 70%, #111827 100%);
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), inset 0 2px 4px rgba(0, 0, 0, 0.25);
       }
       .shivai-trigger.dragging {
@@ -1940,34 +1586,28 @@
       }
       .shivai-neon-pulse {
       overflow: visible;
-      contain: layout;
       }
       .shivai-neon-pulse::before,
       .shivai-neon-pulse::after {
       content: "";
       position: absolute;
-      top: 50%;
-      left: 50%;
-      width: 100%;
-      height: 100%;
-      transform: translate(-50%, -50%) scale(1);
+      inset: -4px;
       border: 2px solid rgba(107, 114, 128, 0.6);
       border-radius: 50%;
       animation: neonPulseOut 2s ease-out infinite;
       opacity: 0;
       pointer-events: none;
-      will-change: transform, opacity;
       }
       .shivai-neon-pulse::after {
       animation-delay: 1s;
       }
       @keyframes neonPulseOut {
       0% {
-        transform: translate(-50%, -50%) scale(1);
+        transform: scale(1);
         opacity: 1;
       }
       100% {
-        transform: translate(-50%, -50%) scale(1.5);
+        transform: scale(1.5);
         opacity: 0;
       }
       }
@@ -2063,8 +1703,7 @@
       position: fixed;
       bottom: 60px;
       right: 20px;
-      width: 380px;
-      max-width: 380px;
+      width: 360px;
       max-height: 550px;
       background: white;
       border-radius: 12px;
@@ -2157,7 +1796,7 @@
       border: 1px solid transparent;
       border-radius: 24px;
       font-size: 14px;
-      background: linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%);
+      background: linear-gradient(135deg, #4b5563 0%, #6b7280 30%, #374151 70%, #1f2937 100%);
       color: white;
       font-weight: 600;
       cursor: pointer;
@@ -2169,7 +1808,7 @@
       margin-bottom: 10px;
       }
       .start-call-btn:hover {
-      background: linear-gradient(135deg, ${theme.accentColor} 0%, ${theme.primaryColor} 100%);
+      background: linear-gradient(135deg, #6b7280 0%, #9ca3af 30%, #4b5563 70%, #374151 100%);
       transform: translateY(-1px);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
       }
@@ -2600,7 +2239,7 @@
       .audio-visualizer-enhanced .visualizer-bar {
       width: 3px;
       height: 16px;
-      background: linear-gradient(180deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%);
+      background: linear-gradient(180deg, #6b7280 0%, #4b5563 100%);
       border-radius: 2px;
       transition: all 0.15s ease;
       }
@@ -2626,12 +2265,12 @@
       0%, 100% {
         height: 16px;
         opacity: 0.7;
-        background: linear-gradient(180deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%);
+        background: linear-gradient(180deg, #6b7280 0%, #4b5563 100%);
       }
       50% {
         height: 24px;
         opacity: 1;
-        background: linear-gradient(180deg, ${theme.accentColor} 0%, ${theme.primaryColor} 100%);
+        background: linear-gradient(180deg, #4b5563 0%, #374151 100%);
       }
       }
       .widget-header {
@@ -2770,7 +2409,7 @@
       .visualizer-bar {
       width: 4px;
       height: 20px;
-      background: linear-gradient(180deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%);
+      background: linear-gradient(180deg, #6b7280 0%, #4b5563 100%);
       border-radius: 2px;
       transition: height 0.15s ease;
       }
@@ -2811,6 +2450,118 @@
       .messages-container::-webkit-scrollbar-thumb:hover {
       background: #9ca3af;
       }
+      /* Connecting Animation */
+      .connecting-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: #6b7280;
+      }
+      
+      .connecting-animation {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      margin-bottom: 20px;
+      }
+      
+      .call-icon-wrapper,
+      .ai-icon-wrapper {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      background: transparent;
+      }
+      
+      .call-icon-wrapper {
+      animation: pulse-call 2s ease-in-out infinite;
+      }
+      
+      .ai-icon-wrapper {
+      animation: pulse-ai 2s ease-in-out infinite 0.3s;
+      }
+      
+      .call-icon,
+      .ai-icon {
+      stroke: #4b5563;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+      }
+      
+      @keyframes pulse-call {
+      0%, 100% {
+        transform: scale(1);
+      }
+      50% {
+        transform: scale(1.1);
+      }
+      }
+      
+      @keyframes pulse-ai {
+      0%, 100% {
+        transform: scale(1);
+      }
+      50% {
+        transform: scale(1.1);
+      }
+      }
+      
+      .connecting-dots {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      }
+      
+      .connecting-dots .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #6b7280;
+      animation: dot-bounce 1.4s ease-in-out infinite;
+      }
+      
+      .connecting-dots .dot:nth-child(1) {
+      animation-delay: 0s;
+      }
+      
+      .connecting-dots .dot:nth-child(2) {
+      animation-delay: 0.2s;
+      }
+      
+      .connecting-dots .dot:nth-child(3) {
+      animation-delay: 0.4s;
+      }
+      
+      @keyframes dot-bounce {
+      0%, 60%, 100% {
+        transform: translateY(0);
+        opacity: 0.4;
+      }
+      30% {
+        transform: translateY(-10px);
+        opacity: 1;
+      }
+      }
+      
+      .connecting-text {
+      font-size: 14px;
+      color: #6b7280;
+      font-weight: 500;
+      animation: fade-pulse 2s ease-in-out infinite;
+      }
+      
+      @keyframes fade-pulse {
+      0%, 100% {
+        opacity: 0.6;
+      }
+      50% {
+        opacity: 1;
+      }
+      }
+      
       .empty-state {
       text-align: center;
       padding: 20px 10px;
@@ -2924,7 +2675,7 @@
       flex-shrink: 0;
       }
       .control-btn-icon.connect {
-      background: linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%);
+      background: linear-gradient(135deg, #4b5563 0%, #6b7280 30%, #374151 70%, #1f2937 100%);
       color: white;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
       animation: connectPulse 2s ease-in-out infinite;
@@ -2938,7 +2689,7 @@
       }
       }
       .control-btn-icon.connect:hover {
-      background: linear-gradient(135deg, ${theme.accentColor} 0%, ${theme.primaryColor} 100%);
+      background: linear-gradient(135deg, #6b7280 0%, #9ca3af 30%, #4b5563 70%, #374151 100%);
       transform: scale(1.05);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
       }
@@ -3056,8 +2807,12 @@
       }
       
       .shivai-widget .attach-btn:hover {
-        background: #008069 !important;
-        transform: scale(1.05) !important;
+        background: rgba(0, 0, 0, 0.05) !important;
+        color: #00a884 !important;
+      }
+      
+      .shivai-widget .attach-btn:active {
+        transform: scale(0.95) !important;
       }
 
       .shivai-widget .send-btn:hover {
@@ -3077,6 +2832,28 @@
       .shivai-widget .message-input::placeholder {
         color: #8696a0 !important;
         font-size: 12px !important;
+      }
+
+      /* File upload preview styles */
+      .shivai-widget .message-file {
+        margin-top: 4px;
+      }
+      
+      .shivai-widget .message-file .file-upload-preview {
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        transition: all 0.2s ease;
+      }
+      
+      .shivai-widget .message-file .file-upload-preview:hover {
+        box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+      }
+      
+      .shivai-widget .message-file img {
+        border-radius: 8px 8px 0 0;
+      }
+      
+      .shivai-widget .message-file video {
+        border-radius: 8px 8px 0 0;
       }
 
       .shivai-widget .attachment-menu {
@@ -3142,7 +2919,6 @@
       }
     `;
     const styleSheet = document.createElement("style");
-    styleSheet.id = "shivai-widget-styles";
     styleSheet.textContent = styles;
     document.head.appendChild(styleSheet);
   }
@@ -3152,8 +2928,20 @@
     closeButtons.forEach((btn) => {
       btn.addEventListener("click", closeWidget);
     });
-    // Note: start-call-btn is now dynamically created in updateLandingViewBasedOnStatus
-    // Event listener is attached there instead of here
+    const startCallBtn = document.getElementById("start-call-btn");
+    if (startCallBtn) {
+      startCallBtn.addEventListener("click", async (e) => {
+        e.preventDefault();
+        const landingLanguageSelect = document.getElementById(
+          "shivai-language-landing"
+        );
+        if (landingLanguageSelect && languageSelect) {
+          languageSelect.value = landingLanguageSelect.value;
+        }
+        switchToCallView();
+        await handleConnectClick(e);
+      });
+    }
     const backBtn = document.getElementById("back-btn");
     if (backBtn) {
       backBtn.addEventListener("click", switchToLandingView);
@@ -3194,11 +2982,11 @@
         if (sendBtn) {
           // Use important styles to override any CSS conflicts on mobile
           if (hasText) {
-            sendBtn.style.setProperty('display', 'flex', 'important');
-            sendBtn.style.setProperty('visibility', 'visible', 'important');
+            sendBtn.style.setProperty("display", "flex", "important");
+            sendBtn.style.setProperty("visibility", "visible", "important");
           } else {
-            sendBtn.style.setProperty('display', 'none', 'important');
-            sendBtn.style.setProperty('visibility', 'hidden', 'important');
+            sendBtn.style.setProperty("display", "none", "important");
+            sendBtn.style.setProperty("visibility", "hidden", "important");
           }
         }
       });
@@ -3212,8 +3000,8 @@
             // Clear input and hide send button after sending
             messageInput.value = "";
             if (sendBtn) {
-              sendBtn.style.setProperty('display', 'none', 'important');
-              sendBtn.style.setProperty('visibility', 'hidden', 'important');
+              sendBtn.style.setProperty("display", "none", "important");
+              sendBtn.style.setProperty("visibility", "hidden", "important");
             }
           }
         }
@@ -3225,8 +3013,8 @@
           sendMessage();
           // Clear input and hide send button after sending
           messageInput.value = "";
-          sendBtn.style.setProperty('display', 'none', 'important');
-          sendBtn.style.setProperty('visibility', 'hidden', 'important');
+          sendBtn.style.setProperty("display", "none", "important");
+          sendBtn.style.setProperty("visibility", "hidden", "important");
         }
       });
 
@@ -3286,53 +3074,246 @@
     }
   }
 
-  // Handle file uploads (images and documents)
-  function handleFileUpload(files, type) {
+  // File upload validation constants
+  const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
+  const MAX_TEXT_LENGTH = 100000; // 100k characters
+  const SUPPORTED_EXT = ['.pdf', '.docx', '.doc', '.txt', '.md', '.csv'];
+
+  // Handle file uploads (documents only - images in development)
+  async function handleFileUpload(files, type) {
     if (!files || files.length === 0) return;
 
-    files.forEach((file) => {
-      const maxSize = 10 * 1024 * 1024; // 10MB limit
-
-      if (file.size > maxSize) {
-        alert(`File "${file.name}" is too large. Maximum size is 10MB.`);
-        return;
+    for (const file of Array.from(files)) {
+      // Check if file is image or video and reject it
+      const isImageOrVideo = file.type.startsWith('image/') || file.type.startsWith('video/');
+      
+      if (isImageOrVideo) {
+        addMessage(
+          "system",
+          "📸 Image and video uploads are currently disabled. Please upload documents (.pdf, .docx, .doc, .txt, .md, .csv) only."
+        );
+        continue;
       }
 
-      // Create preview for images
-      if (type === "image" && file.type.startsWith("image/")) {
-        const reader = new FileReader();
-        reader.onload = function (e) {
-          const imagePreview = `
-            <div style="margin: 8px 0; max-width: 200px;">
-              <img src="${e.target.result}" alt="${file.name}" style="max-width: 100%; height: auto; border-radius: 8px; cursor: pointer;" onclick="window.open('${e.target.result}', '_blank')">
-              <p style="font-size: 12px; color: #8696a0; margin: 4px 0;">${file.name} (${(file.size / 1024).toFixed(1)} KB)</p>
-            </div>
-          `;
-          addMessage("user", imagePreview, "image");
-        };
-        reader.readAsDataURL(file);
-      } else {
-        // Handle documents and other files
+      // Validate file size (25MB max for documents)
+      if (file.size > MAX_FILE_SIZE) {
+        addMessage(
+          "system",
+          `❌ File "${file.name}" is too large. Maximum size is 25MB.`
+        );
+        continue;
+      }
+
+      // Validate file extension
+      const fileExt = '.' + file.name.toLowerCase().split('.').pop();
+      if (!SUPPORTED_EXT.includes(fileExt)) {
+        addMessage(
+          "system",
+          `❌ File type "${fileExt}" is not supported. Please upload: ${SUPPORTED_EXT.join(', ')}`
+        );
+        continue;
+      }
+
+      console.log(
+        `📎 Uploading file: ${file.name} (${file.type}) - ${(file.size / 1024).toFixed(1)} KB`
+      );
+
+      try {
+        // Read file once for both preview and sending
+        const dataUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target.result);
+          reader.onerror = () => reject(new Error("Failed to read file"));
+          reader.readAsDataURL(file);
+        });
+
+        // Handle documents only
         const fileIcon = getFileIcon(file.type);
+        const fileColor = getFileColor(file.type);
+
         const fileMessage = `
-          <div style="display: flex; align-items: center; padding: 12px; border: 1px solid #e1e5ea; border-radius: 8px; background: #f8f9fa; margin: 8px 0; max-width: 300px;">
-            <div style="margin-right: 12px; font-size: 24px;">${fileIcon}</div>
-            <div style="flex: 1;">
-              <div style="font-weight: 500; color: #111b21; font-size: 14px;">${file.name}</div>
-              <div style="font-size: 12px; color: #8696a0;">${(file.size / 1024).toFixed(1)} KB • ${file.type || "Unknown type"}</div>
+            <div class="file-upload-preview" style="display: flex; align-items: center; padding: 12px 14px; background: ${fileColor.bg}; border: 1px solid #e5e7eb; border-radius: 12px; margin: 4px 0; max-width: 280px; cursor: pointer; transition: all 0.2s ease;" onmouseover="this.style.transform='scale(1.02)'; this.style.boxShadow='0 2px 8px rgba(0,0,0,0.08)'" onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='none'">
+              <div style="width: 40px; height: 40px; border-radius: 8px; background: ${fileColor.icon}; border: 1px solid ${fileColor.iconBorder}; display: flex; align-items: center; justify-content: center; margin-right: 12px; flex-shrink: 0;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${fileColor.iconText}" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                  <line x1="16" y1="13" x2="8" y2="13"></line>
+                  <line x1="16" y1="17" x2="8" y2="17"></line>
+                </svg>
+              </div>
+            </div>
+            <div style="flex: 1; min-width: 0;">
+              <div style="font-weight: 600; color: #111b21; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${file.name}</div>
+              <div style="font-size: 12px; color: #667781; margin-top: 2px;">${formatFileSize(file.size)} • ${getFileTypeName(file.type)}</div>
+            </div>
+            <div style="margin-left: 8px; color: #667781;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                <polyline points="15 3 21 3 21 9"></polyline>
+                <line x1="10" y1="14" x2="21" y2="3"></line>
+              </svg>
             </div>
           </div>
-        `;
-        addMessage("user", fileMessage, "document");
-      }
-    });
+          `;
 
-    // Clear the file input
-    if (type === "image") {
-      document.getElementById("shivai-image-input").value = "";
-    } else {
-      document.getElementById("shivai-file-input").value = "";
+        addMessage("user", fileMessage, { isFile: true });
+
+        // Send file to AI (reads file again internally)
+        await sendFileToAI(file);
+      } catch (error) {
+        console.error("❌ Error handling file upload:", error);
+        addMessage("system", `❌ Failed to upload: ${file.name}`);
+      }
     }
+
+    // Clear the file inputs
+    const fileInput = document.getElementById("shivai-file-input");
+    const imageInput = document.getElementById("shivai-image-input");
+    const cameraInput = document.getElementById("shivai-camera-input");
+    if (fileInput) fileInput.value = "";
+    if (imageInput) imageInput.value = "";
+    if (cameraInput) cameraInput.value = "";
+  }
+
+  // Send file to AI via LiveKit data channel (base64 JSON format - same as test.html)
+  async function sendFileToAI(file) {
+    if (!room || !isConnected) {
+      console.warn("⚠️ Cannot send file - not connected to room");
+      addMessage("system", "⚠️ Please start a call first to send files.");
+      return;
+    }
+
+    try {
+      // Read file as base64 (matching test.html exactly)
+      const base64Data = await readFileAsBase64(file);
+
+      // Create message object matching test.html format
+      const message = {
+        type: "file_upload",
+        filename: file.name,
+        data: base64Data,
+        size: file.size,
+        timestamp: Date.now(),
+      };
+
+      // Encode and send via LiveKit data channel
+      const encoder = new TextEncoder();
+      const messageString = JSON.stringify(message);
+      const messageBytes = encoder.encode(messageString);
+
+      await room.localParticipant.publishData(messageBytes, { reliable: true });
+
+      console.log(
+        `✅ File sent to AI (base64 JSON): ${file.name} - ${(file.size / 1024).toFixed(1)} KB`
+      );
+    } catch (error) {
+      console.error("❌ Error sending file to AI:", error);
+      addMessage("system", `❌ Failed to send file: ${error.message}`);
+    }
+  }
+
+  // Helper function to read file as base64 (matching test.html)
+  function readFileAsBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = reader.result.split(",")[1];
+        resolve(base64);
+      };
+      reader.onerror = () => reject(new Error("Failed to read file"));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // Get file color scheme based on type
+  function getFileColor(fileType) {
+    if (fileType.includes("pdf")) {
+      return {
+        bg: "#ffffff",
+        bgEnd: "#f9fafb",
+        icon: "#ffffff",
+        iconBorder: "#e5e7eb",
+        iconText: "#ef4444",
+      };
+    }
+    if (fileType.includes("word") || fileType.includes("document")) {
+      return {
+        bg: "#ffffff",
+        bgEnd: "#f9fafb",
+        icon: "#ffffff",
+        iconBorder: "#e5e7eb",
+        iconText: "#3b82f6",
+      };
+    }
+    if (
+      fileType.includes("spreadsheet") ||
+      fileType.includes("excel") ||
+      fileType.includes("csv")
+    ) {
+      return {
+        bg: "#ffffff",
+        bgEnd: "#f9fafb",
+        icon: "#ffffff",
+        iconBorder: "#e5e7eb",
+        iconText: "#22c55e",
+      };
+    }
+    if (fileType.includes("presentation") || fileType.includes("powerpoint")) {
+      return {
+        bg: "#ffffff",
+        bgEnd: "#f9fafb",
+        icon: "#ffffff",
+        iconBorder: "#e5e7eb",
+        iconText: "#f59e0b",
+      };
+    }
+    if (
+      fileType.includes("zip") ||
+      fileType.includes("rar") ||
+      fileType.includes("archive")
+    ) {
+      return {
+        bg: "#ffffff",
+        bgEnd: "#f9fafb",
+        icon: "#ffffff",
+        iconBorder: "#e5e7eb",
+        iconText: "#8b5cf6",
+      };
+    }
+    return {
+      bg: "#ffffff",
+      bgEnd: "#f9fafb",
+      icon: "#ffffff",
+      iconBorder: "#e5e7eb",
+      iconText: "#6b7280",
+    };
+  }
+
+  // Format file size
+  function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+  }
+
+  // Get human-readable file type name
+  function getFileTypeName(fileType) {
+    if (fileType.includes("pdf")) return "PDF";
+    if (fileType.includes("word") || fileType.includes("document"))
+      return "Word";
+    if (fileType.includes("spreadsheet") || fileType.includes("excel"))
+      return "Excel";
+    if (fileType.includes("csv")) return "CSV";
+    if (fileType.includes("presentation") || fileType.includes("powerpoint"))
+      return "PowerPoint";
+    if (fileType.includes("text")) return "Text";
+    if (fileType.includes("json")) return "JSON";
+    if (fileType.includes("xml")) return "XML";
+    if (fileType.includes("zip")) return "ZIP";
+    if (fileType.includes("rar")) return "RAR";
+    if (fileType.includes("image")) return "Image";
+    if (fileType.includes("video")) return "Video";
+    return "File";
   }
 
   // Get appropriate icon for file type
@@ -3381,11 +3362,6 @@
       clearInterval(messageInterval);
       messageInterval = null;
     }
-    
-    // Re-check agent status when widget opens to ensure UI is up-to-date
-    checkAgentStatusOnLoad().then(() => {
-      updateLandingViewBasedOnStatus();
-    });
   }
   function closeWidget() {
     console.log("🔴 Widget closing - checking call state");
@@ -3471,17 +3447,7 @@
       languageSelect.disabled = false;
     }
     if (window.currentCallId) {
-      fetch("https://nodejs.service.callshivai.com/api/v1/calls/end-call", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ callId: window.currentCallId }),
-      })
-        .catch((err) => {
-          console.warn("Error ending call via API:", err);
-        })
-        .finally(() => {
-          window.currentCallId = null;
-        });
+      window.currentCallId = null;
     }
     console.log("🔴 Complete cleanup finished on widget close");
     widgetContainer.classList.remove("active");
@@ -3659,7 +3625,7 @@
 
         // Hide message interface on connection failure
         hideMessageInterface();
-        
+
         // Clear all timeouts
         if (connectionTimeout) {
           clearTimeout(connectionTimeout);
@@ -3669,7 +3635,7 @@
           clearTimeout(aiResponseTimeout);
           aiResponseTimeout = null;
         }
-        
+
         clearLoadingStatus();
         stopCallTimer();
 
@@ -3679,12 +3645,9 @@
         connectBtn.classList.remove("connected");
         connectBtn.title = "Start Call";
         connectBtn.disabled = false; // Ensure button is enabled for reconnection
-        
-        updateStatus(
-          "❌ Failed to connect - Click to retry",
-          "disconnected"
-        );
-        
+
+        updateStatus("❌ Failed to connect - Click to retry", "disconnected");
+
         if (muteBtn) {
           muteBtn.style.display = "none";
           muteBtn.classList.remove("muted");
@@ -3811,6 +3774,44 @@
       "0"
     )}:${String(seconds).padStart(2, "0")}`;
   }
+  
+  function showConnectingState() {
+    const connectingState = messagesDiv.querySelector(".connecting-state");
+    const emptyState = messagesDiv.querySelector(".empty-state");
+    
+    if (connectingState) {
+      connectingState.style.display = "block";
+    }
+    if (emptyState) {
+      emptyState.style.display = "none";
+    }
+    
+    // Hide message interface during connection
+    hideMessageInterface();
+    
+    console.log("🔄 Showing connecting animation");
+  }
+  
+  function hideConnectingState() {
+    const connectingState = messagesDiv.querySelector(".connecting-state");
+    const emptyState = messagesDiv.querySelector(".empty-state");
+    
+    if (connectingState) {
+      connectingState.style.display = "none";
+    }
+    
+    // Show empty state only if no messages
+    const hasMessages = messagesDiv.querySelector(".message");
+    if (emptyState && !hasMessages) {
+      emptyState.style.display = "block";
+    }
+    
+    // Show message interface now that connection is stable
+    showMessageInterface();
+    
+    console.log("✅ Hiding connecting animation");
+  }
+  
   async function showProgressiveConnectionStates() {
     const wasWarmedUp = false;
     const hasPreloadedAudio = audioContext !== null;
@@ -3864,10 +3865,11 @@
       }
     }
   }
-  function addMessage(role, text) {
+  function addMessage(role, text, options = {}) {
     console.log("🔍 addMessage called:", {
       role,
       text,
+      options,
       caller: new Error().stack.split("\n")[2],
     });
 
@@ -3876,20 +3878,129 @@
       stopConnectingSound();
     }
 
+    // Hide both connecting state and empty state
+    const connectingState = messagesDiv.querySelector(".connecting-state");
+    if (connectingState) {
+      connectingState.style.display = "none";
+    }
+    
     const emptyState = messagesDiv.querySelector(".empty-state");
     if (emptyState) {
-      emptyState.remove();
+      emptyState.style.display = "none";
     }
     const messageDiv = document.createElement("div");
     messageDiv.className = `message ${role}`;
     const labelDiv = document.createElement("div");
     labelDiv.className = "message-label";
     labelDiv.textContent = role === "user" ? "You" : "AI Employee";
-    const textDiv = document.createElement("div");
-    textDiv.className = "message-text";
-    textDiv.textContent = text;
-    messageDiv.appendChild(labelDiv);
-    messageDiv.appendChild(textDiv);
+
+    // Handle document/link messages
+    if (options.type === "document" || options.isLink) {
+      const docDiv = document.createElement("div");
+      docDiv.className = "message-document";
+      docDiv.style.cssText = `
+        background: #f0f0f0;
+        border-radius: 8px;
+        padding: 12px;
+        margin-top: 8px;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        max-width: 280px;
+        border: 1px solid #d1d5db;
+      `;
+      docDiv.onmouseover = () => {
+        docDiv.style.background = "#e8e8e8";
+      };
+      docDiv.onmouseout = () => {
+        docDiv.style.background = "#f0f0f0";
+      };
+
+      // Extract filename and get file extension
+      let filename = options.title || "Document";
+      let fileExtension = "";
+      if (options.url) {
+        const urlObj = new URL(options.url);
+        const pathname = urlObj.pathname;
+        filename =
+          pathname.substring(pathname.lastIndexOf("/") + 1) || filename;
+        filename = decodeURIComponent(filename);
+        fileExtension = filename
+          .substring(filename.lastIndexOf(".") + 1)
+          .toUpperCase();
+      }
+
+      // Content container
+      const contentDiv = document.createElement("div");
+      contentDiv.style.cssText = "color: #222; flex: 1; min-width: 0;";
+
+      const filenameDiv = document.createElement("div");
+      filenameDiv.style.cssText =
+        "font-weight: 600; font-size: 13px; word-break: break-word; line-height: 1.3;";
+      filenameDiv.textContent = filename;
+
+      contentDiv.appendChild(filenameDiv);
+
+      // File icon
+      const iconDiv = document.createElement("div");
+      iconDiv.style.cssText = "font-size: 24px; flex-shrink: 0;";
+      iconDiv.textContent = "📄";
+
+      // View button
+      const viewBtn = document.createElement("button");
+      viewBtn.style.cssText = `
+        background: white;
+        border: 1px solid #d1d5db;
+        color: #1f2937;
+        padding: 6px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 500;
+        transition: all 0.2s;
+        flex-shrink: 0;
+      `;
+      viewBtn.textContent = "View";
+      viewBtn.title = "View";
+      viewBtn.onmouseover = () => {
+        viewBtn.style.background = "#f3f4f6";
+        viewBtn.style.borderColor = "#9ca3af";
+      };
+      viewBtn.onmouseout = () => {
+        viewBtn.style.background = "white";
+        viewBtn.style.borderColor = "#d1d5db";
+      };
+      viewBtn.onclick = (e) => {
+        e.stopPropagation();
+        window.open(options.url || text, "_blank");
+      };
+
+      docDiv.appendChild(iconDiv);
+      docDiv.appendChild(contentDiv);
+      docDiv.appendChild(viewBtn);
+
+      messageDiv.appendChild(labelDiv);
+      messageDiv.appendChild(docDiv);
+    } else if (options.isFile) {
+      // Handle file upload previews (render HTML)
+      const fileDiv = document.createElement("div");
+      fileDiv.className = "message-file";
+      fileDiv.innerHTML = text;
+      messageDiv.appendChild(labelDiv);
+      messageDiv.appendChild(fileDiv);
+    } else {
+      const textDiv = document.createElement("div");
+      textDiv.className = "message-text";
+      textDiv.textContent = text;
+      messageDiv.appendChild(labelDiv);
+      messageDiv.appendChild(textDiv);
+    }
+
     messagesDiv.appendChild(messageDiv);
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
     if (clearBtn) {
@@ -3992,74 +4103,183 @@
     }
   }
 
+  /**
+   * ✅ MICROPHONE PERMISSION FLOW (CRITICAL)
+   * 
+   * Rules:
+   * 1. NEVER auto-request microphone
+   * 2. Only request when user EXPLICITLY clicks "Start Call" button
+   * 3. Check permission state FIRST - STOP if denied
+   * 4. NEVER retry if permission is denied
+   * 5. Show clear instructions if denied
+   * 
+   * This function is ONLY called from handleConnectClick() when user clicks the button.
+   */
   async function startConversation() {
     try {
+      // Reset call timer flags for new conversation
+      knowledgeBaseReady = false;
+      firstResponseReceived = false;
+      callTimerStarted = false;
+      
+      // Show connecting animation
+      showConnectingState();
+      
       // Check if connection was cancelled before starting
       if (!isConnecting) {
         console.log("❌ Connection cancelled before start");
         return;
       }
 
-      // 🎤 Request microphone permission FIRST before anything else
-      console.log("🎤 Requesting microphone permission...");
+      // ✅ CRITICAL: Check permission state FIRST - never auto-request
+      console.log("🔍 Checking microphone permission state...");
       console.log("📍 Browser:", navigator.userAgent);
       console.log("📍 Secure context:", window.isSecureContext);
       console.log("📍 MediaDevices available:", !!navigator.mediaDevices);
-      console.log(
-        "📍 getUserMedia available:",
-        !!navigator.mediaDevices?.getUserMedia
-      );
 
       // Check if we're in a secure context (HTTPS)
       if (!window.isSecureContext) {
         console.error(
           "❌ Not in secure context - HTTPS required for microphone access"
         );
+        updateStatus("❌ HTTPS required", "disconnected");
         alert(
-          "Microphone access requires HTTPS. Please access this page using HTTPS."
+          "🔒 Microphone access requires HTTPS.\n\nPlease access this page using a secure HTTPS connection."
         );
+        isConnecting = false;
+        connectBtn.disabled = false;
         return;
       }
 
       // Check if mediaDevices API is available
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         console.error("❌ MediaDevices API not available");
+        updateStatus("❌ Browser not supported", "disconnected");
         alert(
-          "Microphone API is not available in your browser. Please use a modern browser with HTTPS."
+          "❌ Microphone API not available.\n\nPlease use a modern browser (Chrome, Firefox, Safari, Edge)."
         );
+        isConnecting = false;
+        connectBtn.disabled = false;
         return;
       }
 
-      // 🎤 Request microphone permission with retry logic
-      console.log("🎤 Starting microphone permission process...");
-      updateStatus("🎤 Requesting microphone access...", "connecting");
-      
-      const micPermissionGranted = await requestMicrophonePermission();
-      
-      if (!micPermissionGranted) {
-        console.error("❌ Microphone permission not granted - disconnecting call");
-        updateStatus("❌ Microphone access required", "disconnected");
+      // ✅ CRITICAL: Check permission state - STOP if denied
+      let permissionState = "prompt";
+      try {
+        const permissionStatus = await navigator.permissions.query({
+          name: "microphone",
+        });
+        permissionState = permissionStatus.state;
+        console.log("📍 Microphone permission state:", permissionState);
+
+        // Check if connection was cancelled during permission check
+        if (!isConnecting) {
+          console.log("❌ Connection cancelled during permission check");
+          return;
+        }
+
+        // ✅ CRITICAL: If DENIED, STOP immediately - never retry
+        if (permissionState === "denied") {
+          console.error("❌ Microphone permission DENIED - stopping");
+          updateStatus("❌ Microphone blocked", "disconnected");
+          
+          // Show detailed instructions - DO NOT retry
+          alert(
+            "🎤 Microphone Access Blocked\n\n" +
+            "To enable microphone:\n\n" +
+            "Chrome/Edge:\n" +
+            "1. Click the 🔒 lock icon in the address bar\n" +
+            "2. Find 'Microphone' and select 'Allow'\n" +
+            "3. Refresh the page\n\n" +
+            "Firefox:\n" +
+            "1. Click the 🔒 icon in the address bar\n" +
+            "2. Click the arrow next to 'Blocked Temporarily'\n" +
+            "3. Select 'Allow'\n\n" +
+            "Safari:\n" +
+            "1. Go to Safari → Settings → Websites → Microphone\n" +
+            "2. Find this website and select 'Allow'\n" +
+            "3. Refresh the page"
+          );
+          
+          // Reset connection state - DO NOT proceed
+          isConnecting = false;
+          connectBtn.disabled = false;
+          connectBtn.innerHTML =
+            '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>';
+          connectBtn.classList.remove("connected");
+          return;
+        }
+      } catch (permError) {
+        console.warn("⚠️ Could not query permission state:", permError);
+        // Continue - some browsers don't support permissions API
+      }
+
+      // ✅ Show status - requesting permission
+      updateStatus("🎤 Requesting microphone...", "connecting");
+
+      // Check if connection was cancelled
+      if (!isConnecting) {
+        console.log("❌ Connection cancelled before requesting microphone");
+        return;
+      }
+
+      // ✅ CRITICAL: ONE explicit request, ONCE, on user action
+      try {
+        console.log("🎤 Requesting getUserMedia (user clicked button)...");
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: false,
+            channelCount: 1,
+            sampleRate: 48000,
+            sampleSize: 16,
+          },
+        });
         
-        // Disconnect the call immediately
+        console.log("✅ Microphone permission GRANTED");
+        updateStatus("✅ Microphone enabled", "connecting");
+
+        // Stop the test stream immediately - LiveKit will create its own
+        stream.getTracks().forEach((track) => track.stop());
+        
+      } catch (micError) {
+        console.error("❌ Microphone request failed:", micError);
+        updateStatus("❌ Microphone denied", "disconnected");
+
+        // ✅ CRITICAL: Handle denial - DO NOT retry
+        if (micError.name === "NotAllowedError") {
+          alert(
+            "🎤 Microphone Access Denied\n\n" +
+            "You clicked 'Block' or 'Deny'.\n\n" +
+            "To fix:\n" +
+            "1. Click the 🔒 lock icon in your browser's address bar\n" +
+            "2. Find 'Microphone' permission\n" +
+            "3. Change it to 'Allow'\n" +
+            "4. Refresh the page and try again"
+          );
+        } else if (micError.name === "NotFoundError") {
+          alert(
+            "❌ No Microphone Found\n\n" +
+            "Please:\n" +
+            "1. Connect a microphone to your device\n" +
+            "2. Check your system sound settings\n" +
+            "3. Try again"
+          );
+        } else {
+          alert(
+            `❌ Microphone Error\n\n${micError.message}\n\nPlease check your browser settings.`
+          );
+        }
+        
+        // Reset state - DO NOT proceed
         isConnecting = false;
-        isConnected = false;
-        
-        // Reset UI
+        connectBtn.disabled = false;
         connectBtn.innerHTML =
           '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>';
         connectBtn.classList.remove("connected");
-        connectBtn.title = "Start Call";
-        connectBtn.disabled = false;
-        
-        stopRingSound();
-        stopConnectingSound();
-        hideMessageInterface();
-        
         return;
       }
-      
-      console.log("✅ Microphone permission verified - continuing with call setup...");
-      updateStatus("✅ Microphone ready - connecting...", "connecting");
 
       // Check if connection was cancelled after microphone permission
       if (!isConnecting) {
@@ -4137,17 +4357,19 @@
       if (typeof LivekitClient === "undefined") {
         console.log("📦 LiveKit not loaded, loading now...");
         updateStatus("Loading LiveKit...", "connecting");
-        
+
         try {
           await loadLiveKitSDK();
           console.log("✅ LiveKit loaded successfully");
         } catch (error) {
           console.error("❌ Failed to load LiveKit SDK:", error);
           updateStatus("❌ Failed to load audio library", "disconnected");
-          alert("Failed to load audio library. Please refresh the page and try again.");
+          alert(
+            "Failed to load audio library. Please refresh the page and try again."
+          );
           throw new Error("LiveKit failed to load");
         }
-        
+
         // Check again after loading
         if (typeof LivekitClient === "undefined") {
           console.error("❌ LiveKit still not available after loading");
@@ -4165,12 +4387,11 @@
         return;
       }
 
-      // Get LiveKit token from backend
-      const callId = `call_${Date.now()}`;
-      // Don't set currentCallId yet - wait until token is successfully received
+      // Get LiveKit token from backend (matching test_agent.html approach)
+      const roomName = `call-${Date.now()}`;
       
       // Get agent ID from configuration or script data attributes
-      let agentId = "id123"; // default fallback
+      let agentId = "6982da5442c2d51081738c0c"; // default fallback
       
       console.log("🔍 Debug: window.SHIVAI_CONFIG:", window.SHIVAI_CONFIG);
       console.log("🔍 Debug: document.currentScript:", document.currentScript);
@@ -4181,7 +4402,8 @@
       
       for (let i = scriptTags.length - 1; i >= 0; i--) {
         const script = scriptTags[i];
-        if (script.src && script.src.includes('/widget2.js')) {
+        // Check for widget2.js, widget3.js, widget4.js, or widget.js
+        if (script.src && (script.src.includes('/widget2.js') || script.src.includes('/widget3.js') || script.src.includes('/widget4.js') || script.src.includes('/widget.js'))) {
           const url = new URL(script.src);
           const urlAgentId = url.searchParams.get('agentId');
           if (urlAgentId) {
@@ -4193,10 +4415,12 @@
         }
       }
       
+      // If not found in URL, try SHIVAI_CONFIG (for preview)
       if (!foundFromUrl && window.SHIVAI_CONFIG && window.SHIVAI_CONFIG.agentId) {
         agentId = window.SHIVAI_CONFIG.agentId;
         console.log("🎯 Using agentId from SHIVAI_CONFIG:", agentId);
       } 
+      // Then try to get from script data attributes (for production)
       else if (!foundFromUrl) {
         console.log("🔍 SHIVAI_CONFIG not found, checking script attributes...");
         const scriptElements = document.querySelectorAll('script[data-agent-id]');
@@ -4206,6 +4430,7 @@
           agentId = scriptElements[scriptElements.length - 1].getAttribute('data-agent-id');
           console.log("🎯 Using agentId from script data attribute:", agentId);
         }
+        // Try to get from current script if available
         else if (document.currentScript && document.currentScript.getAttribute('data-agent-id')) {
           agentId = document.currentScript.getAttribute('data-agent-id');
           console.log("🎯 Using agentId from current script:", agentId);
@@ -4215,18 +4440,23 @@
         }
       }
 
+      if (!agentId || agentId === "id123") {
+        console.error("❌ Agent ID is required");
+        throw new Error("Agent ID is required");
+      }
+
+      console.log(`Getting token for Agent: ${agentId}...`);
+
       const response = await fetch(
         "https://voice.callshivai.com/token",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            agent_id: agentId,
+            room: roomName,
             language: selectedLanguage,
-            call_id: callId,
-            device: deviceType,
-            user_agent: navigator.userAgent,
-            ip: await getClientIP(),
+            agent_id: agentId,
+            tenant_id: "tenant_123"
           }),
         }
       );
@@ -4236,12 +4466,18 @@
       }
 
       const data = await response.json();
-      window.currentCallId = callId;
+      console.log("✅ Token received");
+      
+      // Only set currentCallId after successfully receiving token
+      window.currentCallId = roomName;
+
+      // Check if connection was cancelled after getting token
       if (!isConnecting) {
         console.log("❌ Connection cancelled after token received");
         return;
       }
 
+      // Handle any pending audio elements (for autoplay policy)
       if (window.pendingAudioElement) {
         window.pendingAudioElement
           .play()
@@ -4249,39 +4485,21 @@
         window.pendingAudioElement = null;
       }
 
-      room = new LivekitClient.Room({
-        adaptiveStream: true,
-        dynacast: true,
-        audioCaptureDefaults: {
-          ...audioConfig,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true, // Enable for feedback prevention
-          suppressLocalAudioPlayback: true, // Critical for feedback prevention
-        },
-        reconnectPolicy: {
-          nextRetryDelayInMs: () => 2000, // Slower reconnect to prevent issues
-        },
-        publishDefaults: {
-          audioPreset: LivekitClient.AudioPresets.speech, // Better for voice with feedback prevention
-          dtx: true, // Enable discontinuous transmission
-          red: false, // Disable redundancy for clarity
-          simulcast: false, // Disable simulcast for voice calls
-        },
-        // Room options for feedback prevention
-        e2eeEnabled: false,
-        expWebAudioMix: false, // Disable experimental mixing that can cause feedback
-      });
+      // Create LiveKit room (matching test_agent.html - simple approach)
+      room = new LivekitClient.Room();
 
+      // ✅ Track remote audio (agent speaking) with optimized settings
       room.on(
         LivekitClient.RoomEvent.TrackSubscribed,
         (track, publication, participant) => {
           if (track.kind === LivekitClient.Track.Kind.Audio) {
+            // Use audio element with feedback prevention settings
             const audioElement = track.attach();
             audioElement.volume = 0.4; // Significantly reduced to prevent feedback
             audioElement.preload = "auto";
             audioElement.autoplay = true;
 
+            // Add audio constraints to prevent feedback
             if (audioElement.setSinkId) {
               try {
                 audioElement.setSinkId("default");
@@ -4305,6 +4523,7 @@
             });
 
             remoteAudioTrack = track;
+            // Start monitoring remote audio with proper feedback prevention
             monitorRemoteAudioLevel(track);
             console.log(
               "🔊 Agent audio track received with feedback prevention"
@@ -4360,7 +4579,8 @@
         isConnected = true;
         retryCount = 0; // Reset retry count on successful connection
 
-        showMessageInterface();
+        // Don't show message interface yet - wait for stable connection
+        // showMessageInterface(); // Moved to hideConnectingState()
 
         // Clear connection timeout
         if (connectionTimeout) {
@@ -4414,8 +4634,8 @@
           }
         }
 
-        // Start call timer and update status
-        startCallTimer();
+        // Don't start call timer here - wait for knowledge base ready and first response
+        console.log("🔗 Connected to LiveKit room, waiting for knowledge base to be ready...");
 
         // Resume audio context if suspended (browser autoplay policy)
         if (window.AudioContext || window.webkitAudioContext) {
@@ -4435,10 +4655,9 @@
           }
         }
 
-        updateStatus("✅ Connected - Speak now!", "connected");
-
-        // Stop connecting sound
-        stopConnectingSound();
+        // Keep loading state active - don't stop connecting sound or update to "connected" yet
+        // Wait for knowledge base ready and first response
+        console.log("⏳ Keeping loading state active until knowledge base is ready...");
 
         // Simplified flow - microphone stays enabled
         console.log(
@@ -4552,6 +4771,88 @@
                 const jsonData = JSON.parse(text);
                 console.log("📋 Parsed JSON data:", jsonData);
 
+                // Skip interim/partial transcripts - only show final ones
+                if (jsonData.is_final === false || jsonData.interim === true || jsonData.partial === true) {
+                  console.log("⏭️ Skipping interim transcript, waiting for final version");
+                  return;
+                }
+
+                // Handle status messages for loading states (don't add to chat)
+                if (jsonData.type === "status") {
+                  console.log("📊 Status message:", jsonData.text);
+                  // Update status in UI but don't add to transcript
+                  if (jsonData.text) {
+                    updateStatus(jsonData.text, "connecting");
+                    
+                    // Check if knowledge base is ready
+                    if (jsonData.text.toLowerCase().includes("ready")) {
+                      console.log("✅ Knowledge base is ready");
+                      knowledgeBaseReady = true;
+                      
+                      // Start call timer and stop loading if first response was already received
+                      if (firstResponseReceived && !callTimerStarted) {
+                        console.log("⏱️ Starting call timer (knowledge base ready + first response received)");
+                        updateStatus("✅ Connected - Speak now!", "connected");
+                        stopConnectingSound();
+                        clearLoadingStatus();
+                        hideConnectingState();
+                        startCallTimer();
+                        callTimerStarted = true;
+                      }
+                    }
+                  }
+                  return; // Don't add status messages to transcript
+                }
+
+                // Handle metrics messages for performance tracking (don't add to chat)
+                if (jsonData.type === "metrics" && jsonData.data) {
+                  console.log("📊 Latency metrics received:", jsonData.data);
+                  
+                  // Update latency metrics
+                  if (jsonData.data.filler !== undefined) {
+                    latencyMetrics.filler = jsonData.data.filler;
+                    console.log("⚡ Filler latency:", Math.round(latencyMetrics.filler), "ms");
+                  }
+                  if (jsonData.data.qdrant !== undefined) {
+                    latencyMetrics.qdrant = jsonData.data.qdrant;
+                    console.log("🔍 Qdrant latency:", Math.round(latencyMetrics.qdrant), "ms");
+                  }
+                  if (jsonData.data.llm_ttft !== undefined) {
+                    latencyMetrics.llm_ttft = jsonData.data.llm_ttft;
+                    console.log("🤖 LLM TTFT:", Math.round(latencyMetrics.llm_ttft), "ms");
+                  }
+                  if (jsonData.data.tts_ttfa !== undefined) {
+                    latencyMetrics.tts_ttfa = jsonData.data.tts_ttfa;
+                    console.log("🔊 TTS TTFA:", Math.round(latencyMetrics.tts_ttfa), "ms");
+                  }
+                  if (jsonData.data.first_audio !== undefined) {
+                    latencyMetrics.first_audio = jsonData.data.first_audio;
+                    console.log("🎵 First audio latency:", Math.round(latencyMetrics.first_audio), "ms");
+                  }
+                  
+                  return; // Don't add metrics to transcript
+                }
+
+                // 🎯 Handle special message types (documents, links, etc.)
+                if (
+                  jsonData.type === "link" &&
+                  jsonData.url &&
+                  jsonData.title
+                ) {
+                  console.log("📨 Document/Link detected:", {
+                    title: jsonData.title,
+                    url: jsonData.url,
+                    timestamp: jsonData.timestamp,
+                  });
+                  addMessage("assistant", jsonData.url, {
+                    type: "document",
+                    isLink: true,
+                    url: jsonData.url,
+                    title: jsonData.title,
+                  });
+                  return;
+                }
+
                 // Look for ANY text field that might contain transcript
                 const possibleTextFields = [
                   "text",
@@ -4605,10 +4906,17 @@
                   if (jsonData.role === "user") {
                     // Allow voice transcripts for user, but skip chat messages
                     if (jsonData.type !== "chat") {
-                      if (!lastUserMessageDiv) {
-                        lastUserMessageDiv = addMessage("user", jsonData.text);
+                      // Always create new message for final transcripts, update only for interim
+                      if (jsonData.is_final === false || jsonData.interim === true) {
+                        // Interim transcript - update existing or create new
+                        if (!lastUserMessageDiv) {
+                          lastUserMessageDiv = addMessage("user", jsonData.text);
+                        } else {
+                          updateMessage(lastUserMessageDiv, jsonData.text);
+                        }
                       } else {
-                        updateMessage(lastUserMessageDiv, jsonData.text);
+                        // Final transcript - always create new message
+                        lastUserMessageDiv = addMessage("user", jsonData.text);
                       }
                     } else {
                       console.log(
@@ -4617,6 +4925,23 @@
                     }
                   } else if (jsonData.role === "assistant") {
                     addMessage("assistant", jsonData.text);
+                    
+                    // Track first assistant response
+                    if (!firstResponseReceived) {
+                      console.log("✅ First AI response received (legacy format)");
+                      firstResponseReceived = true;
+                      
+                      // Start call timer and stop loading if knowledge base is ready
+                      if (knowledgeBaseReady && !callTimerStarted) {
+                        console.log("⏱️ Starting call timer (knowledge base ready + first response received)");
+                        updateStatus("✅ Connected - Speak now!", "connected");
+                        stopConnectingSound();
+                        clearLoadingStatus();
+                        hideConnectingState();
+                        startCallTimer();
+                        callTimerStarted = true;
+                      }
+                    }
                   }
                   console.log("✅ Processed legacy format transcript");
                   return;
@@ -4635,6 +4960,23 @@
                       role: senderRole,
                       text: transcriptText.substring(0, 50) + "...",
                     });
+                    
+                    // Track first assistant response
+                    if (!isUser && !firstResponseReceived) {
+                      console.log("✅ First AI response received");
+                      firstResponseReceived = true;
+                      
+                      // Start call timer and stop loading if knowledge base is ready
+                      if (knowledgeBaseReady && !callTimerStarted) {
+                        console.log("⏱️ Starting call timer (knowledge base ready + first response received)");
+                        updateStatus("✅ Connected - Speak now!", "connected");
+                        stopConnectingSound();
+                        clearLoadingStatus();
+                        hideConnectingState();
+                        startCallTimer();
+                        callTimerStarted = true;
+                      }
+                    }
                   }
                 }
               } catch (e) {
@@ -4655,6 +4997,23 @@
                     role: senderRole,
                     text: transcriptText.substring(0, 50) + "...",
                   });
+                  
+                  // Track first assistant response
+                  if (!isUser && !firstResponseReceived) {
+                    console.log("✅ First AI response received (plain text)");
+                    firstResponseReceived = true;
+                    
+                    // Start call timer and stop loading if knowledge base is ready
+                    if (knowledgeBaseReady && !callTimerStarted) {
+                      console.log("⏱️ Starting call timer (knowledge base ready + first response received)");
+                      updateStatus("✅ Connected - Speak now!", "connected");
+                      stopConnectingSound();
+                      clearLoadingStatus();
+                      hideConnectingState();
+                      startCallTimer();
+                      callTimerStarted = true;
+                    }
+                  }
                 }
               }
             }
@@ -4845,20 +5204,22 @@
 
       updateStatus(`❌ ${errorMsg} - Click to retry`, "disconnected");
       console.error("❌ Connection terminated due to error:", error);
-      
+
       // Reset all connection flags
       isConnected = false;
       isConnecting = false;
       isDisconnecting = false;
-      
+
       // Ensure button is clickable for retry
       connectBtn.disabled = false;
       connectBtn.innerHTML =
         '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>';
       connectBtn.classList.remove("connected");
       connectBtn.title = "Retry Connection";
-      
-      alert(`Connection failed: ${errorMsg}. Click the call button to try again.`);
+
+      alert(
+        `Connection failed: ${errorMsg}. Click the call button to try again.`
+      );
       stopConversation();
     }
   }
@@ -4880,6 +5241,9 @@
 
     stopCallTimer();
     clearLoadingStatus();
+    
+    // Hide connecting animation and show empty state
+    hideConnectingState();
 
     // Clear all timeouts
     if (connectionTimeout) {
@@ -4906,8 +5270,6 @@
     } catch (e) {
       console.warn("Could not play call-end sound:", e);
     }
-    
-    // Clear currentCallId without API call
     if (window.currentCallId) {
       window.currentCallId = null;
     }
@@ -5082,7 +5444,7 @@
   }
   function stopAllScheduledAudio(options = {}) {
     const preserveStatus = options.preserveStatus === true;
-    stopRingSound();
+    stopRingSound(); // Stop ring sound when stopping all audio
     stopConnectingSound(); // Stop connecting sound when stopping all audio
     playbackBufferQueue = [];
     playbackBufferOffset = 0;
@@ -5110,6 +5472,7 @@
     stopConversation();
   });
 
+  // ✅ Load LiveKit SDK first, then initialize widget
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => {
       loadLiveKitSDK()
