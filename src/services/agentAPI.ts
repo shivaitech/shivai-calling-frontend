@@ -524,6 +524,38 @@ class AgentAPI {
       throw error;
     }
   }
+
+  // Knowledge Base Upload API
+  async uploadKnowledgeBase(files: File[]): Promise<{
+    success: boolean;
+    statusCode: number;
+    message: string;
+    data: {
+      files: Array<{
+        filename: string;
+        size: number;
+        url: string;
+      }>;
+      count: number;
+    };
+  }> {
+    try {
+      const formData = new FormData();
+      files.forEach((file) => {
+        formData.append("files", file);
+      });
+      const response = await apiClient.post("/agents/upload/knowledge-bases", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+        timeout: 60000, // 1 minute timeout for file uploads
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error("Error uploading knowledge base files:", error);
+      throw error;
+    }
+  }
 }
 
 export const agentAPI = new AgentAPI();

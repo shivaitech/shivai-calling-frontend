@@ -148,7 +148,7 @@ class AITemplateService {
       );
 
       // Parse the generated text into template objects
-      const templates = this.parseGeneratedTemplates(generatedText);
+      let templates = this.parseGeneratedTemplates(generatedText);
 
       if (templates.length === 0) {
         console.error(
@@ -160,13 +160,17 @@ class AITemplateService {
         );
       }
 
-      // Ensure at least 2 templates
+      // Ensure at least 2 templates by generating a complementary one if needed
       if (templates.length < 2) {
         console.warn(
-          `⚠️ Only ${templates.length} template(s) generated, but minimum of 2 required`,
+          `⚠️ Only ${templates.length} template(s) generated, adding complementary template...`,
         );
-        console.log("📋 Attempting to retry generation...");
-        // Don't throw error, just warn - user can see what was generated
+        const complementaryTemplate = this.generateComplementaryTemplate(
+          templates[0],
+          request,
+        );
+        templates.push(complementaryTemplate);
+        console.log("✅ Added complementary template:", complementaryTemplate.name);
       }
 
       console.log("✅ Generated templates:", templates.length, "templates");
@@ -205,7 +209,7 @@ class AITemplateService {
     "icon": "🎧",
     "features": ["24/7 Availability", "Multi-language Support", "Issue Resolution"],
     "systemPrompt": "You are a helpful customer support specialist trained to assist customers professionally...",
-    "firstMessage": "Hi! Thank you for contacting us. How can I help you today?",
+    "firstMessage": "Hello! I am [AI Employee Name] from [Company Name], here to assist you. How can I help you today?",
     "industryFocus": "Customer Service",
     "tone": "Friendly and Professional",
     "gender": "Female",
@@ -234,7 +238,7 @@ class AITemplateService {
     "icon": "💼",
     "features": ["Lead Generation", "Sales Coaching", "Opportunity Identification"],
     "systemPrompt": "You are a strategic sales agent focused on identifying customer needs and presenting solutions...",
-    "firstMessage": "Hello! I would love to learn about your goals and how we can help you succeed.",
+    "firstMessage": "Hello! I am [AI Employee Name] from [Company Name], here to assist you. I would love to learn about your goals and how we can help you succeed.",
     "industryFocus": "Sales and Business Development",
     "tone": "Confident and Professional",
     "gender": "Male",
@@ -423,7 +427,7 @@ Example format: ${exampleTemplates}`;
         // Agent Settings
         systemPrompt: template.systemPrompt || "",
         firstMessage:
-          template.firstMessage || "Hello! How can I assist you today?",
+          template.firstMessage || "Hello! I am [AI Employee Name] from [Company Name], here to assist you. How can I help you today?",
         industryFocus: template.industryFocus || "",
         tone: template.tone || "Professional",
         gender: template.gender || "Not Specified",
@@ -681,6 +685,100 @@ Example format: ${exampleTemplates}`;
   }
 
   /**
+   * Generate a complementary template when only one template is generated
+   * This ensures the user always has at least 2 options to choose from
+   */
+  private generateComplementaryTemplate(
+    existingTemplate: GeneratedTemplate,
+    request: GenerateTemplateRequest,
+  ): GeneratedTemplate {
+    // Determine complementary personality and approach
+    const isExistingFriendly = existingTemplate.personality?.toLowerCase().includes("friendly") ||
+      existingTemplate.personality?.toLowerCase().includes("empathetic") ||
+      existingTemplate.tone?.toLowerCase().includes("friendly");
+    
+    const isExistingSales = existingTemplate.name?.toLowerCase().includes("sales") ||
+      request.businessProcess?.toLowerCase().includes("sales");
+
+    const isExistingSupport = existingTemplate.name?.toLowerCase().includes("support") ||
+      request.businessProcess?.toLowerCase().includes("support");
+
+    // Create a complementary template based on what exists
+    let complementaryName: string;
+    let complementaryDescription: string;
+    let complementaryIcon: string;
+    let complementaryFeatures: string[];
+    let complementaryPersonality: string;
+    let complementaryTone: string;
+    let complementarySystemPrompt: string;
+    let complementaryFirstMessage: string;
+
+    if (isExistingSales) {
+      // Add a support-focused template
+      complementaryName = `${request.companyName} Customer Care Specialist`;
+      complementaryDescription = `A dedicated customer support specialist for ${request.companyName} that handles inquiries with care and professionalism.`;
+      complementaryIcon = "🎧";
+      complementaryFeatures = ["Customer Support", "Issue Resolution", "FAQ Handling", "Follow-up Care"];
+      complementaryPersonality = "Empathetic and Patient";
+      complementaryTone = "Warm and Supportive";
+      complementarySystemPrompt = `You are a caring customer support specialist for ${request.companyName}. Help customers with their questions, resolve issues efficiently, and ensure a positive experience. Be patient, understanding, and solution-oriented.`;
+      complementaryFirstMessage = `Hello! I am [AI Employee Name] from ${request.companyName}, here to assist you with any questions or concerns. How can I help you today?`;
+    } else if (isExistingSupport) {
+      // Add a sales-focused template
+      complementaryName = `${request.companyName} Sales Advisor`;
+      complementaryDescription = `A professional sales advisor for ${request.companyName} that engages prospects and guides them toward solutions.`;
+      complementaryIcon = "💼";
+      complementaryFeatures = ["Lead Engagement", "Product Guidance", "Consultation Booking", "Value Communication"];
+      complementaryPersonality = "Confident and Persuasive";
+      complementaryTone = "Professional and Engaging";
+      complementarySystemPrompt = `You are a professional sales advisor for ${request.companyName}. Engage prospects warmly, understand their needs, present value propositions effectively, and guide them toward making informed decisions.`;
+      complementaryFirstMessage = `Hello! I am [AI Employee Name] from ${request.companyName}, here to assist you. I'd love to learn more about your needs and how we can help. What brings you here today?`;
+    } else if (isExistingFriendly) {
+      // Add a more formal/professional template
+      complementaryName = `${request.companyName} Professional Consultant`;
+      complementaryDescription = `A professional consultant for ${request.companyName} with a formal, business-focused approach.`;
+      complementaryIcon = "👔";
+      complementaryFeatures = ["Professional Consultation", "Expert Guidance", "Detailed Analysis", "Strategic Advice"];
+      complementaryPersonality = "Analytical and Direct";
+      complementaryTone = "Formal and Professional";
+      complementarySystemPrompt = `You are a professional consultant for ${request.companyName}. Provide expert guidance with a formal, business-focused approach. Be thorough, analytical, and solution-oriented.`;
+      complementaryFirstMessage = `Hello! I am [AI Employee Name] from ${request.companyName}, here to assist you. How may I help you today?`;
+    } else {
+      // Add a friendly/approachable template
+      complementaryName = `${request.companyName} Friendly Assistant`;
+      complementaryDescription = `A warm and approachable assistant for ${request.companyName} that creates a welcoming experience.`;
+      complementaryIcon = "😊";
+      complementaryFeatures = ["Friendly Assistance", "Personalized Help", "Easy Communication", "Supportive Guidance"];
+      complementaryPersonality = "Friendly and Approachable";
+      complementaryTone = "Warm and Conversational";
+      complementarySystemPrompt = `You are a friendly and approachable assistant for ${request.companyName}. Create a warm, welcoming experience while helping customers with their needs. Be personable, helpful, and easy to talk to.`;
+      complementaryFirstMessage = `Hello! I am [AI Employee Name] from ${request.companyName}, here to assist you! I'm happy to help with anything you need. What can I do for you today?`;
+    }
+
+    return {
+      name: complementaryName,
+      description: complementaryDescription,
+      icon: complementaryIcon,
+      features: complementaryFeatures,
+      systemPrompt: complementarySystemPrompt,
+      firstMessage: complementaryFirstMessage,
+      industryFocus: request.industry || "",
+      tone: complementaryTone,
+      gender: existingTemplate.gender === "Female" ? "Male" : "Female", // Alternate gender
+      voice: isExistingFriendly ? "Professional" : "Friendly",
+      personality: complementaryPersonality,
+      manualKnowledge: existingTemplate.manualKnowledge || "",
+      websiteUrls: request.websiteUrls || [],
+      openingScript: `Thank you for contacting ${request.companyName}. How can I assist you today?`,
+      keyTalkingPoints: existingTemplate.keyTalkingPoints || "• We're here to help\n• Your satisfaction is our priority",
+      closingScript: `Thank you for choosing ${request.companyName}. Is there anything else I can help with?`,
+      objections: existingTemplate.objections || [],
+      conversationExamples: existingTemplate.conversationExamples || [],
+      intents: existingTemplate.intents || [],
+    };
+  }
+
+  /**
    * Normalize a template object with defaults
    */
   private normalizeTemplate(template: any): GeneratedTemplate {
@@ -693,7 +791,7 @@ Example format: ${exampleTemplates}`;
         : ["AI-powered assistance"],
       systemPrompt: template.systemPrompt || "",
       firstMessage:
-        template.firstMessage || "Hello! How can I assist you today?",
+        template.firstMessage || "Hello! I am [AI Employee Name] from [Company Name], here to assist you. How can I help you today?",
       industryFocus: template.industryFocus || "",
       tone: template.tone || "Professional",
       gender: template.gender || "Not Specified",

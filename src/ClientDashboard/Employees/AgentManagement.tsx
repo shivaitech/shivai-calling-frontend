@@ -21,8 +21,6 @@ import { useAuth } from "../../contexts/AuthContext";
 import {
   aiEmployeeTemplates,
   getMatchingTemplatesWithScore,
-  getMatchDescription,
-  getMatchBadgeColor,
   TemplateMatchResult,
 } from "../../constants/aiEmployeeTemplates";
 import {
@@ -39,7 +37,6 @@ import { agentAPI } from "../../services/agentAPI";
 import {
   Bot,
   ArrowLeft,
-  Save,
   Play,
   Pause,
   Eye,
@@ -50,25 +47,21 @@ import {
   Download,
   MessageSquare,
   Globe,
-  Shield,
   Zap,
   Clock,
   Users,
   CheckCircle,
-  Info,
   Lightbulb,
   Plus,
   Search,
   Filter,
   Settings,
-  QrCode,
   X,
   Send,
   Phone,
   PhoneCall,
   Mic,
   MicOff,
-  BarChart3,
   Building2,
   Briefcase,
   Factory,
@@ -113,7 +106,7 @@ const AgentManagement = () => {
   const isView = id && !isTrain;
   const isList = !id; // Main agent list page
 
-  const [formData, setFormData] = useState({
+  const [_formData, setFormData] = useState({
     name: "",
     gender: "Female",
     businessProcess: "",
@@ -174,9 +167,9 @@ const AgentManagement = () => {
   >([
     {
       id: "1",
-      text: `Hi! I'm ${
+      text: `Hello! I am ${
         currentAgent?.name || "your AI assistant"
-      }. How can I help you today?`,
+      }${user?.company ? ` from ${user.company}` : ""}, here to assist you. How can I help you today?`,
       isUser: false,
       timestamp: new Date(),
     },
@@ -202,8 +195,10 @@ const AgentManagement = () => {
     websiteUrls: [""],
     socialMediaUrls: [""],
     uploadedFiles: [] as File[],
+    uploadedFileUrls: [] as string[],
     selectedTemplate: null as string | null,
   });
+  const [isUploadingFiles, setIsUploadingFiles] = useState(false);
 
   // Template Details Modal State
   const [showTemplateDetails, setShowTemplateDetails] = useState(false);
@@ -223,6 +218,20 @@ const AgentManagement = () => {
   const [templateGenerationError, setTemplateGenerationError] = useState<
     string | null
   >(null);
+
+  // Helper function to replace template placeholders with actual values
+  const replaceTemplatePlaceholders = (text: string | undefined): string => {
+    if (!text) return "";
+    return text
+      .replace(/\[AI Employee Name\]/g, quickCreateData.aiEmployeeName || "AI Assistant")
+      .replace(/\[Company Name\]/g, quickCreateData.companyName || "Company")
+      .replace(/\[Company\]/g, quickCreateData.companyName || "Company")
+      .replace(/\[Business Name\]/g, quickCreateData.companyName || "Company")
+      .replace(/\[Store Name\]/g, quickCreateData.companyName || "Company")
+      .replace(/\[Clinic Name\]/g, quickCreateData.companyName || "Company")
+      .replace(/\[Real Estate Company\]/g, quickCreateData.companyName || "Company")
+      .replace(/\[Agent Name\]/g, quickCreateData.aiEmployeeName || "AI Assistant");
+  };
 
   // Business Process Options
   const businessProcessOptions = [
@@ -548,8 +557,59 @@ const AgentManagement = () => {
       websiteUrls: [""],
       socialMediaUrls: [""],
       uploadedFiles: [],
+      uploadedFileUrls: [],
       selectedTemplate: null,
     });
+  };
+
+  // Handle knowledge base file upload
+  const handleKnowledgeBaseUpload = async (files: File[]) => {
+    if (files.length === 0) return;
+
+    setIsUploadingFiles(true);
+    try {
+      // Add files to the UI immediately for user feedback
+      setQuickCreateData((prev) => ({
+        ...prev,
+        uploadedFiles: [...prev.uploadedFiles, ...files],
+      }));
+
+      // Upload files to the API
+      const response = await agentAPI.uploadKnowledgeBase(files);
+      console.log("📤 Knowledge base upload response:", response);
+
+      // Extract URLs from response.data.files array
+      const urls = response.data?.files?.map((file: any) => file.url) || [];
+      if (urls.length > 0) {
+        setQuickCreateData((prev) => ({
+          ...prev,
+          uploadedFileUrls: [...prev.uploadedFileUrls, ...urls],
+        }));
+        console.log("✅ Knowledge base files uploaded:", urls);
+        toast.success(`${files.length} file(s) uploaded successfully!`);
+      }
+    } catch (error) {
+      console.error("❌ Error uploading knowledge base files:", error);
+      toast.error("Failed to upload files. Please try again.");
+      // Remove the files from UI if upload failed
+      setQuickCreateData((prev) => ({
+        ...prev,
+        uploadedFiles: prev.uploadedFiles.filter(
+          (f) => !files.some((newFile) => newFile.name === f.name)
+        ),
+      }));
+    } finally {
+      setIsUploadingFiles(false);
+    }
+  };
+
+  // Handle knowledge base file removal
+  const handleRemoveKnowledgeBaseFile = (index: number) => {
+    setQuickCreateData((prev) => ({
+      ...prev,
+      uploadedFiles: prev.uploadedFiles.filter((_, i) => i !== index),
+      uploadedFileUrls: prev.uploadedFileUrls.filter((_, i) => i !== index),
+    }));
   };
 
   const handleAddWebsiteUrl = () => {
@@ -672,11 +732,8 @@ const AgentManagement = () => {
         (url) => url.trim().length > 0,
       );
 
-      // Prepare knowledge base file URLs (if files were uploaded, their URLs would be here)
-      const knowledgeBaseFileUrls = quickCreateData.uploadedFiles.map(
-        (file: any) =>
-          typeof file === "string" ? file : file.url || file.name,
-      );
+      // Use the uploaded file URLs from the API
+      const knowledgeBaseFileUrls = quickCreateData.uploadedFileUrls;
 
       const agentPayload = {
         name: quickCreateData.aiEmployeeName,
@@ -692,18 +749,18 @@ const AgentManagement = () => {
         max_response_length: "Medium (150 words)",
         context_window: "Standard (8K tokens)",
         temperature: 0.5, // Must be <= 1 (temperature scale is 0-1, not 0-100)
-        // Template object with all details
+        // Template object with all details - replace placeholders with actual values
         template: selectedTemplateData
           ? {
               name: selectedTemplateData.name,
-              description: selectedTemplateData.description,
+              description: replaceTemplatePlaceholders(selectedTemplateData.description),
               icon: selectedTemplateData.icon,
               features: selectedTemplateData.features,
-              systemPrompt: selectedTemplateData.systemPrompt,
-              firstMessage: selectedTemplateData.firstMessage,
-              openingScript: selectedTemplateData.openingScript,
-              keyTalkingPoints: selectedTemplateData.keyTalkingPoints,
-              closingScript: selectedTemplateData.closingScript,
+              systemPrompt: replaceTemplatePlaceholders(selectedTemplateData.systemPrompt),
+              firstMessage: replaceTemplatePlaceholders(selectedTemplateData.firstMessage),
+              openingScript: replaceTemplatePlaceholders(selectedTemplateData.openingScript),
+              keyTalkingPoints: replaceTemplatePlaceholders(selectedTemplateData.keyTalkingPoints),
+              closingScript: replaceTemplatePlaceholders(selectedTemplateData.closingScript),
               objections: selectedTemplateData.objections,
               conversationExamples: selectedTemplateData.conversationExamples,
             }
@@ -789,11 +846,11 @@ const AgentManagement = () => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [room, setRoom] = useState<any>(null);
-  const [sessionHistory, setSessionHistory] = useState<any[]>([]);
-  const [sessionLoading, setSessionLoading] = useState(false);
-  const [sessionError, setSessionError] = useState<string | null>(null);
-  const [isRecording, setIsRecording] = useState(false);
-  const [testStatus, setTestStatus] = useState("📞 Ready to start call");
+  const [_sessionHistory, setSessionHistory] = useState<any[]>([]);
+  const [_sessionLoading, setSessionLoading] = useState(false);
+  const [_sessionError, setSessionError] = useState<string | null>(null);
+  const [_isRecording, setIsRecording] = useState(false);
+  const [_testStatus, setTestStatus] = useState("📞 Ready to start call");
 
   useEffect(() => {
     // Setup LiveKit callbacks
@@ -884,11 +941,11 @@ const AgentManagement = () => {
           contextWindow: "Standard (8K tokens)",
           temperature: 50,
         });
-        // Reset messages when agent changes with correct agent name
+        // Reset messages when agent changes with correct agent name and company
         setMessages([
           {
             id: "1",
-            text: `Hi! I'm ${agent.name}. How can I help you today?`,
+            text: `Hello! I am ${agent.name}${user?.company ? ` from ${user.company}` : ""}, here to assist you. How can I help you today?`,
             isUser: false,
             timestamp: new Date(),
           },
@@ -3330,18 +3387,20 @@ const AgentManagement = () => {
 
                         {/* Drop Zone */}
                         <div
-                          className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-4 sm:p-6 text-center hover:border-blue-400 dark:hover:border-blue-500 transition-colors cursor-pointer bg-slate-50/50 dark:bg-slate-800/50"
+                          className={`border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-4 sm:p-6 text-center hover:border-blue-400 dark:hover:border-blue-500 transition-colors cursor-pointer bg-slate-50/50 dark:bg-slate-800/50 ${isUploadingFiles ? 'opacity-50 pointer-events-none' : ''}`}
                           onClick={() =>
-                            document
+                            !isUploadingFiles && document
                               .getElementById("knowledge-file-input")
                               ?.click()
                           }
                           onDragOver={(e) => {
                             e.preventDefault();
-                            e.currentTarget.classList.add(
-                              "border-blue-400",
-                              "bg-blue-50/50",
-                            );
+                            if (!isUploadingFiles) {
+                              e.currentTarget.classList.add(
+                                "border-blue-400",
+                                "bg-blue-50/50",
+                              );
+                            }
                           }}
                           onDragLeave={(e) => {
                             e.currentTarget.classList.remove(
@@ -3355,11 +3414,10 @@ const AgentManagement = () => {
                               "border-blue-400",
                               "bg-blue-50/50",
                             );
-                            const files = Array.from(e.dataTransfer.files);
-                            setQuickCreateData((prev) => ({
-                              ...prev,
-                              uploadedFiles: [...prev.uploadedFiles, ...files],
-                            }));
+                            if (!isUploadingFiles) {
+                              const files = Array.from(e.dataTransfer.files);
+                              handleKnowledgeBaseUpload(files);
+                            }
                           }}
                         >
                           <input
@@ -3368,33 +3426,39 @@ const AgentManagement = () => {
                             multiple
                             accept=".pdf,.doc,.docx,.txt,.csv,.xlsx,.xls,.png,.jpg,.jpeg,.gif,.webp"
                             className="hidden"
+                            disabled={isUploadingFiles}
                             onChange={(e) => {
                               const files = Array.from(e.target.files || []);
-                              setQuickCreateData((prev) => ({
-                                ...prev,
-                                uploadedFiles: [
-                                  ...prev.uploadedFiles,
-                                  ...files,
-                                ],
-                              }));
+                              handleKnowledgeBaseUpload(files);
                               e.target.value = "";
                             }}
                           />
                           <div className="flex flex-col items-center gap-1.5 sm:gap-2">
-                            <div className="flex items-center gap-2 sm:gap-3 text-slate-400">
-                              <FileText className="w-6 h-6 sm:w-8 sm:h-8" />
-                              <Image className="w-6 h-6 sm:w-8 sm:h-8" />
-                              <File className="w-6 h-6 sm:w-8 sm:h-8" />
-                            </div>
-                            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
-                              <span className="text-blue-500 font-medium">
-                                Click to upload
-                              </span>{" "}
-                              or drag and drop
-                            </p>
-                            <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500">
-                              PDF, DOC, TXT, CSV, Excel, Images (max 10MB each)
-                            </p>
+                            {isUploadingFiles ? (
+                              <>
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+                                  Uploading files...
+                                </p>
+                              </>
+                            ) : (
+                              <>
+                                <div className="flex items-center gap-2 sm:gap-3 text-slate-400">
+                                  <FileText className="w-6 h-6 sm:w-8 sm:h-8" />
+                                  <Image className="w-6 h-6 sm:w-8 sm:h-8" />
+                                  <File className="w-6 h-6 sm:w-8 sm:h-8" />
+                                </div>
+                                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+                                  <span className="text-blue-500 font-medium">
+                                    Click to upload
+                                  </span>{" "}
+                                  or drag and drop
+                                </p>
+                                <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500">
+                                  PDF, DOC, TXT, CSV, Excel, Images (max 10MB each)
+                                </p>
+                              </>
+                            )}
                           </div>
                         </div>
 
@@ -3420,17 +3484,15 @@ const AgentManagement = () => {
                                   <span className="text-[10px] sm:text-xs text-slate-400 hidden sm:inline">
                                     {(file.size / 1024 / 1024).toFixed(2)} MB
                                   </span>
+                                  {quickCreateData.uploadedFileUrls[index] && (
+                                    <span className="text-[10px] sm:text-xs text-green-500">
+                                      ✓
+                                    </span>
+                                  )}
                                   <button
-                                    onClick={() =>
-                                      setQuickCreateData((prev) => ({
-                                        ...prev,
-                                        uploadedFiles:
-                                          prev.uploadedFiles.filter(
-                                            (_, i) => i !== index,
-                                          ),
-                                      }))
-                                    }
-                                    className="p-0.5 sm:p-1 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors"
+                                    onClick={() => handleRemoveKnowledgeBaseFile(index)}
+                                    disabled={isUploadingFiles}
+                                    className="p-0.5 sm:p-1 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors disabled:opacity-50"
                                   >
                                     <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                                   </button>
@@ -4274,8 +4336,8 @@ const AgentManagement = () => {
                               <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700">
                                 <p className="text-sm text-slate-600 dark:text-slate-400 italic">
                                   "
-                                  {aiTemplate?.firstMessage ||
-                                    template?.firstMessage}
+                                  {replaceTemplatePlaceholders(aiTemplate?.firstMessage ||
+                                    template?.firstMessage)}
                                   "
                                 </p>
                               </div>
@@ -4583,7 +4645,7 @@ const AgentManagement = () => {
                               </h3>
                               <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700">
                                 <p className="text-sm text-slate-600 dark:text-slate-400 italic">
-                                  "{predefinedTemplate.firstMessage}"
+                                  "{replaceTemplatePlaceholders(predefinedTemplate.firstMessage)}"
                                 </p>
                               </div>
                             </div>
@@ -4596,7 +4658,7 @@ const AgentManagement = () => {
                                 </h3>
                                 <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700 h-24 overflow-y-auto">
                                   <p className="text-xs text-slate-600 dark:text-slate-400">
-                                    {predefinedTemplate.openingScript}
+                                    {replaceTemplatePlaceholders(predefinedTemplate.openingScript)}
                                   </p>
                                 </div>
                               </div>
@@ -4606,7 +4668,7 @@ const AgentManagement = () => {
                                 </h3>
                                 <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700 h-24 overflow-y-auto">
                                   <p className="text-xs text-slate-600 dark:text-slate-400">
-                                    {predefinedTemplate.closingScript}
+                                    {replaceTemplatePlaceholders(predefinedTemplate.closingScript)}
                                   </p>
                                 </div>
                               </div>
@@ -4619,7 +4681,7 @@ const AgentManagement = () => {
                               </h3>
                               <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700 max-h-24 overflow-y-auto">
                                 <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-line">
-                                  {predefinedTemplate.keyTalkingPoints}
+                                  {replaceTemplatePlaceholders(predefinedTemplate.keyTalkingPoints)}
                                 </p>
                               </div>
                             </div>
@@ -4679,7 +4741,6 @@ const AgentManagement = () => {
                   })()}
                 </div>
 
-                {/* Footer */}
                 <div className="p-4 sm:p-5 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex-shrink-0">
                   <div className="flex gap-3">
                     <button
@@ -4694,8 +4755,8 @@ const AgentManagement = () => {
                     </button>
                     {isEditingTemplate ? (
                       <button
+
                         onClick={() => {
-                          // Save the edited template
                           if (editedTemplate) {
                             const templateIndex =
                               aiGeneratedTemplates.findIndex(
@@ -4760,17 +4821,13 @@ const AgentManagement = () => {
     );
   }
 
-  // VIEW MODE - Show agent details
   if (isView && currentAgent) {
     return (
       <div className="space-y-3 sm:space-y-4 lg:space-y-6 w-full">
-        {/* Enhanced Mobile-First Header */}
         <GlassCard>
           <div className="p-4 sm:p-6">
-            {/* Top row with back button and actions */}
-            <div className="flex flex-col gap-3 sm:gap-4 sm:flex-row sm:items-start sm:justify-between">
-              {/* Main agent info section */}
-              <div className="flex items-start gap-2 sm:gap-3 lg:gap-4 min-w-0 flex-1">
+            <div className="flex items-center justify-between mb-4 sm:mb-6">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                 <button
                   onClick={() => navigate("/agents")}
                   className="common-button-bg2 p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl flex-shrink-0 touch-manipulation"
@@ -4778,261 +4835,270 @@ const AgentManagement = () => {
                   <ArrowLeft className="w-4 sm:w-5 h-4 sm:h-5 text-slate-600 dark:text-slate-300" />
                 </button>
 
-                <div className="flex items-start gap-2 sm:gap-3 lg:gap-4 min-w-0 flex-1">
-                  {/* Agent avatar/icon */}
-                  <div className="w-10 h-10 sm:w-14 sm:h-14 lg:w-16 lg:h-16 common-bg-icons flex items-center justify-center flex-shrink-0 rounded-lg sm:rounded-xl">
-                    <Bot className="w-5 h-5 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-black dark:text-white" />
-                  </div>
+                <div className="w-10 h-10 sm:w-12 sm:h-12 common-bg-icons flex items-center justify-center flex-shrink-0 rounded-lg sm:rounded-xl">
+                  <Bot className="w-5 h-5 sm:w-6 sm:h-6 text-black dark:text-white" />
+                </div>
 
-                  {/* Agent details */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-col gap-1.5 sm:gap-2 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="min-w-0 flex-1">
-                        <h1 className="text-base sm:text-xl lg:text-2xl font-bold text-slate-800 dark:text-white leading-tight truncate">
-                          {currentAgent.name}
-                        </h1>
-
-                        {/* Agent meta info - Mobile optimized */}
-                        <div className="flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-1 text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
-                          <div className="flex items-center gap-1">
-                            <Globe className="w-3 h-3 sm:w-4 sm:h-4" />
-                            <span className="truncate text-xs sm:text-sm">
-                              {currentAgent.language}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <span
-                              className={`px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-xs font-medium flex-shrink-0 ${
-                                currentAgent.status === "Published" ||
-                                (currentAgent as any).is_active
-                                  ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
-                                  : "bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400"
-                              }`}
-                            >
-                              {currentAgent.status === "Published" ||
-                              (currentAgent as any).is_active
-                                ? "Live"
-                                : "Unpublished"}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                <div className="min-w-0 flex-1">
+                  <h1 className="text-base sm:text-xl lg:text-2xl font-bold text-slate-800 dark:text-white leading-tight truncate">
+                    {currentAgent.name}
+                  </h1>
+                  <span
+                    className={`inline-flex items-center px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-xs font-medium mt-1 ${
+                      currentAgent.status === "Published" ||
+                      (currentAgent as any).is_active
+                        ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
+                        : "bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400"
+                    }`}
+                  >
+                    {currentAgent.status === "Published" ||
+                    (currentAgent as any).is_active
+                      ? "Live"
+                      : "Unpublished"}
+                  </span>
                 </div>
               </div>
 
-              {/* Action buttons - Mobile compact */}
-              <div className="flex items-center gap-1.5 sm:gap-2 lg:gap-3 flex-shrink-0">
+              {/* Action buttons */}
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
                 <button
                   onClick={() => navigate(`/agents/${currentAgent.id}/edit`)}
-                  className="flex-1 sm:flex-none common-button-bg2 flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-3 lg:px-4 py-1.5 sm:py-2 lg:py-2.5 rounded-lg sm:rounded-xl touch-manipulation min-h-[36px] sm:min-h-[40px]"
+                  className="common-button-bg2 flex items-center justify-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg touch-manipulation"
                 >
                   <Edit className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  <span className="text-xs sm:text-sm font-medium">Edit</span>
+                  <span className="hidden sm:inline text-xs sm:text-sm font-medium">Edit</span>
                 </button>
+                
                 {(currentAgent.status === "Published" ||
                   (currentAgent as any).is_active) && (
-                  <button
-                    onClick={() => setShowQRModal(true)}
-                    className="flex-none common-button-bg2 flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-3 lg:px-4 py-1.5 sm:py-2 lg:py-2.5 rounded-lg sm:rounded-xl touch-manipulation min-h-[36px] sm:min-h-[40px]"
-                  >
-                    <QrCode className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                    <span className="hidden sm:inline text-xs sm:text-sm font-medium">
-                      QR
-                    </span>
-                  </button>
+                  <>
+                    <button
+                      onClick={() => setShowTestChat(true)}
+                      className="common-button-bg flex items-center justify-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg touch-manipulation"
+                    >
+                      <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      <span className="hidden sm:inline text-xs sm:text-sm font-medium text-white">Test</span>
+                    </button>
+                    <button
+                      onClick={() => handlePause(currentAgent.id)}
+                      disabled={publishingAgents.has(currentAgent.id)}
+                      className={`common-button-bg2 flex items-center justify-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg touch-manipulation ${
+                        publishingAgents.has(currentAgent.id)
+                          ? "opacity-50 cursor-not-allowed"
+                          : ""
+                      }`}
+                    >
+                      {publishingAgents.has(currentAgent.id) ? (
+                        <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                      ) : (
+                        <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      )}
+                      <span className="hidden sm:inline text-xs sm:text-sm font-medium">
+                        {publishingAgents.has(currentAgent.id) ? "..." : "Pause"}
+                      </span>
+                    </button>
+                  </>
                 )}
-                {currentAgent.status === "Published" ? (
+                
+                {!(currentAgent.status === "Published" || (currentAgent as any).is_active) && (
                   <button
-                    onClick={() => handlePause(currentAgent.id)}
+                    onClick={() => handlePublish(currentAgent.id)}
                     disabled={publishingAgents.has(currentAgent.id)}
-                    className={`flex-none common-button-bg2 flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-3 lg:px-4 py-1.5 sm:py-2 lg:py-2.5 rounded-lg sm:rounded-xl touch-manipulation min-h-[36px] sm:min-h-[40px] ${
+                    className={`common-button-bg flex items-center justify-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg touch-manipulation ${
                       publishingAgents.has(currentAgent.id)
                         ? "opacity-50 cursor-not-allowed"
                         : ""
                     }`}
                   >
                     {publishingAgents.has(currentAgent.id) ? (
-                      <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-                    ) : (
-                      <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                    )}
-                    <span className="text-xs sm:text-sm font-medium">
-                      {publishingAgents.has(currentAgent.id) ? "..." : "Pause"}
-                    </span>
-                  </button>
-                ) : (
-                  <button
-                    onClick={() =>
-                      (currentAgent as any).is_active
-                        ? handlePause(currentAgent.id)
-                        : handlePublish(currentAgent.id)
-                    }
-                    disabled={publishingAgents.has(currentAgent.id)}
-                    className={`flex-none flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-3 lg:px-4 py-1.5 sm:py-2 lg:py-2.5 rounded-lg sm:rounded-xl touch-manipulation min-h-[36px] sm:min-h-[40px] ${
-                      publishingAgents.has(currentAgent.id)
-                        ? "opacity-50 cursor-not-allowed"
-                        : ""
-                    } ${
-                      (currentAgent as any).is_active
-                        ? "common-button-bg2"
-                        : "common-button-bg"
-                    }`}
-                  >
-                    {publishingAgents.has(currentAgent.id) ? (
-                      <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-                    ) : (currentAgent as any).is_active ? (
-                      <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     ) : (
                       <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     )}
-                    <span className="text-xs sm:text-sm font-medium">
-                      {publishingAgents.has(currentAgent.id)
-                        ? "..."
-                        : (currentAgent as any).is_active
-                          ? "Pause"
-                          : "Publish"}
+                    <span className="text-xs sm:text-sm font-medium text-white">
+                      {publishingAgents.has(currentAgent.id) ? "..." : "Publish"}
                     </span>
                   </button>
                 )}
               </div>
             </div>
 
-            {/* Agent info section */}
+            {/* Configuration Grid - Simple & Clean */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 mt-4">
+              <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Globe className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
+                  <span className="text-xs font-medium text-slate-600 dark:text-slate-400">Language</span>
+                </div>
+                <p className="text-sm font-semibold text-slate-800 dark:text-white">
+                  {currentAgent.language}
+                </p>
+              </div>
+
+              <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <MessageSquare className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
+                  <span className="text-xs font-medium text-slate-600 dark:text-slate-400">Voice</span>
+                </div>
+                <p className="text-sm font-semibold text-slate-800 dark:text-white">
+                  {currentAgent.voice}
+                </p>
+              </div>
+
+              <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Users className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
+                  <span className="text-xs font-medium text-slate-600 dark:text-slate-400">Persona</span>
+                </div>
+                <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">
+                  {currentAgent.persona}
+                </p>
+              </div>
+
+              <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Clock className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
+                  <span className="text-xs font-medium text-slate-600 dark:text-slate-400">Created</span>
+                </div>
+                <p className="text-sm font-semibold text-slate-800 dark:text-white">
+                  {new Date(currentAgent.createdAt).toLocaleDateString()}
+                </p>
+              </div>
+            </div>
           </div>
         </GlassCard>
 
-        {/* Performance Overview - Compact Grid on Mobile */}
-        <div className="lg:hidden grid grid-cols-2 gap-2">
-          <GlassCard className="hover:shadow-md transition-all duration-200">
-            <div className="p-2">
-              <div className="flex flex-col items-center gap-1">
-                <div className="w-7 h-7 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
-                  <MessageSquare className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                </div>
-                <p className="text-base font-bold text-slate-800 dark:text-white">
-                  {currentAgent.stats.conversations.toLocaleString()}
-                </p>
-                <p className="text-[10px] text-slate-600 dark:text-slate-400">
-                  Conversations
-                </p>
-                {currentAgent.stats.conversations > 0 ? (
-                  <span className="text-[10px] font-medium text-green-600 dark:text-green-400">
-                    +12%
-                  </span>
-                ) : (
-                  <span className="text-[10px] text-slate-500 dark:text-slate-500">
-                    No data
-                  </span>
-                )}
-              </div>
-            </div>
-          </GlassCard>
-
-          <GlassCard className="hover:shadow-md transition-all duration-200">
-            <div className="p-2">
-              <div className="flex flex-col items-center gap-1">
-                <div className="w-7 h-7 bg-green-50 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
-                  <CheckCircle className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
-                </div>
-                <p className="text-base font-bold text-slate-800 dark:text-white">
-                  {currentAgent.stats.successRate}%
-                </p>
-                <p className="text-[10px] text-slate-600 dark:text-slate-400">
-                  Success Rate
-                </p>
-                {currentAgent.stats.successRate > 0 ? (
-                  <span className="text-[10px] font-medium text-green-600 dark:text-green-400">
-                    +2.1%
-                  </span>
-                ) : (
-                  <span className="text-[10px] text-slate-500 dark:text-slate-500">
-                    No data
-                  </span>
-                )}
-              </div>
-            </div>
-          </GlassCard>
-
-          <GlassCard className="hover:shadow-md transition-all duration-200">
-            <div className="p-2">
-              <div className="flex flex-col items-center gap-1">
-                <div className="w-7 h-7 bg-purple-50 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
-                  <Clock className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                </div>
-                <p className="text-base font-bold text-slate-800 dark:text-white">
-                  {currentAgent.stats.avgResponseTime}s
-                </p>
-                <p className="text-[10px] text-slate-600 dark:text-slate-400">
-                  Avg Response
-                </p>
-                {currentAgent.stats.avgResponseTime > 0 ? (
-                  <span className="text-[10px] font-medium text-green-600 dark:text-green-400">
-                    -0.3s
-                  </span>
-                ) : (
-                  <span className="text-[10px] text-slate-500 dark:text-slate-500">
-                    No data
-                  </span>
-                )}
-              </div>
-            </div>
-          </GlassCard>
-
-          <GlassCard className="hover:shadow-md transition-all duration-200">
-            <div className="p-2">
-              <div className="flex flex-col items-center gap-1">
-                <div className="w-7 h-7 bg-orange-50 dark:bg-orange-900/20 rounded-lg flex items-center justify-center">
-                  <Users className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
-                </div>
-                <p className="text-base font-bold text-slate-800 dark:text-white">
-                  {currentAgent.stats.activeUsers}
-                </p>
-                <p className="text-[10px] text-slate-600 dark:text-slate-400">
-                  Active Users
-                </p>
-                {currentAgent.stats.activeUsers > 0 ? (
-                  <span className="text-[10px] font-medium text-green-600 dark:text-green-400">
-                    +8%
-                  </span>
-                ) : (
-                  <span className="text-[10px] text-slate-500 dark:text-slate-500">
-                    No data
-                  </span>
-                )}
-              </div>
-            </div>
-          </GlassCard>
-        </div>
-
-        {/* Desktop Grid View */}
-        <div className="hidden lg:grid grid-cols-4 gap-4">
-          <GlassCard className="hover:shadow-lg transition-all duration-300">
-            <div className="p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/20 rounded-xl flex items-center justify-center">
-                  <MessageSquare className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                </div>
-                <div className="text-right">
-                  <p className="text-2xl font-bold text-slate-800 dark:text-white">
+        {/* Performance Overview - Mobile Slider */}
+        <div className="lg:hidden">
+          <div className="flex gap-2 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-hide">
+            {/* Conversations Card */}
+            <GlassCard className="flex-shrink-0 w-32 snap-start">
+              <div className="p-2.5">
+                <div className="flex flex-col items-center gap-0.5">
+                  <div className="w-6 h-6 bg-blue-50 dark:bg-blue-900/20 rounded-md flex items-center justify-center mb-1">
+                    <MessageSquare className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <p className="text-lg font-bold text-slate-800 dark:text-white">
                     {currentAgent.stats.conversations.toLocaleString()}
                   </p>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                  <p className="text-[10px] text-slate-600 dark:text-slate-400 text-center leading-tight">
+                    Conversations
+                  </p>
+                  {currentAgent.stats.conversations > 0 ? (
+                    <span className="text-[10px] font-medium text-green-600 dark:text-green-400">
+                      No data
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-slate-500 dark:text-slate-500">
+                      No data
+                    </span>
+                  )}
+                </div>
+              </div>
+            </GlassCard>
+
+            {/* Success Rate Card */}
+            <GlassCard className="flex-shrink-0 w-32 snap-start">
+              <div className="p-2.5">
+                <div className="flex flex-col items-center gap-0.5">
+                  <div className="w-6 h-6 bg-green-50 dark:bg-green-900/20 rounded-md flex items-center justify-center mb-1">
+                    <CheckCircle className="w-3 h-3 text-green-600 dark:text-green-400" />
+                  </div>
+                  <p className="text-lg font-bold text-slate-800 dark:text-white">
+                    {currentAgent.stats.successRate}%
+                  </p>
+                  <p className="text-[10px] text-slate-600 dark:text-slate-400 text-center leading-tight">
+                    Success Rate
+                  </p>
+                  {currentAgent.stats.successRate > 0 ? (
+                    <span className="text-[10px] font-medium text-green-600 dark:text-green-400">
+                      No data
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-slate-500 dark:text-slate-500">
+                      No data
+                    </span>
+                  )}
+                </div>
+              </div>
+            </GlassCard>
+
+            {/* Avg Response Card */}
+            <GlassCard className="flex-shrink-0 w-32 snap-start">
+              <div className="p-2.5">
+                <div className="flex flex-col items-center gap-0.5">
+                  <div className="w-6 h-6 bg-purple-50 dark:bg-purple-900/20 rounded-md flex items-center justify-center mb-1">
+                    <Clock className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <p className="text-lg font-bold text-slate-800 dark:text-white">
+                    {currentAgent.stats.avgResponseTime}s
+                  </p>
+                  <p className="text-[10px] text-slate-600 dark:text-slate-400 text-center leading-tight">
+                    Avg Response
+                  </p>
+                  {currentAgent.stats.avgResponseTime > 0 ? (
+                    <span className="text-[10px] font-medium text-green-600 dark:text-green-400">
+                      No data
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-slate-500 dark:text-slate-500">
+                      No data
+                    </span>
+                  )}
+                </div>
+              </div>
+            </GlassCard>
+
+            {/* Active Users Card */}
+            <GlassCard className="flex-shrink-0 w-32 snap-start">
+              <div className="p-2.5">
+                <div className="flex flex-col items-center gap-0.5">
+                  <div className="w-6 h-6 bg-orange-50 dark:bg-orange-900/20 rounded-md flex items-center justify-center mb-1">
+                    <Users className="w-3 h-3 text-orange-600 dark:text-orange-400" />
+                  </div>
+                  <p className="text-lg font-bold text-slate-800 dark:text-white">
+                    {currentAgent.stats.activeUsers}
+                  </p>
+                  <p className="text-[10px] text-slate-600 dark:text-slate-400 text-center leading-tight">
+                    Active Users
+                  </p>
+                  {currentAgent.stats.activeUsers > 0 ? (
+                    <span className="text-[10px] font-medium text-green-600 dark:text-green-400">
+                      No data
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-slate-500 dark:text-slate-500">
+                      No data
+                    </span>
+                  )}
+                </div>
+              </div>
+            </GlassCard>
+          </div>
+        </div>
+
+        {/* Desktop Grid View - Compact */}
+        <div className="hidden lg:grid grid-cols-4 gap-3">
+          <GlassCard className="hover:shadow-md transition-all duration-200">
+            <div className="p-3.5">
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
+                  <MessageSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div className="text-right">
+                  <p className="text-xl font-bold text-slate-800 dark:text-white">
+                    {currentAgent.stats.conversations.toLocaleString()}
+                  </p>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
                     Conversations
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-1">
                 {currentAgent.stats.conversations > 0 ? (
-                  <>
-                    <span className="text-sm font-medium text-green-600 dark:text-green-400">
-                      +12%
-                    </span>
-                    <span className="text-xs text-slate-500 dark:text-slate-500">
-                      this week
-                    </span>
-                  </>
+                  <span className="text-xs text-slate-500 dark:text-slate-500">
+                    No data
+                  </span>
                 ) : (
                   <span className="text-xs text-slate-500 dark:text-slate-500">
                     No data yet
@@ -5042,31 +5108,26 @@ const AgentManagement = () => {
             </div>
           </GlassCard>
 
-          <GlassCard className="hover:shadow-lg transition-all duration-300">
-            <div className="p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-12 h-12 bg-green-50 dark:bg-green-900/20 rounded-xl flex items-center justify-center">
-                  <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400" />
+          <GlassCard className="hover:shadow-md transition-all duration-200">
+            <div className="p-3.5">
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-10 h-10 bg-green-50 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
+                  <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
                 </div>
                 <div className="text-right">
-                  <p className="text-2xl font-bold text-slate-800 dark:text-white">
+                  <p className="text-xl font-bold text-slate-800 dark:text-white">
                     {currentAgent.stats.successRate}%
                   </p>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
                     Success Rate
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-1">
                 {currentAgent.stats.successRate > 0 ? (
-                  <>
-                    <span className="text-sm font-medium text-green-600 dark:text-green-400">
-                      +2.1%
-                    </span>
-                    <span className="text-xs text-slate-500 dark:text-slate-500">
-                      improved
-                    </span>
-                  </>
+                  <span className="text-xs text-slate-500 dark:text-slate-500">
+                    No data
+                  </span>
                 ) : (
                   <span className="text-xs text-slate-500 dark:text-slate-500">
                     No data yet
@@ -5076,31 +5137,26 @@ const AgentManagement = () => {
             </div>
           </GlassCard>
 
-          <GlassCard className="hover:shadow-lg transition-all duration-300">
-            <div className="p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-12 h-12 bg-purple-50 dark:bg-purple-900/20 rounded-xl flex items-center justify-center">
-                  <Clock className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+          <GlassCard className="hover:shadow-md transition-all duration-200">
+            <div className="p-3.5">
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-10 h-10 bg-purple-50 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
+                  <Clock className="w-5 h-5 text-purple-600 dark:text-purple-400" />
                 </div>
                 <div className="text-right">
-                  <p className="text-2xl font-bold text-slate-800 dark:text-white">
+                  <p className="text-xl font-bold text-slate-800 dark:text-white">
                     {currentAgent.stats.avgResponseTime}s
                   </p>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
                     Avg Response
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-1">
                 {currentAgent.stats.avgResponseTime > 0 ? (
-                  <>
-                    <span className="text-sm font-medium text-green-600 dark:text-green-400">
-                      -0.3s
-                    </span>
-                    <span className="text-xs text-slate-500 dark:text-slate-500">
-                      faster
-                    </span>
-                  </>
+                  <span className="text-xs text-slate-500 dark:text-slate-500">
+                    No data
+                  </span>
                 ) : (
                   <span className="text-xs text-slate-500 dark:text-slate-500">
                     No data yet
@@ -5110,31 +5166,26 @@ const AgentManagement = () => {
             </div>
           </GlassCard>
 
-          <GlassCard className="hover:shadow-lg transition-all duration-300">
-            <div className="p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-12 h-12 bg-orange-50 dark:bg-orange-900/20 rounded-xl flex items-center justify-center">
-                  <Users className="w-6 h-6 text-orange-600 dark:text-orange-400" />
+          <GlassCard className="hover:shadow-md transition-all duration-200">
+            <div className="p-3.5">
+              <div className="flex items-center justify-between mb-2">
+                <div className="w-10 h-10 bg-orange-50 dark:bg-orange-900/20 rounded-lg flex items-center justify-center">
+                  <Users className="w-5 h-5 text-orange-600 dark:text-orange-400" />
                 </div>
                 <div className="text-right">
-                  <p className="text-2xl font-bold text-slate-800 dark:text-white">
+                  <p className="text-xl font-bold text-slate-800 dark:text-white">
                     {currentAgent.stats.activeUsers}
                   </p>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
                     Active Users
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-1">
                 {currentAgent.stats.activeUsers > 0 ? (
-                  <>
-                    <span className="text-sm font-medium text-green-600 dark:text-green-400">
-                      +8%
-                    </span>
-                    <span className="text-xs text-slate-500 dark:text-slate-500">
-                      today
-                    </span>
-                  </>
+                  <span className="text-xs text-slate-500 dark:text-slate-500">
+                    No data
+                  </span>
                 ) : (
                   <span className="text-xs text-slate-500 dark:text-slate-500">
                     No data yet
@@ -5143,91 +5194,6 @@ const AgentManagement = () => {
               </div>
             </div>
           </GlassCard>
-        </div>
-
-        {/* Enhanced Content Grid - Mobile Responsive */}
-        <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:gap-6">
-          {/* Agent Configuration - Mobile Optimized */}
-          <div className="order-1 lg:order-1">
-            <GlassCard>
-              <div className="p-2 sm:p-3">
-                <div className="flex flex-row sm:items-center sm:justify-between gap-2 mb-2">
-                  <div className="flex items-center gap-1.5 sm:gap-2">
-                    <div className="w-5 h-5 sm:w-6 sm:h-6 bg-slate-50 dark:bg-slate-800 rounded-lg flex items-center justify-center">
-                      <Settings className="w-3 h-3 text-slate-600 dark:text-slate-400" />
-                    </div>
-                    <h3 className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-white">
-                      Configuration
-                    </h3>
-                  </div>
-
-                  {/* Test Button - Only show when agent is published */}
-                  {(currentAgent.status === "Published" ||
-                    (currentAgent as any).is_active) && (
-                    <button
-                      onClick={() => setShowTestChat(true)}
-                      className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:py-2 border border-1 dark:bg-green-900/20 text-black dark:text-green-300 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-all duration-200 text-xs sm:text-sm font-medium shadow-sm hover:shadow-md self-start"
-                    >
-                      <Play className="w-3 h-3 sm:w-4 sm:h-4" />
-                      <span>Test</span>
-                    </button>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  {/* Row 1 */}
-                  <div className="p-2 bg-slate-50 border dark:bg-slate-800/50 rounded-lg">
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <Globe className="w-3 h-3 text-blue-600 dark:text-blue-400" />
-                      <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                        Language
-                      </span>
-                    </div>
-                    <p className="text-sm font-semibold text-slate-800 dark:text-white">
-                      {currentAgent.language}
-                    </p>
-                  </div>
-
-                  <div className="p-2 bg-slate-50 border dark:bg-slate-800/50 rounded-lg">
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <MessageSquare className="w-3 h-3 text-purple-600 dark:text-purple-400" />
-                      <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                        Voice
-                      </span>
-                    </div>
-                    <p className="text-sm font-semibold text-slate-800 dark:text-white">
-                      {currentAgent.voice}
-                    </p>
-                  </div>
-
-                  {/* Row 2 */}
-                  <div className="p-2 bg-slate-50 border dark:bg-slate-800/50 rounded-lg">
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <Users className="w-3 h-3 text-green-600 dark:text-green-400" />
-                      <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                        Persona
-                      </span>
-                    </div>
-                    <p className="text-sm font-semibold text-slate-800 dark:text-white">
-                      {currentAgent.persona}
-                    </p>
-                  </div>
-
-                  <div className="p-2 bg-slate-50 border dark:bg-slate-800/50 rounded-lg">
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <Clock className="w-3 h-3 text-orange-600 dark:text-orange-400" />
-                      <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                        Created
-                      </span>
-                    </div>
-                    <p className="text-sm font-semibold text-slate-800 dark:text-white">
-                      {new Date(currentAgent.createdAt).toLocaleDateString()}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </GlassCard>
-          </div>
         </div>
 
         {/* Widget Customization Section - Only show when agent is published */}
@@ -5337,32 +5303,32 @@ const AgentManagement = () => {
           {/* Desktop: Horizontal Grid */}
           <div className="hidden lg:block">
             <GlassCard>
-              <div className="p-3 sm:p-4 lg:p-6">
-                <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-                  <div className="w-6 h-6 sm:w-8 sm:h-8 bg-slate-50 dark:bg-slate-800 rounded-lg sm:rounded-xl flex items-center justify-center">
-                    <Zap className="w-3 h-3 sm:w-4 sm:h-4 text-slate-600 dark:text-slate-400" />
+              <div className="p-4 lg:p-5">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-8 h-8 bg-slate-50 dark:bg-slate-800 rounded-lg flex items-center justify-center">
+                    <Zap className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                   </div>
-                  <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-slate-800 dark:text-white">
+                  <h3 className="text-base font-semibold text-slate-800 dark:text-white">
                     Quick Actions
                   </h3>
                 </div>
 
-                <div className="grid grid-cols-2 lg:grid-cols-2 gap-2 sm:gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   <button
                     onClick={() => navigate(`/agents/${currentAgent.id}/train`, {
                       state: { from: "list" },
                     })}
-                    className="common-bg-icons hover:shadow-md transition-all duration-200 p-3 sm:p-4 rounded-lg touch-manipulation group"
+                    className="common-bg-icons hover:shadow-md transition-all duration-200 p-4 rounded-lg touch-manipulation group"
                   >
-                    <div className="flex flex-col items-center gap-2 sm:gap-3">
-                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <Lightbulb className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400" />
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <Lightbulb className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                       </div>
                       <div className="text-center">
-                        <p className="text-sm sm:text-base font-medium text-slate-800 dark:text-white">
+                        <p className="text-sm font-semibold text-slate-800 dark:text-white">
                           Train Agent
                         </p>
-                        <p className="text-xs text-slate-600 dark:text-slate-400">
+                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
                           Improve responses
                         </p>
                       </div>
@@ -5372,16 +5338,16 @@ const AgentManagement = () => {
                
 
                 
-                  <button className="common-bg-icons hover:shadow-md transition-all duration-200 p-3 sm:p-4 rounded-lg touch-manipulation group">
-                    <div className="flex flex-col items-center gap-2 sm:gap-3">
-                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-purple-50 dark:bg-purple-900/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <Download className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
+                  <button className="common-bg-icons hover:shadow-md transition-all duration-200 p-4 rounded-lg touch-manipulation group">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-10 h-10 bg-purple-50 dark:bg-purple-900/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <Download className="w-5 h-5 text-purple-600 dark:text-purple-400" />
                       </div>
                       <div className="text-center">
-                        <p className="text-sm sm:text-base font-medium text-slate-800 dark:text-white">
+                        <p className="text-sm font-semibold text-slate-800 dark:text-white">
                           Export Data
                         </p>
-                        <p className="text-xs text-slate-600 dark:text-slate-400">
+                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
                           Download config
                         </p>
                       </div>
@@ -5723,6 +5689,96 @@ const AgentManagement = () => {
               </div>
             </div>
           )}
+
+        {/* Publish Confirmation Modal */}
+        {showPublishConfirm && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-xl border border-slate-200 dark:border-slate-700">
+              <div className="p-6">
+                <div className="flex items-center justify-center w-12 h-12 bg-blue-100 dark:bg-blue-900/20 rounded-full mx-auto mb-4">
+                  <UploadCloud className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                </div>
+                <h3 className="text-xl font-semibold text-slate-800 dark:text-white text-center mb-2">
+                  Publish Agent?
+                </h3>
+                <p className="text-sm text-slate-600 dark:text-slate-400 text-center mb-6">
+                  Are you sure you want to publish this agent? It will become available to users.
+                </p>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handlePublishCancel}
+                    disabled={isPublishing}
+                    className="flex-1 h-11 px-4 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handlePublishConfirm}
+                    disabled={isPublishing}
+                    className="flex-1 h-11 px-4 rounded-xl transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 common-button-bg"
+                  >
+                    {isPublishing ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                        <span>Publishing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <UploadCloud className="w-4 h-4" />
+                        <span>Publish</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Pause Confirmation Modal */}
+        {showPauseConfirm && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-xl border border-slate-200 dark:border-slate-700">
+              <div className="p-6">
+                <div className="flex items-center justify-center w-12 h-12 bg-amber-100 dark:bg-amber-900/20 rounded-full mx-auto mb-4">
+                  <PauseCircle className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+                </div>
+                <h3 className="text-xl font-semibold text-slate-800 dark:text-white text-center mb-2">
+                  Pause Agent?
+                </h3>
+                <p className="text-sm text-slate-600 dark:text-slate-400 text-center mb-6">
+                  Are you sure you want to pause this agent? It will no longer be available to users.
+                </p>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handlePauseCancel}
+                    disabled={isPausing}
+                    className="flex-1 h-11 px-4 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handlePauseConfirm}
+                    disabled={isPausing}
+                    className="flex-1 h-11 px-4 rounded-xl transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 common-button-bg2"
+                  >
+                    {isPausing ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-slate-400 dark:border-slate-300 border-t-slate-700 dark:border-t-slate-100"></div>
+                        <span>Pausing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <PauseCircle className="w-4 h-4" />
+                        <span>Pause</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

@@ -708,7 +708,7 @@
           latencyMetrics.userSpeechEndTime = null;
         }
       } else if (
-        average <= SPEECH_THRESHOLD &&
+        audioLevel <= SPEECH_THRESHOLD &&
         latencyMetrics.isAgentSpeaking
       ) {
         latencyMetrics.isAgentSpeaking = false;
@@ -3873,6 +3873,28 @@
       caller: new Error().stack.split("\n")[2],
     });
 
+    // CRITICAL: Prevent duplicate messages
+    if (!text || text.trim().length === 0) {
+      console.log("🚫 Skipping empty message");
+      return null;
+    }
+
+    // Check for duplicate messages from the same role in the last 2 seconds
+    const now = Date.now();
+    const recentMessages = Array.from(messagesDiv.querySelectorAll('.message')).slice(-5);
+    
+    for (const msgEl of recentMessages) {
+      const msgText = msgEl.querySelector('.message-text')?.textContent?.trim();
+      const msgRole = msgEl.classList.contains('user') ? 'user' : 'assistant';
+      const msgTime = msgEl.dataset.timestamp ? parseInt(msgEl.dataset.timestamp) : 0;
+      
+      // Skip if same role and same text within 2 seconds
+      if (msgRole === role && msgText === text.trim() && (now - msgTime) < 2000) {
+        console.log("🚫 Skipping duplicate message:", text.substring(0, 50));
+        return msgEl; // Return existing message instead
+      }
+    }
+
     // Stop connecting sound when assistant speaks
     if (role === "assistant") {
       stopConnectingSound();
@@ -3890,6 +3912,8 @@
     }
     const messageDiv = document.createElement("div");
     messageDiv.className = `message ${role}`;
+    messageDiv.dataset.timestamp = Date.now().toString(); // Add timestamp for duplicate detection
+    
     const labelDiv = document.createElement("div");
     labelDiv.className = "message-label";
     labelDiv.textContent = role === "user" ? "You" : "AI Employee";
@@ -4906,17 +4930,16 @@
                   if (jsonData.role === "user") {
                     // Allow voice transcripts for user, but skip chat messages
                     if (jsonData.type !== "chat") {
-                      // Always create new message for final transcripts, update only for interim
-                      if (jsonData.is_final === false || jsonData.interim === true) {
-                        // Interim transcript - update existing or create new
-                        if (!lastUserMessageDiv) {
-                          lastUserMessageDiv = addMessage("user", jsonData.text);
-                        } else {
-                          updateMessage(lastUserMessageDiv, jsonData.text);
+                      // Only process final transcripts to prevent duplicates
+                      if (jsonData.is_final === true || jsonData.interim === false) {
+                        // Final transcript only - prevents loops
+                        const newMsg = addMessage("user", jsonData.text);
+                        if (newMsg) {
+                          lastUserMessageDiv = newMsg;
                         }
                       } else {
-                        // Final transcript - always create new message
-                        lastUserMessageDiv = addMessage("user", jsonData.text);
+                        // Skip interim transcripts to prevent message loops
+                        console.log("🚫 Skipping interim user transcript to prevent loops");
                       }
                     } else {
                       console.log(
@@ -4924,6 +4947,7 @@
                       );
                     }
                   } else if (jsonData.role === "assistant") {
+                    // Only add if not a duplicate
                     addMessage("assistant", jsonData.text);
                     
                     // Track first assistant response
@@ -4949,34 +4973,39 @@
 
                 if (shouldAddToChat) {
                   const senderRole = isUser ? "user" : "assistant";
-                  // Skip typed messages (they have source: 'typed') but allow voice transcripts
+                  // Skip typed messages and interim transcripts
+                  const isInterim = jsonData.is_final === false || jsonData.interim === true;
+                  
                   if (
                     !isUser ||
-                    (isUser && jsonData.type !== "chat") ||
-                    (isUser && jsonData.source !== "typed")
+                    (isUser && jsonData.type !== "chat" && !isInterim && jsonData.source !== "typed")
                   ) {
-                    addMessage(senderRole, transcriptText);
-                    console.log("✅ Added JSON transcript:", {
-                      role: senderRole,
-                      text: transcriptText.substring(0, 50) + "...",
-                    });
-                    
-                    // Track first assistant response
-                    if (!isUser && !firstResponseReceived) {
-                      console.log("✅ First AI response received");
-                      firstResponseReceived = true;
+                    const added = addMessage(senderRole, transcriptText);
+                    if (added) {
+                      console.log("✅ Added JSON transcript:", {
+                        role: senderRole,
+                        text: transcriptText.substring(0, 50) + "...",
+                      });
                       
-                      // Start call timer and stop loading if knowledge base is ready
-                      if (knowledgeBaseReady && !callTimerStarted) {
-                        console.log("⏱️ Starting call timer (knowledge base ready + first response received)");
-                        updateStatus("✅ Connected - Speak now!", "connected");
-                        stopConnectingSound();
-                        clearLoadingStatus();
-                        hideConnectingState();
-                        startCallTimer();
-                        callTimerStarted = true;
+                      // Track first assistant response
+                      if (!isUser && !firstResponseReceived) {
+                        console.log("✅ First AI response received");
+                        firstResponseReceived = true;
+                        
+                        // Start call timer and stop loading if knowledge base is ready
+                        if (knowledgeBaseReady && !callTimerStarted) {
+                          console.log("⏱️ Starting call timer (knowledge base ready + first response received)");
+                          updateStatus("✅ Connected - Speak now!", "connected");
+                          stopConnectingSound();
+                          clearLoadingStatus();
+                          hideConnectingState();
+                          startCallTimer();
+                          callTimerStarted = true;
+                        }
                       }
                     }
+                  } else if (isInterim) {
+                    console.log("🚫 Skipping interim transcript to prevent loops");
                   }
                 }
               } catch (e) {
@@ -4991,12 +5020,14 @@
                     participant.identity === room.localParticipant?.identity;
                   const senderRole = isUser ? "user" : "assistant";
 
-                  // Add all transcripts (both user voice and assistant)
-                  addMessage(senderRole, transcriptText);
-                  console.log("✅ Added plain text transcript:", {
-                    role: senderRole,
-                    text: transcriptText.substring(0, 50) + "...",
-                  });
+                  // Add transcripts with duplicate prevention
+                  const added = addMessage(senderRole, transcriptText);
+                  if (added) {
+                    console.log("✅ Added plain text transcript:", {
+                      role: senderRole,
+                      text: transcriptText.substring(0, 50) + "...",
+                    });
+                  }
                   
                   // Track first assistant response
                   if (!isUser && !firstResponseReceived) {
@@ -5099,13 +5130,19 @@
                     }
                   }
 
-                  // Add transcriptions
-                  addMessage(senderName, text);
-                  console.log("✅ Transcription added:", {
-                    sender: senderName,
-                    text,
-                    isFinal,
-                  });
+                  // Add final transcriptions only (skip interim to prevent loops)
+                  if (isFinal) {
+                    const added = addMessage(senderName, text);
+                    if (added) {
+                      console.log("✅ Transcription added:", {
+                        sender: senderName,
+                        text,
+                        isFinal,
+                      });
+                    }
+                  } else {
+                    console.log("🚫 Skipping interim transcription to prevent loops");
+                  }
                 }
               } catch (error) {
                 console.error(
