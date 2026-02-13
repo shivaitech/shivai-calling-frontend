@@ -64,6 +64,22 @@ export interface ApiAgent {
   greeting_message?: {
     [key: string]: string;
   };
+  template?: {
+    name: string;
+    description: string;
+    icon: string;
+    features: string[];
+    systemPrompt?: string;
+    firstMessage?: string;
+    openingScript?: string;
+    keyTalkingPoints?: string;
+    closingScript?: string;
+    objections?: Array<{ objection: string; response: string }>;
+    conversationExamples?: Array<{
+      customerInput: string;
+      expectedResponse: string;
+    }>;
+  };
 
   stats?: {
     conversations: number;
@@ -115,6 +131,7 @@ interface UpdateAgentRequest {
   gender?: string;
   business_process?: string;
   industry?: string;
+  sub_industry?: string;
   custom_instructions?: string;
   guardrails_level?: string;
   response_style?: string;
@@ -122,6 +139,22 @@ interface UpdateAgentRequest {
   context_window?: string;
   temperature?: number;
   status?: "Pending" | "Published";
+  template?: {
+    name: string;
+    description: string;
+    icon: string;
+    features: string[];
+    systemPrompt?: string;
+    firstMessage?: string;
+    openingScript?: string;
+    keyTalkingPoints?: string;
+    closingScript?: string;
+    objections?: Array<{ objection: string; response: string }>;
+    conversationExamples?: Array<{
+      customerInput: string;
+      expectedResponse: string;
+    }>;
+  };
 }
 
 export interface PublicationRequest {

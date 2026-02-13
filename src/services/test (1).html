@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>WebSocket Debug Test</title>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <style>
+    body { 
+      font-family: monospace; 
+      padding: 20px; 
+      background: #1e1e1e;
+      color: #00ff00;
+    }
+    .message { 
+      padding: 10px; 
+      margin: 5px 0; 
+      background: #2d2d2d;
+      border-left: 3px solid #00ff00;
+      font-size: 12px;
+    }
+    .status {
+      padding: 15px;
+      margin: 10px 0;
+      background: #333;
+      border-radius: 4px;
+      font-size: 18px;
+    }
+    .connected { color: #00ff00; }
+    .disconnected { color: #ff0000; }
+    button {
+      background: #00ff00;
+      color: #000;
+      border: none;
+      padding: 10px 20px;
+      cursor: pointer;
+      margin: 5px;
+      border-radius: 4px;
+    }
+    .debug {
+      background: #1a1a1a;
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+      font-size: 12px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    .important {
+      background: #4a4a00;
+      color: #ffff00;
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔌 WebSocket Debug Test</h1>
+  
+  <div class="important">
+    <strong>⚠️ Important:</strong> User ID is <code>69429333b7361511891f8850</code><br>
+    Make sure agent is created with this user's token!
+  </div>
+
+  <div class="status">
+    Status: <span id="status" class="disconnected">Not Connected</span>
+  </div>
+
+  <button onclick="reconnect()">Reconnect</button>
+  <button onclick="joinRoom()">Join User Room</button>
+  <button onclick="testEmit()">Test Emit</button>
+  <button onclick="clearMessages()">Clear Messages</button>
+
+  <h2>Debug Log:</h2>
+  <div class="debug" id="debug"></div>
+
+  <h2>Messages (KB Progress):</h2>
+  <div id="messages"></div>
+
+  <script>
+    const userId = '69429333b7361511891f8850';
+    let socket = null;
+
+    const statusEl = document.getElementById('status');
+    const messagesEl = document.getElementById('messages');
+    const debugEl = document.getElementById('debug');
+
+    function addDebug(msg) {
+      const timestamp = new Date().toLocaleTimeString();
+      const div = document.createElement('div');
+      div.innerHTML = `[${timestamp}] ${msg}`;
+      debugEl.insertBefore(div, debugEl.firstChild);
+      console.log(`[${timestamp}] ${msg}`);
+    }
+
+    function connect() {
+      addDebug('🔄 Connecting to https://nodejs.service.callshivai.com');
+      
+      socket = io('https://nodejs.service.callshivai.com', {
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+        timeout: 10000
+      });
+
+      // Listen to ALL events for debugging
+      socket.onAny((eventName, ...args) => {
+        addDebug(`📥 EVENT RECEIVED: "${eventName}" with data: ${JSON.stringify(args)}`);
+      });
+
+      socket.on('connect', () => {
+        statusEl.textContent = `Connected (${socket.id})`;
+        statusEl.className = 'connected';
+        addDebug(`✅ Connected with ID: ${socket.id}`);
+        
+        // Auto-join room on connect
+        setTimeout(() => {
+          joinRoom();
+        }, 500);
+      });
+
+      socket.on('disconnect', (reason) => {
+        statusEl.textContent = `Disconnected (${reason})`;
+        statusEl.className = 'disconnected';
+        addDebug(`❌ Disconnected: ${reason}`);
+      });
+
+      socket.on('connect_error', (error) => {
+        statusEl.textContent = 'Connection Error';
+        statusEl.className = 'disconnected';
+        addDebug(`❌ Connection error: ${error.message}`);
+      });
+
+      // Explicitly listen for kb-progress
+      socket.on('kb-progress', (data) => {
+        addDebug(`📡 KB-PROGRESS received: ${JSON.stringify(data)}`);
+        
+        const progressMsg = `
+          <strong>Agent ID:</strong> ${data.agentId}<br>
+          <strong>Status:</strong> ${data.status}<br>
+          <strong>Progress:</strong> ${data.progress}%<br>
+          <strong>Message:</strong> ${data.message}<br>
+          ${data.chunks_processed ? `<strong>Chunks:</strong> ${data.chunks_processed}<br>` : ''}
+          ${data.vectors_stored ? `<strong>Vectors:</strong> ${data.vectors_stored}<br>` : ''}
+          ${data.error ? `<strong style="color: red;">Error:</strong> ${data.error}<br>` : ''}
+          <strong>Time:</strong> ${new Date(data.timestamp).toLocaleTimeString()}
+        `;
+        
+        addMessage(progressMsg);
+      });
+    }
+
+    function reconnect() {
+      if (socket) {
+        socket.disconnect();
+      }
+      debugEl.innerHTML = '';
+      messagesEl.innerHTML = '';
+      setTimeout(() => connect(), 500);
+    }
+
+    function joinRoom() {
+      if (!socket || !socket.connected) {
+        addDebug('⚠️ Cannot join room - not connected!');
+        alert('Not connected! Click Reconnect first.');
+        return;
+      }
+      
+      addDebug(`📤 Emitting: join-user-room with userId: ${userId}`);
+      socket.emit('join-user-room', userId);
+      addDebug(`✅ Emit sent successfully`);
+    }
+
+    function testEmit() {
+      if (!socket || !socket.connected) {
+        alert('Not connected!');
+        return;
+      }
+      addDebug('🧪 Test emit sent');
+      socket.emit('test-event', { test: 'data' });
+    }
+
+    function addMessage(html) {
+      const div = document.createElement('div');
+      div.className = 'message';
+      div.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong><br>` + html;
+      messagesEl.insertBefore(div, messagesEl.firstChild);
+    }
+
+    function clearMessages() {
+      messagesEl.innerHTML = '';
+    }
+
+    // Auto-connect on load
+    connect();
+  </script>
+</body>
+</html>

@@ -34,6 +34,7 @@ import {
   LiveKitCallbacks,
 } from "../../services/liveKitService";
 import { agentAPI } from "../../services/agentAPI";
+import { knowledgeBaseSocket, KnowledgeBaseProgress } from "../../services/knowledgeBaseSocket";
 import {
   Bot,
   ArrowLeft,
@@ -488,7 +489,7 @@ const AgentManagement = () => {
     const progressInterval = setInterval(() => {
       setGenerationProgress((prev) => {
         if (prev >= 90) return prev;
-        return prev + Math.random() * 15;
+        return Math.min(90, prev + Math.random() * 15);
       });
     }, 400);
 
@@ -540,6 +541,11 @@ const AgentManagement = () => {
   };
 
   const handleQuickCreateClose = () => {
+    // Don't allow closing while creating agent
+    if (isCreatingAgent) {
+      return;
+    }
+    
     setShowQuickCreateModal(false);
     setQuickCreateStep(1);
     setBusinessProcessSlideIndex(0);
@@ -548,6 +554,8 @@ const AgentManagement = () => {
     setTemplateSlideIndex(0);
     setAIGeneratedTemplates([]);
     setTemplateGenerationError(null);
+    setIsCreatingAgent(false);
+    setKbCreationProgress(null);
     setQuickCreateData({
       companyName: "",
       aiEmployeeName: "",
@@ -568,7 +576,6 @@ const AgentManagement = () => {
 
     setIsUploadingFiles(true);
     try {
-      // Add files to the UI immediately for user feedback
       setQuickCreateData((prev) => ({
         ...prev,
         uploadedFiles: [...prev.uploadedFiles, ...files],
@@ -591,7 +598,6 @@ const AgentManagement = () => {
     } catch (error) {
       console.error("❌ Error uploading knowledge base files:", error);
       toast.error("Failed to upload files. Please try again.");
-      // Remove the files from UI if upload failed
       setQuickCreateData((prev) => ({
         ...prev,
         uploadedFiles: prev.uploadedFiles.filter(
@@ -691,7 +697,16 @@ const AgentManagement = () => {
     }
 
     // If template IS selected, create agent directly via API
-    const loadingToast = toast.loading("Creating agent...");
+    console.log('🚀 [CREATE] Starting agent creation...');
+    setIsCreatingAgent(true);
+    console.log('🚀 [CREATE] isCreatingAgent set to TRUE');
+    setKbCreationProgress({
+      agentId: '',
+      status: 'pending',
+      progress: 0,
+      message: 'Creating agent...',
+    });
+    console.log('🚀 [CREATE] Initial KB progress set');
 
     try {
       console.log(
@@ -779,30 +794,28 @@ const AgentManagement = () => {
       // Call the agent creation API
       const newAgent = await agentAPI.createAgent(agentPayload);
 
-      console.log("✅ Agent created successfully:", newAgent);
+      console.log('✅ Agent created successfully:', newAgent);
+      console.log('✅ New Agent ID:', newAgent?.id);
 
-      // Dismiss loading toast
-      toast.dismiss(loadingToast);
+      // Update progress to show agent created
+      console.log('✅ [CREATE] Agent created, updating progress...');
+      setKbCreationProgress({
+        agentId: newAgent?.id || '',
+        status: 'processing',
+        progress: 0,
+        message: 'Agent created! Setting up knowledge base...',
+      });
+      console.log('✅ [CREATE] Progress updated to processing');
 
-      // Close the modal and refresh agents
-      handleQuickCreateClose();
-      await refreshAgents();
-
-      // Show success toast notification
-      toast.success(
-        `✅ ${quickCreateData.aiEmployeeName} has been created successfully!`,
-        {
-          duration: 3000,
-        },
-      );
-
-      // Navigate back to agents list
-      navigate("/agents");
+      // KB progress is tracked via global callback set in useEffect
+      // Just wait - the callback will update state and close modal when done
+      
+      console.log('✅ Agent creation complete, waiting for KB progress via WebSocket...');
     } catch (error) {
       console.error("❌ Error creating agent:", error);
 
-      // Dismiss loading toast
-      toast.dismiss(loadingToast);
+      setIsCreatingAgent(false);
+      setKbCreationProgress(null);
 
       // Show error toast
       const errorMessage =
@@ -840,6 +853,8 @@ const AgentManagement = () => {
   const [publishingAgents, setPublishingAgents] = useState<Set<string>>(
     new Set(),
   );
+  const [isCreatingAgent, setIsCreatingAgent] = useState(false);
+  const [kbCreationProgress, setKbCreationProgress] = useState<KnowledgeBaseProgress | null>(null);
   const [connectionStatus, setConnectionStatus] = useState("disconnected");
   const [statusMessage, setStatusMessage] = useState("Ready to connect");
   const [isMuted, setIsMuted] = useState(false);
@@ -900,7 +915,7 @@ const AgentManagement = () => {
       },
     };
 
-    liveKitService.setCallbacks(callbacks);
+      liveKitService.setCallbacks(callbacks);
 
     // Cleanup on unmount
     return () => {
@@ -910,6 +925,88 @@ const AgentManagement = () => {
       }
     };
   }, [callTimerInterval]);
+
+  // Connect to WebSocket for knowledge base tracking
+  useEffect(() => {
+    const connectSocket = async () => {
+      if (user?.id) {
+        console.log('🔌 [KB Socket] Attempting to connect with userId:', user.id);
+        try {
+          await knowledgeBaseSocket.connect(user.id);
+          console.log('✅ [KB Socket] Connection completed for user:', user.id);
+        } catch (error) {
+          console.error('❌ [KB Socket] Failed to connect:', error);
+        }
+      }
+    };
+
+    // Connect immediately if user is available
+    if (user?.id) {
+      connectSocket();
+    }
+
+    return () => {
+      knowledgeBaseSocket.clearCallback();
+    };
+  }, [user?.id]);
+
+  // Set up global KB progress callback when creating agent
+  useEffect(() => {
+    if (isCreatingAgent) {
+      console.log('📡 Setting up KB progress listener...');
+      const agentName = quickCreateData.aiEmployeeName;
+      
+      knowledgeBaseSocket.onProgress((progress) => {
+        console.log('📊 KB Progress:', progress.status, progress.progress, '%', progress.message);
+        
+        // Update progress state
+        setKbCreationProgress(progress);
+        
+        if (progress.status === 'completed') {
+          console.log('🏁 KB creation completed!');
+          
+          // Refresh agents and close modal
+          refreshAgents();
+          
+          setTimeout(() => {
+            setIsCreatingAgent(false);
+            setKbCreationProgress(null);
+            setShowQuickCreateModal(false);
+            setQuickCreateStep(1);
+            setAIGeneratedTemplates([]);
+            setQuickCreateData({
+              companyName: "",
+              aiEmployeeName: "",
+              businessProcess: "",
+              industry: "",
+              subIndustry: "",
+              websiteUrls: [""],
+              socialMediaUrls: [""],
+              uploadedFiles: [],
+              uploadedFileUrls: [],
+              selectedTemplate: null,
+            });
+            
+            toast.success(`✅ ${agentName} has been created successfully!`, { duration: 3000 });
+            setSortBy("newest");
+            navigate("/agents?page=1");
+          }, 500);
+        } else if (progress.status === 'failed') {
+          console.error('❌ KB creation failed:', progress.error);
+          
+          setIsCreatingAgent(false);
+          setKbCreationProgress(null);
+          setShowQuickCreateModal(false);
+          
+          toast.error(progress.error || 'Knowledge base creation failed.', { duration: 5000 });
+          refreshAgents();
+          navigate("/agents?page=1");
+        }
+      });
+    } else {
+      knowledgeBaseSocket.clearCallback();
+    }
+  }, [isCreatingAgent]);
 
   // Blur any focused element when Quick Create modal opens to prevent keyboard auto-open on mobile
   useEffect(() => {
@@ -2218,10 +2315,14 @@ const AgentManagement = () => {
 
         {/* Mobile-First Agent Grid */}
         {!isLoadingAgents && paginatedAgents.length > 0 && (
+          <>
+            {console.log('🎨 [Render] Rendering', paginatedAgents.length, 'agents')}
+            {console.log('🎨 [Render] Paginated agent IDs:', paginatedAgents.map(a => a.id))}
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
-            {paginatedAgents.map((agent) => (
+            {paginatedAgents.map((agent) => {
+              return (
               <GlassCard key={agent.id} hover>
-                <div className="p-4 sm:p-5 lg:p-6">
+                <div className="p-4 sm:p-5 lg:p-6 relative">
                   {/* Agent Header - Mobile Optimized */}
                   <div className="flex items-start gap-3 mb-4">
                     <div className="w-10 sm:w-12 h-10 sm:h-12 common-bg-icons rounded-xl flex items-center justify-center flex-shrink-0">
@@ -2276,37 +2377,37 @@ const AgentManagement = () => {
 
                   {/* Primary Actions - Properly Aligned */}
                   <div className="flex items-center gap-2 mb-3">
-                    <button
-                      onClick={() => navigate(`/agents/${agent.id}`)}
-                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-all duration-200 text-sm font-medium active:scale-[0.98]"
-                    >
-                      <Eye className="w-4 h-4" />
-                      View
-                    </button>
+                        <button
+                          onClick={() => navigate(`/agents/${agent.id}`)}
+                          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-all duration-200 text-sm font-medium active:scale-[0.98]"
+                        >
+                          <Eye className="w-4 h-4" />
+                          View
+                        </button>
 
-                    <button
-                      onClick={() => navigate(`/agents/${agent.id}/edit`)}
-                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-all duration-200 text-sm font-medium active:scale-[0.98]"
-                    >
-                      <Edit className="w-4 h-4" />
-                      Edit
-                    </button>
+                        <button
+                          onClick={() => navigate(`/agents/${agent.id}/edit`)}
+                          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-all duration-200 text-sm font-medium active:scale-[0.98]"
+                        >
+                          <Edit className="w-4 h-4" />
+                          Edit
+                        </button>
 
-                    <button
-                      onClick={() =>
-                        navigate(`/agents/${agent.id}/train`, {
-                          state: { from: "list" },
-                        })
-                      }
-                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-all duration-200 text-sm font-medium active:scale-[0.98]"
-                    >
-                      <Zap className="w-4 h-4" />
-                      Train
-                    </button>
-                  </div>
+                        <button
+                          onClick={() =>
+                            navigate(`/agents/${agent.id}/train`, {
+                              state: { from: "list" },
+                            })
+                          }
+                          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-all duration-200 text-sm font-medium active:scale-[0.98]"
+                        >
+                          <Zap className="w-4 h-4" />
+                          Train
+                        </button>
+                      </div>
 
-                  {/* Secondary Actions */}
-                  <div className="flex items-center gap-2">
+                      {/* Secondary Actions */}
+                      <div className="flex items-center gap-2">
                     {agent.status === "Published" ? (
                       <button
                         onClick={() => handlePause(agent.id)}
@@ -2382,8 +2483,10 @@ const AgentManagement = () => {
                   </div>
                 </div>
               </GlassCard>
-            ))}
+              );
+            })}
           </div>
+          </>
         )}
 
         {/* Pagination */}
@@ -2416,10 +2519,10 @@ const AgentManagement = () => {
             {!searchTerm && genderFilter === "all" && isDeveloper && (
               <div className="space-y-3">
                 <button
-                  onClick={() => navigate("/agents/create")}
+                  onClick={() => setShowQuickCreateModal(true)}
                   className="w-full sm:w-auto common-button-bg px-6 py-3 rounded-xl shadow-sm hover:shadow-md transform hover:scale-[1.02] active:scale-[0.98]"
                 >
-                  Create Your First Agent
+                  Create your first AI Employee
                 </button>
                 <p className="text-xs sm:text-sm text-slate-400 dark:text-slate-500">
                   Get started in just 2 minutes ⚡
@@ -2787,13 +2890,13 @@ const AgentManagement = () => {
             <div
               className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4"
               onClick={(e) =>
-                e.target === e.currentTarget && handleQuickCreateClose()
+                e.target === e.currentTarget && !isCreatingAgent && handleQuickCreateClose()
               }
             >
               {/* Backdrop */}
               <div
                 className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-                onClick={handleQuickCreateClose}
+                onClick={() => !isCreatingAgent && handleQuickCreateClose()}
               />
 
               {/* Modal */}
@@ -2818,7 +2921,12 @@ const AgentManagement = () => {
                   </div>
                   <button
                     onClick={handleQuickCreateClose}
-                    className="p-1.5 sm:p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                    disabled={isCreatingAgent}
+                    className={`p-1.5 sm:p-2 rounded-lg transition-colors ${
+                      isCreatingAgent
+                        ? 'opacity-50 cursor-not-allowed'
+                        : 'hover:bg-slate-200 dark:hover:bg-slate-700'
+                    }`}
                   >
                     <X className="w-4 h-4 sm:w-5 sm:h-5 text-slate-500" />
                   </button>
@@ -4064,21 +4172,37 @@ const AgentManagement = () => {
                           onClick={handleProceedToCreate}
                           disabled={
                             isGeneratingTemplates ||
-                            !quickCreateData.selectedTemplate
+                            !quickCreateData.selectedTemplate ||
+                            isCreatingAgent
                           }
                           className={`flex items-center gap-1.5 sm:gap-2 px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl font-medium transition-all text-sm sm:text-base ${
                             isGeneratingTemplates ||
-                            !quickCreateData.selectedTemplate
+                            !quickCreateData.selectedTemplate ||
+                            isCreatingAgent
                               ? "bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed"
                               : "common-button-bg hover:scale-[1.02] active:scale-[0.98]"
                           }`}
                         >
-                          <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                          <span className="hidden sm:inline">
-                            Create AI Employee
-                          </span>
-                          <span className="sm:hidden">Create</span>
-                          <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          {isCreatingAgent ? (
+                            <>
+                              <svg className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" viewBox="0 0 24 24" fill="none">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              <span>
+                                {kbCreationProgress?.progress !== undefined ? `${Math.round(kbCreationProgress.progress)}%` : 'Creating...'}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                              <span className="hidden sm:inline">
+                                Create AI Employee
+                              </span>
+                              <span className="sm:hidden">Create</span>
+                              <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                            </>
+                          )}
                         </button>
                       )}
                     </div>
@@ -4969,7 +5093,7 @@ const AgentManagement = () => {
         </GlassCard>
 
         {/* Performance Overview - Mobile Slider */}
-        <div className="lg:hidden">
+        <div className="sm:hidden">
           <div className="flex gap-2 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-hide">
             {/* Conversations Card */}
             <GlassCard className="flex-shrink-0 w-32 snap-start">
@@ -5077,8 +5201,8 @@ const AgentManagement = () => {
           </div>
         </div>
 
-        {/* Desktop Grid View - Compact */}
-        <div className="hidden lg:grid grid-cols-4 gap-3">
+        {/* Tablet & Desktop Grid View - Compact */}
+        <div className="hidden sm:grid grid-cols-2 md:grid-cols-4 gap-3">
           <GlassCard className="hover:shadow-md transition-all duration-200">
             <div className="p-3.5">
               <div className="flex items-center justify-between mb-2">

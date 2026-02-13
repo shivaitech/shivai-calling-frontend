@@ -29,6 +29,9 @@ const EditAgent = () => {
     temperature: 0.7,
   });
 
+  const [templateData, setTemplateData] = useState<any>(null);
+  const [showTemplateEditor, setShowTemplateEditor] = useState(false);
+
   const [isLoadingAgent, setIsLoadingAgent] = useState(true);
 
   // Helper functions to map API values to form values
@@ -163,6 +166,12 @@ const EditAgent = () => {
           contextWindow: mapContextWindow(agentData.context_window),
           temperature: agentData.temperature !== undefined ? agentData.temperature : 0.7,
         });
+
+        // Load template data if available
+        if (agentData.template) {
+          setTemplateData(agentData.template);
+          setShowTemplateEditor(true);
+        }
       } catch (error) {
         console.error("Error fetching agent:", error);
         toast.error("Failed to load agent data");
@@ -492,6 +501,8 @@ const EditAgent = () => {
           max_response_length: maxResponseToApi(formData.maxResponseLength),
           context_window: contextWindowToApi(formData.contextWindow),
           temperature: formData.temperature,
+          // Include template data if available
+          template: templateData || undefined,
         };
 
         console.log('Sending update data:', updateData);
@@ -832,6 +843,224 @@ const EditAgent = () => {
                     Larger windows remember more conversation history
                   </p>
                 </div>
+
+                {/* Template Editor Toggle */}
+                {templateData && (
+                  <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
+                    <button
+                      type="button"
+                      onClick={() => setShowTemplateEditor(!showTemplateEditor)}
+                      className="flex items-center justify-between w-full px-4 py-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
+                    >
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                        <span className="text-sm font-medium text-purple-900 dark:text-purple-100">
+                          {showTemplateEditor ? 'Hide' : 'Edit'} Template Details
+                        </span>
+                      </div>
+                      <span className="text-xs text-purple-600 dark:text-purple-400">
+                        {templateData.name}
+                      </span>
+                    </button>
+                  </div>
+                )}
+
+                {/* Template Editor Expanded Section */}
+                {showTemplateEditor && templateData && (
+                  <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                    <div className="bg-purple-50 dark:bg-purple-900/10 p-4 rounded-lg border border-purple-200 dark:border-purple-800">
+                      <h3 className="text-sm font-semibold text-purple-900 dark:text-purple-100 mb-3 flex items-center gap-2">
+                        <Sparkles className="w-4 h-4" />
+                        Template Configuration
+                      </h3>
+
+                      {/* System Prompt */}
+                      <div className="mb-4">
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                          System Prompt
+                        </label>
+                        <textarea
+                          value={templateData.systemPrompt || ''}
+                          onChange={(e) =>
+                            setTemplateData({
+                              ...templateData,
+                              systemPrompt: e.target.value,
+                            })
+                          }
+                          placeholder="Define the agent's core behavior and role..."
+                          rows={4}
+                          className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/20 text-slate-800 dark:text-white text-sm resize-none"
+                        />
+                      </div>
+
+                      {/* First Message */}
+                      <div className="mb-4">
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                          First Message
+                        </label>
+                        <textarea
+                          value={templateData.firstMessage || ''}
+                          onChange={(e) =>
+                            setTemplateData({
+                              ...templateData,
+                              firstMessage: e.target.value,
+                            })
+                          }
+                          placeholder="Initial greeting message..."
+                          rows={2}
+                          className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/20 text-slate-800 dark:text-white text-sm resize-none"
+                        />
+                      </div>
+
+                      {/* Opening Script */}
+                      <div className="mb-4">
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                          Opening Script
+                        </label>
+                        <textarea
+                          value={templateData.openingScript || ''}
+                          onChange={(e) =>
+                            setTemplateData({
+                              ...templateData,
+                              openingScript: e.target.value,
+                            })
+                          }
+                          placeholder="How the agent should start conversations..."
+                          rows={3}
+                          className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/20 text-slate-800 dark:text-white text-sm resize-none"
+                        />
+                      </div>
+
+                      {/* Key Talking Points */}
+                      <div className="mb-4">
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                          Key Talking Points
+                        </label>
+                        <textarea
+                          value={templateData.keyTalkingPoints || ''}
+                          onChange={(e) =>
+                            setTemplateData({
+                              ...templateData,
+                              keyTalkingPoints: e.target.value,
+                            })
+                          }
+                          placeholder="Important topics to cover..."
+                          rows={4}
+                          className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/20 text-slate-800 dark:text-white text-sm resize-none"
+                        />
+                      </div>
+
+                      {/* Closing Script */}
+                      <div className="mb-4">
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                          Closing Script
+                        </label>
+                        <textarea
+                          value={templateData.closingScript || ''}
+                          onChange={(e) =>
+                            setTemplateData({
+                              ...templateData,
+                              closingScript: e.target.value,
+                            })
+                          }
+                          placeholder="How to end conversations professionally..."
+                          rows={3}
+                          className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/20 text-slate-800 dark:text-white text-sm resize-none"
+                        />
+                      </div>
+
+                      {/* Objections */}
+                      {templateData.objections && templateData.objections.length > 0 && (
+                        <div className="mb-4">
+                          <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-2">
+                            Objection Handling ({templateData.objections.length})
+                          </label>
+                          <div className="space-y-3 max-h-60 overflow-y-auto">
+                            {templateData.objections.map((obj: any, index: number) => (
+                              <div
+                                key={index}
+                                className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg"
+                              >
+                                <input
+                                  value={obj.objection}
+                                  onChange={(e) => {
+                                    const updated = [...templateData.objections];
+                                    updated[index].objection = e.target.value;
+                                    setTemplateData({
+                                      ...templateData,
+                                      objections: updated,
+                                    });
+                                  }}
+                                  placeholder="Objection..."
+                                  className="w-full px-2 py-1.5 mb-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded text-xs"
+                                />
+                                <textarea
+                                  value={obj.response}
+                                  onChange={(e) => {
+                                    const updated = [...templateData.objections];
+                                    updated[index].response = e.target.value;
+                                    setTemplateData({
+                                      ...templateData,
+                                      objections: updated,
+                                    });
+                                  }}
+                                  placeholder="Response..."
+                                  rows={2}
+                                  className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded text-xs resize-none"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Conversation Examples */}
+                      {templateData.conversationExamples && templateData.conversationExamples.length > 0 && (
+                        <div>
+                          <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-2">
+                            Conversation Examples ({templateData.conversationExamples.length})
+                          </label>
+                          <div className="space-y-3 max-h-60 overflow-y-auto">
+                            {templateData.conversationExamples.map((example: any, index: number) => (
+                              <div
+                                key={index}
+                                className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg"
+                              >
+                                <input
+                                  value={example.customerInput}
+                                  onChange={(e) => {
+                                    const updated = [...templateData.conversationExamples];
+                                    updated[index].customerInput = e.target.value;
+                                    setTemplateData({
+                                      ...templateData,
+                                      conversationExamples: updated,
+                                    });
+                                  }}
+                                  placeholder="Customer says..."
+                                  className="w-full px-2 py-1.5 mb-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded text-xs"
+                                />
+                                <textarea
+                                  value={example.expectedResponse}
+                                  onChange={(e) => {
+                                    const updated = [...templateData.conversationExamples];
+                                    updated[index].expectedResponse = e.target.value;
+                                    setTemplateData({
+                                      ...templateData,
+                                      conversationExamples: updated,
+                                    });
+                                  }}
+                                  placeholder="Agent responds..."
+                                  rows={2}
+                                  className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded text-xs resize-none"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </GlassCard>

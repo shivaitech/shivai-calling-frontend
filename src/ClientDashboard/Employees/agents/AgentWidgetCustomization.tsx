@@ -731,21 +731,8 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
               )}
             </h3>
 
-            {/* Tabs */}
-            <div className="flex gap-2 mb-6 border-b border-slate-200 dark:border-slate-700">
-              <button
-                onClick={() => setActiveTab("configure")}
-                className={`px-4 py-2 text-sm font-medium transition-colors ${
-                  activeTab === "configure"
-                    ? "text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400"
-                    : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
-                }`}
-              >
-                Configure
-              </button>
-
-              {/* Save Button in Header */}
-              <div className="ml-auto flex items-center gap-2">
+            {/* Save Button */}
+            <div className="flex justify-end gap-2 mb-6">
               
                 <button
                   onClick={saveWidgetConfig}
@@ -769,11 +756,10 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                     </>
                   )}
                 </button>
-              </div>
             </div>
 
-            {/* Customize Tab */}
-            {activeTab === "configure" && (
+            {/* Customization Content */}
+            <div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Customization Panel */}
                 <div className="space-y-6">
@@ -1227,7 +1213,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                   </div>
                 </div>
               </div>
-            )}
+            </div>
           </>
         )}
       </div>
