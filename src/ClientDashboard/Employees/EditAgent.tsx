@@ -886,7 +886,7 @@ const EditAgent = () => {
                           id="edit-knowledge-file-input"
                           type="file"
                           multiple
-                          accept=".pdf,.doc,.docx,.txt,.csv,.xlsx,.xls,.png,.jpg,.jpeg,.gif,.webp"
+                          accept=".pdf,.doc,.docx,.txt,.csv,.xlsx,.xls,.png,.jpg,.jpeg,.gif,.webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/png,image/jpeg,image/gif,image/webp"
                           className="hidden"
                           disabled={isUploadingFiles}
                           onChange={(e) => {
