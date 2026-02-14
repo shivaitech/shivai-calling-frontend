@@ -609,13 +609,11 @@
     function checkAudioLevel() {
       if (!isConnected || isMuted) return;
 
-      // CRITICAL: Don't update status until AI has responded (loading state finished)
       if (!hasReceivedFirstAIResponse) {
         requestAnimationFrame(checkAudioLevel);
         return;
       }
 
-      // CRITICAL: Don't detect user speech if AI is currently speaking OR just finished
       if (latencyMetrics.isAgentSpeaking || aiJustFinished) {
         requestAnimationFrame(checkAudioLevel);
         return;
@@ -623,7 +621,6 @@
 
       analyser.getByteFrequencyData(dataArray);
 
-      // Use RMS (Root Mean Square) for better low-level detection
       let sum = 0;
       for (let i = 0; i < bufferLength; i++) {
         sum += dataArray[i] * dataArray[i];
@@ -3863,30 +3860,10 @@
 
     if (message && room && isConnected) {
       try {
-        console.log("📤 Sending chat message:", message);
+        console.log("📤 Sending chat message via DataReceived channel:", message);
 
-        // Use proper LiveKit sendText method like test-client
-        if (typeof room.localParticipant.sendText === "function") {
-          console.log("Using sendText method with lk.chat topic");
-          room.localParticipant
-            .sendText(message, {
-              topic: "lk.chat",
-            })
-            .then((info) => {
-              console.log(
-                "✅ Chat sent with sendText, stream ID:",
-                info.streamId
-              );
-            })
-            .catch((error) => {
-              console.error("❌ sendText failed:", error);
-              // Fallback to publishData if sendText fails
-              fallbackSendChat(message);
-            });
-        } else {
-          console.log("sendText not available, using fallback publishData");
-          fallbackSendChat(message);
-        }
+        // Use publishData for all communication through DataReceived channel
+        sendViaDataChannel(message, "chat");
 
         // Add message to UI immediately (like test-client does)
         addMessage("user", message, { source: "typed" });
@@ -3906,27 +3883,41 @@
     }
   }
 
-  function fallbackSendChat(text) {
+  // Unified function to send all data through DataReceived channel
+  function sendViaDataChannel(content, type = "chat", metadata = {}) {
     try {
-      console.log("Using fallback publishData method");
-      const chatMessage = {
-        type: "chat",
-        text,
+      console.log(`📤 Sending ${type} via DataReceived channel:`, content);
+      const message = {
+        type: type,
+        text: typeof content === "string" ? content : undefined,
+        data: typeof content !== "string" ? content : undefined,
         timestamp: Date.now(),
         source: "typed",
+        ...metadata,
       };
       const encoder = new TextEncoder();
-      const data = encoder.encode(JSON.stringify(chatMessage));
+      const data = encoder.encode(JSON.stringify(message));
 
       room.localParticipant.publishData(data, {
         reliable: true,
         destinationIdentities: [], // send to all participants
       });
 
-      console.log("✅ Chat sent with publishData");
+      console.log(`✅ ${type} sent via DataReceived channel`);
+      return true;
     } catch (error) {
-      console.error("❌ publishData fallback failed:", error);
+      console.error(`❌ Failed to send ${type} via DataReceived:`, error);
+      return false;
     }
+  }
+
+  // Send document/file via DataReceived channel
+  function sendDocumentViaDataChannel(fileUrl, fileName, fileType) {
+    return sendViaDataChannel(null, "document", {
+      url: fileUrl,
+      title: fileName,
+      fileType: fileType,
+    });
   }
 
   async function startConversation() {
@@ -4832,138 +4823,9 @@
         }
       );
 
-      // CRITICAL: Register text stream handlers BEFORE connecting (exactly like test-client)
-      try {
-        if (typeof room.registerTextStreamHandler === "function") {
-          console.log("📝 Registering text stream handlers...");
-
-          room.registerTextStreamHandler(
-            "lk.transcription",
-            async (reader, participantInfo) => {
-              console.log(
-                "🎯 Transcription stream from:",
-                participantInfo.identity
-              );
-              try {
-                const info = reader.info;
-                console.log("Stream info:", {
-                  topic: info.topic,
-                  id: info.id,
-                  timestamp: info.timestamp,
-                  size: info.size,
-                  attributes: info.attributes,
-                });
-
-                // Check if this is a final transcription
-                const isFinal =
-                  info.attributes?.["lk.transcription_final"] === "true";
-                const transcribedTrackId =
-                  info.attributes?.["lk.transcribed_track_id"];
-                const segmentId = info.attributes?.["lk.segment_id"];
-
-                console.log("Transcription attributes:", {
-                  isFinal,
-                  transcribedTrackId,
-                  segmentId,
-                });
-
-                // Read the complete text
-                const text = await reader.readAll();
-
-                if (text && text.trim()) {
-                  const isUser =
-                    participantInfo.identity ===
-                    room.localParticipant?.identity;
-                  const senderName = isUser ? "user" : "assistant";
-
-                  // Prevent duplicate user messages by checking against last sent message
-                  if (
-                    isUser &&
-                    lastSentMessage &&
-                    text.trim() === lastSentMessage.trim()
-                  ) {
-                    console.log(
-                      "🚫 Skipping duplicate user message from transcription:",
-                      text
-                    );
-                    return;
-                  }
-
-                  // Also check for any recent user messages with typed source to prevent duplicates
-                  if (isUser) {
-                    const messagesContainer =
-                      document.getElementById("shivai-messages");
-                    const lastUserMessage = messagesContainer?.querySelector(
-                      ".message.user:last-of-type .message-text"
-                    );
-                    if (
-                      lastUserMessage &&
-                      lastUserMessage.textContent.trim() === text.trim()
-                    ) {
-                      console.log(
-                        "🚫 Skipping duplicate - same message already exists in UI:",
-                        text
-                      );
-                      return;
-                    }
-                  }
-
-                  // Add final transcriptions only (skip interim to prevent loops)
-                  if (isFinal) {
-                    const added = addMessage(senderName, text);
-                    if (added) {
-                      console.log("✅ Transcription added:", {
-                        sender: senderName,
-                        text,
-                        isFinal,
-                      });
-                    }
-                  } else {
-                    console.log("🚫 Skipping interim transcription to prevent loops");
-                  }
-                }
-              } catch (error) {
-                console.error(
-                  "❌ Error processing transcription stream:",
-                  error
-                );
-              }
-            }
-          );
-
-          // Handler for chat messages - THIS IS KEY FOR AI RESPONSES
-          room.registerTextStreamHandler(
-            "lk.chat",
-            async (reader, participantInfo) => {
-              console.log("💬 Chat stream from:", participantInfo.identity);
-              try {
-                const text = await reader.readAll();
-                const isUser =
-                  participantInfo.identity === room.localParticipant?.identity;
-
-                if (!isUser && text && text.trim()) {
-                  console.log("💬 AI Chat response received:", text);
-                  addMessage("assistant", text, { source: "chat" });
-                  console.log("💬 Chat message added:", {
-                    sender: participantInfo.identity,
-                    text,
-                  });
-                }
-              } catch (error) {
-                console.error("❌ Error processing chat stream:", error);
-              }
-            }
-          );
-
-          console.log("✅ Text stream handlers registered successfully");
-        } else {
-          console.warn(
-            "⚠️ registerTextStreamHandler not available, using fallback DataReceived"
-          );
-        }
-      } catch (error) {
-        console.error("❌ Error registering text stream handlers:", error);
-      }
+      // NOTE: Using only DataReceived channel for all transcripts (English translations from backend)
+      // lk.transcription and lk.chat streams are disabled - all communication goes through DataReceived
+      console.log("📝 Using DataReceived channel only for transcripts (English translations from backend)");
 
       // Connect to room
       // Final check before connecting to room

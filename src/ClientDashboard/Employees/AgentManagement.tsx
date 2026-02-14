@@ -2546,7 +2546,7 @@ const AgentManagement = () => {
         {/* Delete Confirmation Modal */}
         {showDeleteConfirm &&
           createPortal(
-            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+            <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
               <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-xl border border-slate-200 dark:border-slate-700">
                 <div className="p-6">
                   <div className="flex items-center justify-center w-12 h-12 bg-red-100 dark:bg-red-900/20 rounded-full mx-auto mb-4">
@@ -2594,7 +2594,7 @@ const AgentManagement = () => {
         {/* Publish Confirmation Modal */}
         {showPublishConfirm &&
           createPortal(
-            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+            <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
               <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-xl border border-slate-200 dark:border-slate-700">
                 <div className="p-6">
                   <div className="flex items-center justify-center w-12 h-12 bg-blue-100 dark:bg-blue-900/20 rounded-full mx-auto mb-4">
@@ -2641,7 +2641,7 @@ const AgentManagement = () => {
         {/* Pause Confirmation Modal */}
         {showPauseConfirm &&
           createPortal(
-            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+            <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
               <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-xl border border-slate-200 dark:border-slate-700">
                 <div className="p-6">
                   <div className="flex items-center justify-center w-12 h-12 bg-amber-100 dark:bg-amber-900/20 rounded-full mx-auto mb-4">
@@ -2688,7 +2688,7 @@ const AgentManagement = () => {
         {/* Integration Code Modal */}
         {showIntegrationCodeModal && agentForIntegration &&
           createPortal(
-            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-2 sm:p-4">
+            <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-2 sm:p-4">
               <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-2xl shadow-xl border border-slate-200 dark:border-slate-700 max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
                 <div className="p-4 sm:p-6">
                   {/* Header */}
@@ -2778,11 +2778,11 @@ const AgentManagement = () => {
             <div className="lg:hidden">
               {/* Backdrop */}
               <div
-                className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9998]"
+                className="fixed inset-0 bg-black/50 z-[50]"
                 onClick={() => setShowMobileFilters(false)}
               />
               {/* Bottom Sheet */}
-              <div className="fixed inset-x-0 bottom-0 z-[9999] animate-slide-up">
+              <div className="fixed inset-x-0 bottom-0 z-[51] animate-slide-up">
                 <div className="bg-white dark:bg-slate-800 rounded-t-3xl shadow-2xl max-h-[85vh] overflow-hidden">
                   {/* Handle Bar */}
                   <div className="flex justify-center pt-3 pb-2">
@@ -2888,15 +2888,11 @@ const AgentManagement = () => {
         {showQuickCreateModal &&
           createPortal(
             <div
-              className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4"
-              onClick={(e) =>
-                e.target === e.currentTarget && !isCreatingAgent && handleQuickCreateClose()
-              }
+              className="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-4"
             >
               {/* Backdrop */}
               <div
-                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-                onClick={() => !isCreatingAgent && handleQuickCreateClose()}
+                className="absolute inset-0 bg-black/60"
               />
 
               {/* Modal */}
@@ -4235,11 +4231,10 @@ const AgentManagement = () => {
         {showTemplateDetails &&
           selectedTemplateForDetails &&
           createPortal(
-            <div className="fixed inset-0 z-[10000] flex items-center justify-center p-2 sm:p-4">
+            <div className="fixed inset-0 z-[65] flex items-center justify-center p-2 sm:p-4">
               {/* Backdrop */}
               <div
-                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-                onClick={() => setShowTemplateDetails(false)}
+                className="absolute inset-0 bg-black/60"
               />
 
               {/* Modal */}
@@ -4423,15 +4418,15 @@ const AgentManagement = () => {
                                     systemPrompt: e.target.value,
                                   }))
                                 }
-                                className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                rows={4}
+                                className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                                rows={16}
                               />
                             ) : (
-                              <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700 max-h-24 overflow-y-auto">
-                                <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap">
+                              <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700 max-h-[40vh] overflow-y-auto">
+                                <pre className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap font-sans">
                                   {aiTemplate?.systemPrompt ||
                                     template?.systemPrompt}
-                                </p>
+                                </pre>
                               </div>
                             )}
                           </div>
@@ -4475,10 +4470,10 @@ const AgentManagement = () => {
                             <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
                               Knowledge Base
                             </h3>
-                            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700 max-h-24 overflow-y-auto">
-                              <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap">
+                            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700 max-h-48 overflow-y-auto">
+                              <pre className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap font-sans">
                                 {aiTemplate.manualKnowledge}
-                              </p>
+                              </pre>
                             </div>
                           </div>
                         )}
@@ -4512,7 +4507,7 @@ const AgentManagement = () => {
                                   rows={3}
                                 />
                               ) : (
-                                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700 max-h-20 overflow-y-auto">
+                                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700 max-h-40 overflow-y-auto">
                                   <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap">
                                     {aiTemplate?.openingScript ||
                                       template?.openingScript}
@@ -4542,7 +4537,7 @@ const AgentManagement = () => {
                                   rows={3}
                                 />
                               ) : (
-                                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700 max-h-20 overflow-y-auto">
+                                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700 max-h-40 overflow-y-auto">
                                   <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap">
                                     {aiTemplate?.keyTalkingPoints ||
                                       template?.keyTalkingPoints}
@@ -4572,7 +4567,7 @@ const AgentManagement = () => {
                                   rows={3}
                                 />
                               ) : (
-                                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700 max-h-20 overflow-y-auto">
+                                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700 max-h-40 overflow-y-auto">
                                   <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap">
                                     {aiTemplate?.closingScript ||
                                       template?.closingScript}
@@ -5346,7 +5341,7 @@ const AgentManagement = () => {
 
         {/* Delete Confirmation Modal */}
         {showDeleteConfirm && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
             <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-xl border border-slate-200 dark:border-slate-700">
               <div className="p-6">
                 <div className="flex items-center justify-center w-12 h-12 bg-red-100 dark:bg-red-900/20 rounded-full mx-auto mb-4">
@@ -5487,7 +5482,7 @@ const AgentManagement = () => {
         {showTestChat &&
           currentAgent &&
           currentAgent.status === "Published" && (
-            <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[60] flex items-center justify-center p-3 sm:p-4 -top-8">
+            <div className="fixed inset-0 bg-black/20 z-[60] flex items-center justify-center p-3 sm:p-4 -top-8">
               <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl w-full max-w-2xl h-[80vh] max-h-[600px] relative flex flex-col shadow-xl border border-white/20 dark:border-slate-700/50">
                 {/* Minimalist Header */}
                 <div className="flex items-center justify-between p-4 border-b border-slate-200/50 dark:border-slate-700/50">
@@ -5816,7 +5811,7 @@ const AgentManagement = () => {
 
         {/* Publish Confirmation Modal */}
         {showPublishConfirm && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
             <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-xl border border-slate-200 dark:border-slate-700">
               <div className="p-6">
                 <div className="flex items-center justify-center w-12 h-12 bg-blue-100 dark:bg-blue-900/20 rounded-full mx-auto mb-4">
@@ -5861,7 +5856,7 @@ const AgentManagement = () => {
 
         {/* Pause Confirmation Modal */}
         {showPauseConfirm && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
             <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-xl border border-slate-200 dark:border-slate-700">
               <div className="p-6">
                 <div className="flex items-center justify-center w-12 h-12 bg-amber-100 dark:bg-amber-900/20 rounded-full mx-auto mb-4">

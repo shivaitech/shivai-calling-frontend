@@ -5,7 +5,7 @@ const PROMPT_GENERATION_API =
 
 // Create a dedicated axios instance for prompt generation API
 const promptClient = axios.create({
-  timeout: 30000,
+  timeout: 90000, // 90 seconds for comprehensive template generation
   headers: {
     "Content-Type": "application/json",
   },
@@ -122,7 +122,7 @@ class AITemplateService {
         PROMPT_GENERATION_API,
         {
           prompt,
-          max_tokens: 5000, // Increased to handle multiple complete responses
+          max_tokens: 12000, // Increased significantly for comprehensive system prompts
           temperature: 0.7,
         },
       );
@@ -201,69 +201,31 @@ class AITemplateService {
       ? `\nSub-industry: ${request.subIndustry}`
       : "";
 
-    const exampleTemplates = `
-[
+    // Simplified example to save tokens - the comprehensive structure is described above
+    const exampleTemplates = `[
   {
-    "name": "Customer Support Specialist",
-    "description": "Handles customer inquiries and support requests with empathy and efficiency",
-    "icon": "🎧",
-    "features": ["24/7 Availability", "Multi-language Support", "Issue Resolution"],
-    "systemPrompt": "You are a helpful customer support specialist trained to assist customers professionally...",
-    "firstMessage": "Hello! I am [AI Employee Name] from [Company Name], here to assist you. How can I help you today?",
-    "industryFocus": "Customer Service",
-    "tone": "Friendly and Professional",
+    "name": "Professional Appointment Coordinator",
+    "description": "Efficiently schedules and manages appointments with clear communication.",
+    "icon": "📅",
+    "features": ["Smart Scheduling", "Appointment Confirmation", "Rescheduling"],
+    "systemPrompt": "## Identity & Purpose\\n\\nYou are [AI Employee Name], an appointment scheduling assistant for [Company Name]. Your purpose is to efficiently manage appointments.\\n\\n## Voice & Persona\\n\\n### Personality\\n- Sound friendly and organized\\n- Be patient and helpful\\n\\n### Speech Characteristics\\n- Use clear language\\n- Confirm details explicitly\\n\\n## Conversation Flow\\n\\n### Scheduling\\n1. Identify appointment type\\n2. Check availability\\n3. Confirm booking\\n\\n## Response Guidelines\\n- Ask one question at a time\\n- Confirm all details\\n\\n## Scenario Handling\\n\\n### New Customers\\n1. Collect information\\n2. Explain process\\n\\n### Rescheduling\\n1. Find existing appointment\\n2. Offer alternatives\\n\\n## Call Management\\n- If checking: 'One moment please.'",
+    "firstMessage": "Thank you for calling [Company Name]. How may I help you today?",
+    "industryFocus": "Healthcare, Services",
+    "tone": "Friendly",
     "gender": "Female",
-    "voice": "Warm and Friendly",
-    "personality": "Empathetic and Patient",
-    "manualKnowledge": "Key FAQ items and policies relevant to customer support...",
-    "openingScript": "Thank you for calling. My name is... How can I assist you today?",
-    "keyTalkingPoints": "• Quality customer service is our priority • We're here to help resolve your concerns • Your satisfaction matters to us",
-    "closingScript": "Thank you for contacting us. Is there anything else I can help with?",
-    "objections": [
-      {"objection": "Your prices are too high", "response": "I understand cost is a factor. Let me explain the value you will receive..."},
-      {"objection": "I need to think about it", "response": "Of course! Take your time. Here is some information to review..."}
-    ],
-    "conversationExamples": [
-      {"customerInput": "I have a billing question", "expectedResponse": "I would be happy to help with your billing question. Can you tell me more about..."},
-      {"customerInput": "Your service did not work", "expectedResponse": "I sincerely apologize for the inconvenience. Let us troubleshoot this together..."}
-    ],
-    "intents": [
-      {"name": "Billing Inquiry", "phrases": "bill, charge, payment, invoice, billing", "response": "I can help you with your billing questions..."},
-      {"name": "Technical Issue", "phrases": "not working, error, problem, issue, broken", "response": "I understand you are experiencing a technical issue..."}
-    ]
-  },
-  {
-    "name": "Sales Agent",
-    "description": "Identifies opportunities and engages customers with solution-focused conversations",
-    "icon": "💼",
-    "features": ["Lead Generation", "Sales Coaching", "Opportunity Identification"],
-    "systemPrompt": "You are a strategic sales agent focused on identifying customer needs and presenting solutions...",
-    "firstMessage": "Hello! I am [AI Employee Name] from [Company Name], here to assist you. I would love to learn about your goals and how we can help you succeed.",
-    "industryFocus": "Sales and Business Development",
-    "tone": "Confident and Professional",
-    "gender": "Male",
-    "voice": "Professional and Engaging",
-    "personality": "Analytical and Persuasive",
-    "manualKnowledge": "Product features, pricing models, competitive advantages, and industry trends...",
-    "openingScript": "Good day! I am calling to explore how our solutions can address your specific needs.",
-    "keyTalkingPoints": "• We specialize in solving industry problems • Our clients see measurable results • Let us find the right solution for you",
-    "closingScript": "Thank you for the discussion. Let us schedule a follow-up to move forward.",
-    "objections": [
-      {"objection": "We already have a solution", "response": "That is great! I would love to understand what is working and where we might add value..."},
-      {"objection": "I do not have time now", "response": "I completely understand. Can I schedule a brief call at your convenience?"}
-    ],
-    "conversationExamples": [
-      {"customerInput": "What makes you different?", "expectedResponse": "Great question! We focus on key differentiators which help our clients achieve..."},
-      {"customerInput": "Send me more information", "expectedResponse": "I will send materials tailored to your needs. Can we schedule a 15-minute call?"}
-    ],
-    "intents": [
-      {"name": "Needs Assessment", "phrases": "goals, challenges, requirements, needs, problems", "response": "Let us dive deeper into your specific needs..."},
-      {"name": "Pricing Inquiry", "phrases": "cost, price, pricing, budget, investment, rate", "response": "Our pricing is flexible based on your needs..."}
-    ]
+    "voice": "Professional",
+    "personality": "Organized",
+    "manualKnowledge": "Appointment types, policies, availability.",
+    "openingScript": "Thank you for calling. How may I help?",
+    "keyTalkingPoints": "• Identify need • Offer options • Confirm details",
+    "closingScript": "Your appointment is confirmed. Is there anything else?",
+    "objections": [{"objection": "Times dont work", "response": "Let me find other options."}],
+    "conversationExamples": [{"customerInput": "I need an appointment", "expectedResponse": "I can help. What type of appointment?"}],
+    "intents": [{"name": "Schedule", "phrases": "book, schedule", "response": "I can help schedule that."}]
   }
 ]`;
 
-    const prompt = `You are an AI assistant that creates professional AI Employee templates for businesses. Based on the following business information, generate AT LEAST 2 (preferably 3-5) DIFFERENT AI Employee template recommendations in JSON format with comprehensive training data. IMPORTANT: You MUST generate at least 2 distinct templates with different approaches, personalities, or focus areas.
+    const prompt = `You are an AI assistant that creates professional AI Employee templates for businesses. Based on the following business information, generate AT LEAST 2 (preferably 3-5) DIFFERENT AI Employee template recommendations in JSON format with COMPREHENSIVE, PROFESSIONAL system prompts.
 
 Company Name: ${request.companyName}
 Business Process: ${request.businessProcess}
@@ -272,27 +234,40 @@ ${request.additionalContext ? `Additional Context: ${request.additionalContext}`
 
 CRITICAL: Generate a minimum of 2 templates. Each template should be distinct and offer a different approach or perspective for the AI Employee.
 
+IMPORTANT: The systemPrompt field must be COMPREHENSIVE and follow this professional structure:
+
+## System Prompt Structure (REQUIRED):
+The systemPrompt should include ALL of these sections with detailed content:
+
+1. **Identity & Purpose** - Who the AI is and their primary goal
+2. **Voice & Persona** - Personality traits and speech characteristics
+3. **Conversation Flow** - Step-by-step conversation process with specific phrases to use
+4. **Response Guidelines** - Rules for how to respond (concise, confirm details, etc.)
+5. **Scenario Handling** - Detailed handling for 3-4 common scenarios with specific steps
+6. **Knowledge Base** - Key information the AI should know
+7. **Call Management** - How to handle delays, technical issues, multiple requests
+
 For each template, provide:
-1. A professional name for the AI Employee (MUST BE UNIQUE FOR EACH TEMPLATE)
+1. A professional name for the AI Employee (MUST BE UNIQUE)
 2. A concise description (2-3 sentences)
 3. An appropriate emoji icon
 4. 3-4 key features
-5. A brief system prompt (the role and behavior)
+5. A COMPREHENSIVE systemPrompt (following the structure above - this is the MOST IMPORTANT field)
 6. First message/greeting for starting conversations
 7. Industry focus
-8. Recommended tone/personality (SHOULD VARY BETWEEN TEMPLATES)
+8. Recommended tone/personality
 9. Suggested gender (Male, Female, Neutral, or Not Specified)
-10. Recommended voice type (Professional, Friendly, Formal, Casual, Warm, etc.)
-11. Personality traits (e.g., Empathetic, Direct, Analytical, Creative, etc.) - VARY PER TEMPLATE
-12. Manual knowledge base content (FAQs, key information relevant to the industry)
-13. Opening script (how to start a call/conversation)
-14. Key talking points (main points to communicate)
-15. Closing script (how to end a conversation)
+10. Recommended voice type
+11. Personality traits
+12. Manual knowledge base content
+13. Opening script
+14. Key talking points
+15. Closing script
 16. 2-3 common objections with responses
-17. 2-3 example conversation exchanges (customerInput -> expectedResponse)
-18. 2-3 intent examples (intent name, example phrases, and how to respond)
+17. 2-3 example conversation exchanges
+18. 2-3 intent examples
 
-Return ONLY a valid JSON array with AT LEAST 2 objects containing all above fields. No markdown, no explanation, just valid JSON array with minimum 2 templates.
+Return ONLY a valid JSON array with AT LEAST 2 objects containing all above fields. No markdown, no explanation, just valid JSON array.
 
 Example format: ${exampleTemplates}`;
 
@@ -630,6 +605,39 @@ Example format: ${exampleTemplates}`;
         console.warn(`⚠️ Error processing object ${index + 1}:`, error);
       }
     });
+
+    // If no templates were recovered, try regex-based extraction
+    if (templates.length === 0) {
+      console.log("🔍 Attempting regex-based template extraction...");
+      const nameMatch = text.match(/"name"\s*:\s*"([^"]+)"/);
+      const descMatch = text.match(/"description"\s*:\s*"([^"]+)"/);
+      
+      if (nameMatch) {
+        console.log(`📝 Found template name: ${nameMatch[1]}`);
+        templates.push({
+          name: nameMatch[1],
+          description: descMatch ? descMatch[1] : "AI-powered assistant",
+          icon: "🤖",
+          features: ["AI Assistance", "Customer Support"],
+          systemPrompt: "",
+          firstMessage: "Hello! I am [AI Employee Name] from [Company Name], here to assist you. How can I help you today?",
+          industryFocus: "",
+          tone: "Professional",
+          gender: "Not Specified",
+          voice: "Professional",
+          personality: "Helpful",
+          manualKnowledge: "",
+          websiteUrls: [],
+          openingScript: "Thank you for contacting us. How can I help?",
+          keyTalkingPoints: "• Quality service\n• Customer satisfaction",
+          closingScript: "Thank you for your time!",
+          objections: [],
+          conversationExamples: [],
+          intents: [],
+        });
+        console.log("✅ Created minimal template from regex extraction");
+      }
+    }
 
     console.log(`🎯 Fallback parsing recovered ${templates.length} templates`);
     return templates;

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Save, X, Bot, Globe, Settings, Sparkles, Info } from 'lucide-react';
+import { ArrowLeft, Save, X, Bot, Globe, Settings, Sparkles, Info, Upload, Link, Share2, FileText, File, Image, Plus, ChevronDown } from 'lucide-react';
 import { useAgent } from '../../contexts/AgentContext';
 import { agentAPI } from '../../services/agentAPI';
 import GlassCard from '../../components/GlassCard';
@@ -30,7 +30,24 @@ const EditAgent = () => {
   });
 
   const [templateData, setTemplateData] = useState<any>(null);
-  const [showTemplateEditor, setShowTemplateEditor] = useState(false);
+
+  // Accordion/Section Expanded State
+  const [expandedSections, setExpandedSections] = useState({
+    identity: true,
+    knowledgeBase: false,
+    advancedSettings: false,
+  });
+
+  const toggleSection = (section: keyof typeof expandedSections) => {
+    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
+  };
+
+  // Knowledge Base State
+  const [websiteUrls, setWebsiteUrls] = useState<string[]>(['']);
+  const [socialMediaUrls, setSocialMediaUrls] = useState<string[]>(['']);
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [uploadedFileUrls, setUploadedFileUrls] = useState<string[]>([]);
+  const [isUploadingFiles, setIsUploadingFiles] = useState(false);
 
   const [isLoadingAgent, setIsLoadingAgent] = useState(true);
 
@@ -170,7 +187,6 @@ const EditAgent = () => {
         // Load template data if available
         if (agentData.template) {
           setTemplateData(agentData.template);
-          setShowTemplateEditor(true);
         }
       } catch (error) {
         console.error("Error fetching agent:", error);
@@ -418,6 +434,65 @@ const EditAgent = () => {
     { value: "Large (16K tokens)", label: "Large (16K tokens)" },
   ];
 
+  // Knowledge Base Handlers
+  const handleKnowledgeBaseUpload = async (files: File[]) => {
+    if (files.length === 0) return;
+
+    setIsUploadingFiles(true);
+    try {
+      setUploadedFiles((prev) => [...prev, ...files]);
+
+      // Upload files to the API
+      const response = await agentAPI.uploadKnowledgeBase(files);
+      console.log("📤 Knowledge base upload response:", response);
+
+      // Extract URLs from response.data.files array
+      const urls = response.data?.files?.map((file: any) => file.url) || [];
+      if (urls.length > 0) {
+        setUploadedFileUrls((prev) => [...prev, ...urls]);
+        console.log("✅ Knowledge base files uploaded:", urls);
+        toast.success(`${files.length} file(s) uploaded successfully!`);
+      }
+    } catch (error) {
+      console.error("❌ Error uploading knowledge base files:", error);
+      toast.error("Failed to upload files. Please try again.");
+      setUploadedFiles((prev) =>
+        prev.filter((f) => !files.some((newFile) => newFile.name === f.name))
+      );
+    } finally {
+      setIsUploadingFiles(false);
+    }
+  };
+
+  const handleRemoveKnowledgeBaseFile = (index: number) => {
+    setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
+    setUploadedFileUrls((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleAddWebsiteUrl = () => {
+    setWebsiteUrls((prev) => [...prev, ""]);
+  };
+
+  const handleRemoveWebsiteUrl = (index: number) => {
+    setWebsiteUrls((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleWebsiteUrlChange = (index: number, value: string) => {
+    setWebsiteUrls((prev) => prev.map((url, i) => (i === index ? value : url)));
+  };
+
+  const handleAddSocialMediaUrl = () => {
+    setSocialMediaUrls((prev) => [...prev, ""]);
+  };
+
+  const handleRemoveSocialMediaUrl = (index: number) => {
+    setSocialMediaUrls((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSocialMediaUrlChange = (index: number, value: string) => {
+    setSocialMediaUrls((prev) => prev.map((url, i) => (i === index ? value : url)));
+  };
+
   const handleSave = async () => {
     // Validate required fields
     if (!formData.name || formData.name.trim() === "") {
@@ -503,6 +578,10 @@ const EditAgent = () => {
           temperature: formData.temperature,
           // Include template data if available
           template: templateData || undefined,
+          // Knowledge base URLs
+          website_urls: websiteUrls.filter((url) => url.trim()),
+          social_media_urls: socialMediaUrls.filter((url) => url.trim()),
+          knowledge_base_file_urls: uploadedFileUrls,
         };
 
         console.log('Sending update data:', updateData);
@@ -612,17 +691,27 @@ const EditAgent = () => {
           {/* Identity Section - Mobile Optimized */}
           <GlassCard>
             <div className="p-4 sm:p-5 lg:p-6">
-              <div className="flex items-center gap-2 mb-3 sm:mb-4">
-                <Bot className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400" />
-                <h2 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
-                  Identity & Persona
-                </h2>
-              </div>
-              <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mb-4 sm:mb-6">
-                Define your agent's basic identity and personality
-              </p>
+              <button
+                type="button"
+                onClick={() => toggleSection('identity')}
+                className="w-full flex items-center justify-between"
+              >
+                <div className="flex items-center gap-2">
+                  <Bot className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400" />
+                  <h2 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
+                    Identity & Persona
+                  </h2>
+                </div>
+                <ChevronDown className={`w-5 h-5 text-slate-500 transition-transform duration-200 ${expandedSections.identity ? 'rotate-180' : ''}`} />
+              </button>
 
-              <div className="space-y-4 sm:space-y-6">
+              {expandedSections.identity && (
+                <>
+                  <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mt-3 mb-4 sm:mb-6">
+                    Define your agent's basic identity and personality
+                  </p>
+
+                  <div className="space-y-4 sm:space-y-6">
                 {/* Agent Name */}
                 <div>
                   <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
@@ -732,40 +821,235 @@ const EditAgent = () => {
                     Choose the tone that best fits your brand
                   </p>
                 </div>
-              </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </GlassCard>
+
+          {/* Knowledge Base Section */}
+          <GlassCard>
+            <div className="p-4 sm:p-5 lg:p-6">
+              <button
+                type="button"
+                onClick={() => toggleSection('knowledgeBase')}
+                className="w-full flex items-center justify-between"
+              >
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-600 dark:text-cyan-400" />
+                  <h2 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
+                    Knowledge Base
+                  </h2>
+                </div>
+                <ChevronDown className={`w-5 h-5 text-slate-500 transition-transform duration-200 ${expandedSections.knowledgeBase ? 'rotate-180' : ''}`} />
+              </button>
+
+              {expandedSections.knowledgeBase && (
+                <>
+                  <p className="text-sm text-slate-600 dark:text-slate-400 mt-3 mb-4">
+                    Upload documents or add URLs to train your AI with company-specific knowledge
+                  </p>
+
+                  <div className="space-y-4 sm:space-y-5">
+                    {/* File Upload Section */}
+                    <div className="space-y-3">
+                      <label className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                        <Upload className="w-4 h-4" />
+                        Upload Files
+                      </label>
+
+                      {/* Drop Zone */}
+                      <div
+                        className={`border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-4 sm:p-6 text-center hover:border-blue-400 dark:hover:border-blue-500 transition-colors cursor-pointer bg-slate-50/50 dark:bg-slate-800/50 ${isUploadingFiles ? 'opacity-50 pointer-events-none' : ''}`}
+                        onClick={() =>
+                          !isUploadingFiles && document.getElementById("edit-knowledge-file-input")?.click()
+                        }
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          if (!isUploadingFiles) {
+                            e.currentTarget.classList.add("border-blue-400", "bg-blue-50/50");
+                          }
+                        }}
+                        onDragLeave={(e) => {
+                          e.currentTarget.classList.remove("border-blue-400", "bg-blue-50/50");
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          e.currentTarget.classList.remove("border-blue-400", "bg-blue-50/50");
+                          if (!isUploadingFiles) {
+                            const files = Array.from(e.dataTransfer.files);
+                            handleKnowledgeBaseUpload(files);
+                          }
+                        }}
+                      >
+                        <input
+                          id="edit-knowledge-file-input"
+                          type="file"
+                          multiple
+                          accept=".pdf,.doc,.docx,.txt,.csv,.xlsx,.xls,.png,.jpg,.jpeg,.gif,.webp"
+                          className="hidden"
+                          disabled={isUploadingFiles}
+                          onChange={(e) => {
+                            const files = Array.from(e.target.files || []);
+                            handleKnowledgeBaseUpload(files);
+                            e.target.value = "";
+                          }}
+                        />
+                        <div className="flex flex-col items-center gap-1.5 sm:gap-2">
+                          {isUploadingFiles ? (
+                            <>
+                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+                                Uploading files...
+                              </p>
+                            </>
+                          ) : (
+                            <>
+                              <div className="flex items-center gap-2 sm:gap-3 text-slate-400">
+                                <FileText className="w-6 h-6 sm:w-8 sm:h-8" />
+                                <Image className="w-6 h-6 sm:w-8 sm:h-8" />
+                                <File className="w-6 h-6 sm:w-8 sm:h-8" />
+                              </div>
+                              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+                                <span className="text-blue-500 font-medium">Click to upload</span> or drag and drop
+                              </p>
+                              <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500">
+                                PDF, DOC, TXT, CSV, Excel, Images (max 10MB each)
+                              </p>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Uploaded Files List */}
+                      {uploadedFiles.length > 0 && (
+                        <div className="space-y-1.5 sm:space-y-2 max-h-32 overflow-y-auto">
+                          {uploadedFiles.map((file, index) => (
+                            <div
+                              key={index}
+                              className="flex items-center gap-2 sm:gap-3 p-1.5 sm:p-2 bg-slate-100 dark:bg-slate-800 rounded-lg"
+                            >
+                              {file.type.includes("image") ? (
+                                <Image className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-500 flex-shrink-0" />
+                              ) : file.type.includes("pdf") ? (
+                                <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-500 flex-shrink-0" />
+                              ) : (
+                                <File className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500 flex-shrink-0" />
+                              )}
+                              <span className="flex-1 text-xs sm:text-sm text-slate-700 dark:text-slate-300 truncate">
+                                {file.name}
+                              </span>
+                              <span className="text-[10px] sm:text-xs text-slate-400 hidden sm:inline">
+                                {(file.size / 1024 / 1024).toFixed(2)} MB
+                              </span>
+                              {uploadedFileUrls[index] && (
+                                <span className="text-[10px] sm:text-xs text-green-500">✓</span>
+                              )}
+                              <button
+                                onClick={() => handleRemoveKnowledgeBaseFile(index)}
+                                disabled={isUploadingFiles}
+                                className="p-0.5 sm:p-1 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors disabled:opacity-50"
+                              >
+                                <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Website URLs Section */}
+                    <div className="space-y-2 sm:space-y-3">
+                      <label className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                        <Link className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        Website URLs
+                      </label>
+                      {websiteUrls.map((url, index) => (
+                        <div key={index} className="flex items-center gap-1.5 sm:gap-2">
+                          <input
+                            type="url"
+                            value={url}
+                            onChange={(e) => handleWebsiteUrlChange(index, e.target.value)}
+                            placeholder="https://yourcompany.com"
+                            className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all"
+                          />
+                          {websiteUrls.length > 1 && (
+                            <button
+                              onClick={() => handleRemoveWebsiteUrl(index)}
+                              className="p-2 sm:p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
+                            >
+                              <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <button
+                        onClick={handleAddWebsiteUrl}
+                        className="w-full py-2 sm:py-2.5 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl text-slate-500 dark:text-slate-400 hover:border-blue-400 hover:text-blue-500 transition-colors flex items-center justify-center gap-2 text-xs sm:text-sm"
+                      >
+                        <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        Add another URL
+                      </button>
+                    </div>
+
+                    {/* Social Media URLs Section */}
+                    <div className="space-y-2 sm:space-y-3">
+                      <label className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                        <Share2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        Social Media Links
+                      </label>
+                      {socialMediaUrls.map((url, index) => (
+                        <div key={index} className="flex items-center gap-1.5 sm:gap-2">
+                          <input
+                            type="url"
+                            value={url}
+                            onChange={(e) => handleSocialMediaUrlChange(index, e.target.value)}
+                            placeholder="https://facebook.com/yourpage or https://x.com/yourhandle"
+                            className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all"
+                          />
+                          {socialMediaUrls.length > 1 && (
+                            <button
+                              onClick={() => handleRemoveSocialMediaUrl(index)}
+                              className="p-2 sm:p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
+                            >
+                              <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <button
+                        onClick={handleAddSocialMediaUrl}
+                        className="w-full py-2 sm:py-2.5 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl text-slate-500 dark:text-slate-400 hover:border-blue-400 hover:text-blue-500 transition-colors flex items-center justify-center gap-2 text-xs sm:text-sm"
+                      >
+                        <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        Add social media link
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </GlassCard>
 
           {/* Advanced Settings */}
           <GlassCard>
             <div className="p-4 sm:p-5 lg:p-6 z-[99] relative">
-              <div className="flex items-center gap-2 mb-3 sm:mb-4">
-                <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
-                <h2 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
-                  Advanced Settings
-                </h2>
-              </div>
-
-              <div className="space-y-4 sm:space-y-6">
-                {/* Custom Instructions */}
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
-                    Custom Instructions
-                  </label>
-                  <textarea
-                    value={formData.customInstructions}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        customInstructions: e.target.value,
-                      })
-                    }
-                    placeholder="Add specific instructions or guidelines for your agent..."
-                    rows={4}
-                    className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg sm:rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/20 text-slate-800 dark:text-white text-sm sm:text-base resize-none transition-all duration-200"
-                  />
+              <button
+                type="button"
+                onClick={() => toggleSection('advancedSettings')}
+                className="w-full flex items-center justify-between"
+              >
+                <div className="flex items-center gap-2">
+                  <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
+                  <h2 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
+                    Advanced Settings
+                  </h2>
                 </div>
+                <ChevronDown className={`w-5 h-5 text-slate-500 transition-transform duration-200 ${expandedSections.advancedSettings ? 'rotate-180' : ''}`} />
+              </button>
 
+              {expandedSections.advancedSettings && (
+                <div className="space-y-4 sm:space-y-6 mt-4">
                 {/* Response Style */}
                 <div>
                   <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
@@ -844,38 +1128,11 @@ const EditAgent = () => {
                   </p>
                 </div>
 
-                {/* Template Editor Toggle */}
+                {/* Template Editor Section */}
                 {templateData && (
-                  <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
-                    <button
-                      type="button"
-                      onClick={() => setShowTemplateEditor(!showTemplateEditor)}
-                      className="flex items-center justify-between w-full px-4 py-3 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                        <span className="text-sm font-medium text-purple-900 dark:text-purple-100">
-                          {showTemplateEditor ? 'Hide' : 'Edit'} Template Details
-                        </span>
-                      </div>
-                      <span className="text-xs text-purple-600 dark:text-purple-400">
-                        {templateData.name}
-                      </span>
-                    </button>
-                  </div>
-                )}
-
-                {/* Template Editor Expanded Section */}
-                {showTemplateEditor && templateData && (
                   <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-                    <div className="bg-purple-50 dark:bg-purple-900/10 p-4 rounded-lg border border-purple-200 dark:border-purple-800">
-                      <h3 className="text-sm font-semibold text-purple-900 dark:text-purple-100 mb-3 flex items-center gap-2">
-                        <Sparkles className="w-4 h-4" />
-                        Template Configuration
-                      </h3>
-
                       {/* System Prompt */}
-                      <div className="mb-4">
+                      <div>
                         <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                           System Prompt
                         </label>
@@ -889,12 +1146,12 @@ const EditAgent = () => {
                           }
                           placeholder="Define the agent's core behavior and role..."
                           rows={4}
-                          className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/20 text-slate-800 dark:text-white text-sm resize-none"
+                          className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/20 text-slate-800 dark:text-white text-sm resize-none"
                         />
                       </div>
 
                       {/* First Message */}
-                      <div className="mb-4">
+                      <div>
                         <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                           First Message
                         </label>
@@ -908,12 +1165,12 @@ const EditAgent = () => {
                           }
                           placeholder="Initial greeting message..."
                           rows={2}
-                          className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/20 text-slate-800 dark:text-white text-sm resize-none"
+                          className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/20 text-slate-800 dark:text-white text-sm resize-none"
                         />
                       </div>
 
                       {/* Opening Script */}
-                      <div className="mb-4">
+                      <div>
                         <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                           Opening Script
                         </label>
@@ -927,12 +1184,12 @@ const EditAgent = () => {
                           }
                           placeholder="How the agent should start conversations..."
                           rows={3}
-                          className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/20 text-slate-800 dark:text-white text-sm resize-none"
+                          className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/20 text-slate-800 dark:text-white text-sm resize-none"
                         />
                       </div>
 
                       {/* Key Talking Points */}
-                      <div className="mb-4">
+                      <div>
                         <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                           Key Talking Points
                         </label>
@@ -946,12 +1203,12 @@ const EditAgent = () => {
                           }
                           placeholder="Important topics to cover..."
                           rows={4}
-                          className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/20 text-slate-800 dark:text-white text-sm resize-none"
+                          className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/20 text-slate-800 dark:text-white text-sm resize-none"
                         />
                       </div>
 
                       {/* Closing Script */}
-                      <div className="mb-4">
+                      <div>
                         <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                           Closing Script
                         </label>
@@ -965,13 +1222,13 @@ const EditAgent = () => {
                           }
                           placeholder="How to end conversations professionally..."
                           rows={3}
-                          className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/20 text-slate-800 dark:text-white text-sm resize-none"
+                          className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/20 text-slate-800 dark:text-white text-sm resize-none"
                         />
                       </div>
 
                       {/* Objections */}
                       {templateData.objections && templateData.objections.length > 0 && (
-                        <div className="mb-4">
+                        <div>
                           <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-2">
                             Objection Handling ({templateData.objections.length})
                           </label>
@@ -1058,10 +1315,10 @@ const EditAgent = () => {
                           </div>
                         </div>
                       )}
-                    </div>
                   </div>
                 )}
-              </div>
+                </div>
+              )}
             </div>
           </GlassCard>
         </div>
