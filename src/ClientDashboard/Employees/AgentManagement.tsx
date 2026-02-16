@@ -807,10 +807,52 @@ const AgentManagement = () => {
       });
       console.log('✅ [CREATE] Progress updated to processing');
 
-      // KB progress is tracked via global callback set in useEffect
-      // Just wait - the callback will update state and close modal when done
+      // Simulate 10-second progress loader (temporary - WebSocket will be used later)
+      const totalDuration = 10000; // 10 seconds
+      const intervalTime = 200; // Update every 200ms
+      let elapsed = 0;
       
-      console.log('✅ Agent creation complete, waiting for KB progress via WebSocket...');
+      const progressInterval = setInterval(() => {
+        elapsed += intervalTime;
+        const progress = Math.min(95, Math.round((elapsed / totalDuration) * 100));
+        
+        setKbCreationProgress({
+          agentId: newAgent?.id || '',
+          status: 'processing',
+          progress: progress,
+          message: progress < 30 
+            ? 'Setting up knowledge base...' 
+            : progress < 60 
+              ? 'Processing website content...' 
+              : progress < 90 
+                ? 'Finalizing agent configuration...' 
+                : 'Almost done...',
+        });
+        
+        if (elapsed >= totalDuration) {
+          clearInterval(progressInterval);
+          
+          // Complete the creation
+          setKbCreationProgress({
+            agentId: newAgent?.id || '',
+            status: 'completed',
+            progress: 100,
+            message: 'Agent created successfully!',
+          });
+          
+          // Show success toast
+          toast.success(`${quickCreateData.aiEmployeeName} has been created successfully!`, { duration: 4000 });
+          
+          // Close modal and refresh agents
+          setTimeout(() => {
+            handleQuickCreateClose();
+            refreshAgents();
+            navigate('/agents');
+          }, 500);
+        }
+      }, intervalTime);
+      
+      console.log('✅ Agent creation complete, showing 10s progress loader...');
     } catch (error) {
       console.error("❌ Error creating agent:", error);
 
