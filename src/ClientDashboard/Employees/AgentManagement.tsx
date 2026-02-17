@@ -895,7 +895,7 @@ const AgentManagement = () => {
         personality: selectedTemplateData?.personality || "Professional",
         language: "English (US)",
         voice: mappedVoice,
-        custom_instructions: selectedTemplateData?.description || "",
+        custom_instructions: replaceTemplatePlaceholders(selectedTemplateData?.systemPrompt || ""),
         guardrails_level: "medium",
         response_style: "Balanced",
         max_response_length: "Medium (150 words)",

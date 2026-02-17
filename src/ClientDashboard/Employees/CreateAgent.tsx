@@ -79,7 +79,7 @@ const CreateAgent = () => {
         setFormData((prev) => ({
           ...prev,
           persona: template.persona,
-          customInstructions: template.customInstructions,
+          customInstructions: template.systemPrompt || template.customInstructions,
           guardrailsLevel: template.guardrailsLevel,
         }));
         setTemplateApplied(true);
@@ -344,7 +344,7 @@ const CreateAgent = () => {
       setFormData((prev) => ({
         ...prev,
         persona: template.persona,
-        customInstructions: template.customInstructions,
+        customInstructions: template.systemPrompt || template.customInstructions,
         guardrailsLevel: template.guardrailsLevel,
       }));
       setIsApplyingTemplate(false);
