@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
+import pdfToText from "react-pdftotext";
 import {
   useParams,
   useNavigate,
@@ -197,9 +198,12 @@ const AgentManagement = () => {
     socialMediaUrls: [""],
     uploadedFiles: [] as File[],
     uploadedFileUrls: [] as string[],
+    extractedFileContent: "" as string, // Extracted text from uploaded files
+    extractedWebsiteContent: "" as string, // Crawled content from websites
     selectedTemplate: null as string | null,
   });
   const [isUploadingFiles, setIsUploadingFiles] = useState(false);
+  const [isExtractingContent, setIsExtractingContent] = useState(false);
 
   // Template Details Modal State
   const [showTemplateDetails, setShowTemplateDetails] = useState(false);
@@ -209,6 +213,61 @@ const AgentManagement = () => {
   const [isEditingTemplate, setIsEditingTemplate] = useState(false);
   const [editedTemplate, setEditedTemplate] =
     useState<Partial<GeneratedTemplate> | null>(null);
+  const [activeTemplateSection, setActiveTemplateSection] = useState('overview');
+  const templateContentRef = useRef<HTMLDivElement>(null);
+
+  // Template section navigation tabs
+  const templateSections = [
+    { id: 'overview', label: 'Overview', icon: '📋' },
+    { id: 'settings', label: 'Settings', icon: '⚙️' },
+    { id: 'system-prompt', label: 'System Prompt', icon: '🤖' },
+    { id: 'first-message', label: 'First Message', icon: '💬' },
+    { id: 'knowledge', label: 'Knowledge', icon: '📚' },
+    { id: 'scripts', label: 'Scripts', icon: '📝' },
+    { id: 'training', label: 'Training', icon: '🎯' },
+  ];
+
+  // Scroll to section in template details
+  const scrollToTemplateSection = (sectionId: string) => {
+    const element = document.getElementById(`template-section-${sectionId}`);
+    const container = templateContentRef.current;
+    if (element && container) {
+      const containerTop = container.getBoundingClientRect().top;
+      const elementTop = element.getBoundingClientRect().top;
+      const offset = elementTop - containerTop + container.scrollTop - 10;
+      container.scrollTo({ top: offset, behavior: 'smooth' });
+      setActiveTemplateSection(sectionId);
+    }
+  };
+
+  // Handle scroll to update active section
+  const handleTemplateScroll = useCallback(() => {
+    const container = templateContentRef.current;
+    if (!container) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const containerTop = containerRect.top;
+    const threshold = 120; // How far from top a section must be to be considered "active"
+    
+    // Find the last section that has scrolled past the threshold
+    let activeSection = templateSections[0].id;
+    
+    for (const section of templateSections) {
+      const element = document.getElementById(`template-section-${section.id}`);
+      if (element) {
+        const elementRect = element.getBoundingClientRect();
+        const relativeTop = elementRect.top - containerTop;
+        
+        // If this section's top is at or above the threshold, it becomes the active one
+        // We continue iterating to find the last one that meets this criteria
+        if (relativeTop <= threshold) {
+          activeSection = section.id;
+        }
+      }
+    }
+    
+    setActiveTemplateSection(activeSection);
+  }, []);
 
   // AI-Generated Templates State
   const [aiGeneratedTemplates, setAIGeneratedTemplates] = useState<
@@ -494,15 +553,35 @@ const AgentManagement = () => {
     }, 400);
 
     try {
+      // Build additional context from extracted content
+      let additionalContext = quickCreateData.aiEmployeeName
+        ? `The AI employee will be named: ${quickCreateData.aiEmployeeName}`
+        : '';
+      
+      // Add extracted file content to context
+      if (quickCreateData.extractedFileContent) {
+        const truncatedContent = quickCreateData.extractedFileContent.substring(0, 15000); // Limit to ~15k chars
+        additionalContext += `\n\n--- Extracted Knowledge Base Content ---\n${truncatedContent}`;
+        console.log('📚 Including extracted file content in template generation, length:', quickCreateData.extractedFileContent.length);
+        console.log('📚 Extracted content preview:', quickCreateData.extractedFileContent.substring(0, 500) + '...');
+      } else {
+        console.log('⚠️ No extracted file content available for template generation');
+      }
+      
+      // Add social media URLs to context
+      const validSocialUrls = quickCreateData.socialMediaUrls.filter((url) => url.trim());
+      if (validSocialUrls.length > 0) {
+        additionalContext += `\n\nSocial Media Profiles: ${validSocialUrls.join(', ')}`;
+      }
+
       const templates = await aiTemplateService.generateTemplates({
         companyName: quickCreateData.companyName,
         businessProcess: quickCreateData.businessProcess,
         industry: quickCreateData.industry,
         subIndustry: quickCreateData.subIndustry,
         websiteUrls: quickCreateData.websiteUrls.filter((url) => url.trim()),
-        additionalContext: quickCreateData.aiEmployeeName
-          ? `The AI employee will be named: ${quickCreateData.aiEmployeeName}`
-          : undefined,
+        additionalContext: additionalContext || undefined,
+        extractedContent: quickCreateData.extractedFileContent || undefined,
       });
 
       clearInterval(progressInterval);
@@ -556,6 +635,7 @@ const AgentManagement = () => {
     setTemplateGenerationError(null);
     setIsCreatingAgent(false);
     setKbCreationProgress(null);
+    setIsExtractingContent(false);
     setQuickCreateData({
       companyName: "",
       aiEmployeeName: "",
@@ -566,20 +646,76 @@ const AgentManagement = () => {
       socialMediaUrls: [""],
       uploadedFiles: [],
       uploadedFileUrls: [],
+      extractedFileContent: "",
+      extractedWebsiteContent: "",
       selectedTemplate: null,
     });
   };
 
-  // Handle knowledge base file upload
+  // Helper function to extract text from a file based on its type
+  const extractTextFromFile = async (file: File): Promise<string> => {
+    const fileType = file.type.toLowerCase();
+    const fileName = file.name.toLowerCase();
+    
+    try {
+      // PDF files
+      if (fileType === 'application/pdf' || fileName.endsWith('.pdf')) {
+        const text = await pdfToText(file);
+        return text;
+      }
+      
+      // Text files
+      if (fileType === 'text/plain' || fileName.endsWith('.txt')) {
+        return await file.text();
+      }
+      
+      // CSV files
+      if (fileType === 'text/csv' || fileName.endsWith('.csv')) {
+        return await file.text();
+      }
+      
+      // For other file types (DOCX, etc.), we'll skip extraction for now
+      // as they require more complex parsing libraries
+      console.log(`📄 Skipping text extraction for: ${file.name} (${fileType})`);
+      return '';
+    } catch (error) {
+      console.error(`❌ Error extracting text from ${file.name}:`, error);
+      return '';
+    }
+  };
+
+  // Handle knowledge base file upload with text extraction
   const handleKnowledgeBaseUpload = async (files: File[]) => {
     if (files.length === 0) return;
 
     setIsUploadingFiles(true);
+    setIsExtractingContent(true);
+    
     try {
       setQuickCreateData((prev) => ({
         ...prev,
         uploadedFiles: [...prev.uploadedFiles, ...files],
       }));
+
+      // Extract text from files in parallel
+      console.log('📄 Extracting text from files...');
+      const extractionPromises = files.map(extractTextFromFile);
+      const extractedTexts = await Promise.all(extractionPromises);
+      
+      // Combine all extracted texts
+      const newExtractedContent = extractedTexts
+        .filter(text => text.trim().length > 0)
+        .join('\n\n--- Next Document ---\n\n');
+      
+      if (newExtractedContent) {
+        setQuickCreateData((prev) => ({
+          ...prev,
+          extractedFileContent: prev.extractedFileContent 
+            ? `${prev.extractedFileContent}\n\n--- Next Document ---\n\n${newExtractedContent}`
+            : newExtractedContent,
+        }));
+        console.log('✅ Text extracted from files:', newExtractedContent.substring(0, 200) + '...');
+      }
 
       // Upload files to the API
       const response = await agentAPI.uploadKnowledgeBase(files);
@@ -593,7 +729,7 @@ const AgentManagement = () => {
           uploadedFileUrls: [...prev.uploadedFileUrls, ...urls],
         }));
         console.log("✅ Knowledge base files uploaded:", urls);
-        toast.success(`${files.length} file(s) uploaded successfully!`);
+        toast.success(`${files.length} file(s) uploaded and processed successfully!`);
       }
     } catch (error) {
       console.error("❌ Error uploading knowledge base files:", error);
@@ -606,6 +742,7 @@ const AgentManagement = () => {
       }));
     } finally {
       setIsUploadingFiles(false);
+      setIsExtractingContent(false);
     }
   };
 
@@ -1016,6 +1153,7 @@ const AgentManagement = () => {
             setShowQuickCreateModal(false);
             setQuickCreateStep(1);
             setAIGeneratedTemplates([]);
+            setIsExtractingContent(false);
             setQuickCreateData({
               companyName: "",
               aiEmployeeName: "",
@@ -1026,6 +1164,8 @@ const AgentManagement = () => {
               socialMediaUrls: [""],
               uploadedFiles: [],
               uploadedFileUrls: [],
+              extractedFileContent: "",
+              extractedWebsiteContent: "",
               selectedTemplate: null,
             });
             
@@ -1050,15 +1190,44 @@ const AgentManagement = () => {
     }
   }, [isCreatingAgent]);
 
-  // Blur any focused element when Quick Create modal opens to prevent keyboard auto-open on mobile
+  // Prevent body scroll when any modal is open
   useEffect(() => {
-    if (showQuickCreateModal) {
-      // Blur any currently focused element
-      if (document.activeElement instanceof HTMLElement) {
+    const isAnyModalOpen = showQuickCreateModal || showTemplateDetails || showTestChat;
+    
+    if (isAnyModalOpen) {
+      // Blur any currently focused element to prevent keyboard auto-open on mobile
+      if (showQuickCreateModal && document.activeElement instanceof HTMLElement) {
         document.activeElement.blur();
       }
+      // Prevent background scrolling - comprehensive fix for mobile
+      const scrollY = window.scrollY;
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.left = '0';
+      document.body.style.right = '0';
+      document.body.style.overflow = 'hidden';
+    } else {
+      // Restore scrolling when all modals are closed
+      const scrollY = document.body.style.top;
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
+      document.body.style.overflow = '';
+      if (scrollY) {
+        window.scrollTo(0, parseInt(scrollY || '0') * -1);
+      }
     }
-  }, [showQuickCreateModal]);
+    
+    // Cleanup on unmount
+    return () => {
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
+      document.body.style.overflow = '';
+    };
+  }, [showQuickCreateModal, showTemplateDetails, showTestChat]);
 
   useEffect(() => {
     if (id) {
@@ -2931,15 +3100,18 @@ const AgentManagement = () => {
           createPortal(
             <div
               className="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-4"
+              onTouchMove={(e) => e.target === e.currentTarget && e.preventDefault()}
             >
               {/* Backdrop */}
               <div
                 className="absolute inset-0 bg-black/60"
+                onTouchMove={(e) => e.preventDefault()}
+                onClick={handleQuickCreateClose}
               />
 
               {/* Modal */}
               <div
-                className="relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl h-auto  sm:max-h-[90vh] flex flex-col overflow-hidden border border-slate-200 dark:border-slate-700"
+                className="relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] sm:max-h-[90vh] flex flex-col overflow-hidden border border-slate-200 dark:border-slate-700"
                 tabIndex={-1}
               >
                 {/* Header */}
@@ -3533,15 +3705,15 @@ const AgentManagement = () => {
 
                         {/* Drop Zone */}
                         <div
-                          className={`border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-4 sm:p-6 text-center hover:border-blue-400 dark:hover:border-blue-500 transition-colors cursor-pointer bg-slate-50/50 dark:bg-slate-800/50 ${isUploadingFiles ? 'opacity-50 pointer-events-none' : ''}`}
+                          className={`border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-4 sm:p-6 text-center hover:border-blue-400 dark:hover:border-blue-500 transition-colors cursor-pointer bg-slate-50/50 dark:bg-slate-800/50 ${isUploadingFiles || isExtractingContent ? 'opacity-50 pointer-events-none' : ''}`}
                           onClick={() =>
-                            !isUploadingFiles && document
+                            !isUploadingFiles && !isExtractingContent && document
                               .getElementById("knowledge-file-input")
                               ?.click()
                           }
                           onDragOver={(e) => {
                             e.preventDefault();
-                            if (!isUploadingFiles) {
+                            if (!isUploadingFiles && !isExtractingContent) {
                               e.currentTarget.classList.add(
                                 "border-blue-400",
                                 "bg-blue-50/50",
@@ -3560,7 +3732,7 @@ const AgentManagement = () => {
                               "border-blue-400",
                               "bg-blue-50/50",
                             );
-                            if (!isUploadingFiles) {
+                            if (!isUploadingFiles && !isExtractingContent) {
                               const files = Array.from(e.dataTransfer.files);
                               handleKnowledgeBaseUpload(files);
                             }
@@ -3572,7 +3744,7 @@ const AgentManagement = () => {
                             multiple
                             accept=".pdf,.doc,.docx,.txt,.csv,.xlsx,.xls,.png,.jpg,.jpeg,.gif,.webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/png,image/jpeg,image/gif,image/webp"
                             className="hidden"
-                            disabled={isUploadingFiles}
+                            disabled={isUploadingFiles || isExtractingContent}
                             onChange={(e) => {
                               const files = Array.from(e.target.files || []);
                               handleKnowledgeBaseUpload(files);
@@ -3580,11 +3752,11 @@ const AgentManagement = () => {
                             }}
                           />
                           <div className="flex flex-col items-center gap-1.5 sm:gap-2">
-                            {isUploadingFiles ? (
+                            {isUploadingFiles || isExtractingContent ? (
                               <>
                                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
                                 <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
-                                  Uploading files...
+                                  {isExtractingContent ? 'Extracting content from files...' : 'Uploading files...'}
                                 </p>
                               </>
                             ) : (
@@ -4273,10 +4445,15 @@ const AgentManagement = () => {
         {showTemplateDetails &&
           selectedTemplateForDetails &&
           createPortal(
-            <div className="fixed inset-0 z-[65] flex items-center justify-center p-2 sm:p-4">
+            <div 
+              className="fixed inset-0 z-[65] flex items-center justify-center p-2 sm:p-4"
+              onTouchMove={(e) => e.target === e.currentTarget && e.preventDefault()}
+            >
               {/* Backdrop */}
               <div
                 className="absolute inset-0 bg-black/60"
+                onTouchMove={(e) => e.preventDefault()}
+                onClick={() => setShowTemplateDetails(false)}
               />
 
               {/* Modal */}
@@ -4292,7 +4469,7 @@ const AgentManagement = () => {
                         "🤖"}
                     </div>
                     <div className="flex-1">
-                      <h2 className="text-lg font-bold text-slate-800 dark:text-white">
+                      <h2 className="text-lg font-bold text-slate-800 dark:text-white line-clamp-1">
                         {selectedTemplateForDetails}
                       </h2>
                       <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -4308,8 +4485,35 @@ const AgentManagement = () => {
                   </button>
                 </div>
 
+                {/* Section Navigation Tabs */}
+                <div className="flex-shrink-0 border-b border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/50 backdrop-blur-sm">
+                  <div 
+                    className="flex overflow-x-auto px-2 sm:px-4 py-2 gap-1 [&::-webkit-scrollbar]:hidden"
+                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                  >
+                    {templateSections.map((section) => (
+                      <button
+                        key={section.id}
+                        onClick={() => scrollToTemplateSection(section.id)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all
+                          ${activeTemplateSection === section.id
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                          }`}
+                      >
+                        <span>{section.icon}</span>
+                        <span className="hidden sm:inline">{section.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Content */}
-                <div className="p-4 sm:p-5 overflow-y-auto flex-1 min-h-0 space-y-4">
+                <div 
+                  ref={templateContentRef}
+                  onScroll={handleTemplateScroll}
+                  className="p-4 sm:p-5 overflow-y-auto flex-1 min-h-0 space-y-4 scroll-smooth"
+                >
                   {(() => {
                     // Try to find in AI-generated templates first, then fallback to predefined
                     const aiTemplate = aiGeneratedTemplates.find(
@@ -4323,6 +4527,9 @@ const AgentManagement = () => {
 
                     return (
                       <>
+                        {/* Section Markers for Navigation */}
+                        <div id="template-section-overview" className="scroll-mt-2" />
+                        
                         {/* Description */}
                         <div>
                           <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
@@ -4388,6 +4595,9 @@ const AgentManagement = () => {
                           )}
                         </div>
 
+                        {/* Settings Section Marker */}
+                        <div id="template-section-settings" className="scroll-mt-2" />
+                        
                         {/* AI-Generated Template Specific Fields */}
                         {aiTemplate && (
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -4420,7 +4630,7 @@ const AgentManagement = () => {
 
                         {/* Tone and Industry Focus (both templates) */}
                         {(aiTemplate?.tone || aiTemplate?.industryFocus) && (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
                             {aiTemplate?.tone && (
                               <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
                                 <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">
@@ -4444,7 +4654,9 @@ const AgentManagement = () => {
                           </div>
                         )}
 
-                        {/* System Prompt */}
+                        {/* System Prompt Section Marker */}
+                        <div id="template-section-system-prompt" className="scroll-mt-2" />
+                        
                         {(aiTemplate?.systemPrompt ||
                           template?.systemPrompt) && (
                           <div>
@@ -4473,8 +4685,10 @@ const AgentManagement = () => {
                             )}
                           </div>
                         )}
-
-                        {/* First Message */}
+                        {/* First Message Section */}
+                        {/* First Message Section Marker */}
+                        <div id="template-section-first-message" className="scroll-mt-2" />
+                        
                         {(aiTemplate?.firstMessage ||
                           template?.firstMessage) && (
                           <div>
@@ -4506,6 +4720,9 @@ const AgentManagement = () => {
                           </div>
                         )}
 
+                        {/* Knowledge Section Marker */}
+                        <div id="template-section-knowledge" className="scroll-mt-2" />
+                        
                         {/* Manual Knowledge / Knowledge Base */}
                         {aiTemplate?.manualKnowledge && (
                           <div>
@@ -4520,6 +4737,9 @@ const AgentManagement = () => {
                           </div>
                         )}
 
+                        {/* Scripts Section Marker */}
+                        <div id="template-section-scripts" className="scroll-mt-2" />
+                        
                         {/* Divider for Call Scripts */}
                         <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
                           <h3 className="text-sm font-bold text-slate-800 dark:text-white mb-3">
@@ -4620,6 +4840,9 @@ const AgentManagement = () => {
                           )}
                         </div>
 
+                        {/* Training Section Marker */}
+                        <div id="template-section-training" className="scroll-mt-2" />
+                        
                         {/* Divider for Training Data */}
                         {(aiTemplate?.objections?.length ||
                           aiTemplate?.conversationExamples?.length ||
@@ -4986,26 +5209,28 @@ const AgentManagement = () => {
     return (
       <div className="space-y-3 sm:space-y-4 lg:space-y-6 w-full">
         <GlassCard>
-          <div className="p-4 sm:p-6">
-            <div className="flex items-center justify-between mb-4 sm:mb-6">
-              <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+          <div className="p-3 sm:p-4 md:p-6">
+            {/* Mobile: Stacked layout */}
+            <div className="flex flex-col gap-3 sm:hidden mb-4">
+              {/* Top row: Back button + Agent info */}
+              <div className="flex items-center gap-2">
                 <button
                   onClick={() => navigate("/agents")}
-                  className="common-button-bg2 p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl flex-shrink-0 touch-manipulation"
+                  className="common-button-bg2 p-2 rounded-lg flex-shrink-0 touch-manipulation"
                 >
-                  <ArrowLeft className="w-4 sm:w-5 h-4 sm:h-5 text-slate-600 dark:text-slate-300" />
+                  <ArrowLeft className="w-4 h-4 text-slate-600 dark:text-slate-300" />
                 </button>
 
-                <div className="w-10 h-10 sm:w-12 sm:h-12 common-bg-icons flex items-center justify-center flex-shrink-0 rounded-lg sm:rounded-xl">
-                  <Bot className="w-5 h-5 sm:w-6 sm:h-6 text-black dark:text-white" />
+                <div className="w-9 h-9 common-bg-icons flex items-center justify-center flex-shrink-0 rounded-lg">
+                  <Bot className="w-4 h-4 text-black dark:text-white" />
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <h1 className="text-base sm:text-xl lg:text-2xl font-bold text-slate-800 dark:text-white leading-tight truncate">
+                  <h1 className="text-sm font-bold text-slate-800 dark:text-white leading-tight truncate">
                     {currentAgent.name}
                   </h1>
                   <span
-                    className={`inline-flex items-center px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-xs font-medium mt-1 ${
+                    className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${
                       currentAgent.status === "Published" ||
                       (currentAgent as any).is_active
                         ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
@@ -5020,14 +5245,14 @@ const AgentManagement = () => {
                 </div>
               </div>
 
-              {/* Action buttons */}
-              <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+              {/* Action buttons row - Mobile */}
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={() => navigate(`/agents/${currentAgent.id}/edit`)}
-                  className="common-button-bg2 flex items-center justify-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg touch-manipulation"
+                  className="common-button-bg2 flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg touch-manipulation text-xs font-medium"
                 >
-                  <Edit className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  <span className="hidden sm:inline text-xs sm:text-sm font-medium">Edit</span>
+                  <Edit className="w-3.5 h-3.5" />
+                  Edit
                 </button>
                 
                 {(currentAgent.status === "Published" ||
@@ -5035,26 +5260,120 @@ const AgentManagement = () => {
                   <>
                     <button
                       onClick={() => setShowTestChat(true)}
-                      className="common-button-bg flex items-center justify-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg touch-manipulation"
+                      className="common-button-bg flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg touch-manipulation text-xs font-medium text-white"
                     >
-                      <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                      <span className="hidden sm:inline text-xs sm:text-sm font-medium text-white">Test</span>
+                      <Play className="w-3.5 h-3.5" />
+                      Test
                     </button>
                     <button
                       onClick={() => handlePause(currentAgent.id)}
                       disabled={publishingAgents.has(currentAgent.id)}
-                      className={`common-button-bg2 flex items-center justify-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg touch-manipulation ${
+                      className={`common-button-bg2 flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg touch-manipulation text-xs font-medium ${
                         publishingAgents.has(currentAgent.id)
                           ? "opacity-50 cursor-not-allowed"
                           : ""
                       }`}
                     >
                       {publishingAgents.has(currentAgent.id) ? (
-                        <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                        <div className="w-3.5 h-3.5 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
                       ) : (
-                        <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        <Pause className="w-3.5 h-3.5" />
                       )}
-                      <span className="hidden sm:inline text-xs sm:text-sm font-medium">
+                      {publishingAgents.has(currentAgent.id) ? "..." : "Pause"}
+                    </button>
+                  </>
+                )}
+                
+                {!(currentAgent.status === "Published" || (currentAgent as any).is_active) && (
+                  <button
+                    onClick={() => handlePublish(currentAgent.id)}
+                    disabled={publishingAgents.has(currentAgent.id)}
+                    className={`common-button-bg flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg touch-manipulation text-xs font-medium text-white ${
+                      publishingAgents.has(currentAgent.id)
+                        ? "opacity-50 cursor-not-allowed"
+                        : ""
+                    }`}
+                  >
+                    {publishingAgents.has(currentAgent.id) ? (
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Play className="w-3.5 h-3.5" />
+                    )}
+                    {publishingAgents.has(currentAgent.id) ? "..." : "Publish"}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Tablet/Desktop: Horizontal layout */}
+            <div className="hidden sm:flex items-center justify-between mb-4 md:mb-6">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <button
+                  onClick={() => navigate("/agents")}
+                  className="common-button-bg2 p-2.5 rounded-xl flex-shrink-0 touch-manipulation"
+                >
+                  <ArrowLeft className="w-5 h-5 text-slate-600 dark:text-slate-300" />
+                </button>
+
+                <div className="w-12 h-12 common-bg-icons flex items-center justify-center flex-shrink-0 rounded-xl">
+                  <Bot className="w-6 h-6 text-black dark:text-white" />
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <h1 className="text-xl lg:text-2xl font-bold text-slate-800 dark:text-white leading-tight truncate">
+                    {currentAgent.name}
+                  </h1>
+                  <span
+                    className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium mt-1 ${
+                      currentAgent.status === "Published" ||
+                      (currentAgent as any).is_active
+                        ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
+                        : "bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400"
+                    }`}
+                  >
+                    {currentAgent.status === "Published" ||
+                    (currentAgent as any).is_active
+                      ? "Live"
+                      : "Unpublished"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Action buttons - Tablet/Desktop */}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  onClick={() => navigate(`/agents/${currentAgent.id}/edit`)}
+                  className="common-button-bg2 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg touch-manipulation"
+                >
+                  <Edit className="w-4 h-4" />
+                  <span className="text-sm font-medium">Edit</span>
+                </button>
+                
+                {(currentAgent.status === "Published" ||
+                  (currentAgent as any).is_active) && (
+                  <>
+                    <button
+                      onClick={() => setShowTestChat(true)}
+                      className="common-button-bg flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg touch-manipulation"
+                    >
+                      <Play className="w-4 h-4" />
+                      <span className="text-sm font-medium text-white">Test</span>
+                    </button>
+                    <button
+                      onClick={() => handlePause(currentAgent.id)}
+                      disabled={publishingAgents.has(currentAgent.id)}
+                      className={`common-button-bg2 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg touch-manipulation ${
+                        publishingAgents.has(currentAgent.id)
+                          ? "opacity-50 cursor-not-allowed"
+                          : ""
+                      }`}
+                    >
+                      {publishingAgents.has(currentAgent.id) ? (
+                        <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                      ) : (
+                        <Pause className="w-4 h-4" />
+                      )}
+                      <span className="text-sm font-medium">
                         {publishingAgents.has(currentAgent.id) ? "..." : "Pause"}
                       </span>
                     </button>
@@ -5065,18 +5384,18 @@ const AgentManagement = () => {
                   <button
                     onClick={() => handlePublish(currentAgent.id)}
                     disabled={publishingAgents.has(currentAgent.id)}
-                    className={`common-button-bg flex items-center justify-center gap-1.5 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg touch-manipulation ${
+                    className={`common-button-bg flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg touch-manipulation ${
                       publishingAgents.has(currentAgent.id)
                         ? "opacity-50 cursor-not-allowed"
                         : ""
                     }`}
                   >
                     {publishingAgents.has(currentAgent.id) ? (
-                      <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     ) : (
-                      <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      <Play className="w-4 h-4" />
                     )}
-                    <span className="text-xs sm:text-sm font-medium text-white">
+                    <span className="text-sm font-medium text-white">
                       {publishingAgents.has(currentAgent.id) ? "..." : "Publish"}
                     </span>
                   </button>
@@ -5085,43 +5404,43 @@ const AgentManagement = () => {
             </div>
 
             {/* Configuration Grid - Simple & Clean */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 mt-4">
-              <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+              <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
                 <div className="flex items-center gap-1.5 mb-1">
-                  <Globe className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
-                  <span className="text-xs font-medium text-slate-600 dark:text-slate-400">Language</span>
+                  <Globe className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-600 dark:text-slate-400 flex-shrink-0" />
+                  <span className="text-[10px] sm:text-xs font-medium text-slate-600 dark:text-slate-400">Language</span>
                 </div>
-                <p className="text-sm font-semibold text-slate-800 dark:text-white">
+                <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-white truncate">
                   {currentAgent.language}
                 </p>
               </div>
 
-              <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+              <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
                 <div className="flex items-center gap-1.5 mb-1">
-                  <MessageSquare className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
-                  <span className="text-xs font-medium text-slate-600 dark:text-slate-400">Voice</span>
+                  <MessageSquare className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-600 dark:text-slate-400 flex-shrink-0" />
+                  <span className="text-[10px] sm:text-xs font-medium text-slate-600 dark:text-slate-400">Voice</span>
                 </div>
-                <p className="text-sm font-semibold text-slate-800 dark:text-white">
+                <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-white truncate">
                   {currentAgent.voice}
                 </p>
               </div>
 
-              <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+              <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
                 <div className="flex items-center gap-1.5 mb-1">
-                  <Users className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
-                  <span className="text-xs font-medium text-slate-600 dark:text-slate-400">Persona</span>
+                  <Users className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-600 dark:text-slate-400 flex-shrink-0" />
+                  <span className="text-[10px] sm:text-xs font-medium text-slate-600 dark:text-slate-400">Persona</span>
                 </div>
-                <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">
+                <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-white truncate">
                   {currentAgent.persona}
                 </p>
               </div>
 
-              <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+              <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
                 <div className="flex items-center gap-1.5 mb-1">
-                  <Clock className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
-                  <span className="text-xs font-medium text-slate-600 dark:text-slate-400">Created</span>
+                  <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-600 dark:text-slate-400 flex-shrink-0" />
+                  <span className="text-[10px] sm:text-xs font-medium text-slate-600 dark:text-slate-400">Created</span>
                 </div>
-                <p className="text-sm font-semibold text-slate-800 dark:text-white">
+                <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-white truncate">
                   {new Date(currentAgent.createdAt).toLocaleDateString()}
                 </p>
               </div>
@@ -5131,15 +5450,15 @@ const AgentManagement = () => {
 
         {/* Performance Overview - Mobile Slider */}
         <div className="sm:hidden">
-          <div className="flex gap-2 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-hide">
+          <div className="flex gap-2 overflow-x-auto pb-2 px-0.5 snap-x snap-mandatory scrollbar-hide -mx-0.5">
             {/* Conversations Card */}
-            <GlassCard className="flex-shrink-0 w-32 snap-start">
+            <GlassCard className="flex-shrink-0 w-[calc(50%-4px)] min-w-[120px] max-w-[140px] snap-start">
               <div className="p-2.5">
                 <div className="flex flex-col items-center gap-0.5">
                   <div className="w-6 h-6 bg-blue-50 dark:bg-blue-900/20 rounded-md flex items-center justify-center mb-1">
                     <MessageSquare className="w-3 h-3 text-blue-600 dark:text-blue-400" />
                   </div>
-                  <p className="text-lg font-bold text-slate-800 dark:text-white">
+                  <p className="text-base font-bold text-slate-800 dark:text-white">
                     {currentAgent.stats.conversations.toLocaleString()}
                   </p>
                   <p className="text-[10px] text-slate-600 dark:text-slate-400 text-center leading-tight">
@@ -5159,13 +5478,13 @@ const AgentManagement = () => {
             </GlassCard>
 
             {/* Success Rate Card */}
-            <GlassCard className="flex-shrink-0 w-32 snap-start">
+            <GlassCard className="flex-shrink-0 w-[calc(50%-4px)] min-w-[120px] max-w-[140px] snap-start">
               <div className="p-2.5">
                 <div className="flex flex-col items-center gap-0.5">
                   <div className="w-6 h-6 bg-green-50 dark:bg-green-900/20 rounded-md flex items-center justify-center mb-1">
                     <CheckCircle className="w-3 h-3 text-green-600 dark:text-green-400" />
                   </div>
-                  <p className="text-lg font-bold text-slate-800 dark:text-white">
+                  <p className="text-base font-bold text-slate-800 dark:text-white">
                     {currentAgent.stats.successRate}%
                   </p>
                   <p className="text-[10px] text-slate-600 dark:text-slate-400 text-center leading-tight">
@@ -5185,13 +5504,13 @@ const AgentManagement = () => {
             </GlassCard>
 
             {/* Avg Response Card */}
-            <GlassCard className="flex-shrink-0 w-32 snap-start">
+            <GlassCard className="flex-shrink-0 w-[calc(50%-4px)] min-w-[120px] max-w-[140px] snap-start">
               <div className="p-2.5">
                 <div className="flex flex-col items-center gap-0.5">
                   <div className="w-6 h-6 bg-purple-50 dark:bg-purple-900/20 rounded-md flex items-center justify-center mb-1">
                     <Clock className="w-3 h-3 text-purple-600 dark:text-purple-400" />
                   </div>
-                  <p className="text-lg font-bold text-slate-800 dark:text-white">
+                  <p className="text-base font-bold text-slate-800 dark:text-white">
                     {currentAgent.stats.avgResponseTime}s
                   </p>
                   <p className="text-[10px] text-slate-600 dark:text-slate-400 text-center leading-tight">
@@ -5211,13 +5530,13 @@ const AgentManagement = () => {
             </GlassCard>
 
             {/* Active Users Card */}
-            <GlassCard className="flex-shrink-0 w-32 snap-start">
+            <GlassCard className="flex-shrink-0 w-[calc(50%-4px)] min-w-[120px] max-w-[140px] snap-start">
               <div className="p-2.5">
                 <div className="flex flex-col items-center gap-0.5">
                   <div className="w-6 h-6 bg-orange-50 dark:bg-orange-900/20 rounded-md flex items-center justify-center mb-1">
                     <Users className="w-3 h-3 text-orange-600 dark:text-orange-400" />
                   </div>
-                  <p className="text-lg font-bold text-slate-800 dark:text-white">
+                  <p className="text-base font-bold text-slate-800 dark:text-white">
                     {currentAgent.stats.activeUsers}
                   </p>
                   <p className="text-[10px] text-slate-600 dark:text-slate-400 text-center leading-tight">
@@ -5239,29 +5558,29 @@ const AgentManagement = () => {
         </div>
 
         {/* Tablet & Desktop Grid View - Compact */}
-        <div className="hidden sm:grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="hidden sm:grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
           <GlassCard className="hover:shadow-md transition-all duration-200">
-            <div className="p-3.5">
-              <div className="flex items-center justify-between mb-2">
-                <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
-                  <MessageSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <div className="p-3 md:p-3.5">
+              <div className="flex items-center justify-between mb-2 gap-2">
+                <div className="w-8 h-8 md:w-10 md:h-10 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <MessageSquare className="w-4 h-4 md:w-5 md:h-5 text-blue-600 dark:text-blue-400" />
                 </div>
-                <div className="text-right">
-                  <p className="text-xl font-bold text-slate-800 dark:text-white">
+                <div className="text-right min-w-0">
+                  <p className="text-lg md:text-xl font-bold text-slate-800 dark:text-white truncate">
                     {currentAgent.stats.conversations.toLocaleString()}
                   </p>
-                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                  <p className="text-[10px] md:text-xs text-slate-600 dark:text-slate-400">
                     Conversations
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-1">
                 {currentAgent.stats.conversations > 0 ? (
-                  <span className="text-xs text-slate-500 dark:text-slate-500">
+                  <span className="text-[10px] md:text-xs text-slate-500 dark:text-slate-500">
                     No data
                   </span>
                 ) : (
-                  <span className="text-xs text-slate-500 dark:text-slate-500">
+                  <span className="text-[10px] md:text-xs text-slate-500 dark:text-slate-500">
                     No data yet
                   </span>
                 )}
@@ -5270,27 +5589,27 @@ const AgentManagement = () => {
           </GlassCard>
 
           <GlassCard className="hover:shadow-md transition-all duration-200">
-            <div className="p-3.5">
-              <div className="flex items-center justify-between mb-2">
-                <div className="w-10 h-10 bg-green-50 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
-                  <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
+            <div className="p-3 md:p-3.5">
+              <div className="flex items-center justify-between mb-2 gap-2">
+                <div className="w-8 h-8 md:w-10 md:h-10 bg-green-50 dark:bg-green-900/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <CheckCircle className="w-4 h-4 md:w-5 md:h-5 text-green-600 dark:text-green-400" />
                 </div>
-                <div className="text-right">
-                  <p className="text-xl font-bold text-slate-800 dark:text-white">
+                <div className="text-right min-w-0">
+                  <p className="text-lg md:text-xl font-bold text-slate-800 dark:text-white truncate">
                     {currentAgent.stats.successRate}%
                   </p>
-                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                  <p className="text-[10px] md:text-xs text-slate-600 dark:text-slate-400">
                     Success Rate
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-1">
                 {currentAgent.stats.successRate > 0 ? (
-                  <span className="text-xs text-slate-500 dark:text-slate-500">
+                  <span className="text-[10px] md:text-xs text-slate-500 dark:text-slate-500">
                     No data
                   </span>
                 ) : (
-                  <span className="text-xs text-slate-500 dark:text-slate-500">
+                  <span className="text-[10px] md:text-xs text-slate-500 dark:text-slate-500">
                     No data yet
                   </span>
                 )}
@@ -5299,27 +5618,27 @@ const AgentManagement = () => {
           </GlassCard>
 
           <GlassCard className="hover:shadow-md transition-all duration-200">
-            <div className="p-3.5">
-              <div className="flex items-center justify-between mb-2">
-                <div className="w-10 h-10 bg-purple-50 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
-                  <Clock className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+            <div className="p-3 md:p-3.5">
+              <div className="flex items-center justify-between mb-2 gap-2">
+                <div className="w-8 h-8 md:w-10 md:h-10 bg-purple-50 dark:bg-purple-900/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Clock className="w-4 h-4 md:w-5 md:h-5 text-purple-600 dark:text-purple-400" />
                 </div>
-                <div className="text-right">
-                  <p className="text-xl font-bold text-slate-800 dark:text-white">
+                <div className="text-right min-w-0">
+                  <p className="text-lg md:text-xl font-bold text-slate-800 dark:text-white truncate">
                     {currentAgent.stats.avgResponseTime}s
                   </p>
-                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                  <p className="text-[10px] md:text-xs text-slate-600 dark:text-slate-400">
                     Avg Response
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-1">
                 {currentAgent.stats.avgResponseTime > 0 ? (
-                  <span className="text-xs text-slate-500 dark:text-slate-500">
+                  <span className="text-[10px] md:text-xs text-slate-500 dark:text-slate-500">
                     No data
                   </span>
                 ) : (
-                  <span className="text-xs text-slate-500 dark:text-slate-500">
+                  <span className="text-[10px] md:text-xs text-slate-500 dark:text-slate-500">
                     No data yet
                   </span>
                 )}
@@ -5328,27 +5647,27 @@ const AgentManagement = () => {
           </GlassCard>
 
           <GlassCard className="hover:shadow-md transition-all duration-200">
-            <div className="p-3.5">
-              <div className="flex items-center justify-between mb-2">
-                <div className="w-10 h-10 bg-orange-50 dark:bg-orange-900/20 rounded-lg flex items-center justify-center">
-                  <Users className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+            <div className="p-3 md:p-3.5">
+              <div className="flex items-center justify-between mb-2 gap-2">
+                <div className="w-8 h-8 md:w-10 md:h-10 bg-orange-50 dark:bg-orange-900/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Users className="w-4 h-4 md:w-5 md:h-5 text-orange-600 dark:text-orange-400" />
                 </div>
-                <div className="text-right">
-                  <p className="text-xl font-bold text-slate-800 dark:text-white">
+                <div className="text-right min-w-0">
+                  <p className="text-lg md:text-xl font-bold text-slate-800 dark:text-white truncate">
                     {currentAgent.stats.activeUsers}
                   </p>
-                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                  <p className="text-[10px] md:text-xs text-slate-600 dark:text-slate-400">
                     Active Users
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-1">
                 {currentAgent.stats.activeUsers > 0 ? (
-                  <span className="text-xs text-slate-500 dark:text-slate-500">
+                  <span className="text-[10px] md:text-xs text-slate-500 dark:text-slate-500">
                     No data
                   </span>
                 ) : (
-                  <span className="text-xs text-slate-500 dark:text-slate-500">
+                  <span className="text-[10px] md:text-xs text-slate-500 dark:text-slate-500">
                     No data yet
                   </span>
                 )}
@@ -5524,7 +5843,11 @@ const AgentManagement = () => {
         {showTestChat &&
           currentAgent &&
           currentAgent.status === "Published" && (
-            <div className="fixed inset-0 bg-black/20 z-[60] flex items-center justify-center p-3 sm:p-4 -top-8">
+            <div 
+              className="fixed inset-0 bg-black/20 z-[60] flex items-center justify-center p-3 sm:p-4 -top-8"
+              onTouchMove={(e) => e.target === e.currentTarget && e.preventDefault()}
+              onClick={(e) => e.target === e.currentTarget && setShowTestChat(false)}
+            >
               <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl w-full max-w-2xl h-[80vh] max-h-[600px] relative flex flex-col shadow-xl border border-white/20 dark:border-slate-700/50">
                 {/* Minimalist Header */}
                 <div className="flex items-center justify-between p-4 border-b border-slate-200/50 dark:border-slate-700/50">

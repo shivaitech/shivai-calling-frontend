@@ -83,6 +83,7 @@ export interface GenerateTemplateRequest {
   subIndustry?: string;
   websiteUrls?: string[];
   additionalContext?: string;
+  extractedContent?: string; // Extracted text from uploaded files (PDFs, docs, etc.)
 }
 
 interface PromptGenerationData {
@@ -201,6 +202,11 @@ class AITemplateService {
       ? `\nSub-industry: ${request.subIndustry}`
       : "";
 
+    // Add extracted content from documents (truncated to avoid token limits)
+    const extractedContentSection = request.extractedContent
+      ? `\n\n=== COMPANY KNOWLEDGE BASE (CRITICAL - READ CAREFULLY) ===\n${request.extractedContent.substring(0, 10000)}\n=== END OF KNOWLEDGE BASE ===`
+      : "";
+
     // Simplified example to save tokens - the comprehensive structure is described above
     const exampleTemplates = `[
   {
@@ -225,14 +231,46 @@ class AITemplateService {
   }
 ]`;
 
+    // Build knowledge-specific instructions
+    const knowledgeInstructions = request.extractedContent ? `
+
+🚨 KNOWLEDGE BASE PRIORITY - READ CAREFULLY 🚨
+
+The KNOWLEDGE BASE content above is the PRIMARY source of truth. Follow these PRIORITY RULES:
+
+1. **Company Name**: If the knowledge base mentions a company name, USE THAT instead of "${request.companyName}". Only use "${request.companyName}" if no company name is found in the knowledge base.
+
+2. **Industry/Niche**: If the knowledge base reveals the actual industry, niche, or business type, USE THAT instead of "${request.industry}". The knowledge base content is more accurate than the form selection.
+
+3. **Services/Products**: ALWAYS extract actual services, products, pricing from the knowledge base. Never make up generic services.
+
+4. **Policies/Procedures**: Use ACTUAL policies and procedures from the knowledge base documents.
+
+🔥 MANDATORY KNOWLEDGE BASE INTEGRATION 🔥
+You MUST deeply integrate the COMPANY KNOWLEDGE BASE content above into EVERY field of the templates:
+
+- systemPrompt: Include ACTUAL company name (from KB if available), product names, services, pricing, policies, FAQs from the knowledge base.
+- manualKnowledge: Copy relevant facts, specifications, pricing, and procedures directly from the knowledge base.
+- conversationExamples: Use REAL scenarios based on the knowledge base content (actual products, actual prices, actual services).
+- objections: Create objection handling based on actual company policies and offerings from the knowledge base.
+- keyTalkingPoints: Extract key selling points, features, benefits mentioned in the knowledge base.
+- firstMessage & scripts: Use the ACTUAL company name from KB and reference specific services/products.
+
+DO NOT create generic templates. Every template must reflect the ACTUAL company information from the knowledge base. The knowledge base is your source of truth - the form fields are just fallbacks.` : "";
+
     const prompt = `You are an AI assistant that creates professional AI Employee templates for businesses. Based on the following business information, generate AT LEAST 2 (preferably 3-5) DIFFERENT AI Employee template recommendations in JSON format with COMPREHENSIVE, PROFESSIONAL system prompts.
 
-Company Name: ${request.companyName}
-Business Process: ${request.businessProcess}
-Industry: ${request.industry}${subIndustryContent}${urlContent}
-${request.additionalContext ? `Additional Context: ${request.additionalContext}` : ""}
+Form Input (use as FALLBACK only if knowledge base doesn't have this info):
+- Company Name: ${request.companyName}
+- Business Process: ${request.businessProcess}
+- Industry: ${request.industry}${subIndustryContent}${urlContent}
+${request.additionalContext ? `- Additional Context: ${request.additionalContext}` : ""}${extractedContentSection}${knowledgeInstructions}
 
-CRITICAL: Generate a minimum of 2 templates. Each template should be distinct and offer a different approach or perspective for the AI Employee.
+CRITICAL INSTRUCTIONS:
+1. Generate a minimum of 2 templates. Each template should be distinct and offer a different approach.
+2. ${request.extractedContent ? "PRIORITIZE the knowledge base content over form inputs. If the KB has company name, niche, services - use those. Form inputs are only fallbacks. DEEPLY INTEGRATE the knowledge base into ALL template fields." : "Create templates based on the industry and business process."}
+3. The systemPrompt must contain ACTUAL company-specific information, not generic placeholders.
+4. Make the AI Employee an EXPERT on the company using the knowledge base data.
 
 IMPORTANT: The systemPrompt field must be COMPREHENSIVE and follow this professional structure:
 
@@ -243,28 +281,28 @@ The systemPrompt should include ALL of these sections with detailed content:
 2. **Voice & Persona** - Personality traits and speech characteristics
 3. **Conversation Flow** - Step-by-step conversation process with specific phrases to use
 4. **Response Guidelines** - Rules for how to respond (concise, confirm details, etc.)
-5. **Scenario Handling** - Detailed handling for 3-4 common scenarios with specific steps
-6. **Knowledge Base** - Key information the AI should know
+5. **Scenario Handling** - Detailed handling for 3-4 common scenarios with specific steps${request.extractedContent ? " using ACTUAL company data" : ""}
+6. **Company Knowledge** - ${request.extractedContent ? "EXTRACT and include specific products, services, pricing, policies, FAQs from the knowledge base above" : "Key information the AI should know"}
 7. **Call Management** - How to handle delays, technical issues, multiple requests
 
 For each template, provide:
 1. A professional name for the AI Employee (MUST BE UNIQUE)
-2. A concise description (2-3 sentences)
+2. A concise description (2-3 sentences)${request.extractedContent ? " mentioning specific services from knowledge base" : ""}
 3. An appropriate emoji icon
-4. 3-4 key features
-5. A COMPREHENSIVE systemPrompt (following the structure above - this is the MOST IMPORTANT field)
-6. First message/greeting for starting conversations
+4. 3-4 key features${request.extractedContent ? " based on actual company offerings" : ""}
+5. A COMPREHENSIVE systemPrompt (following the structure above - this is the MOST IMPORTANT field)${request.extractedContent ? " - MUST include specific info from knowledge base" : ""}
+6. First message/greeting${request.extractedContent ? " mentioning company's key services" : ""}
 7. Industry focus
 8. Recommended tone/personality
 9. Suggested gender (Male, Female, Neutral, or Not Specified)
 10. Recommended voice type
 11. Personality traits
-12. Manual knowledge base content
+12. Manual knowledge base content${request.extractedContent ? " - COPY relevant facts, specs, pricing from the knowledge base" : ""}
 13. Opening script
-14. Key talking points
+14. Key talking points${request.extractedContent ? " extracted from knowledge base" : ""}
 15. Closing script
-16. 2-3 common objections with responses
-17. 2-3 example conversation exchanges
+16. 2-3 common objections with responses${request.extractedContent ? " based on company policies" : ""}
+17. 2-3 example conversation exchanges${request.extractedContent ? " using REAL products/services from knowledge base" : ""}
 18. 2-3 intent examples
 
 Return ONLY a valid JSON array with AT LEAST 2 objects containing all above fields. No markdown, no explanation, just valid JSON array.
