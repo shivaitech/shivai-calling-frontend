@@ -35,7 +35,6 @@ import {
   LiveKitCallbacks,
 } from "../../services/liveKitService";
 import { agentAPI } from "../../services/agentAPI";
-import { knowledgeBaseSocket, KnowledgeBaseProgress } from "../../services/knowledgeBaseSocket";
 import {
   Bot,
   ArrowLeft,
@@ -928,68 +927,31 @@ const AgentManagement = () => {
       console.log("� Social Media URLs:", validSocialMediaUrls);
       console.log("�📎 Knowledge Base Files:", knowledgeBaseFileUrls);
 
-      // Call the agent creation API
+      // Call the agent creation API (synchronous - API handles KB creation)
       const newAgent = await agentAPI.createAgent(agentPayload);
 
       console.log('✅ Agent created successfully:', newAgent);
       console.log('✅ New Agent ID:', newAgent?.id);
 
-      // Update progress to show agent created
-      console.log('✅ [CREATE] Agent created, updating progress...');
+      // API call completed - agent and KB are ready
       setKbCreationProgress({
         agentId: newAgent?.id || '',
-        status: 'processing',
-        progress: 0,
-        message: 'Agent created! Setting up knowledge base...',
+        status: 'completed',
+        progress: 100,
+        message: 'Agent created successfully!',
       });
-      console.log('✅ [CREATE] Progress updated to processing');
-
-      // Simulate 10-second progress loader (temporary - WebSocket will be used later)
-      const totalDuration = 10000; // 10 seconds
-      const intervalTime = 200; // Update every 200ms
-      let elapsed = 0;
       
-      const progressInterval = setInterval(() => {
-        elapsed += intervalTime;
-        const progress = Math.min(95, Math.round((elapsed / totalDuration) * 100));
-        
-        setKbCreationProgress({
-          agentId: newAgent?.id || '',
-          status: 'processing',
-          progress: progress,
-          message: progress < 30 
-            ? 'Setting up knowledge base...' 
-            : progress < 60 
-              ? 'Processing website content...' 
-              : progress < 90 
-                ? 'Finalizing agent configuration...' 
-                : 'Almost done...',
-        });
-        
-        if (elapsed >= totalDuration) {
-          clearInterval(progressInterval);
-          
-          // Complete the creation
-          setKbCreationProgress({
-            agentId: newAgent?.id || '',
-            status: 'completed',
-            progress: 100,
-            message: 'Agent created successfully!',
-          });
-          
-          // Show success toast
-          toast.success(`${quickCreateData.aiEmployeeName} has been created successfully!`, { duration: 4000 });
-          
-          // Close modal and refresh agents
-          setTimeout(() => {
-            handleQuickCreateClose();
-            refreshAgents();
-            navigate('/agents');
-          }, 500);
-        }
-      }, intervalTime);
+      // Show success toast
+      toast.success(`${quickCreateData.aiEmployeeName} has been created successfully!`, { duration: 4000 });
       
-      console.log('✅ Agent creation complete, showing 10s progress loader...');
+      // Close modal and refresh agents
+      setTimeout(() => {
+        handleQuickCreateClose();
+        refreshAgents();
+        navigate('/agents');
+      }, 500);
+      
+      console.log('✅ Agent creation complete!');
     } catch (error) {
       console.error("❌ Error creating agent:", error);
 
@@ -1033,7 +995,12 @@ const AgentManagement = () => {
     new Set(),
   );
   const [isCreatingAgent, setIsCreatingAgent] = useState(false);
-  const [kbCreationProgress, setKbCreationProgress] = useState<KnowledgeBaseProgress | null>(null);
+  const [kbCreationProgress, setKbCreationProgress] = useState<{
+    agentId: string;
+    status: 'pending' | 'processing' | 'completed' | 'failed';
+    progress: number;
+    message?: string;
+  } | null>(null);
   const [connectionStatus, setConnectionStatus] = useState("disconnected");
   const [statusMessage, setStatusMessage] = useState("Ready to connect");
   const [isMuted, setIsMuted] = useState(false);
@@ -1105,90 +1072,7 @@ const AgentManagement = () => {
     };
   }, [callTimerInterval]);
 
-  // Connect to WebSocket for knowledge base tracking
-  useEffect(() => {
-    const connectSocket = async () => {
-      if (user?.id) {
-        console.log('🔌 [KB Socket] Attempting to connect with userId:', user.id);
-        try {
-          await knowledgeBaseSocket.connect(user.id);
-          console.log('✅ [KB Socket] Connection completed for user:', user.id);
-        } catch (error) {
-          console.error('❌ [KB Socket] Failed to connect:', error);
-        }
-      }
-    };
-
-    // Connect immediately if user is available
-    if (user?.id) {
-      connectSocket();
-    }
-
-    return () => {
-      knowledgeBaseSocket.clearCallback();
-    };
-  }, [user?.id]);
-
-  // Set up global KB progress callback when creating agent
-  useEffect(() => {
-    if (isCreatingAgent) {
-      console.log('📡 Setting up KB progress listener...');
-      const agentName = quickCreateData.aiEmployeeName;
-      
-      knowledgeBaseSocket.onProgress((progress) => {
-        console.log('📊 KB Progress:', progress.status, progress.progress, '%', progress.message);
-        
-        // Update progress state
-        setKbCreationProgress(progress);
-        
-        if (progress.status === 'completed') {
-          console.log('🏁 KB creation completed!');
-          
-          // Refresh agents and close modal
-          refreshAgents();
-          
-          setTimeout(() => {
-            setIsCreatingAgent(false);
-            setKbCreationProgress(null);
-            setShowQuickCreateModal(false);
-            setQuickCreateStep(1);
-            setAIGeneratedTemplates([]);
-            setIsExtractingContent(false);
-            setQuickCreateData({
-              companyName: "",
-              aiEmployeeName: "",
-              businessProcess: "",
-              industry: "",
-              subIndustry: "",
-              websiteUrls: [""],
-              socialMediaUrls: [""],
-              uploadedFiles: [],
-              uploadedFileUrls: [],
-              extractedFileContent: "",
-              extractedWebsiteContent: "",
-              selectedTemplate: null,
-            });
-            
-            toast.success(`✅ ${agentName} has been created successfully!`, { duration: 3000 });
-            setSortBy("newest");
-            navigate("/agents?page=1");
-          }, 500);
-        } else if (progress.status === 'failed') {
-          console.error('❌ KB creation failed:', progress.error);
-          
-          setIsCreatingAgent(false);
-          setKbCreationProgress(null);
-          setShowQuickCreateModal(false);
-          
-          toast.error(progress.error || 'Knowledge base creation failed.', { duration: 5000 });
-          refreshAgents();
-          navigate("/agents?page=1");
-        }
-      });
-    } else {
-      knowledgeBaseSocket.clearCallback();
-    }
-  }, [isCreatingAgent]);
+  // Note: WebSocket KB tracking removed - API handles KB creation synchronously
 
   // Prevent body scroll when any modal is open
   useEffect(() => {
@@ -3106,7 +2990,6 @@ const AgentManagement = () => {
               <div
                 className="absolute inset-0 bg-black/60"
                 onTouchMove={(e) => e.preventDefault()}
-                onClick={handleQuickCreateClose}
               />
 
               {/* Modal */}

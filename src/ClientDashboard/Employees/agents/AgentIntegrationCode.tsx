@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Copy } from "lucide-react";
 import GlassCard from "../../../components/GlassCard";
+import { useAuth } from "../../../contexts/AuthContext";
 
 interface WidgetConfig {
   theme: {
@@ -52,6 +53,7 @@ interface AgentIntegrationCodeProps {
 const AgentIntegrationCode: React.FC<AgentIntegrationCodeProps> = ({
   currentAgent,
 }) => {
+  const { user } = useAuth();
   const [widgetConfig, setWidgetConfig] = useState<WidgetConfig>({
     theme: {
       primaryColor: "#4b5563",
@@ -120,9 +122,14 @@ const AgentIntegrationCode: React.FC<AgentIntegrationCodeProps> = ({
     };
   }, [currentAgent.id]);
 
-  // Generate short JavaScript embed code with only agentId
+  // Generate short JavaScript embed code with agentId and userId
   const generateEmbedCode = () => {
-    return `<script src="https://callshivai.com/widget2.js?agentId=${currentAgent.id}"></script>`;
+    const params = new URLSearchParams();
+    params.set('agentId', currentAgent.id);
+    if (user?.id) {
+      params.set('userId', user.id);
+    }
+    return `<script src="https://callshivai.com/widget2.js?${params.toString()}"></script>`;
   };
 
   const embedCode = generateEmbedCode();

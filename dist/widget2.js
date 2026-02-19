@@ -4169,8 +4169,9 @@
       const callId = `call_${Date.now()}`;
       // Don't set currentCallId yet - wait until token is successfully received
       
-      // Get agent ID from configuration or script data attributes
+      // Get agent ID and user ID from configuration or script data attributes
       let agentId = "id123"; // default fallback
+      let userId = null; // Will be used as tenant_id
       
       console.log("🔍 Debug: window.SHIVAI_CONFIG:", window.SHIVAI_CONFIG);
       console.log("🔍 Debug: document.currentScript:", document.currentScript);
@@ -4184,35 +4185,60 @@
         if (script.src && script.src.includes('/widget2.js')) {
           const url = new URL(script.src);
           const urlAgentId = url.searchParams.get('agentId');
+          const urlUserId = url.searchParams.get('userId');
           if (urlAgentId) {
             agentId = urlAgentId;
             foundFromUrl = true;
             console.log("🎯 Using agentId from URL parameter:", agentId);
-            break;
           }
+          if (urlUserId) {
+            userId = urlUserId;
+            console.log("👤 Using userId from URL parameter:", userId);
+          }
+          if (foundFromUrl) break;
         }
       }
       
       if (!foundFromUrl && window.SHIVAI_CONFIG && window.SHIVAI_CONFIG.agentId) {
         agentId = window.SHIVAI_CONFIG.agentId;
         console.log("🎯 Using agentId from SHIVAI_CONFIG:", agentId);
-      } 
-      else if (!foundFromUrl) {
+      }
+      // Get userId from SHIVAI_CONFIG if not already from URL
+      if (!userId && window.SHIVAI_CONFIG && window.SHIVAI_CONFIG.userId) {
+        userId = window.SHIVAI_CONFIG.userId;
+        console.log("👤 Using userId from SHIVAI_CONFIG:", userId);
+      }
+      if (!foundFromUrl) {
         console.log("🔍 SHIVAI_CONFIG not found, checking script attributes...");
         const scriptElements = document.querySelectorAll('script[data-agent-id]');
         console.log("🔍 Found script elements with data-agent-id:", scriptElements);
         
         if (scriptElements.length > 0) {
-          agentId = scriptElements[scriptElements.length - 1].getAttribute('data-agent-id');
+          const lastScript = scriptElements[scriptElements.length - 1];
+          agentId = lastScript.getAttribute('data-agent-id');
           console.log("🎯 Using agentId from script data attribute:", agentId);
+          // Also try to get userId from the same script
+          if (!userId && lastScript.getAttribute('data-user-id')) {
+            userId = lastScript.getAttribute('data-user-id');
+            console.log("👤 Using userId from script data attribute:", userId);
+          }
         }
         else if (document.currentScript && document.currentScript.getAttribute('data-agent-id')) {
           agentId = document.currentScript.getAttribute('data-agent-id');
           console.log("🎯 Using agentId from current script:", agentId);
+          if (!userId && document.currentScript.getAttribute('data-user-id')) {
+            userId = document.currentScript.getAttribute('data-user-id');
+            console.log("👤 Using userId from current script:", userId);
+          }
         }
         else {
           console.warn("⚠️ No agentId found, using default:", agentId);
         }
+      }
+
+      // Validate userId
+      if (!userId) {
+        console.warn("⚠️ No userId found, tenant_id will not be sent");
       }
 
       const response = await fetch(
@@ -4227,6 +4253,7 @@
             device: deviceType,
             user_agent: navigator.userAgent,
             ip: await getClientIP(),
+            ...(userId && { tenant_id: userId })
           }),
         }
       );

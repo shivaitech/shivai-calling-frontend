@@ -3,6 +3,7 @@ import { Smartphone, Monitor, Save, RefreshCw, Settings2, ChevronLeft, ChevronRi
 import Slider from "react-slick";
 import GlassCard from "../../../components/GlassCard";
 import { agentAPI } from "../../../services/agentAPI";
+import { useAuth } from "../../../contexts/AuthContext";
 
 interface WidgetConfig {
   theme: {
@@ -52,6 +53,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
   agentName,
   isPublished = false,
 }) => {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("configure");
   const [previewDevice, setPreviewDevice] = useState<"mobile" | "desktop">(
     "mobile"
@@ -1176,9 +1178,10 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
             }
         };
         
-        // Also set SHIVAI_CONFIG for agent ID
+        // Also set SHIVAI_CONFIG for agent ID and user ID (tenant_id)
         window.SHIVAI_CONFIG = {
             agentId: "${agentId}",
+            userId: "${user?.id || ''}",
             theme: ${JSON.stringify(widgetConfig.theme)},
             ui: ${JSON.stringify(widgetConfig.ui)},
             content: ${JSON.stringify(widgetConfig.content)},
@@ -1197,7 +1200,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
     </script>
     
     <!-- Load the actual widget.js -->
-    <script src="/widget.js?agentId=${agentId}&companyName=${encodeURIComponent(
+    <script src="/widget.js?agentId=${agentId}&userId=${user?.id || ''}&companyName=${encodeURIComponent(
                         widgetConfig.content.companyName
                       )}&companyDescription=${encodeURIComponent(
                         widgetConfig.content.companyDescription
