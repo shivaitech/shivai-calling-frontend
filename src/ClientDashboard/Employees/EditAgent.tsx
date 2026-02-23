@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Save, X, Bot, Globe, Settings, Sparkles, Info, Upload, Link, Share2, FileText, File, Image, Plus, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Save, X, Bot, Globe, Settings, Sparkles, Info, Upload, Link, Share2, FileText, File, Image, Plus, BookOpen, Volume2 } from 'lucide-react';
 import { useAgent } from '../../contexts/AgentContext';
 import { agentAPI } from '../../services/agentAPI';
 import GlassCard from '../../components/GlassCard';
@@ -20,7 +20,9 @@ const EditAgent = () => {
     subIndustry: "",
     persona: "Empathetic",
     language: "en-US",
-    voice: "alloy",
+    voice: "Achernar",
+    voiceSpeed: 1.0,
+    voiceStyle: "friendly",
     customInstructions: "",
     guardrailsLevel: "Medium",
     responseStyle: "Balanced",
@@ -31,16 +33,16 @@ const EditAgent = () => {
 
   const [templateData, setTemplateData] = useState<any>(null);
 
-  // Accordion/Section Expanded State
-  const [expandedSections, setExpandedSections] = useState({
-    identity: true,
-    knowledgeBase: false,
-    advancedSettings: false,
-  });
-
-  const toggleSection = (section: keyof typeof expandedSections) => {
-    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
-  };
+  // Tab state (like Training page)
+  const [activeTab, setActiveTab] = useState<string>('identity');
+  
+  // Tab configuration
+  const editTabs = [
+    { id: 'identity', label: 'Identity', icon: Bot },
+    { id: 'voice', label: 'Voice', icon: Volume2 },
+    { id: 'knowledge', label: 'Knowledge', icon: BookOpen },
+    { id: 'settings', label: 'Template Setting', icon: Settings },
+  ];
 
   // Knowledge Base State
   const [websiteUrls, setWebsiteUrls] = useState<string[]>(['']);
@@ -175,7 +177,9 @@ const EditAgent = () => {
           subIndustry: mapSubIndustry(agentData.sub_industry),
           persona: mapPersonality(agentData.personality),
           language: agentData.language || "en-US",
-          voice: agentData.voice || "alloy",
+          voice: agentData.voice || "Achernar",
+          voiceSpeed: (agentData as any).voice_speed !== undefined ? (agentData as any).voice_speed : 1.0,
+          voiceStyle: (agentData as any).voice_style || "friendly",
           customInstructions: agentData.custom_instructions || "",
           guardrailsLevel: mapGuardrailsLevel(agentData.guardrails_level),
           responseStyle: mapResponseStyle(agentData.response_style),
@@ -416,6 +420,54 @@ const EditAgent = () => {
     { value: "male", label: "Male" },
   ];
 
+  // Voice Options by Gender
+  const voiceOptions: Record<string, { value: string; label: string }[]> = {
+    female: [
+      { value: "Achernar", label: "Achernar" },
+      { value: "Aoede", label: "Aoede" },
+      { value: "Autonoe", label: "Autonoe" },
+      { value: "Callirrhoe", label: "Callirrhoe" },
+      { value: "Despina", label: "Despina" },
+      { value: "Erinome", label: "Erinome" },
+      { value: "Gacrux", label: "Gacrux" },
+      { value: "Kore", label: "Kore" },
+      { value: "Laomedeia", label: "Laomedeia" },
+      { value: "Leda", label: "Leda" },
+      { value: "Pulcherrima", label: "Pulcherrima" },
+      { value: "Sulafat", label: "Sulafat" },
+      { value: "Vindemiatrix", label: "Vindemiatrix" },
+      { value: "Zephyr", label: "Zephyr" },
+    ],
+    male: [
+      { value: "Achird", label: "Achird" },
+      { value: "Algenib", label: "Algenib" },
+      { value: "Algieba", label: "Algieba" },
+      { value: "Alnilam", label: "Alnilam" },
+      { value: "Charon", label: "Charon" },
+      { value: "Enceladus", label: "Enceladus" },
+      { value: "Fenrir", label: "Fenrir" },
+      { value: "Iapetus", label: "Iapetus" },
+      { value: "Orus", label: "Orus" },
+      { value: "Puck", label: "Puck" },
+      { value: "Rasalgethi", label: "Rasalgethi" },
+      { value: "Sadachbia", label: "Sadachbia" },
+      { value: "Sadaltager", label: "Sadaltager" },
+      { value: "Schedar", label: "Schedar" },
+      { value: "Umbriel", label: "Umbriel" },
+      { value: "Zubenelgenubi", label: "Zubenelgenubi" },
+    ],
+  };
+
+  // Voice Style Options
+  const voiceStyleOptions = [
+    { value: "friendly", label: "Friendly - Warm & approachable" },
+    { value: "professional", label: "Professional - Business-like & formal" },
+    { value: "casual", label: "Casual - Relaxed & conversational" },
+    { value: "authoritative", label: "Authoritative - Confident & commanding" },
+    { value: "empathetic", label: "Empathetic - Understanding & supportive" },
+    { value: "enthusiastic", label: "Enthusiastic - Energetic & upbeat" },
+  ];
+
   const responseStyleOptions = [
     { value: "Concise", label: "Concise" },
     { value: "Balanced", label: "Balanced" },
@@ -566,6 +618,8 @@ const EditAgent = () => {
           personality: personalityToApi(formData.persona),
           language: formData.language,
           voice: formData.voice,
+          voice_speed: formData.voiceSpeed,
+          voice_style: formData.voiceStyle,
           gender: formData.gender,
           business_process: formData.businessProcess.replace(/-/g, '_'),
           industry: formData.industry.replace(/-/g, '_'),
@@ -613,7 +667,6 @@ const EditAgent = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6 w-full max-w-full overflow-visible">
-      {/* <Toaster position="top-right" /> */}
       {/* Header */}
       <GlassCard>
         <div className="p-4 sm:p-6">
@@ -642,19 +695,23 @@ const EditAgent = () => {
                         {currentAgent.name}
                       </h1>
 
-                      {/* Agent meta info - Mobile optimized */}
+                      {/* Agent meta info */}
                       <div className="flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-1 text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
+                        <span className="font-medium capitalize">{formData.gender}</span>
+                        <span className="text-slate-400">•</span>
+                        <span className="truncate capitalize">{formData.voice}</span>
+                        <span className="text-slate-400">•</span>
                         <div className="flex items-center gap-1">
                           <Globe className="w-3 h-3 sm:w-4 sm:h-4" />
                           <span className="truncate text-xs sm:text-sm">
                             {currentAgent.language}
                           </span>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <span className="px-2 py-0.5 sm:px-3 sm:py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-xs font-medium flex-shrink-0">
-                            Editing
-                          </span>
-                        </div>
+                        <span
+                          className="px-2 py-0.5 sm:px-3 sm:py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-xs font-medium flex-shrink-0"
+                        >
+                          Editing
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -662,7 +719,7 @@ const EditAgent = () => {
               </div>
             </div>
 
-            {/* Action buttons - Mobile compact */}
+            {/* Action buttons */}
             <div className="flex items-center gap-1.5 sm:gap-2 lg:gap-3 flex-shrink-0">
               <button
                 onClick={handleCancel}
@@ -686,451 +743,378 @@ const EditAgent = () => {
         </div>
       </GlassCard>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-4 sm:gap-6 lg:gap-8">
-        <div className="space-y-4 sm:space-y-6 min-w-0">
-          {/* Identity Section - Mobile Optimized */}
-          <GlassCard>
-            <div className="p-4 sm:p-5 lg:p-6">
+      {/* Tabs - Training Page Style */}
+      <GlassCard>
+        <div className="">
+          <div className="flex space-x-1 common-bg-icons rounded-xl px-4 py-3 overflow-x-auto">
+            {editTabs?.map((tab) => (
               <button
-                type="button"
-                onClick={() => toggleSection('identity')}
-                className="w-full flex items-center justify-between"
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 rounded-lg transition-all duration-200 whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? "common-button-bg2 shadow-sm"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition ease-in-out"
+                }`}
               >
-                <div className="flex items-center gap-2">
+                <tab.icon className="w-3 sm:w-4 h-3 sm:h-4" />
+                <span className="text-xs sm:text-sm">{tab.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </GlassCard>
+
+      {/* Content based on active tab */}
+      <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 sm:gap-6">
+        <div className="lg:col-span-2">
+          {/* Identity Tab Content */}
+          {activeTab === 'identity' && (
+            <GlassCard>
+              <div className="p-4 sm:p-5 lg:p-6">
+                <div className="flex items-center gap-2 mb-4">
                   <Bot className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400" />
                   <h2 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
                     Identity & Persona
                   </h2>
                 </div>
-                <ChevronDown className={`w-5 h-5 text-slate-500 transition-transform duration-200 ${expandedSections.identity ? 'rotate-180' : ''}`} />
-              </button>
+                <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mb-4 sm:mb-6">
+                  Define your agent's basic identity and personality
+                </p>
 
-              {expandedSections.identity && (
-                <>
-                  <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mt-3 mb-4 sm:mb-6">
-                    Define your agent's basic identity and personality
-                  </p>
-
-                  <div className="space-y-4 sm:space-y-6">
-                {/* Agent Name */}
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
-                    Agent Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
-                    }
-                    placeholder="e.g., Sarah - Customer Support"
-                    className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg sm:rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/20 text-slate-800 dark:text-white text-sm sm:text-base transition-all duration-200"
-                  />
-                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-1.5">
-                    This name will be visible to your customers
-                  </p>
-                </div>
-
-                {/* Business Process and Industry */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-4 sm:space-y-6">
+                  {/* Agent Name */}
                   <div>
                     <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
-                      Business Process <span className="text-red-500">*</span>
+                      Agent Name *
                     </label>
-                    <SearchableSelect
-                      options={businessProcesses}
-                      value={formData.businessProcess}
-                      onChange={(value) =>
-                        setFormData({ ...formData, businessProcess: value })
+                    <input
+                      type="text"
+                      value={formData.name}
+                      onChange={(e) =>
+                        setFormData({ ...formData, name: e.target.value })
                       }
-                      placeholder="Select process..."
+                      placeholder="e.g., Sarah - Customer Support"
+                      className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg sm:rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/20 text-slate-800 dark:text-white text-sm sm:text-base transition-all duration-200"
                     />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
-                      Industry <span className="text-red-500">*</span>
-                    </label>
-                    <SearchableSelect
-                      options={industries}
-                      value={formData.industry}
-                      onChange={(value) =>
-                        setFormData({ ...formData, industry: value, subIndustry: "" })
-                      }
-                      placeholder="Select industry..."
-                    />
-                  </div>
-                </div>
-
-                {/* Sub Industry */}
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
-                    Sub Industry
-                  </label>
-                  <SearchableSelect
-                    options={formData.industry ? (subIndustries[formData.industry] || []) : []}
-                    value={formData.subIndustry}
-                    onChange={(value) =>
-                      setFormData({ ...formData, subIndustry: value })
-                    }
-                    placeholder={formData.industry ? "Select sub-industry..." : "Select an industry first"}
-                    disabled={!formData.industry}
-                  />
-                  {!formData.industry && (
                     <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-1.5">
-                      Please select an industry first to see available sub-industries
+                      This name will be visible to your customers
                     </p>
-                  )}
-                </div>
-
-                {/* Gender */}
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
-                    Gender
-                  </label>
-                  <SearchableSelect
-                    options={genders}
-                    value={formData.gender}
-                    onChange={(value) =>
-                      setFormData({ ...formData, gender: value })
-                    }
-                    placeholder="Select gender..."
-                  />
-                </div>
-
-                {/* Personality */}
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
-                    Persona
-                  </label>
-                  <SearchableSelect
-                    options={[
-                      { value: "Friendly", label: "Friendly" },
-                      { value: "Formal", label: "Formal" },
-                      { value: "Empathetic", label: "Empathetic" },
-                      { value: "Persuasive (Sales)", label: "Persuasive (Sales)" },
-                      { value: "Reassuring (Support)", label: "Reassuring (Support)" },
-                    ]}
-                    value={formData.persona}
-                    onChange={(value) =>
-                      setFormData({ ...formData, persona: value })
-                    }
-                    placeholder="Select persona..."
-                  />
-                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-1.5">
-                    Choose the tone that best fits your brand
-                  </p>
-                </div>
                   </div>
-                </>
-              )}
-            </div>
-          </GlassCard>
 
-          {/* Knowledge Base Section */}
-          <GlassCard>
-            <div className="p-4 sm:p-5 lg:p-6">
-              <button
-                type="button"
-                onClick={() => toggleSection('knowledgeBase')}
-                className="w-full flex items-center justify-between"
-              >
-                <div className="flex items-center gap-2">
+                  {/* Business Process and Industry */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
+                        Business Process <span className="text-red-500">*</span>
+                      </label>
+                      <SearchableSelect
+                        options={businessProcesses}
+                        value={formData.businessProcess}
+                        onChange={(value) =>
+                          setFormData({ ...formData, businessProcess: value })
+                        }
+                        placeholder="Select process..."
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
+                        Industry <span className="text-red-500">*</span>
+                      </label>
+                      <SearchableSelect
+                        options={industries}
+                        value={formData.industry}
+                        onChange={(value) =>
+                          setFormData({ ...formData, industry: value, subIndustry: "" })
+                        }
+                        placeholder="Select industry..."
+                      />
+                    </div>
+                  </div>
+
+                  {/* Sub Industry */}
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
+                      Sub Industry
+                    </label>
+                    <SearchableSelect
+                      options={formData.industry ? (subIndustries[formData.industry] || []) : []}
+                      value={formData.subIndustry}
+                      onChange={(value) =>
+                        setFormData({ ...formData, subIndustry: value })
+                      }
+                      placeholder={formData.industry ? "Select sub-industry..." : "Select an industry first"}
+                      disabled={!formData.industry}
+                    />
+                    {!formData.industry && (
+                      <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-1.5">
+                        Please select an industry first to see available sub-industries
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </GlassCard>
+          )}
+
+          {/* Knowledge Tab Content */}
+          {activeTab === 'knowledge' && (
+            <GlassCard>
+              <div className="p-4 sm:p-5 lg:p-6">
+                <div className="flex items-center gap-2 mb-4">
                   <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-600 dark:text-cyan-400" />
                   <h2 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
                     Knowledge Base
                   </h2>
                 </div>
-                <ChevronDown className={`w-5 h-5 text-slate-500 transition-transform duration-200 ${expandedSections.knowledgeBase ? 'rotate-180' : ''}`} />
-              </button>
+                <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                  Upload documents or add URLs to train your AI with company-specific knowledge
+                </p>
 
-              {expandedSections.knowledgeBase && (
-                <>
-                  <p className="text-sm text-slate-600 dark:text-slate-400 mt-3 mb-4">
-                    Upload documents or add URLs to train your AI with company-specific knowledge
-                  </p>
+                <div className="space-y-4 sm:space-y-5">
+                  {/* File Upload Section */}
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                      <Upload className="w-4 h-4" />
+                      Upload Files
+                    </label>
 
-                  <div className="space-y-4 sm:space-y-5">
-                    {/* File Upload Section */}
-                    <div className="space-y-3">
-                      <label className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                        <Upload className="w-4 h-4" />
-                        Upload Files
-                      </label>
-
-                      {/* Drop Zone */}
-                      <div
-                        className={`border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-4 sm:p-6 text-center hover:border-blue-400 dark:hover:border-blue-500 transition-colors cursor-pointer bg-slate-50/50 dark:bg-slate-800/50 ${isUploadingFiles ? 'opacity-50 pointer-events-none' : ''}`}
-                        onClick={() =>
-                          !isUploadingFiles && document.getElementById("edit-knowledge-file-input")?.click()
+                    {/* Drop Zone */}
+                    <div
+                      className={`border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-4 sm:p-6 text-center hover:border-blue-400 dark:hover:border-blue-500 transition-colors cursor-pointer bg-slate-50/50 dark:bg-slate-800/50 ${isUploadingFiles ? 'opacity-50 pointer-events-none' : ''}`}
+                      onClick={() =>
+                        !isUploadingFiles && document.getElementById("edit-knowledge-file-input")?.click()
+                      }
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        if (!isUploadingFiles) {
+                          e.currentTarget.classList.add("border-blue-400", "bg-blue-50/50");
                         }
-                        onDragOver={(e) => {
-                          e.preventDefault();
-                          if (!isUploadingFiles) {
-                            e.currentTarget.classList.add("border-blue-400", "bg-blue-50/50");
-                          }
+                      }}
+                      onDragLeave={(e) => {
+                        e.currentTarget.classList.remove("border-blue-400", "bg-blue-50/50");
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.currentTarget.classList.remove("border-blue-400", "bg-blue-50/50");
+                        if (!isUploadingFiles) {
+                          const files = Array.from(e.dataTransfer.files);
+                          handleKnowledgeBaseUpload(files);
+                        }
+                      }}
+                    >
+                      <input
+                        id="edit-knowledge-file-input"
+                        type="file"
+                        multiple
+                        accept=".pdf,.doc,.docx,.txt,.csv,.xlsx,.xls,.png,.jpg,.jpeg,.gif,.webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/png,image/jpeg,image/gif,image/webp"
+                        className="hidden"
+                        disabled={isUploadingFiles}
+                        onChange={(e) => {
+                          const files = Array.from(e.target.files || []);
+                          handleKnowledgeBaseUpload(files);
+                          e.target.value = "";
                         }}
-                        onDragLeave={(e) => {
-                          e.currentTarget.classList.remove("border-blue-400", "bg-blue-50/50");
-                        }}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          e.currentTarget.classList.remove("border-blue-400", "bg-blue-50/50");
-                          if (!isUploadingFiles) {
-                            const files = Array.from(e.dataTransfer.files);
-                            handleKnowledgeBaseUpload(files);
-                          }
-                        }}
-                      >
-                        <input
-                          id="edit-knowledge-file-input"
-                          type="file"
-                          multiple
-                          accept=".pdf,.doc,.docx,.txt,.csv,.xlsx,.xls,.png,.jpg,.jpeg,.gif,.webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/png,image/jpeg,image/gif,image/webp"
-                          className="hidden"
-                          disabled={isUploadingFiles}
-                          onChange={(e) => {
-                            const files = Array.from(e.target.files || []);
-                            handleKnowledgeBaseUpload(files);
-                            e.target.value = "";
-                          }}
-                        />
-                        <div className="flex flex-col items-center gap-1.5 sm:gap-2">
-                          {isUploadingFiles ? (
-                            <>
-                              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
-                                Uploading files...
-                              </p>
-                            </>
-                          ) : (
-                            <>
-                              <div className="flex items-center gap-2 sm:gap-3 text-slate-400">
-                                <FileText className="w-6 h-6 sm:w-8 sm:h-8" />
-                                <Image className="w-6 h-6 sm:w-8 sm:h-8" />
-                                <File className="w-6 h-6 sm:w-8 sm:h-8" />
-                              </div>
-                              <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
-                                <span className="text-blue-500 font-medium">Click to upload</span> or drag and drop
-                              </p>
-                              <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500">
-                                PDF, DOC, TXT, CSV, Excel, Images (max 10MB each)
-                              </p>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Uploaded Files List */}
-                      {uploadedFiles.length > 0 && (
-                        <div className="space-y-1.5 sm:space-y-2 max-h-32 overflow-y-auto">
-                          {uploadedFiles.map((file, index) => (
-                            <div
-                              key={index}
-                              className="flex items-center gap-2 sm:gap-3 p-1.5 sm:p-2 bg-slate-100 dark:bg-slate-800 rounded-lg"
-                            >
-                              {file.type.includes("image") ? (
-                                <Image className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-500 flex-shrink-0" />
-                              ) : file.type.includes("pdf") ? (
-                                <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-500 flex-shrink-0" />
-                              ) : (
-                                <File className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500 flex-shrink-0" />
-                              )}
-                              <span className="flex-1 text-xs sm:text-sm text-slate-700 dark:text-slate-300 truncate">
-                                {file.name}
-                              </span>
-                              <span className="text-[10px] sm:text-xs text-slate-400 hidden sm:inline">
-                                {(file.size / 1024 / 1024).toFixed(2)} MB
-                              </span>
-                              {uploadedFileUrls[index] && (
-                                <span className="text-[10px] sm:text-xs text-green-500">✓</span>
-                              )}
-                              <button
-                                onClick={() => handleRemoveKnowledgeBaseFile(index)}
-                                disabled={isUploadingFiles}
-                                className="p-0.5 sm:p-1 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors disabled:opacity-50"
-                              >
-                                <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                              </button>
+                      />
+                      <div className="flex flex-col items-center gap-1.5 sm:gap-2">
+                        {isUploadingFiles ? (
+                          <>
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+                              Uploading files...
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-2 sm:gap-3 text-slate-400">
+                              <FileText className="w-6 h-6 sm:w-8 sm:h-8" />
+                              <Image className="w-6 h-6 sm:w-8 sm:h-8" />
+                              <File className="w-6 h-6 sm:w-8 sm:h-8" />
                             </div>
-                          ))}
-                        </div>
-                      )}
+                            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+                              <span className="text-blue-500 font-medium">Click to upload</span> or drag and drop
+                            </p>
+                            <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500">
+                              PDF, DOC, TXT, CSV, Excel, Images (max 10MB each)
+                            </p>
+                          </>
+                        )}
+                      </div>
                     </div>
 
-                    {/* Website URLs Section */}
-                    <div className="space-y-2 sm:space-y-3">
-                      <label className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                        <Link className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                        Website URLs
-                      </label>
-                      {websiteUrls.map((url, index) => (
-                        <div key={index} className="flex items-center gap-1.5 sm:gap-2">
-                          <input
-                            type="url"
-                            value={url}
-                            onChange={(e) => handleWebsiteUrlChange(index, e.target.value)}
-                            placeholder="https://yourcompany.com"
-                            className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all"
-                          />
-                          {websiteUrls.length > 1 && (
+                    {/* Uploaded Files List */}
+                    {uploadedFiles.length > 0 && (
+                      <div className="space-y-1.5 sm:space-y-2 max-h-32 overflow-y-auto">
+                        {uploadedFiles.map((file, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center gap-2 sm:gap-3 p-1.5 sm:p-2 bg-slate-100 dark:bg-slate-800 rounded-lg"
+                          >
+                            {file.type.includes("image") ? (
+                              <Image className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-500 flex-shrink-0" />
+                            ) : file.type.includes("pdf") ? (
+                              <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-500 flex-shrink-0" />
+                            ) : (
+                              <File className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500 flex-shrink-0" />
+                            )}
+                            <span className="flex-1 text-xs sm:text-sm text-slate-700 dark:text-slate-300 truncate">
+                              {file.name}
+                            </span>
+                            <span className="text-[10px] sm:text-xs text-slate-400 hidden sm:inline">
+                              {(file.size / 1024 / 1024).toFixed(2)} MB
+                            </span>
+                            {uploadedFileUrls[index] && (
+                              <span className="text-[10px] sm:text-xs text-green-500">✓</span>
+                            )}
                             <button
-                              onClick={() => handleRemoveWebsiteUrl(index)}
-                              className="p-2 sm:p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
+                              onClick={() => handleRemoveKnowledgeBaseFile(index)}
+                              disabled={isUploadingFiles}
+                              className="p-0.5 sm:p-1 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors disabled:opacity-50"
                             >
                               <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                             </button>
-                          )}
-                        </div>
-                      ))}
-                      <button
-                        onClick={handleAddWebsiteUrl}
-                        className="w-full py-2 sm:py-2.5 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl text-slate-500 dark:text-slate-400 hover:border-blue-400 hover:text-blue-500 transition-colors flex items-center justify-center gap-2 text-xs sm:text-sm"
-                      >
-                        <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                        Add another URL
-                      </button>
-                    </div>
-
-                    {/* Social Media URLs Section */}
-                    <div className="space-y-2 sm:space-y-3">
-                      <label className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                        <Share2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                        Social Media Links
-                      </label>
-                      {socialMediaUrls.map((url, index) => (
-                        <div key={index} className="flex items-center gap-1.5 sm:gap-2">
-                          <input
-                            type="url"
-                            value={url}
-                            onChange={(e) => handleSocialMediaUrlChange(index, e.target.value)}
-                            placeholder="https://facebook.com/yourpage or https://x.com/yourhandle"
-                            className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all"
-                          />
-                          {socialMediaUrls.length > 1 && (
-                            <button
-                              onClick={() => handleRemoveSocialMediaUrl(index)}
-                              className="p-2 sm:p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
-                            >
-                              <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                            </button>
-                          )}
-                        </div>
-                      ))}
-                      <button
-                        onClick={handleAddSocialMediaUrl}
-                        className="w-full py-2 sm:py-2.5 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl text-slate-500 dark:text-slate-400 hover:border-blue-400 hover:text-blue-500 transition-colors flex items-center justify-center gap-2 text-xs sm:text-sm"
-                      >
-                        <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                        Add social media link
-                      </button>
-                    </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </>
-              )}
-            </div>
-          </GlassCard>
 
-          {/* Advanced Settings */}
-          <GlassCard>
-            <div className="p-4 sm:p-5 lg:p-6 z-[99] relative">
-              <button
-                type="button"
-                onClick={() => toggleSection('advancedSettings')}
-                className="w-full flex items-center justify-between"
-              >
-                <div className="flex items-center gap-2">
+                  {/* Website URLs Section */}
+                  <div className="space-y-2 sm:space-y-3">
+                    <label className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                      <Link className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      Website URLs
+                    </label>
+                    {websiteUrls.map((url, index) => (
+                      <div key={index} className="flex items-center gap-1.5 sm:gap-2">
+                        <input
+                          type="url"
+                          value={url}
+                          onChange={(e) => handleWebsiteUrlChange(index, e.target.value)}
+                          placeholder="https://yourcompany.com"
+                          className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all"
+                        />
+                        {websiteUrls.length > 1 && (
+                          <button
+                            onClick={() => handleRemoveWebsiteUrl(index)}
+                            className="p-2 sm:p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
+                          >
+                            <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      onClick={handleAddWebsiteUrl}
+                      className="w-full py-2 sm:py-2.5 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl text-slate-500 dark:text-slate-400 hover:border-blue-400 hover:text-blue-500 transition-colors flex items-center justify-center gap-2 text-xs sm:text-sm"
+                    >
+                      <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      Add another URL
+                    </button>
+                  </div>
+
+                  {/* Social Media URLs Section */}
+                  <div className="space-y-2 sm:space-y-3">
+                    <label className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                      <Share2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      Social Media Links
+                    </label>
+                    {socialMediaUrls.map((url, index) => (
+                      <div key={index} className="flex items-center gap-1.5 sm:gap-2">
+                        <input
+                          type="url"
+                          value={url}
+                          onChange={(e) => handleSocialMediaUrlChange(index, e.target.value)}
+                          placeholder="https://facebook.com/yourpage or https://x.com/yourhandle"
+                          className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all"
+                        />
+                        {socialMediaUrls.length > 1 && (
+                          <button
+                            onClick={() => handleRemoveSocialMediaUrl(index)}
+                            className="p-2 sm:p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
+                          >
+                            <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      onClick={handleAddSocialMediaUrl}
+                      className="w-full py-2 sm:py-2.5 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl text-slate-500 dark:text-slate-400 hover:border-blue-400 hover:text-blue-500 transition-colors flex items-center justify-center gap-2 text-xs sm:text-sm"
+                    >
+                      <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      Add social media link
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </GlassCard>
+          )}
+
+          {/* Settings Tab Content */}
+          {activeTab === 'settings' && (
+            <GlassCard>
+              <div className="p-4 sm:p-5 lg:p-6">
+                <div className="flex items-center gap-2 mb-4">
                   <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
                   <h2 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
                     Advanced Settings
                   </h2>
                 </div>
-                <ChevronDown className={`w-5 h-5 text-slate-500 transition-transform duration-200 ${expandedSections.advancedSettings ? 'rotate-180' : ''}`} />
-              </button>
 
-              {expandedSections.advancedSettings && (
-                <div className="space-y-4 sm:space-y-6 mt-4">
-                {/* Response Style */}
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
-                    Response Style
-                  </label>
-                  <SearchableSelect
-                    options={responseStyleOptions}
-                    value={formData.responseStyle}
-                    onChange={(value) =>
-                      setFormData({ ...formData, responseStyle: value })
-                    }
-                    placeholder="Select response style..."
-                  />
-                </div>
+                <div className="space-y-4 sm:space-y-6">
+               
 
-                {/* Max Response Length */}
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
-                    Max Response Length
-                  </label>
-                  <SearchableSelect
-                    options={maxResponseOptions}
-                    value={formData.maxResponseLength}
-                    onChange={(value) =>
-                      setFormData({ ...formData, maxResponseLength: value })
-                    }
-                    placeholder="Select max response length..."
-                  />
-                </div>
-
-                {/* Temperature Slider */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">
-                      Creativity Level
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
+                      Max Response Length
                     </label>
-                    <span className="text-xs sm:text-sm font-medium text-blue-600 dark:text-blue-400">
-                      {formData.temperature}
-                    </span>
+                    <SearchableSelect
+                      options={maxResponseOptions}
+                      value={formData.maxResponseLength}
+                      onChange={(value) =>
+                        setFormData({ ...formData, maxResponseLength: value })
+                      }
+                      placeholder="Select max response length..."
+                    />
                   </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.1"
-                    value={formData.temperature}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        temperature: parseFloat(e.target.value),
-                      })
-                    }
-                    className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                  />
-                  <div className="flex justify-between text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    <span>More Focused</span>
-                    <span>More Creative</span>
-                  </div>
-                </div>
 
-                {/* Context Window */}
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
-                    Context Window
-                  </label>
-                  <SearchableSelect
-                    options={contextWindowOptions}
-                    value={formData.contextWindow}
-                    onChange={(value) =>
-                      setFormData({ ...formData, contextWindow: value })
-                    }
-                    placeholder="Select context window..."
-                  />
-                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-1.5">
-                    Larger windows remember more conversation history
-                  </p>
-                </div>
+                  {/* Temperature Slider */}
+                  {/* <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">
+                        Creativity Level
+                      </label>
+                      <span className="text-xs sm:text-sm font-medium text-blue-600 dark:text-blue-400">
+                        {formData.temperature}
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.1"
+                      value={formData.temperature}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          temperature: parseFloat(e.target.value),
+                        })
+                      }
+                      className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                    />
+                    <div className="flex justify-between text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      <span>More Focused</span>
+                      <span>More Creative</span>
+                    </div>
+                  </div> */}
 
-                {/* Template Editor Section */}
-                {templateData && (
-                  <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+              
+
+                  {/* Template Editor Section */}
+                  {templateData && (
+                    <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-700">
                       {/* System Prompt */}
                       <div>
                         <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
@@ -1315,88 +1299,162 @@ const EditAgent = () => {
                           </div>
                         </div>
                       )}
-                  </div>
-                )}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </GlassCard>
+              </div>
+            </GlassCard>
+          )}
+
+          {/* Voice Tab Content */}
+          {activeTab === 'voice' && (
+            <GlassCard>
+              <div className="p-4 sm:p-5 lg:p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Globe className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 dark:text-green-400" />
+                  <h2 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
+                    Voice & Language
+                  </h2>
+                </div>
+                <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                  Configure language and voice settings
+                </p>
+
+                <div className="space-y-4">
+                  {/* Gender */}
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
+                      Gender
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      {genders.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() =>
+                            setFormData({
+                              ...formData,
+                              gender: option.value,
+                              voice: option.value === 'female' ? 'Achernar' : 'Achird',
+                            })
+                          }
+                          className={`p-3 rounded-xl border-2 transition-all flex items-center justify-center ${
+                            formData.gender === option.value
+                              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                              : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                          }`}
+                        >
+                          <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{option.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Language */}
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
+                      Language
+                    </label>
+                    <SearchableSelect
+                      options={[
+                        { value: "multilingual", label: "🌐 Multilingual" },
+                        { value: "ar", label: "🇸🇦 Arabic" },
+                        { value: "zh", label: "🇨🇳 Chinese" },
+                        { value: "nl", label: "🇳🇱 Dutch" },
+                        { value: "en-GB", label: "🇬🇧 English (UK)" },
+                        { value: "en-US", label: "🇺🇸 English (US)" },
+                        { value: "en-IN", label: "🇮🇳 English (India)" },
+                        { value: "fr", label: "🇫🇷 French" },
+                        { value: "de", label: "🇩🇪 German" },
+                        { value: "hi", label: "🇮🇳 Hindi" },
+                        { value: "it", label: "🇮🇹 Italian" },
+                        { value: "ja", label: "🇯🇵 Japanese" },
+                        { value: "ko", label: "🇰🇷 Korean" },
+                        { value: "pt", label: "🇵🇹 Portuguese" },
+                        { value: "pl", label: "🇵🇱 Polish" },
+                        { value: "ru", label: "🇷🇺 Russian" },
+                        { value: "es", label: "🇪🇸 Spanish" },
+                        { value: "tr", label: "🇹🇷 Turkish" },
+                      ]}
+                      value={formData.language}
+                      onChange={(value) =>
+                        setFormData({ ...formData, language: value })
+                      }
+                      placeholder="Select language..."
+                    />
+                  </div>
+
+                  {/* Voice Type */}
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
+                      Voice Type
+                    </label>
+                    <SearchableSelect
+                      options={voiceOptions[formData.gender] || voiceOptions.female}
+                      value={formData.voice}
+                      onChange={(value) =>
+                        setFormData({ ...formData, voice: value })
+                      }
+                      placeholder="Select voice..."
+                    />
+                    <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      Choose a voice that matches your brand personality
+                    </p>
+                  </div>
+
+                  {/* Voice Style */}
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
+                      Voice Style
+                    </label>
+                    <SearchableSelect
+                      options={voiceStyleOptions}
+                      value={formData.voiceStyle}
+                      onChange={(value) =>
+                        setFormData({ ...formData, voiceStyle: value })
+                      }
+                      placeholder="Select voice style..."
+                    />
+                    <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      Set the personality tone for your AI assistant
+                    </p>
+                  </div>
+
+                  {/* Voice Speed */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">
+                        Voice Speed
+                      </label>
+                      <span className="text-xs sm:text-sm font-medium text-blue-600 dark:text-blue-400">
+                        {formData.voiceSpeed.toFixed(1)}x
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.5"
+                      max="2.0"
+                      step="0.1"
+                      value={formData.voiceSpeed}
+                      onChange={(e) =>
+                        setFormData({ ...formData, voiceSpeed: parseFloat(e.target.value) })
+                      }
+                      className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                    />
+                    <div className="flex justify-between text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-1">
+                      <span>Slower (0.5x)</span>
+                      <span>Normal (1.0x)</span>
+                      <span>Faster (2.0x)</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </GlassCard>
+          )}
         </div>
 
-        {/* Sidebar - Mobile Stacked */}
+        {/* Sidebar - Tips Card */}
         <div className="space-y-4 sm:space-y-6">
-          <GlassCard>
-            <div className="p-4 sm:p-5 lg:p-6">
-              <div className="flex items-center gap-2 mb-3 sm:mb-4">
-                <Globe className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 dark:text-green-400" />
-                <h2 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
-                  Voice & Language
-                </h2>
-              </div>
-              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-                Configure language and voice settings
-              </p>
-
-              <div className="space-y-4">
-                {/* Language */}
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
-                    Language
-                  </label>
-                  <SearchableSelect
-                    options={[
-                      { value: "multilingual", label: "🌐 Multilingual" },
-                      { value: "ar", label: "🇸🇦 Arabic" },
-                      { value: "zh", label: "🇨🇳 Chinese" },
-                      { value: "nl", label: "🇳🇱 Dutch" },
-                      { value: "en-GB", label: "🇬🇧 English (UK)" },
-                      { value: "en-US", label: "🇺🇸 English (US)" },
-                      { value: "en-IN", label: "🇮🇳 English (India)" },
-                      { value: "fr", label: "🇫🇷 French" },
-                      { value: "de", label: "🇩🇪 German" },
-                      { value: "hi", label: "🇮🇳 Hindi" },
-                      { value: "it", label: "🇮🇹 Italian" },
-                      { value: "ja", label: "🇯🇵 Japanese" },
-                      { value: "ko", label: "🇰🇷 Korean" },
-                      { value: "pt", label: "🇵🇹 Portuguese" },
-                      { value: "pl", label: "🇵🇱 Polish" },
-                      { value: "ru", label: "🇷🇺 Russian" },
-                      { value: "es", label: "🇪🇸 Spanish" },
-                      { value: "tr", label: "🇹🇷 Turkish" },
-                    ]}
-                    value={formData.language}
-                    onChange={(value) =>
-                      setFormData({ ...formData, language: value })
-                    }
-                    placeholder="Select language..."
-                  />
-                </div>
-
-                {/* Voice */}
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
-                    Voice
-                  </label>
-                  <SearchableSelect
-                    options={[
-                      { value: "alloy", label: "Alloy - Neutral" },
-                      { value: "echo", label: "Echo - Male" },
-                      { value: "fable", label: "Fable - British Male" },
-                      { value: "onyx", label: "Onyx - Deep Male" },
-                      { value: "nova", label: "Nova - Female" },
-                      { value: "shimmer", label: "Shimmer - Soft Female" },
-                    ]}
-                    value={formData.voice}
-                    onChange={(value) =>
-                      setFormData({ ...formData, voice: value })
-                    }
-                    placeholder="Select voice..."
-                  />
-                </div>
-              </div>
-            </div>
-          </GlassCard>
-
           <GlassCard>
             <div className="p-4 sm:p-5 lg:p-6">
               <div className="flex items-center gap-2 mb-3 sm:mb-4">

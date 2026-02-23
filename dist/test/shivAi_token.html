@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>ShivAI Token — Private Digital Asset Platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #03050f;
+    --bg2: #060c1e;
+    --blue: #2979ff;
+    --violet: #7c3aed;
+    --cyan: #00e5ff;
+    --glow-blue: rgba(41,121,255,0.35);
+    --glass: rgba(255,255,255,0.04);
+    --glass-border: rgba(255,255,255,0.09);
+    --text: #f0f4ff;
+    --muted: rgba(230,235,255,0.88);
+    --bar-h: 72px;
+  }
+  /* ── LIGHT MODE ── */
+  [data-theme="light"] {
+    --bg: #f0f6ff;
+    --bg2: #e5eeff;
+    --blue: #1d53d4;
+    --violet: #6d28d9;
+    --cyan: #0077aa;
+    --glow-blue: rgba(29,83,212,0.15);
+    --glass: rgba(29,83,212,0.05);
+    --glass-border: rgba(29,83,212,0.13);
+    --text: #081428;
+    --muted: rgba(12,30,85,0.68);
+  }
+  [data-theme="light"] body { background:#f0f6ff; }
+  [data-theme="light"] nav { background:rgba(240,246,255,0.93) !important; border-bottom-color:rgba(29,83,212,0.12); }
+  [data-theme="light"] .mobile-menu { background:rgba(238,245,255,0.98); }
+  [data-theme="light"] .hero-glow-1 { background:radial-gradient(ellipse,rgba(29,83,212,.09),transparent 70%); }
+  [data-theme="light"] .hero-glow-2 { background:radial-gradient(ellipse,rgba(109,40,217,.07),transparent 70%); }
+  [data-theme="light"] .hero-badge { background:rgba(0,119,170,0.07); border-color:rgba(0,119,170,0.2); }
+  [data-theme="light"] .gc { background:rgba(255,255,255,0.75); border-color:rgba(29,83,212,0.12); box-shadow:0 2px 16px rgba(29,83,212,0.06); }
+  [data-theme="light"] .gc:hover { box-shadow:0 16px 48px rgba(29,83,212,0.14),0 0 24px rgba(29,83,212,0.1); border-color:rgba(29,83,212,0.28); transform:translateY(-4px); }
+  [data-theme="light"] .gc::before { background:linear-gradient(135deg,rgba(255,255,255,.6),transparent); }
+  [data-theme="light"] .bg2 { background:linear-gradient(180deg,#f0f6ff 0%,#e5eeff 50%,#f0f6ff 100%); }
+  [data-theme="light"] hr.div { border-top-color:rgba(29,83,212,0.12); }
+  [data-theme="light"] .ptrack { background:rgba(29,83,212,0.08); }
+  [data-theme="light"] .srow { border-bottom-color:rgba(29,83,212,0.1); }
+  [data-theme="light"] .cbadge { background:rgba(255,255,255,0.7); border-color:rgba(29,83,212,0.12); }
+  [data-theme="light"] .aform { background:rgba(255,255,255,0.85); border-color:rgba(29,83,212,0.14); }
+  [data-theme="light"] footer { border-top-color:rgba(29,83,212,0.12); }
+  [data-theme="light"] .sidebar { background:rgba(240,246,255,0.98); border-right-color:rgba(29,83,212,0.13); }
+  [data-theme="light"] .sbar-logo { border-bottom-color:rgba(29,83,212,0.12); }
+  [data-theme="light"] .ni { color:rgba(8,20,40,0.6); }
+  [data-theme="light"] .ni:hover { background:rgba(29,83,212,0.07); color:var(--text); }
+  [data-theme="light"] .ni.active { background:rgba(29,83,212,0.1); color:var(--text); }
+  [data-theme="light"] .sbar-bot { border-top-color:rgba(29,83,212,0.12); }
+  [data-theme="light"] .upill { background:rgba(29,83,212,0.05); border-color:rgba(29,83,212,0.12); }
+  [data-theme="light"] .dmain { background:#f0f6ff; }
+  [data-theme="light"] .sc { background:rgba(255,255,255,0.85); border-color:rgba(29,83,212,0.12); box-shadow:0 2px 12px rgba(29,83,212,0.06); }
+  [data-theme="light"] .panel { background:rgba(255,255,255,0.85); border-color:rgba(29,83,212,0.12); }
+  [data-theme="light"] .bbar { background:rgba(240,246,255,0.97); border-top-color:rgba(29,83,212,0.13); }
+  [data-theme="light"] .btab { color:rgba(8,20,40,0.4); }
+  [data-theme="light"] .btab.active { color:var(--blue); }
+  [data-theme="light"] .btab.active .btab-icon { background:rgba(29,83,212,0.1); box-shadow:none; }
+  [data-theme="light"] .btab.active .btab-icon svg { stroke:var(--blue); filter:none; }
+  [data-theme="light"] .btn-ghost { background:rgba(29,83,212,0.07); border-color:rgba(29,83,212,0.2); color:var(--text); }
+  [data-theme="light"] .btn-ghost:hover { background:rgba(29,83,212,0.13); border-color:rgba(29,83,212,0.3); }
+  [data-theme="light"] .hamburger span { background:var(--text); }
+  [data-theme="light"] .tabs { background:rgba(29,83,212,0.07); border-color:rgba(29,83,212,0.13); }
+  [data-theme="light"] .tab-btn { color:rgba(8,20,40,0.55); }
+  [data-theme="light"] .tab-btn.active { background:rgba(255,255,255,0.9); color:var(--text); }
+  /* theme toggle btn */
+  .theme-toggle { width:36px; height:36px; border-radius:50%; border:1px solid var(--glass-border); background:var(--glass); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all .2s; flex-shrink:0; }
+  .theme-toggle:hover { background:rgba(255,255,255,.1); border-color:rgba(255,255,255,.2); }
+  [data-theme="light"] .theme-toggle { background:rgba(29,83,212,0.07); border-color:rgba(29,83,212,0.2); }
+  [data-theme="light"] .theme-toggle:hover { background:rgba(29,83,212,0.14); }
+  .theme-toggle svg { width:16px; height:16px; stroke:var(--text); fill:none; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; transition:all .3s; }
+
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html { scroll-behavior:smooth; }
+  body { font-family:'Space Grotesk',sans-serif; background:var(--bg); color:var(--text); overflow-x:hidden; transition:background .3s,color .3s; }
+  #landing { display:block; }
+  #dashboard { display:none; }
+
+  /* ── NAV ── */
+  nav {
+    position:fixed; top:0; left:0; right:0; z-index:200;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:18px 60px;
+    background:rgba(3,5,15,0.88); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);
+    border-bottom:1px solid var(--glass-border);
+  }
+  .logo {
+    font-family:'Space Grotesk',sans-serif; font-weight:800; font-size:1.3rem; letter-spacing:-0.02em;
+    background:linear-gradient(135deg,var(--cyan),var(--blue));
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; white-space:nowrap;
+  }
+  .logo span { background:linear-gradient(135deg,var(--blue),var(--violet)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+  .nav-links { display:flex; gap:36px; align-items:center; }
+  .nav-links a { color:var(--muted); text-decoration:none; font-size:0.88rem; transition:color .2s; }
+  .nav-links a:hover { color:var(--text); }
+
+  /* hamburger */
+  .hamburger { display:none; flex-direction:column; gap:5px; cursor:pointer; padding:6px; background:none; border:none; }
+  .hamburger span { display:block; width:22px; height:2px; background:var(--text); border-radius:2px; transition:all .3s; }
+  .hamburger.open span:nth-child(1) { transform:translateY(7px) rotate(45deg); }
+  .hamburger.open span:nth-child(2) { opacity:0; }
+  .hamburger.open span:nth-child(3) { transform:translateY(-7px) rotate(-45deg); }
+  /* mobile drawer */
+  .mobile-menu {
+    display:none; position:fixed; inset:0; z-index:190;
+    background:rgba(3,5,15,0.97); backdrop-filter:blur(20px);
+    flex-direction:column; align-items:center; justify-content:center; gap:32px;
+  }
+  .mobile-menu.open { display:flex; }
+  .mobile-menu a { font-family:'Space Grotesk',sans-serif; font-size:1.6rem; font-weight:700; color:var(--text); text-decoration:none; opacity:.8; }
+
+  /* ── BUTTONS ── */
+  .btn {
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    padding:11px 24px; border-radius:8px;
+    font-family:'Space Grotesk',sans-serif; font-size:0.88rem; font-weight:500;
+    cursor:pointer; border:none; transition:all .25s; text-decoration:none; white-space:nowrap;
+  }
+  .btn-primary { background:linear-gradient(135deg,var(--blue),var(--violet)); color:#fff; box-shadow:0 0 24px var(--glow-blue); }
+  .btn-primary:hover { transform:translateY(-1px); box-shadow:0 0 36px var(--glow-blue); }
+  .btn-primary:active { transform:scale(.97); }
+  .btn-ghost { background:var(--glass); color:var(--text); border:1px solid var(--glass-border); backdrop-filter:blur(10px); }
+  .btn-ghost:hover { background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.18); }
+  .btn-ghost:active { transform:scale(.97); }
+
+  /* ── HERO ── */
+  .hero {
+    min-height:100svh; display:flex; align-items:center; justify-content:space-between;
+    position:relative; padding:120px 80px 80px; overflow:hidden;
+  }
+  #hero-canvas { position:absolute; inset:0; width:100%; height:100%; z-index:0; }
+  .hero-glow { position:absolute; border-radius:50%; filter:blur(140px); z-index:0; }
+  .hero-glow-1 { width:700px; height:500px; background:radial-gradient(ellipse,rgba(41,121,255,.15),transparent 70%); top:5%; left:10%; animation:float1 12s ease-in-out infinite; }
+  .hero-glow-2 { width:600px; height:400px; background:radial-gradient(ellipse,rgba(124,58,237,.12),transparent 70%); top:30%; right:5%; animation:float2 14s ease-in-out infinite; }
+  @keyframes float1 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(40px,-30px)} }
+  @keyframes float2 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-30px,40px)} }
+  
+  /* Hero Left - Text Content */
+  .hero-content { position:relative; z-index:1; max-width:580px; width:50%; flex-shrink:0; }
+  .hero-badge {
+    display:inline-flex; align-items:center; gap:10px; padding:10px 20px;
+    background:rgba(0,229,255,0.06); border:1px solid rgba(0,229,255,0.15); border-radius:100px;
+    font-size:.68rem; color:var(--cyan); letter-spacing:.1em; text-transform:uppercase;
+    margin-bottom:32px; backdrop-filter:blur(10px); animation:fadeUp .8s ease both;
+  }
+  .badge-dot { width:8px; height:8px; background:var(--cyan); border-radius:50%; animation:pulse 2s ease-in-out infinite; box-shadow:0 0 12px var(--cyan); flex-shrink:0; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  .hero h1 { font-family:'Space Grotesk',sans-serif; font-size:clamp(2.4rem,5vw,4rem); font-weight:800; line-height:1.15; letter-spacing:-.03em; margin-bottom:24px; animation:fadeUp .8s .1s ease both; }
+  .hero h1 .gt { background:linear-gradient(135deg,var(--cyan) 0%,var(--blue) 50%,var(--violet) 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+  /* rotating full heading */
+  .hero-titles { position:relative; min-height:calc(clamp(2.4rem,5vw,4rem)*4.2); margin-bottom:40px; }
+  .hero-title { position:absolute; top:0; left:0; width:100%; font-family:'Space Grotesk',sans-serif; font-size:clamp(2.4rem,5vw,4rem); font-weight:800; line-height:1.15; letter-spacing:-.03em; opacity:0; transform:translateY(32px); transition:opacity .9s cubic-bezier(.22,1,.36,1), transform .9s cubic-bezier(.22,1,.36,1); pointer-events:none; }
+  .hero-title.active { opacity:1; transform:translateY(0); pointer-events:auto; }
+  .hero-title.exit { opacity:0; transform:translateY(-32px); transition:opacity .7s ease, transform .7s ease; }
+  .hero-title .gt { background:linear-gradient(135deg,var(--cyan) 0%,var(--blue) 50%,var(--violet) 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+  .hero p { font-size:1rem; color:var(--muted); line-height:1.8; margin-bottom:40px; font-weight:400; max-width:480px; animation:fadeUp .8s .2s ease both; }
+  .hero-cta { display:flex; gap:16px; animation:fadeUp .8s .3s ease both; }
+  .hero-cta .btn { font-size:.95rem; padding:16px 32px; border-radius:10px; }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
+  
+  /* Hero Right - Image Section */
+  .hero-image { position:relative; z-index:1; width:50%; display:flex; justify-content:center; align-items:center; animation:fadeUp .8s .2s ease both; }
+  .hero-image-wrapper { position:relative; }
+  .hero-image-bg { position:absolute; width:480px; height:480px; background:rgba(200,210,255,.08); border-radius:50%; top:50%; left:50%; transform:translate(-50%,-50%); }
+  .hero-image-bg::before { content:''; position:absolute; inset:30px; border:1px solid rgba(200,210,255,.1); border-radius:50%; }
+  .hero-image-main { position:relative; z-index:1; width:420px; height:520px; max-width:100%; border-radius:20px; object-fit:cover; }
+  
+  /* Floating Cards */
+  .hero-float-card { position:absolute; z-index:10; background:#fff; border-radius:14px; padding:12px 18px; box-shadow:0 20px 50px rgba(0,0,0,.3); animation:floatCard 4s ease-in-out infinite; }
+  .hero-float-card.top { top:-20px; right:-30px; animation-delay:0s; }
+  .hero-float-card.bottom { bottom:60px; left:-40px; animation-delay:1s; }
+  @keyframes floatCard { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+  
+  .float-card-icon { width:36px; height:36px; border-radius:50%; background:linear-gradient(135deg,var(--blue),var(--violet)); display:flex; align-items:center; justify-content:center; margin-right:12px; flex-shrink:0; }
+  .float-card-icon svg { width:18px; height:18px; fill:none; stroke:#fff; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+  .float-card-content { display:flex; align-items:center; }
+  .float-card-text { color:#1a1a2e; }
+  .float-card-text small { font-size:.68rem; color:#666; display:block; }
+  .float-card-text strong { font-size:.95rem; font-weight:700; display:block; }
+  
+  .float-card-user { display:flex; align-items:center; gap:12px; }
+  .float-card-avatar { width:42px; height:42px; border-radius:50%; background:linear-gradient(135deg,#667eea,#764ba2); display:flex; align-items:center; justify-content:center; font-size:.85rem; color:#fff; font-weight:600; }
+  .float-card-user-text { color:#1a1a2e; }
+  .float-card-user-text strong { font-size:.9rem; font-weight:600; display:block; }
+  .float-card-user-text span { font-size:.75rem; color:#888; }
+
+  /* ── SECTIONS ── */
+  section { padding:80px 60px; }
+  .slabel { display:inline-block; font-size:.73rem; font-weight:500; letter-spacing:.14em; text-transform:uppercase; color:var(--cyan); margin-bottom:14px; }
+  h2 { font-family:'Space Grotesk',sans-serif; font-size:clamp(1.7rem,4vw,2.8rem); font-weight:700; letter-spacing:-.02em; line-height:1.15; margin-bottom:14px; }
+  .ssub { color:var(--muted); font-size:.97rem; line-height:1.7; max-width:520px; font-weight:400; margin-bottom:48px; }
+  .bg2 { background:linear-gradient(180deg,var(--bg) 0%,var(--bg2) 50%,var(--bg) 100%); }
+  hr.div { border:none; border-top:1px solid var(--glass-border); }
+
+  /* glass card */
+  .gc {
+    background:var(--glass); border:1px solid var(--glass-border); border-radius:16px;
+    padding:28px 24px; backdrop-filter:blur(20px); transition:all .3s; position:relative; overflow:hidden;
+  }
+  .gc::before { content:''; position:absolute; inset:0; background:linear-gradient(135deg,rgba(255,255,255,.04),transparent); pointer-events:none; }
+  .gc:hover { border-color:rgba(41,121,255,.3); transform:translateY(-4px); box-shadow:0 20px 60px rgba(0,0,0,.5),0 0 30px var(--glow-blue); }
+  .ci { width:42px; height:42px; border-radius:10px; display:flex; align-items:center; justify-content:center; margin-bottom:18px; font-size:1.2rem; }
+  .ci-b { background:rgba(41,121,255,.15); border:1px solid rgba(41,121,255,.2); }
+  .ci-v { background:rgba(124,58,237,.15); border:1px solid rgba(124,58,237,.2); }
+  .ci-c { background:rgba(0,229,255,.1); border:1px solid rgba(0,229,255,.15); }
+  .ci-g { background:rgba(0,230,118,.1); border:1px solid rgba(0,230,118,.15); }
+  .gc h3 { font-family:'Space Grotesk',sans-serif; font-size:.97rem; font-weight:700; margin-bottom:9px; }
+  .gc p  { font-size:.85rem; color:var(--muted); line-height:1.65; font-weight:400; }
+
+  /* grids */
+  .g4  { display:grid; grid-template-columns:repeat(4,1fr); gap:18px; }
+  .g3  { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; }
+  .g2  { display:grid; grid-template-columns:1fr 1fr; gap:32px; align-items:start; }
+  .g2a { display:grid; grid-template-columns:1fr 1fr; gap:64px; align-items:center; }
+
+  /* steps */
+  .steps { display:grid; grid-template-columns:repeat(4,1fr); position:relative; }
+  .steps::before { content:''; position:absolute; top:27px; left:10%; right:10%; height:1px; background:linear-gradient(90deg,transparent,var(--blue),var(--violet),transparent); }
+  .step { text-align:center; padding:0 20px; }
+  .snum { width:54px; height:54px; border-radius:50%; background:linear-gradient(135deg,var(--blue),var(--violet)); display:flex; align-items:center; justify-content:center; font-family:'Space Grotesk',sans-serif; font-weight:800; font-size:1rem; margin:0 auto 20px; box-shadow:0 0 28px var(--glow-blue); position:relative; z-index:1; }
+  .step h3 { font-family:'Space Grotesk',sans-serif; font-size:.95rem; font-weight:700; margin-bottom:9px; }
+  .step p  { font-size:.83rem; color:var(--muted); line-height:1.6; }
+
+  /* stat rows & progress */
+  .srow { display:flex; justify-content:space-between; align-items:center; padding:14px 0; border-bottom:1px solid var(--glass-border); gap:8px; }
+  .srow-label { font-size:.83rem; color:var(--muted); }
+  .srow-val   { font-family:'Space Grotesk',sans-serif; font-weight:700; font-size:.93rem; text-align:right; }
+  .pbar-wrap  { margin-top:22px; }
+  .pbar-label { display:flex; justify-content:space-between; font-size:.77rem; margin-bottom:7px; }
+  .pbar-label span:first-child { color:var(--muted); }
+  .ptrack { height:7px; background:rgba(255,255,255,.06); border-radius:100px; overflow:hidden; }
+  .pfill  { height:100%; border-radius:100px; }
+  .pb { background:linear-gradient(90deg,var(--blue),var(--cyan)); }
+  .pv { background:linear-gradient(90deg,var(--violet),#a855f7); }
+
+  /* compliance badges */
+  .cbadge { background:var(--glass); border:1px solid var(--glass-border); border-radius:14px; padding:22px 18px; display:flex; align-items:flex-start; gap:14px; backdrop-filter:blur(10px); transition:all .3s; }
+  .cbadge:hover { border-color:rgba(0,229,255,.25); box-shadow:0 0 30px rgba(0,229,255,.08); }
+  .cbadge-icon { width:38px; height:38px; border-radius:8px; background:rgba(0,229,255,.1); border:1px solid rgba(0,229,255,.2); display:flex; align-items:center; justify-content:center; font-size:1rem; flex-shrink:0; }
+  .cbadge h4 { font-family:'Space Grotesk',sans-serif; font-size:.87rem; font-weight:700; margin-bottom:4px; }
+  .cbadge p  { font-size:.79rem; color:var(--muted); line-height:1.5; }
+
+  /* access form */
+  .aform { background:var(--glass); border:1px solid var(--glass-border); border-radius:20px; padding:36px; backdrop-filter:blur(20px); }
+  .flabel { display:block; font-size:.75rem; color:var(--muted); letter-spacing:.06em; text-transform:uppercase; margin-bottom:7px; font-weight:500; }
+  .finput { width:100%; background:rgba(255,255,255,.04); border:1px solid var(--glass-border); border-radius:8px; padding:12px 14px; color:var(--text); font-family:'Space Grotesk',sans-serif; font-size:.95rem; outline:none; transition:border-color .2s; margin-bottom:18px; -webkit-appearance:none; }
+  .finput:focus { border-color:var(--blue); }
+  .finput::placeholder { color:rgba(200,210,255,.22); }
+  .or-div { display:flex; align-items:center; gap:14px; margin:20px 0; color:var(--muted); font-size:.78rem; }
+  .or-div::before,.or-div::after { content:''; flex:1; height:1px; background:var(--glass-border); }
+  .pnote { text-align:center; margin-top:20px; font-size:.77rem; color:var(--muted); }
+
+  /* footer */
+  footer { padding:48px 60px; border-top:1px solid var(--glass-border); }
+  .ftop { display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; flex-wrap:wrap; gap:16px; }
+  .flinks { display:flex; gap:20px; flex-wrap:wrap; }
+  .flinks a { color:var(--muted); text-decoration:none; font-size:.82rem; }
+  .fdisclaimer { font-size:.75rem; color:var(--muted); line-height:1.8; border-top:1px solid var(--glass-border); padding-top:20px; font-weight:400; }
+
+  /* reveal */
+  .reveal { opacity:0; transform:translateY(28px); transition:opacity .7s ease,transform .7s ease; }
+  .reveal.vis { opacity:1; transform:translateY(0); }
+
+  /* ── DASHBOARD ── */
+  .dlayout { display:flex; min-height:100svh; }
+
+  /* sidebar */
+  .sidebar { width:240px; background:rgba(6,12,30,.98); border-right:1px solid var(--glass-border); padding:0; position:fixed; top:0; bottom:0; left:0; display:flex; flex-direction:column; backdrop-filter:blur(20px); z-index:50; overflow:hidden; }
+  .sbar-logo { padding:28px 20px 24px; border-bottom:1px solid var(--glass-border); flex-shrink:0; display:block !important; }
+  .sbar-brand { display:flex !important; align-items:center; gap:12px; }
+  .sbar-icon { width:42px; height:42px; border-radius:12px; background:linear-gradient(135deg,var(--blue),var(--violet)); display:flex !important; align-items:center; justify-content:center; font-size:1.1rem; font-weight:700; color:#fff; flex-shrink:0; box-shadow:0 4px 20px rgba(41,121,255,.3); }
+  .sbar-text { flex:1; display:block !important; }
+  .sbar-logo .logo { font-size:1.15rem; margin:0; display:block !important; }
+  .sbar-sub { font-size:.72rem; color:var(--muted); margin-top:3px; font-weight:400; letter-spacing:.02em; display:block !important; }
+  .sbar-nav { flex:1; padding:16px 14px; overflow-y:auto; overflow-x:hidden; display:flex; flex-direction:column; gap:4px; }
+  .sbar-nav::-webkit-scrollbar { width:4px; }
+  .sbar-nav::-webkit-scrollbar-track { background:transparent; }
+  .sbar-nav::-webkit-scrollbar-thumb { background:rgba(255,255,255,.1); border-radius:4px; }
+  .ni { display:flex; align-items:center; gap:14px; padding:12px 16px; border-radius:10px; cursor:pointer; transition:all .2s; font-size:.9rem; color:var(--muted); border:none; background:none; width:100%; text-align:left; font-family:'Space Grotesk',sans-serif; font-weight:400; flex-shrink:0; }
+  .ni:hover { background:rgba(255,255,255,.04); color:var(--text); }
+  .ni.active { background:rgba(41,121,255,.12); color:var(--text); }
+  .ni-icon { width:20px; height:20px; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+  .ni-icon svg { width:20px; height:20px; stroke:currentColor; fill:none; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; }
+  .ni-sep { height:1px; background:var(--glass-border); margin:16px 0; }
+  .sbar-bot { padding:16px; border-top:1px solid var(--glass-border); margin-top:auto; }
+  .upill { display:flex; align-items:center; gap:12px; padding:12px 14px; background:rgba(255,255,255,.03); border-radius:12px; border:1px solid var(--glass-border); }
+  .uav { width:36px; height:36px; border-radius:50%; background:linear-gradient(135deg,var(--blue),var(--violet)); display:flex; align-items:center; justify-content:center; font-size:.8rem; font-weight:700; flex-shrink:0; }
+  .uinfo { flex:1; min-width:0; }
+  .uname { font-size:.85rem; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--text); }
+  .urole { font-size:.72rem; color:var(--muted); margin-top:2px; }
+
+  /* main */
+  .dmain { margin-left:240px; flex:1; padding:36px 40px 100px; min-height:100svh; background:var(--bg); }
+  .dhead { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:28px; flex-wrap:wrap; gap:14px; }
+  .dhead h1 { font-family:'Space Grotesk',sans-serif; font-size:clamp(1.3rem,3vw,1.6rem); font-weight:700; letter-spacing:-.02em; }
+  .dhead p { color:var(--muted); font-size:.83rem; margin-top:3px; }
+  .chips { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .chip { display:flex; align-items:center; gap:5px; padding:5px 12px; border-radius:100px; font-size:.72rem; font-weight:500; white-space:nowrap; }
+  .chip-g { background:rgba(0,230,118,.12); border:1px solid rgba(0,230,118,.2); color:#00e676; }
+  .chip-b { background:rgba(41,121,255,.12); border:1px solid rgba(41,121,255,.2); color:var(--blue); }
+  .chip-dot { width:5px; height:5px; border-radius:50%; background:currentColor; }
+
+  /* stat cards */
+  .scards { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:20px; }
+  .sc { background:var(--glass); border:1px solid var(--glass-border); border-radius:14px; padding:20px; backdrop-filter:blur(20px); position:relative; overflow:hidden; }
+  .sc::after { content:''; position:absolute; bottom:0; left:0; right:0; height:1px; background:linear-gradient(90deg,transparent,var(--blue),transparent); opacity:.4; }
+  .sc-label { font-size:.71rem; color:var(--muted); letter-spacing:.06em; text-transform:uppercase; margin-bottom:10px; }
+  .sc-val { font-family:'Space Grotesk',sans-serif; font-size:clamp(1.3rem,3vw,1.8rem); font-weight:800; letter-spacing:-.03em; line-height:1; margin-bottom:6px; }
+  .sc-sub { font-size:.75rem; color:var(--muted); }
+  .vc { color:var(--cyan); }
+  .vv { color:#a78bfa; }
+
+  /* panel */
+  .panel { background:var(--glass); border:1px solid var(--glass-border); border-radius:16px; padding:22px; backdrop-filter:blur(20px); }
+  .ph { display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; gap:8px; }
+  .pt { font-family:'Space Grotesk',sans-serif; font-size:.96rem; font-weight:700; }
+  .pm { font-size:.75rem; color:var(--muted); }
+  .prow { display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-bottom:1px solid rgba(255,255,255,.04); gap:8px; }
+  .prow:last-of-type { border-bottom:none; }
+  .prow-l { display:flex; align-items:center; gap:10px; min-width:0; }
+  .pdot { width:7px; height:7px; border-radius:2px; flex-shrink:0; }
+  .pd-b { background:var(--blue); box-shadow:0 0 7px var(--blue); }
+  .pd-v { background:var(--violet); box-shadow:0 0 7px var(--violet); }
+  .pname { font-size:.84rem; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ptype { font-size:.72rem; color:var(--muted); margin-top:2px; }
+  .pamt  { font-family:'Space Grotesk',sans-serif; font-size:.9rem; font-weight:700; white-space:nowrap; }
+
+  /* countdown */
+  .cd { display:flex; gap:12px; margin-top:10px; }
+  .cdu { flex:1; text-align:center; background:rgba(255,255,255,.04); border:1px solid var(--glass-border); border-radius:10px; padding:12px 6px; }
+  .cdn { font-family:'Space Grotesk',sans-serif; font-size:clamp(1.3rem,3vw,1.8rem); font-weight:800; line-height:1; background:linear-gradient(135deg,var(--cyan),var(--blue)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+  .cdl { font-size:.65rem; color:var(--muted); margin-top:5px; letter-spacing:.06em; }
+
+  /* type badges */
+  .tb { display:inline-flex; padding:3px 9px; border-radius:100px; font-size:.67rem; font-weight:600; letter-spacing:.05em; white-space:nowrap; }
+  .tb-i { background:rgba(41,121,255,.12); color:var(--blue); border:1px solid rgba(41,121,255,.2); }
+  .tb-d { background:rgba(124,58,237,.12); color:#a78bfa; border:1px solid rgba(124,58,237,.2); }
+  .tb-c { background:rgba(0,229,255,.1); color:var(--cyan); border:1px solid rgba(0,229,255,.2); }
+  .sc-ok  { color:#34d399; }
+  .sc-pnd { color:#fbbf24; }
+
+  /* table */
+  .tscroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  .tw { width:100%; border-collapse:collapse; min-width:500px; }
+  .tw th { font-size:.69rem; color:var(--muted); text-align:left; padding:0 10px 10px; letter-spacing:.06em; text-transform:uppercase; border-bottom:1px solid var(--glass-border); font-weight:400; white-space:nowrap; }
+  .tw td { padding:12px 10px; font-size:.82rem; border-bottom:1px solid rgba(255,255,255,.03); }
+  .tw tr:last-child td { border-bottom:none; }
+
+  /* subtabs */
+  .tabs { display:flex; gap:3px; background:rgba(255,255,255,.04); border:1px solid var(--glass-border); border-radius:10px; padding:3px; margin-bottom:18px; width:fit-content; max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+  .tabs::-webkit-scrollbar { display:none; }
+  .tab { padding:8px 16px; border-radius:7px; font-size:.81rem; cursor:pointer; color:var(--muted); transition:all .2s; border:none; background:none; font-family:'Space Grotesk',sans-serif; white-space:nowrap; flex-shrink:0; }
+  .tab.active { background:linear-gradient(135deg,rgba(41,121,255,.22),rgba(124,58,237,.15)); color:var(--text); border:1px solid rgba(41,121,255,.2); }
+
+  /* bottom bar (mobile) */
+  .bbar { display:none; position:fixed; bottom:0; left:0; right:0; background:rgba(5,10,26,.97); border-top:1px solid rgba(255,255,255,.07); backdrop-filter:blur(24px); -webkit-backdrop-filter:blur(24px); z-index:100; padding-bottom:env(safe-area-inset-bottom); }
+  .bbar-inner { display:flex; height:var(--bar-h); align-items:center; justify-content:space-around; padding:0 8px; }
+  .btab { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px; cursor:pointer; border:none; background:none; color:rgba(255,255,255,.35); font-family:'Space Grotesk',sans-serif; font-size:.6rem; font-weight:500; letter-spacing:.03em; padding:8px 4px; transition:all .2s; position:relative; border-radius:12px; max-width:72px; }
+  .btab.active { color:#fff; }
+  .btab-icon { width:40px; height:36px; display:flex; align-items:center; justify-content:center; border-radius:10px; transition:all .2s; }
+  .btab.active .btab-icon { background:linear-gradient(135deg,rgba(41,121,255,.25),rgba(0,229,255,.15)); box-shadow:0 0 14px rgba(0,229,255,.15); }
+  .btab-icon svg { width:20px; height:20px; stroke:currentColor; fill:none; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; transition:all .2s; }
+  .btab.active .btab-icon svg { stroke:var(--cyan); filter:drop-shadow(0 0 4px rgba(0,229,255,.5)); }
+  .mob-exit { display:none; position:fixed; top:14px; right:14px; z-index:300; }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width:1024px) {
+    nav { padding:16px 24px; }
+    .nav-links { display:none; }
+    .hamburger { display:flex; }
+    section { padding:60px 24px; }
+    footer { padding:40px 24px; }
+    .hero { padding:120px 32px 80px; flex-direction:column; gap:48px; }
+    .hero-content { max-width:100%; width:100%; text-align:center; }
+    .hero-cta { justify-content:center; }
+    .hero-image { width:100%; justify-content:center; }
+    .hero-image-main { width:320px; height:400px; }
+    .hero-image-bg { width:360px; height:360px; }
+    .hero-float-card.top { right:0; }
+    .hero-float-card.bottom { left:0; }
+    .g4  { grid-template-columns:repeat(2,1fr); }
+    .g3  { grid-template-columns:repeat(2,1fr); }
+    .g2  { grid-template-columns:1fr; }
+    .g2a { grid-template-columns:1fr; gap:40px; }
+    .steps { grid-template-columns:repeat(2,1fr); gap:32px; }
+    .steps::before { display:none; }
+    .sidebar { width:220px; }
+    .dmain  { margin-left:220px; padding:28px 24px 100px; }
+    .ni { padding:10px 14px; font-size:.85rem; gap:12px; }
+    .ni-icon { width:18px; height:18px; }
+    .ni-icon svg { width:18px; height:18px; }
+    .upill { padding:10px 12px; }
+    .uav { width:32px; height:32px; font-size:.75rem; }
+    .scards { grid-template-columns:repeat(2,1fr); }
+    .g2-dash { grid-template-columns:1fr !important; }
+  }
+  @media (max-width:640px) {
+    nav { padding:13px 16px; }
+    .nav-login { display:none; }
+    .hero { padding:100px 20px 60px; gap:40px; }
+    .hero-content { text-align:center; }
+    .hero h1 { font-size:clamp(1.8rem,7vw,2.5rem); margin-bottom:20px; line-height:1.2; }
+    .hero p { font-size:.9rem; margin-bottom:32px; line-height:1.7; }
+    .hero-cta { justify-content:center; }
+    .hero-cta .btn { padding:14px 28px; font-size:.9rem; }
+    .hero-image-main { width:260px; height:320px; }
+    .hero-image-bg { width:300px; height:300px; }
+    .hero-float-card { padding:10px 14px; border-radius:10px; }
+    .hero-float-card.top { top:-10px; right:-10px; }
+    .hero-float-card.bottom { bottom:40px; left:-10px; }
+    .float-card-icon { width:30px; height:30px; margin-right:10px; }
+    .float-card-text small { font-size:.6rem; }
+    .float-card-text strong { font-size:.8rem; }
+    .float-card-avatar { width:36px; height:36px; font-size:.75rem; }
+    .float-card-user-text strong { font-size:.8rem; }
+    .float-card-user-text span { font-size:.68rem; }
+    section { padding:48px 16px; }
+    footer  { padding:32px 16px; }
+    .ssub   { margin-bottom:32px; }
+    .g4  { grid-template-columns:1fr; }
+    .g3  { grid-template-columns:1fr; }
+    .steps { grid-template-columns:1fr; gap:24px; }
+    .step { text-align:left; display:flex; gap:16px; padding:0; }
+    .snum { margin:0; flex-shrink:0; width:44px; height:44px; font-size:.88rem; }
+    .step-body { padding-top:4px; }
+    .g2a { gap:28px; }
+    .aform { padding:22px 16px; }
+    .ftop { flex-direction:column; align-items:flex-start; }
+    /* dashboard mobile */
+    .sidebar { display:none; }
+    .dmain  { margin-left:0; padding:16px 14px calc(var(--bar-h) + env(safe-area-inset-bottom) + 16px); }
+    .bbar   { display:flex; }
+    .mob-exit { display:block; }
+    .scards { grid-template-columns:1fr 1fr; gap:12px; }
+    .sc { padding:16px 13px; }
+    .sc-val { font-size:1.35rem; }
+    .dhead  { margin-bottom:18px; }
+    .g2-dash { grid-template-columns:1fr !important; }
+    .panels-row { grid-template-columns:1fr !important; }
+    .cdn { font-size:1.4rem; }
+    .tabs { width:100%; }
+  }
+  @media (max-width:380px) {
+    .scards { grid-template-columns:1fr; }
+    .hero h1 { font-size:1.9rem; }
+    .hero-badge { font-size:.58rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ════════════ LANDING ════════════ -->
+<div id="landing">
+
+<nav>
+  <div class="logo">ShivAI<span> Token</span></div>
+  <div class="nav-links">
+    <a href="#about">About</a>
+    <a href="#how-it-works">How It Works</a>
+    <a href="#compliance">Compliance</a>
+    <a href="#access">Access</a>
+  </div>
+  <button class="btn btn-primary nav-login" onclick="showDashboard()">Investor Login</button>
+  <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme" onclick="toggleTheme()">
+    <svg id="theme-icon-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    <svg id="theme-icon-sun" viewBox="0 0 24 24" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+  </button>
+  <button class="hamburger" id="ham" aria-label="Menu" onclick="toggleMenu()">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+
+<div class="mobile-menu" id="mmenu">
+  <a href="#about"        onclick="toggleMenu()">About</a>
+  <a href="#how-it-works" onclick="toggleMenu()">How It Works</a>
+  <a href="#compliance"   onclick="toggleMenu()">Compliance</a>
+  <a href="#access"       onclick="toggleMenu()">Investor Access</a>
+  <button class="btn btn-primary" style="width:220px;padding:15px 24px;font-size:1rem" onclick="toggleMenu();showDashboard()">Investor Login →</button>
+</div>
+
+<!-- HERO -->
+<section class="hero">
+  <canvas id="hero-canvas"></canvas>
+  <div class="hero-glow hero-glow-1"></div>
+  <div class="hero-glow hero-glow-2"></div>
+  
+  <!-- Left Side: Text -->
+  <div class="hero-content">
+    <div class="hero-titles" id="heroTitles">
+      <div class="hero-title active">Invest in<br>Next Generation<br><span class="gt">Digital Assets</span><br>Today</div>
+      <div class="hero-title">Build Wealth with<br>Compliant &amp; Secure<br><span class="gt">AI-Powered</span><br>Token Finance</div>
+      <div class="hero-title">Institutional Grade<br>Private Access to<br><span class="gt">Blockchain Capital</span><br>Markets</div>
+      <div class="hero-title">Your Gateway to<br>the Future of<br><span class="gt">DeFi Investment</span><br>Starts Here</div>
+      <div class="hero-title">Permissioned.<br>Compliant. Built for<br><span class="gt">Long-Term</span><br>Institutional Value</div>
+    </div>
+    <p>ShivAI Token is a private, compliance-first digital asset platform. Secure. Permissioned. Built for long-term institutional value.</p>
+    <div class="hero-cta">
+      <button class="btn btn-primary" onclick="document.getElementById('access').scrollIntoView({behavior:'smooth'})">Get Started</button>
+      <button class="btn btn-ghost" onclick="showDashboard()">Investor Login →</button>
+    </div>
+  </div>
+  
+  <!-- Right Side: Image -->
+  <div class="hero-image">
+    <div class="hero-image-wrapper">
+      <div class="hero-image-bg"></div>
+      <img src="https://images.unsplash.com/photo-1642104704074-907c0698cbd9?w=500&h=600&fit=crop" alt="Digital Asset" class="hero-image-main">
+      
+      <!-- Floating Card: Top Right -->
+      <div class="hero-float-card top">
+        <div class="float-card-content">
+          <div class="float-card-icon">
+            <svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          </div>
+          <div class="float-card-text">
+            <small>Token Value</small>
+            <strong>$2.45 USD</strong>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Floating Card: Bottom Left -->
+      <div class="hero-float-card bottom">
+        <div class="float-card-user">
+          <div class="float-card-avatar">SA</div>
+          <div class="float-card-user-text">
+            <strong>ShivAI Platform</strong>
+            <span>@shivai_official</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- WHAT IS -->
+<section id="about" class="bg2 reveal">
+  <div class="slabel">What is ShivAI Token?</div>
+  <h2>Digital asset infrastructure<br>built for institutions</h2>
+  <p class="ssub">ShivAI Token is not a cryptocurrency you trade on an exchange. It is a permissioned digital instrument representing structured economic participation — designed with regulatory compliance at its foundation.</p>
+  <div class="g4">
+    <div class="gc"><div class="ci ci-b">📊</div><h3>Economic Exposure</h3><p>Represents proportional economic exposure to the ShivAI platform ecosystem. Value accrues through platform growth, not market speculation.</p></div>
+    <div class="gc"><div class="ci ci-v">🔒</div><h3>Not Publicly Tradable</h3><p>Tokens are transfer-restricted by smart contract. There is no public market, no DEX listing, no OTC circulation outside the platform.</p></div>
+    <div class="gc"><div class="ci ci-c">✅</div><h3>Permissioned & KYC-Only</h3><p>Every participant is individually verified. Access requires identity verification and regulatory compliance confirmation before any token issuance.</p></div>
+    <div class="gc"><div class="ci ci-g">⬡</div><h3>Built on Polygon</h3><p>Deployed on Polygon for institutional-grade reliability, low settlement costs, and full on-chain auditability with Ethereum security guarantees.</p></div>
+  </div>
+</section>
+
+<hr class="div">
+
+<!-- HOW IT WORKS -->
+<section id="how-it-works" class="reveal">
+  <div class="slabel">Process</div>
+  <h2>Four steps to secure participation</h2>
+  <p class="ssub">A structured, compliance-gated onboarding designed to protect both investors and the integrity of the platform.</p>
+  <div class="steps">
+    <div class="step"><div class="snum">01</div><div class="step-body"><h3>Request Access</h3><p>Submit your investor inquiry. Our team reviews your profile against platform eligibility criteria within 48 hours.</p></div></div>
+    <div class="step"><div class="snum">02</div><div class="step-body"><h3>Complete KYC</h3><p>Full identity verification and accredited investor screening through our regulated compliance partner.</p></div></div>
+    <div class="step"><div class="snum">03</div><div class="step-body"><h3>Invest Securely</h3><p>Submit investment intent through the investor panel. Funds processed via verified payment rails with full documentation.</p></div></div>
+    <div class="step"><div class="snum">04</div><div class="step-body"><h3>Receive Tokens</h3><p>Tokens are issued to your custodial wallet within the platform. All transfers recorded on-chain with immutable audit logs.</p></div></div>
+  </div>
+</section>
+
+<hr class="div">
+
+<!-- TOKEN STRUCTURE -->
+<section class="bg2 reveal">
+  <div class="slabel">Token Structure</div>
+  <h2>Transparent allocation,<br>no speculation</h2>
+  <p class="ssub">Fixed supply, structured lock-in, and clear separation between investment and incentive tokens.</p>
+  <div class="g2">
+    <div class="gc">
+      <div class="srow"><span class="srow-label">Total Supply</span><span class="srow-val">100,000,000 SHVAI</span></div>
+      <div class="srow"><span class="srow-label">Investment Tokens</span><span class="srow-val">70,000,000 (70%)</span></div>
+      <div class="srow"><span class="srow-label">Incentive / Drop Tokens</span><span class="srow-val">30,000,000 (30%)</span></div>
+      <div class="srow"><span class="srow-label">Lock-in Period</span><span class="srow-val">24 Months</span></div>
+      <div class="srow"><span class="srow-label">Public Trading</span><span class="srow-val" style="color:#f87171">None — Restricted</span></div>
+      <div class="srow" style="border:none"><span class="srow-label">Network</span><span class="srow-val">Polygon (MATIC)</span></div>
+      <div class="pbar-wrap">
+        <div class="pbar-label"><span>Investment Tokens</span><span style="color:var(--cyan)">70%</span></div>
+        <div class="ptrack"><div class="pfill pb" style="width:70%"></div></div>
+      </div>
+      <div class="pbar-wrap" style="margin-top:14px">
+        <div class="pbar-label"><span>Incentive / Drop Tokens</span><span style="color:#a78bfa">30%</span></div>
+        <div class="ptrack"><div class="pfill pv" style="width:30%"></div></div>
+      </div>
+    </div>
+    <div class="gc" style="background:linear-gradient(135deg,rgba(41,121,255,.05),rgba(124,58,237,.05));border-color:rgba(41,121,255,.15)">
+      <div style="margin-bottom:18px">
+        <div class="slabel" style="margin-bottom:10px">Important Notice</div>
+        <p style="font-size:.87rem;color:var(--muted);line-height:1.8">ShivAI Token does <strong style="color:var(--text)">not represent equity, debt, or a security</strong> in any jurisdiction unless separately classified by applicable law.</p>
+      </div>
+      <div style="padding:16px;background:rgba(248,113,113,.06);border:1px solid rgba(248,113,113,.15);border-radius:12px;margin-bottom:14px">
+        <div style="font-size:.72rem;color:#f87171;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:7px">⚠ No Public Trading</div>
+        <p style="font-size:.81rem;color:var(--muted);line-height:1.6">Token transfers are restricted by smart contract. Tokens cannot be sold, transferred, or traded outside the platform without express administrative authorization.</p>
+      </div>
+      <div style="padding:16px;background:rgba(0,229,255,.04);border:1px solid rgba(0,229,255,.12);border-radius:12px">
+        <div style="font-size:.72rem;color:var(--cyan);font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:7px">🔐 Custodial Wallets Only</div>
+        <p style="font-size:.81rem;color:var(--muted);line-height:1.6">All tokens are held in platform-custodied wallets. Investors do not self-custody private keys, ensuring compliance with transfer restrictions at all times.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="div">
+
+<!-- COMPLIANCE -->
+<section id="compliance" class="reveal">
+  <div class="slabel">Security & Compliance</div>
+  <h2>Regulation-first architecture</h2>
+  <p class="ssub">Every layer of the platform is designed with compliance, auditability, and investor protection as first-order requirements.</p>
+  <div class="g3">
+    <div class="cbadge"><div class="cbadge-icon">✅</div><div><h4>KYC Verified</h4><p>All participants are identity-verified by a regulated compliance provider before any token issuance.</p></div></div>
+    <div class="cbadge"><div class="cbadge-icon">🏦</div><div><h4>Wallet-Custodied</h4><p>Platform manages custodial wallets. No self-custody reduces risk of unauthorized transfers.</p></div></div>
+    <div class="cbadge"><div class="cbadge-icon">🔒</div><div><h4>Transfer Restricted</h4><p>Smart contract enforces transfer restrictions. Tokens cannot leave the permissioned ecosystem.</p></div></div>
+    <div class="cbadge"><div class="cbadge-icon">📋</div><div><h4>Audit Logs</h4><p>Every issuance, transfer attempt, and administrative action is logged on-chain and off-chain.</p></div></div>
+    <div class="cbadge"><div class="cbadge-icon">❄️</div><div><h4>Emergency Freeze</h4><p>Authorized administrators can freeze wallets and halt transfers in response to compliance events.</p></div></div>
+    <div class="cbadge"><div class="cbadge-icon">🌐</div><div><h4>Jurisdiction Gated</h4><p>Platform access is restricted by geography. Prohibited jurisdictions are blocked at onboarding.</p></div></div>
+  </div>
+</section>
+
+<hr class="div">
+
+<!-- ACCESS -->
+<section id="access" class="bg2 reveal">
+  <div class="g2a">
+    <div>
+      <div class="slabel">Investor Access</div>
+      <h2>Private platform.<br>Invite-only access.</h2>
+      <p style="color:var(--muted);font-size:.97rem;line-height:1.8;margin-bottom:28px;font-weight:400">This is not a public offering. Access to the ShivAI Token platform is strictly controlled. If you have received an invitation from our team, enter your invite code to proceed.</p>
+      <div style="display:flex;flex-direction:column;gap:13px">
+        <div style="display:flex;align-items:center;gap:12px;color:var(--muted);font-size:.87rem"><span style="color:var(--cyan)">→</span> Accredited investors only</div>
+        <div style="display:flex;align-items:center;gap:12px;color:var(--muted);font-size:.87rem"><span style="color:var(--cyan)">→</span> Minimum investment requirements apply</div>
+        <div style="display:flex;align-items:center;gap:12px;color:var(--muted);font-size:.87rem"><span style="color:var(--cyan)">→</span> Full KYC / AML verification required</div>
+        <div style="display:flex;align-items:center;gap:12px;color:var(--muted);font-size:.87rem"><span style="color:var(--cyan)">→</span> Regulated jurisdictions only</div>
+      </div>
+    </div>
+    <div class="aform">
+      <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:1.08rem;margin-bottom:5px">Investor Login</div>
+      <div style="font-size:.81rem;color:var(--muted);margin-bottom:22px">Enter your credentials or invite code to access the platform.</div>
+      <label class="flabel">Email Address</label>
+      <input class="finput" type="email" placeholder="investor@firm.com">
+      <label class="flabel">Password</label>
+      <input class="finput" type="password" placeholder="••••••••••">
+      <button class="btn btn-primary" style="width:100%" onclick="showDashboard()">Enter Platform →</button>
+      <div class="or-div">or</div>
+      <label class="flabel">Enter Invite Code</label>
+      <input class="finput" type="text" placeholder="SHVAI-XXXX-XXXX" style="margin-bottom:0">
+      <button class="btn btn-ghost" style="width:100%;margin-top:12px" onclick="showDashboard()">Redeem Code</button>
+      <div class="pnote">🔒 This is a private platform. Access is invite-only.</div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="ftop">
+    <div class="logo" style="font-size:1.1rem">ShivAI<span> Token</span></div>
+    <div class="flinks"><a href="#">Support</a><a href="#">Legal</a><a href="#">Privacy Policy</a></div>
+  </div>
+  <div class="fdisclaimer">
+    <strong style="color:var(--text)">Legal Disclaimer:</strong> ShivAI Token is not a publicly offered investment product and does not constitute a security, investment advice, or a solicitation to invest in any jurisdiction where such activities are restricted. This platform and its tokens are available exclusively to pre-qualified, invited participants who meet applicable eligibility criteria. Token issuance is subject to full KYC/AML verification. All transactions are subject to a mandatory 24-month lock-in period. No public market exists for ShivAI Token and none is expected to develop. Not available to residents of sanctioned or prohibited jurisdictions. Contact: <span style="color:var(--cyan)">compliance@shivai.io</span>
+  </div>
+</footer>
+</div><!-- /landing -->
+
+
+<!-- ════════════ DASHBOARD ════════════ -->
+<div id="dashboard">
+
+<button class="btn btn-ghost mob-exit" onclick="showLanding()" style="font-size:.78rem;padding:7px 14px">← Exit</button>
+
+<div class="dlayout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sbar-logo">
+      <div class="sbar-brand">
+        <div class="sbar-icon">S</div>
+        <div class="sbar-text">
+          <div class="logo">ShivAI<span> Token</span></div>
+          <div class="sbar-sub">Investor Portal</div>
+        </div>
+      </div>
+    </div>
+    <nav class="sbar-nav">
+      <button class="ni active" onclick="switchTab(this,'overview')">
+        <span class="ni-icon"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
+        Overview
+      </button>
+      <button class="ni" onclick="switchTab(this,'portfolio')">
+        <span class="ni-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
+        Portfolio
+      </button>
+      <button class="ni" onclick="switchTab(this,'invest')">
+        <span class="ni-icon"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
+        Investments
+      </button>
+      <button class="ni" onclick="switchTab(this,'wallet')">
+        <span class="ni-icon"><svg viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></span>
+        Wallet
+      </button>
+      <button class="ni" onclick="switchTab(this,'docs')">
+        <span class="ni-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span>
+        Documents
+      </button>
+      
+      <div class="ni-sep"></div>
+      
+      <button class="ni" onclick="showLanding()" style="color:rgba(248,113,113,.8)">
+        <span class="ni-icon"><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span>
+        Exit Platform
+      </button>
+    </nav>
+    <div class="sbar-bot">
+      <div class="upill">
+        <div class="uav">AI</div>
+        <div class="uinfo"><div class="uname">Arjun Iyer</div><div class="urole">Verified Investor</div></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="dmain">
+
+    <!-- ── OVERVIEW ── -->
+    <div id="tab-overview">
+      <div class="dhead">
+        <div><h1>Portfolio Overview</h1><p>Last updated: Feb 23, 2026 · 09:42 UTC</p></div>
+        <div class="chips">
+          <div class="chip chip-g"><span class="chip-dot"></span>KYC Verified</div>
+          <div class="chip chip-b"><span class="chip-dot"></span>Wallet Active</div>
+        </div>
+      </div>
+      <div class="scards">
+        <div class="sc"><div class="sc-label">Total Balance</div><div class="sc-val vc">48,500</div><div class="sc-sub">SHVAI Tokens</div></div>
+        <div class="sc"><div class="sc-label">Investment</div><div class="sc-val">35,000</div><div class="sc-sub">Locked · 18 mo remain</div></div>
+        <div class="sc"><div class="sc-label">Drop / Bonus</div><div class="sc-val vv">13,500</div><div class="sc-sub">3 allocations</div></div>
+        <div class="sc"><div class="sc-label">Unlock Date</div><div class="sc-val" style="font-size:1.05rem;color:var(--cyan)">Aug 2027</div><div class="sc-sub">549 days remaining</div></div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:18px" class="panels-row">
+        <div class="panel">
+          <div class="ph"><div class="pt">Token Allocation</div><div class="pm">48,500 SHVAI</div></div>
+          <div class="prow"><div class="prow-l"><div class="pdot pd-b"></div><div><div class="pname">Series A Investment</div><div class="ptype"><span class="tb tb-i">INVESTMENT</span></div></div></div><div class="pamt">25,000</div></div>
+          <div class="prow"><div class="prow-l"><div class="pdot pd-b"></div><div><div class="pname">Series A-II Top-up</div><div class="ptype"><span class="tb tb-i">INVESTMENT</span></div></div></div><div class="pamt">10,000</div></div>
+          <div class="prow"><div class="prow-l"><div class="pdot pd-v"></div><div><div class="pname">Early Participation Bonus</div><div class="ptype"><span class="tb tb-d">DROP</span></div></div></div><div class="pamt">8,500</div></div>
+          <div class="prow"><div class="prow-l"><div class="pdot pd-v"></div><div><div class="pname">Referral Incentive Q1</div><div class="ptype"><span class="tb tb-d">DROP</span></div></div></div><div class="pamt">5,000</div></div>
+          <div style="margin-top:18px">
+            <div class="pbar-label"><span style="font-size:.75rem;color:var(--muted)">Investment Tokens</span><span style="font-size:.75rem;color:var(--cyan)">72.2%</span></div>
+            <div class="ptrack" style="margin-bottom:10px"><div class="pfill pb" style="width:72.2%"></div></div>
+            <div class="pbar-label"><span style="font-size:.75rem;color:var(--muted)">Drop / Bonus</span><span style="font-size:.75rem;color:#a78bfa">27.8%</span></div>
+            <div class="ptrack"><div class="pfill pv" style="width:27.8%"></div></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="ph"><div class="pt">Lock-in Countdown</div><div class="pm">Aug 15, 2027</div></div>
+          <div style="font-size:.81rem;color:var(--muted);margin-bottom:14px;line-height:1.6">Investment tokens subject to 24-month lock-in. Transfer restrictions remain active until unlock date.</div>
+          <div class="cd">
+            <div class="cdu"><div class="cdn" id="cd-days">549</div><div class="cdl">DAYS</div></div>
+            <div class="cdu"><div class="cdn" id="cd-hours">14</div><div class="cdl">HRS</div></div>
+            <div class="cdu"><div class="cdn" id="cd-min">22</div><div class="cdl">MIN</div></div>
+          </div>
+          <div style="margin-top:14px;padding:13px;background:rgba(248,113,113,.06);border:1px solid rgba(248,113,113,.12);border-radius:10px">
+            <div style="font-size:.7rem;color:#f87171;font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px">Transfer Status</div>
+            <div style="font-size:.81rem;color:var(--muted)">Currently <strong style="color:#f87171">restricted</strong>. No buy, sell, or external transfer actions available.</div>
+          </div>
+          <div style="margin-top:10px;padding:13px;background:rgba(0,230,118,.05);border:1px solid rgba(0,230,118,.12);border-radius:10px">
+            <div style="font-size:.7rem;color:#34d399;font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px">Wallet Status</div>
+            <div style="font-size:.81rem;color:var(--muted)">Custodial wallet <strong style="color:#34d399">ACTIVE</strong>. KYC current. No flags.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PORTFOLIO ── -->
+    <div id="tab-portfolio" style="display:none">
+      <div class="dhead"><div><h1>Portfolio</h1><p>Complete allocation history and transaction log</p></div></div>
+      <div class="tabs">
+        <button class="tab active" onclick="switchSubTab(this,'ptab-all')">All</button>
+        <button class="tab" onclick="switchSubTab(this,'ptab-inv')">Investment</button>
+        <button class="tab" onclick="switchSubTab(this,'ptab-drp')">Drop / Bonus</button>
+      </div>
+      <div class="panel" id="ptab-all">
+        <div class="tscroll">
+          <table class="tw">
+            <thead><tr><th>Date</th><th>Description</th><th>Type</th><th>Amount</th><th>Status</th><th>Tx Ref</th></tr></thead>
+            <tbody>
+              <tr><td style="color:var(--muted)">2024-08-15</td><td>Series A Investment Round</td><td><span class="tb tb-i">INVESTMENT</span></td><td style="font-family:'Space Grotesk',sans-serif;font-weight:700">25,000</td><td class="sc-ok">● Confirmed</td><td style="color:var(--muted);font-family:monospace;font-size:.74rem">0x3a4f...e821</td></tr>
+              <tr><td style="color:var(--muted)">2024-10-02</td><td>Early Participation Bonus</td><td><span class="tb tb-d">DROP</span></td><td style="font-family:'Space Grotesk',sans-serif;font-weight:700">8,500</td><td class="sc-ok">● Confirmed</td><td style="color:var(--muted);font-family:monospace;font-size:.74rem">0x7b2c...d034</td></tr>
+              <tr><td style="color:var(--muted)">2025-01-18</td><td>Series A-II Top-up</td><td><span class="tb tb-i">INVESTMENT</span></td><td style="font-family:'Space Grotesk',sans-serif;font-weight:700">10,000</td><td class="sc-ok">● Confirmed</td><td style="color:var(--muted);font-family:monospace;font-size:.74rem">0x9e1a...c445</td></tr>
+              <tr><td style="color:var(--muted)">2025-03-05</td><td>Referral Incentive Q1</td><td><span class="tb tb-d">DROP</span></td><td style="font-family:'Space Grotesk',sans-serif;font-weight:700">5,000</td><td class="sc-ok">● Confirmed</td><td style="color:var(--muted);font-family:monospace;font-size:.74rem">0x2f8d...b117</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel" id="ptab-inv" style="display:none">
+        <div class="tscroll">
+          <table class="tw">
+            <thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Status</th><th>Tx Ref</th></tr></thead>
+            <tbody>
+              <tr><td style="color:var(--muted)">2024-08-15</td><td>Series A Investment Round</td><td style="font-family:'Space Grotesk',sans-serif;font-weight:700">25,000</td><td class="sc-ok">● Confirmed</td><td style="color:var(--muted);font-family:monospace;font-size:.74rem">0x3a4f...e821</td></tr>
+              <tr><td style="color:var(--muted)">2025-01-18</td><td>Series A-II Top-up</td><td style="font-family:'Space Grotesk',sans-serif;font-weight:700">10,000</td><td class="sc-ok">● Confirmed</td><td style="color:var(--muted);font-family:monospace;font-size:.74rem">0x9e1a...c445</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel" id="ptab-drp" style="display:none">
+        <div class="tscroll">
+          <table class="tw">
+            <thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Status</th><th>Tx Ref</th></tr></thead>
+            <tbody>
+              <tr><td style="color:var(--muted)">2024-10-02</td><td>Early Participation Bonus</td><td style="font-family:'Space Grotesk',sans-serif;font-weight:700">8,500</td><td class="sc-ok">● Confirmed</td><td style="color:var(--muted);font-family:monospace;font-size:.74rem">0x7b2c...d034</td></tr>
+              <tr><td style="color:var(--muted)">2025-03-05</td><td>Referral Incentive Q1</td><td style="font-family:'Space Grotesk',sans-serif;font-weight:700">5,000</td><td class="sc-ok">● Confirmed</td><td style="color:var(--muted);font-family:monospace;font-size:.74rem">0x2f8d...b117</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── INVESTMENTS ── -->
+    <div id="tab-invest" style="display:none">
+      <div class="dhead"><div><h1>Investments</h1><p>Submit investment intent and track payment status</p></div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px" class="g2-dash">
+        <div class="panel">
+          <div class="ph"><div class="pt">Submit Investment Intent</div></div>
+          <p style="font-size:.82rem;color:var(--muted);margin-bottom:18px;line-height:1.7">Express your intent to participate in the next investment round. Our team will contact you with payment instructions and documentation.</p>
+          <label class="flabel">Intended Investment Amount (USD)</label>
+          <input class="finput" type="text" placeholder="e.g. 50,000">
+          <label class="flabel">Investment Round</label>
+          <select class="finput" style="background:rgba(255,255,255,.04);cursor:pointer">
+            <option style="background:#060c1e">Series B — Open</option>
+            <option style="background:#060c1e">Series B Top-up (Waitlist)</option>
+          </select>
+          <label class="flabel">Notes (Optional)</label>
+          <textarea class="finput" rows="3" placeholder="Any questions for the team..."></textarea>
+          <button class="btn btn-primary" style="width:100%">Submit Investment Intent →</button>
+          <div style="text-align:center;font-size:.72rem;color:var(--muted);margin-top:10px">Submitting does not constitute a binding commitment.</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:18px">
+          <div class="panel">
+            <div class="ph"><div class="pt">Payment Status</div></div>
+            <div class="srow"><span class="srow-label">Series A · Aug 2024</span><span style="color:#34d399;font-size:.81rem;font-weight:600">✓ Received</span></div>
+            <div class="srow"><span class="srow-label">Series A-II · Jan 2025</span><span style="color:#34d399;font-size:.81rem;font-weight:600">✓ Received</span></div>
+            <div class="srow" style="border:none"><span class="srow-label">Series B Intent</span><span style="color:var(--muted);font-size:.81rem">Not submitted</span></div>
+          </div>
+          <div class="panel">
+            <div class="ph"><div class="pt">Blockchain References</div><div class="pm">Read-only</div></div>
+            <p style="font-size:.81rem;color:var(--muted);margin-bottom:13px;line-height:1.6">On-chain transaction references for your token issuances on the Polygon network.</p>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="background:rgba(255,255,255,.03);border:1px solid var(--glass-border);border-radius:8px;padding:11px 12px">
+                <div style="font-size:.68rem;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em">Tx · Series A</div>
+                <div style="font-family:monospace;font-size:.73rem;color:var(--cyan);word-break:break-all">0x3a4f8e2d1b9c7a6f3e0d5b2c8a4f...e821</div>
+              </div>
+              <div style="background:rgba(255,255,255,.03);border:1px solid var(--glass-border);border-radius:8px;padding:11px 12px">
+                <div style="font-size:.68rem;color:var(--muted);margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em">Tx · Series A-II</div>
+                <div style="font-family:monospace;font-size:.73rem;color:var(--cyan);word-break:break-all">0x9e1a7c3f2b8d4e6a1c9f5d3b7a2e...c445</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── WALLET ── -->
+    <div id="tab-wallet" style="display:none">
+      <div class="dhead"><div><h1>Wallet</h1><p>Your custodial wallet details</p></div><div class="chip chip-g"><span class="chip-dot"></span>ACTIVE</div></div>
+      <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:18px" class="g2-dash">
+        <div class="panel">
+          <div class="pt" style="margin-bottom:16px">Custodial Wallet</div>
+          <div style="background:rgba(255,255,255,.03);border:1px solid var(--glass-border);border-radius:12px;padding:16px;margin-bottom:16px">
+            <div style="font-size:.68rem;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.06em">Wallet Address (Read-only)</div>
+            <div style="font-family:monospace;font-size:.8rem;color:var(--cyan);word-break:break-all">0xA4f2...9B3c · Platform Custodied · Polygon</div>
+          </div>
+          <div class="srow"><span class="srow-label">Network</span><span class="srow-val">Polygon (MATIC)</span></div>
+          <div class="srow"><span class="srow-label">Custody Type</span><span class="srow-val">Platform Managed</span></div>
+          <div class="srow"><span class="srow-label">Self-custody</span><span class="srow-val" style="color:#f87171">Not Available</span></div>
+          <div class="srow"><span class="srow-label">Transfer Status</span><span class="srow-val" style="color:#f87171">Restricted</span></div>
+          <div class="srow" style="border:none"><span class="srow-label">KYC Status</span><span class="srow-val" style="color:#34d399">Verified ✓</span></div>
+        </div>
+        <div class="panel">
+          <div class="pt" style="margin-bottom:16px">Security & Compliance</div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;background:rgba(0,230,118,.06);border:1px solid rgba(0,230,118,.15);border-radius:10px"><span style="font-size:.83rem">Identity Verified</span><span style="color:#34d399;font-size:.8rem;font-weight:600">✓ Complete</span></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;background:rgba(0,230,118,.06);border:1px solid rgba(0,230,118,.15);border-radius:10px"><span style="font-size:.83rem">AML Screening</span><span style="color:#34d399;font-size:.8rem;font-weight:600">✓ Passed</span></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;background:rgba(0,230,118,.06);border:1px solid rgba(0,230,118,.15);border-radius:10px"><span style="font-size:.83rem">Accredited Status</span><span style="color:#34d399;font-size:.8rem;font-weight:600">✓ Confirmed</span></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;background:rgba(248,113,113,.06);border:1px solid rgba(248,113,113,.15);border-radius:10px"><span style="font-size:.83rem">Freeze Status</span><span style="color:#34d399;font-size:.8rem;font-weight:600">Not Frozen</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── DOCUMENTS ── -->
+    <div id="tab-docs" style="display:none">
+      <div class="dhead"><div><h1>Documents</h1><p>Investment agreements and compliance records</p></div></div>
+      <div class="panel">
+        <div class="tscroll">
+          <table class="tw">
+            <thead><tr><th>Document</th><th>Type</th><th>Date</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr><td>Token Subscription Agreement — Series A</td><td><span class="tb tb-i">AGREEMENT</span></td><td style="color:var(--muted)">2024-08-10</td><td class="sc-ok">● Signed</td></tr>
+              <tr><td>KYC Verification Certificate</td><td><span class="tb tb-c">COMPLIANCE</span></td><td style="color:var(--muted)">2024-08-05</td><td class="sc-ok">● Verified</td></tr>
+              <tr><td>Investor Suitability Declaration</td><td><span class="tb tb-c">COMPLIANCE</span></td><td style="color:var(--muted)">2024-08-05</td><td class="sc-ok">● Complete</td></tr>
+              <tr><td>Token Subscription Agreement — Series A-II</td><td><span class="tb tb-i">AGREEMENT</span></td><td style="color:var(--muted)">2025-01-14</td><td class="sc-ok">● Signed</td></tr>
+              <tr><td>Q4 2025 Platform Report</td><td><span class="tb tb-d">REPORT</span></td><td style="color:var(--muted)">2026-01-30</td><td class="sc-pnd">⬇ Download</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- MOBILE BOTTOM TAB BAR -->
+<div class="bbar">
+  <div class="bbar-inner">
+    <button class="btab active" id="btab-overview" onclick="mTab(this,'overview')">
+      <span class="btab-icon"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
+      Overview
+    </button>
+    <button class="btab" id="btab-portfolio" onclick="mTab(this,'portfolio')">
+      <span class="btab-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
+      Portfolio
+    </button>
+    <button class="btab" id="btab-invest" onclick="mTab(this,'invest')">
+      <span class="btab-icon"><svg viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
+      Invest
+    </button>
+    <button class="btab" id="btab-wallet" onclick="mTab(this,'wallet')">
+      <span class="btab-icon"><svg viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></span>
+      Wallet
+    </button>
+    <button class="btab" id="btab-docs" onclick="mTab(this,'docs')">
+      <span class="btab-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
+      Docs
+    </button>
+  </div>
+</div>
+</div><!-- /dashboard -->
+
+<script>
+// ── CANVAS ──
+const canvas=document.getElementById('hero-canvas'), ctx=canvas.getContext('2d');
+let W,H,nodes=[],aId;
+function resize(){W=canvas.width=window.innerWidth;H=canvas.height=window.innerHeight;}
+function init(){
+  resize();nodes=[];
+  const n=Math.max(18,Math.floor(W*H/20000));
+  for(let i=0;i<n;i++) nodes.push({x:Math.random()*W,y:Math.random()*H,vx:(Math.random()-.5)*.4,vy:(Math.random()-.5)*.4,r:Math.random()*1.5+.5});
+}
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  for(let i=0;i<nodes.length;i++) for(let j=i+1;j<nodes.length;j++){
+    const dx=nodes[i].x-nodes[j].x,dy=nodes[i].y-nodes[j].y,d=Math.sqrt(dx*dx+dy*dy);
+    if(d<120){ctx.beginPath();ctx.moveTo(nodes[i].x,nodes[i].y);ctx.lineTo(nodes[j].x,nodes[j].y);ctx.strokeStyle=`rgba(41,121,255,${(1-d/120)*.22})`;ctx.lineWidth=.5;ctx.stroke();}
+  }
+  nodes.forEach(n=>{
+    ctx.beginPath();ctx.arc(n.x,n.y,n.r,0,Math.PI*2);ctx.fillStyle='rgba(0,229,255,.6)';ctx.fill();
+    n.x+=n.vx;n.y+=n.vy;
+    if(n.x<0||n.x>W)n.vx*=-1;if(n.y<0||n.y>H)n.vy*=-1;
+  });
+  aId=requestAnimationFrame(draw);
+}
+window.addEventListener('resize',()=>{if(document.getElementById('landing').style.display!=='none')resize();});
+init();draw();
+
+// ── SCROLL REVEAL ──
+const revealObs = new IntersectionObserver(entries => {
+  entries.forEach(e => { if(e.isIntersecting) e.target.classList.add('vis'); });
+}, { threshold: 0.08 });
+document.querySelectorAll('.reveal').forEach(r => revealObs.observe(r));
+
+// ── MOBILE NAV ──
+function toggleTheme(){
+  const html=document.documentElement;
+  const isLight=html.getAttribute('data-theme')==='light';
+  html.setAttribute('data-theme',isLight?'dark':'light');
+  document.getElementById('theme-icon-moon').style.display=isLight?'block':'none';
+  document.getElementById('theme-icon-sun').style.display=isLight?'none':'block';
+  localStorage.setItem('shivai-theme',isLight?'dark':'light');
+}
+// restore saved theme
+(function(){
+  const saved=localStorage.getItem('shivai-theme');
+  if(saved==='light'){
+    document.documentElement.setAttribute('data-theme','light');
+    const m=document.getElementById('theme-icon-moon'),s=document.getElementById('theme-icon-sun');
+    if(m)m.style.display='none'; if(s)s.style.display='block';
+  }
+})();
+
+// ── ROTATING HERO TITLES ──
+(function(){
+  const titles = document.querySelectorAll('#heroTitles .hero-title');
+  if(!titles.length) return;
+  let cur = 0;
+  setInterval(()=>{
+    titles[cur].classList.add('exit');
+    setTimeout(()=>{ titles[cur].classList.remove('active','exit'); }, 750);
+    cur = (cur + 1) % titles.length;
+    setTimeout(()=>{ titles[cur].classList.add('active'); }, 780);
+  }, 5500);
+})();
+
+function toggleMenu(){
+  const m=document.getElementById('mmenu'),h=document.getElementById('ham');
+  m.classList.toggle('open');h.classList.toggle('open');
+  document.body.style.overflow=m.classList.contains('open')?'hidden':'';
+}
+
+// ── SHOW/HIDE ──
+function showDashboard(){
+  document.getElementById('landing').style.display='none';
+  document.getElementById('dashboard').style.display='block';
+  document.body.style.overflow='';
+  const m=document.getElementById('mmenu'),h=document.getElementById('ham');
+  m.classList.remove('open');h.classList.remove('open');
+  cancelAnimationFrame(aId);
+  countdown();
+  window.scrollTo(0,0);
+}
+function showLanding(){
+  document.getElementById('dashboard').style.display='none';
+  document.getElementById('landing').style.display='block';
+  init();draw();
+  window.scrollTo(0,0);
+}
+
+// ── TABS (sidebar) ──
+const TABS=['overview','portfolio','invest','wallet','docs'];
+function switchTab(el,id){
+  document.querySelectorAll('.ni').forEach(i=>i.classList.remove('active'));
+  el.classList.add('active');
+  TABS.forEach(t=>{const x=document.getElementById('tab-'+t);if(x)x.style.display=t===id?'block':'none';});
+  document.querySelectorAll('.btab').forEach(b=>b.classList.remove('active'));
+  const bb=document.getElementById('btab-'+id);if(bb)bb.classList.add('active');
+  window.scrollTo(0,0);
+}
+
+// ── TABS (bottom bar) ──
+function mTab(el,id){
+  document.querySelectorAll('.btab').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  TABS.forEach(t=>{const x=document.getElementById('tab-'+t);if(x)x.style.display=t===id?'block':'none';});
+  // sync sidebar
+  document.querySelectorAll('.ni').forEach((n,i)=>{n.classList.toggle('active',TABS[i]===id);});
+  window.scrollTo(0,0);
+}
+
+// ── SUB-TABS ──
+function switchSubTab(el,id){
+  el.closest('.tabs').querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  ['ptab-all','ptab-inv','ptab-drp'].forEach(t=>{const x=document.getElementById(t);if(x)x.style.display=t===id?'block':'none';});
+}
+
+// ── COUNTDOWN ──
+function countdown(){
+  const unlock=new Date('2027-08-15T00:00:00Z');
+  (function tick(){
+    const d=unlock-new Date();if(d<=0)return;
+    const el_d=document.getElementById('cd-days'),el_h=document.getElementById('cd-hours'),el_m=document.getElementById('cd-min');
+    if(el_d)el_d.textContent=Math.floor(d/86400000);
+    if(el_h)el_h.textContent=String(Math.floor((d%86400000)/3600000)).padStart(2,'0');
+    if(el_m)el_m.textContent=String(Math.floor((d%3600000)/60000)).padStart(2,'0');
+  })();
+  setInterval(function tick(){
+    const d=unlock-new Date();if(d<=0)return;
+    const el_d=document.getElementById('cd-days'),el_h=document.getElementById('cd-hours'),el_m=document.getElementById('cd-min');
+    if(el_d)el_d.textContent=Math.floor(d/86400000);
+    if(el_h)el_h.textContent=String(Math.floor((d%86400000)/3600000)).padStart(2,'0');
+    if(el_m)el_m.textContent=String(Math.floor((d%3600000)/60000)).padStart(2,'0');
+  },30000);
+}
+</script>
+</body>
+</html>

@@ -42,6 +42,41 @@ apiClient.interceptors.response.use(
   }
 );
 
+// Separate client for voice API (fixed base URL)
+const voiceApiClient = axios.create({
+  baseURL: "https://voice.callshivai.com",
+  timeout: 120000,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
+voiceApiClient.interceptors.request.use((config) => {
+  const tokens = localStorage.getItem("auth_tokens");
+  if (tokens) {
+    try {
+      const { accessToken } = JSON.parse(tokens);
+      if (accessToken) {
+        config.headers.Authorization = `Bearer ${accessToken}`;
+      }
+    } catch (error) {
+      console.warn("Failed to parse auth tokens:", error);
+    }
+  }
+  return config;
+});
+
+voiceApiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem("auth_tokens");
+      window.location.href = "/landing";
+    }
+    return Promise.reject(error);
+  }
+);
+
 export interface ApiAgent {
   id: string;
   name: string;
@@ -539,6 +574,26 @@ class AgentAPI {
       return response.data;
     } catch (error: any) {
       console.error("Error uploading logo:", error);
+      throw error;
+    }
+  }
+
+  // Create agent with full payload (includes voice_speed, voice_style, template, knowledge base URLs)
+  async createAgentFull(agentData: Record<string, any>): Promise<any> {
+    try {
+      const response: AxiosResponse<{
+        success: boolean;
+        data: any;
+        message?: string;
+      }> = await voiceApiClient.post("/agents/create-agent", agentData);
+
+      if (response.data.success && response.data.data) {
+        return response.data.data;
+      }
+
+      throw new Error(response.data.message || "Failed to create agent");
+    } catch (error: any) {
+      console.error("Error creating agent (full):", error);
       throw error;
     }
   }

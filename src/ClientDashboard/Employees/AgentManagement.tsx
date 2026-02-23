@@ -40,6 +40,7 @@ import {
   ArrowLeft,
   Play,
   Pause,
+  Square,
   Eye,
   Edit,
   Edit2,
@@ -190,6 +191,11 @@ const AgentManagement = () => {
   const [quickCreateData, setQuickCreateData] = useState({
     companyName: "",
     aiEmployeeName: "",
+    language: "en-US",
+    voice: "alloy",
+    voiceSpeed: 1.0,
+    voiceStyle: "friendly",
+    gender: "female",
     businessProcess: "",
     industry: "",
     subIndustry: "",
@@ -203,6 +209,76 @@ const AgentManagement = () => {
   });
   const [isUploadingFiles, setIsUploadingFiles] = useState(false);
   const [isExtractingContent, setIsExtractingContent] = useState(false);
+  const [isTestingVoice, setIsTestingVoice] = useState(false);
+  const voicePreviewAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Function to preview Gemini TTS voice
+  const previewGeminiVoice = async (voiceName: string, speed: number = 1.0, customText?: string) => {
+    // Stop any currently playing audio
+    if (voicePreviewAudioRef.current) {
+      voicePreviewAudioRef.current.pause();
+      voicePreviewAudioRef.current = null;
+    }
+
+    setIsTestingVoice(true);
+    
+    try {
+      const sampleText = customText || `Hello! I'm ${quickCreateData.aiEmployeeName || 'your AI assistant'}. How can I help you today?`;
+      
+      // Call the TTS preview endpoint
+      const response = await fetch('https://python.service.callshivai.com/tts/preview', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: sampleText,
+          voice: voiceName,
+          speed: speed,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`TTS preview failed: ${response.status}`);
+      }
+
+      // Get the audio as blob
+      const audioBlob = await response.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      
+      // Create and play audio
+      const audio = new Audio(audioUrl);
+      voicePreviewAudioRef.current = audio;
+      
+      audio.onended = () => {
+        setIsTestingVoice(false);
+        URL.revokeObjectURL(audioUrl);
+        voicePreviewAudioRef.current = null;
+      };
+      
+      audio.onerror = () => {
+        setIsTestingVoice(false);
+        URL.revokeObjectURL(audioUrl);
+        voicePreviewAudioRef.current = null;
+        toast.error('Failed to play voice preview');
+      };
+      
+      await audio.play();
+    } catch (error) {
+      console.error('❌ Voice preview error:', error);
+      setIsTestingVoice(false);
+      toast.error('Voice preview unavailable. Please try again later.');
+    }
+  };
+
+  // Stop voice preview
+  const stopVoicePreview = () => {
+    if (voicePreviewAudioRef.current) {
+      voicePreviewAudioRef.current.pause();
+      voicePreviewAudioRef.current = null;
+    }
+    setIsTestingVoice(false);
+  };
 
   // Template Details Modal State
   const [showTemplateDetails, setShowTemplateDetails] = useState(false);
@@ -303,6 +379,46 @@ const AgentManagement = () => {
     { value: "billing-inquiries", label: "Billing Inquiries", icon: "💳" },
     { value: "onboarding", label: "Customer Onboarding", icon: "🚀" },
   ];
+
+  // Voice Options by Gender
+  const voiceOptions = {
+    female: [
+      { value: "alloy", label: "Alloy" },
+      { value: "Achernar", label: "Achernar" },
+      { value: "Aoede", label: "Aoede" },
+      { value: "Autonoe", label: "Autonoe" },
+      { value: "Callirrhoe", label: "Callirrhoe" },
+      { value: "Despina", label: "Despina" },
+      { value: "Erinome", label: "Erinome" },
+      { value: "Gacrux", label: "Gacrux" },
+      { value: "Kore", label: "Kore" },
+      { value: "Laomedeia", label: "Laomedeia" },
+      { value: "Leda", label: "Leda" },
+      { value: "Pulcherrima", label: "Pulcherrima" },
+      { value: "Sulafat", label: "Sulafat" },
+      { value: "Vindemiatrix", label: "Vindemiatrix" },
+      { value: "Zephyr", label: "Zephyr" },
+    ],
+    male: [
+      { value: "alloy", label: "Alloy" },
+      { value: "Achird", label: "Achird" },
+      { value: "Algenib", label: "Algenib" },
+      { value: "Algieba", label: "Algieba" },
+      { value: "Alnilam", label: "Alnilam" },
+      { value: "Charon", label: "Charon" },
+      { value: "Enceladus", label: "Enceladus" },
+      { value: "Fenrir", label: "Fenrir" },
+      { value: "Iapetus", label: "Iapetus" },
+      { value: "Orus", label: "Orus" },
+      { value: "Puck", label: "Puck" },
+      { value: "Rasalgethi", label: "Rasalgethi" },
+      { value: "Sadachbia", label: "Sadachbia" },
+      { value: "Sadaltager", label: "Sadaltager" },
+      { value: "Schedar", label: "Schedar" },
+      { value: "Umbriel", label: "Umbriel" },
+      { value: "Zubenelgenubi", label: "Zubenelgenubi" },
+    ],
+  };
 
   // Industry Options
   const industryOptions = [
@@ -528,12 +644,12 @@ const AgentManagement = () => {
 
   // Handle quick create wizard navigation
   const handleQuickCreateNext = async () => {
-    if (quickCreateStep < 6) {
+    if (quickCreateStep < 7) {
       const nextStep = quickCreateStep + 1;
       setQuickCreateStep(nextStep);
 
-      // Generate AI templates when moving to step 6
-      if (nextStep === 6) {
+      // Generate AI templates when moving to step 7
+      if (nextStep === 7) {
         await generateAITemplates();
       }
     }
@@ -638,6 +754,11 @@ const AgentManagement = () => {
     setQuickCreateData({
       companyName: "",
       aiEmployeeName: "",
+      language: "en-US",
+      voice: "alloy",
+      voiceSpeed: 1.0,
+      voiceStyle: "friendly",
+      gender: "female",
       businessProcess: "",
       industry: "",
       subIndustry: "",
@@ -886,14 +1007,19 @@ const AgentManagement = () => {
       // Use the uploaded file URLs from the API
       const knowledgeBaseFileUrls = quickCreateData.uploadedFileUrls;
 
+      // Use voice from quickCreateData, fallback to template voice or default
+      const agentVoice = quickCreateData.voice || mappedVoice;
+
       const agentPayload = {
         name: quickCreateData.aiEmployeeName,
-        gender: "female",
+        gender: quickCreateData.gender || "female",
         business_process: quickCreateData.businessProcess,
         industry: quickCreateData.industry,
         personality: selectedTemplateData?.personality || "Professional",
-        language: "English (US)",
-        voice: mappedVoice,
+        language: quickCreateData.language || "en-US",
+        voice: agentVoice,
+        voice_speed: quickCreateData.voiceSpeed || 1.0,
+        voice_style: quickCreateData.voiceStyle || "friendly",
         custom_instructions: replaceTemplatePlaceholders(selectedTemplateData?.systemPrompt || ""),
         guardrails_level: "medium",
         response_style: "Balanced",
@@ -928,7 +1054,7 @@ const AgentManagement = () => {
       console.log("�📎 Knowledge Base Files:", knowledgeBaseFileUrls);
 
       // Call the agent creation API (synchronous - API handles KB creation)
-      const newAgent = await agentAPI.createAgent(agentPayload);
+      const newAgent = await agentAPI.createAgentFull(agentPayload);
 
       console.log('✅ Agent created successfully:', newAgent);
       console.log('✅ New Agent ID:', newAgent?.id);
@@ -977,14 +1103,16 @@ const AgentManagement = () => {
           quickCreateData.aiEmployeeName.trim().length > 0
         );
       case 2:
-        return quickCreateData.businessProcess.length > 0;
+        return quickCreateData.language.length > 0 && quickCreateData.voice.length > 0; // Voice configuration
       case 3:
-        return quickCreateData.industry.length > 0;
+        return quickCreateData.businessProcess.length > 0;
       case 4:
-        return true; // Sub-industry is optional
+        return quickCreateData.industry.length > 0;
       case 5:
-        return true; // Website URLs are optional
+        return true; // Sub-industry is optional
       case 6:
+        return true; // Website URLs are optional
+      case 7:
         return true; // Template selection is optional
       default:
         return false;
@@ -3008,7 +3136,7 @@ const AgentManagement = () => {
                         Create AI Employee
                       </h2>
                       <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400">
-                        Step {quickCreateStep} of 6
+                        Step {quickCreateStep} of 7
                       </p>
                     </div>
                   </div>
@@ -3028,7 +3156,7 @@ const AgentManagement = () => {
                 {/* Progress Bar */}
                 <div className="px-3 sm:px-5 pt-3 sm:pt-4 flex-shrink-0">
                   <div className="flex items-center gap-1 sm:gap-2">
-                    {[1, 2, 3, 4, 5, 6].map((step) => (
+                    {[1, 2, 3, 4, 5, 6, 7].map((step) => (
                       <div key={step} className="flex-1 flex items-center">
                         <div
                           className={`h-1.5 sm:h-2 w-full rounded-full transition-all duration-300 ${
@@ -3107,8 +3235,213 @@ const AgentManagement = () => {
                     </div>
                   )}
 
-                  {/* Step 2: Business Process */}
+                  {/* Step 2: Voice Configuration */}
                   {quickCreateStep === 2 && (
+                    <div className="space-y-3 sm:space-y-4 animate-fadeIn">
+                      <div className="text-center mb-4 sm:mb-6">
+                        <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-center">
+                          <Globe className="w-6 h-6 sm:w-8 sm:h-8 text-green-600 dark:text-green-400" />
+                        </div>
+                        <h3 className="text-lg sm:text-xl font-semibold text-slate-800 dark:text-white mb-1 sm:mb-2">
+                          Voice & Language Settings
+                        </h3>
+                        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto px-2">
+                          Configure how your AI Employee will sound and communicate
+                        </p>
+                      </div>
+
+                      <div className="space-y-4">
+                        {/* Gender Selection */}
+                        <div>
+                          <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                            Gender
+                          </label>
+                          <div className="grid grid-cols-2 gap-3">
+                            {[
+                              { value: 'female', label: 'Female' },
+                              { value: 'male', label: 'Male' },
+                            ].map((option) => (
+                              <button
+                                key={option.value}
+                                type="button"
+                                onClick={() =>
+                                  setQuickCreateData((prev) => ({
+                                    ...prev,
+                                    gender: option.value,
+                                    // Reset voice to first option of the selected gender
+                                    voice: option.value === 'female' ? 'Achernar' : 'Achird',
+                                  }))
+                                }
+                                className={`p-3 sm:p-4 rounded-xl border-2 transition-all flex items-center justify-center ${
+                                  quickCreateData.gender === option.value
+                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                                    : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                                }`}
+                              >
+                                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{option.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Language Selection */}
+                        <div>
+                          <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                            Language
+                          </label>
+                          <select
+                            value={quickCreateData.language}
+                            onChange={(e) =>
+                              setQuickCreateData((prev) => ({
+                                ...prev,
+                                language: e.target.value,
+                              }))
+                            }
+                            className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm sm:text-base text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all"
+                          >
+                            <option value="multilingual">🌐 Multilingual</option>
+                            <option value="en-US">🇺🇸 English (US)</option>
+                            <option value="en-GB">🇬🇧 English (UK)</option>
+                            <option value="en-IN">🇮🇳 English (India)</option>
+                            <option value="es">🇪🇸 Spanish</option>
+                            <option value="fr">🇫🇷 French</option>
+                            <option value="de">🇩🇪 German</option>
+                            <option value="it">🇮🇹 Italian</option>
+                            <option value="pt">🇵🇹 Portuguese</option>
+                            <option value="nl">🇳🇱 Dutch</option>
+                            <option value="pl">🇵🇱 Polish</option>
+                            <option value="ru">🇷🇺 Russian</option>
+                            <option value="ja">🇯🇵 Japanese</option>
+                            <option value="ko">🇰🇷 Korean</option>
+                            <option value="zh">🇨🇳 Chinese</option>
+                            <option value="ar">🇸🇦 Arabic</option>
+                            <option value="hi">🇮🇳 Hindi</option>
+                            <option value="tr">🇹🇷 Turkish</option>
+                          </select>
+                        </div>
+
+                        {/* Voice Selection */}
+                        <div>
+                          <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                            Voice Type
+                          </label>
+                          <div className="flex gap-2">
+                            <select
+                              value={quickCreateData.voice}
+                              onChange={(e) =>
+                                setQuickCreateData((prev) => ({
+                                  ...prev,
+                                  voice: e.target.value,
+                                }))
+                              }
+                              className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm sm:text-base text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all"
+                            >
+                              {voiceOptions[quickCreateData.gender as 'female' | 'male']?.map((voice) => (
+                                <option key={voice.value} value={voice.value}>
+                                  {voice.label}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (isTestingVoice) {
+                                  stopVoicePreview();
+                                } else {
+                                  previewGeminiVoice(
+                                    quickCreateData.voice,
+                                    quickCreateData.voiceSpeed,
+                                    `Hello! I'm ${quickCreateData.aiEmployeeName || 'your AI assistant'}. How can I help you today?`
+                                  );
+                                }
+                              }}
+                              className={`px-4 py-2.5 sm:py-3 rounded-xl font-medium transition-all flex items-center gap-2 ${
+                                isTestingVoice
+                                  ? 'bg-red-500 hover:bg-red-600 text-white hover:scale-[1.02] active:scale-[0.98]'
+                                  : 'common-button-bg hover:scale-[1.02] active:scale-[0.98]'
+                              }`}
+                            >
+                              {isTestingVoice ? (
+                                <>
+                                  <Square className="w-4 h-4" />
+                                  <span className="hidden sm:inline">Stop</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Play className="w-4 h-4" />
+                                  <span className="hidden sm:inline">Test</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                          <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-1">
+                            Choose a voice that matches your brand personality
+                          </p>
+                        </div>
+
+                        {/* Voice Style Selection */}
+                        <div>
+                          <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                            Voice Style
+                          </label>
+                          <select
+                            value={quickCreateData.voiceStyle}
+                            onChange={(e) =>
+                              setQuickCreateData((prev) => ({
+                                ...prev,
+                                voiceStyle: e.target.value,
+                              }))
+                            }
+                            className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm sm:text-base text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all"
+                          >
+                            <option value="friendly">Friendly - Warm & approachable</option>
+                            <option value="professional">Professional - Business-like & formal</option>
+                            <option value="casual"> Casual - Relaxed & conversational</option>
+                            <option value="authoritative">Authoritative - Confident & commanding</option>
+                            <option value="empathetic">Empathetic - Understanding & supportive</option>
+                            <option value="enthusiastic">Enthusiastic - Energetic & upbeat</option>
+                          </select>
+                          <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-1">
+                            Set the personality tone for your AI assistant
+                          </p>
+                        </div>
+
+                        {/* Voice Speed Slider */}
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">
+                              Voice Speed
+                            </label>
+                            <span className="text-xs sm:text-sm font-medium text-blue-600 dark:text-blue-400">
+                              {quickCreateData.voiceSpeed.toFixed(1)}x
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0.5"
+                            max="2.0"
+                            step="0.1"
+                            value={quickCreateData.voiceSpeed}
+                            onChange={(e) =>
+                              setQuickCreateData((prev) => ({
+                                ...prev,
+                                voiceSpeed: parseFloat(e.target.value),
+                              }))
+                            }
+                            className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                          />
+                          <div className="flex justify-between text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-1">
+                            <span>Slower (0.5x)</span>
+                            <span>Normal (1.0x)</span>
+                            <span>Faster (2.0x)</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Step 3: Business Process */}
+                  {quickCreateStep === 3 && (
                     <div className="space-y-3 sm:space-y-4 animate-fadeIn">
                       <div className="text-center mb-4 sm:mb-6">
                         <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-center">
@@ -3251,8 +3584,8 @@ const AgentManagement = () => {
                     </div>
                   )}
 
-                  {/* Step 3: Industry */}
-                  {quickCreateStep === 3 && (
+                  {/* Step 4: Industry */}
+                  {quickCreateStep === 4 && (
                     <div className="space-y-3 sm:space-y-4 animate-fadeIn">
                       <div className="text-center mb-4 sm:mb-6">
                         <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-center">
@@ -3385,8 +3718,8 @@ const AgentManagement = () => {
                     </div>
                   )}
 
-                  {/* Step 4: Sub-Industry */}
-                  {quickCreateStep === 4 && (
+                  {/* Step 5: Sub-Industry */}
+                  {quickCreateStep === 5 && (
                     <div className="space-y-3 sm:space-y-4 animate-fadeIn">
                       <div className="text-center mb-4 sm:mb-6">
                         <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-center">
@@ -3554,8 +3887,8 @@ const AgentManagement = () => {
                     </div>
                   )}
 
-                  {/* Step 5: Knowledge Base */}
-                  {quickCreateStep === 5 && (
+                  {/* Step 6: Knowledge Base */}
+                  {quickCreateStep === 6 && (
                     <div className="space-y-3 sm:space-y-4 animate-fadeIn">
                       <div className="text-center mb-4 sm:mb-6">
                         <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-center">
@@ -3809,8 +4142,8 @@ const AgentManagement = () => {
                     </div>
                   )}
 
-                  {/* Step 6: Template Selection with AI-Generated Templates */}
-                  {quickCreateStep === 6 &&
+                  {/* Step 7: Template Selection with AI-Generated Templates */}
+                  {quickCreateStep === 7 &&
                     (() => {
                       // Use AI-generated templates, fallback to scored templates
                       const templates =
@@ -4230,7 +4563,7 @@ const AgentManagement = () => {
                     )}
 
                     <div className="flex items-center gap-1.5 sm:gap-2">
-                      {quickCreateStep === 6 && (
+                      {quickCreateStep === 7 && (
                         <button
                           onClick={() => {
                             handleQuickCreateClose();
@@ -4247,7 +4580,7 @@ const AgentManagement = () => {
                         </button>
                       )}
 
-                      {quickCreateStep < 6 ? (
+                      {quickCreateStep < 7 ? (
                         <button
                           onClick={handleQuickCreateNext}
                           disabled={!canProceedToNextStep()}
@@ -4301,8 +4634,8 @@ const AgentManagement = () => {
                     </div>
                   </div>
 
-                  {/* Mobile Skip Button for Step 6 */}
-                  {quickCreateStep === 6 && (
+                  {/* Mobile Skip Button for Step 7 */}
+                  {quickCreateStep === 7 && (
                     <button
                       onClick={() => {
                         handleQuickCreateClose();
