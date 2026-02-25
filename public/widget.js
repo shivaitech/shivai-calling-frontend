@@ -340,7 +340,56 @@
   window.ShivAIWidget = window.ShivAIWidget || {};
   window.ShivAIWidget.refreshTheme = refreshWidgetTheme;
 
-  function initWidget() {
+  // Store agent's configured language (fetched from API before widget init)
+  let agentLanguage = null;
+
+  // Resolve agentId from all possible sources (URL param, SHIVAI_CONFIG, data attributes)
+  function resolveAgentId() {
+    const scriptTags = document.getElementsByTagName('script');
+    for (let i = scriptTags.length - 1; i >= 0; i--) {
+      const script = scriptTags[i];
+      if (script.src && (script.src.includes('/widget.js') || script.src.includes('/widget2.js') || script.src.includes('/widget3.js'))) {
+        try {
+          const urlParam = new URL(script.src).searchParams.get('agentId');
+          if (urlParam) return urlParam;
+        } catch (e) {}
+      }
+    }
+    if (window.SHIVAI_CONFIG && window.SHIVAI_CONFIG.agentId) return window.SHIVAI_CONFIG.agentId;
+    const dataScripts = document.querySelectorAll('script[data-agent-id]');
+    if (dataScripts.length > 0) return dataScripts[dataScripts.length - 1].getAttribute('data-agent-id');
+    if (document.currentScript && document.currentScript.getAttribute('data-agent-id')) return document.currentScript.getAttribute('data-agent-id');
+    return null;
+  }
+
+  // Fetch agent config from API to get the agent's configured language
+  async function checkAgentConfig() {
+    try {
+      const agentId = resolveAgentId();
+      if (!agentId) {
+        console.warn('⚠️ [widget.js] No agentId found — language will default to multilingual');
+        return;
+      }
+      console.log('🔍 [widget.js] Fetching agent config for:', agentId);
+      const response = await fetch(`https://nodejs.service.callshivai.com/api/v1/agent-configs/${agentId}`);
+      if (!response.ok) {
+        console.warn('⚠️ [widget.js] Agent config fetch failed:', response.status);
+        return;
+      }
+      const data = await response.json();
+      const agentRes = data?.data?.agent;
+      if (agentRes?.language) {
+        agentLanguage = agentRes.language;
+        console.log('🌐 [widget.js] Agent language from API:', agentLanguage);
+      }
+    } catch (err) {
+      console.warn('⚠️ [widget.js] Error fetching agent config:', err);
+    }
+  }
+
+  async function initWidget() {
+    // Fetch agent config first so language is available for setDefaultLanguage()
+    await checkAgentConfig();
     createWidgetUI();
     setupEventListeners();
     initSoundContext();
@@ -1412,46 +1461,55 @@
     setDefaultLanguage();
   }
   function setDefaultLanguage() {
-    const languageMap = {
-      ar: "ar",
-      zh: "zh",
-      "zh-CN": "zh",
-      "zh-TW": "zh",
-      en: "en",
-      "en-US": "en-US",
-      "en-GB": "en-GB",
-      "en-IN": "en-IN",
-      fr: "fr",
-      de: "de",
-      hi: "hi",
-      it: "it",
-      ja: "ja",
-      ko: "ko",
-      pt: "pt",
-      "pt-BR": "pt",
-      es: "es",
-      "es-ES": "es",
-      "es-MX": "es",
+    // Map language codes to widget <select> option values
+    const langToOption = {
+      "ar": "ar",
+      "zh": "zh", "zh-CN": "zh", "zh-TW": "zh",
+      "nl": "nl",
+      "en": "en-US", "en-US": "en-US", "en-GB": "en-GB", "en-IN": "en-IN",
+      "fr": "fr",
+      "de": "de",
+      "hi": "hi", "hi-IN": "hi",
+      "it": "it",
+      "ja": "ja",
+      "ko": "ko",
+      "pt": "pt", "pt-BR": "pt",
+      "pl": "pl",
+      "ru": "ru",
+      "es": "es", "es-ES": "es", "es-MX": "es",
+      "tr": "tr",
+      "multilingual": "multilingual",
     };
-    const browserLang = navigator.language || navigator.userLanguage;
-    let detectedLang = languageMap[browserLang];
-    if (!detectedLang && browserLang.includes("-")) {
-      const baseLang = browserLang.split("-")[0];
-      detectedLang = languageMap[baseLang];
+
+    function resolveOption(lang) {
+      if (!lang) return null;
+      return langToOption[lang] || langToOption[lang.split('-')[0]] || null;
     }
-    const defaultLang = "multilingual"; // Default to multilingual
-    if (languageSelect) {
-      languageSelect.value = defaultLang;
+
+    // Priority 1: language URL param in the script tag
+    let sourceLang = null;
+    const scriptTags = document.getElementsByTagName('script');
+    for (let i = scriptTags.length - 1; i >= 0; i--) {
+      const s = scriptTags[i];
+      if (s.src && (s.src.includes('/widget.js') || s.src.includes('/widget2.js') || s.src.includes('/widget3.js'))) {
+        try {
+          const p = new URL(s.src).searchParams.get('language');
+          if (p) { sourceLang = p; break; }
+        } catch (e) {}
+      }
     }
-    const landingLanguageSelect = document.getElementById(
-      "shivai-language-landing"
-    );
-    if (landingLanguageSelect) {
-      landingLanguageSelect.value = defaultLang;
-      console.log(
-        `Default language set to: ${defaultLang} (Browser locale: ${browserLang})`
-      );
-    }
+    // Priority 2: agentLanguage fetched from agent config API
+    if (!sourceLang && agentLanguage) sourceLang = agentLanguage;
+    // Priority 3: SHIVAI_CONFIG.language
+    if (!sourceLang && window.SHIVAI_CONFIG && window.SHIVAI_CONFIG.language) sourceLang = window.SHIVAI_CONFIG.language;
+
+    const defaultLang = resolveOption(sourceLang) || "multilingual";
+
+    console.log(`🌐 [widget.js] Default language: ${defaultLang} (source: ${sourceLang || 'none'})`);
+
+    if (languageSelect) languageSelect.value = defaultLang;
+    const landingLanguageSelect = document.getElementById("shivai-language-landing");
+    if (landingLanguageSelect) landingLanguageSelect.value = defaultLang;
   }
 
   // Functions to show/hide message interface based on connection state

@@ -63,7 +63,6 @@ export interface GeneratedTemplate {
   websiteUrls?: string[];
 
   // Call Scripts
-  openingScript?: string;
   keyTalkingPoints?: string;
   closingScript?: string;
 
@@ -217,7 +216,6 @@ class AITemplateService {
     "voice": "Professional",
     "personality": "Organized",
     "manualKnowledge": "Appointment types, policies, availability.",
-    "openingScript": "Thank you for calling. How may I help?",
     "keyTalkingPoints": "• Identify need • Offer options • Confirm details",
     "closingScript": "Your appointment is confirmed. Is there anything else?",
     "objections": [{"objection": "Times dont work", "response": "Let me find other options."}],
@@ -231,6 +229,11 @@ class AITemplateService {
       // KNOWLEDGE BASE FIRST APPROACH
       const kbContent = request.extractedContent.substring(0, 12000);
       
+      // Extract AI employee name from additionalContext
+      const employeeNameMatch = request.additionalContext?.match(/The AI employee will be named:\s*(.+)/i);
+      const employeeName = employeeNameMatch ? employeeNameMatch[1].trim() : (request.companyName ? `${request.companyName} Assistant` : '[AI Employee Name]');
+      const companyFallback = request.companyName || '[Company Name]';
+
       return `You are an AI that creates AI Employee templates by EXTRACTING information from company documents.
 
 ═══════════════════════════════════════════════════════════════════
@@ -240,103 +243,107 @@ ${kbContent}
 ═══════════════════════════════════════════════════════════════════
 
 STEP 2: EXTRACT THESE KEY FACTS FROM THE DOCUMENT ABOVE:
-- What is the EXACT company/organization name mentioned?
-- What industry/business type is this? (school, hospital, restaurant, etc.)
-- What services/products do they offer?
-- Any pricing information?
+- What is the EXACT company/organization name mentioned? If NOT found, use: ${companyFallback}
+- What industry/business type is this?
+- What services/products do they offer (with exact names and pricing if available)?
 - Any policies, procedures, or FAQs?
 - Contact information, hours, locations?
 
-STEP 3: FALLBACK VALUES (use ONLY if not found in document above):
-- Company Name: ${request.companyName}
+🔴 MANDATORY IDENTITY RULES (NON-NEGOTIABLE):
+1. AI Employee Name: "${employeeName}" — Use this EXACT name in every systemPrompt and firstMessage. Never use a placeholder like [AI Employee Name].
+2. Company Name: Extract from document above. If not found, use "${companyFallback}". Never use a placeholder like [Company Name].
+3. All services, products, and pricing MUST come from the document — never use generic or made-up content.
+
+FALLBACK VALUES (only if truly not in document):
 - Business Process: ${request.businessProcess}
 - Industry: ${request.industry}${subIndustryContent}${urlContent}
-${request.additionalContext ? `- Additional Context: ${request.additionalContext}` : ""}
+${request.additionalContext ? `- Additional Context: ${request.additionalContext}` : ''}
 
-🚨 CRITICAL RULES 🚨
-1. The company name in templated MUST be extracted from the document - NOT "${request.companyName}" unless the document has no company name.
-2. All services, products, pricing MUST come from the document.
-3. Do NOT use generic placeholders or made-up services.
-4. Every field must reflect ACTUAL information from the document.
+STEP 3: GENERATE EXACTLY 2 DISTINCT TEMPLATES
 
-STEP 4: GENERATE 2-3 TEMPLATES
+Both templates MUST:
+- Use the EXACT AI employee name "${employeeName}" (not a placeholder)
+- Use the ACTUAL company name extracted from the document
+- Be based on REAL services/products from the document
+- Have different focuses (e.g., Template 1: primary customer service, Template 2: sales/lead-gen or specialized support)
+- Include comprehensive system prompts with REAL company-specific knowledge
 
-Generate professional AI Employee templates using the EXTRACTED information. Each template must include comprehensive system prompts with ACTUAL company details.
-
-TEMPLATE STRUCTURE (all fields required):
-- name: Unique professional name for the AI Employee
+Each template MUST have ALL of these fields:
+- name: Unique professional name for the AI Employee role
 - description: 2-3 sentences using ACTUAL company info from document
 - icon: Appropriate emoji
 - features: 3-4 features based on ACTUAL company services
-- systemPrompt: COMPREHENSIVE prompt with these sections:
-  * Identity & Purpose - Use ACTUAL company name from document
+- systemPrompt: COMPREHENSIVE prompt with these mandatory sections:
+  * Identity & Purpose - Use ACTUAL company name + the AI employee name "${employeeName}"
   * Voice & Persona - Personality and speech style
-  * Conversation Flow - Steps with real service examples
+  * Conversation Flow - Steps with real service examples from the document
   * Response Guidelines - How to respond
-  * Scenario Handling - 3-4 scenarios using REAL services/products
-  * Company Knowledge - COPY actual facts, services, pricing from document
+  * Scenario Handling - 3-4 scenarios using REAL services/products from document
+  * Company Knowledge - COPY actual facts, services, pricing directly from document
   * Call Management - How to handle various situations
-- firstMessage: Greeting using ACTUAL company name
+- firstMessage: Opening greeting using the exact name "${employeeName}" and the ACTUAL company name
 - industryFocus: Based on document content
 - tone, gender, voice, personality: Appropriate values
-- manualKnowledge: COPY relevant facts directly from document
-- openingScript, keyTalkingPoints, closingScript: Use actual company info
-- objections: Based on actual services/policies
-- conversationExamples: Using REAL services/products
-- intents: Relevant to actual company offerings
+- manualKnowledge: COPY relevant facts, services, and policies directly from document
+- keyTalkingPoints: Based on actual company services
+- closingScript: Professional closing with actual company name
+- objections: 2-3 objections based on actual services/policies from document
+- conversationExamples: 2-3 examples using REAL services/products
+- intents: 2-3 intents relevant to actual company offerings
 
-Return ONLY a valid JSON array with 2-3 template objects. No markdown, no explanation.
+Return ONLY a valid JSON array with EXACTLY 2 template objects. No markdown, no explanation.
 
 Example format: ${exampleTemplates}`;
     }
     
+    // Extract AI employee name from additionalContext for standard prompt
+    const stdEmployeeNameMatch = request.additionalContext?.match(/The AI employee will be named:\s*(.+)/i);
+    const stdEmployeeName = stdEmployeeNameMatch ? stdEmployeeNameMatch[1].trim() : (request.companyName ? `${request.companyName} Assistant` : '[AI Employee Name]');
+    const stdCompanyName = request.companyName || '[Company Name]';
+
     // Standard prompt without knowledge base
-    const prompt = `You are an AI assistant that creates professional AI Employee templates for businesses. Based on the following business information, generate AT LEAST 2 (preferably 3-5) DIFFERENT AI Employee template recommendations in JSON format with COMPREHENSIVE, PROFESSIONAL system prompts.
+    const prompt = `You are an AI assistant that creates professional AI Employee templates for businesses.
+
+🔴 MANDATORY IDENTITY (USE EXACTLY AS GIVEN — NO PLACEHOLDERS):
+- AI Employee Name: "${stdEmployeeName}" — Always use this exact name. Never use [AI Employee Name].
+- Company Name: "${stdCompanyName}" — Always use this exact name. Never use [Company Name].
 
 Business Information:
-- Company Name: ${request.companyName}
+- Company Name: ${stdCompanyName}
 - Business Process: ${request.businessProcess}
 - Industry: ${request.industry}${subIndustryContent}${urlContent}
-${request.additionalContext ? `- Additional Context: ${request.additionalContext}` : ""}
+${request.additionalContext ? `- Additional Context: ${request.additionalContext}` : ''}
+
+Generate EXACTLY 2 DISTINCT AI Employee templates in JSON format with COMPREHENSIVE, PROFESSIONAL system prompts.
 
 CRITICAL INSTRUCTIONS:
-1. Generate a minimum of 2 templates. Each template should be distinct and offer a different approach.
-2. Create templates based on the industry and business process.
-3. The systemPrompt must be COMPREHENSIVE and follow this professional structure.
-4. Make the AI Employee knowledgeable about the industry.
+1. ALWAYS use the exact AI Employee Name "${stdEmployeeName}" in firstName, systemPrompt, and all scripts.
+2. ALWAYS use the exact Company Name "${stdCompanyName}" everywhere — never use [Company Name] placeholder.
+3. Both templates must be DIFFERENT in focus (e.g., Template 1: customer service, Template 2: sales/appointment-setting).
+4. The systemPrompt must be COMPREHENSIVE, realistic and specific to the business process and industry.
+5. Do NOT use generic placeholders anywhere — all content must be specific and realistic.
 
-## System Prompt Structure (REQUIRED):
-The systemPrompt should include ALL of these sections with detailed content:
+## System Prompt Structure (REQUIRED for each template):
+1. **Identity & Purpose** - "You are ${stdEmployeeName}, working for ${stdCompanyName}..."
+2. **Voice & Persona** - Personality traits and speech style
+3. **Conversation Flow** - Step-by-step process specific to ${request.businessProcess}
+4. **Response Guidelines** - How to respond, tone, length
+5. **Scenario Handling** - 3-4 realistic scenarios for this industry/business process
+6. **Company Knowledge** - Realistic industry knowledge for ${request.industry}
+7. **Call Management** - How to handle holds, transfers, escalations
 
-1. **Identity & Purpose** - Who the AI is and their primary goal
-2. **Voice & Persona** - Personality traits and speech characteristics
-3. **Conversation Flow** - Step-by-step conversation process with specific phrases to use
-4. **Response Guidelines** - Rules for how to respond (concise, confirm details, etc.)
-5. **Scenario Handling** - Detailed handling for 3-4 common scenarios with specific steps
-6. **Company Knowledge** - Key information the AI should know
-7. **Call Management** - How to handle delays, technical issues, multiple requests
+For each template provide these JSON fields:
+- name, description, icon, features (array)
+- systemPrompt (comprehensive, NO placeholders)
+- firstMessage (use exact name "${stdEmployeeName}" and company "${stdCompanyName}")
+- industryFocus, tone, gender, voice, personality
+- manualKnowledge (realistic industry knowledge content)
+- keyTalkingPoints, closingScript
+- objections (array of {objection, response})
+- conversationExamples (array of {customerInput, expectedResponse})
+- intents (array of {name, phrases, response})
 
-For each template, provide:
-1. A professional name for the AI Employee (MUST BE UNIQUE)
-2. A concise description (2-3 sentences)
-3. An appropriate emoji icon
-4. 3-4 key features
-5. A COMPREHENSIVE systemPrompt (following the structure above - this is the MOST IMPORTANT field)
-6. First message/greeting
-7. Industry focus
-8. Recommended tone/personality
-9. Suggested gender (Male, Female, Neutral, or Not Specified)
-10. Recommended voice type
-11. Personality traits
-12. Manual knowledge base content
-13. Opening script
-14. Key talking points
-15. Closing script
-16. 2-3 common objections with responses
-17. 2-3 example conversation exchanges
-18. 2-3 intent examples
-
-Return ONLY a valid JSON array with AT LEAST 2 objects containing all above fields. No markdown, no explanation, just valid JSON array.
+Return ONLY a valid JSON array with EXACTLY 2 objects. No markdown, no explanation.
 
 Example format: ${exampleTemplates}`;
 
@@ -483,9 +490,6 @@ Example format: ${exampleTemplates}`;
           : [],
 
         // Call Scripts
-        openingScript:
-          template.openingScript ||
-          "Hi there! Thanks for reaching out. How can I help?",
         keyTalkingPoints:
           template.keyTalkingPoints ||
           "• Quality service is our priority\n• We're here to help",
@@ -695,7 +699,6 @@ Example format: ${exampleTemplates}`;
           personality: "Helpful",
           manualKnowledge: "",
           websiteUrls: [],
-          openingScript: "Thank you for contacting us. How can I help?",
           keyTalkingPoints: "• Quality service\n• Customer satisfaction",
           closingScript: "Thank you for your time!",
           objections: [],
@@ -767,68 +770,81 @@ Example format: ${exampleTemplates}`;
     existingTemplate: GeneratedTemplate,
     request: GenerateTemplateRequest,
   ): GeneratedTemplate {
-    // Determine complementary personality and approach
-    const isExistingFriendly = existingTemplate.personality?.toLowerCase().includes("friendly") ||
-      existingTemplate.personality?.toLowerCase().includes("empathetic") ||
-      existingTemplate.tone?.toLowerCase().includes("friendly");
-    
-    const isExistingSales = existingTemplate.name?.toLowerCase().includes("sales") ||
-      request.businessProcess?.toLowerCase().includes("sales");
+    // Extract the exact AI employee name and company name from form data / additionalContext
+    const employeeNameMatch = request.additionalContext?.match(/The AI employee will be named:\s*(.+)/i);
+    const employeeName = employeeNameMatch
+      ? employeeNameMatch[1].trim()
+      : (request.companyName ? `${request.companyName} Assistant` : 'Your AI Assistant');
+    const companyName = request.companyName || 'our company';
 
-    const isExistingSupport = existingTemplate.name?.toLowerCase().includes("support") ||
-      request.businessProcess?.toLowerCase().includes("support");
+    // Use knowledge base content if available for realistic, data-driven content
+    const kbSnippet = request.extractedContent
+      ? request.extractedContent.substring(0, 2000)
+      : '';
 
-    // Create a complementary template based on what exists
-    let complementaryName: string;
-    let complementaryDescription: string;
+    const kbKnowledgeSection = kbSnippet
+      ? `\n\n## Company Knowledge (from provided documents)\n${kbSnippet}`
+      : '';
+
+    const manualKnowledge = existingTemplate.manualKnowledge ||
+      (kbSnippet ? kbSnippet : `${companyName} offers professional services tailored to ${request.industry} needs.`);
+
+    // Determine what is complementary to the existing template
+    const isExistingSales =
+      existingTemplate.name?.toLowerCase().includes('sales') ||
+      request.businessProcess?.toLowerCase().includes('sales');
+    const isExistingSupport =
+      existingTemplate.name?.toLowerCase().includes('support') ||
+      request.businessProcess?.toLowerCase().includes('support');
+    const isExistingFriendly =
+      existingTemplate.personality?.toLowerCase().includes('friendly') ||
+      existingTemplate.tone?.toLowerCase().includes('friendly');
+
+    let roleFocus: string;
     let complementaryIcon: string;
     let complementaryFeatures: string[];
     let complementaryPersonality: string;
     let complementaryTone: string;
-    let complementarySystemPrompt: string;
-    let complementaryFirstMessage: string;
 
     if (isExistingSales) {
-      // Add a support-focused template
-      complementaryName = `${request.companyName} Customer Care Specialist`;
-      complementaryDescription = `A dedicated customer support specialist for ${request.companyName} that handles inquiries with care and professionalism.`;
-      complementaryIcon = "🎧";
-      complementaryFeatures = ["Customer Support", "Issue Resolution", "FAQ Handling", "Follow-up Care"];
-      complementaryPersonality = "Empathetic and Patient";
-      complementaryTone = "Warm and Supportive";
-      complementarySystemPrompt = `You are a caring customer support specialist for ${request.companyName}. Help customers with their questions, resolve issues efficiently, and ensure a positive experience. Be patient, understanding, and solution-oriented.`;
-      complementaryFirstMessage = `Hello! I am [AI Employee Name] from ${request.companyName}, here to assist you with any questions or concerns. How can I help you today?`;
+      roleFocus = 'Customer Care Specialist';
+      complementaryIcon = '🎧';
+      complementaryFeatures = ['Customer Support', 'Issue Resolution', 'FAQ Handling', 'Follow-up Care'];
+      complementaryPersonality = 'Empathetic and Patient';
+      complementaryTone = 'Warm and Supportive';
     } else if (isExistingSupport) {
-      // Add a sales-focused template
-      complementaryName = `${request.companyName} Sales Advisor`;
-      complementaryDescription = `A professional sales advisor for ${request.companyName} that engages prospects and guides them toward solutions.`;
-      complementaryIcon = "💼";
-      complementaryFeatures = ["Lead Engagement", "Product Guidance", "Consultation Booking", "Value Communication"];
-      complementaryPersonality = "Confident and Persuasive";
-      complementaryTone = "Professional and Engaging";
-      complementarySystemPrompt = `You are a professional sales advisor for ${request.companyName}. Engage prospects warmly, understand their needs, present value propositions effectively, and guide them toward making informed decisions.`;
-      complementaryFirstMessage = `Hello! I am [AI Employee Name] from ${request.companyName}, here to assist you. I'd love to learn more about your needs and how we can help. What brings you here today?`;
+      roleFocus = 'Sales & Appointment Advisor';
+      complementaryIcon = '💼';
+      complementaryFeatures = ['Lead Engagement', 'Appointment Booking', 'Value Communication', 'Follow-up'];
+      complementaryPersonality = 'Confident and Persuasive';
+      complementaryTone = 'Professional and Engaging';
     } else if (isExistingFriendly) {
-      // Add a more formal/professional template
-      complementaryName = `${request.companyName} Professional Consultant`;
-      complementaryDescription = `A professional consultant for ${request.companyName} with a formal, business-focused approach.`;
-      complementaryIcon = "👔";
-      complementaryFeatures = ["Professional Consultation", "Expert Guidance", "Detailed Analysis", "Strategic Advice"];
-      complementaryPersonality = "Analytical and Direct";
-      complementaryTone = "Formal and Professional";
-      complementarySystemPrompt = `You are a professional consultant for ${request.companyName}. Provide expert guidance with a formal, business-focused approach. Be thorough, analytical, and solution-oriented.`;
-      complementaryFirstMessage = `Hello! I am [AI Employee Name] from ${request.companyName}, here to assist you. How may I help you today?`;
+      roleFocus = 'Professional Consultant';
+      complementaryIcon = '👔';
+      complementaryFeatures = ['Expert Guidance', 'Detailed Information', 'Process Assistance', 'Escalation Handling'];
+      complementaryPersonality = 'Analytical and Direct';
+      complementaryTone = 'Formal and Professional';
     } else {
-      // Add a friendly/approachable template
-      complementaryName = `${request.companyName} Friendly Assistant`;
-      complementaryDescription = `A warm and approachable assistant for ${request.companyName} that creates a welcoming experience.`;
-      complementaryIcon = "😊";
-      complementaryFeatures = ["Friendly Assistance", "Personalized Help", "Easy Communication", "Supportive Guidance"];
-      complementaryPersonality = "Friendly and Approachable";
-      complementaryTone = "Warm and Conversational";
-      complementarySystemPrompt = `You are a friendly and approachable assistant for ${request.companyName}. Create a warm, welcoming experience while helping customers with their needs. Be personable, helpful, and easy to talk to.`;
-      complementaryFirstMessage = `Hello! I am [AI Employee Name] from ${request.companyName}, here to assist you! I'm happy to help with anything you need. What can I do for you today?`;
+      roleFocus = 'Friendly Assistant';
+      complementaryIcon = '😊';
+      complementaryFeatures = ['Friendly Assistance', 'Personalized Help', 'Quick Responses', 'Supportive Guidance'];
+      complementaryPersonality = 'Friendly and Approachable';
+      complementaryTone = 'Warm and Conversational';
     }
+
+    const complementaryName = `${employeeName} — ${roleFocus}`;
+    const complementaryDescription = `${employeeName} is a dedicated ${roleFocus.toLowerCase()} for ${companyName}, specializing in ${request.industry} with a ${complementaryTone.toLowerCase()} approach. Fully trained on ${companyName}'s services and policies to deliver accurate, helpful responses.`;
+
+    const complementarySystemPrompt =
+      `## Identity & Purpose\n\nYou are ${employeeName}, a ${roleFocus.toLowerCase()} for ${companyName}. ` +
+      `Your role is to assist customers professionally and efficiently in the context of ${request.businessProcess} within the ${request.industry} industry.\n\n` +
+      `## Voice & Persona\n\n### Personality\n- ${complementaryPersonality}\n- Knowledgeable about ${companyName}\'s services\n- Clear and accurate\n\n` +
+      `### Speech Characteristics\n- ${complementaryTone} tone\n- Listen actively before responding\n- Confirm key information\n\n` +
+      `## Conversation Flow\n\n1. Greet the caller warmly as ${employeeName} from ${companyName}\n2. Identify their need or question\n3. Provide accurate information from company knowledge\n4. Address any objections or concerns\n5. Confirm next steps and close professionally\n\n` +
+      `## Response Guidelines\n- Always identify yourself as ${employeeName}\n- Be concise and accurate\n- Never guess — use company knowledge\n- Escalate when needed\n\n` +
+      `## Scenario Handling\n\n### General Inquiry\n1. Listen to the customer's question\n2. Reference company knowledge to answer accurately\n3. Offer additional help if needed\n\n### Complaint or Issue\n1. Acknowledge the issue empathetically\n2. Apologize for the inconvenience\n3. Provide a resolution or escalate\n\n### Request for Services\n1. Clarify what the customer needs\n2. Explain relevant services from company knowledge\n3. Guide them to next steps\n` +
+      kbKnowledgeSection +
+      `\n\n## Call Management\n- If on hold: \'One moment, please.\'\n- For transfers: \'I will connect you with the right team.\'\n- Always end professionally: \'Thank you for contacting ${companyName}.\'`;
 
     return {
       name: complementaryName,
@@ -836,17 +852,17 @@ Example format: ${exampleTemplates}`;
       icon: complementaryIcon,
       features: complementaryFeatures,
       systemPrompt: complementarySystemPrompt,
-      firstMessage: complementaryFirstMessage,
-      industryFocus: request.industry || "",
+      firstMessage: `Hello! I'm ${employeeName} from ${companyName}. How can I assist you today?`,
+      industryFocus: request.industry || '',
       tone: complementaryTone,
-      gender: existingTemplate.gender === "Female" ? "Male" : "Female", // Alternate gender
-      voice: isExistingFriendly ? "Professional" : "Friendly",
+      gender: existingTemplate.gender === 'Female' ? 'Male' : 'Female',
+      voice: isExistingFriendly ? 'Professional' : 'Friendly',
       personality: complementaryPersonality,
-      manualKnowledge: existingTemplate.manualKnowledge || "",
+      manualKnowledge,
       websiteUrls: request.websiteUrls || [],
-      openingScript: `Thank you for contacting ${request.companyName}. How can I assist you today?`,
-      keyTalkingPoints: existingTemplate.keyTalkingPoints || "• We're here to help\n• Your satisfaction is our priority",
-      closingScript: `Thank you for choosing ${request.companyName}. Is there anything else I can help with?`,
+      keyTalkingPoints: existingTemplate.keyTalkingPoints ||
+        `• ${companyName} is committed to excellent service\n• Accurate information from company knowledge\n• Professional and timely assistance`,
+      closingScript: `Thank you for contacting ${companyName}. Is there anything else I can help you with today?`,
       objections: existingTemplate.objections || [],
       conversationExamples: existingTemplate.conversationExamples || [],
       intents: existingTemplate.intents || [],
@@ -876,7 +892,6 @@ Example format: ${exampleTemplates}`;
       websiteUrls: Array.isArray(template.websiteUrls)
         ? template.websiteUrls
         : [],
-      openingScript: template.openingScript || "Hi there! How can I help?",
       keyTalkingPoints: template.keyTalkingPoints || "• Quality service",
       closingScript: template.closingScript || "Thank you for your time!",
       objections: Array.isArray(template.objections) ? template.objections : [],

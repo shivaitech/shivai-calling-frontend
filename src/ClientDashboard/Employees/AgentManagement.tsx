@@ -192,7 +192,7 @@ const AgentManagement = () => {
     companyName: "",
     aiEmployeeName: "",
     language: "en-US",
-    voice: "alloy",
+    voice: "Achernar",
     voiceSpeed: 1.0,
     voiceStyle: "friendly",
     gender: "female",
@@ -210,6 +210,7 @@ const AgentManagement = () => {
   const [isUploadingFiles, setIsUploadingFiles] = useState(false);
   const [isExtractingContent, setIsExtractingContent] = useState(false);
   const [isTestingVoice, setIsTestingVoice] = useState(false);
+  const [isLoadingVoicePreview, setIsLoadingVoicePreview] = useState(false);
   const voicePreviewAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // Function to preview Gemini TTS voice
@@ -221,52 +222,81 @@ const AgentManagement = () => {
     }
 
     setIsTestingVoice(true);
-    
+    setIsLoadingVoicePreview(true);
+
     try {
       const sampleText = customText || `Hello! I'm ${quickCreateData.aiEmployeeName || 'your AI assistant'}. How can I help you today?`;
-      
-      // Call the TTS preview endpoint
-      const response = await fetch('https://python.service.callshivai.com/tts/preview', {
+
+      console.log(`🎙️ Voice preview: voiceName=${voiceName}, speed=${speed}`);
+
+      // Get auth token same as other API calls
+      const authTokens = localStorage.getItem('auth_tokens');
+      const accessToken = authTokens ? JSON.parse(authTokens)?.accessToken : null;
+
+      const response = await fetch('https://nodejs.service.callshivai.com/api/v1/voice/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
         body: JSON.stringify({
+          voiceName: voiceName,
           text: sampleText,
-          voice: voiceName,
-          speed: speed,
         }),
       });
 
       if (!response.ok) {
-        throw new Error(`TTS preview failed: ${response.status}`);
+        throw new Error(`Voice preview failed: ${response.status}`);
       }
 
-      // Get the audio as blob
-      const audioBlob = await response.blob();
-      const audioUrl = URL.createObjectURL(audioBlob);
-      
+      // Response: { success, data: { audioDataUrl, audioBase64, audioFormat, ... } }
+      const json = await response.json();
+      const audioData = json.data;
+      let audioUrl: string;
+      let isDataUrl = false;
+
+      if (audioData?.audioDataUrl) {
+        // Use the ready-made data URL directly
+        audioUrl = audioData.audioDataUrl;
+        isDataUrl = true;
+      } else if (audioData?.audioBase64) {
+        const byteChars = atob(audioData.audioBase64);
+        const byteNums = new Array(byteChars.length).fill(0).map((_, i) => byteChars.charCodeAt(i));
+        const byteArray = new Uint8Array(byteNums);
+        audioUrl = URL.createObjectURL(new Blob([byteArray], { type: 'audio/mp3' }));
+      } else {
+        throw new Error('No audio data in response');
+      }
+
       // Create and play audio
       const audio = new Audio(audioUrl);
       voicePreviewAudioRef.current = audio;
-      
+
+      audio.oncanplay = () => {
+        setIsLoadingVoicePreview(false);
+      };
+
       audio.onended = () => {
         setIsTestingVoice(false);
-        URL.revokeObjectURL(audioUrl);
+        setIsLoadingVoicePreview(false);
+        if (!isDataUrl) URL.revokeObjectURL(audioUrl);
         voicePreviewAudioRef.current = null;
       };
-      
+
       audio.onerror = () => {
         setIsTestingVoice(false);
-        URL.revokeObjectURL(audioUrl);
+        setIsLoadingVoicePreview(false);
+        if (!isDataUrl) URL.revokeObjectURL(audioUrl);
         voicePreviewAudioRef.current = null;
         toast.error('Failed to play voice preview');
       };
-      
+
       await audio.play();
+      setIsLoadingVoicePreview(false);
     } catch (error) {
       console.error('❌ Voice preview error:', error);
       setIsTestingVoice(false);
+      setIsLoadingVoicePreview(false);
       toast.error('Voice preview unavailable. Please try again later.');
     }
   };
@@ -278,6 +308,7 @@ const AgentManagement = () => {
       voicePreviewAudioRef.current = null;
     }
     setIsTestingVoice(false);
+    setIsLoadingVoicePreview(false);
   };
 
   // Template Details Modal State
@@ -383,7 +414,6 @@ const AgentManagement = () => {
   // Voice Options by Gender
   const voiceOptions = {
     female: [
-      { value: "alloy", label: "Alloy" },
       { value: "Achernar", label: "Achernar" },
       { value: "Aoede", label: "Aoede" },
       { value: "Autonoe", label: "Autonoe" },
@@ -400,7 +430,6 @@ const AgentManagement = () => {
       { value: "Zephyr", label: "Zephyr" },
     ],
     male: [
-      { value: "alloy", label: "Alloy" },
       { value: "Achird", label: "Achird" },
       { value: "Algenib", label: "Algenib" },
       { value: "Algieba", label: "Algieba" },
@@ -755,7 +784,7 @@ const AgentManagement = () => {
       companyName: "",
       aiEmployeeName: "",
       language: "en-US",
-      voice: "alloy",
+      voice: "Achernar",
       voiceSpeed: 1.0,
       voiceStyle: "friendly",
       gender: "female",
@@ -971,29 +1000,6 @@ const AgentManagement = () => {
         quickCreateData.aiEmployeeName,
       );
 
-      // Map voice to one of the valid enum values
-      const validVoices = [
-        "alloy",
-        "echo",
-        "fable",
-        "onyx",
-        "nova",
-        "shimmer",
-        "sage",
-      ];
-      let mappedVoice = "alloy"; // default
-
-      if (selectedTemplateData?.voice) {
-        const voiceLower = selectedTemplateData.voice.toLowerCase();
-        // Try to find a matching voice
-        if (validVoices.includes(voiceLower)) {
-          mappedVoice = voiceLower;
-        } else {
-          // Use first valid voice as fallback
-          mappedVoice = validVoices[0];
-        }
-      }
-
       // Filter and prepare website URLs
       const validWebsiteUrls = quickCreateData.websiteUrls.filter(
         (url) => url.trim().length > 0,
@@ -1007,8 +1013,20 @@ const AgentManagement = () => {
       // Use the uploaded file URLs from the API
       const knowledgeBaseFileUrls = quickCreateData.uploadedFileUrls;
 
-      // Use voice from quickCreateData, fallback to template voice or default
-      const agentVoice = quickCreateData.voice || mappedVoice;
+      // Always use Step 2 voice configuration — never let AI template override these
+      const voiceStyleInstructionMap: Record<string, string> = {
+        friendly:       "Speak clearly and warmly with a friendly, approachable tone",
+        professional:   "Speak clearly and professionally with a business-like, formal tone",
+        casual:         "Speak casually and conversationally with a relaxed, natural tone",
+        authoritative:  "Speak with confidence and authority in a commanding, decisive tone",
+        empathetic:     "Speak with empathy and understanding in a supportive, compassionate tone",
+        enthusiastic:   "Speak energetically and enthusiastically with an upbeat, positive tone",
+      };
+      const selectedStyle = (quickCreateData.voiceStyle || "friendly").trim().toLowerCase();
+      const voiceInstruction =
+        voiceStyleInstructionMap[selectedStyle] ||
+        "Speak clearly and professionally with a friendly tone";
+      const clampedVoiceSpeed = Math.min(2.0, Math.max(0.5, quickCreateData.voiceSpeed ?? 1.0));
 
       const agentPayload = {
         name: quickCreateData.aiEmployeeName,
@@ -1017,9 +1035,11 @@ const AgentManagement = () => {
         industry: quickCreateData.industry,
         personality: selectedTemplateData?.personality || "Professional",
         language: quickCreateData.language || "en-US",
-        voice: agentVoice,
-        voice_speed: quickCreateData.voiceSpeed || 1.0,
-        voice_style: quickCreateData.voiceStyle || "friendly",
+        voice: quickCreateData.voice || "Achernar",
+        voice_config: {
+          voice_instruction: voiceInstruction,
+          voice_speed: clampedVoiceSpeed,
+        },
         custom_instructions: replaceTemplatePlaceholders(selectedTemplateData?.systemPrompt || ""),
         guardrails_level: "medium",
         response_style: "Balanced",
@@ -1035,7 +1055,6 @@ const AgentManagement = () => {
               features: selectedTemplateData.features,
               systemPrompt: replaceTemplatePlaceholders(selectedTemplateData.systemPrompt),
               firstMessage: replaceTemplatePlaceholders(selectedTemplateData.firstMessage),
-              openingScript: replaceTemplatePlaceholders(selectedTemplateData.openingScript),
               keyTalkingPoints: replaceTemplatePlaceholders(selectedTemplateData.keyTalkingPoints),
               closingScript: replaceTemplatePlaceholders(selectedTemplateData.closingScript),
               objections: selectedTemplateData.objections,
@@ -2948,20 +2967,28 @@ const AgentManagement = () => {
                     </div>
 
                     <div className="relative">
+                      {(() => {
+                        const agentObj = agents.find((a: any) => a.id === agentForIntegration);
+                        const agentLang = agentObj?.language || '';
+                        const embedUrl = `https://callshivai.com/widget2.js?agentId=${agentForIntegration}${agentLang ? `&language=${agentLang}` : ''}`;
+                        const embedCode = `<script src="${embedUrl}"><\/script>`;
+                        return (
+                          <>
                       <code className="common-bg-icons block w-full p-4 rounded-lg text-xs sm:text-sm font-mono text-slate-800 dark:text-white overflow-x-auto whitespace-pre-wrap max-h-48 overflow-y-auto">
-                        {`<script src="https://callshivai.com/widget2.js?agentId=${agentForIntegration}"><\/script>`}
+                        {embedCode}
                       </code>
                       <button
                         onClick={() => {
-                          navigator.clipboard.writeText(
-                            `<script src="https://callshivai.com/widget2.js?agentId=${agentForIntegration}"><\/script>`
-                          );
+                          navigator.clipboard.writeText(embedCode);
                           toast.success("Code copied to clipboard!", { duration: 2000 });
                         }}
                         className="absolute top-3 right-3 p-2 common-button-bg rounded-lg hover:shadow-sm transition-all min-h-[36px] min-w-[36px] flex items-center justify-center"
                       >
                         <Copy className="w-4 h-4 text-white" />
                       </button>
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
 
@@ -3344,6 +3371,7 @@ const AgentManagement = () => {
                             </select>
                             <button
                               type="button"
+                              disabled={isLoadingVoicePreview}
                               onClick={() => {
                                 if (isTestingVoice) {
                                   stopVoicePreview();
@@ -3356,12 +3384,22 @@ const AgentManagement = () => {
                                 }
                               }}
                               className={`px-4 py-2.5 sm:py-3 rounded-xl font-medium transition-all flex items-center gap-2 ${
-                                isTestingVoice
+                                isLoadingVoicePreview
+                                  ? 'bg-slate-400 dark:bg-slate-600 text-white cursor-not-allowed'
+                                  : isTestingVoice
                                   ? 'bg-red-500 hover:bg-red-600 text-white hover:scale-[1.02] active:scale-[0.98]'
                                   : 'common-button-bg hover:scale-[1.02] active:scale-[0.98]'
                               }`}
                             >
-                              {isTestingVoice ? (
+                              {isLoadingVoicePreview ? (
+                                <>
+                                  <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                                  </svg>
+                                  <span className="hidden sm:inline">Loading</span>
+                                </>
+                              ) : isTestingVoice ? (
                                 <>
                                   <Square className="w-4 h-4" />
                                   <span className="hidden sm:inline">Stop</span>
@@ -3428,7 +3466,10 @@ const AgentManagement = () => {
                                 voiceSpeed: parseFloat(e.target.value),
                               }))
                             }
-                            className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                            className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                            style={{
+                              background: `linear-gradient(to right, #2563eb ${((quickCreateData.voiceSpeed - 0.5) / (2.0 - 0.5)) * 100}%, #e2e8f0 ${((quickCreateData.voiceSpeed - 0.5) / (2.0 - 0.5)) * 100}%)`,
+                            }}
                           />
                           <div className="flex justify-between text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-1">
                             <span>Slower (0.5x)</span>
@@ -3958,7 +3999,7 @@ const AgentManagement = () => {
                             id="knowledge-file-input"
                             type="file"
                             multiple
-                            accept=".pdf,.doc,.docx,.txt,.csv,.xlsx,.xls,.png,.jpg,.jpeg,.gif,.webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/png,image/jpeg,image/gif,image/webp"
+                            accept=".pdf,.doc,.docx,.txt,.csv,.xlsx,.xls,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                             className="hidden"
                             disabled={isUploadingFiles || isExtractingContent}
                             onChange={(e) => {
@@ -3979,7 +4020,6 @@ const AgentManagement = () => {
                               <>
                                 <div className="flex items-center gap-2 sm:gap-3 text-slate-400">
                                   <FileText className="w-6 h-6 sm:w-8 sm:h-8" />
-                                  <Image className="w-6 h-6 sm:w-8 sm:h-8" />
                                   <File className="w-6 h-6 sm:w-8 sm:h-8" />
                                 </div>
                                 <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
@@ -3989,7 +4029,7 @@ const AgentManagement = () => {
                                   or drag and drop
                                 </p>
                                 <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500">
-                                  PDF, DOC, TXT, CSV, Excel, Images (max 10MB each)
+                                  PDF, DOC, DOCX, TXT, CSV, Excel (max 10MB each)
                                 </p>
                               </>
                             )}
@@ -4814,35 +4854,48 @@ const AgentManagement = () => {
                         {/* Settings Section Marker */}
                         <div id="template-section-settings" className="scroll-mt-2" />
                         
-                        {/* AI-Generated Template Specific Fields */}
-                        {aiTemplate && (
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
-                              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">
-                                Gender
-                              </p>
-                              <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                                {aiTemplate.gender || "Not specified"}
-                              </p>
-                            </div>
-                            <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
-                              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">
-                                Voice Type
-                              </p>
-                              <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                                {aiTemplate.voice || "Not specified"}
-                              </p>
-                            </div>
-                            <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
-                              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">
-                                Personality
-                              </p>
-                              <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                                {aiTemplate.personality || "Not specified"}
-                              </p>
-                            </div>
+                        {/* Voice Configuration — always from Step 2, never from AI template */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                            <p className="text-xs text-blue-500 dark:text-blue-400 mb-1 font-medium">Gender</p>
+                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 capitalize">
+                              {quickCreateData.gender || "Female"}
+                            </p>
                           </div>
-                        )}
+                          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                            <p className="text-xs text-blue-500 dark:text-blue-400 mb-1 font-medium">Voice</p>
+                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                              {quickCreateData.voice || "Achernar"}
+                            </p>
+                          </div>
+                          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                            <p className="text-xs text-blue-500 dark:text-blue-400 mb-1 font-medium">Voice Speed</p>
+                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                              {quickCreateData.voiceSpeed?.toFixed(1) ?? "1.0"}x
+                            </p>
+                          </div>
+                          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                            <p className="text-xs text-blue-500 dark:text-blue-400 mb-1 font-medium">Voice Style</p>
+                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 capitalize">
+                              {quickCreateData.voiceStyle || "Friendly"}
+                            </p>
+                          </div>
+                          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                            <p className="text-xs text-blue-500 dark:text-blue-400 mb-1 font-medium">Language</p>
+                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                              {quickCreateData.language || "en-US"}
+                            </p>
+                          </div>
+                          {aiTemplate && (
+                            <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Personality</p>
+                              <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                                {aiTemplate.personality || "Professional"}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-xs text-blue-500 dark:text-blue-400 mt-1">✓ Voice settings are locked to your Step 2 selections</p>
 
                         {/* Tone and Industry Focus (both templates) */}
                         {(aiTemplate?.tone || aiTemplate?.industryFocus) && (
@@ -4964,37 +5017,7 @@ const AgentManagement = () => {
                         </div>
 
                         {/* Call Scripts Grid */}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                          {/* Opening Script */}
-                          {(aiTemplate?.openingScript ||
-                            template?.openingScript) && (
-                            <div>
-                              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                                Opening Script
-                              </h3>
-                              {isEditingTemplate ? (
-                                <textarea
-                                  value={editedTemplate?.openingScript || ""}
-                                  onChange={(e) =>
-                                    setEditedTemplate((prev) => ({
-                                      ...prev,
-                                      openingScript: e.target.value,
-                                    }))
-                                  }
-                                  className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                  rows={3}
-                                />
-                              ) : (
-                                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700 max-h-40 overflow-y-auto">
-                                  <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap">
-                                    {aiTemplate?.openingScript ||
-                                      template?.openingScript}
-                                  </p>
-                                </div>
-                              )}
-                            </div>
-                          )}
-
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           {/* Key Talking Points */}
                           {(aiTemplate?.keyTalkingPoints ||
                             template?.keyTalkingPoints) && (
@@ -5251,26 +5274,14 @@ const AgentManagement = () => {
                             </div>
 
                             {/* Call Scripts */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              <div>
-                                <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                                  Opening Script
-                                </h3>
-                                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700 h-24 overflow-y-auto">
-                                  <p className="text-xs text-slate-600 dark:text-slate-400">
-                                    {replaceTemplatePlaceholders(predefinedTemplate.openingScript)}
-                                  </p>
-                                </div>
-                              </div>
-                              <div>
-                                <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                                  Closing Script
-                                </h3>
-                                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700 h-24 overflow-y-auto">
-                                  <p className="text-xs text-slate-600 dark:text-slate-400">
-                                    {replaceTemplatePlaceholders(predefinedTemplate.closingScript)}
-                                  </p>
-                                </div>
+                            <div>
+                              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                                Closing Script
+                              </h3>
+                              <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700 max-h-24 overflow-y-auto">
+                                <p className="text-xs text-slate-600 dark:text-slate-400">
+                                  {replaceTemplatePlaceholders(predefinedTemplate.closingScript)}
+                                </p>
                               </div>
                             </div>
 
