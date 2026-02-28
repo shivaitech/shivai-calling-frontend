@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Save, X, Bot, Globe, Settings, Sparkles, Info, Upload, Link, Share2, FileText, File, Image, Plus, BookOpen, Volume2 } from 'lucide-react';
+import { ArrowLeft, Save, X, Bot, Globe, Settings, Sparkles, Info, Upload, Link, Share2, FileText, File, Image, Plus, BookOpen, Volume2, Play, Square } from 'lucide-react';
 import { useAgent } from '../../contexts/AgentContext';
 import { agentAPI } from '../../services/agentAPI';
 import GlassCard from '../../components/GlassCard';
@@ -421,6 +421,22 @@ const EditAgent = () => {
   ];
 
   // Voice Options by Gender
+  // Multilingual voice support
+  const multilingualVoices: Record<string, string[]> = {
+    female: ["Aoede", "Kore", "Leda", "Zephyr"],
+    male: ["Puck", "Charon", "Fenrir", "Orus"],
+  };
+  const englishOnlyLanguages = ["en-US", "en-GB", "en-IN"];
+  const isMultilingualLanguage = !englishOnlyLanguages.includes(formData.language);
+
+  const getFilteredVoiceOptions = (gender: string) => {
+    const opts = voiceOptions[gender] || voiceOptions.female;
+    if (isMultilingualLanguage) {
+      return opts.filter((v) => (multilingualVoices[gender] || []).includes(v.value));
+    }
+    return opts;
+  };
+
   const voiceOptions: Record<string, { value: string; label: string }[]> = {
     female: [
       { value: "Achernar", label: "Achernar" },
@@ -458,32 +474,82 @@ const EditAgent = () => {
     ],
   };
 
-  // Voice Style Options
-  const voiceStyleOptions = [
-    { value: "friendly", label: "Friendly - Warm & approachable" },
-    { value: "professional", label: "Professional - Business-like & formal" },
-    { value: "casual", label: "Casual - Relaxed & conversational" },
-    { value: "authoritative", label: "Authoritative - Confident & commanding" },
-    { value: "empathetic", label: "Empathetic - Understanding & supportive" },
-    { value: "enthusiastic", label: "Enthusiastic - Energetic & upbeat" },
-  ];
+  // Voice preview state
+  const [isTestingVoice, setIsTestingVoice] = useState(false);
+  const [isLoadingVoicePreview, setIsLoadingVoicePreview] = useState(false);
+  const voicePreviewAudioRef = useRef<HTMLAudioElement | null>(null);
 
-  const responseStyleOptions = [
-    { value: "Concise", label: "Concise" },
-    { value: "Balanced", label: "Balanced" },
-    { value: "Detailed", label: "Detailed" },
-  ];
+  const previewGeminiVoice = async (voiceName: string) => {
+    if (voicePreviewAudioRef.current) {
+      voicePreviewAudioRef.current.pause();
+      voicePreviewAudioRef.current = null;
+    }
+    setIsTestingVoice(true);
+    setIsLoadingVoicePreview(true);
+    try {
+      const sampleText = `Hello! I'm ${formData.name || 'your AI assistant'}. How can I help you today?`;
+      const authTokens = localStorage.getItem('auth_tokens');
+      const accessToken = authTokens ? JSON.parse(authTokens)?.accessToken : null;
+      const response = await fetch('https://nodejs.service.callshivai.com/api/v1/voice/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({ voiceName, text: sampleText }),
+      });
+      if (!response.ok) throw new Error(`Voice preview failed: ${response.status}`);
+      const json = await response.json();
+      const audioData = json.data;
+      let audioUrl: string;
+      let isDataUrl = false;
+      if (audioData?.audioDataUrl) {
+        audioUrl = audioData.audioDataUrl;
+        isDataUrl = true;
+      } else if (audioData?.audioBase64) {
+        const byteChars = atob(audioData.audioBase64);
+        const byteNums = new Array(byteChars.length).fill(0).map((_, i) => byteChars.charCodeAt(i));
+        const byteArray = new Uint8Array(byteNums);
+        audioUrl = URL.createObjectURL(new Blob([byteArray], { type: 'audio/mp3' }));
+      } else {
+        throw new Error('No audio data in response');
+      }
+      const audio = new Audio(audioUrl);
+      voicePreviewAudioRef.current = audio;
+      audio.oncanplay = () => setIsLoadingVoicePreview(false);
+      audio.onended = () => {
+        setIsTestingVoice(false);
+        setIsLoadingVoicePreview(false);
+        if (!isDataUrl) URL.revokeObjectURL(audioUrl);
+        voicePreviewAudioRef.current = null;
+      };
+      audio.onerror = () => {
+        setIsTestingVoice(false);
+        setIsLoadingVoicePreview(false);
+        voicePreviewAudioRef.current = null;
+      };
+      await audio.play();
+      setIsLoadingVoicePreview(false);
+    } catch (error) {
+      setIsTestingVoice(false);
+      setIsLoadingVoicePreview(false);
+      toast.error('Voice preview unavailable. Please try again later.');
+    }
+  };
+
+  const stopVoicePreview = () => {
+    if (voicePreviewAudioRef.current) {
+      voicePreviewAudioRef.current.pause();
+      voicePreviewAudioRef.current = null;
+    }
+    setIsTestingVoice(false);
+    setIsLoadingVoicePreview(false);
+  };
 
   const maxResponseOptions = [
     { value: "Short (50 words)", label: "Short (50 words)" },
     { value: "Medium (150 words)", label: "Medium (150 words)" },
     { value: "Long (300 words)", label: "Long (300 words)" },
-  ];
-
-  const contextWindowOptions = [
-    { value: "Small (4K tokens)", label: "Small (4K tokens)" },
-    { value: "Standard (8K tokens)", label: "Standard (8K tokens)" },
-    { value: "Large (16K tokens)", label: "Large (16K tokens)" },
   ];
 
   // Knowledge Base Handlers
@@ -1129,8 +1195,8 @@ const EditAgent = () => {
                             })
                           }
                           placeholder="Define the agent's core behavior and role..."
-                          rows={4}
-                          className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/20 text-slate-800 dark:text-white text-sm resize-none"
+                          rows={16}
+                          className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/20 text-slate-800 dark:text-white text-sm resize-y min-h-[200px]"
                         />
                       </div>
 
@@ -1331,13 +1397,14 @@ const EditAgent = () => {
                         <button
                           key={option.value}
                           type="button"
-                          onClick={() =>
-                            setFormData({
-                              ...formData,
-                              gender: option.value,
-                              voice: option.value === 'female' ? 'Achernar' : 'Achird',
-                            })
-                          }
+                          onClick={() => {
+                            const newGender = option.value;
+                            const needsMultilingual = !englishOnlyLanguages.includes(formData.language);
+                            const newVoice = needsMultilingual
+                              ? multilingualVoices[newGender]?.[0] || (newGender === 'female' ? 'Aoede' : 'Puck')
+                              : (newGender === 'female' ? 'Achernar' : 'Achird');
+                            setFormData({ ...formData, gender: newGender, voice: newVoice });
+                          }}
                           className={`p-3 rounded-xl border-2 transition-all flex items-center justify-center ${
                             formData.gender === option.value
                               ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
@@ -1355,33 +1422,39 @@ const EditAgent = () => {
                     <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
                       Language
                     </label>
-                    <SearchableSelect
-                      options={[
-                        { value: "multilingual", label: "🌐 Multilingual" },
-                        { value: "ar", label: "🇸🇦 Arabic" },
-                        { value: "zh", label: "🇨🇳 Chinese" },
-                        { value: "nl", label: "🇳🇱 Dutch" },
-                        { value: "en-GB", label: "🇬🇧 English (UK)" },
-                        { value: "en-US", label: "🇺🇸 English (US)" },
-                        { value: "en-IN", label: "🇮🇳 English (India)" },
-                        { value: "fr", label: "🇫🇷 French" },
-                        { value: "de", label: "🇩🇪 German" },
-                        { value: "hi", label: "🇮🇳 Hindi" },
-                        { value: "it", label: "🇮🇹 Italian" },
-                        { value: "ja", label: "🇯🇵 Japanese" },
-                        { value: "ko", label: "🇰🇷 Korean" },
-                        { value: "pt", label: "🇵🇹 Portuguese" },
-                        { value: "pl", label: "🇵🇱 Polish" },
-                        { value: "ru", label: "🇷🇺 Russian" },
-                        { value: "es", label: "🇪🇸 Spanish" },
-                        { value: "tr", label: "🇹🇷 Turkish" },
-                      ]}
+                    <select
                       value={formData.language}
-                      onChange={(value) =>
-                        setFormData({ ...formData, language: value })
-                      }
-                      placeholder="Select language..."
-                    />
+                      onChange={(e) => {
+                        const newLang = e.target.value;
+                        const isNewMultilingual = !englishOnlyLanguages.includes(newLang);
+                        const gender = formData.gender;
+                        let newVoice = formData.voice;
+                        if (isNewMultilingual && !(multilingualVoices[gender] || []).includes(formData.voice)) {
+                          newVoice = multilingualVoices[gender]?.[0] || formData.voice;
+                        }
+                        setFormData({ ...formData, language: newLang, voice: newVoice });
+                      }}
+                      className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm sm:text-base text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all"
+                    >
+                      <option value="multilingual">🌐 Multilingual</option>
+                      <option value="en-US">🇺🇸 English (US)</option>
+                      <option value="en-GB">🇬🇧 English (UK)</option>
+                      <option value="en-IN">🇮🇳 English (India)</option>
+                      <option value="es">🇪🇸 Spanish</option>
+                      <option value="fr">🇫🇷 French</option>
+                      <option value="de">🇩🇪 German</option>
+                      <option value="it">🇮🇹 Italian</option>
+                      <option value="pt">🇵🇹 Portuguese</option>
+                      <option value="nl">🇳🇱 Dutch</option>
+                      <option value="pl">🇵🇱 Polish</option>
+                      <option value="ru">🇷🇺 Russian</option>
+                      <option value="ja">🇯🇵 Japanese</option>
+                      <option value="ko">🇰🇷 Korean</option>
+                      <option value="zh">🇨🇳 Chinese</option>
+                      <option value="ar">🇸🇦 Arabic</option>
+                      <option value="hi">🇮🇳 Hindi</option>
+                      <option value="tr">🇹🇷 Turkish</option>
+                    </select>
                   </div>
 
                   {/* Voice Type */}
@@ -1389,15 +1462,56 @@ const EditAgent = () => {
                     <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
                       Voice Type
                     </label>
-                    <SearchableSelect
-                      options={voiceOptions[formData.gender] || voiceOptions.female}
-                      value={formData.voice}
-                      onChange={(value) =>
-                        setFormData({ ...formData, voice: value })
-                      }
-                      placeholder="Select voice..."
-                    />
-                    <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    <div className="flex gap-2">
+                      <select
+                        value={formData.voice}
+                        onChange={(e) => setFormData({ ...formData, voice: e.target.value })}
+                        className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm sm:text-base text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all"
+                      >
+                        {getFilteredVoiceOptions(formData.gender).map((voice) => (
+                          <option key={voice.value} value={voice.value}>{voice.label}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        disabled={isLoadingVoicePreview}
+                        onClick={() => {
+                          if (isTestingVoice) {
+                            stopVoicePreview();
+                          } else {
+                            previewGeminiVoice(formData.voice);
+                          }
+                        }}
+                        className={`px-4 py-2.5 sm:py-3 rounded-xl font-medium transition-all flex items-center gap-2 ${
+                          isLoadingVoicePreview
+                            ? 'bg-slate-400 dark:bg-slate-600 text-white cursor-not-allowed'
+                            : isTestingVoice
+                            ? 'bg-red-500 hover:bg-red-600 text-white hover:scale-[1.02] active:scale-[0.98]'
+                            : 'common-button-bg hover:scale-[1.02] active:scale-[0.98]'
+                        }`}
+                      >
+                        {isLoadingVoicePreview ? (
+                          <>
+                            <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                            </svg>
+                            <span className="hidden sm:inline">Loading</span>
+                          </>
+                        ) : isTestingVoice ? (
+                          <>
+                            <Square className="w-4 h-4" />
+                            <span className="hidden sm:inline">Stop</span>
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-4 h-4" />
+                            <span className="hidden sm:inline">Test</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-1">
                       Choose a voice that matches your brand personality
                     </p>
                   </div>
@@ -1407,15 +1521,19 @@ const EditAgent = () => {
                     <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
                       Voice Style
                     </label>
-                    <SearchableSelect
-                      options={voiceStyleOptions}
+                    <select
                       value={formData.voiceStyle}
-                      onChange={(value) =>
-                        setFormData({ ...formData, voiceStyle: value })
-                      }
-                      placeholder="Select voice style..."
-                    />
-                    <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      onChange={(e) => setFormData({ ...formData, voiceStyle: e.target.value })}
+                      className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm sm:text-base text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all"
+                    >
+                      <option value="friendly">Friendly - Warm &amp; approachable</option>
+                      <option value="professional">Professional - Business-like &amp; formal</option>
+                      <option value="casual">Casual - Relaxed &amp; conversational</option>
+                      <option value="authoritative">Authoritative - Confident &amp; commanding</option>
+                      <option value="empathetic">Empathetic - Understanding &amp; supportive</option>
+                      <option value="enthusiastic">Enthusiastic - Energetic &amp; upbeat</option>
+                    </select>
+                    <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-1">
                       Set the personality tone for your AI assistant
                     </p>
                   </div>
@@ -1439,7 +1557,10 @@ const EditAgent = () => {
                       onChange={(e) =>
                         setFormData({ ...formData, voiceSpeed: parseFloat(e.target.value) })
                       }
-                      className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                      className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                      style={{
+                        background: `linear-gradient(to right, #2563eb ${((formData.voiceSpeed - 0.5) / (2.0 - 0.5)) * 100}%, #e2e8f0 ${((formData.voiceSpeed - 0.5) / (2.0 - 0.5)) * 100}%)`,
+                      }}
                     />
                     <div className="flex justify-between text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-1">
                       <span>Slower (0.5x)</span>

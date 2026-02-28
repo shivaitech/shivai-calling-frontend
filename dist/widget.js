@@ -473,7 +473,7 @@
     try {
       if (!ringAudio) {
         ringAudio = new Audio(
-          "https://shivai-s3-bucket.s3.ap-south-1.amazonaws.com/assets/ring1.mp3"
+          "https://shivai--assets.s3.ap-south-1.amazonaws.com/frontend-assets/voice-assets/ring.mpeg"
         );
         ringAudio.volume = 0.7;
       }
@@ -513,7 +513,7 @@
     try {
       if (!ringAudio) {
         ringAudio = new Audio(
-          "https://shivai-s3-bucket.s3.ap-south-1.amazonaws.com/assets/ring1.mp3"
+          "https://shivai--assets.s3.ap-south-1.amazonaws.com/frontend-assets/voice-assets/ring.mpeg"
         );
         ringAudio.loop = true;
         ringAudio.volume = 0.7;
@@ -3318,6 +3318,19 @@
       clearInterval(messageInterval);
       messageInterval = null;
     }
+    
+    // Hide connecting state when widget opens (only show when actually connecting)
+    const connectingState = messagesDiv.querySelector(".connecting-state");
+    if (connectingState && !isConnecting) {
+      connectingState.style.display = "none";
+    }
+    
+    // Show empty state if no messages and not connected
+    const emptyState = messagesDiv.querySelector(".empty-state");
+    const hasMessages = messagesDiv.querySelector(".message");
+    if (emptyState && !hasMessages && !isConnected) {
+      emptyState.style.display = "block";
+    }
   }
   function closeWidget() {
     console.log("🔴 Widget closing - checking call state");
@@ -4343,6 +4356,9 @@
             room: roomName,
             language: selectedLanguage,
             agent_id: agentId,
+            device: deviceType,
+            user_agent: navigator.userAgent,
+            ip: await getClientIP(),
             ...(userId && { tenant_id: userId })
           }),
         }
@@ -4997,6 +5013,19 @@
 
     // Hide message interface when disconnected
     hideMessageInterface();
+    
+    // Hide connecting state when call is disconnected
+    const connectingState = messagesDiv.querySelector(".connecting-state");
+    if (connectingState) {
+      connectingState.style.display = "none";
+    }
+    
+    // Show empty state if no messages
+    const emptyState = messagesDiv.querySelector(".empty-state");
+    const hasMessages = messagesDiv.querySelector(".message");
+    if (emptyState && !hasMessages) {
+      emptyState.style.display = "block";
+    }
 
     stopCallTimer();
     clearLoadingStatus();

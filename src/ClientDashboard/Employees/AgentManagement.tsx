@@ -449,6 +449,28 @@ const AgentManagement = () => {
     ],
   };
 
+  // Multilingual voices - these voices support non-English languages
+  const multilingualVoices = {
+    female: ["Aoede", "Kore", "Leda", "Zephyr"],
+    male: ["Puck", "Charon", "Fenrir", "Orus"],
+  };
+
+  // English-only language codes
+  const englishOnlyLanguages = ["en-US", "en-GB", "en-IN"];
+
+  // Check if current language requires multilingual voices
+  const isMultilingualLanguage = !englishOnlyLanguages.includes(quickCreateData.language);
+
+  // Get filtered voice options based on selected language
+  const getFilteredVoiceOptions = (gender: 'female' | 'male') => {
+    if (isMultilingualLanguage) {
+      return voiceOptions[gender].filter((v) =>
+        multilingualVoices[gender].includes(v.value)
+      );
+    }
+    return voiceOptions[gender];
+  };
+
   // Industry Options
   const industryOptions = [
     { value: "real-estate", label: "Real Estate", icon: "🏠" },
@@ -3292,12 +3314,19 @@ const AgentManagement = () => {
                                 key={option.value}
                                 type="button"
                                 onClick={() =>
-                                  setQuickCreateData((prev) => ({
-                                    ...prev,
-                                    gender: option.value,
-                                    // Reset voice to first option of the selected gender
-                                    voice: option.value === 'female' ? 'Achernar' : 'Achird',
-                                  }))
+                                  setQuickCreateData((prev) => {
+                                    const newGender = option.value as 'female' | 'male';
+                                    const needsMultilingual = !englishOnlyLanguages.includes(prev.language);
+                                    // Pick the first multilingual voice if non-English, otherwise first voice
+                                    const newVoice = needsMultilingual
+                                      ? multilingualVoices[newGender][0]
+                                      : (newGender === 'female' ? 'Achernar' : 'Achird');
+                                    return {
+                                      ...prev,
+                                      gender: option.value,
+                                      voice: newVoice,
+                                    };
+                                  })
                                 }
                                 className={`p-3 sm:p-4 rounded-xl border-2 transition-all flex items-center justify-center ${
                                   quickCreateData.gender === option.value
@@ -3318,12 +3347,25 @@ const AgentManagement = () => {
                           </label>
                           <select
                             value={quickCreateData.language}
-                            onChange={(e) =>
+                            onChange={(e) => {
+                              const newLang = e.target.value;
+                              const isNewLangMultilingual = !englishOnlyLanguages.includes(newLang);
+                              const gender = quickCreateData.gender as 'female' | 'male';
+                              const currentVoice = quickCreateData.voice;
+
+                              // If switching to a multilingual language, check if current voice is supported
+                              let newVoice = currentVoice;
+                              if (isNewLangMultilingual && !multilingualVoices[gender].includes(currentVoice)) {
+                                // Auto-select the first multilingual voice for this gender
+                                newVoice = multilingualVoices[gender][0];
+                              }
+
                               setQuickCreateData((prev) => ({
                                 ...prev,
-                                language: e.target.value,
-                              }))
-                            }
+                                language: newLang,
+                                voice: newVoice,
+                              }));
+                            }}
                             className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm sm:text-base text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all"
                           >
                             <option value="multilingual">🌐 Multilingual</option>
@@ -3363,7 +3405,7 @@ const AgentManagement = () => {
                               }
                               className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm sm:text-base text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all"
                             >
-                              {voiceOptions[quickCreateData.gender as 'female' | 'male']?.map((voice) => (
+                              {getFilteredVoiceOptions(quickCreateData.gender as 'female' | 'male').map((voice) => (
                                 <option key={voice.value} value={voice.value}>
                                   {voice.label}
                                 </option>
@@ -4751,14 +4793,13 @@ const AgentManagement = () => {
                       <button
                         key={section.id}
                         onClick={() => scrollToTemplateSection(section.id)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all
+                        className={`flex items-center px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all
                           ${activeTemplateSection === section.id
                             ? 'bg-blue-600 text-white shadow-sm'
                             : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
                           }`}
                       >
-                        <span>{section.icon}</span>
-                        <span className="hidden sm:inline">{section.label}</span>
+                        {section.label}
                       </button>
                     ))}
                   </div>
