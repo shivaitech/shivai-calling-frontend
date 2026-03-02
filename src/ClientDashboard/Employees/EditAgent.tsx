@@ -1,7 +1,139 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
+/** Renders text content with search match highlights for the overlay div */
+function renderHighlightedContent(
+  content: string,
+  query: string,
+  matches: number[],
+  currentIdx: number
+): React.ReactNode {
+  if (!query || matches.length === 0) {
+    return <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{content}</span>;
+  }
+  const parts: React.ReactNode[] = [];
+  let lastIdx = 0;
+  matches.forEach((pos, i) => {
+    if (pos > lastIdx) {
+      parts.push(<span key={`t${i}`}>{content.slice(lastIdx, pos)}</span>);
+    }
+    parts.push(
+      <mark
+        key={`m${i}`}
+        style={{
+          backgroundColor: i === currentIdx ? '#f97316' : '#fde047',
+          color: 'transparent',
+          borderRadius: '2px',
+        }}
+      >
+        {content.slice(pos, pos + query.length)}
+      </mark>
+    );
+    lastIdx = pos + query.length;
+  });
+  if (lastIdx < content.length) {
+    parts.push(<span key="last">{content.slice(lastIdx)}</span>);
+  }
+  return <>{parts}</>;
+}
+
+/**
+ * Cleans document text that has been corrupted with excessive pipe characters
+ * from PDF/table conversion, and reconstructs proper markdown.
+ */
+function processKbContent(raw: string): string {
+  if (!raw) return '';
+
+  // Step 1: Replace runs of 2+ consecutive pipe separators (with optional whitespace)
+  // e.g. "text | | | | | more text" → "text  more text"
+  let cleaned = raw.replace(/(\s*\|\s*){2,}/g, ' ');
+
+  // Step 2: Process line by line
+  const inputLines = cleaned.split('\n');
+  const result: string[] = [];
+  let i = 0;
+
+  while (i < inputLines.length) {
+    const line = inputLines[i].trim();
+
+    // Count remaining single pipes in this line
+    const pipes = (line.match(/\|/g) || []).length;
+
+    if (pipes >= 2) {
+      // Looks like a table row — collect a run of such lines
+      const tableLines: string[] = [];
+      while (i < inputLines.length) {
+        const tl = inputLines[i].trim();
+        const tc = (tl.match(/\|/g) || []).length;
+        if (tc >= 2 && tl.length > 0) {
+          tableLines.push(tl);
+          i++;
+        } else {
+          break;
+        }
+      }
+
+      // Parse each table line into cells
+      const rows = tableLines.map(tl => {
+        // Split on | and clean each cell
+        const parts = tl.split('|').map(c => c.trim());
+        // Remove leading/trailing empty strings from line-boundary |
+        if (parts[0] === '') parts.shift();
+        if (parts[parts.length - 1] === '') parts.pop();
+        return parts.filter(c => c.length > 0);
+      }).filter(r => r.length > 0);
+
+      if (rows.length === 0) continue;
+
+      const maxCols = Math.max(...rows.map(r => r.length));
+
+      if (maxCols >= 2) {
+        // Header row
+        const header = [...rows[0]];
+        while (header.length < maxCols) header.push('');
+        result.push('| ' + header.join(' | ') + ' |');
+        result.push('| ' + Array(maxCols).fill('---').join(' | ') + ' |');
+
+        for (let r = 1; r < rows.length; r++) {
+          const row = [...rows[r]];
+          while (row.length < maxCols) row.push('');
+          result.push('| ' + row.join(' | ') + ' |');
+        }
+        result.push('');
+      } else {
+        // Fallback: render as plain lines
+        tableLines.forEach(tl => result.push(tl.replace(/\|/g, '').trim()));
+      }
+    } else if (line.length === 0) {
+      // Preserve blank lines as paragraph breaks (deduplicate)
+      if (result.length > 0 && result[result.length - 1] !== '') {
+        result.push('');
+      }
+      i++;
+    } else {
+      // Plain text line — keep as-is, strip stray single pipes
+      result.push(line.replace(/\s*\|\s*/g, ' ').trim());
+      i++;
+    }
+  }
+
+  return result.join('\n');
+}
+
+/**
+ * Returns a friendly display label for an existing KB file URL.
+ * All existing KB URLs represent the single merged main knowledge base on the backend.
+ * Display a clean, user-friendly label instead of the raw S3 filename.
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function getDisplayFilename(_fileUrl: string, index: number): string {
+  return index === 0 ? 'Main Knowledge Base' : `Main Knowledge Base ${index + 1}`;
+}
+
 import { useParams, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Save, X, Bot, Globe, Settings, Sparkles, Info, Upload, Link, Share2, FileText, File, Image, Plus, BookOpen, Volume2, Play, Square } from 'lucide-react';
+import { ArrowLeft, Save, X, Bot, Globe, Settings, Sparkles, Info, Upload, Link, Share2, FileText, File, Image, Plus, BookOpen, Volume2, Play, Square, Pencil, Check, Loader2, Eye, Code2, Search, ChevronUp, ChevronDown, Trash2 } from 'lucide-react';
 import { useAgent } from '../../contexts/AgentContext';
 import { agentAPI } from '../../services/agentAPI';
 import GlassCard from '../../components/GlassCard';
@@ -50,6 +182,24 @@ const EditAgent = () => {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [uploadedFileUrls, setUploadedFileUrls] = useState<string[]>([]);
   const [isUploadingFiles, setIsUploadingFiles] = useState(false);
+
+  // Existing KB file inline text editing
+  const [existingKbFiles, setExistingKbFiles] = useState<string[]>([]);
+  const [editingKbIndex, setEditingKbIndex] = useState<number | null>(null);
+  const [kbFileContents, setKbFileContents] = useState<Record<number, string>>({});
+  const [kbPreviewMode, setKbPreviewMode] = useState<Record<number, 'edit' | 'preview'>>({});
+  const [loadingKbIndex, setLoadingKbIndex] = useState<number | null>(null);
+  const [savingKbIndex, setSavingKbIndex] = useState<number | null>(null);
+  const [confirmDeleteKbIndex, setConfirmDeleteKbIndex] = useState<number | null>(null);
+  const [showKbInfo, setShowKbInfo] = useState(false);
+
+  // Search-in-editor state
+  const [kbSearchQuery, setKbSearchQuery] = useState<Record<number, string>>({});
+  const [kbSearchMatches, setKbSearchMatches] = useState<Record<number, number[]>>({});
+  const [kbSearchMatchIdx, setKbSearchMatchIdx] = useState<Record<number, number>>({});
+  const kbTextareaRefs = useRef<Record<number, HTMLTextAreaElement | null>>({});
+  const kbSearchInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
+  const kbOverlayRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
   const [isLoadingAgent, setIsLoadingAgent] = useState(true);
 
@@ -145,8 +295,8 @@ const EditAgent = () => {
       
       setIsLoadingAgent(true);
       try {
-        // Fetch agent data directly from API
-        const { agent: agentData } = await agentAPI.getAgent(id);
+        // Fetch full agent config from agent-configs API
+        const { agent: agentData } = await agentAPI.getAgentConfig(id);
         
         console.log("agentData", agentData);
         
@@ -191,6 +341,24 @@ const EditAgent = () => {
         // Load template data if available
         if (agentData.template) {
           setTemplateData(agentData.template);
+        }
+
+        // Load existing knowledge base file URLs
+        const kbFiles = (agentData as any).knowledge_base_file_urls;
+        if (Array.isArray(kbFiles) && kbFiles.length > 0) {
+          setExistingKbFiles(kbFiles);
+        }
+
+        // Load existing website URLs
+        const existingWebsiteUrls = (agentData as any).website_urls;
+        if (Array.isArray(existingWebsiteUrls) && existingWebsiteUrls.length > 0) {
+          setWebsiteUrls(existingWebsiteUrls);
+        }
+
+        // Load existing social media URLs
+        const existingSocialUrls = (agentData as any).social_media_urls;
+        if (Array.isArray(existingSocialUrls) && existingSocialUrls.length > 0) {
+          setSocialMediaUrls(existingSocialUrls);
         }
       } catch (error) {
         console.error("Error fetching agent:", error);
@@ -587,8 +755,179 @@ const EditAgent = () => {
     setUploadedFileUrls((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleAddWebsiteUrl = () => {
-    setWebsiteUrls((prev) => [...prev, ""]);
+  // --- Existing KB file inline text editing handlers ---
+  const handleToggleEditKbFile = async (index: number, fileUrl: string) => {
+    // Toggle off
+    if (editingKbIndex === index) {
+      setEditingKbIndex(null);
+      return;
+    }
+    setEditingKbIndex(index);
+    // Always load fresh content + presigned URL via API
+    if (kbFileContents[index] === undefined) {
+      if (!id) return;
+      setLoadingKbIndex(index);
+      try {
+        // Step 1: GET presigned-url → receive presignedUrl (PUT) + fileUrl (read)
+        const filename = fileUrl.split('/').pop() || 'knowledge.txt';
+        const result = await agentAPI.getPresignedUrl(id, filename);
+        const { fileUrl: freshFileUrl } = result.data;
+
+        // Step 2: Fetch document text from fileUrl
+        const res = await fetch(freshFileUrl);
+        if (!res.ok) throw new Error(`Failed to fetch file: ${res.status}`);
+        const text = await res.text();
+        setKbFileContents((prev) => ({ ...prev, [index]: text }));
+      } catch {
+        toast.error('Failed to load file content');
+        setKbFileContents((prev) => ({ ...prev, [index]: '' }));
+      } finally {
+        setLoadingKbIndex(null);
+      }
+    }
+  };
+
+  const handleSaveKbFile = async (index: number, fileUrl: string) => {
+    if (!id) return;
+    const content = kbFileContents[index] ?? '';
+    setSavingKbIndex(index);
+    try {
+      // Re-fetch presigned URL in case the cached one expired (valid only 15 min)
+      const filename = fileUrl.split('/').pop() || 'knowledge.txt';
+      const result = await agentAPI.getPresignedUrl(id, filename);
+      const presignedUrl = result.data.presignedUrl;
+
+      // Step 3: PUT text content directly to S3 using presigned URL
+      const putRes = await fetch(presignedUrl, {
+        method: 'PUT',
+        body: content,
+        headers: { 'Content-Type': 'text/plain' },
+      });
+      if (!putRes.ok) throw new Error(`S3 PUT failed: ${putRes.status}`);
+      toast.success('Knowledge base file updated successfully!');
+      // Invalidate cache so next open re-fetches fresh content
+      setKbFileContents((prev) => { const n = { ...prev }; delete n[index]; return n; });
+      setEditingKbIndex(null);
+    } catch (err) {
+      console.error('Save KB file error:', err);
+      toast.error('Failed to save file content. Please try again.');
+    } finally {
+      setSavingKbIndex(null);
+    }
+  };
+
+  // --- KB search helpers ---
+  // Measures the exact pixel Y-offset of a character position inside a textarea
+  // using a hidden mirror div that replicates the textarea's layout.
+  const getMatchScrollTop = useCallback((ta: HTMLTextAreaElement, matchStart: number): number => {
+    const mirror = document.createElement('div');
+    const computed = window.getComputedStyle(ta);
+    // Copy every layout-relevant style from the textarea
+    const props: Array<keyof CSSStyleDeclaration> = [
+      'fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing',
+      'wordSpacing', 'textIndent', 'whiteSpace', 'wordWrap', 'wordBreak',
+      'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+      'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth',
+      'boxSizing',
+    ];
+    mirror.style.position = 'absolute';
+    mirror.style.visibility = 'hidden';
+    mirror.style.overflow = 'auto';
+    mirror.style.width = ta.offsetWidth + 'px';
+    mirror.style.height = ta.offsetHeight + 'px';
+    mirror.style.whiteSpace = 'pre-wrap';
+    mirror.style.wordBreak = 'break-word';
+    props.forEach((p) => {
+      (mirror.style as any)[p] = computed[p];
+    });
+    document.body.appendChild(mirror);
+
+    // Text before the match in a span, then a zero-width marker span
+    const before = document.createElement('span');
+    before.textContent = ta.value.slice(0, matchStart);
+    const marker = document.createElement('span');
+    marker.textContent = ta.value.slice(matchStart, matchStart + 1) || ' ';
+    mirror.appendChild(before);
+    mirror.appendChild(marker);
+
+    // The marker's offsetTop inside the mirror equals the match's pixel position
+    const matchTop = marker.offsetTop;
+    const matchHeight = marker.offsetHeight;
+    document.body.removeChild(mirror);
+
+    // Center the match in the textarea viewport
+    return Math.max(0, matchTop - ta.clientHeight / 2 + matchHeight / 2);
+  }, []);
+
+  // Scrolls textarea to the match, syncs overlay, returns focus to search input
+  const applyKbSelection = useCallback((fileIdx: number, matchStart: number, queryLen: number) => {
+    const ta = kbTextareaRefs.current[fileIdx];
+    if (!ta) return;
+
+    // Manually compute and set the exact scrollTop needed
+    const targetScrollTop = getMatchScrollTop(ta, matchStart);
+    ta.scrollTop = targetScrollTop;
+
+    // Select the match text (focus with preventScroll so PAGE doesn't jump)
+    ta.focus({ preventScroll: true });
+    ta.setSelectionRange(matchStart, matchStart + queryLen);
+
+    // Sync overlay
+    const overlay = kbOverlayRefs.current[fileIdx];
+    if (overlay) overlay.scrollTop = targetScrollTop;
+
+    // Return focus to search input without scrolling the page
+    requestAnimationFrame(() => {
+      kbSearchInputRefs.current[fileIdx]?.focus({ preventScroll: true });
+    });
+  }, [getMatchScrollTop]);
+
+  const handleKbSearch = useCallback((fileIdx: number, query: string, content: string) => {
+    setKbSearchQuery((prev) => ({ ...prev, [fileIdx]: query }));
+    if (!query.trim()) {
+      setKbSearchMatches((prev) => ({ ...prev, [fileIdx]: [] }));
+      setKbSearchMatchIdx((prev) => ({ ...prev, [fileIdx]: 0 }));
+      return;
+    }
+    const lowerContent = content.toLowerCase();
+    const lowerQuery = query.toLowerCase();
+    const positions: number[] = [];
+    let pos = lowerContent.indexOf(lowerQuery);
+    while (pos !== -1) {
+      positions.push(pos);
+      pos = lowerContent.indexOf(lowerQuery, pos + 1);
+    }
+    setKbSearchMatches((prev) => ({ ...prev, [fileIdx]: positions }));
+    // Start at -1 so first Enter/nav goes to match 0
+    setKbSearchMatchIdx((prev) => ({ ...prev, [fileIdx]: -1 }));
+    // Do NOT auto-jump or steal focus while user is still typing
+  }, []);
+
+  const handleKbSearchNav = useCallback((fileIdx: number, dir: 1 | -1) => {
+    const matches = kbSearchMatches[fileIdx] ?? [];
+    if (matches.length === 0) return;
+    const current = kbSearchMatchIdx[fileIdx] ?? -1;
+    // If not yet jumped (-1), first nav always goes to 0 (forward) or last (backward)
+    const next = current === -1
+      ? (dir === 1 ? 0 : matches.length - 1)
+      : (current + dir + matches.length) % matches.length;
+    setKbSearchMatchIdx((prev) => ({ ...prev, [fileIdx]: next }));
+    applyKbSelection(fileIdx, matches[next], (kbSearchQuery[fileIdx] ?? '').length);
+    // Return focus to the search input so further nav keys keep working
+    setTimeout(() => kbSearchInputRefs.current[fileIdx]?.focus(), 0);
+  }, [kbSearchMatches, kbSearchMatchIdx, kbSearchQuery, applyKbSelection]);
+
+  const handleDeleteKbFile = (index: number) => {
+    setExistingKbFiles((prev) => prev.filter((_, i) => i !== index));
+    // Clean up any related state for this index
+    setKbFileContents((prev) => { const n = { ...prev }; delete n[index]; return n; });
+    setKbPreviewMode((prev) => { const n = { ...prev }; delete n[index]; return n; });
+    if (editingKbIndex === index) setEditingKbIndex(null);
+    setConfirmDeleteKbIndex(null);
+    toast.success('File removed from knowledge base.');
+  };
+
+  const handleAddWebsiteUrl = () => {    setWebsiteUrls((prev) => [...prev, ""]);
   };
 
   const handleRemoveWebsiteUrl = (index: number) => {
@@ -701,7 +1040,8 @@ const EditAgent = () => {
           // Knowledge base URLs
           website_urls: websiteUrls.filter((url) => url.trim()),
           social_media_urls: socialMediaUrls.filter((url) => url.trim()),
-          knowledge_base_file_urls: uploadedFileUrls,
+          // Merge existing KB file URLs with any newly uploaded ones (deduplicated)
+          knowledge_base_file_urls: [...new Set([...existingKbFiles, ...uploadedFileUrls])],
         };
 
         console.log('Sending update data:', updateData);
@@ -709,8 +1049,6 @@ const EditAgent = () => {
         await agentAPI.updateAgent(currentAgent.id, updateData);
         toast.dismiss(loadingToast);
         toast.success("Agent updated successfully!");
-        
-        navigate('/agents', { state: { refresh: true } });
       } catch (error) {
         toast.dismiss(loadingToast);
         toast.error("Failed to update agent. Please try again.");
@@ -939,6 +1277,294 @@ const EditAgent = () => {
                 </p>
 
                 <div className="space-y-4 sm:space-y-5">
+                  {/* Existing Knowledge Base Files (editable inline) */}
+                  {existingKbFiles.length > 0 && (
+                    <div className="space-y-2 sm:space-y-3">
+                      <label className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                        <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        Main Knowledge Base
+                        <button
+                          type="button"
+                          onClick={() => setShowKbInfo((v) => !v)}
+                          title="How KB updates work"
+                          className={`ml-auto p-1 rounded-full transition-colors ${
+                            showKbInfo
+                              ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400'
+                              : 'text-slate-400 dark:text-slate-500 hover:text-amber-500 dark:hover:text-amber-400'
+                          }`}
+                        >
+                          <Info className="w-3.5 h-3.5" />
+                        </button>
+                      </label>
+
+                      {/* Collapsible info notice about KB append behaviour */}
+                      {showKbInfo && (
+                        <div className="flex gap-2.5 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50">
+                          <Info className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                          <div className="text-xs text-amber-800 dark:text-amber-300 space-y-1">
+                            <p className="font-semibold">How Knowledge Base updates work</p>
+                            <p>When you upload additional documents, the backend <span className="font-medium">appends</span> the new content to your existing knowledge base file — it does <span className="font-medium">not</span> replace it.</p>
+                            <p>To fully replace the knowledge base, <span className="font-medium">delete the existing file below</span> before uploading your new documents.</p>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="space-y-2">
+                        {existingKbFiles.slice(0, 1).map((fileUrl, index) => {
+                          const filename = getDisplayFilename(fileUrl, index);
+                          const isEditing = editingKbIndex === index;
+                          const isLoading = loadingKbIndex === index;
+                          const isSaving = savingKbIndex === index;
+                          return (
+                            <div key={index} className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                              {/* File row */}
+                              <div className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 bg-slate-50 dark:bg-slate-800">
+                                <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500 flex-shrink-0" />
+                                <span className="flex-1 text-xs sm:text-sm text-slate-700 dark:text-slate-300 truncate" title={fileUrl}>
+                                  {filename}
+                                </span>
+                                {/* Edit Text button */}
+                                <button
+                                  onClick={() => handleToggleEditKbFile(index, fileUrl)}
+                                  disabled={isLoading || isSaving}
+                                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                    isEditing
+                                      ? 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
+                                      : 'bg-cyan-50 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-100 dark:hover:bg-cyan-900/50'
+                                  } disabled:opacity-50`}
+                                >
+                                  {isLoading ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  ) : (
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  )}
+                                  {isEditing ? 'Close Editor' : 'Edit Text'}
+                                </button>
+
+                                {/* Delete button with confirm */}
+                                {confirmDeleteKbIndex === index ? (
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-[10px] text-red-600 dark:text-red-400 font-medium">Remove?</span>
+                                    <button
+                                      onClick={() => handleDeleteKbFile(index)}
+                                      className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium bg-red-500 text-white hover:bg-red-600 transition-colors"
+                                    >
+                                      <Check className="w-3.5 h-3.5" />
+                                      Yes
+                                    </button>
+                                    <button
+                                      onClick={() => setConfirmDeleteKbIndex(null)}
+                                      className="px-2 py-1.5 rounded-lg text-xs font-medium bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
+                                    >
+                                      No
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={() => setConfirmDeleteKbIndex(index)}
+                                    disabled={isLoading || isSaving}
+                                    title="Remove file"
+                                    className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* Inline text editor */}
+                              {isEditing && (
+                                <div className="border-t border-slate-200 dark:border-slate-700">
+                                  {isLoading ? (
+                                    <div className="flex items-center justify-center gap-2 p-6 text-slate-500 dark:text-slate-400 text-sm">
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                      Loading file content...
+                                    </div>
+                                  ) : (
+                                    <div className="p-3 space-y-2">
+                                      {/* Edit / Preview tab toggle */}
+                                      <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1 w-fit">
+                                        <button
+                                          onClick={() => setKbPreviewMode((prev) => ({ ...prev, [index]: 'edit' }))}
+                                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                            (kbPreviewMode[index] ?? 'edit') === 'edit'
+                                              ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm'
+                                              : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                                          }`}
+                                        >
+                                          <Code2 className="w-3.5 h-3.5" />
+                                          Edit
+                                        </button>
+                                        <button
+                                          onClick={() => setKbPreviewMode((prev) => ({ ...prev, [index]: 'preview' }))}
+                                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                            kbPreviewMode[index] === 'preview'
+                                              ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm'
+                                              : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                                          }`}
+                                        >
+                                          <Eye className="w-3.5 h-3.5" />
+                                          Preview
+                                        </button>
+                                      </div>
+
+                                      {/* Editor area */}
+                                      {(kbPreviewMode[index] ?? 'edit') === 'edit' ? (
+                                        <div className="space-y-1.5">
+                                          {/* Search bar */}
+                                          <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg">
+                                            <Search className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                                            <input
+                                              ref={(el) => { kbSearchInputRefs.current[index] = el; }}
+                                              type="text"
+                                              placeholder="Search in text... (Enter to jump)"
+                                              value={kbSearchQuery[index] ?? ''}
+                                              onChange={(e) => handleKbSearch(index, e.target.value, kbFileContents[index] ?? '')}
+                                              onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                  e.preventDefault();
+                                                  handleKbSearchNav(index, e.shiftKey ? -1 : 1);
+                                                } else if (e.key === 'Escape') {
+                                                  handleKbSearch(index, '', kbFileContents[index] ?? '');
+                                                }
+                                              }}
+                                              className="flex-1 bg-transparent text-xs text-slate-700 dark:text-slate-300 placeholder-slate-400 focus:outline-none min-w-0"
+                                            />
+                                            {/* Match count */}
+                                            {(kbSearchQuery[index] ?? '') && (
+                                              <span className={`text-[10px] font-medium flex-shrink-0 px-1.5 py-0.5 rounded ${
+                                                (kbSearchMatches[index] ?? []).length === 0
+                                                  ? 'text-red-500 bg-red-50 dark:bg-red-900/20'
+                                                  : 'text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-900/20'
+                                              }`}>
+                                                {(kbSearchMatches[index] ?? []).length === 0
+                                                  ? 'No results'
+                                                  : (kbSearchMatchIdx[index] ?? -1) < 0
+                                                    ? `${(kbSearchMatches[index] ?? []).length} match${(kbSearchMatches[index] ?? []).length === 1 ? '' : 'es'}`
+                                                    : `${(kbSearchMatchIdx[index] ?? 0) + 1} / ${(kbSearchMatches[index] ?? []).length}`}
+                                              </span>
+                                            )}
+                                            {/* Prev / Next */}
+                                            <button
+                                              onClick={() => handleKbSearchNav(index, -1)}
+                                              disabled={!(kbSearchMatches[index] ?? []).length}
+                                              title="Previous match (Shift+Enter)"
+                                              className="p-0.5 rounded text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 disabled:opacity-30 transition-colors"
+                                            >
+                                              <ChevronUp className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                              onClick={() => handleKbSearchNav(index, 1)}
+                                              disabled={!(kbSearchMatches[index] ?? []).length}
+                                              title="Next match (Enter)"
+                                              className="p-0.5 rounded text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 disabled:opacity-30 transition-colors"
+                                            >
+                                              <ChevronDown className="w-3.5 h-3.5" />
+                                            </button>
+                                            {/* Clear search */}
+                                            {(kbSearchQuery[index] ?? '') && (
+                                              <button
+                                                onClick={() => handleKbSearch(index, '', kbFileContents[index] ?? '')}
+                                                title="Clear search (Esc)"
+                                                className="p-0.5 rounded text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                                              >
+                                                <X className="w-3.5 h-3.5" />
+                                              </button>
+                                            )}
+                                          </div>
+
+                                          {/* Textarea with highlight overlay */}
+                                          <div className="relative rounded-lg">
+                                            {/* Overlay — sits behind textarea, shows coloured highlights */}
+                                            <div
+                                              ref={(el) => { kbOverlayRefs.current[index] = el; }}
+                                              aria-hidden="true"
+                                              className="absolute inset-0 overflow-hidden pointer-events-none z-0 px-3 py-2.5 text-xs sm:text-sm font-mono leading-relaxed bg-white dark:bg-slate-900 rounded-lg text-transparent"
+                                              style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'break-word' }}
+                                            >
+                                              {renderHighlightedContent(
+                                                kbFileContents[index] ?? '',
+                                                kbSearchQuery[index] ?? '',
+                                                kbSearchMatches[index] ?? [],
+                                                kbSearchMatchIdx[index] ?? -1
+                                              )}
+                                            </div>
+                                            {/* Transparent textarea on top */}
+                                            <textarea
+                                              ref={(el) => { kbTextareaRefs.current[index] = el; }}
+                                              value={kbFileContents[index] ?? ''}
+                                              onScroll={(e) => {
+                                                const overlay = kbOverlayRefs.current[index];
+                                                if (overlay) overlay.scrollTop = (e.target as HTMLTextAreaElement).scrollTop;
+                                              }}
+                                              onChange={(e) => {
+                                                const newVal = e.target.value;
+                                                setKbFileContents((prev) => ({ ...prev, [index]: newVal }));
+                                                if (kbSearchQuery[index]) handleKbSearch(index, kbSearchQuery[index], newVal);
+                                              }}
+                                              onKeyDown={(e) => {
+                                                if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+                                                  e.preventDefault();
+                                                  kbSearchInputRefs.current[index]?.focus({ preventScroll: true });
+                                                }
+                                              }}
+                                              rows={14}
+                                              placeholder="Enter knowledge base text content here..."
+                                              className="relative z-10 w-full px-3 py-2.5 bg-transparent border border-slate-200 dark:border-slate-600 rounded-lg text-slate-800 dark:text-white text-xs sm:text-sm font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50 transition-all resize-y min-h-[220px] caret-slate-800 dark:caret-white"
+                                            />
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <div className="w-full min-h-[220px] max-h-[420px] overflow-y-auto px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg">
+                                          <div className="prose prose-sm dark:prose-invert max-w-none
+                                            prose-headings:font-semibold prose-headings:text-slate-800 dark:prose-headings:text-white
+                                            prose-p:text-slate-700 dark:prose-p:text-slate-300 prose-p:leading-relaxed
+                                            prose-table:w-full prose-table:text-xs prose-table:border-collapse
+                                            prose-th:bg-slate-100 dark:prose-th:bg-slate-800 prose-th:px-3 prose-th:py-2 prose-th:text-left prose-th:font-semibold prose-th:border prose-th:border-slate-300 dark:prose-th:border-slate-600
+                                            prose-td:px-3 prose-td:py-2 prose-td:border prose-td:border-slate-200 dark:prose-td:border-slate-700
+                                            prose-tr:even:bg-slate-50 dark:prose-tr:even:bg-slate-800/40
+                                            prose-ul:list-disc prose-ul:pl-5 prose-ol:list-decimal prose-ol:pl-5
+                                            prose-li:text-slate-700 dark:prose-li:text-slate-300
+                                            prose-strong:text-slate-800 dark:prose-strong:text-white
+                                            prose-code:text-cyan-600 dark:prose-code:text-cyan-400 prose-code:bg-slate-100 dark:prose-code:bg-slate-800 prose-code:px-1 prose-code:rounded
+                                          ">
+                                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                              {processKbContent(kbFileContents[index] ?? '')}
+                                            </ReactMarkdown>
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      <div className="flex items-center justify-end gap-2 pt-1">
+                                        <button
+                                          onClick={() => setEditingKbIndex(null)}
+                                          disabled={isSaving}
+                                          className="px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-50"
+                                        >
+                                          Cancel
+                                        </button>
+                                        <button
+                                          onClick={() => handleSaveKbFile(index, fileUrl)}
+                                          disabled={isSaving}
+                                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-cyan-600 hover:bg-cyan-700 rounded-lg transition-colors disabled:opacity-50"
+                                        >
+                                          {isSaving ? (
+                                            <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...</>
+                                          ) : (
+                                            <><Check className="w-3.5 h-3.5" /> Save Changes</>
+                                          )}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   {/* File Upload Section */}
                   <div className="space-y-3">
                     <label className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
@@ -1008,6 +1634,34 @@ const EditAgent = () => {
                         )}
                       </div>
                     </div>
+
+                    {/* Hint below upload */}
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+                      <Info className="w-3 h-3 flex-shrink-0" />
+                      New files will be merged into the Main Knowledge Base. To fully replace it, delete the Main Knowledge Base file above first.
+                    </p>
+
+                    {/* All existing KB URLs — read-only reference list */}
+                    {existingKbFiles.length > 0 && (
+                      <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                        <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+                          <FileText className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 flex-shrink-0" />
+                          <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
+                            Knowledge Base URLs ({existingKbFiles.length})
+                          </span>
+                        </div>
+                        <div className="divide-y divide-slate-100 dark:divide-slate-700/60 max-h-40 overflow-y-auto">
+                          {existingKbFiles.map((url, i) => (
+                            <div key={i} className="flex items-center gap-2 px-3 py-1.5">
+                              <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 w-4 flex-shrink-0">{i + 1}.</span>
+                              <span className="flex-1 text-[11px] text-slate-500 dark:text-slate-400 truncate font-mono" title={url}>
+                                {url}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Uploaded Files List */}
                     {uploadedFiles.length > 0 && (

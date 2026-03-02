@@ -361,6 +361,27 @@ class AgentAPI {
     }
   }
 
+  // Fetch full agent config (used in edit/view pages)
+  // Endpoint: GET /agent-configs/:id
+  async getAgentConfig(id: string): Promise<{ agent: any }> {
+    try {
+      const response: AxiosResponse<{
+        success: boolean;
+        data?: { agent: any };
+        message?: string;
+      }> = await apiClient.get(`/agent-configs/${id}`);
+
+      if (response.data.success && response.data.data?.agent) {
+        return { agent: response.data.data.agent };
+      }
+
+      throw new Error(response.data.message || "Agent config not found");
+    } catch (error: any) {
+      console.error("Error fetching agent config:", error);
+      throw error;
+    }
+  }
+
   // Create a new agent
   async createAgent(agentData: CreateAgentRequest): Promise<ApiAgent> {
     try {
@@ -609,6 +630,27 @@ class AgentAPI {
       return response.data;
     } catch (error: any) {
       console.error("Error generating prompt:", error);
+      throw error;
+    }
+  }
+
+  // Generate Presigned URL for knowledge base file editing
+  async getPresignedUrl(agentId: string, filename: string): Promise<{
+    success: boolean;
+    statusCode: number;
+    message: string;
+    data: {
+      presignedUrl: string;
+      fileUrl: string;
+    };
+  }> {
+    try {
+      const response = await apiClient.get(`/agents/${agentId}/presigned-url`, {
+        params: { filename },
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error("Error getting presigned URL:", error);
       throw error;
     }
   }
