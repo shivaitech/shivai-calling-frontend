@@ -1092,7 +1092,7 @@
           latencyMetrics.userSpeechEndTime = null;
         }
       } else if (
-        average <= SPEECH_THRESHOLD &&
+        audioLevel <= SPEECH_THRESHOLD &&
         latencyMetrics.isAgentSpeaking
       ) {
         latencyMetrics.isAgentSpeaking = false;
