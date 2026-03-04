@@ -4149,17 +4149,56 @@
       caller: new Error().stack.split("\n")[2],
     });
 
+    // CRITICAL: Prevent duplicate messages
+    if (!text || text.trim().length === 0) {
+      console.log("🚫 Skipping empty message");
+      return null;
+    }
+
+    // Check for duplicate messages from the same role in the last 2 seconds
+    const now = Date.now();
+    const recentMessages = Array.from(messagesDiv.querySelectorAll('.message')).slice(-5);
+    for (const msgEl of recentMessages) {
+      const msgText = msgEl.querySelector('.message-text')?.textContent?.trim();
+      const msgRole = msgEl.classList.contains('user') ? 'user' : 'assistant';
+      const msgTime = msgEl.dataset.timestamp ? parseInt(msgEl.dataset.timestamp) : 0;
+      if (msgRole === role && msgText === text.trim() && (now - msgTime) < 2000) {
+        console.log("🚫 Skipping duplicate message:", text.substring(0, 50));
+        return msgEl;
+      }
+    }
+
     // Stop connecting sound when assistant speaks
     if (role === "assistant") {
       stopConnectingSound();
     }
 
+    // CRITICAL: Hide connecting state immediately on first message (matches widget.js)
+    const connectingState = messagesDiv.querySelector(".connecting-state");
+    if (connectingState) {
+      connectingState.style.display = "none";
+    }
+
+    // Also trigger full hideConnectingState logic on first AI message
+    if (role === "assistant" && !firstResponseReceived) {
+      firstResponseReceived = true;
+      if (!callTimerStarted) {
+        callTimerStarted = true;
+        updateStatus("✅ Connected - Speak now!", "connected");
+        stopConnectingSound();
+        clearLoadingStatus();
+        hideConnectingState();
+        startCallTimer();
+      }
+    }
+
     const emptyState = messagesDiv.querySelector(".empty-state");
     if (emptyState) {
-      emptyState.remove();
+      emptyState.style.display = "none";
     }
     const messageDiv = document.createElement("div");
     messageDiv.className = `message ${role}`;
+    messageDiv.dataset.timestamp = Date.now().toString();
     const labelDiv = document.createElement("div");
     labelDiv.className = "message-label";
     labelDiv.textContent = role === "user" ? "You" : "AI Employee";
