@@ -20,7 +20,7 @@ const AgentQRModal: React.FC<AgentQRModalProps> = ({ agent, onClose }) => {
   params.set('agentId', agent.id);
   if (user?.id) params.set('userId', user.id);
   const agentUrl = `https://callshivai.com/widget2.js?${params.toString()}`;
-  const widgetPageUrl = `https://widget.callshivai.com/agent/${agent.id}${user?.id ? `?userId=${user.id}` : ''}`;
+  const widgetPageUrl = `https://callshivai.com/MyAIEmployee/${agent.id}${user?.id ? `?userId=${user.id}` : ''}`;
   const [qrSize, setQrSize] = React.useState(180);
 
   React.useEffect(() => {
@@ -209,7 +209,7 @@ const AgentQRModal: React.FC<AgentQRModalProps> = ({ agent, onClose }) => {
               
               <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-600">
                 <p className="text-slate-500 dark:text-slate-400 text-xs font-medium mb-1 uppercase tracking-wide">
-                  Widget Page URL
+                  Agent Page URL
                 </p>
                 <p className="font-mono text-xs sm:text-sm text-gray-600 dark:text-gray-400 break-all bg-gray-100 dark:bg-gray-800/20 px-2 py-1.5 rounded">
                   {widgetPageUrl}

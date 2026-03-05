@@ -31,6 +31,7 @@ const Monitoring = lazy(() => import("./ClientDashboard/Monitoring/Monitoring"))
 const Billing = lazy(() => import("./ClientDashboard/Billing/Billing"));
 const Settings = lazy(() => import("./ClientDashboard/Settings/Settings"));
 const ResetPassword = lazy(() => import("./components/ResetPassword"));
+const AgentPublicPage = lazy(() => import("./pages/AgentPublicPage"));
 
 function LoadingFallback() {
   return (
@@ -54,11 +55,12 @@ function AppContent() {
   const isResetPassword = location.pathname.startsWith("/reset-password");
   const isOnboarding =
     location.pathname === "/onboarding" || location.pathname === "/onBoarding";
+  const isAgentPublicPage = location.pathname.startsWith("/MyAIEmployee");
   const [collapsed, setCollapsed] = useState(false);
 
   return (
     <div className="min-h-screen">
-      {isLandingPage || isAuthCallback || isResetPassword || isOnboarding ? (
+      {isLandingPage || isAuthCallback || isResetPassword || isOnboarding || isAgentPublicPage ? (
         <Suspense fallback={<LoadingFallback />}>
           <Routes>
             <Route
@@ -102,6 +104,9 @@ function AppContent() {
               }
             />
             <Route path="/auth/google/callback" element={<GoogleCallback />} />
+
+            {/* Public agent test page - no auth required */}
+            <Route path="/MyAIEmployee/:agentId" element={<AgentPublicPage />} />
 
             {/* Catch all other public routes and redirect to landing */}
             <Route path="*" element={<Navigate to="/landing" replace />} />
