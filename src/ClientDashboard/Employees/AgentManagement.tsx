@@ -322,14 +322,14 @@ const AgentManagement = () => {
     useState<Partial<GeneratedTemplate> | null>(null);
   const [activeTemplateSection, setActiveTemplateSection] = useState('overview');
   const templateContentRef = useRef<HTMLDivElement>(null);
-  const widgetTestRef = useRef<HTMLDivElement>(null);
 
-  const scrollToWidgetTest = () => {
+  const openAgentTestPage = () => {
     if (!currentAgent?.id) return;
     const params = new URLSearchParams();
+    params.set("agentId", currentAgent.id);
     if (user?.id) params.set("userId", user.id);
-    const url = `/MyAIEmployee/${currentAgent.id}${params.toString() ? `?${params.toString()}` : ""}`;
-    window.open(url, "_blank");
+    const url = `/MyAIEmployee/${currentAgent.id}?${params.toString()}`;
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
   // Template section navigation tabs
@@ -5544,7 +5544,7 @@ const AgentManagement = () => {
                   (currentAgent as any).is_active) && (
                   <>
                     <button
-                      onClick={scrollToWidgetTest}
+                      onClick={openAgentTestPage}
                       className="common-button-bg flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg touch-manipulation text-xs font-medium text-white"
                     >
                       <Play className="w-3.5 h-3.5" />
@@ -5645,7 +5645,7 @@ const AgentManagement = () => {
                   (currentAgent as any).is_active) && (
                   <>
                     <button
-                      onClick={scrollToWidgetTest}
+                      onClick={openAgentTestPage}
                       className="common-button-bg flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg touch-manipulation"
                     >
                       <Play className="w-4 h-4" />
@@ -5969,7 +5969,7 @@ const AgentManagement = () => {
         </div>
 
         {/* Widget Customization Section - Only show when agent is published */}
-        <div ref={widgetTestRef} className="mt-3 sm:mt-4 lg:mt-6 scroll-mt-4">
+        <div className="mt-3 sm:mt-4 lg:mt-6">
           <AgentWidgetCustomization
             agentId={currentAgent.id}
             agentName={currentAgent.name}
