@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Orb, oceanDepthsPreset } from "react-ai-orb";
@@ -20,9 +20,6 @@ export default function AgentPublicPage() {
   const userId = searchParams.get("userId");
 
   const [agentInfo, setAgentInfo] = useState<AgentInfo | null>(null);
-  const [scriptLoaded, setScriptLoaded] = useState(false);
-  const [loadError, setLoadError] = useState(false);
-  const scriptRef = useRef<HTMLScriptElement | null>(null);
 
   // Fetch basic agent info from public endpoint
   useEffect(() => {
@@ -43,27 +40,18 @@ export default function AgentPublicPage() {
     fetchAgent();
   }, [agentId]);
 
-  // Inject widget2.js dynamically
+  // Append widget2.js script — same as <script src="..."> in index.html
   useEffect(() => {
-    if (!agentId || scriptRef.current) return;
-
+    if (!agentId) return;
     const params = new URLSearchParams();
     params.set("agentId", agentId);
     if (userId) params.set("userId", userId);
-
     const script = document.createElement("script");
     script.src = `https://callshivai.com/widget2.js?${params.toString()}`;
     script.async = true;
-    script.onload = () => setScriptLoaded(true);
-    script.onerror = () => setLoadError(true);
     document.body.appendChild(script);
-    scriptRef.current = script;
-
     return () => {
-      if (scriptRef.current) {
-        document.body.removeChild(scriptRef.current);
-        scriptRef.current = null;
-      }
+      document.body.removeChild(script);
     };
   }, [agentId, userId]);
 
@@ -208,35 +196,11 @@ export default function AgentPublicPage() {
           </motion.div>
         )}
 
-        {/* Loading / error state for script */}
-        {!scriptLoaded && !loadError && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.8 }}
-            className="mt-8 flex items-center gap-2 text-white/50 text-xs"
-          >
-            <div className="w-3 h-3 border border-white/30 border-t-white/80 rounded-full animate-spin" />
-            Loading AI agent...
-          </motion.div>
-        )}
-
-        {loadError && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mt-8 px-4 py-3 rounded-xl bg-red-500/10 border border-red-400/20 text-red-300 text-xs max-w-xs"
-          >
-            Failed to load the widget. Please check the link and try again.
-          </motion.div>
-        )}
-
         {/* Arrow hint pointing to widget */}
-        {scriptLoaded && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.5 }}
+            transition={{ delay: 0.8, duration: 0.5 }}
             className="mt-10 flex flex-col items-center gap-1 text-white/40 text-xs"
           >
             <svg
@@ -254,7 +218,6 @@ export default function AgentPublicPage() {
             </svg>
             <span>Click the chat button to begin</span>
           </motion.div>
-        )}
       </main>
 
       {/* Footer */}
