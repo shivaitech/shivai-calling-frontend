@@ -657,6 +657,21 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
     }
   };
 
+  // Listen for external save trigger (publish / test button in parent)
+  // Ref pattern keeps the listener stable without re-registering on every render.
+  const saveWidgetConfigRef = useRef(saveWidgetConfig);
+  useEffect(() => { saveWidgetConfigRef.current = saveWidgetConfig; });
+  useEffect(() => {
+    const handleExternalSave = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.agentId && detail.agentId !== agentId) return;
+      console.log("💾 External save triggered for agent:", agentId);
+      saveWidgetConfigRef.current();
+    };
+    window.addEventListener("shivai:save-widget-config", handleExternalSave);
+    return () => window.removeEventListener("shivai:save-widget-config", handleExternalSave);
+  }, [agentId]);
+
   const updateConfig = (
     section: keyof WidgetConfig,
     key: string,

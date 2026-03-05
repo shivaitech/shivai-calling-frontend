@@ -325,11 +325,14 @@ const AgentManagement = () => {
 
   const openAgentTestPage = () => {
     if (!currentAgent?.id) return;
+    // Trigger widget config save before opening test page
+    window.dispatchEvent(new CustomEvent("shivai:save-widget-config", { detail: { agentId: currentAgent.id } }));
     const params = new URLSearchParams();
     params.set("agentId", currentAgent.id);
     if (user?.id) params.set("userId", user.id);
     const url = `/MyAIEmployee/${currentAgent.id}?${params.toString()}`;
-    window.open(url, "_blank", "noopener,noreferrer");
+    // Small delay to let save fire before navigating
+    setTimeout(() => window.open(url, "_blank", "noopener,noreferrer"), 300);
   };
 
   // Template section navigation tabs
@@ -1371,6 +1374,9 @@ const AgentManagement = () => {
 
     setIsPublishing(true);
     try {
+      // Trigger widget config save before publishing so widget has latest data
+      window.dispatchEvent(new CustomEvent("shivai:save-widget-config", { detail: { agentId: agentToPublish } }));
+
       // Add to publishing set for loading state
       setPublishingAgents((prev) => new Set(prev).add(agentToPublish));
 
