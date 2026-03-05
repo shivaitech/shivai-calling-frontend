@@ -40,18 +40,21 @@ export default function AgentPublicPage() {
     fetchAgent();
   }, [agentId]);
 
-  // Append widget2.js script — same as <script src="..."> in index.html
+  // Append widget2.js script once — guard against StrictMode double-invoke
   useEffect(() => {
     if (!agentId) return;
+    const scriptId = "shivai-widget-script";
+    if (document.getElementById(scriptId)) return; // already injected
     const params = new URLSearchParams();
     params.set("agentId", agentId);
     if (userId) params.set("userId", userId);
     const script = document.createElement("script");
-    script.src = `https://callshivai.com/widget2.js?${params.toString()}`;
+    script.id = scriptId;
+    script.src = `/widget2.js?${params.toString()}`;
     script.async = true;
     document.body.appendChild(script);
     return () => {
-      document.body.removeChild(script);
+      document.getElementById(scriptId)?.remove();
     };
   }, [agentId, userId]);
 
