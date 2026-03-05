@@ -40,22 +40,18 @@ export default function AgentPublicPage() {
     fetchAgent();
   }, [agentId]);
 
-  // Append widget2.js script once — guard against StrictMode double-invoke
+  // Append widget2.js script once — window flag survives StrictMode double-invoke
   useEffect(() => {
     if (!agentId) return;
-    const scriptId = "shivai-widget-script";
-    if (document.getElementById(scriptId)) return; // already injected
+    if ((window as any).__shivaiWidgetInjected) return;
+    (window as any).__shivaiWidgetInjected = true;
     const params = new URLSearchParams();
     params.set("agentId", agentId);
     if (userId) params.set("userId", userId);
     const script = document.createElement("script");
-    script.id = scriptId;
     script.src = `/widget2.js?${params.toString()}`;
     script.async = true;
     document.body.appendChild(script);
-    return () => {
-      document.getElementById(scriptId)?.remove();
-    };
   }, [agentId, userId]);
 
   const agentName = agentInfo?.name || "Your AI Employee";
