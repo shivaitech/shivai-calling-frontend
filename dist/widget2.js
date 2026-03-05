@@ -55,6 +55,7 @@
   let isConnecting = false;
   let loadingInterval = null;
   let hasReceivedFirstAIResponse = false;
+  let firstResponseReceived = false;
   let shouldAutoUnmute = false;
   let playbackProcessor = null;
   let playbackBufferQueue = [];
@@ -84,6 +85,8 @@
   let retryCount = 0;
   const MAX_RETRIES = 0; // No retries - terminate immediately on error
   const CONNECTION_TIMEOUT = 15000; // 15 seconds
+  let knowledgeBaseReady = false;
+  let callTimerStarted = false;
   const AI_RESPONSE_TIMEOUT = 20000; // 20 seconds after connection
 
   // ✅ Enhanced latency tracking using audio events
@@ -98,10 +101,10 @@
   };
 
   let liveMessages = [
-    "📞 Call Now!",
-    "📞 Call Now!",
-    "📞 Call Now!",
-    "📞 Call Now!",
+    "📞 Call ShivAI!",
+    "📞 Call ShivAI!",
+    "📞 Call ShivAI!",
+    "📞 Call ShivAI!",
   ];
 
   // Helper function to get company info from API widget config, URL parameters, or defaults
@@ -110,6 +113,8 @@
     let companyDescription = "AI-Powered Support";
     let agentName = "AI Employee";
     let companyLogo = ""; // Empty means use default ShivAI logo
+    let triggerButtonImage = ""; // Empty means use default phone icon
+    let callToActionText = "📞 Call ShivAI!"; // Default cloud bubble text
     let themeColors = {
       primaryColor: "#4b5563",
       secondaryColor: "#ffffff", 
@@ -138,6 +143,16 @@
         if (widget.company_logo) {
           companyLogo = widget.company_logo;
           console.log("🖼️ Using company_logo from API widget config (S3 URL)");
+        }
+
+        if (widget.trigger_button_image) {
+          triggerButtonImage = widget.trigger_button_image;
+          console.log("🖼️ Using trigger_button_image from API widget config");
+        }
+
+        if (widget.button_text) {
+          callToActionText = widget.button_text;
+          console.log("💬 Using button_text from API widget config:", callToActionText);
         }
         
         // Map color fields from API response
@@ -174,6 +189,24 @@
             companyLogo = config.content.companyLogo;
             console.log("🖼️ Using companyLogo from SHIVAI_CONFIG");
           }
+          if (config.content.triggerButtonImage) {
+            triggerButtonImage = config.content.triggerButtonImage;
+            console.log("🖼️ Using triggerButtonImage from SHIVAI_CONFIG");
+          }
+          if (config.content.callToActionText) {
+            callToActionText = config.content.callToActionText;
+            console.log("💬 Using callToActionText from SHIVAI_CONFIG:", callToActionText);
+          }
+        }
+
+        // Also check ShivAI.config for triggerButtonImage / callToActionText
+        if (!triggerButtonImage && window.ShivAI && window.ShivAI.config && window.ShivAI.config.triggerButtonImage) {
+          triggerButtonImage = window.ShivAI.config.triggerButtonImage;
+          console.log("🖼️ Using triggerButtonImage from ShivAI.config");
+        }
+        if (window.ShivAI && window.ShivAI.config && window.ShivAI.config.callToActionText) {
+          callToActionText = window.ShivAI.config.callToActionText;
+          console.log("💬 Using callToActionText from ShivAI.config:", callToActionText);
         }
         
         if (config.theme) {
@@ -244,6 +277,8 @@
       description: companyDescription,
       agentName: agentName,
       logo: companyLogo,
+      triggerButtonImage: triggerButtonImage,
+      callToActionText: callToActionText,
       theme: themeColors,
       configSource: configSource
     };
@@ -271,11 +306,12 @@
   let callTimerInterval = null;
   let agentStatus = { active: true, message: '' }; // Store agent status
   let agentLanguage = null; // Store agent's configured language
+  let globalTenantId = null; // Store tenant_id globally so it's available in startConversation
   
   // Check agent status when widget loads
   async function checkAgentStatusOnLoad() {
     try {
-      // Get agent ID from configuration (dynamic)
+      // Get agent ID and tenant ID from configuration (dynamic)
       let agentId = null;
       
       // First try to get from URL parameters of the widget script
@@ -284,14 +320,23 @@
       
       for (let i = scriptTags.length - 1; i >= 0; i--) {
         const script = scriptTags[i];
-        if (script.src && script.src.includes('/widget2.js')) {
-          const url = new URL(script.src);
-          const urlAgentId = url.searchParams.get('agentId');
-          if (urlAgentId) {
-            agentId = urlAgentId;
-            foundFromUrl = true;
-            console.log("🎯 Using agentId for status check:", agentId);
-            break;
+        if (script.src && (script.src.includes('/widget2.js') || script.src.includes('/widget3.js') || script.src.includes('/widget4.js') || script.src.includes('/widget.js'))) {
+          try {
+            const url = new URL(script.src);
+            const urlAgentId = url.searchParams.get('agentId');
+            const urlUserId = url.searchParams.get('userId');
+            if (urlAgentId) {
+              agentId = urlAgentId;
+              foundFromUrl = true;
+              console.log("🎯 Using agentId for status check from URL:", agentId);
+            }
+            if (urlUserId) {
+              globalTenantId = urlUserId;
+              console.log("👤 Using userId (tenant_id) from URL:", globalTenantId);
+            }
+            if (foundFromUrl) break;
+          } catch (urlErr) {
+            console.warn("⚠️ Could not parse script URL:", urlErr);
           }
         }
       }
@@ -300,19 +345,35 @@
       if (!foundFromUrl && window.SHIVAI_CONFIG && window.SHIVAI_CONFIG.agentId) {
         agentId = window.SHIVAI_CONFIG.agentId;
         console.log("🎯 Using agentId from SHIVAI_CONFIG for status check:", agentId);
-      } 
+      }
+      // Also try userId from SHIVAI_CONFIG if not already set from URL
+      if (!globalTenantId && window.SHIVAI_CONFIG && window.SHIVAI_CONFIG.userId) {
+        globalTenantId = window.SHIVAI_CONFIG.userId;
+        console.log("👤 Using userId (tenant_id) from SHIVAI_CONFIG:", globalTenantId);
+      }
       // Then try to get from script data attributes
-      else if (!foundFromUrl) {
+      if (!foundFromUrl) {
         const scriptElements = document.querySelectorAll('script[data-agent-id]');
         if (scriptElements.length > 0) {
-          agentId = scriptElements[scriptElements.length - 1].getAttribute('data-agent-id');
+          const lastScript = scriptElements[scriptElements.length - 1];
+          agentId = lastScript.getAttribute('data-agent-id');
           console.log("🎯 Using agentId from script data attribute for status check:", agentId);
+          if (!globalTenantId && lastScript.getAttribute('data-user-id')) {
+            globalTenantId = lastScript.getAttribute('data-user-id');
+            console.log("👤 Using userId from script data-user-id:", globalTenantId);
+          }
         }
         else if (document.currentScript && document.currentScript.getAttribute('data-agent-id')) {
           agentId = document.currentScript.getAttribute('data-agent-id');
           console.log("🎯 Using agentId from current script for status check:", agentId);
+          if (!globalTenantId && document.currentScript.getAttribute('data-user-id')) {
+            globalTenantId = document.currentScript.getAttribute('data-user-id');
+            console.log("👤 Using userId from current script data-user-id:", globalTenantId);
+          }
         }
       }
+      
+      console.log("👤 Final globalTenantId resolved:", globalTenantId || '(not set)');
       
       // If no agentId found, set status to inactive
       if (!agentId) {
@@ -627,7 +688,9 @@
     // Use ring1.mp3 for connecting sound
     try {
       if (!ringAudio) {
-        ringAudio = new Audio("./assets/Rings/ring1.mp3");
+        ringAudio = new Audio(
+          "https://shivai--assets.s3.ap-south-1.amazonaws.com/frontend-assets/voice-assets/ring.mpeg"
+        );
         ringAudio.volume = 0.7;
       }
       ringAudio.loop = true; // Loop until stopped
@@ -665,7 +728,9 @@
   function playRingSound() {
     try {
       if (!ringAudio) {
-        ringAudio = new Audio("./assets/Rings/ring1.mp3");
+        ringAudio = new Audio(
+          "https://shivai--assets.s3.ap-south-1.amazonaws.com/frontend-assets/voice-assets/ring.mpeg"
+        );
         ringAudio.loop = true;
         ringAudio.volume = 0.7;
       }
@@ -896,7 +961,7 @@
     const dataArray = new Uint8Array(bufferLength);
 
     // Higher threshold for close proximity detection only
-    const SPEECH_THRESHOLD = 35; // Increased from 12 to 35 for close voices only
+    const SPEECH_THRESHOLD = 10; // Low threshold to detect AI speaking reliably
 
     function checkAudioLevel() {
       // Clear AI response timeout when agent starts speaking
@@ -947,10 +1012,17 @@
         // Start timer on first AI response
         if (!hasReceivedFirstAIResponse) {
           hasReceivedFirstAIResponse = true;
-          startCallTimer();
 
-          // Stop connecting sound when AI first responds
+          // Start call timer (only once)
+          if (!callTimerStarted) {
+            callTimerStarted = true;
+            startCallTimer();
+          }
+
+          // Stop connecting sound, clear loading, hide connecting animation
           stopConnectingSound();
+          clearLoadingStatus();
+          hideConnectingState();
 
           // Update status to show AI is now ready
           updateStatus("✅ Connected - Speak now!", "connected");
@@ -1020,7 +1092,7 @@
           latencyMetrics.userSpeechEndTime = null;
         }
       } else if (
-        average <= SPEECH_THRESHOLD &&
+        audioLevel <= SPEECH_THRESHOLD &&
         latencyMetrics.isAgentSpeaking
       ) {
         latencyMetrics.isAgentSpeaking = false;
@@ -1295,11 +1367,19 @@
   function createWidgetUI() {
     triggerBtn = document.createElement("button");
     triggerBtn.className = "shivai-trigger shivai-neon-pulse";
-    triggerBtn.innerHTML = `
+
+    // Fetch company info to check for trigger button image
+    const triggerCompanyInfo = getCompanyInfo();
+    if (triggerCompanyInfo.triggerButtonImage) {
+      triggerBtn.classList.add("shivai-trigger--image");
+      triggerBtn.innerHTML = `<img class="shivai-trigger-avatar" src="${triggerCompanyInfo.triggerButtonImage}" alt="${triggerCompanyInfo.agentName}" />`;
+    } else {
+      triggerBtn.innerHTML = `
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
       </svg>
     `;
+    }
     triggerBtn.setAttribute("aria-label", "Open ShivAI Assistant");
     widgetContainer = document.createElement("div");
     widgetContainer.className = "shivai-widget";
@@ -1443,6 +1523,32 @@
       </select>
       </div>
       <div class="messages-container" id="shivai-messages">
+      <!-- Connecting Animation (shown during call initialization) -->
+      <div class="connecting-state" style="display: none;">
+        <div class="connecting-animation">
+          <div class="call-icon-wrapper">
+            <svg class="call-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+            </svg>
+          </div>
+          <div class="connecting-dots">
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+          </div>
+          <div class="ai-icon-wrapper">
+            <svg class="ai-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="10" rx="2"></rect>
+              <circle cx="12" cy="5" r="2"></circle>
+              <path d="M12 7v4"></path>
+              <line x1="8" y1="16" x2="8" y2="16"></line>
+              <line x1="16" y1="16" x2="16" y2="16"></line>
+            </svg>
+          </div>
+        </div>
+        <div class="connecting-text">Connecting to AI Assistant...</div>
+      </div>
+      <!-- Empty State (shown when connected but no messages) -->
       <div class="empty-state">
       <div class="empty-state-icon">👋</div>
       <div class="empty-state-text">Start a conversation to see transcripts here</div>
@@ -1558,6 +1664,17 @@
     document.body.appendChild(widgetContainer);
     makeWidgetDraggable(widgetContainer);
     makeTriggerBtnDraggable(triggerBtn);
+
+    // Update cloud bubble messages with custom call-to-action text
+    const bubbleCompanyInfo = getCompanyInfo();
+    if (bubbleCompanyInfo.callToActionText) {
+      liveMessages = [
+        bubbleCompanyInfo.callToActionText,
+        bubbleCompanyInfo.callToActionText,
+        bubbleCompanyInfo.callToActionText,
+        bubbleCompanyInfo.callToActionText,
+      ];
+    }
     createLiveMessageBubble();
     statusDiv = document.getElementById("shivai-status");
     connectBtn = document.getElementById("shivai-connect");
@@ -1952,6 +2069,18 @@
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3) !important;
       transition: none !important;
       }
+      .shivai-trigger--image {
+      padding: 0;
+      }
+      .shivai-trigger-avatar {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+      flex-shrink: 0;
+      display: block;
+      clip-path: circle(50%);
+      }
       .shivai-neon-pulse {
       overflow: visible;
       contain: layout;
@@ -2054,6 +2183,14 @@
         bottom: 16px;
         right: 16px;
       }
+      .shivai-trigger--image {
+        padding: 0;
+      }
+      .shivai-trigger-avatar {
+        width: 100%;
+        height: 100%;
+        clip-path: circle(50%);
+      }
       .shivai-message-bubble {
         font-size: 13px;
         padding: 6px 10px;
@@ -2066,6 +2203,14 @@
         height: 52px;
         bottom: 12px;
         right: 12px;
+      }
+      .shivai-trigger--image {
+        padding: 0;
+      }
+      .shivai-trigger-avatar {
+        width: 100%;
+        height: 100%;
+        clip-path: circle(50%);
       }
       .shivai-message-bubble {
         font-size: 12px;
@@ -2825,6 +2970,85 @@
       .messages-container::-webkit-scrollbar-thumb:hover {
       background: #9ca3af;
       }
+      /* Connecting Animation */
+      .connecting-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: #6b7280;
+      }
+      
+      .connecting-animation {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      margin-bottom: 20px;
+      }
+      
+      .call-icon-wrapper,
+      .ai-icon-wrapper {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      background: transparent;
+      }
+      
+      .call-icon-wrapper {
+      animation: pulse-call 2s ease-in-out infinite;
+      }
+      
+      .ai-icon-wrapper {
+      animation: pulse-ai 2s ease-in-out infinite 0.3s;
+      }
+      
+      .call-icon,
+      .ai-icon {
+      stroke: #4b5563;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+      }
+      
+      @keyframes pulse-call {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+      }
+      
+      @keyframes pulse-ai {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+      }
+      
+      .connecting-dots {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      }
+      
+      .connecting-dots .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #6b7280;
+      animation: dot-bounce 1.4s ease-in-out infinite;
+      }
+      
+      .connecting-dots .dot:nth-child(1) { animation-delay: 0s; }
+      .connecting-dots .dot:nth-child(2) { animation-delay: 0.2s; }
+      .connecting-dots .dot:nth-child(3) { animation-delay: 0.4s; }
+      
+      @keyframes dot-bounce {
+      0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+      30% { transform: translateY(-10px); opacity: 1; }
+      }
+      
+      .connecting-text {
+      font-size: 14px;
+      font-weight: 500;
+      color: #6b7280;
+      }
       .empty-state {
       text-align: center;
       padding: 20px 10px;
@@ -3422,6 +3646,7 @@
     isConnected = false;
     isConnecting = false;
     hasReceivedFirstAIResponse = false;
+    firstResponseReceived = false;
     shouldAutoUnmute = false;
     isMuted = false;
     clearLoadingStatus();
@@ -3552,6 +3777,7 @@
       isConnecting = false;
       isConnected = false;
       hasReceivedFirstAIResponse = false;
+      firstResponseReceived = false;
       shouldAutoUnmute = false;
       aiJustFinished = false;
 
@@ -3668,6 +3894,7 @@
         isConnecting = false;
         isDisconnecting = false; // Reset disconnect flag
         hasReceivedFirstAIResponse = false;
+        firstResponseReceived = false;
         shouldAutoUnmute = false;
         aiJustFinished = false;
 
@@ -3825,6 +4052,43 @@
       "0"
     )}:${String(seconds).padStart(2, "0")}`;
   }
+  function showConnectingState() {
+    const connectingState = messagesDiv.querySelector(".connecting-state");
+    const emptyState = messagesDiv.querySelector(".empty-state");
+    
+    if (connectingState) {
+      connectingState.style.display = "block";
+    }
+    if (emptyState) {
+      emptyState.style.display = "none";
+    }
+    
+    // Hide message interface during connection
+    hideMessageInterface();
+    
+    console.log("🔄 Showing connecting animation");
+  }
+  
+  function hideConnectingState() {
+    const connectingState = messagesDiv.querySelector(".connecting-state");
+    const emptyState = messagesDiv.querySelector(".empty-state");
+    
+    if (connectingState) {
+      connectingState.style.display = "none";
+    }
+    
+    // Show empty state only if no messages
+    const hasMessages = messagesDiv.querySelector(".message");
+    if (emptyState && !hasMessages) {
+      emptyState.style.display = "block";
+    }
+    
+    // Show message interface now that connection is stable
+    showMessageInterface();
+    
+    console.log("✅ Hiding connecting animation");
+  }
+  
   async function showProgressiveConnectionStates() {
     const wasWarmedUp = false;
     const hasPreloadedAudio = audioContext !== null;
@@ -3885,17 +4149,56 @@
       caller: new Error().stack.split("\n")[2],
     });
 
+    // CRITICAL: Prevent duplicate messages
+    if (!text || text.trim().length === 0) {
+      console.log("🚫 Skipping empty message");
+      return null;
+    }
+
+    // Check for duplicate messages from the same role in the last 2 seconds
+    const now = Date.now();
+    const recentMessages = Array.from(messagesDiv.querySelectorAll('.message')).slice(-5);
+    for (const msgEl of recentMessages) {
+      const msgText = msgEl.querySelector('.message-text')?.textContent?.trim();
+      const msgRole = msgEl.classList.contains('user') ? 'user' : 'assistant';
+      const msgTime = msgEl.dataset.timestamp ? parseInt(msgEl.dataset.timestamp) : 0;
+      if (msgRole === role && msgText === text.trim() && (now - msgTime) < 2000) {
+        console.log("🚫 Skipping duplicate message:", text.substring(0, 50));
+        return msgEl;
+      }
+    }
+
     // Stop connecting sound when assistant speaks
     if (role === "assistant") {
       stopConnectingSound();
     }
 
+    // CRITICAL: Hide connecting state immediately on first message (matches widget.js)
+    const connectingState = messagesDiv.querySelector(".connecting-state");
+    if (connectingState) {
+      connectingState.style.display = "none";
+    }
+
+    // Also trigger full hideConnectingState logic on first AI message
+    if (role === "assistant" && !firstResponseReceived) {
+      firstResponseReceived = true;
+      if (!callTimerStarted) {
+        callTimerStarted = true;
+        updateStatus("✅ Connected - Speak now!", "connected");
+        stopConnectingSound();
+        clearLoadingStatus();
+        hideConnectingState();
+        startCallTimer();
+      }
+    }
+
     const emptyState = messagesDiv.querySelector(".empty-state");
     if (emptyState) {
-      emptyState.remove();
+      emptyState.style.display = "none";
     }
     const messageDiv = document.createElement("div");
     messageDiv.className = `message ${role}`;
+    messageDiv.dataset.timestamp = Date.now().toString();
     const labelDiv = document.createElement("div");
     labelDiv.className = "message-label";
     labelDiv.textContent = role === "user" ? "You" : "AI Employee";
@@ -4008,72 +4311,148 @@
 
   async function startConversation() {
     try {
+      // Reset call timer flags for new conversation
+      knowledgeBaseReady = false;
+      firstResponseReceived = false;
+      callTimerStarted = false;
+
+      // Show connecting animation
+      showConnectingState();
+
       // Check if connection was cancelled before starting
       if (!isConnecting) {
         console.log("❌ Connection cancelled before start");
         return;
       }
 
-      // 🎤 Request microphone permission FIRST before anything else
-      console.log("🎤 Requesting microphone permission...");
+      // ✅ CRITICAL: Check permission state FIRST - never auto-request
+      console.log("🔍 Checking microphone permission state...");
       console.log("📍 Browser:", navigator.userAgent);
       console.log("📍 Secure context:", window.isSecureContext);
       console.log("📍 MediaDevices available:", !!navigator.mediaDevices);
-      console.log(
-        "📍 getUserMedia available:",
-        !!navigator.mediaDevices?.getUserMedia
-      );
 
       // Check if we're in a secure context (HTTPS)
       if (!window.isSecureContext) {
-        console.error(
-          "❌ Not in secure context - HTTPS required for microphone access"
-        );
-        alert(
-          "Microphone access requires HTTPS. Please access this page using HTTPS."
-        );
+        console.error("❌ Not in secure context - HTTPS required for microphone access");
+        updateStatus("❌ HTTPS required", "disconnected");
+        alert("🔒 Microphone access requires HTTPS.\n\nPlease access this page using a secure HTTPS connection.");
+        isConnecting = false;
+        connectBtn.disabled = false;
         return;
       }
 
       // Check if mediaDevices API is available
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         console.error("❌ MediaDevices API not available");
-        alert(
-          "Microphone API is not available in your browser. Please use a modern browser with HTTPS."
-        );
+        updateStatus("❌ Browser not supported", "disconnected");
+        alert("❌ Microphone API not available.\n\nPlease use a modern browser (Chrome, Firefox, Safari, Edge).");
+        isConnecting = false;
+        connectBtn.disabled = false;
         return;
       }
 
-      // 🎤 Request microphone permission with retry logic
-      console.log("🎤 Starting microphone permission process...");
-      updateStatus("🎤 Requesting microphone access...", "connecting");
-      
-      const micPermissionGranted = await requestMicrophonePermission();
-      
-      if (!micPermissionGranted) {
-        console.error("❌ Microphone permission not granted - disconnecting call");
-        updateStatus("❌ Microphone access required", "disconnected");
-        
-        // Disconnect the call immediately
-        isConnecting = false;
-        isConnected = false;
-        
-        // Reset UI
-        connectBtn.innerHTML =
-          '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>';
-        connectBtn.classList.remove("connected");
-        connectBtn.title = "Start Call";
-        connectBtn.disabled = false;
-        
-        stopRingSound();
-        stopConnectingSound();
-        hideMessageInterface();
-        
+      // ✅ CRITICAL: Check permission state - STOP if denied
+      let permissionState = "prompt";
+      try {
+        const permissionStatus = await navigator.permissions.query({ name: "microphone" });
+        permissionState = permissionStatus.state;
+        console.log("📍 Microphone permission state:", permissionState);
+
+        if (!isConnecting) {
+          console.log("❌ Connection cancelled during permission check");
+          return;
+        }
+
+        if (permissionState === "denied") {
+          console.error("❌ Microphone permission DENIED - stopping");
+          updateStatus("❌ Microphone blocked", "disconnected");
+          alert(
+            "🎤 Microphone Access Blocked\n\n" +
+            "To enable microphone:\n\n" +
+            "Chrome/Edge:\n" +
+            "1. Click the 🔒 lock icon in the address bar\n" +
+            "2. Find 'Microphone' and select 'Allow'\n" +
+            "3. Refresh the page\n\n" +
+            "Firefox:\n" +
+            "1. Click the 🔒 icon in the address bar\n" +
+            "2. Click the arrow next to 'Blocked Temporarily'\n" +
+            "3. Select 'Allow'\n\n" +
+            "Safari:\n" +
+            "1. Go to Safari → Settings → Websites → Microphone\n" +
+            "2. Find this website and select 'Allow'\n" +
+            "3. Refresh the page"
+          );
+          isConnecting = false;
+          connectBtn.disabled = false;
+          connectBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>';
+          connectBtn.classList.remove("connected");
+          return;
+        }
+      } catch (permError) {
+        console.warn("⚠️ Could not query permission state:", permError);
+        // Continue - some browsers don't support permissions API
+      }
+
+      // ✅ Show status - requesting permission
+      updateStatus("🎤 Requesting microphone...", "connecting");
+
+      if (!isConnecting) {
+        console.log("❌ Connection cancelled before requesting microphone");
         return;
       }
-      
-      console.log("✅ Microphone permission verified - continuing with call setup...");
-      updateStatus("✅ Microphone ready - connecting...", "connecting");
+
+      // ✅ CRITICAL: ONE explicit request, ONCE, on user action
+      try {
+        console.log("🎤 Requesting getUserMedia (user clicked button)...");
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: false,
+            channelCount: 1,
+            sampleRate: 48000,
+            sampleSize: 16,
+          },
+        });
+
+        console.log("✅ Microphone permission GRANTED");
+        updateStatus("✅ Microphone enabled", "connecting");
+
+        // Stop the test stream immediately - LiveKit will create its own
+        stream.getTracks().forEach((track) => track.stop());
+
+      } catch (micError) {
+        console.error("❌ Microphone request failed:", micError);
+        updateStatus("❌ Microphone denied", "disconnected");
+
+        if (micError.name === "NotAllowedError") {
+          alert(
+            "🎤 Microphone Access Denied\n\n" +
+            "You clicked 'Block' or 'Deny'.\n\n" +
+            "To fix:\n" +
+            "1. Click the 🔒 lock icon in your browser's address bar\n" +
+            "2. Find 'Microphone' permission\n" +
+            "3. Change it to 'Allow'\n" +
+            "4. Refresh the page and try again"
+          );
+        } else if (micError.name === "NotFoundError") {
+          alert(
+            "❌ No Microphone Found\n\n" +
+            "Please:\n" +
+            "1. Connect a microphone to your device\n" +
+            "2. Check your system sound settings\n" +
+            "3. Try again"
+          );
+        } else {
+          alert(`❌ Microphone Error\n\n${micError.message}\n\nPlease check your browser settings.`);
+        }
+
+        isConnecting = false;
+        connectBtn.disabled = false;
+        connectBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>';
+        connectBtn.classList.remove("connected");
+        return;
+      }
 
       // Check if connection was cancelled after microphone permission
       if (!isConnecting) {
@@ -4082,6 +4461,7 @@
       }
 
       hasReceivedFirstAIResponse = false;
+      firstResponseReceived = false;
       audioStreamComplete = false; // Clear any existing timeouts
       if (connectionTimeout) clearTimeout(connectionTimeout);
       if (aiResponseTimeout) clearTimeout(aiResponseTimeout);
@@ -4180,12 +4560,16 @@
       }
 
       // Get LiveKit token from backend
-      const callId = `call_${Date.now()}`;
+      const roomName = `call-${Date.now()}`;
       // Don't set currentCallId yet - wait until token is successfully received
       
       // Get agent ID and user ID from configuration or script data attributes
-      let agentId = "id123"; // default fallback
-      let userId = null; // Will be used as tenant_id
+      let agentId = "6982da5442c2d51081738c0c"; // default fallback
+      // Start with globally resolved tenant ID (set at init time in checkAgentStatusOnLoad)
+      let userId = globalTenantId || null;
+      if (userId) {
+        console.log("👤 Using globalTenantId for tenant_id:", userId);
+      }
       
       console.log("🔍 Debug: window.SHIVAI_CONFIG:", window.SHIVAI_CONFIG);
       console.log("🔍 Debug: document.currentScript:", document.currentScript);
@@ -4196,7 +4580,7 @@
       
       for (let i = scriptTags.length - 1; i >= 0; i--) {
         const script = scriptTags[i];
-        if (script.src && script.src.includes('/widget2.js')) {
+        if (script.src && (script.src.includes('/widget2.js') || script.src.includes('/widget3.js') || script.src.includes('/widget4.js') || script.src.includes('/widget.js'))) {
           const url = new URL(script.src);
           const urlAgentId = url.searchParams.get('agentId');
           const urlUserId = url.searchParams.get('userId');
@@ -4206,7 +4590,7 @@
             console.log("🎯 Using agentId from URL parameter:", agentId);
           }
           if (urlUserId) {
-            userId = urlUserId;
+            userId = urlUserId; // URL always wins over globalTenantId
             console.log("👤 Using userId from URL parameter:", userId);
           }
           if (foundFromUrl) break;
@@ -4263,7 +4647,7 @@
           body: JSON.stringify({
             agent_id: agentId,
             language: selectedLanguage,
-            call_id: callId,
+            room: roomName,
             device: deviceType,
             user_agent: navigator.userAgent,
             ip: await getClientIP(),
@@ -4277,7 +4661,7 @@
       }
 
       const data = await response.json();
-      window.currentCallId = callId;
+      window.currentCallId = roomName;
       if (!isConnecting) {
         console.log("❌ Connection cancelled after token received");
         return;
@@ -4319,7 +4703,7 @@
         (track, publication, participant) => {
           if (track.kind === LivekitClient.Track.Kind.Audio) {
             const audioElement = track.attach();
-            audioElement.volume = 0.4; // Significantly reduced to prevent feedback
+            audioElement.volume = 1.0; // Full volume for clear AI audio
             audioElement.preload = "auto";
             audioElement.autoplay = true;
 
@@ -4401,8 +4785,7 @@
         isConnected = true;
         retryCount = 0; // Reset retry count on successful connection
 
-        showMessageInterface();
-
+        // Message interface deferred to hideConnectingState() on first AI audio
         // Clear connection timeout
         if (connectionTimeout) {
           clearTimeout(connectionTimeout);
@@ -4455,8 +4838,8 @@
           }
         }
 
-        // Start call timer and update status
-        startCallTimer();
+        // Call timer starts automatically on first AI audio response
+        // (via monitorRemoteAudioLevel to ensure AI is truly ready)
 
         // Resume audio context if suspended (browser autoplay policy)
         if (window.AudioContext || window.webkitAudioContext) {
@@ -4475,11 +4858,6 @@
               );
           }
         }
-
-        updateStatus("✅ Connected - Speak now!", "connected");
-
-        // Stop connecting sound
-        stopConnectingSound();
 
         // Simplified flow - microphone stays enabled
         console.log(
@@ -4641,6 +5019,43 @@
                     participant.identity === room.localParticipant?.identity;
                 }
 
+                // Handle status messages for loading states (don't add to chat)
+                if (jsonData.type === "status") {
+                  console.log("📊 Status message:", jsonData.text);
+                  if (jsonData.text) {
+                    updateStatus(jsonData.text, "connecting");
+                    
+                    // Check if knowledge base is ready
+                    if (jsonData.text.toLowerCase().includes("ready")) {
+                      console.log("✅ Knowledge base is ready");
+                      knowledgeBaseReady = true;
+                      
+                      // Start call timer if first response received from AI
+                      if (firstResponseReceived && !callTimerStarted) {
+                        console.log("⏱️ Starting call timer (knowledge base ready + first response received)");
+                        callTimerStarted = true;
+                        updateStatus("✅ Connected - Speak now!", "connected");
+                        stopConnectingSound();
+                        clearLoadingStatus();
+                        hideConnectingState();
+                        startCallTimer();
+                      }
+                    }
+                  }
+                  return; // Don't add status messages to transcript
+                }
+
+                // Handle metrics messages for performance tracking (don't add to chat)
+                if (jsonData.type === "metrics" && jsonData.data) {
+                  console.log("📊 Latency metrics received:", jsonData.data);
+                  if (jsonData.data.filler !== undefined) latencyMetrics.filler = jsonData.data.filler;
+                  if (jsonData.data.qdrant !== undefined) latencyMetrics.qdrant = jsonData.data.qdrant;
+                  if (jsonData.data.llm_ttft !== undefined) latencyMetrics.llm_ttft = jsonData.data.llm_ttft;
+                  if (jsonData.data.tts_ttfa !== undefined) latencyMetrics.tts_ttfa = jsonData.data.tts_ttfa;
+                  if (jsonData.data.first_audio !== undefined) latencyMetrics.first_audio = jsonData.data.first_audio;
+                  return; // Don't add metrics to transcript
+                }
+
                 // Handle legacy transcript format
                 if (jsonData.type === "transcript" && jsonData.text) {
                   if (jsonData.role === "user") {
@@ -4658,6 +5073,20 @@
                     }
                   } else if (jsonData.role === "assistant") {
                     addMessage("assistant", jsonData.text);
+                    // Track first assistant response
+                    if (!firstResponseReceived) {
+                      console.log("✅ First AI response received (legacy transcript)");
+                      firstResponseReceived = true;
+                      // Always clear loading state when AI first responds — no knowledgeBaseReady gate
+                      if (!callTimerStarted) {
+                        callTimerStarted = true;
+                        updateStatus("✅ Connected - Speak now!", "connected");
+                        stopConnectingSound();
+                        clearLoadingStatus();
+                        hideConnectingState();
+                        startCallTimer();
+                      }
+                    }
                   }
                   console.log("✅ Processed legacy format transcript");
                   return;
@@ -4676,6 +5105,20 @@
                       role: senderRole,
                       text: transcriptText.substring(0, 50) + "...",
                     });
+                    // Track first AI response
+                    if (!isUser && !firstResponseReceived) {
+                      console.log("✅ First AI response received");
+                      firstResponseReceived = true;
+                      // Always clear loading state when AI first responds — no knowledgeBaseReady gate
+                      if (!callTimerStarted) {
+                        callTimerStarted = true;
+                        updateStatus("✅ Connected - Speak now!", "connected");
+                        stopConnectingSound();
+                        clearLoadingStatus();
+                        hideConnectingState();
+                        startCallTimer();
+                      }
+                    }
                   }
                 }
               } catch (e) {
@@ -4788,6 +5231,20 @@
                     text,
                     isFinal,
                   });
+
+                  // Clear loading/connecting state on first AI transcription
+                  if (!isUser && !firstResponseReceived) {
+                    console.log("✅ First AI transcription received via lk.transcription stream");
+                    firstResponseReceived = true;
+                    if (!callTimerStarted) {
+                      callTimerStarted = true;
+                      updateStatus("✅ Connected - Speak now!", "connected");
+                      stopConnectingSound();
+                      clearLoadingStatus();
+                      hideConnectingState();
+                      startCallTimer();
+                    }
+                  }
                 }
               } catch (error) {
                 console.error(
@@ -4815,6 +5272,20 @@
                     sender: participantInfo.identity,
                     text,
                   });
+
+                  // Clear loading/connecting state on first AI chat message
+                  if (!firstResponseReceived) {
+                    console.log("✅ First AI response received via lk.chat stream");
+                    firstResponseReceived = true;
+                    if (!callTimerStarted) {
+                      callTimerStarted = true;
+                      updateStatus("✅ Connected - Speak now!", "connected");
+                      stopConnectingSound();
+                      clearLoadingStatus();
+                      hideConnectingState();
+                      startCallTimer();
+                    }
+                  }
                 }
               } catch (error) {
                 console.error("❌ Error processing chat stream:", error);
@@ -4912,6 +5383,7 @@
     isConnected = false;
     isConnecting = false;
     hasReceivedFirstAIResponse = false;
+    firstResponseReceived = false;
     shouldAutoUnmute = false;
     isMuted = false;
     aiJustFinished = false;

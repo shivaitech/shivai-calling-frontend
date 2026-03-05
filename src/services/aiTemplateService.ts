@@ -103,90 +103,71 @@ interface PromptGenerationResponse {
 
 class AITemplateService {
   /**
-   * Generate template recommendations using AI based on user input
+   * Generate template recommendations using AI based on user input.
+   * Returns metadata templates immediately after the first API call completes.
+   * System prompts are generated in the background — onSystemPromptsReady is
+   * called with an updated snapshot each time a system prompt finishes.
    */
   async generateTemplates(
     request: GenerateTemplateRequest,
+    onSystemPromptsReady?: (templates: GeneratedTemplate[]) => void,
   ): Promise<GeneratedTemplate[]> {
-    try {
-      // Build prompt from user data
-      const prompt = this.buildPrompt(request);
+    // ── Step 1: Metadata call (fast, JSON only) ─────────────────────────────
+    const prompt = this.buildPrompt(request);
+    console.log("📝 Generating templates, prompt preview:", prompt.substring(0, 100) + "...");
 
-      console.log(
-        "📝 Generating templates with prompt:",
-        prompt.substring(0, 100) + "...",
-      );
+    const response = await promptClient.post<PromptGenerationResponse>(
+      PROMPT_GENERATION_API,
+      { prompt, max_tokens: 4000, temperature: 0.7 },
+    );
 
-      // Call the prompt generation API endpoint
-      const response = await promptClient.post<PromptGenerationResponse>(
-        PROMPT_GENERATION_API,
-        {
-          prompt,
-          max_tokens: 12000, // Increased significantly for comprehensive system prompts
-          temperature: 0.7,
-        },
-      );
+    const generatedText = this.extractGeneratedText(response.data);
+    if (!generatedText) throw new Error("No text generated from API");
 
-      console.log("📥 API Response received, status:", response.status);
-      console.log("📄 Response data keys:", Object.keys(response.data));
+    let templates = this.parseGeneratedTemplates(generatedText);
+    if (templates.length === 0) throw new Error("Failed to parse templates from API response");
 
-      // Extract the generated text from response
-      const generatedText = this.extractGeneratedText(response.data);
-
-      if (!generatedText) {
-        console.error(
-          "❌ No text generated from API - response:",
-          response.data,
-        );
-        throw new Error("No text generated from API");
-      }
-
-      console.log("📋 Generated text length:", generatedText.length);
-      console.log(
-        "📋 Generated text preview:",
-        generatedText.substring(0, 150),
-      );
-
-      // Parse the generated text into template objects
-      let templates = this.parseGeneratedTemplates(generatedText);
-
-      if (templates.length === 0) {
-        console.error(
-          "❌ Failed to parse templates. Raw text:",
-          generatedText.substring(0, 300),
-        );
-        throw new Error(
-          "Failed to parse templates from API response - JSON may be incomplete",
-        );
-      }
-
-      // Ensure at least 2 templates by generating a complementary one if needed
-      if (templates.length < 2) {
-        console.warn(
-          `⚠️ Only ${templates.length} template(s) generated, adding complementary template...`,
-        );
-        const complementaryTemplate = this.generateComplementaryTemplate(
-          templates[0],
-          request,
-        );
-        templates.push(complementaryTemplate);
-        console.log("✅ Added complementary template:", complementaryTemplate.name);
-      }
-
-      console.log("✅ Generated templates:", templates.length, "templates");
-      templates.forEach((t, i) => console.log(`  ${i + 1}. ${t.name}`));
-
-      return templates;
-    } catch (error) {
-      console.error(
-        "❌ Error generating templates:",
-        error instanceof Error ? error.message : error,
-      );
-      if (error instanceof Error) {
-        console.error("Stack trace:", error.stack);
-      }
-      throw error;
+    if (templates.length > 2) templates = templates.slice(0, 2);
+    if (templates.length < 2) {
+      templates.push(this.generateComplementaryTemplate(templates[0], request));
     }
+
+    console.log("✅ Metadata ready:", templates.map((t) => t.name));
+
+    // ── Step 2: Fire system prompt generation in the background ─────────────
+    const employeeNameMatch = request.additionalContext?.match(/The AI employee will be named:\s*(.+)/i);
+    const employeeName = employeeNameMatch
+      ? employeeNameMatch[1].trim()
+      : request.companyName ? `${request.companyName} Assistant` : "[AI Employee Name]";
+    const companyName = request.companyName || "[Company Name]";
+
+    if (onSystemPromptsReady) {
+      const bgTemplates = templates.map((t) => ({ ...t }));
+      Promise.allSettled(
+        bgTemplates.map((template, i) =>
+          this.generateSystemPromptForTemplate(
+            template.name,
+            template.description,
+            companyName,
+            employeeName,
+            request.industry,
+            request.businessProcess,
+            template.manualKnowledge,
+            request.subIndustry,
+          ).then((sysPrompt) => {
+            if (sysPrompt.trim().length > 100) {
+              bgTemplates[i] = { ...bgTemplates[i], systemPrompt: sysPrompt };
+              console.log(`✅ [BG] System prompt ready — template ${i + 1}`);
+              onSystemPromptsReady([...bgTemplates]);
+            }
+          })
+        )
+      ).catch((e) => console.warn("⚠️ [BG] System prompt background error:", e));
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
+    // Return metadata immediately — loading is done, UI can proceed
+    return templates;
   }
 
   /**
@@ -201,26 +182,36 @@ class AITemplateService {
       ? `\nSub-industry: ${request.subIndustry}`
       : "";
 
-    // Simplified example to save tokens
+    // High-quality example demonstrating voice-AI optimized system prompt format
     const exampleTemplates = `[
   {
-    "name": "Professional Appointment Coordinator",
-    "description": "Efficiently schedules and manages appointments with clear communication.",
-    "icon": "📅",
-    "features": ["Smart Scheduling", "Appointment Confirmation", "Rescheduling"],
-    "systemPrompt": "## Identity & Purpose\\n\\nYou are [AI Employee Name], an appointment scheduling assistant for [Company Name]. Your purpose is to efficiently manage appointments.\\n\\n## Voice & Persona\\n\\n### Personality\\n- Sound friendly and organized\\n- Be patient and helpful\\n\\n### Speech Characteristics\\n- Use clear language\\n- Confirm details explicitly\\n\\n## Conversation Flow\\n\\n### Scheduling\\n1. Identify appointment type\\n2. Check availability\\n3. Confirm booking\\n\\n## Response Guidelines\\n- Ask one question at a time\\n- Confirm all details\\n\\n## Scenario Handling\\n\\n### New Customers\\n1. Collect information\\n2. Explain process\\n\\n### Rescheduling\\n1. Find existing appointment\\n2. Offer alternatives\\n\\n## Call Management\\n- If checking: 'One moment please.'",
-    "firstMessage": "Thank you for calling [Company Name]. How may I help you today?",
-    "industryFocus": "Healthcare, Services",
-    "tone": "Friendly",
+    "name": "Limousine Reservations Specialist",
+    "description": "Handles new ride bookings, airport transportation, hourly chauffeur services, and existing reservation management with a professional and natural phone conversation style.",
+    "icon": "🚗",
+    "features": ["New Ride Reservations", "Airport Pickup Coordination", "Booking Modifications", "Vehicle Recommendation"],
+    "systemPrompt": "Identity\\nYou are Linda, a professional reservations and customer service specialist working for Blackrock Limo, a luxury chauffeur and limousine service based in Fremont, California serving the San Francisco Bay Area.\\n\\nYour job is to help callers with:\\n• New ride reservations\\n• Airport transportation bookings\\n• Hourly chauffeur services\\n• Event transportation\\n• Managing or modifying existing bookings\\n• Answering general service questions\\n\\nYou behave like a highly experienced reservations employee who understands limousine operations, scheduling, and customer service. Your goal is to book rides accurately, assist customers efficiently, and ensure every caller feels helped and respected.\\n\\nVoice & Human Conversation Style\\nSound natural, conversational, and human. Speak the way a calm and helpful customer service professional would speak on the phone.\\n\\nUse natural phrases such as:\\n- \\"Sure, I can help with that.\\"\\n- \\"Let me get a few details from you.\\"\\n- \\"Just to confirm…\\"\\n- \\"Give me one moment while I check that.\\"\\n- \\"Perfect, I've got that.\\"\\n\\nDo not speak in long paragraphs. Use short, natural sentences. Avoid sounding robotic or scripted. Maintain a friendly and confident tone throughout the call.\\n\\nCore Responsibilities\\n1. New Reservations\\nCollect step by step: customer name, phone number, pickup date, pickup time, pickup location, drop-off destination, number of passengers, luggage amount, vehicle preference.\\nAlways confirm the details clearly before finalizing.\\n\\n2. Managing Existing Reservations\\nLocate booking using: customer name, phone number, or reservation number.\\nAssist with: changing pickup time, updating locations, adding stops, changing vehicle type, cancelling.\\nAlways confirm updated details with the caller.\\n\\n3. Answering Service Questions\\nAnswer questions about airport pickups, vehicle types, pricing estimates, availability, and service areas.\\nIf exact pricing or availability cannot be confirmed, explain that final confirmation will be provided by dispatch.\\n\\nNatural Call Flow\\n1. Friendly greeting\\n2. Understand what the caller needs\\n3. Ask for required booking details one at a time\\n4. Confirm the information\\n5. Provide next steps or confirmation\\n\\nExample greeting: \\"Thank you for calling Blackrock Limo, this is Linda. How can I help you today?\\"\\n\\nHuman Conversation Behavior\\nListen carefully. Customers often speak casually or give incomplete information — ask simple follow-up questions.\\n\\nExample:\\nCaller: \\"I need a ride to SFO tomorrow.\\"\\nResponse: \\"Sure, what time would you like to be picked up?\\"\\n\\nDo not interrupt. Do not rush the caller. Guide the conversation smoothly.\\n\\nAirport Booking Awareness\\nFor airport pickups collect: airport name, airline, flight number, arrival time, passenger count, luggage amount.\\nExplain that flights are monitored and pickup times adjust if flights are delayed.\\n\\nVehicle Recommendation Logic\\n1–3 passengers → Luxury Sedan\\n3–6 passengers → SUV\\n6–10 passengers → Stretch Limousine\\n10–14 passengers → Executive Van\\nConsider luggage before recommending.\\n\\nWhen to Escalate\\nTransfer or escalate if: customer requests a custom quote, large group or multiple vehicles required, complaint or dispute, payment or billing issue, unusual request.\\nUse: \\"Let me connect you with our dispatch team so they can assist you further.\\"",
+    "firstMessage": "Thank you for calling Blackrock Limo, this is Linda. How can I help you today?",
+    "industryFocus": "Automotive, Hospitality, Transportation",
+    "tone": "Professional & Conversational",
     "gender": "Female",
-    "voice": "Professional",
-    "personality": "Organized",
-    "manualKnowledge": "Appointment types, policies, availability.",
-    "keyTalkingPoints": "• Identify need • Offer options • Confirm details",
-    "closingScript": "Your appointment is confirmed. Is there anything else?",
-    "objections": [{"objection": "Times dont work", "response": "Let me find other options."}],
-    "conversationExamples": [{"customerInput": "I need an appointment", "expectedResponse": "I can help. What type of appointment?"}],
-    "intents": [{"name": "Schedule", "phrases": "book, schedule", "response": "I can help schedule that."}]
+    "voice": "nova",
+    "personality": "Confident, Friendly, Experienced",
+    "manualKnowledge": "Blackrock Limo is a luxury chauffeur and limousine service based in Fremont, California. Serves the San Francisco Bay Area. Vehicles: Luxury Sedan (1–3 pax), SUV (3–6 pax), Stretch Limousine (6–10 pax), Executive Van (10–14 pax). Services: airport pickups, corporate transfers, event transportation, hourly chauffeur. Flights are monitored — pickup adjusts for delays.",
+    "keyTalkingPoints": "• Collect full booking details step by step\n• Recommend vehicle based on passenger count and luggage\n• Monitor flights for airport pickups\n• Confirm all details before finalizing\n• Escalate custom quotes to dispatch",
+    "closingScript": "Your reservation is confirmed. Is there anything else I can help you with? Thank you for choosing Blackrock Limo.",
+    "objections": [
+      {"objection": "How much does it cost?", "response": "Pricing depends on the trip details. Let me get your route and I can give you a better estimate, or our dispatch team can provide a final quote."},
+      {"objection": "Can you guarantee the driver will be on time?", "response": "Absolutely. Our drivers arrive early and for airport pickups we monitor your flight in real time so the timing always adjusts if needed."}
+    ],
+    "conversationExamples": [
+      {"customerInput": "I need a ride to SFO tomorrow morning.", "expectedResponse": "Sure, what time would you like to be picked up, and where are we picking you up from?"},
+      {"customerInput": "I want to change my pickup time.", "expectedResponse": "Of course. Can I get your name or reservation number so I can pull up your booking?"}
+    ],
+    "intents": [
+      {"name": "New Reservation", "phrases": "book a ride, need a car, schedule a pickup, reservation", "response": "I can help you book that. Let me get a few details."},
+      {"name": "Modify Booking", "phrases": "change my booking, update pickup, reschedule", "response": "Sure, let me pull up your reservation. Can I get your name or booking number?"},
+      {"name": "Airport Pickup", "phrases": "airport, SFO, OAK, SJC, flight", "response": "For airport pickups I'll need your airline and flight number so we can monitor your arrival."}
+    ]
   }
 ]`;
 
@@ -273,18 +264,11 @@ Each template MUST have ALL of these fields:
 - description: 2-3 sentences using ACTUAL company info from document
 - icon: Appropriate emoji
 - features: 3-4 features based on ACTUAL company services
-- systemPrompt: COMPREHENSIVE prompt with these mandatory sections:
-  * Identity & Purpose - Use ACTUAL company name + the AI employee name "${employeeName}"
-  * Voice & Persona - Personality and speech style
-  * Conversation Flow - Steps with real service examples from the document
-  * Response Guidelines - How to respond
-  * Scenario Handling - 3-4 scenarios using REAL services/products from document
-  * Company Knowledge - COPY actual facts, services, pricing directly from document
-  * Call Management - How to handle various situations
+- systemPrompt: SHORT 2-3 sentence role summary only (e.g. "You are Linda, a reservations specialist for Blackrock Limo. You help callers book rides, manage existing reservations, and answer service questions."). The full detailed prompt is generated separately — do NOT write a long system prompt here.
 - firstMessage: Opening greeting using the exact name "${employeeName}" and the ACTUAL company name
 - industryFocus: Based on document content
 - tone, gender, voice, personality: Appropriate values
-- manualKnowledge: COPY relevant facts, services, and policies directly from document
+- manualKnowledge: COPY relevant facts, services, and policies directly from document (be thorough)
 - keyTalkingPoints: Based on actual company services
 - closingScript: Professional closing with actual company name
 - objections: 2-3 objections based on actual services/policies from document
@@ -314,23 +298,14 @@ Business Information:
 - Industry: ${request.industry}${subIndustryContent}${urlContent}
 ${request.additionalContext ? `- Additional Context: ${request.additionalContext}` : ''}
 
-Generate EXACTLY 2 DISTINCT AI Employee templates in JSON format with COMPREHENSIVE, PROFESSIONAL system prompts.
+Generate EXACTLY 2 DISTINCT AI Employee templates in JSON format.
 
 CRITICAL INSTRUCTIONS:
-1. ALWAYS use the exact AI Employee Name "${stdEmployeeName}" in firstName, systemPrompt, and all scripts.
+1. ALWAYS use the exact AI Employee Name "${stdEmployeeName}" in firstMessage and all scripts.
 2. ALWAYS use the exact Company Name "${stdCompanyName}" everywhere — never use [Company Name] placeholder.
 3. Both templates must be DIFFERENT in focus (e.g., Template 1: customer service, Template 2: sales/appointment-setting).
-4. The systemPrompt must be COMPREHENSIVE, realistic and specific to the business process and industry.
+4. For systemPrompt: write a SHORT 2-3 sentence role summary ONLY (e.g. "You are ${stdEmployeeName}, a customer service specialist for ${stdCompanyName}. You handle customer inquiries, resolve issues, and book appointments."). The full detailed system prompt is generated in a separate step — do NOT write a long system prompt here.
 5. Do NOT use generic placeholders anywhere — all content must be specific and realistic.
-
-## System Prompt Structure (REQUIRED for each template):
-1. **Identity & Purpose** - "You are ${stdEmployeeName}, working for ${stdCompanyName}..."
-2. **Voice & Persona** - Personality traits and speech style
-3. **Conversation Flow** - Step-by-step process specific to ${request.businessProcess}
-4. **Response Guidelines** - How to respond, tone, length
-5. **Scenario Handling** - 3-4 realistic scenarios for this industry/business process
-6. **Company Knowledge** - Realistic industry knowledge for ${request.industry}
-7. **Call Management** - How to handle holds, transfers, escalations
 
 For each template provide these JSON fields:
 - name, description, icon, features (array)
@@ -348,6 +323,86 @@ Return ONLY a valid JSON array with EXACTLY 2 objects. No markdown, no explanati
 Example format: ${exampleTemplates}`;
 
     return prompt;
+  }
+
+  /**
+   * Generate a detailed, voice-AI-optimized system prompt for a given template via a separate API call.
+   * Called individually per template after initial metadata generation.
+   */
+  async generateSystemPromptForTemplate(
+    templateName: string,
+    description: string,
+    companyName: string,
+    employeeName: string,
+    industry: string,
+    businessProcess: string,
+    manualKnowledge?: string,
+    subIndustry?: string,
+  ): Promise<string> {
+    const subLine = subIndustry ? `\nSub-industry: ${subIndustry}` : "";
+    const kbSection = manualKnowledge?.trim()
+      ? `\n\nCompany-specific knowledge to incorporate:\n${manualKnowledge.substring(0, 3000)}`
+      : "";
+
+    const prompt = `You are an expert AI voice agent prompt engineer. Generate a comprehensive, production-quality system prompt for a voice-based AI employee.
+
+Agent Details:
+- AI Employee Name: "${employeeName}" (use this exact name, never a placeholder)
+- Company: "${companyName}" (use this exact name, never a placeholder)
+- Role: ${templateName}
+- Description: ${description}
+- Industry: ${industry}${subLine}
+- Business Process: ${businessProcess}${kbSection}
+
+Requirements:
+1. Sound like the agent was written by a senior conversation designer — not a template filler
+2. Write for VOICE, not text. Short spoken sentences. Natural phone conversation flow.
+3. Use real, specific examples of caller interactions (not generic placeholders)
+4. Include natural phrases like "Sure, I can help with that", "Let me get a few details", "Just to confirm…"
+5. Never use robotic language or long paragraphs
+6. The agent should sound experienced, confident, and human
+
+Write the system prompt using EXACTLY these sections:
+
+Identity
+[Who the agent is, what they do, who they work for, and their primary goal]
+
+Voice & Human Conversation Style
+[How they sound on the phone — natural, conversational phrases to use, what to avoid]
+
+Core Responsibilities
+[Numbered list of the main things they handle, with step-by-step data collection where relevant]
+
+Natural Call Flow
+[Typical structure of a call from greeting to wrap-up, with an example greeting line]
+
+Human Conversation Behavior
+[How to handle casual/incomplete information from callers, with a real caller/response example]
+
+Scenario Handling
+[3–4 specific, realistic scenarios with step-by-step handling for each]
+
+Company Knowledge
+[Key facts, services, policies, and any info the agent should know — be specific to the business]
+
+When to Escalate
+[Exact conditions for escalation and natural transition phrase to use]
+
+Communication Rules
+[Dos and don'ts for how to communicate on every call]
+
+Return ONLY the system prompt text. No JSON, no markdown code blocks, no explanation.`;
+
+    const response = await promptClient.post<PromptGenerationResponse>(
+      PROMPT_GENERATION_API,
+      {
+        prompt,
+        max_tokens: 4000,
+        temperature: 0.65,
+      },
+    );
+
+    return this.extractGeneratedText(response.data) || "";
   }
 
   /**

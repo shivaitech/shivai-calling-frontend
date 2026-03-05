@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import toast from "react-hot-toast";
+import appToast from "../../components/AppToast";
 import { agentAPI } from "../../services/agentAPI";
 import GlassCard from "../../components/GlassCard";
 import SearchableSelect from "../../components/SearchableSelect";
@@ -83,7 +83,7 @@ const CreateAgent = () => {
           guardrailsLevel: template.guardrailsLevel,
         }));
         setTemplateApplied(true);
-        toast.success(`Template "${template.name}" applied!`);
+        appToast.success(`Template "${template.name}" applied!`);
       }
     }
   }, []); // Run only on mount
@@ -334,7 +334,7 @@ const CreateAgent = () => {
   // Apply selected template from modal
   const applySelectedTemplate = () => {
     if (!selectedTemplateKey || !templates[selectedTemplateKey]) {
-      toast.error("Please select a template");
+      appToast.error("Please select a template");
       return;
     }
     
@@ -351,7 +351,7 @@ const CreateAgent = () => {
       setTemplateApplied(true);
       setShowTemplateModal(false);
       setSelectedTemplateKey(null);
-      toast.success("Template applied successfully!");
+      appToast.success("Template applied successfully!");
     }, 800);
   };
 
@@ -363,13 +363,13 @@ const CreateAgent = () => {
       guardrailsLevel: "Medium",
     }));
     setTemplateApplied(false);
-    toast.success("Template removed");
+    appToast.success("Template removed");
   };
 
   // AI generation functions for custom instructions
   const generateCustomInstructions = async () => {
     if (!formData.businessProcess || !formData.industry) {
-      toast.error("Please select a business process and industry first");
+      appToast.error("Please select a business process and industry first");
       return;
     }
 
@@ -400,7 +400,7 @@ const CreateAgent = () => {
       }
     } catch (error) {
       console.error("Failed to generate instructions:", error);
-      toast.error("Failed to generate instructions. Please try again.");
+      appToast.error("Failed to generate instructions. Please try again.");
     } finally {
       setIsGeneratingInstructions(false);
     }
@@ -410,7 +410,7 @@ const CreateAgent = () => {
     setFormData((prev) => ({ ...prev, customInstructions: generatedInstructions }));
     setShowGeneratedInstructions(false);
     setGeneratedInstructions("");
-    toast.success("Instructions applied successfully!");
+    appToast.success("Instructions applied successfully!");
   };
 
   const cancelGeneratedInstructions = () => {
@@ -421,27 +421,27 @@ const CreateAgent = () => {
   const handleSave = async () => {
     // Validation
     if (!formData.name || formData.name.trim() === "") {
-      toast.error("Agent name is required. Please enter a name for your agent.");
+      appToast.error("Agent name is required. Please enter a name for your agent.");
       return;
     }
 
     if (!formData.businessProcess || formData.businessProcess.trim() === "") {
-      toast.error("Business Process is required. Please select a business process.");
+      appToast.error("Business Process is required. Please select a business process.");
       return;
     }
 
     if (!formData.industry || formData.industry.trim() === "") {
-      toast.error("Industry is required. Please select an industry.");
+      appToast.error("Industry is required. Please select an industry.");
       return;
     }
 
     if (!formData.customInstructions || formData.customInstructions.trim() === "") {
-      toast.error("Custom Instructions are required. Please provide instructions for your agent.");
+      appToast.error("Custom Instructions are required. Please provide instructions for your agent.");
       return;
     }
 
     setIsSubmitting(true);
-    const loadingToast = toast.loading("Creating AI agent...");
+    const loadingToast = appToast.loading("Creating AI agent...");
 
     try {
       // Get template key for storing with agent (for Training page)
@@ -473,8 +473,8 @@ const CreateAgent = () => {
       // Make API call using agentAPI service
       const createdAgent = await agentAPI.createAgent(payload);
 
-      toast.dismiss(loadingToast);
-      toast.success("AI agent created successfully!", {
+      appToast.dismiss(loadingToast);
+      appToast.success("AI agent created successfully!", {
         duration: 4000,
       });
 
@@ -486,7 +486,7 @@ const CreateAgent = () => {
         navigate("/agents");
       }, 500);
     } catch (error: any) {
-      toast.dismiss(loadingToast);
+      appToast.dismiss(loadingToast);
 
       let errorMessage = "Failed to create AI agent. Please try again.";
 
@@ -512,7 +512,7 @@ const CreateAgent = () => {
         errorMessage = error.message;
       }
 
-      toast.error(errorMessage, {
+      appToast.error(errorMessage, {
         duration: 5000,
       });
 

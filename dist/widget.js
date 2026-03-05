@@ -224,6 +224,8 @@
     let companyDescription = "AI-Powered Support";
     let agentName = "AI Assistant";
     let companyLogo = ""; // Empty means use default ShivAI logo
+    let triggerButtonImage = ""; // Empty means use default phone icon
+    let callToActionText = "📞 Call ShivAI!"; // Default cloud bubble text
     let themeColors = {
       primaryColor: "#4b5563",
       secondaryColor: "#ffffff", 
@@ -274,6 +276,24 @@
         console.log("🖼️ Using companyLogo from SHIVAI_CONFIG");
       }
       
+      // Get trigger button image from SHIVAI_CONFIG
+      if (window.SHIVAI_CONFIG && window.SHIVAI_CONFIG.content && window.SHIVAI_CONFIG.content.triggerButtonImage) {
+        triggerButtonImage = window.SHIVAI_CONFIG.content.triggerButtonImage;
+        console.log("🖼️ Using triggerButtonImage from SHIVAI_CONFIG");
+      } else if (window.ShivAI && window.ShivAI.config && window.ShivAI.config.triggerButtonImage) {
+        triggerButtonImage = window.ShivAI.config.triggerButtonImage;
+        console.log("🖼️ Using triggerButtonImage from ShivAI.config");
+      }
+
+      // Get call to action text from config
+      if (window.SHIVAI_CONFIG && window.SHIVAI_CONFIG.content && window.SHIVAI_CONFIG.content.callToActionText) {
+        callToActionText = window.SHIVAI_CONFIG.content.callToActionText;
+        console.log("💬 Using callToActionText from SHIVAI_CONFIG:", callToActionText);
+      } else if (window.ShivAI && window.ShivAI.config && window.ShivAI.config.callToActionText) {
+        callToActionText = window.ShivAI.config.callToActionText;
+        console.log("💬 Using callToActionText from ShivAI.config:", callToActionText);
+      }
+      
       // Get theme colors from SHIVAI_CONFIG
       if (window.SHIVAI_CONFIG && window.SHIVAI_CONFIG.theme) {
         if (window.SHIVAI_CONFIG.theme.primaryColor) {
@@ -297,6 +317,8 @@
       description: companyDescription,
       agentName: agentName,
       logo: companyLogo,
+      triggerButtonImage: triggerButtonImage,
+      callToActionText: callToActionText,
       theme: themeColors
     };
     console.log("✅ Final company info being used:", result);
@@ -1142,11 +1164,19 @@
   function createWidgetUI() {
     triggerBtn = document.createElement("button");
     triggerBtn.className = "shivai-trigger shivai-neon-pulse";
-    triggerBtn.innerHTML = `
+    
+    // Fetch company info to check for trigger button image
+    const triggerCompanyInfo = getCompanyInfo();
+    if (triggerCompanyInfo.triggerButtonImage) {
+      triggerBtn.classList.add("shivai-trigger--image");
+      triggerBtn.innerHTML = `<img class="shivai-trigger-avatar" src="${triggerCompanyInfo.triggerButtonImage}" alt="${triggerCompanyInfo.agentName}" />`;
+    } else {
+      triggerBtn.innerHTML = `
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
       </svg>
     `;
+    }
     triggerBtn.setAttribute("aria-label", "Open ShivAI Assistant");
     widgetContainer = document.createElement("div");
     widgetContainer.className = "shivai-widget";
@@ -1438,6 +1468,15 @@
     document.body.appendChild(widgetContainer);
     makeWidgetDraggable(widgetContainer);
     makeTriggerBtnDraggable(triggerBtn);
+    // Update cloud bubble messages with custom call-to-action text
+    if (triggerCompanyInfo.callToActionText) {
+      liveMessages = [
+        triggerCompanyInfo.callToActionText,
+        triggerCompanyInfo.callToActionText,
+        triggerCompanyInfo.callToActionText,
+        triggerCompanyInfo.callToActionText,
+      ];
+    }
     createLiveMessageBubble();
     statusDiv = document.getElementById("shivai-status");
     connectBtn = document.getElementById("shivai-connect");
@@ -1752,6 +1791,18 @@
       background: linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%);
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25), 0 2px 8px rgba(0, 0, 0, 0.15);
       }
+      .shivai-trigger--image {
+      padding: 0;
+      }
+      .shivai-trigger-avatar {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+      flex-shrink: 0;
+      display: block;
+      clip-path: circle(50%);
+      }
       .shivai-trigger:hover {
       transform: scale(1.1);
       background: linear-gradient(135deg, ${theme.accentColor} 0%, ${theme.primaryColor} 100%);
@@ -1864,6 +1915,14 @@
         bottom: 16px;
         right: 16px;
       }
+      .shivai-trigger--image {
+        padding: 0;
+      }
+      .shivai-trigger-avatar {
+        width: 100%;
+        height: 100%;
+        clip-path: circle(50%);
+      }
       .shivai-message-bubble {
         font-size: 13px;
         padding: 6px 10px;
@@ -1876,6 +1935,14 @@
         height: 52px;
         bottom: 12px;
         right: 12px;
+      }
+      .shivai-trigger--image {
+        padding: 0;
+      }
+      .shivai-trigger-avatar {
+        width: 100%;
+        height: 100%;
+        clip-path: circle(50%);
       }
       .shivai-message-bubble {
         font-size: 12px;

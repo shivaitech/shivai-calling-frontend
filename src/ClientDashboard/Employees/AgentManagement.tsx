@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
-import toast from "react-hot-toast";
+import appToast from "../../components/AppToast";
 import pdfToText from "react-pdftotext";
 import {
   useParams,
@@ -289,7 +289,7 @@ const AgentManagement = () => {
         setIsLoadingVoicePreview(false);
         if (!isDataUrl) URL.revokeObjectURL(audioUrl);
         voicePreviewAudioRef.current = null;
-        toast.error('Failed to play voice preview');
+        appToast.error('Failed to play voice preview');
       };
 
       await audio.play();
@@ -298,7 +298,7 @@ const AgentManagement = () => {
       console.error('❌ Voice preview error:', error);
       setIsTestingVoice(false);
       setIsLoadingVoicePreview(false);
-      toast.error('Voice preview unavailable. Please try again later.');
+      appToast.error('Voice preview unavailable. Please try again later.');
     }
   };
 
@@ -393,6 +393,7 @@ const AgentManagement = () => {
     GeneratedTemplate[]
   >([]);
   const [isGeneratingTemplates, setIsGeneratingTemplates] = useState(false);
+  const [isGeneratingSystemPrompts, setIsGeneratingSystemPrompts] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
   const [templateGenerationError, setTemplateGenerationError] = useState<
     string | null
@@ -753,20 +754,36 @@ const AgentManagement = () => {
         additionalContext += `\n\nSocial Media Profiles: ${validSocialUrls.join(', ')}`;
       }
 
-      const templates = await aiTemplateService.generateTemplates({
-        companyName: quickCreateData.companyName,
-        businessProcess: quickCreateData.businessProcess,
-        industry: quickCreateData.industry,
-        subIndustry: quickCreateData.subIndustry,
-        websiteUrls: quickCreateData.websiteUrls.filter((url) => url.trim()),
-        additionalContext: additionalContext || undefined,
-        extractedContent: quickCreateData.extractedFileContent || undefined,
-      });
+      // Set BG flag BEFORE calling generateTemplates so it's true when callbacks fire
+      setIsGeneratingSystemPrompts(true);
 
+      const templates = await aiTemplateService.generateTemplates(
+        {
+          companyName: quickCreateData.companyName,
+          businessProcess: quickCreateData.businessProcess,
+          industry: quickCreateData.industry,
+          subIndustry: quickCreateData.subIndustry,
+          websiteUrls: quickCreateData.websiteUrls.filter((url) => url.trim()),
+          additionalContext: additionalContext || undefined,
+          extractedContent: quickCreateData.extractedFileContent || undefined,
+        },
+        // Background callback: system prompts trickle in after loading is done
+        (updatedTemplates) => {
+          setAIGeneratedTemplates([...updatedTemplates]);
+          // Stop BG indicator when every template has a real system prompt
+          const allReady = updatedTemplates.every(
+            (t) => t.systemPrompt && t.systemPrompt.length > 100,
+          );
+          if (allReady) setIsGeneratingSystemPrompts(false);
+        },
+      );
+
+      // ✅ Metadata is ready — stop loading immediately, show templates
       clearInterval(progressInterval);
       setGenerationProgress(100);
       setAIGeneratedTemplates(templates);
-      console.log("✅ AI templates generated successfully");
+      // isGeneratingSystemPrompts already true — background callbacks will flip it false
+      console.log("✅ AI template metadata ready — system prompts generating in background");
     } catch (error) {
       clearInterval(progressInterval);
       console.error("❌ Error generating AI templates:", error);
@@ -784,11 +801,12 @@ const AgentManagement = () => {
         })),
       );
       setGenerationProgress(100);
+      setIsGeneratingSystemPrompts(false); // Fallback templates have no BG generation
     } finally {
       setTimeout(() => {
         setIsGeneratingTemplates(false);
         setGenerationProgress(0);
-      }, 500);
+      }, 300);
     }
   };
 
@@ -811,6 +829,7 @@ const AgentManagement = () => {
     setSubIndustrySlideIndex(0);
     setTemplateSlideIndex(0);
     setAIGeneratedTemplates([]);
+    setIsGeneratingSystemPrompts(false);
     setTemplateGenerationError(null);
     setIsCreatingAgent(false);
     setKbCreationProgress(null);
@@ -913,11 +932,11 @@ const AgentManagement = () => {
           uploadedFileUrls: [...prev.uploadedFileUrls, ...urls],
         }));
         console.log("✅ Knowledge base files uploaded:", urls);
-        toast.success(`${files.length} file(s) uploaded and processed successfully!`);
+        appToast.success(`${files.length} file(s) uploaded and processed successfully!`);
       }
     } catch (error) {
       console.error("❌ Error uploading knowledge base files:", error);
-      toast.error("Failed to upload files. Please try again.");
+      appToast.error("Failed to upload files. Please try again.");
       setQuickCreateData((prev) => ({
         ...prev,
         uploadedFiles: prev.uploadedFiles.filter(
@@ -1068,6 +1087,7 @@ const AgentManagement = () => {
         gender: quickCreateData.gender || "female",
         business_process: quickCreateData.businessProcess,
         industry: quickCreateData.industry,
+        sub_industry: quickCreateData.subIndustry || undefined,
         personality: selectedTemplateData?.personality || "Professional",
         language: quickCreateData.language || "en-US",
         voice: quickCreateData.voice || "Achernar",
@@ -1122,7 +1142,7 @@ const AgentManagement = () => {
       });
       
       // Show success toast
-      toast.success(`${quickCreateData.aiEmployeeName} has been created successfully!`, { duration: 4000 });
+      appToast.success(`${quickCreateData.aiEmployeeName} has been created successfully!`, { duration: 4000 });
       
       // Close modal and refresh agents
       setTimeout(() => {
@@ -1143,9 +1163,7 @@ const AgentManagement = () => {
         error instanceof Error
           ? error.message
           : "Failed to create agent. Please try again.";
-      toast.error(errorMessage, {
-        duration: 4000,
-      });
+      appToast.error(errorMessage, { duration: 4000 });
     }
   };
 
@@ -1166,8 +1184,16 @@ const AgentManagement = () => {
         return true; // Sub-industry is optional
       case 6:
         return true; // Website URLs are optional
-      case 7:
+      case 7: {
+        // If a template is selected, block until its system prompt is ready
+        if (isGeneratingSystemPrompts && quickCreateData.selectedTemplate) {
+          const sel = aiGeneratedTemplates.find(
+            (t) => t.name === quickCreateData.selectedTemplate,
+          );
+          if (!sel?.systemPrompt || sel.systemPrompt.length < 100) return false;
+        }
         return true; // Template selection is optional
+      }
       default:
         return false;
     }
@@ -1385,12 +1411,12 @@ const AgentManagement = () => {
       console.log("✅ Agent published successfully");
       
       // Show success toast
-      toast.success("Agent published successfully!", { duration: 3000 });
+      appToast.success("Agent published successfully!", { duration: 3000 });
       setShowPublishConfirm(false);
       setAgentToPublish(null);
     } catch (error: any) {
       console.error("❌ Error publishing agent:", error);
-      toast.error(error.message || "Failed to publish agent. Please try again.", { duration: 4000 });
+      appToast.error(error.message || "Failed to publish agent. Please try again.", { duration: 4000 });
     } finally {
       setIsPublishing(false);
       // Remove from publishing set
@@ -1425,12 +1451,12 @@ const AgentManagement = () => {
       console.log("✅ Agent paused successfully");
       
       // Show success toast
-      toast.success("Agent paused successfully!", { duration: 3000 });
+      appToast.success("Agent paused successfully!", { duration: 3000 });
       setShowPauseConfirm(false);
       setAgentToPause(null);
     } catch (error: any) {
       console.error("❌ Error pausing agent:", error);
-      toast.error(error.message || "Failed to pause agent. Please try again.", { duration: 4000 });
+      appToast.error(error.message || "Failed to pause agent. Please try again.", { duration: 4000 });
     } finally {
       setIsPausing(false);
       // Remove from publishing set
@@ -2744,13 +2770,13 @@ const AgentManagement = () => {
 
                     <button
                       onClick={() => {
-                        setAgentForIntegration(agent.id);
-                        setShowIntegrationCodeModal(true);
+                        setCurrentAgent(agent);
+                        setShowQRModal(true);
                       }}
                       className="p-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-95"
-                      title="Copy integration code"
+                      title="Show QR code"
                     >
-                      <Copy className="w-4 h-4" />
+                      <QrCode className="w-4 h-4" />
                     </button>
 
                     <button
@@ -2821,6 +2847,14 @@ const AgentManagement = () => {
               </button>
             )}
           </div>
+        )}
+
+        {/* QR Modal */}
+        {showQRModal && currentAgent && (
+          <AgentQRModal
+            agent={currentAgent}
+            onClose={() => setShowQRModal(false)}
+          />
         )}
 
         {/* Delete Confirmation Modal */}
@@ -3018,7 +3052,7 @@ const AgentManagement = () => {
                       <button
                         onClick={() => {
                           navigator.clipboard.writeText(embedCode);
-                          toast.success("Code copied to clipboard!", { duration: 2000 });
+                          appToast.success("Code copied to clipboard!", { duration: 2000 });
                         }}
                         className="absolute top-3 right-3 p-2 common-button-bg rounded-lg hover:shadow-sm transition-all min-h-[36px] min-w-[36px] flex items-center justify-center"
                       >
@@ -4535,10 +4569,15 @@ const AgentManagement = () => {
                                                   const isSelected =
                                                     quickCreateData.selectedTemplate ===
                                                     template.name;
+                                                  const sysPromptPending =
+                                                    isGeneratingSystemPrompts &&
+                                                    (!(template as GeneratedTemplate).systemPrompt ||
+                                                      (template as GeneratedTemplate).systemPrompt!.length < 100);
                                                   return (
                                                     <div
                                                       key={templateKey}
-                                                      onClick={() =>
+                                                      onClick={() => {
+                                                        if (sysPromptPending) return;
                                                         setQuickCreateData(
                                                           (prev) => ({
                                                             ...prev,
@@ -4547,19 +4586,24 @@ const AgentManagement = () => {
                                                                 ? null
                                                                 : template.name,
                                                           }),
-                                                        )
-                                                      }
-                                                      className={`${isMobile ? "w-full max-w-xs" : " max-w-[260px]"} p-3 sm:p-4 rounded-xl border-2 text-left transition-colors duration-200 relative cursor-pointer ${
-                                                        quickCreateData.selectedTemplate ===
-                                                        template.name
-                                                          ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-md"
-                                                          : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 bg-white dark:bg-slate-800/50"
+                                                        );
+                                                      }}
+                                                      className={`${isMobile ? "w-full max-w-xs" : " max-w-[260px]"} p-3 sm:p-4 rounded-xl border-2 text-left transition-colors duration-200 relative ${
+                                                        sysPromptPending
+                                                          ? "cursor-not-allowed opacity-70 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50"
+                                                          : quickCreateData.selectedTemplate === template.name
+                                                            ? "cursor-pointer border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-md"
+                                                            : "cursor-pointer border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 bg-white dark:bg-slate-800/50"
                                                       }`}
                                                     >
-                                                      {quickCreateData.selectedTemplate ===
-                                                        template.name && (
+                                                      {/* Top-right: spinner while system prompt generates, checkmark when selected */}
+                                                      {sysPromptPending ? (
+                                                        <div className="absolute top-2 right-2" title="Generating system prompt…">
+                                                          <div className="w-3.5 h-3.5 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin" />
+                                                        </div>
+                                                      ) : isSelected ? (
                                                         <CheckCircle className="w-4 h-4 text-blue-500 absolute top-2 right-2" />
-                                                      )}
+                                                      ) : null}
 
                                                       <div className="flex flex-col h-full mt-1">
                                                         <div className="flex items-center gap-2 sm:gap-3 mb-1.5 sm:mb-2">
@@ -4696,11 +4740,13 @@ const AgentManagement = () => {
                           onClick={handleProceedToCreate}
                           disabled={
                             isGeneratingTemplates ||
+                            isGeneratingSystemPrompts ||
                             !quickCreateData.selectedTemplate ||
                             isCreatingAgent
                           }
                           className={`flex items-center gap-1.5 sm:gap-2 px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl font-medium transition-all text-sm sm:text-base ${
                             isGeneratingTemplates ||
+                            isGeneratingSystemPrompts ||
                             !quickCreateData.selectedTemplate ||
                             isCreatingAgent
                               ? "bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed"
@@ -4716,6 +4762,12 @@ const AgentManagement = () => {
                               <span>
                                 {kbCreationProgress?.progress !== undefined ? `${Math.round(kbCreationProgress.progress)}%` : 'Creating...'}
                               </span>
+                            </>
+                          ) : isGeneratingSystemPrompts ? (
+                            <>
+                              <div className="w-3.5 h-3.5 border-2 border-slate-400 border-t-slate-600 dark:border-slate-500 dark:border-t-slate-300 rounded-full animate-spin" />
+                              <span className="hidden sm:inline">Building prompts…</span>
+                              <span className="sm:hidden">Building…</span>
                             </>
                           ) : (
                             <>
@@ -4982,14 +5034,30 @@ const AgentManagement = () => {
 
                         {/* System Prompt Section Marker */}
                         <div id="template-section-system-prompt" className="scroll-mt-2" />
-                        
-                        {(aiTemplate?.systemPrompt ||
-                          template?.systemPrompt) && (
-                          <div>
-                            <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                              System Prompt
-                            </h3>
-                            {isEditingTemplate ? (
+
+                        <div>
+                          <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2">
+                            System Prompt
+                            {isGeneratingSystemPrompts &&
+                              (!aiTemplate?.systemPrompt ||
+                                aiTemplate.systemPrompt.length < 100) && (
+                                <span className="flex items-center gap-1.5 text-[10px] font-medium text-blue-500 dark:text-blue-400">
+                                  <div className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                                  Generating…
+                                </span>
+                              )}
+                          </h3>
+                          {isGeneratingSystemPrompts &&
+                          (!aiTemplate?.systemPrompt ||
+                            aiTemplate.systemPrompt.length < 100) ? (
+                            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-6 border border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center gap-3">
+                              <div className="w-8 h-8 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin" />
+                              <p className="text-xs text-slate-500 dark:text-slate-400 text-center">
+                                Crafting a detailed voice-optimized system prompt…
+                              </p>
+                            </div>
+                          ) : (aiTemplate?.systemPrompt || template?.systemPrompt) ? (
+                            isEditingTemplate ? (
                               <textarea
                                 value={editedTemplate?.systemPrompt || ""}
                                 onChange={(e) =>
@@ -5004,13 +5072,12 @@ const AgentManagement = () => {
                             ) : (
                               <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700 max-h-[40vh] overflow-y-auto">
                                 <pre className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap font-sans">
-                                  {aiTemplate?.systemPrompt ||
-                                    template?.systemPrompt}
+                                  {aiTemplate?.systemPrompt || template?.systemPrompt}
                                 </pre>
                               </div>
-                            )}
-                          </div>
-                        )}
+                            )
+                          ) : null}
+                        </div>
                         {/* First Message Section */}
                         {/* First Message Section Marker */}
                         <div id="template-section-first-message" className="scroll-mt-2" />

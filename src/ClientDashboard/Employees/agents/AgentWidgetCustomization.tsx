@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Smartphone, Monitor, Save, RefreshCw, Settings2, ChevronLeft, ChevronRight } from "lucide-react";
+import appToast from "../../../components/AppToast";
 import Slider from "react-slick";
 import GlassCard from "../../../components/GlassCard";
 import { agentAPI } from "../../../services/agentAPI";
@@ -435,7 +436,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
     // File type validation
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
-      showToast('Please select a valid image file (JPG, PNG, GIF, or WebP)', 'error');
+      appToast.error('Please select a valid image file (JPG, PNG, GIF, or WebP)');
       e.target.value = ''; // Clear the input
       return;
     }
@@ -444,14 +445,14 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
     const maxSizeInBytes = 200 * 1024; // 200KB
     if (file.size > maxSizeInBytes) {
       const fileSizeInKB = Math.round(file.size / 1024);
-      showToast(`Logo file size (${fileSizeInKB}KB) exceeds the maximum limit of 200KB. Please choose a smaller image.`, 'error');
+      appToast.error(`Logo file size (${fileSizeInKB}KB) exceeds the maximum limit of 200KB. Please choose a smaller image.`);
       e.target.value = ''; // Clear the input
       return;
     }
 
     // File name validation
     if (file.name.length > 100) {
-      showToast('Logo file name is too long. Please rename the file and try again.', 'error');
+      appToast.error('Logo file name is too long. Please rename the file and try again.');
       e.target.value = ''; // Clear the input
       return;
     }
@@ -464,11 +465,11 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
       updateConfig("content", "companyLogo", base64);
       
       const fileSizeInKB = Math.round(file.size / 1024);
-      showToast(`Logo uploaded successfully (${fileSizeInKB}KB)`, 'success');
+      appToast.success(`Logo uploaded successfully (${fileSizeInKB}KB)`);
     };
     
     reader.onerror = () => {
-      showToast('Error reading the logo file. Please try again.', 'error');
+      appToast.error('Error reading the logo file. Please try again.');
       e.target.value = ''; // Clear the input
     };
     
@@ -482,7 +483,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
 
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
-      showToast('Please select a valid image file (JPG, PNG, GIF, or WebP)', 'error');
+      appToast.error('Please select a valid image file (JPG, PNG, GIF, or WebP)');
       e.target.value = '';
       return;
     }
@@ -490,7 +491,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
     const maxSizeInBytes = 500 * 1024; // 500KB
     if (file.size > maxSizeInBytes) {
       const fileSizeInKB = Math.round(file.size / 1024);
-      showToast(`Image size (${fileSizeInKB}KB) exceeds the 500KB limit. Please choose a smaller image.`, 'error');
+      appToast.error(`Image size (${fileSizeInKB}KB) exceeds the 500KB limit. Please choose a smaller image.`);
       e.target.value = '';
       return;
     }
@@ -501,54 +502,13 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
       setTriggerButtonImagePreview(base64);
       updateConfig('content', 'triggerButtonImage', base64);
       const fileSizeInKB = Math.round(file.size / 1024);
-      showToast(`Trigger button image uploaded (${fileSizeInKB}KB)`, 'success');
+      appToast.success(`Trigger button image uploaded (${fileSizeInKB}KB)`);
     };
     reader.onerror = () => {
-      showToast('Error reading the image file. Please try again.', 'error');
+      appToast.error('Error reading the image file. Please try again.');
       e.target.value = '';
     };
     reader.readAsDataURL(file);
-  };
-
-  // Toast notification function
-  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
-    const toastColors = {
-      success: 'bg-green-500',
-      error: 'bg-red-500', 
-      info: 'bg-blue-500'
-    };
-
-    const toastIcons = {
-      success: '✅',
-      error: '❌',
-      info: 'ℹ️'
-    };
-
-    const toast = document.createElement('div');
-    toast.className = `fixed top-4 right-4 ${toastColors[type]} text-white px-4 py-3 rounded-lg shadow-lg z-50 transition-all transform translate-x-0 opacity-100 max-w-md`;
-    toast.innerHTML = `
-      <div class="flex items-start gap-3">
-        <span class="text-lg">${toastIcons[type]}</span>
-        <div class="flex-1">
-          <div class="font-medium text-sm leading-tight">${message}</div>
-        </div>
-        <button onclick="this.parentElement.parentElement.remove()" class="ml-2 text-white/80 hover:text-white text-lg leading-none">&times;</button>
-      </div>
-    `;
-
-    document.body.appendChild(toast);
-
-    // Auto remove after 5 seconds for error messages, 3 seconds for others
-    const autoRemoveTime = type === 'error' ? 5000 : 3000;
-    setTimeout(() => {
-      if (toast.parentElement) {
-        toast.style.opacity = '0';
-        toast.style.transform = 'translateX(100%)';
-        setTimeout(() => {
-          toast.remove();
-        }, 300);
-      }
-    }, autoRemoveTime);
   };
 
   const saveWidgetConfig = async () => {
@@ -640,14 +600,14 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
       window.dispatchEvent(event);
 
       // Show success notification
-      showToast('Widget configuration saved successfully!', 'success');
+      appToast.success('Widget configuration saved successfully!');
     } catch (error) {
       console.error("❌ Error saving widget configuration:", error);
 
       // Show error notification with details
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error occurred";
-      showToast(`Failed to save widget configuration: ${errorMessage}`, 'error');
+      appToast.error(`Failed to save widget configuration: ${errorMessage}`);
 
       alert(
         "Failed to save widget configuration. Please check the console for details and try again."

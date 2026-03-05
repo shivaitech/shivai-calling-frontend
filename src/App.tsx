@@ -222,27 +222,8 @@ function App() {
             <AppContent />
             <Toaster
               position="top-right"
-              toastOptions={{
-                duration: 4000,
-                style: {
-                  background: '#363636',
-                  color: '#fff',
-                },
-                success: {
-                  duration: 3000,
-                  iconTheme: {
-                    primary: '#10B981',
-                    secondary: '#fff',
-                  },
-                },
-                error: {
-                  duration: 5000,
-                  iconTheme: {
-                    primary: '#EF4444',
-                    secondary: '#fff',
-                  },
-                },
-              }}
+              toastOptions={{ duration: 4000 }}
+              containerStyle={{ zIndex: 99999 }}
             />
           </AgentProvider>
         </Router>

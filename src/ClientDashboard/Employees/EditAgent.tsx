@@ -132,7 +132,7 @@ function getDisplayFilename(_fileUrl: string, index: number): string {
 }
 
 import { useParams, useNavigate } from 'react-router-dom';
-import toast from 'react-hot-toast';
+import appToast from '../../components/AppToast';
 import { ArrowLeft, Save, X, Bot, Globe, Settings, Sparkles, Info, Upload, Link, Share2, FileText, File, Image, Plus, BookOpen, Volume2, Play, Square, Pencil, Check, Loader2, Eye, Code2, Search, ChevronUp, ChevronDown, Trash2 } from 'lucide-react';
 import { useAgent } from '../../contexts/AgentContext';
 import { agentAPI } from '../../services/agentAPI';
@@ -362,7 +362,7 @@ const EditAgent = () => {
         }
       } catch (error) {
         console.error("Error fetching agent:", error);
-        toast.error("Failed to load agent data");
+        appToast.error("Failed to load agent data");
         navigate('/agents');
       } finally {
         setIsLoadingAgent(false);
@@ -416,16 +416,26 @@ const EditAgent = () => {
 
   const subIndustries: Record<string, { value: string; label: string }[]> = {
     "real-estate": [
-      { value: "residential", label: "Residential" },
-      { value: "commercial", label: "Commercial" },
+      { value: "residential", label: "Residential Sales" },
+      { value: "commercial", label: "Commercial Real Estate" },
       { value: "property-management", label: "Property Management" },
+      { value: "luxury-real-estate", label: "Luxury Real Estate" },
+      { value: "vacation-rentals", label: "Vacation Rentals" },
       { value: "real-estate-investment", label: "Real Estate Investment" },
+      { value: "land-sales", label: "Land & Lot Sales" },
+      { value: "real-estate-appraisal", label: "Real Estate Appraisal" },
     ],
     "healthcare": [
       { value: "hospitals", label: "Hospitals" },
-      { value: "clinics", label: "Clinics" },
-      { value: "mental-health", label: "Mental Health" },
+      { value: "clinics", label: "General Clinics" },
+      { value: "mental-health", label: "Mental Health Services" },
       { value: "home-healthcare", label: "Home Healthcare" },
+      { value: "urgent-care", label: "Urgent Care Centers" },
+      { value: "specialized-clinics", label: "Specialized Clinics" },
+      { value: "diagnostic-centers", label: "Diagnostic Centers" },
+      { value: "rehabilitation", label: "Rehabilitation Centers" },
+      { value: "telemedicine", label: "Telemedicine" },
+      { value: "nursing-homes", label: "Nursing Homes" },
       { value: "medical-devices", label: "Medical Devices" },
       { value: "pharmaceuticals", label: "Pharmaceuticals" },
     ],
@@ -434,26 +444,44 @@ const EditAgent = () => {
       { value: "orthodontics", label: "Orthodontics" },
       { value: "cosmetic-dentistry", label: "Cosmetic Dentistry" },
       { value: "pediatric-dentistry", label: "Pediatric Dentistry" },
+      { value: "periodontics", label: "Periodontics" },
+      { value: "endodontics", label: "Endodontics" },
+      { value: "oral-surgery", label: "Oral Surgery" },
+      { value: "dental-implants", label: "Dental Implants" },
     ],
     "fitness": [
       { value: "gyms", label: "Gyms & Fitness Centers" },
       { value: "yoga-studios", label: "Yoga Studios" },
       { value: "personal-training", label: "Personal Training" },
+      { value: "crossfit", label: "CrossFit Gyms" },
+      { value: "pilates", label: "Pilates Studios" },
+      { value: "martial-arts", label: "Martial Arts & Boxing" },
+      { value: "dance-studios", label: "Dance Studios" },
+      { value: "sports-facilities", label: "Sports Facilities" },
+      { value: "wellness-centers", label: "Wellness Centers" },
       { value: "wellness-spas", label: "Wellness Spas" },
     ],
     "education": [
       { value: "k12", label: "K-12 Schools" },
       { value: "higher-education", label: "Higher Education" },
-      { value: "online-learning", label: "Online Learning" },
+      { value: "online-learning", label: "Online Learning Platforms" },
       { value: "tutoring", label: "Tutoring Services" },
+      { value: "vocational-training", label: "Vocational Training" },
       { value: "vocational", label: "Vocational Training" },
+      { value: "language-schools", label: "Language Schools" },
+      { value: "test-prep", label: "Test Preparation" },
+      { value: "preschool", label: "Preschool & Daycare" },
     ],
     "finance": [
-      { value: "banking", label: "Banking" },
+      { value: "banking", label: "Banking Services" },
       { value: "investment", label: "Investment Services" },
       { value: "wealth-management", label: "Wealth Management" },
       { value: "lending", label: "Lending & Mortgages" },
+      { value: "mortgage-lending", label: "Mortgage Lending" },
+      { value: "financial-planning", label: "Financial Planning" },
+      { value: "tax-services", label: "Tax Services" },
       { value: "fintech", label: "Fintech" },
+      { value: "credit-unions", label: "Credit Unions" },
     ],
     "insurance": [
       { value: "health-insurance", label: "Health Insurance" },
@@ -461,40 +489,61 @@ const EditAgent = () => {
       { value: "auto-insurance", label: "Auto Insurance" },
       { value: "property-insurance", label: "Property Insurance" },
       { value: "business-insurance", label: "Business Insurance" },
+      { value: "travel-insurance", label: "Travel Insurance" },
+      { value: "disability-insurance", label: "Disability Insurance" },
     ],
     "ecommerce": [
       { value: "fashion", label: "Fashion & Apparel" },
       { value: "electronics", label: "Electronics" },
       { value: "food-beverage", label: "Food & Beverage" },
+      { value: "home-decor", label: "Home Decor" },
       { value: "home-garden", label: "Home & Garden" },
+      { value: "beauty-products", label: "Beauty Products" },
+      { value: "sporting-goods", label: "Sporting Goods" },
+      { value: "toys-games", label: "Toys & Games" },
+      { value: "books-media", label: "Books & Media" },
+      { value: "pet-supplies", label: "Pet Supplies" },
       { value: "marketplace", label: "Marketplace" },
     ],
     "retail": [
-      { value: "grocery", label: "Grocery" },
+      { value: "grocery", label: "Grocery Stores" },
       { value: "fashion-retail", label: "Fashion Retail" },
       { value: "electronics-retail", label: "Electronics Retail" },
-      { value: "pharmacy", label: "Pharmacy" },
+      { value: "home-improvement", label: "Home Improvement" },
       { value: "department-stores", label: "Department Stores" },
+      { value: "specialty-retail", label: "Specialty Retail" },
+      { value: "convenience-stores", label: "Convenience Stores" },
+      { value: "furniture-stores", label: "Furniture Stores" },
+      { value: "pharmacy", label: "Pharmacy" },
     ],
     "technology": [
       { value: "software-development", label: "Software Development" },
-      { value: "it-services", label: "IT Services" },
+      { value: "it-services", label: "IT Services & Consulting" },
       { value: "cybersecurity", label: "Cybersecurity" },
       { value: "cloud-services", label: "Cloud Services" },
+      { value: "data-analytics", label: "Data Analytics" },
       { value: "ai-ml", label: "AI & Machine Learning" },
+      { value: "mobile-development", label: "Mobile App Development" },
+      { value: "web-development", label: "Web Development" },
     ],
     "saas": [
-      { value: "crm", label: "CRM" },
-      { value: "erp", label: "ERP" },
+      { value: "crm", label: "CRM Software" },
+      { value: "erp", label: "ERP Software" },
       { value: "marketing-automation", label: "Marketing Automation" },
       { value: "project-management", label: "Project Management" },
-      { value: "hr-software", label: "HR Software" },
+      { value: "hr-software", label: "HR & Payroll Software" },
+      { value: "accounting-software", label: "Accounting Software" },
+      { value: "collaboration-tools", label: "Collaboration Tools" },
+      { value: "analytics-platforms", label: "Analytics Platforms" },
     ],
     "legal": [
       { value: "corporate-law", label: "Corporate Law" },
       { value: "family-law", label: "Family Law" },
-      { value: "criminal-law", label: "Criminal Law" },
       { value: "immigration-law", label: "Immigration Law" },
+      { value: "criminal-law", label: "Criminal Defense" },
+      { value: "real-estate-law", label: "Real Estate Law" },
+      { value: "estate-planning", label: "Estate Planning" },
+      { value: "personal-injury", label: "Personal Injury" },
       { value: "intellectual-property", label: "Intellectual Property" },
     ],
     "consulting": [
@@ -510,23 +559,36 @@ const EditAgent = () => {
       { value: "payroll", label: "Payroll Services" },
     ],
     "hospitality": [
-      { value: "hotels", label: "Hotels" },
-      { value: "resorts", label: "Resorts" },
+      { value: "hotels", label: "Hotels & Motels" },
+      { value: "resorts", label: "Resorts & Spas" },
       { value: "event-venues", label: "Event Venues" },
+      { value: "bed-breakfast", label: "Bed & Breakfast" },
       { value: "vacation-rentals", label: "Vacation Rentals" },
+      { value: "hostels", label: "Hostels" },
+      { value: "conference-centers", label: "Conference Centers" },
     ],
     "restaurants": [
       { value: "fine-dining", label: "Fine Dining" },
       { value: "casual-dining", label: "Casual Dining" },
-      { value: "fast-food", label: "Fast Food" },
+      { value: "fast-food", label: "Fast Food & QSR" },
       { value: "cafes", label: "Cafes & Coffee Shops" },
-      { value: "catering", label: "Catering" },
+      { value: "food-trucks", label: "Food Trucks" },
+      { value: "bakeries", label: "Bakeries & Pastry Shops" },
+      { value: "catering", label: "Catering Services" },
+      { value: "bars-pubs", label: "Bars & Pubs" },
+      { value: "buffets", label: "Buffets" },
     ],
     "automotive": [
-      { value: "dealerships", label: "Dealerships" },
-      { value: "auto-repair", label: "Auto Repair" },
-      { value: "car-rental", label: "Car Rental" },
-      { value: "auto-parts", label: "Auto Parts" },
+      { value: "dealerships", label: "Car Dealerships" },
+      { value: "auto-repair", label: "Auto Repair & Maintenance" },
+      { value: "car-rental", label: "Car Rental Services" },
+      { value: "auto-parts", label: "Auto Parts & Accessories" },
+      { value: "car-wash", label: "Car Wash & Detailing" },
+      { value: "body-shops", label: "Body Shops & Collision Repair" },
+      { value: "tire-services", label: "Tire Services" },
+      { value: "oil-change", label: "Oil Change & Lube" },
+      { value: "auto-glass", label: "Auto Glass Repair" },
+      { value: "towing", label: "Towing Services" },
     ],
     "construction": [
       { value: "residential-construction", label: "Residential Construction" },
@@ -549,15 +611,27 @@ const EditAgent = () => {
     "beauty": [
       { value: "hair-salons", label: "Hair Salons" },
       { value: "nail-salons", label: "Nail Salons" },
-      { value: "med-spas", label: "Med Spas" },
+      { value: "med-spas", label: "Medical Spas" },
       { value: "barbershops", label: "Barbershops" },
+      { value: "day-spas", label: "Day Spas" },
+      { value: "cosmetics", label: "Cosmetics & Makeup" },
+      { value: "tattoo-piercing", label: "Tattoo & Piercing" },
+      { value: "waxing", label: "Waxing & Threading" },
+      { value: "aesthetic-clinics", label: "Aesthetic Clinics" },
     ],
     "home-services": [
-      { value: "plumbing", label: "Plumbing" },
-      { value: "electrical", label: "Electrical" },
-      { value: "hvac", label: "HVAC" },
+      { value: "plumbing", label: "Plumbing Services" },
+      { value: "electrical", label: "Electrical Services" },
+      { value: "hvac", label: "HVAC Services" },
       { value: "cleaning", label: "Cleaning Services" },
-      { value: "landscaping", label: "Landscaping" },
+      { value: "landscaping", label: "Landscaping & Lawn Care" },
+      { value: "pest-control", label: "Pest Control" },
+      { value: "roofing", label: "Roofing Services" },
+      { value: "painting", label: "Painting Services" },
+      { value: "moving", label: "Moving Services" },
+      { value: "handyman", label: "Handyman Services" },
+      { value: "carpet-cleaning", label: "Carpet Cleaning" },
+      { value: "window-cleaning", label: "Window Cleaning" },
     ],
     "nonprofit": [
       { value: "charity", label: "Charity" },
@@ -578,8 +652,10 @@ const EditAgent = () => {
       { value: "sports", label: "Sports" },
     ],
     "other": [
-      { value: "general", label: "General" },
-      { value: "custom", label: "Custom" },
+      { value: "general", label: "General Business" },
+      { value: "custom", label: "Custom Industry" },
+      { value: "non-profit", label: "Non-Profit Organization" },
+      { value: "government", label: "Government Services" },
     ],
   };
 
@@ -701,7 +777,7 @@ const EditAgent = () => {
     } catch (error) {
       setIsTestingVoice(false);
       setIsLoadingVoicePreview(false);
-      toast.error('Voice preview unavailable. Please try again later.');
+      appToast.error('Voice preview unavailable. Please try again later.');
     }
   };
 
@@ -737,11 +813,11 @@ const EditAgent = () => {
       if (urls.length > 0) {
         setUploadedFileUrls((prev) => [...prev, ...urls]);
         console.log("✅ Knowledge base files uploaded:", urls);
-        toast.success(`${files.length} file(s) uploaded successfully!`);
+        appToast.success(`${files.length} file(s) uploaded successfully!`);
       }
     } catch (error) {
       console.error("❌ Error uploading knowledge base files:", error);
-      toast.error("Failed to upload files. Please try again.");
+      appToast.error("Failed to upload files. Please try again.");
       setUploadedFiles((prev) =>
         prev.filter((f) => !files.some((newFile) => newFile.name === f.name))
       );
@@ -779,7 +855,7 @@ const EditAgent = () => {
         const text = await res.text();
         setKbFileContents((prev) => ({ ...prev, [index]: text }));
       } catch {
-        toast.error('Failed to load file content');
+        appToast.error('Failed to load file content');
         setKbFileContents((prev) => ({ ...prev, [index]: '' }));
       } finally {
         setLoadingKbIndex(null);
@@ -804,13 +880,13 @@ const EditAgent = () => {
         headers: { 'Content-Type': 'text/plain' },
       });
       if (!putRes.ok) throw new Error(`S3 PUT failed: ${putRes.status}`);
-      toast.success('Knowledge base file updated successfully!');
+      appToast.success('Knowledge base file updated successfully!');
       // Invalidate cache so next open re-fetches fresh content
       setKbFileContents((prev) => { const n = { ...prev }; delete n[index]; return n; });
       setEditingKbIndex(null);
     } catch (err) {
       console.error('Save KB file error:', err);
-      toast.error('Failed to save file content. Please try again.');
+      appToast.error('Failed to save file content. Please try again.');
     } finally {
       setSavingKbIndex(null);
     }
@@ -924,7 +1000,7 @@ const EditAgent = () => {
     setKbPreviewMode((prev) => { const n = { ...prev }; delete n[index]; return n; });
     if (editingKbIndex === index) setEditingKbIndex(null);
     setConfirmDeleteKbIndex(null);
-    toast.success('File removed from knowledge base.');
+    appToast.success('File removed from knowledge base.');
   };
 
   const handleAddWebsiteUrl = () => {    setWebsiteUrls((prev) => [...prev, ""]);
@@ -953,22 +1029,22 @@ const EditAgent = () => {
   const handleSave = async () => {
     // Validate required fields
     if (!formData.name || formData.name.trim() === "") {
-      toast.error("Agent name is required. Please enter a name for your agent.");
+      appToast.error("Agent name is required. Please enter a name for your agent.");
       return;
     }
 
     if (!formData.businessProcess || formData.businessProcess.trim() === "") {
-      toast.error("Business process is required. Please select a business process.");
+      appToast.error("Business process is required. Please select a business process.");
       return;
     }
 
     if (!formData.industry || formData.industry.trim() === "") {
-      toast.error("Industry is required. Please select an industry.");
+      appToast.error("Industry is required. Please select an industry.");
       return;
     }
 
     if (currentAgent) {
-      const loadingToast = toast.loading("Updating agent...");
+      const loadingToast = appToast.loading("Updating agent...");
       try {
         // Reverse mapping functions - form values to API values
         const personalityToApi = (value: string) => {
@@ -1047,11 +1123,11 @@ const EditAgent = () => {
         console.log('Sending update data:', updateData);
         
         await agentAPI.updateAgent(currentAgent.id, updateData);
-        toast.dismiss(loadingToast);
-        toast.success("Agent updated successfully!");
+        appToast.dismiss(loadingToast);
+        appToast.success("Agent updated successfully!");
       } catch (error) {
-        toast.dismiss(loadingToast);
-        toast.error("Failed to update agent. Please try again.");
+        appToast.dismiss(loadingToast);
+        appToast.error("Failed to update agent. Please try again.");
         console.error("Update agent error:", error);
       }
     }
@@ -1574,10 +1650,7 @@ const EditAgent = () => {
 
                     {/* Drop Zone */}
                     <div
-                      className={`border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-4 sm:p-6 text-center hover:border-blue-400 dark:hover:border-blue-500 transition-colors cursor-pointer bg-slate-50/50 dark:bg-slate-800/50 ${isUploadingFiles ? 'opacity-50 pointer-events-none' : ''}`}
-                      onClick={() =>
-                        !isUploadingFiles && document.getElementById("edit-knowledge-file-input")?.click()
-                      }
+                      className={`border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl text-center hover:border-blue-400 dark:hover:border-blue-500 transition-colors bg-slate-50/50 dark:bg-slate-800/50 ${isUploadingFiles ? 'opacity-50 pointer-events-none' : ''}`}
                       onDragOver={(e) => {
                         e.preventDefault();
                         if (!isUploadingFiles) {
@@ -1609,6 +1682,11 @@ const EditAgent = () => {
                           e.target.value = "";
                         }}
                       />
+                      {/* Use label for native file input trigger — works reliably on Android */}
+                      <label
+                        htmlFor={isUploadingFiles ? undefined : "edit-knowledge-file-input"}
+                        className="block p-4 sm:p-6 cursor-pointer"
+                      >
                       <div className="flex flex-col items-center gap-1.5 sm:gap-2">
                         {isUploadingFiles ? (
                           <>
@@ -1633,6 +1711,7 @@ const EditAgent = () => {
                           </>
                         )}
                       </div>
+                      </label>
                     </div>
 
                     {/* Hint below upload */}
@@ -1655,7 +1734,7 @@ const EditAgent = () => {
                             <div key={i} className="flex items-center gap-2 px-3 py-1.5">
                               <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 w-4 flex-shrink-0">{i + 1}.</span>
                               <span className="flex-1 text-[11px] text-slate-500 dark:text-slate-400 truncate font-mono" title={url}>
-                                {url}
+                                {url.split('/').pop()?.split('?')[0] || url}
                               </span>
                             </div>
                           ))}
@@ -1779,13 +1858,13 @@ const EditAgent = () => {
                 <div className="flex items-center gap-2 mb-4">
                   <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
                   <h2 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
-                    Advanced Settings
+                    Template Settings
                   </h2>
                 </div>
 
                 <div className="space-y-4 sm:space-y-6">
                
-
+{/* 
                   <div>
                     <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
                       Max Response Length
@@ -1798,7 +1877,7 @@ const EditAgent = () => {
                       }
                       placeholder="Select max response length..."
                     />
-                  </div>
+                  </div> */}
 
                   {/* Temperature Slider */}
                   {/* <div>
@@ -1873,26 +1952,8 @@ const EditAgent = () => {
                         />
                       </div>
 
-                      {/* Opening Script */}
-                      <div>
-                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                          Opening Script
-                        </label>
-                        <textarea
-                          value={templateData.openingScript || ''}
-                          onChange={(e) =>
-                            setTemplateData({
-                              ...templateData,
-                              openingScript: e.target.value,
-                            })
-                          }
-                          placeholder="How the agent should start conversations..."
-                          rows={3}
-                          className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/20 text-slate-800 dark:text-white text-sm resize-none"
-                        />
-                      </div>
+                   
 
-                      {/* Key Talking Points */}
                       <div>
                         <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                           Key Talking Points

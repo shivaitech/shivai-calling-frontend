@@ -1,10 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate, useLocation, useParams } from "react-router-dom";
-import toast from "react-hot-toast";
+import appToast from "../../components/AppToast";
 import GlassCard from "../../components/GlassCard";
 import { useAgent } from "../../contexts/AgentContext";
-import { useAuth } from "../../contexts/AuthContext";
-import { isDeveloperUser } from "../../lib/utils";
 import { agentAPI } from "../../services/agentAPI";
 import Slider from "react-slick";
 import {
@@ -26,17 +24,21 @@ import {
   Bot,
   Sparkles,
   Loader2,
+  Save,
+  X,
+  File,
+  Image,
+  Trash2,
 } from "lucide-react";
 
 const Training = () => {
-  const { agents, currentAgent, refreshAgents } = useAgent();
-  const { user } = useAuth();
+  const { currentAgent } = useAgent();
   const navigate = useNavigate();
   const location = useLocation();
   const params = useParams();
   let { state } = location;
   // Check if current user is developer
-  const isDeveloper = isDeveloperUser(user?.email);
+  // isDeveloper removed — all users can access training features
 
   // Get agent ID from URL params or current agent
   const agentIdFromUrl = params.id;
@@ -63,12 +65,57 @@ const Training = () => {
         }
       } catch (error) {
         console.error("Failed to load agents from API:", error);
-        toast.error("Failed to load agents. Please refresh the page.");
+        appToast.error("Failed to load agents. Please refresh the page.");
       }
     };
 
     loadAgents();
   }, []);
+
+  // Load full agent config whenever selectedAgent changes
+  useEffect(() => {
+    if (!selectedAgent) return;
+    const loadAgentConfig = async () => {
+      setIsLoadingAgentConfig(true);
+      // Reset fields so stale data doesn't bleed between agents
+      setSystemPrompt('');
+      setFirstMessage('');
+      setManualKnowledge('');
+      setExistingKbFiles([]);
+      setUploadedFileUrls([]);
+      setUploadedFiles([]);
+      setSavedSections({ knowledge: false, examples: false, intents: false });
+      try {
+        const { agent } = await agentAPI.getAgentConfig(selectedAgent);
+        // System prompt / instructions
+        if (agent.custom_instructions) setSystemPrompt(agent.custom_instructions);
+        else if (agent.template?.systemPrompt) setSystemPrompt(agent.template.systemPrompt);
+        // First / greeting message
+        if (agent.template?.firstMessage) setFirstMessage(agent.template.firstMessage);
+        // Knowledge base files
+        const kbFiles = agent.knowledge_base_file_urls;
+        if (Array.isArray(kbFiles) && kbFiles.length > 0) setExistingKbFiles(kbFiles);
+        // Website URLs
+        const webUrls = agent.website_urls;
+        if (Array.isArray(webUrls) && webUrls.length > 0) setUrls(webUrls);
+        // Training data stored inside template
+        const tpl = agent.template;
+        if (tpl) {
+          if (tpl.keyTalkingPoints) setKeyTalkingPoints(tpl.keyTalkingPoints);
+          if (tpl.closingScript) setClosingScript(tpl.closingScript);
+          if (Array.isArray(tpl.objections) && tpl.objections.length > 0) setObjections(tpl.objections);
+          if (Array.isArray(tpl.conversationExamples) && tpl.conversationExamples.length > 0) setConversationExamples(tpl.conversationExamples);
+        }
+      } catch (err) {
+        console.error('Failed to load agent config for training:', err);
+      } finally {
+        setIsLoadingAgentConfig(false);
+      }
+    };
+    loadAgentConfig();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedAgent]);
+
   const [isTraining, setIsTraining] = useState(false);
   const [activeTab, setActiveTab] = useState("knowledge");
   const [urls, setUrls] = useState<string[]>(["", ""]);
@@ -100,8 +147,16 @@ const Training = () => {
     intents: false,
   });
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
-  const [isUploading, setIsUploading] = useState(false);
+  // file upload state handled by isUploadingFiles
 
+  // --- Real API state ---
+  const [isLoadingAgentConfig, setIsLoadingAgentConfig] = useState(false);
+  const [isSavingKnowledge, setIsSavingKnowledge] = useState(false);
+  const [isSavingExamples, setIsSavingExamples] = useState(false);
+  const [isSavingIntents, setIsSavingIntents] = useState(false);
+  const [existingKbFiles, setExistingKbFiles] = useState<string[]>([]);
+  const [uploadedFileUrls, setUploadedFileUrls] = useState<string[]>([]);
+  const [isUploadingFiles, setIsUploadingFiles] = useState(false);
   // System prompt state
   const [systemPrompt, setSystemPrompt] = useState("");
   const [firstMessage, setFirstMessage] = useState("");
@@ -122,18 +177,11 @@ const Training = () => {
   const [generatedKnowledge, setGeneratedKnowledge] = useState("");
   const [showGeneratedKnowledge, setShowGeneratedKnowledge] = useState(false);
 
-  // Call script state
-  const [openingScript, setOpeningScript] = useState("");
+  // Call script state (opening script removed — first message used instead)
   const [keyTalkingPoints, setKeyTalkingPoints] = useState("");
   const [closingScript, setClosingScript] = useState("");
 
   // Call script AI generation state
-  const [isGeneratingOpeningScript, setIsGeneratingOpeningScript] =
-    useState(false);
-  const [generatedOpeningScript, setGeneratedOpeningScript] = useState("");
-  const [showGeneratedOpeningScript, setShowGeneratedOpeningScript] =
-    useState(false);
-
   const [isGeneratingTalkingPoints, setIsGeneratingTalkingPoints] =
     useState(false);
   const [generatedTalkingPoints, setGeneratedTalkingPoints] = useState("");
@@ -429,50 +477,64 @@ const Training = () => {
     }
   };
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (files) {
-      const fileArray = Array.from(files);
-      const validFiles = fileArray.filter((file) => {
-        const validTypes = [
-          "application/pdf",
-          "application/msword",
-          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-          "text/plain",
-          "text/csv",
-        ];
-        const maxSize = 10 * 1024 * 1024; // 10MB
-
-        if (!validTypes.includes(file.type)) {
-          toast.error(`${file.name} is not a supported file type`);
-          return false;
-        }
-
-        if (file.size > maxSize) {
-          toast.error(`${file.name} is too large (max 10MB)`);
-          return false;
-        }
-
-        return true;
-      });
-
-      if (validFiles.length > 0) {
-        setIsUploading(true);
-
-        // Simulate upload process
-        setTimeout(() => {
-          setUploadedFiles((prev) => [...prev, ...validFiles]);
-          setIsUploading(false);
-          toast.success(`${validFiles.length} file(s) uploaded successfully!`);
-        }, 2000);
+  const handleKnowledgeBaseUpload = useCallback(async (files: File[]) => {
+    const validTypes = [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "text/plain",
+      "text/csv",
+    ];
+    const maxSize = 10 * 1024 * 1024;
+    const validFiles = files.filter((file) => {
+      if (!validTypes.includes(file.type)) {
+        appToast.error(`${file.name} is not a supported file type`);
+        return false;
       }
+      if (file.size > maxSize) {
+        appToast.error(`${file.name} is too large (max 10MB)`);
+        return false;
+      }
+      return true;
+    });
+    if (validFiles.length === 0) return;
+    setIsUploadingFiles(true);
+    setUploadedFiles((prev) => [...prev, ...validFiles]);
+    try {
+      const response = await agentAPI.uploadKnowledgeBase(validFiles);
+      const urls: string[] = (response?.data?.files ?? []).map((f: { url: string }) => f.url);
+      if (urls.length > 0) {
+        setUploadedFileUrls((prev) => [...prev, ...urls]);
+        appToast.success(`${validFiles.length} file(s) uploaded successfully!`);
+      } else {
+        appToast.error("Upload failed: no URLs returned.");
+        setUploadedFiles((prev) => prev.filter((f) => !validFiles.includes(f)));
+      }
+    } catch {
+      appToast.error("Failed to upload files.");
+      setUploadedFiles((prev) => prev.filter((f) => !validFiles.includes(f)));
+    } finally {
+      setIsUploadingFiles(false);
     }
+  }, []);
+
+  const handleFileInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (files && files.length > 0) {
+      handleKnowledgeBaseUpload(Array.from(files));
+    }
+    event.target.value = "";
   };
 
   const removeFile = (index: number) => {
     setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
-    toast.success("File removed");
+    setUploadedFileUrls((prev) => prev.filter((_, i) => i !== index));
+    appToast.success("File removed");
   };
+
+  const removeExistingKbFile = useCallback(async (fileUrl: string) => {
+    setExistingKbFiles((prev) => prev.filter((u) => u !== fileUrl));
+  }, []);
 
   // AI-assisted prompt generation using API
   const generateAIPrompt = async () => {
@@ -555,7 +617,7 @@ ${promptSuffix}`;
       }
     } catch (error) {
       console.error("Failed to generate prompt:", error);
-      toast.error("Failed to generate prompt. Please try again.");
+      appToast.error("Failed to generate prompt. Please try again.");
     } finally {
       setIsGeneratingPrompt(false);
     }
@@ -565,7 +627,7 @@ ${promptSuffix}`;
     setSystemPrompt(generatedPrompt);
     setShowGeneratedPrompt(false);
     setGeneratedPrompt("");
-    toast.success("Prompt applied successfully!");
+    appToast.success("Prompt applied successfully!");
   };
 
   const cancelGeneratedPrompt = () => {
@@ -632,7 +694,7 @@ Agent Details:
       }
     } catch (error) {
       console.error("Failed to generate first message:", error);
-      toast.error("Failed to generate first message. Please try again.");
+      appToast.error("Failed to generate first message. Please try again.");
     } finally {
       setIsGeneratingFirstMessage(false);
     }
@@ -642,7 +704,7 @@ Agent Details:
     setFirstMessage(generatedFirstMessage);
     setShowGeneratedFirstMessage(false);
     setGeneratedFirstMessage("");
-    toast.success("First message applied successfully!");
+    appToast.success("First message applied successfully!");
   };
 
   const cancelGeneratedFirstMessage = () => {
@@ -708,7 +770,7 @@ Agent Details:
       }
     } catch (error) {
       console.error("Failed to generate knowledge:", error);
-      toast.error("Failed to generate knowledge. Please try again.");
+      appToast.error("Failed to generate knowledge. Please try again.");
     } finally {
       setIsGeneratingKnowledge(false);
     }
@@ -718,78 +780,12 @@ Agent Details:
     setManualKnowledge(generatedKnowledge);
     setShowGeneratedKnowledge(false);
     setGeneratedKnowledge("");
-    toast.success("Knowledge applied successfully!");
+    appToast.success("Knowledge applied successfully!");
   };
 
   const cancelGeneratedKnowledge = () => {
     setShowGeneratedKnowledge(false);
     setGeneratedKnowledge("");
-  };
-
-  // AI-assisted opening script generation
-  const generateAIOpeningScript = async () => {
-    setIsGeneratingOpeningScript(true);
-    setShowGeneratedOpeningScript(false);
-
-    try {
-      const agentName = selectedAgentData?.name || "AI Assistant";
-      const userInput = openingScript.trim();
-
-      const agentDetails = {
-        name: agentName,
-        gender: selectedAgentData?.gender || "not specified",
-        personality:
-          selectedAgentData?.personality ||
-          selectedAgentData?.persona ||
-          "professional",
-        language: selectedAgentData?.language || "English",
-        template:
-          selectedAgentData?.template ||
-          selectedAgentData?.agentType ||
-          "general",
-        industry: selectedAgentData?.industry || "not specified",
-        useCase:
-          selectedAgentData?.useCase ||
-          selectedAgentData?.use_case ||
-          "customer support",
-      };
-
-      const agentContext = `Agent: ${agentDetails.name}, ${agentDetails.personality} personality, ${agentDetails.industry} industry, ${agentDetails.useCase} use case.`;
-
-      const promptText = userInput
-        ? `Improve this opening script for ${agentContext}:\n\n${userInput}\n\nMake it professional, warm, and engaging. Keep it concise (2-3 sentences).`
-        : `Generate an opening script for ${agentContext}\n\nCreate a professional, warm opening that introduces the agent and establishes the purpose of the call. Keep it concise (2-3 sentences).`;
-
-      const response = await agentAPI.generatePrompt(promptText);
-      const generated =
-        response?.data?.generation?.response ||
-        response?.generation?.response ||
-        response?.response;
-
-      if (generated && typeof generated === "string") {
-        setGeneratedOpeningScript(generated);
-        setShowGeneratedOpeningScript(true);
-      } else {
-        throw new Error("Invalid response format");
-      }
-    } catch (error) {
-      console.error("Failed to generate opening script:", error);
-      toast.error("Failed to generate opening script. Please try again.");
-    } finally {
-      setIsGeneratingOpeningScript(false);
-    }
-  };
-
-  const applyGeneratedOpeningScript = () => {
-    setOpeningScript(generatedOpeningScript);
-    setShowGeneratedOpeningScript(false);
-    setGeneratedOpeningScript("");
-    toast.success("Opening script applied!");
-  };
-
-  const cancelGeneratedOpeningScript = () => {
-    setShowGeneratedOpeningScript(false);
-    setGeneratedOpeningScript("");
   };
 
   // AI-assisted key talking points generation
@@ -842,7 +838,7 @@ Agent Details:
       }
     } catch (error) {
       console.error("Failed to generate talking points:", error);
-      toast.error("Failed to generate talking points. Please try again.");
+      appToast.error("Failed to generate talking points. Please try again.");
     } finally {
       setIsGeneratingTalkingPoints(false);
     }
@@ -852,7 +848,7 @@ Agent Details:
     setKeyTalkingPoints(generatedTalkingPoints);
     setShowGeneratedTalkingPoints(false);
     setGeneratedTalkingPoints("");
-    toast.success("Talking points applied!");
+    appToast.success("Talking points applied!");
   };
 
   const cancelGeneratedTalkingPoints = () => {
@@ -908,7 +904,7 @@ Agent Details:
       }
     } catch (error) {
       console.error("Failed to generate closing script:", error);
-      toast.error("Failed to generate closing script. Please try again.");
+      appToast.error("Failed to generate closing script. Please try again.");
     } finally {
       setIsGeneratingClosingScript(false);
     }
@@ -918,30 +914,84 @@ Agent Details:
     setClosingScript(generatedClosingScript);
     setShowGeneratedClosingScript(false);
     setGeneratedClosingScript("");
-    toast.success("Closing script applied!");
+    appToast.success("Closing script applied!");
   };
+
+  const selectedAgentData = localAgents.find(
+    (agent) => agent.id === selectedAgent
+  );
 
   const cancelGeneratedClosingScript = () => {
     setShowGeneratedClosingScript(false);
     setGeneratedClosingScript("");
   };
 
-  const saveKnowledgeBase = () => {
-    // Here you would normally save to backend
-    setSavedSections((prev) => ({ ...prev, knowledge: true }));
-    toast.success("Knowledge base saved successfully!");
+  const saveKnowledgeBase = async () => {
+    if (!selectedAgent) return;
+    setIsSavingKnowledge(true);
+    try {
+      const allKbUrls = [...new Set([...existingKbFiles, ...uploadedFileUrls])];
+      const baseTemplate = selectedAgentData?.template || { name: "", description: "", icon: "", features: [] };
+      await agentAPI.updateAgent(selectedAgent, {
+        custom_instructions: systemPrompt,
+        knowledge_base_file_urls: allKbUrls,
+        website_urls: urls.filter((u) => u.trim()),
+        template: { ...baseTemplate, systemPrompt, firstMessage },
+      } as any);
+      setSavedSections((prev) => ({ ...prev, knowledge: true }));
+      appToast.success("Knowledge base saved successfully!");
+    } catch {
+      appToast.error("Failed to save knowledge base.");
+    } finally {
+      setIsSavingKnowledge(false);
+    }
   };
 
-  const saveTrainingExamples = () => {
-    // Here you would normally save to backend
-    setSavedSections((prev) => ({ ...prev, examples: true }));
-    toast.success("Training examples saved successfully!");
+  const saveTrainingExamples = async () => {
+    if (!selectedAgent) return;
+    setIsSavingExamples(true);
+    try {
+      const baseTemplate = selectedAgentData?.template || { name: "", description: "", icon: "", features: [] };
+      await agentAPI.updateAgent(selectedAgent, {
+        template: {
+          ...baseTemplate,
+          systemPrompt,
+          firstMessage,
+          keyTalkingPoints,
+          closingScript,
+          objections,
+          conversationExamples,
+        },
+      } as any);
+      setSavedSections((prev) => ({ ...prev, examples: true }));
+      appToast.success("Training examples saved successfully!");
+    } catch {
+      appToast.error("Failed to save training examples.");
+    } finally {
+      setIsSavingExamples(false);
+    }
   };
 
-  const saveIntentTraining = () => {
-    // Here you would normally save to backend
-    setSavedSections((prev) => ({ ...prev, intents: true }));
-    toast.success("Intent training saved successfully!");
+  const saveIntentTraining = async () => {
+    if (!selectedAgent) return;
+    setIsSavingIntents(true);
+    try {
+      const baseTemplate = selectedAgentData?.template || { name: "", description: "", icon: "", features: [] };
+      await agentAPI.updateAgent(selectedAgent, {
+        template: {
+          ...baseTemplate,
+          systemPrompt,
+          firstMessage,
+          intents,
+        },
+      } as any);
+      setSavedSections((prev) => ({ ...prev, intents: true }));
+      appToast.success("Intent training saved!");
+    } catch {
+      appToast.error("Failed to save behavior settings.");
+    } finally {
+      setIsSavingIntents(false);
+    }
   };
 
   const canStartTraining = () => {
@@ -950,10 +1000,6 @@ Agent Details:
     );
   };
 
-  const selectedAgentData = localAgents.find(
-    (agent) => agent.id === selectedAgent
-  );
-
   const trainingTabs = [
     { id: "knowledge", label: "Knowledge Base", icon: Database },
     { id: "examples", label: "Training Examples", icon: MessageSquare },
@@ -961,37 +1007,24 @@ Agent Details:
     { id: "testing", label: "Testing & Validation", icon: CheckCircle },
   ];
 
-  const knowledgeStats = isDeveloper
-    ? [
-        { label: "Documents", value: "24", icon: FileText, color: "blue" },
-        { label: "FAQ Items", value: "156", icon: Lightbulb, color: "green" },
+  const knowledgeStats = [
+        { label: "Documents", value: `${existingKbFiles.length + uploadedFiles.length}`, icon: FileText, color: "blue" },
+        { label: "FAQ Items", value: "—", icon: Lightbulb, color: "green" },
         {
           label: "Training Examples",
-          value: "89",
+          value: `${conversationExamples.length}`,
           icon: MessageSquare,
           color: "purple",
         },
         {
           label: "Intents Trained",
-          value: "12",
+          value: `${intents.length}`,
           icon: Target,
           color: "orange",
         },
-      ]
-    : [
-        { label: "Documents", value: "0", icon: FileText, color: "blue" },
-        { label: "FAQ Items", value: "0", icon: Lightbulb, color: "green" },
-        {
-          label: "Training Examples",
-          value: "0",
-          icon: MessageSquare,
-          color: "purple",
-        },
-        { label: "Intents Trained", value: "0", icon: Target, color: "orange" },
       ];
 
-  const trainingMetrics = isDeveloper
-    ? [
+  const trainingMetrics = [
         {
           label: "Accuracy Score",
           value: `${testMetrics.accuracyScore}%`,
@@ -1027,32 +1060,6 @@ Agent Details:
               ? `+${(Math.random() * 2 + 0.5).toFixed(1)}%`
               : "No data",
           trend: "up",
-        },
-      ]
-    : [
-        {
-          label: "Accuracy Score",
-          value: "0%",
-          change: "No data",
-          trend: "neutral",
-        },
-        {
-          label: "Response Time",
-          value: "0s",
-          change: "No data",
-          trend: "neutral",
-        },
-        {
-          label: "Confidence Level",
-          value: "0%",
-          change: "No data",
-          trend: "neutral",
-        },
-        {
-          label: "Intent Recognition",
-          value: "0%",
-          change: "No data",
-          trend: "neutral",
         },
       ];
 
@@ -1124,7 +1131,12 @@ Agent Details:
       <div className="">
         <GlassCard>
           <div className="p-4 sm:p-6">
-            {!isDeveloper ? (
+            {isLoadingAgentConfig ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+                <span className="ml-3 text-slate-600 dark:text-slate-400">Loading agent...</span>
+              </div>
+            ) : localAgents.length === 0 ? (
               <div className="text-center py-8 sm:py-12">
                 <Bot className="w-12 h-12 sm:w-16 sm:h-16 text-slate-400 mx-auto mb-4" />
                 <h3 className="text-lg sm:text-xl font-semibold text-slate-800 dark:text-white mb-2">
@@ -1136,12 +1148,7 @@ Agent Details:
                 </p>
                 <button
                   onClick={() => navigate("/agents")}
-                  disabled={!isDeveloper}
-                  className={`${
-                    isDeveloper
-                      ? "common-button-bg"
-                      : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50 px-6 py-3 rounded-lg"
-                  }`}
+                  className="common-button-bg"
                 >
                   Go to Agent Management
                 </button>
@@ -1368,47 +1375,91 @@ Agent Details:
                               (PDF, DOC, TXT, CSV)
                             </span>
                           </label>
-                          <div className="common-bg-icons border border-slate-200 dark:border-slate-600 rounded-xl p-4 sm:p-6 text-center hover:border-blue-300 dark:hover:border-blue-600 transition-colors">
-                            <Upload className="w-8 h-8 text-slate-400 mx-auto mb-3" />
-                            <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">
-                              Drop files here or click to browse
-                            </p>
-                            <p className="text-xs text-slate-500 dark:text-slate-500 mb-4">
-                              Max 10MB each • PDF, DOC, TXT, CSV
-                            </p>
+                          {/* Existing KB Files from saved agent */}
+                          {existingKbFiles.length > 0 && (
+                            <div className="mb-4 space-y-2">
+                              <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                                Saved Knowledge Files ({existingKbFiles.length})
+                              </h4>
+                              {existingKbFiles.map((fileUrl, index) => {
+                                const filename = fileUrl.split("/").pop()?.split("?")[0] || fileUrl;
+                                const cleanName = filename.replace(/^\d+-/, "");
+                                const ext = cleanName.split(".").pop()?.toLowerCase() || "";
+                                const isImage = ["jpg","jpeg","png","gif","webp","svg"].includes(ext);
+                                return (
+                                  <div
+                                    key={fileUrl}
+                                    className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg"
+                                  >
+                                    <div className="flex items-center gap-3 min-w-0">
+                                      <div className="w-8 h-8 bg-blue-100 dark:bg-blue-800 rounded-lg flex items-center justify-center flex-shrink-0">
+                                        {isImage ? (
+                                          <Image className="w-4 h-4 text-blue-600 dark:text-blue-300" />
+                                        ) : (
+                                          <File className="w-4 h-4 text-blue-600 dark:text-blue-300" />
+                                        )}
+                                      </div>
+                                      <div className="min-w-0">
+                                        <p className="text-sm font-medium text-blue-800 dark:text-blue-200 truncate max-w-[200px]" title={cleanName}>
+                                          {index === 0 ? "📚 " : ""}{cleanName}
+                                        </p>
+                                        {index === 0 && (
+                                          <p className="text-xs text-blue-500 dark:text-blue-400">Main Knowledge Base</p>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <button
+                                      onClick={() => removeExistingKbFile(fileUrl)}
+                                      className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition-colors p-1 flex-shrink-0"
+                                      title="Remove file"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {/* Upload Zone */}
+                          <div className="border-2 border-dashed border-slate-200 dark:border-slate-600 rounded-xl text-center hover:border-blue-300 dark:hover:border-blue-600 transition-colors">
                             <input
                               type="file"
                               multiple
                               accept=".pdf,.doc,.docx,.txt,.csv"
-                              onChange={handleFileUpload}
+                              onChange={handleFileInputChange}
                               className="hidden"
-                              id="file-upload"
-                              disabled={!isDeveloper || isUploading}
+                              id="training-kb-file-input"
+                              disabled={isUploadingFiles}
                             />
                             <label
-                              htmlFor="file-upload"
-                              className={`inline-block px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-all ${
-                                isDeveloper && !isUploading
-                                  ? "bg-blue-600 hover:bg-blue-700 text-white"
-                                  : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                              }`}
+                              htmlFor={isUploadingFiles ? undefined : "training-kb-file-input"}
+                              className="block p-4 sm:p-6 cursor-pointer"
                             >
-                              {isUploading ? (
-                                <span className="flex items-center gap-2">
-                                  <div className="animate-spin w-3 h-3 border-2 border-white border-t-transparent rounded-full"></div>
-                                  Uploading...
+                              <div className="flex flex-col items-center">
+                                {isUploadingFiles ? (
+                                  <Loader2 className="w-8 h-8 text-blue-500 animate-spin mb-3" />
+                                ) : (
+                                  <Upload className="w-8 h-8 text-slate-400 mb-3" />
+                                )}
+                                <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">
+                                  {isUploadingFiles ? "Uploading..." : "Drop files here or tap to browse"}
+                                </p>
+                                <p className="text-xs text-slate-500 dark:text-slate-500 mb-4">
+                                  Max 10MB each • PDF, DOC, TXT, CSV
+                                </p>
+                                <span className={`inline-block px-4 py-2 rounded-lg text-sm font-medium transition-all ${isUploadingFiles ? "bg-gray-300 text-gray-500 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700 text-white"}`}>
+                                  {isUploadingFiles ? "Uploading..." : "Browse Files"}
                                 </span>
-                              ) : (
-                                "Browse Files"
-                              )}
+                              </div>
                             </label>
                           </div>
 
-                          {/* Uploaded Files List */}
+                          {/* Newly Uploaded Files (pending save) */}
                           {uploadedFiles.length > 0 && (
                             <div className="mt-4 space-y-2">
                               <h4 className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                                Uploaded Files ({uploadedFiles.length})
+                                New Files (pending save) ({uploadedFiles.length})
                               </h4>
                               {uploadedFiles.map((file, index) => (
                                 <div
@@ -1424,8 +1475,7 @@ Agent Details:
                                         {file.name}
                                       </p>
                                       <p className="text-xs text-green-600 dark:text-green-400">
-                                        {(file.size / 1024 / 1024).toFixed(2)}{" "}
-                                        MB
+                                        {(file.size / 1024 / 1024).toFixed(2)} MB
                                       </p>
                                     </div>
                                   </div>
@@ -1434,7 +1484,7 @@ Agent Details:
                                     className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 transition-colors p-1"
                                     title="Remove file"
                                   >
-                                    ✕
+                                    <X className="w-4 h-4" />
                                   </button>
                                 </div>
                               ))}
@@ -1724,16 +1774,6 @@ Agent Details:
                             <span className="text-xs text-slate-500">
                               Detailed, relevant information works best
                             </span>
-                            <button
-                              disabled={!isDeveloper}
-                              className={`text-xs px-2 py-1 rounded transition-colors ${
-                                isDeveloper
-                                  ? "text-blue-600 hover:text-blue-700 font-medium"
-                                  : "text-gray-400 cursor-not-allowed"
-                              }`}
-                            >
-                              Save Draft
-                            </button>
                           </div>
                         </div>
 
@@ -1741,18 +1781,20 @@ Agent Details:
                         <div className="flex justify-end">
                           <button
                             onClick={saveKnowledgeBase}
-                            disabled={!isDeveloper}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                              isDeveloper
-                                ? savedSections.knowledge
-                                  ? "bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800"
-                                  : "common-button-bg"
-                                : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50"
-                            }`}
+                            disabled={isSavingKnowledge || isUploadingFiles}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                              savedSections.knowledge && !isSavingKnowledge
+                                ? "bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800"
+                                : "common-button-bg"
+                            } disabled:opacity-60 disabled:cursor-not-allowed`}
                           >
-                            {savedSections.knowledge
-                              ? "✓ Saved"
-                              : "Save Knowledge"}
+                            {isSavingKnowledge ? (
+                              <><Loader2 className="w-3 h-3 animate-spin" /> Saving...</>
+                            ) : savedSections.knowledge ? (
+                              <>✓ Saved</>
+                            ) : (
+                              <><Save className="w-3 h-3" /> Save Knowledge</>
+                            )}
                           </button>
                         </div>
                       </div>
@@ -1769,78 +1811,12 @@ Agent Details:
                         {/* Call Script / Conversation Flow */}
                         <div className="common-bg-icons p-4 sm:p-5 rounded-xl">
                           <h4 className="font-medium text-slate-800 dark:text-white mb-2 sm:mb-3">
-                            Call Script / Conversation Flow
+                            Call Script & Talking Points
                           </h4>
                           <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-                            Define the structure and flow of conversations
+                            The agent's first message is set in the Knowledge Base tab. Here define key talking points and closing.
                           </p>
                           <div className="space-y-4">
-                            <div>
-                              <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
-                                Opening Script:
-                              </label>
-                              <div className="relative">
-                                <textarea
-                                  value={openingScript}
-                                  onChange={(e) =>
-                                    setOpeningScript(e.target.value)
-                                  }
-                                  placeholder="Hi, this is [Agent Name] calling from [Company]. Is this a good time to talk about [Purpose]?"
-                                  rows={3}
-                                  className="common-bg-icons w-full px-4 py-3 pb-12 rounded-lg text-sm sm:text-base resize-none"
-                                />
-                                <button
-                                  onClick={generateAIOpeningScript}
-                                  disabled={isGeneratingOpeningScript}
-                                  className="absolute bottom-3 right-3 flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 text-xs font-medium rounded-lg transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                  {isGeneratingOpeningScript ? (
-                                    <>
-                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                      <span>Generating...</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Sparkles className="w-3.5 h-3.5" />
-                                      <span>AI Assist</span>
-                                    </>
-                                  )}
-                                </button>
-                              </div>
-                              {showGeneratedOpeningScript &&
-                                generatedOpeningScript && (
-                                  <div className="mt-3 p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 border border-purple-200 dark:border-purple-700 rounded-xl">
-                                    <div className="flex items-center gap-2 mb-3">
-                                      <Sparkles className="w-4 h-4 text-purple-500" />
-                                      <span className="text-sm font-medium text-purple-700 dark:text-purple-300">
-                                        AI Generated Opening
-                                      </span>
-                                    </div>
-                                    <div className="bg-white dark:bg-slate-800 rounded-lg mb-3">
-                                      <textarea
-                                        value={generatedOpeningScript}
-                                        onChange={(e) => setGeneratedOpeningScript(e.target.value)}
-                                        className="w-full h-32 p-3 text-sm text-slate-700 dark:text-slate-300 bg-transparent resize-none focus:outline-none focus:ring-2 focus:ring-purple-300 rounded-lg"
-                                      />
-                                    </div>
-                                    <div className="flex gap-2">
-                                      <button
-                                        onClick={applyGeneratedOpeningScript}
-                                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 text-sm font-medium rounded-lg transition-all"
-                                      >
-                                        <CheckCircle className="w-4 h-4" />
-                                        Add
-                                      </button>
-                                      <button
-                                        onClick={cancelGeneratedOpeningScript}
-                                        className="px-4 py-2 common-bg-icons text-slate-700 dark:text-slate-300 text-sm font-medium rounded-lg hover:shadow-sm transition-all"
-                                      >
-                                        Cancel
-                                      </button>
-                                    </div>
-                                  </div>
-                                )}
-                            </div>
                             <div>
                               <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
                                 Key Talking Points:
@@ -2050,23 +2026,13 @@ Agent Details:
                                 + Add More Example
                               </button>
                               <button
-                                disabled={!isDeveloper}
-                                className={`flex items-center gap-1 px-3 py-2 rounded-lg text-sm transition-colors ${
-                                  isDeveloper
-                                    ? "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"
-                                    : "text-gray-400 cursor-not-allowed"
-                                }`}
+                                className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 transition-colors"
                               >
                                 <FileText className="w-3 h-3" />
                                 Import CSV
                               </button>
                               <button
-                                disabled={!isDeveloper}
-                                className={`flex items-center gap-1 px-3 py-2 rounded-lg text-sm transition-colors ${
-                                  isDeveloper
-                                    ? "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"
-                                    : "text-gray-400 cursor-not-allowed"
-                                }`}
+                                className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 transition-colors"
                               >
                                 <Zap className="w-3 h-3" />
                                 Import Audio
@@ -2147,12 +2113,9 @@ Agent Details:
                                 + Add Objection
                               </button>
                               <button
-                                disabled={!isDeveloper}
-                                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                  isDeveloper
-                                    ? "bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-300"
-                                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                                }`}
+                                onClick={saveTrainingExamples}
+                                disabled={isSavingExamples}
+                                className="px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-300 disabled:opacity-60"
                               >
                                 Save Objections
                               </button>
@@ -2165,18 +2128,20 @@ Agent Details:
                       <div className="flex justify-end">
                         <button
                           onClick={saveTrainingExamples}
-                          disabled={!isDeveloper}
-                          className={`px-6 py-3 rounded-xl font-medium ${
-                            isDeveloper
-                              ? savedSections.examples
-                                ? "bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800"
-                                : "common-button-bg"
-                              : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50"
+                          disabled={isSavingExamples}
+                          className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium disabled:opacity-60 disabled:cursor-not-allowed ${
+                            savedSections.examples && !isSavingExamples
+                              ? "bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800"
+                              : "common-button-bg"
                           }`}
                         >
-                          {savedSections.examples
-                            ? "✓ Training Examples Saved"
-                            : "Save Training Examples"}
+                          {isSavingExamples ? (
+                            <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</>
+                          ) : savedSections.examples ? (
+                            <>✓ Training Examples Saved</>
+                          ) : (
+                            <><Save className="w-4 h-4" /> Save Training Examples</>
+                          )}
                         </button>
                       </div>
                     </div>
@@ -2185,70 +2150,19 @@ Agent Details:
                   {activeTab === "intents" && (
                     <div className="space-y-4 sm:space-y-6">
                       <h3 className="text-lg sm:text-xl font-semibold text-slate-800 dark:text-white">
-                        Intent Training & Voice Settings
+                        Intent Training
                       </h3>
 
                       <div className="space-y-4">
-                        {/* Voice & Speech Settings */}
-                        <div className="common-bg-icons p-4 sm:p-5 rounded-xl">
-                          <h4 className="font-medium text-slate-800 dark:text-white mb-2 sm:mb-3">
-                            Voice & Speech Configuration
-                          </h4>
-                          <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-                            Customize how your agent sounds and speaks
-                          </p>
-                          <div className="space-y-4">
-                            <div>
-                              <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
-                                Voice Model:
-                              </label>
-                              <select className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base">
-                                <option>Professional Female (US)</option>
-                                <option>Professional Male (US)</option>
-                                <option>Casual Female (UK)</option>
-                                <option>Casual Male (UK)</option>
-                                <option>Friendly (Australian)</option>
-                              </select>
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
-                                Speaking Rate:
-                              </label>
-                              <div className="flex items-center gap-4">
-                                <input
-                                  type="range"
-                                  min="0.5"
-                                  max="2"
-                                  step="0.1"
-                                  defaultValue="1"
-                                  className="flex-1"
-                                />
-                                <span className="text-sm font-medium text-slate-600 dark:text-slate-400 w-12">
-                                  1.0x
-                                </span>
-                              </div>
-                            </div>
-                            <div>
-                              <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
-                                Interruption Sensitivity:
-                              </label>
-                              <select className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base">
-                                <option>Low (Agent keeps talking)</option>
-                                <option>Medium (Balanced)</option>
-                                <option>High (Stops immediately)</option>
-                              </select>
-                            </div>
-                          </div>
-                        </div>
 
-                        {/* Intent Configuration */}
+                        {/* ── Intent Recognition ── */}
                         <div className="common-bg-icons p-4 sm:p-5 rounded-xl">
-                          <h4 className="font-medium text-slate-800 dark:text-white mb-2 sm:mb-3">
-                            Intent Recognition
-                          </h4>
+                          <div className="flex items-center gap-2 mb-1">
+                            <Target className="w-4 h-4 text-orange-500" />
+                            <h4 className="font-medium text-slate-800 dark:text-white">Intent Recognition</h4>
+                          </div>
                           <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-                            Train the agent to recognize specific intents and
-                            respond appropriately
+                            Train the agent to recognize specific intents and respond with preset replies
                           </p>
                           <div className="space-y-6">
                             {intents.map((intent, index) => (
@@ -2260,10 +2174,10 @@ Agent Details:
                                   <button
                                     type="button"
                                     onClick={() => removeIntent(index)}
-                                    className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors text-xs"
+                                    className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
                                     title="Remove"
                                   >
-                                    ✕
+                                    <X className="w-3.5 h-3.5" />
                                   </button>
                                 )}
                                 <div className="pr-8">
@@ -2273,129 +2187,44 @@ Agent Details:
                                   <input
                                     type="text"
                                     value={intent.name}
-                                    onChange={(e) =>
-                                      updateIntent(
-                                        index,
-                                        "name",
-                                        e.target.value
-                                      )
-                                    }
-                                    placeholder="e.g., pricing_inquiry, support_request, booking_request"
-                                    className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base"
+                                    onChange={(e) => updateIntent(index, "name", e.target.value)}
+                                    placeholder="e.g., pricing_inquiry, booking_request"
+                                    className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm"
                                   />
                                 </div>
                                 <div>
                                   <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
-                                    Example Phrases {index + 1} (one per line):
+                                    Example Phrases (one per line):
                                   </label>
                                   <textarea
                                     value={intent.phrases}
-                                    onChange={(e) =>
-                                      updateIntent(
-                                        index,
-                                        "phrases",
-                                        e.target.value
-                                      )
-                                    }
-                                    placeholder="How much does it cost?&#10;What's your pricing?&#10;Can you tell me the price?&#10;What are your rates?"
-                                    rows={4}
-                                    className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base resize-none"
+                                    onChange={(e) => updateIntent(index, "phrases", e.target.value)}
+                                    placeholder={"How much does it cost?\nWhat's your pricing?\nWhat are your rates?"}
+                                    rows={3}
+                                    className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm resize-none"
                                   />
                                 </div>
                                 <div>
                                   <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
-                                    Intent Response Template {index + 1}:
+                                    Intent Response:
                                   </label>
                                   <textarea
                                     value={intent.response}
-                                    onChange={(e) =>
-                                      updateIntent(
-                                        index,
-                                        "response",
-                                        e.target.value
-                                      )
-                                    }
-                                    placeholder="Our pricing starts at $99/month for the basic plan..."
-                                    rows={3}
-                                    className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm sm:text-base resize-none"
+                                    onChange={(e) => updateIntent(index, "response", e.target.value)}
+                                    placeholder="Our pricing starts at $99/month..."
+                                    rows={2}
+                                    className="common-bg-icons w-full px-4 py-3 rounded-lg text-sm resize-none"
                                   />
                                 </div>
                               </div>
                             ))}
-                            <div className="flex flex-wrap gap-2">
-                              <button
-                                type="button"
-                                onClick={addIntent}
-                                className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
-                              >
-                                + Add Intent
-                              </button>
-                              <button
-                                disabled={!isDeveloper}
-                                className={`px-2 py-1 rounded text-xs transition-colors ${
-                                  isDeveloper
-                                    ? "text-slate-600 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"
-                                    : "text-gray-400 cursor-not-allowed"
-                                }`}
-                              >
-                                Templates
-                              </button>
-                              <button
-                                disabled={!isDeveloper}
-                                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                  isDeveloper
-                                    ? "bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-300"
-                                    : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                                }`}
-                              >
-                                Save Intents
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* End Call Conditions */}
-                        <div className="common-bg-icons p-4 sm:p-5 rounded-xl">
-                          <h4 className="font-medium text-slate-800 dark:text-white mb-2 sm:mb-3">
-                            End Call Conditions
-                          </h4>
-                          <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-                            Define when and how the agent should end calls
-                          </p>
-                          <div className="space-y-3">
-                            <label className="flex items-center gap-3 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                className="w-4 h-4 rounded"
-                              />
-                              <span className="text-sm text-slate-700 dark:text-slate-300">
-                                End call when objective is completed
-                              </span>
-                            </label>
-                            <label className="flex items-center gap-3 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                className="w-4 h-4 rounded"
-                              />
-                              <span className="text-sm text-slate-700 dark:text-slate-300">
-                                End call on explicit customer request
-                              </span>
-                            </label>
-                            <label className="flex items-center gap-3 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                className="w-4 h-4 rounded"
-                              />
-                              <span className="text-sm text-slate-700 dark:text-slate-300">
-                                Maximum call duration:{" "}
-                                <input
-                                  type="number"
-                                  placeholder="15"
-                                  className="common-bg-icons w-16 px-2 py-1 rounded ml-2 text-center"
-                                />{" "}
-                                minutes
-                              </span>
-                            </label>
+                            <button
+                              type="button"
+                              onClick={addIntent}
+                              className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium"
+                            >
+                              + Add Intent
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -2404,18 +2233,20 @@ Agent Details:
                       <div className="flex justify-end">
                         <button
                           onClick={saveIntentTraining}
-                          disabled={!isDeveloper}
-                          className={`px-6 py-3 rounded-xl font-medium ${
-                            isDeveloper
-                              ? savedSections.intents
-                                ? "bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800"
-                                : "common-button-bg"
-                              : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50"
+                          disabled={isSavingIntents}
+                          className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium disabled:opacity-60 disabled:cursor-not-allowed ${
+                            savedSections.intents && !isSavingIntents
+                              ? "bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800"
+                              : "common-button-bg"
                           }`}
                         >
-                          {savedSections.intents
-                            ? "✓ Intent Training Saved"
-                            : "Save Intent Training"}
+                          {isSavingIntents ? (
+                            <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</>
+                          ) : savedSections.intents ? (
+                            <>✓ Intent Training Saved</>
+                          ) : (
+                            <><Save className="w-4 h-4" /> Save Intent Training</>
+                          )}
                         </button>
                       </div>
                     </div>
@@ -2447,14 +2278,11 @@ Agent Details:
                               <button
                                 onClick={handleTestResponse}
                                 disabled={
-                                  !isDeveloper ||
                                   !testMessage.trim() ||
                                   isTestingResponse
                                 }
                                 className={`w-full sm:w-auto touch-manipulation ${
-                                  isDeveloper &&
-                                  testMessage.trim() &&
-                                  !isTestingResponse
+                                  testMessage.trim() && !isTestingResponse
                                     ? "common-button-bg"
                                     : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50 px-6 py-3 rounded-lg"
                                 }`}
