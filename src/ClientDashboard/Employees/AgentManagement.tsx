@@ -325,13 +325,11 @@ const AgentManagement = () => {
   const widgetTestRef = useRef<HTMLDivElement>(null);
 
   const scrollToWidgetTest = () => {
-    // First scroll the widget section into view, then scroll to the live preview inside it
-    const livePreview = document.getElementById("widget-live-preview");
-    if (livePreview) {
-      livePreview.scrollIntoView({ behavior: "smooth", block: "start" });
-    } else {
-      widgetTestRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
+    if (!currentAgent?.id) return;
+    const params = new URLSearchParams();
+    if (user?.id) params.set("userId", user.id);
+    const url = `/MyAIEmployee/${currentAgent.id}${params.toString() ? `?${params.toString()}` : ""}`;
+    window.open(url, "_blank");
   };
 
   // Template section navigation tabs
