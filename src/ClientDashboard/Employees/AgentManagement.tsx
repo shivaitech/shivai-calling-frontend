@@ -321,6 +321,11 @@ const AgentManagement = () => {
     useState<Partial<GeneratedTemplate> | null>(null);
   const [activeTemplateSection, setActiveTemplateSection] = useState('overview');
   const templateContentRef = useRef<HTMLDivElement>(null);
+  const widgetTestRef = useRef<HTMLDivElement>(null);
+
+  const scrollToWidgetTest = () => {
+    widgetTestRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   // Template section navigation tabs
   const templateSections = [
@@ -2992,7 +2997,7 @@ const AgentManagement = () => {
                       {(() => {
                         const agentObj = agents.find((a: any) => a.id === agentForIntegration);
                         const agentLang = agentObj?.language || '';
-                        const embedUrl = `https://callshivai.com/widget2.js?agentId=${agentForIntegration}${agentLang ? `&language=${agentLang}` : ''}`;
+                        const embedUrl = `https://callshivai.com/widget2.js?agentId=${agentForIntegration}&userId=${user?.id || ''}${agentLang ? `&language=${agentLang}` : ''}`;
                         const embedCode = `<script src="${embedUrl}"><\/script>`;
                         return (
                           <>
@@ -5527,7 +5532,7 @@ const AgentManagement = () => {
                   (currentAgent as any).is_active) && (
                   <>
                     <button
-                      onClick={() => setShowTestChat(true)}
+                      onClick={scrollToWidgetTest}
                       className="common-button-bg flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg touch-manipulation text-xs font-medium text-white"
                     >
                       <Play className="w-3.5 h-3.5" />
@@ -5621,7 +5626,7 @@ const AgentManagement = () => {
                   (currentAgent as any).is_active) && (
                   <>
                     <button
-                      onClick={() => setShowTestChat(true)}
+                      onClick={scrollToWidgetTest}
                       className="common-button-bg flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg touch-manipulation"
                     >
                       <Play className="w-4 h-4" />
@@ -5945,7 +5950,7 @@ const AgentManagement = () => {
         </div>
 
         {/* Widget Customization Section - Only show when agent is published */}
-        <div className="mt-3 sm:mt-4 lg:mt-6">
+        <div ref={widgetTestRef} className="mt-3 sm:mt-4 lg:mt-6 scroll-mt-4">
           <AgentWidgetCustomization
             agentId={currentAgent.id}
             agentName={currentAgent.name}
