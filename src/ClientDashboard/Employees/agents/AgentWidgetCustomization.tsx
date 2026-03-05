@@ -28,6 +28,8 @@ interface WidgetConfig {
     companyName: string;
     companyDescription: string;
     companyLogo: string;
+    triggerButtonImage: string;
+    callToActionText: string;
     placeholderText: string;
     offlineMessage: string;
   };
@@ -63,6 +65,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [logoPreview, setLogoPreview] = useState<string>("");
+  const [triggerButtonImagePreview, setTriggerButtonImagePreview] = useState<string>("");
   const [previewKey, setPreviewKey] = useState(0);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const configTimeoutRef = useRef<number | null>(null);
@@ -221,6 +224,8 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
       companyDescription:
         "AI-Powered Support - We offer 24/7 voice support to handle your business calls effieciently and professionally.",
       companyLogo: "",
+      triggerButtonImage: "",
+      callToActionText: "📞 Call ShivAI!",
       placeholderText: "Type your message...",
       offlineMessage: "We're currently offline. Please leave a message.",
     },
@@ -243,6 +248,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
       console.log("✅ No saved config found, setting defaults for agent:", agentName);
       console.log("🧹 Also clearing any cached logo preview");
       setLogoPreview(""); // Clear any cached logo
+      setTriggerButtonImagePreview(""); // Clear trigger button image
       setWidgetConfig((prev) => ({
         ...prev,
         content: {
@@ -260,8 +266,9 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
   useEffect(() => {
     const loadWidgetConfig = async () => {
       setIsLoading(true);
-      // Clear any existing logo preview at start
+      // Clear any existing logo/trigger previews at start
       setLogoPreview("");
+      setTriggerButtonImagePreview("");
       console.log("🔄 Cleared logo preview at start of load");
       
       try {
@@ -312,6 +319,8 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                   widget.ai_employee_description ||
                   "AI-Powered Support - We offer 24/7 voice support to handle your business calls effieciently and professionally.",
                 companyLogo: widget.company_logo || "",
+                triggerButtonImage: widget.trigger_button_image || "",
+                callToActionText: widget.button_text || "📞 Call ShivAI!",
                 placeholderText: "Type your message...",
                 offlineMessage: "We're currently offline. Please leave a message.",
               },
@@ -359,6 +368,13 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
               // Clear logo preview if no logo in API response
               setLogoPreview("");
             }
+
+            // Set trigger button image preview if it exists
+            if (widget.trigger_button_image) {
+              setTriggerButtonImagePreview(widget.trigger_button_image);
+            } else {
+              setTriggerButtonImagePreview("");
+            }
             
             setLastSaved(
               new Date(widget.updatedAt || widget.createdAt || Date.now())
@@ -377,6 +393,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
             // Explicitly clear logo and reset to defaults for new agent
             console.log("🧹 Clearing logo preview and resetting to defaults");
             setLogoPreview("");
+            setTriggerButtonImagePreview("");
             setWidgetConfig((prev) => ({
               ...prev,
               content: {
@@ -385,6 +402,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                 companyName: agentName,
                 companyDescription: "AI-Powered Support - We offer 24/7 voice support to handle your business calls effieciently and professionally.",
                 welcomeMessage: `Hi! I'm ${agentName}. How can I help you today?`,
+                callToActionText: "📞 Call ShivAI!",
               }
             }));
             console.log("✅ Reset to clean defaults for new agent");
@@ -457,6 +475,41 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
     reader.readAsDataURL(file);
   };
 
+  // Handle trigger button image upload
+  const handleTriggerButtonImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      showToast('Please select a valid image file (JPG, PNG, GIF, or WebP)', 'error');
+      e.target.value = '';
+      return;
+    }
+
+    const maxSizeInBytes = 500 * 1024; // 500KB
+    if (file.size > maxSizeInBytes) {
+      const fileSizeInKB = Math.round(file.size / 1024);
+      showToast(`Image size (${fileSizeInKB}KB) exceeds the 500KB limit. Please choose a smaller image.`, 'error');
+      e.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result as string;
+      setTriggerButtonImagePreview(base64);
+      updateConfig('content', 'triggerButtonImage', base64);
+      const fileSizeInKB = Math.round(file.size / 1024);
+      showToast(`Trigger button image uploaded (${fileSizeInKB}KB)`, 'success');
+    };
+    reader.onerror = () => {
+      showToast('Error reading the image file. Please try again.', 'error');
+      e.target.value = '';
+    };
+    reader.readAsDataURL(file);
+  };
+
   // Toast notification function
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     const toastColors = {
@@ -507,21 +560,14 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
       if (finalLogoUrl && finalLogoUrl.startsWith("data:image")) {
         console.log("📤 Logo is local, uploading to server first...");
 
-        // Convert base64 to blob
         const response = await fetch(finalLogoUrl);
         const blob = await response.blob();
-
-        // Create a File object from the blob
         const file = new File([blob], "logo.png", { type: blob.type });
-
-        // Upload the file
         const uploadResponse = await agentAPI.uploadLogo(file);
         console.log("✅ Logo uploaded successfully");
 
-        // Extract the URL from upload response
         if (uploadResponse?.logo_url) {
           finalLogoUrl = uploadResponse.logo_url;
-          console.log("✅ Using server logo URL:", finalLogoUrl);
         } else if (uploadResponse?.data?.logo_url) {
           finalLogoUrl = uploadResponse.data.logo_url;
         } else if (uploadResponse?.data?.data?.logo_url) {
@@ -531,16 +577,35 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
         }
       }
 
-      // Step 2: Save widget configuration with final logo URL
+      // Step 1b: Upload trigger button image if it's base64
+      let finalTriggerButtonImageUrl = widgetConfig.content.triggerButtonImage;
+      if (finalTriggerButtonImageUrl && finalTriggerButtonImageUrl.startsWith("data:image")) {
+        console.log("📤 Trigger button image is local, uploading to server first...");
+        const response = await fetch(finalTriggerButtonImageUrl);
+        const blob = await response.blob();
+        const file = new File([blob], "trigger_button.png", { type: blob.type });
+        const uploadResponse = await agentAPI.uploadLogo(file);
+        console.log("✅ Trigger button image uploaded successfully");
+        if (uploadResponse?.logo_url) {
+          finalTriggerButtonImageUrl = uploadResponse.logo_url;
+        } else if (uploadResponse?.data?.logo_url) {
+          finalTriggerButtonImageUrl = uploadResponse.data.logo_url;
+        } else if (uploadResponse?.data?.data?.logo_url) {
+          finalTriggerButtonImageUrl = uploadResponse.data.data.logo_url;
+        }
+      }
+
+      // Step 2: Save widget configuration
       console.log("📤 Saving widget configuration...");
       const widgetData = {
         agent_id: agentId,
         company_logo: finalLogoUrl,
+        trigger_button_image: finalTriggerButtonImageUrl,
         ai_employee_name: widgetConfig.content.companyName,
         ai_employee_description: widgetConfig.content.companyDescription,
         theme: "shivai-blue",
         position: widgetConfig.ui.position,
-        button_text: "Call ShivAI!",
+        button_text: widgetConfig.content.callToActionText || "📞 Call ShivAI!",
         welcome_message: widgetConfig.content.welcomeMessage,
         primary_color: widgetConfig.theme.primaryColor,
         gradient_start: widgetConfig.theme.primaryColor,
@@ -550,12 +615,13 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
       const saveResponse = await agentAPI.saveWidgetConfig(widgetData);
       console.log("✅ Widget configuration saved successfully:", saveResponse);
 
-      // Update local config with the final logo URL
+      // Update local config with final URLs
       setWidgetConfig((prev) => ({
         ...prev,
         content: {
           ...prev.content,
           companyLogo: finalLogoUrl,
+          triggerButtonImage: finalTriggerButtonImageUrl,
         },
       }));
 
@@ -589,77 +655,6 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
     } finally {
       setIsSaving(false);
     }
-  };
-
-  // Real-time widget configuration update
-  const updateWidgetJS = async () => {
-    try {
-      const customizedJS = await generateCustomizedWidget();
-
-      // Send to backend to update widget.js file
-      const response = await fetch("/api/widget/update", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          agentId,
-          widgetCode: customizedJS,
-          config: widgetConfig,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to update widget.js");
-      }
-
-      console.log("✅ Widget.js updated successfully");
-    } catch (error) {
-      console.error("Failed to update widget.js:", error);
-    }
-  };
-
-  const generateCustomizedWidget = async () => {
-    // Read the base widget.js and apply customizations
-    const response = await fetch("/widget.js");
-    let widgetCode = await response.text();
-
-    // Apply theme customizations
-    widgetCode = widgetCode.replace(
-      /background: linear-gradient\(135deg, #4b5563 0%, #6b7280 30%, #374151 70%, #1f2937 100%\)/g,
-      `background: linear-gradient(135deg, ${widgetConfig.theme.primaryColor} 0%, ${widgetConfig.theme.accentColor} 100%)`
-    );
-
-    // Apply UI customizations
-    widgetCode = widgetCode.replace(
-      /bottom: 20px;\s*right: 20px;/g,
-      `${
-        widgetConfig.ui.position.includes("bottom") ? "bottom" : "top"
-      }: 20px; ${
-        widgetConfig.ui.position.includes("right") ? "right" : "left"
-      }: 20px;`
-    );
-
-    // Apply content customizations
-    widgetCode = widgetCode.replace(
-      /"ShivAI Employee"/g,
-      `"${widgetConfig.content.companyName}"`
-    );
-
-    widgetCode = widgetCode.replace(
-      /"AI-Powered Support"/g,
-      `"${widgetConfig.content.companyDescription}"`
-    );
-
-    // Add custom CSS if provided
-    if (widgetConfig.customCSS) {
-      widgetCode = widgetCode.replace(
-        "// Custom styles will be inserted here",
-        widgetConfig.customCSS
-      );
-    }
-
-    return widgetCode;
   };
 
   const updateConfig = (
@@ -863,6 +858,78 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                         </div>
                       </div>
 
+                      {/* Trigger Button Image */}
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">
+                          Trigger Button Image <span className="text-slate-400">(Max: 500KB — shown on the call button)</span>
+                        </label>
+                        <div className="relative group w-28 h-28">
+                          <input
+                            type="file"
+                            id="trigger-btn-upload"
+                            accept="image/*"
+                            onChange={handleTriggerButtonImageUpload}
+                            className="hidden"
+                          />
+                          <div className="relative w-full h-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 rounded-full border-2 border-dashed border-slate-300 dark:border-slate-600 overflow-hidden">
+                            {triggerButtonImagePreview ? (
+                              <>
+                                <label htmlFor="trigger-btn-upload" className="cursor-pointer block w-full h-full">
+                                  <img
+                                    src={triggerButtonImagePreview}
+                                    alt="Trigger Button"
+                                    className="w-full h-full object-cover"
+                                    onError={() => setTriggerButtonImagePreview("")}
+                                  />
+                                </label>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setTriggerButtonImagePreview("");
+                                    updateConfig("content", "triggerButtonImage", "");
+                                  }}
+                                  className="absolute top-1 right-1 p-1 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg transition-all duration-200 hover:scale-110 z-10"
+                                  title="Remove image"
+                                >
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              </>
+                            ) : (
+                              <label htmlFor="trigger-btn-upload" className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors rounded-full">
+                                <svg className="w-9 h-9 text-slate-400 dark:text-slate-500 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                </svg>
+                                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Upload</span>
+                              </label>
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-500 mt-2">Upload a photo (e.g. agent avatar) to display inside the floating call button.</p>
+                      </div>
+
+                      {/* Call to Action Text */}
+                      <div>
+                        <label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">
+                          Cloud Bubble Text
+                        </label>
+                        <input
+                          type="text"
+                          value={widgetConfig.content.callToActionText}
+                          onChange={(e) =>
+                            updateConfig(
+                              "content",
+                              "callToActionText",
+                              e.target.value
+                            )
+                          }
+                          placeholder="📞 Call ShivAI!"
+                          className="common-bg-icons w-full px-3 py-2 rounded-lg text-sm"
+                        />
+                        <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">Animated text shown in the cloud bubble next to the trigger button.</p>
+                      </div>
+
                       {/* Company Name */}
                       <div>
                         <label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">
@@ -1001,7 +1068,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                 </div>
 
                 {/* Live Preview Panel */}
-                <div className="space-y-4">
+                <div id="widget-live-preview" className="space-y-4 scroll-mt-4">
                   <div className="flex items-center justify-between">
                     <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                       Live Preview
@@ -1176,6 +1243,12 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                 ? `companyLogo: "${widgetConfig.content.companyLogo}",`
                 : ""
             }
+            ${
+              widgetConfig.content.triggerButtonImage
+                ? `triggerButtonImage: "${widgetConfig.content.triggerButtonImage}",`
+                : ""
+            }
+            callToActionText: "${widgetConfig.content.callToActionText || '📞 Call ShivAI!'}",
         };
         
         // Also set SHIVAI_CONFIG for agent ID and user ID (tenant_id)

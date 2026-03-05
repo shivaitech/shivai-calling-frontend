@@ -324,7 +324,13 @@ const AgentManagement = () => {
   const widgetTestRef = useRef<HTMLDivElement>(null);
 
   const scrollToWidgetTest = () => {
-    widgetTestRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    // First scroll the widget section into view, then scroll to the live preview inside it
+    const livePreview = document.getElementById("widget-live-preview");
+    if (livePreview) {
+      livePreview.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      widgetTestRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   };
 
   // Template section navigation tabs
