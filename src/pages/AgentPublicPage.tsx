@@ -236,7 +236,7 @@ export default function AgentPublicPage() {
         <p className="text-white/30 text-xs">
           Powered by{" "}
           <a
-            href="https://callshivai.com"
+            href="https://www.callshivai.com"
             target="_blank"
             rel="noopener noreferrer"
             className="text-white/50 hover:text-white/80 transition-colors underline underline-offset-2"

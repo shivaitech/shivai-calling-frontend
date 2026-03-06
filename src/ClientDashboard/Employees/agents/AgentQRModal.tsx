@@ -19,8 +19,8 @@ const AgentQRModal: React.FC<AgentQRModalProps> = ({ agent, onClose }) => {
   const params = new URLSearchParams();
   params.set('agentId', agent.id);
   if (user?.id) params.set('userId', user.id);
-  const agentUrl = `https://callshivai.com/widget2.js?${params.toString()}`;
-  const widgetPageUrl = `https://callshivai.com/MyAIEmployee/${agent.id}${user?.id ? `?userId=${user.id}` : ''}`;
+  const agentUrl = `https://www.callshivai.com/widget2.js?${params.toString()}`;
+  const widgetPageUrl = `https://www.callshivai.com/MyAIEmployee/${agent.id}${user?.id ? `?userId=${user.id}` : ''}`;
   const [qrSize, setQrSize] = React.useState(180);
 
   React.useEffect(() => {
