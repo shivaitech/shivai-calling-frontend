@@ -417,6 +417,32 @@
           
           // Note: Widget UI will be created after this function completes in initWidget()
           // refreshWidgetContent() will be called there after createWidgetUI()
+
+          // ✅ Domain restriction check
+          const widgetVisibility = agentRes.widget.visibility || 'all';
+          const allowedDomains = agentRes.widget.allowed_domains || [];
+          if (widgetVisibility === 'private' && allowedDomains.length > 0) {
+            const currentOrigin = window.location.origin.toLowerCase();
+            const currentHost = window.location.hostname.toLowerCase();
+            const isAllowed = allowedDomains.some(function(domain) {
+              if (!domain) return false;
+              const d = domain.toLowerCase().replace(/\/+$/, '');
+              // Match full origin or hostname with/without protocol
+              return currentOrigin === d ||
+                     currentHost === d ||
+                     currentOrigin.endsWith('://' + d) ||
+                     currentHost.endsWith('.' + d) ||
+                     d.replace(/^https?:\/\//, '') === currentHost;
+            });
+            if (!isAllowed) {
+              console.warn('🚫 ShivAI Widget: this domain is not authorised to load this widget. Aborting.');
+              agentStatus.active = false;
+              agentStatus.blocked = true;
+              agentStatus.message = 'Widget not available on this domain.';
+              return; // Abort — do not render widget
+            }
+            console.log('✅ Domain authorisation passed for:', currentHost);
+          }
         } else {
           console.log('ℹ️ No widget configuration found in agent response - getCompanyInfo() will use URL parameters or defaults');
         }
@@ -598,6 +624,12 @@
     // Check agent status first and wait for it to complete
     // This will also fetch and set window.SHIVAI_WIDGET_CONFIG from API
     await checkAgentStatusOnLoad();
+
+    // If domain is not authorised, do not render anything
+    if (agentStatus.blocked) {
+      console.warn('🚫 ShivAI Widget: rendering aborted — domain not authorised.');
+      return;
+    }
     
     // Now create the widget UI - getCompanyInfo() will use the API data
     createWidgetUI();

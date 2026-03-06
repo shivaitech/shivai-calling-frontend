@@ -23,6 +23,8 @@ interface WidgetConfig {
     autoOpen: boolean;
     minimizeButton: boolean;
     draggable: boolean;
+    visibility: 'all' | 'private';
+    allowedDomains: string[];
   };
   content: {
     welcomeMessage: string;
@@ -218,6 +220,8 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
       autoOpen: false,
       minimizeButton: true,
       draggable: true,
+      visibility: 'all',
+      allowedDomains: [],
     },
     content: {
       welcomeMessage: `Hi! I'm ${agentName}. How can I help you today?`,
@@ -310,6 +314,8 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                 autoOpen: false,
                 minimizeButton: true,
                 draggable: true,
+                visibility: (widget.visibility as 'all' | 'private') || 'all',
+                allowedDomains: widget.allowed_domains || [],
               },
               content: {
                 welcomeMessage:
@@ -441,11 +447,11 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
       return;
     }
 
-    // File size validation (200KB = 200 * 1024 bytes)
-    const maxSizeInBytes = 200 * 1024; // 200KB
+    // File size validation (1MB = 1024 * 1024 bytes)
+    const maxSizeInBytes = 1024 * 1024; // 1MB
     if (file.size > maxSizeInBytes) {
       const fileSizeInKB = Math.round(file.size / 1024);
-      appToast.error(`Logo file size (${fileSizeInKB}KB) exceeds the maximum limit of 200KB. Please choose a smaller image.`);
+      appToast.error(`Logo file size (${fileSizeInKB}KB) exceeds the maximum limit of 1MB. Please choose a smaller image.`);
       e.target.value = ''; // Clear the input
       return;
     }
@@ -488,10 +494,10 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
       return;
     }
 
-    const maxSizeInBytes = 500 * 1024; // 500KB
+    const maxSizeInBytes = 1024 * 1024; // 1MB
     if (file.size > maxSizeInBytes) {
       const fileSizeInKB = Math.round(file.size / 1024);
-      appToast.error(`Image size (${fileSizeInKB}KB) exceeds the 500KB limit. Please choose a smaller image.`);
+      appToast.error(`Image size (${fileSizeInKB}KB) exceeds the 1MB limit. Please choose a smaller image.`);
       e.target.value = '';
       return;
     }
@@ -570,6 +576,8 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
         primary_color: widgetConfig.theme.primaryColor,
         gradient_start: widgetConfig.theme.primaryColor,
         gradient_end: widgetConfig.theme.accentColor,
+        visibility: widgetConfig.ui.visibility,
+        allowed_domains: widgetConfig.ui.allowedDomains,
       };
 
       const saveResponse = await agentAPI.saveWidgetConfig(widgetData);
@@ -742,7 +750,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                     <div className="space-y-4">
                       <div>
                         <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">
-                          Company Logo <span className="text-slate-400">(Max: 200KB)</span>
+                          Company Logo <span className="text-slate-400">(Max: 1MB)</span>
                         </label>
                         <div className="relative group w-32 h-32">
                           <input
@@ -836,7 +844,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                       {/* Trigger Button Image */}
                       <div>
                         <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">
-                          Trigger Button Image <span className="text-slate-400">(Max: 500KB — shown on the call button)</span>
+                          Trigger Button Image <span className="text-slate-400">(Max: 1MB — shown on the call button)</span>
                         </label>
                         <div className="relative group w-28 h-28">
                           <input
@@ -848,29 +856,14 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                           />
                           <div className="relative w-full h-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 rounded-full border-2 border-dashed border-slate-300 dark:border-slate-600 overflow-hidden">
                             {triggerButtonImagePreview ? (
-                              <>
-                                <label htmlFor="trigger-btn-upload" className="cursor-pointer block w-full h-full">
-                                  <img
-                                    src={triggerButtonImagePreview}
-                                    alt="Trigger Button"
-                                    className="w-full h-full object-cover"
-                                    onError={() => setTriggerButtonImagePreview("")}
-                                  />
-                                </label>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setTriggerButtonImagePreview("");
-                                    updateConfig("content", "triggerButtonImage", "");
-                                  }}
-                                  className="absolute top-1 right-1 p-1 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg transition-all duration-200 hover:scale-110 z-10"
-                                  title="Remove image"
-                                >
-                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                                  </svg>
-                                </button>
-                              </>
+                              <label htmlFor="trigger-btn-upload" className="cursor-pointer block w-full h-full">
+                                <img
+                                  src={triggerButtonImagePreview}
+                                  alt="Trigger Button"
+                                  className="w-full h-full object-cover"
+                                  onError={() => setTriggerButtonImagePreview("")}
+                                />
+                              </label>
                             ) : (
                               <label htmlFor="trigger-btn-upload" className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors rounded-full">
                                 <svg className="w-9 h-9 text-slate-400 dark:text-slate-500 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -880,6 +873,22 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                               </label>
                             )}
                           </div>
+                          {/* Remove button outside overflow-hidden so it's never clipped */}
+                          {triggerButtonImagePreview && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setTriggerButtonImagePreview("");
+                                updateConfig("content", "triggerButtonImage", "");
+                              }}
+                              className="absolute -top-1.5 -right-1.5 p-1.5 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg transition-all duration-200 hover:scale-110 z-20"
+                              title="Remove image"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          )}
                         </div>
                         <p className="text-xs text-slate-500 dark:text-slate-500 mt-2">Upload a photo (e.g. agent avatar) to display inside the floating call button.</p>
                       </div>
@@ -943,6 +952,115 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                           rows={3}
                           className="common-bg-icons w-full px-3 py-2 rounded-lg text-sm resize-none"
                         />
+                      </div>
+
+                      {/* Widget Visibility */}
+                      <div className={`rounded-xl border-2 p-4 transition-all duration-200 ${
+                        widgetConfig.ui.visibility === 'all'
+                          ? 'border-amber-400 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-500/60'
+                          : 'border-green-400 bg-green-50 dark:bg-green-900/10 dark:border-green-500/60'
+                      }`}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                            Widget Visibility
+                          </span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            widgetConfig.ui.visibility === 'all'
+                              ? 'bg-amber-200 text-amber-800 dark:bg-amber-700/40 dark:text-amber-300'
+                              : 'bg-green-200 text-green-800 dark:bg-green-700/40 dark:text-green-300'
+                          }`}>
+                            {widgetConfig.ui.visibility === 'all' ? 'Public' : 'Private'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">
+                          Control which websites can load your widget.
+                        </p>
+
+                        {/* Toggle */}
+                        <div className="flex gap-2 mb-3">
+                          <button
+                            onClick={() => updateConfig('ui', 'visibility', 'all')}
+                            className={`flex-1 py-2 rounded-lg text-xs font-semibold border transition-all ${
+                              widgetConfig.ui.visibility === 'all'
+                                ? 'bg-amber-400 border-amber-500 text-white shadow'
+                                : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-amber-400'
+                            }`}
+                          >
+                            All Websites
+                          </button>
+                          <button
+                            onClick={() => updateConfig('ui', 'visibility', 'private')}
+                            className={`flex-1 py-2 rounded-lg text-xs font-semibold border transition-all ${
+                              widgetConfig.ui.visibility === 'private'
+                                ? 'bg-green-500 border-green-600 text-white shadow'
+                                : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-green-400'
+                            }`}
+                          >
+                            Specific URLs
+                          </button>
+                        </div>
+
+                        {/* Warning banner when All */}
+                        {widgetConfig.ui.visibility === 'all' && (
+                          <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-100 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-600">
+                            <span className="text-base mt-0.5">⚠️</span>
+                            <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-snug">
+                              <strong>Heads up:</strong> Setting visibility to <em>All Websites</em> means anyone with your agent ID can embed this widget anywhere. Your AI may get misused. We recommend restricting to specific URLs.
+                            </p>
+                          </div>
+                        )}
+
+                        {/* URL list when Private */}
+                        {widgetConfig.ui.visibility === 'private' && (
+                          <div className="space-y-2">
+                            <p className="text-[11px] text-green-700 dark:text-green-400 font-medium">
+                              Widget will only load on the URLs listed below:
+                            </p>
+                            {(widgetConfig.ui.allowedDomains.length === 0 ? [''] : widgetConfig.ui.allowedDomains).map((url, idx) => (
+                              <div key={idx} className="flex items-center gap-2">
+                                <input
+                                  type="text"
+                                  value={url}
+                                  onChange={(e) => {
+                                    const updated = [...widgetConfig.ui.allowedDomains];
+                                    if (updated.length === 0) updated.push('');
+                                    updated[idx] = e.target.value;
+                                    updateConfig('ui', 'allowedDomains', updated);
+                                  }}
+                                  placeholder="https://yoursite.com"
+                                  className="common-bg-icons flex-1 px-3 py-1.5 rounded-lg text-xs"
+                                />
+                                {widgetConfig.ui.allowedDomains.length > 1 && (
+                                  <button
+                                    onClick={() => {
+                                      const updated = widgetConfig.ui.allowedDomains.filter((_, i) => i !== idx);
+                                      updateConfig('ui', 'allowedDomains', updated);
+                                    }}
+                                    className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                            <button
+                              onClick={() => {
+                                const updated = widgetConfig.ui.allowedDomains.length === 0
+                                  ? ['', '']
+                                  : [...widgetConfig.ui.allowedDomains, ''];
+                                updateConfig('ui', 'allowedDomains', updated);
+                              }}
+                              className="text-[11px] text-green-600 dark:text-green-400 hover:underline flex items-center gap-1 mt-1"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                              </svg>
+                              Add another URL
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

@@ -33,13 +33,25 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
 
   useEffect(() => {
     const fetchTranscripts = async () => {
-      if (!session?.session_id) return;
-      
+      // If transcripts are already embedded in the session object, use them directly
+      if (Array.isArray(session?.transcripts) && session.transcripts.length > 0) {
+        setTranscripts(session.transcripts);
+        setLoading(false);
+        return;
+      }
+
+      // Resolve the session identifier — API may return id, call_id, or session_id
+      const sessionId = session?.session_id || session?.id || session?.call_id;
+      if (!sessionId) {
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       setError(null);
-      
+
       try {
-        const data = await agentAPI.getSessionTranscripts(session.session_id);
+        const data = await agentAPI.getSessionTranscripts(sessionId);
         setTranscripts(data.transcripts || []);
       } catch (err: any) {
         console.error('Failed to fetch transcripts:', err);
@@ -69,7 +81,7 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
 
     fetchTranscripts();
     fetchCallSummary();
-  }, [session?.session_id, session?.agent?.id, session?.agent_id]);
+  }, [session?.session_id, session?.id, session?.call_id, session?.agent?.id, session?.agent_id]);
 
   // Audio player handlers
   const togglePlayPause = () => {

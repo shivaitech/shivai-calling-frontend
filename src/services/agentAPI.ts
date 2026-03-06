@@ -560,12 +560,17 @@ class AgentAPI {
   async saveWidgetConfig(widgetData: {
     agent_id: string;
     company_logo?: string;
+    trigger_button_image?: string;
     ai_employee_name: string;
     ai_employee_description: string;
     theme?: string;
     position?: string;
     button_text?: string;
     welcome_message?: string;
+    primary_color?: string;
+    gradient_start?: string;
+    gradient_end?: string;
+    visibility?: 'all' | 'private';
     allowed_domains?: string[];
   }): Promise<any> {
     try {

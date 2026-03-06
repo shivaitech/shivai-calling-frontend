@@ -2768,6 +2768,7 @@ const AgentManagement = () => {
                       </button>
                     )}
 
+                    {(agent.status === "Published" || (agent as any).is_active) && (
                     <button
                       onClick={() => {
                         setCurrentAgent(agent);
@@ -2778,6 +2779,7 @@ const AgentManagement = () => {
                     >
                       <QrCode className="w-4 h-4" />
                     </button>
+                    )}
 
                     <button
                       onClick={() => handleDeleteClick(agent.id)}
@@ -5598,6 +5600,7 @@ const AgentManagement = () => {
 
               {/* Action buttons row - Mobile */}
               <div className="flex items-center gap-2 flex-wrap">
+                {(currentAgent.status === "Published" || (currentAgent as any).is_active) && (
                 <button
                   onClick={() => setShowQRModal(true)}
                   className="common-button-bg2 flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg touch-manipulation text-xs font-medium"
@@ -5605,6 +5608,7 @@ const AgentManagement = () => {
                   <QrCode className="w-3.5 h-3.5" />
                   QR
                 </button>
+                )}
                 <button
                   onClick={() => navigate(`/agents/${currentAgent.id}/edit`)}
                   className="common-button-bg2 flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg touch-manipulation text-xs font-medium"
@@ -5699,6 +5703,7 @@ const AgentManagement = () => {
 
               {/* Action buttons - Tablet/Desktop */}
               <div className="flex items-center gap-2 flex-shrink-0">
+                {(currentAgent.status === "Published" || (currentAgent as any).is_active) && (
                 <button
                   onClick={() => setShowQRModal(true)}
                   className="common-button-bg2 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg touch-manipulation"
@@ -5706,6 +5711,7 @@ const AgentManagement = () => {
                   <QrCode className="w-4 h-4" />
                   <span className="text-sm font-medium">QR</span>
                 </button>
+                )}
                 <button
                   onClick={() => navigate(`/agents/${currentAgent.id}/edit`)}
                   className="common-button-bg2 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg touch-manipulation"
