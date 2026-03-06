@@ -5,7 +5,7 @@ const PROMPT_GENERATION_API =
 
 // Create a dedicated axios instance for prompt generation API
 const promptClient = axios.create({
-  timeout: 30000,
+  timeout: 90000, // 90 seconds for comprehensive template generation
   headers: {
     "Content-Type": "application/json",
   },
@@ -63,7 +63,6 @@ export interface GeneratedTemplate {
   websiteUrls?: string[];
 
   // Call Scripts
-  openingScript?: string;
   keyTalkingPoints?: string;
   closingScript?: string;
 
@@ -83,6 +82,7 @@ export interface GenerateTemplateRequest {
   subIndustry?: string;
   websiteUrls?: string[];
   additionalContext?: string;
+  extractedContent?: string; // Extracted text from uploaded files (PDFs, docs, etc.)
 }
 
 interface PromptGenerationData {
@@ -103,86 +103,71 @@ interface PromptGenerationResponse {
 
 class AITemplateService {
   /**
-   * Generate template recommendations using AI based on user input
+   * Generate template recommendations using AI based on user input.
+   * Returns metadata templates immediately after the first API call completes.
+   * System prompts are generated in the background — onSystemPromptsReady is
+   * called with an updated snapshot each time a system prompt finishes.
    */
   async generateTemplates(
     request: GenerateTemplateRequest,
+    onSystemPromptsReady?: (templates: GeneratedTemplate[]) => void,
   ): Promise<GeneratedTemplate[]> {
-    try {
-      // Build prompt from user data
-      const prompt = this.buildPrompt(request);
+    // ── Step 1: Metadata call (fast, JSON only) ─────────────────────────────
+    const prompt = this.buildPrompt(request);
+    console.log("📝 Generating templates, prompt preview:", prompt.substring(0, 100) + "...");
 
-      console.log(
-        "📝 Generating templates with prompt:",
-        prompt.substring(0, 100) + "...",
-      );
+    const response = await promptClient.post<PromptGenerationResponse>(
+      PROMPT_GENERATION_API,
+      { prompt, max_tokens: 4000, temperature: 0.7 },
+    );
 
-      // Call the prompt generation API endpoint
-      const response = await promptClient.post<PromptGenerationResponse>(
-        PROMPT_GENERATION_API,
-        {
-          prompt,
-          max_tokens: 5000, // Increased to handle multiple complete responses
-          temperature: 0.7,
-        },
-      );
+    const generatedText = this.extractGeneratedText(response.data);
+    if (!generatedText) throw new Error("No text generated from API");
 
-      console.log("📥 API Response received, status:", response.status);
-      console.log("📄 Response data keys:", Object.keys(response.data));
+    let templates = this.parseGeneratedTemplates(generatedText);
+    if (templates.length === 0) throw new Error("Failed to parse templates from API response");
 
-      // Extract the generated text from response
-      const generatedText = this.extractGeneratedText(response.data);
-
-      if (!generatedText) {
-        console.error(
-          "❌ No text generated from API - response:",
-          response.data,
-        );
-        throw new Error("No text generated from API");
-      }
-
-      console.log("📋 Generated text length:", generatedText.length);
-      console.log(
-        "📋 Generated text preview:",
-        generatedText.substring(0, 150),
-      );
-
-      // Parse the generated text into template objects
-      const templates = this.parseGeneratedTemplates(generatedText);
-
-      if (templates.length === 0) {
-        console.error(
-          "❌ Failed to parse templates. Raw text:",
-          generatedText.substring(0, 300),
-        );
-        throw new Error(
-          "Failed to parse templates from API response - JSON may be incomplete",
-        );
-      }
-
-      // Ensure at least 2 templates
-      if (templates.length < 2) {
-        console.warn(
-          `⚠️ Only ${templates.length} template(s) generated, but minimum of 2 required`,
-        );
-        console.log("📋 Attempting to retry generation...");
-        // Don't throw error, just warn - user can see what was generated
-      }
-
-      console.log("✅ Generated templates:", templates.length, "templates");
-      templates.forEach((t, i) => console.log(`  ${i + 1}. ${t.name}`));
-
-      return templates;
-    } catch (error) {
-      console.error(
-        "❌ Error generating templates:",
-        error instanceof Error ? error.message : error,
-      );
-      if (error instanceof Error) {
-        console.error("Stack trace:", error.stack);
-      }
-      throw error;
+    if (templates.length > 2) templates = templates.slice(0, 2);
+    if (templates.length < 2) {
+      templates.push(this.generateComplementaryTemplate(templates[0], request));
     }
+
+    console.log("✅ Metadata ready:", templates.map((t) => t.name));
+
+    // ── Step 2: Fire system prompt generation in the background ─────────────
+    const employeeNameMatch = request.additionalContext?.match(/The AI employee will be named:\s*(.+)/i);
+    const employeeName = employeeNameMatch
+      ? employeeNameMatch[1].trim()
+      : request.companyName ? `${request.companyName} Assistant` : "[AI Employee Name]";
+    const companyName = request.companyName || "[Company Name]";
+
+    if (onSystemPromptsReady) {
+      const bgTemplates = templates.map((t) => ({ ...t }));
+      Promise.allSettled(
+        bgTemplates.map((template, i) =>
+          this.generateSystemPromptForTemplate(
+            template.name,
+            template.description,
+            companyName,
+            employeeName,
+            request.industry,
+            request.businessProcess,
+            template.manualKnowledge,
+            request.subIndustry,
+          ).then((sysPrompt) => {
+            if (sysPrompt.trim().length > 100) {
+              bgTemplates[i] = { ...bgTemplates[i], systemPrompt: sysPrompt };
+              console.log(`✅ [BG] System prompt ready — template ${i + 1}`);
+              onSystemPromptsReady([...bgTemplates]);
+            }
+          })
+        )
+      ).catch((e) => console.warn("⚠️ [BG] System prompt background error:", e));
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
+    // Return metadata immediately — loading is done, UI can proceed
+    return templates;
   }
 
   /**
@@ -197,98 +182,143 @@ class AITemplateService {
       ? `\nSub-industry: ${request.subIndustry}`
       : "";
 
-    const exampleTemplates = `
-[
+    // High-quality example demonstrating voice-AI optimized system prompt format
+    const exampleTemplates = `[
   {
-    "name": "Customer Support Specialist",
-    "description": "Handles customer inquiries and support requests with empathy and efficiency",
-    "icon": "🎧",
-    "features": ["24/7 Availability", "Multi-language Support", "Issue Resolution"],
-    "systemPrompt": "You are a helpful customer support specialist trained to assist customers professionally...",
-    "firstMessage": "Hi! Thank you for contacting us. How can I help you today?",
-    "industryFocus": "Customer Service",
-    "tone": "Friendly and Professional",
+    "name": "Limousine Reservations Specialist",
+    "description": "Handles new ride bookings, airport transportation, hourly chauffeur services, and existing reservation management with a professional and natural phone conversation style.",
+    "icon": "🚗",
+    "features": ["New Ride Reservations", "Airport Pickup Coordination", "Booking Modifications", "Vehicle Recommendation"],
+    "systemPrompt": "Identity\\nYou are Linda, a professional reservations and customer service specialist working for Blackrock Limo, a luxury chauffeur and limousine service based in Fremont, California serving the San Francisco Bay Area.\\n\\nYour job is to help callers with:\\n• New ride reservations\\n• Airport transportation bookings\\n• Hourly chauffeur services\\n• Event transportation\\n• Managing or modifying existing bookings\\n• Answering general service questions\\n\\nYou behave like a highly experienced reservations employee who understands limousine operations, scheduling, and customer service. Your goal is to book rides accurately, assist customers efficiently, and ensure every caller feels helped and respected.\\n\\nVoice & Human Conversation Style\\nSound natural, conversational, and human. Speak the way a calm and helpful customer service professional would speak on the phone.\\n\\nUse natural phrases such as:\\n- \\"Sure, I can help with that.\\"\\n- \\"Let me get a few details from you.\\"\\n- \\"Just to confirm…\\"\\n- \\"Give me one moment while I check that.\\"\\n- \\"Perfect, I've got that.\\"\\n\\nDo not speak in long paragraphs. Use short, natural sentences. Avoid sounding robotic or scripted. Maintain a friendly and confident tone throughout the call.\\n\\nCore Responsibilities\\n1. New Reservations\\nCollect step by step: customer name, phone number, pickup date, pickup time, pickup location, drop-off destination, number of passengers, luggage amount, vehicle preference.\\nAlways confirm the details clearly before finalizing.\\n\\n2. Managing Existing Reservations\\nLocate booking using: customer name, phone number, or reservation number.\\nAssist with: changing pickup time, updating locations, adding stops, changing vehicle type, cancelling.\\nAlways confirm updated details with the caller.\\n\\n3. Answering Service Questions\\nAnswer questions about airport pickups, vehicle types, pricing estimates, availability, and service areas.\\nIf exact pricing or availability cannot be confirmed, explain that final confirmation will be provided by dispatch.\\n\\nNatural Call Flow\\n1. Friendly greeting\\n2. Understand what the caller needs\\n3. Ask for required booking details one at a time\\n4. Confirm the information\\n5. Provide next steps or confirmation\\n\\nExample greeting: \\"Thank you for calling Blackrock Limo, this is Linda. How can I help you today?\\"\\n\\nHuman Conversation Behavior\\nListen carefully. Customers often speak casually or give incomplete information — ask simple follow-up questions.\\n\\nExample:\\nCaller: \\"I need a ride to SFO tomorrow.\\"\\nResponse: \\"Sure, what time would you like to be picked up?\\"\\n\\nDo not interrupt. Do not rush the caller. Guide the conversation smoothly.\\n\\nAirport Booking Awareness\\nFor airport pickups collect: airport name, airline, flight number, arrival time, passenger count, luggage amount.\\nExplain that flights are monitored and pickup times adjust if flights are delayed.\\n\\nVehicle Recommendation Logic\\n1–3 passengers → Luxury Sedan\\n3–6 passengers → SUV\\n6–10 passengers → Stretch Limousine\\n10–14 passengers → Executive Van\\nConsider luggage before recommending.\\n\\nWhen to Escalate\\nTransfer or escalate if: customer requests a custom quote, large group or multiple vehicles required, complaint or dispute, payment or billing issue, unusual request.\\nUse: \\"Let me connect you with our dispatch team so they can assist you further.\\"",
+    "firstMessage": "Thank you for calling Blackrock Limo, this is Linda. How can I help you today?",
+    "industryFocus": "Automotive, Hospitality, Transportation",
+    "tone": "Professional & Conversational",
     "gender": "Female",
-    "voice": "Warm and Friendly",
-    "personality": "Empathetic and Patient",
-    "manualKnowledge": "Key FAQ items and policies relevant to customer support...",
-    "openingScript": "Thank you for calling. My name is... How can I assist you today?",
-    "keyTalkingPoints": "• Quality customer service is our priority • We're here to help resolve your concerns • Your satisfaction matters to us",
-    "closingScript": "Thank you for contacting us. Is there anything else I can help with?",
+    "voice": "nova",
+    "personality": "Confident, Friendly, Experienced",
+    "manualKnowledge": "Blackrock Limo is a luxury chauffeur and limousine service based in Fremont, California. Serves the San Francisco Bay Area. Vehicles: Luxury Sedan (1–3 pax), SUV (3–6 pax), Stretch Limousine (6–10 pax), Executive Van (10–14 pax). Services: airport pickups, corporate transfers, event transportation, hourly chauffeur. Flights are monitored — pickup adjusts for delays.",
+    "keyTalkingPoints": "• Collect full booking details step by step\n• Recommend vehicle based on passenger count and luggage\n• Monitor flights for airport pickups\n• Confirm all details before finalizing\n• Escalate custom quotes to dispatch",
+    "closingScript": "Your reservation is confirmed. Is there anything else I can help you with? Thank you for choosing Blackrock Limo.",
     "objections": [
-      {"objection": "Your prices are too high", "response": "I understand cost is a factor. Let me explain the value you will receive..."},
-      {"objection": "I need to think about it", "response": "Of course! Take your time. Here is some information to review..."}
+      {"objection": "How much does it cost?", "response": "Pricing depends on the trip details. Let me get your route and I can give you a better estimate, or our dispatch team can provide a final quote."},
+      {"objection": "Can you guarantee the driver will be on time?", "response": "Absolutely. Our drivers arrive early and for airport pickups we monitor your flight in real time so the timing always adjusts if needed."}
     ],
     "conversationExamples": [
-      {"customerInput": "I have a billing question", "expectedResponse": "I would be happy to help with your billing question. Can you tell me more about..."},
-      {"customerInput": "Your service did not work", "expectedResponse": "I sincerely apologize for the inconvenience. Let us troubleshoot this together..."}
+      {"customerInput": "I need a ride to SFO tomorrow morning.", "expectedResponse": "Sure, what time would you like to be picked up, and where are we picking you up from?"},
+      {"customerInput": "I want to change my pickup time.", "expectedResponse": "Of course. Can I get your name or reservation number so I can pull up your booking?"}
     ],
     "intents": [
-      {"name": "Billing Inquiry", "phrases": "bill, charge, payment, invoice, billing", "response": "I can help you with your billing questions..."},
-      {"name": "Technical Issue", "phrases": "not working, error, problem, issue, broken", "response": "I understand you are experiencing a technical issue..."}
-    ]
-  },
-  {
-    "name": "Sales Agent",
-    "description": "Identifies opportunities and engages customers with solution-focused conversations",
-    "icon": "💼",
-    "features": ["Lead Generation", "Sales Coaching", "Opportunity Identification"],
-    "systemPrompt": "You are a strategic sales agent focused on identifying customer needs and presenting solutions...",
-    "firstMessage": "Hello! I would love to learn about your goals and how we can help you succeed.",
-    "industryFocus": "Sales and Business Development",
-    "tone": "Confident and Professional",
-    "gender": "Male",
-    "voice": "Professional and Engaging",
-    "personality": "Analytical and Persuasive",
-    "manualKnowledge": "Product features, pricing models, competitive advantages, and industry trends...",
-    "openingScript": "Good day! I am calling to explore how our solutions can address your specific needs.",
-    "keyTalkingPoints": "• We specialize in solving industry problems • Our clients see measurable results • Let us find the right solution for you",
-    "closingScript": "Thank you for the discussion. Let us schedule a follow-up to move forward.",
-    "objections": [
-      {"objection": "We already have a solution", "response": "That is great! I would love to understand what is working and where we might add value..."},
-      {"objection": "I do not have time now", "response": "I completely understand. Can I schedule a brief call at your convenience?"}
-    ],
-    "conversationExamples": [
-      {"customerInput": "What makes you different?", "expectedResponse": "Great question! We focus on key differentiators which help our clients achieve..."},
-      {"customerInput": "Send me more information", "expectedResponse": "I will send materials tailored to your needs. Can we schedule a 15-minute call?"}
-    ],
-    "intents": [
-      {"name": "Needs Assessment", "phrases": "goals, challenges, requirements, needs, problems", "response": "Let us dive deeper into your specific needs..."},
-      {"name": "Pricing Inquiry", "phrases": "cost, price, pricing, budget, investment, rate", "response": "Our pricing is flexible based on your needs..."}
+      {"name": "New Reservation", "phrases": "book a ride, need a car, schedule a pickup, reservation", "response": "I can help you book that. Let me get a few details."},
+      {"name": "Modify Booking", "phrases": "change my booking, update pickup, reschedule", "response": "Sure, let me pull up your reservation. Can I get your name or booking number?"},
+      {"name": "Airport Pickup", "phrases": "airport, SFO, OAK, SJC, flight", "response": "For airport pickups I'll need your airline and flight number so we can monitor your arrival."}
     ]
   }
 ]`;
 
-    const prompt = `You are an AI assistant that creates professional AI Employee templates for businesses. Based on the following business information, generate AT LEAST 2 (preferably 3-5) DIFFERENT AI Employee template recommendations in JSON format with comprehensive training data. IMPORTANT: You MUST generate at least 2 distinct templates with different approaches, personalities, or focus areas.
+    // Build the prompt - if we have knowledge base content, structure it differently
+    if (request.extractedContent && request.extractedContent.trim().length > 100) {
+      // KNOWLEDGE BASE FIRST APPROACH
+      const kbContent = request.extractedContent.substring(0, 12000);
+      
+      // Extract AI employee name from additionalContext
+      const employeeNameMatch = request.additionalContext?.match(/The AI employee will be named:\s*(.+)/i);
+      const employeeName = employeeNameMatch ? employeeNameMatch[1].trim() : (request.companyName ? `${request.companyName} Assistant` : '[AI Employee Name]');
+      const companyFallback = request.companyName || '[Company Name]';
 
-Company Name: ${request.companyName}
-Business Process: ${request.businessProcess}
-Industry: ${request.industry}${subIndustryContent}${urlContent}
-${request.additionalContext ? `Additional Context: ${request.additionalContext}` : ""}
+      return `You are an AI that creates AI Employee templates by EXTRACTING information from company documents.
 
-CRITICAL: Generate a minimum of 2 templates. Each template should be distinct and offer a different approach or perspective for the AI Employee.
+═══════════════════════════════════════════════════════════════════
+STEP 1: ANALYZE THIS COMPANY DOCUMENT (PRIMARY SOURCE)
+═══════════════════════════════════════════════════════════════════
+${kbContent}
+═══════════════════════════════════════════════════════════════════
 
-For each template, provide:
-1. A professional name for the AI Employee (MUST BE UNIQUE FOR EACH TEMPLATE)
-2. A concise description (2-3 sentences)
-3. An appropriate emoji icon
-4. 3-4 key features
-5. A brief system prompt (the role and behavior)
-6. First message/greeting for starting conversations
-7. Industry focus
-8. Recommended tone/personality (SHOULD VARY BETWEEN TEMPLATES)
-9. Suggested gender (Male, Female, Neutral, or Not Specified)
-10. Recommended voice type (Professional, Friendly, Formal, Casual, Warm, etc.)
-11. Personality traits (e.g., Empathetic, Direct, Analytical, Creative, etc.) - VARY PER TEMPLATE
-12. Manual knowledge base content (FAQs, key information relevant to the industry)
-13. Opening script (how to start a call/conversation)
-14. Key talking points (main points to communicate)
-15. Closing script (how to end a conversation)
-16. 2-3 common objections with responses
-17. 2-3 example conversation exchanges (customerInput -> expectedResponse)
-18. 2-3 intent examples (intent name, example phrases, and how to respond)
+STEP 2: EXTRACT THESE KEY FACTS FROM THE DOCUMENT ABOVE:
+- What is the EXACT company/organization name mentioned? If NOT found, use: ${companyFallback}
+- What industry/business type is this?
+- What services/products do they offer (with exact names and pricing if available)?
+- Any policies, procedures, or FAQs?
+- Contact information, hours, locations?
 
-Return ONLY a valid JSON array with AT LEAST 2 objects containing all above fields. No markdown, no explanation, just valid JSON array with minimum 2 templates.
+🔴 MANDATORY IDENTITY RULES (NON-NEGOTIABLE):
+1. AI Employee Name: "${employeeName}" — Use this EXACT name in every systemPrompt and firstMessage. Never use a placeholder like [AI Employee Name].
+2. Company Name: Extract from document above. If not found, use "${companyFallback}". Never use a placeholder like [Company Name].
+3. All services, products, and pricing MUST come from the document — never use generic or made-up content.
+
+FALLBACK VALUES (only if truly not in document):
+- Business Process: ${request.businessProcess}
+- Industry: ${request.industry}${subIndustryContent}${urlContent}
+${request.additionalContext ? `- Additional Context: ${request.additionalContext}` : ''}
+
+STEP 3: GENERATE EXACTLY 2 DISTINCT TEMPLATES
+
+Both templates MUST:
+- Use the EXACT AI employee name "${employeeName}" (not a placeholder)
+- Use the ACTUAL company name extracted from the document
+- Be based on REAL services/products from the document
+- Have different focuses (e.g., Template 1: primary customer service, Template 2: sales/lead-gen or specialized support)
+- Include comprehensive system prompts with REAL company-specific knowledge
+
+Each template MUST have ALL of these fields:
+- name: Unique professional name for the AI Employee role
+- description: 2-3 sentences using ACTUAL company info from document
+- icon: Appropriate emoji
+- features: 3-4 features based on ACTUAL company services
+- systemPrompt: SHORT 2-3 sentence role summary only (e.g. "You are Linda, a reservations specialist for Blackrock Limo. You help callers book rides, manage existing reservations, and answer service questions."). The full detailed prompt is generated separately — do NOT write a long system prompt here.
+- firstMessage: Opening greeting using the exact name "${employeeName}" and the ACTUAL company name
+- industryFocus: Based on document content
+- tone, gender, voice, personality: Appropriate values
+- manualKnowledge: COPY relevant facts, services, and policies directly from document (be thorough)
+- keyTalkingPoints: Based on actual company services
+- closingScript: Professional closing with actual company name
+- objections: 2-3 objections based on actual services/policies from document
+- conversationExamples: 2-3 examples using REAL services/products
+- intents: 2-3 intents relevant to actual company offerings
+
+Return ONLY a valid JSON array with EXACTLY 2 template objects. No markdown, no explanation.
+
+Example format: ${exampleTemplates}`;
+    }
+    
+    // Extract AI employee name from additionalContext for standard prompt
+    const stdEmployeeNameMatch = request.additionalContext?.match(/The AI employee will be named:\s*(.+)/i);
+    const stdEmployeeName = stdEmployeeNameMatch ? stdEmployeeNameMatch[1].trim() : (request.companyName ? `${request.companyName} Assistant` : '[AI Employee Name]');
+    const stdCompanyName = request.companyName || '[Company Name]';
+
+    // Standard prompt without knowledge base
+    const prompt = `You are an AI assistant that creates professional AI Employee templates for businesses.
+
+🔴 MANDATORY IDENTITY (USE EXACTLY AS GIVEN — NO PLACEHOLDERS):
+- AI Employee Name: "${stdEmployeeName}" — Always use this exact name. Never use [AI Employee Name].
+- Company Name: "${stdCompanyName}" — Always use this exact name. Never use [Company Name].
+
+Business Information:
+- Company Name: ${stdCompanyName}
+- Business Process: ${request.businessProcess}
+- Industry: ${request.industry}${subIndustryContent}${urlContent}
+${request.additionalContext ? `- Additional Context: ${request.additionalContext}` : ''}
+
+Generate EXACTLY 2 DISTINCT AI Employee templates in JSON format.
+
+CRITICAL INSTRUCTIONS:
+1. ALWAYS use the exact AI Employee Name "${stdEmployeeName}" in firstMessage and all scripts.
+2. ALWAYS use the exact Company Name "${stdCompanyName}" everywhere — never use [Company Name] placeholder.
+3. Both templates must be DIFFERENT in focus (e.g., Template 1: customer service, Template 2: sales/appointment-setting).
+4. For systemPrompt: write a SHORT 2-3 sentence role summary ONLY (e.g. "You are ${stdEmployeeName}, a customer service specialist for ${stdCompanyName}. You handle customer inquiries, resolve issues, and book appointments."). The full detailed system prompt is generated in a separate step — do NOT write a long system prompt here.
+5. Do NOT use generic placeholders anywhere — all content must be specific and realistic.
+
+For each template provide these JSON fields:
+- name, description, icon, features (array)
+- systemPrompt (comprehensive, NO placeholders)
+- firstMessage (use exact name "${stdEmployeeName}" and company "${stdCompanyName}")
+- industryFocus, tone, gender, voice, personality
+- manualKnowledge (realistic industry knowledge content)
+- keyTalkingPoints, closingScript
+- objections (array of {objection, response})
+- conversationExamples (array of {customerInput, expectedResponse})
+- intents (array of {name, phrases, response})
+
+Return ONLY a valid JSON array with EXACTLY 2 objects. No markdown, no explanation.
 
 Example format: ${exampleTemplates}`;
 
@@ -296,8 +326,86 @@ Example format: ${exampleTemplates}`;
   }
 
   /**
-   * Extract generated text from various response formats with logging
-   */ /**
+   * Generate a detailed, voice-AI-optimized system prompt for a given template via a separate API call.
+   * Called individually per template after initial metadata generation.
+   */
+  async generateSystemPromptForTemplate(
+    templateName: string,
+    description: string,
+    companyName: string,
+    employeeName: string,
+    industry: string,
+    businessProcess: string,
+    manualKnowledge?: string,
+    subIndustry?: string,
+  ): Promise<string> {
+    const subLine = subIndustry ? `\nSub-industry: ${subIndustry}` : "";
+    const kbSection = manualKnowledge?.trim()
+      ? `\n\nCompany-specific knowledge to incorporate:\n${manualKnowledge.substring(0, 3000)}`
+      : "";
+
+    const prompt = `You are an expert AI voice agent prompt engineer. Generate a comprehensive, production-quality system prompt for a voice-based AI employee.
+
+Agent Details:
+- AI Employee Name: "${employeeName}" (use this exact name, never a placeholder)
+- Company: "${companyName}" (use this exact name, never a placeholder)
+- Role: ${templateName}
+- Description: ${description}
+- Industry: ${industry}${subLine}
+- Business Process: ${businessProcess}${kbSection}
+
+Requirements:
+1. Sound like the agent was written by a senior conversation designer — not a template filler
+2. Write for VOICE, not text. Short spoken sentences. Natural phone conversation flow.
+3. Use real, specific examples of caller interactions (not generic placeholders)
+4. Include natural phrases like "Sure, I can help with that", "Let me get a few details", "Just to confirm…"
+5. Never use robotic language or long paragraphs
+6. The agent should sound experienced, confident, and human
+
+Write the system prompt using EXACTLY these sections:
+
+Identity
+[Who the agent is, what they do, who they work for, and their primary goal]
+
+Voice & Human Conversation Style
+[How they sound on the phone — natural, conversational phrases to use, what to avoid]
+
+Core Responsibilities
+[Numbered list of the main things they handle, with step-by-step data collection where relevant]
+
+Natural Call Flow
+[Typical structure of a call from greeting to wrap-up, with an example greeting line]
+
+Human Conversation Behavior
+[How to handle casual/incomplete information from callers, with a real caller/response example]
+
+Scenario Handling
+[3–4 specific, realistic scenarios with step-by-step handling for each]
+
+Company Knowledge
+[Key facts, services, policies, and any info the agent should know — be specific to the business]
+
+When to Escalate
+[Exact conditions for escalation and natural transition phrase to use]
+
+Communication Rules
+[Dos and don'ts for how to communicate on every call]
+
+Return ONLY the system prompt text. No JSON, no markdown code blocks, no explanation.`;
+
+    const response = await promptClient.post<PromptGenerationResponse>(
+      PROMPT_GENERATION_API,
+      {
+        prompt,
+        max_tokens: 4000,
+        temperature: 0.65,
+      },
+    );
+
+    return this.extractGeneratedText(response.data) || "";
+  }
+
+  /**
    * Extract generated text from various response formats with logging
    */
   private extractGeneratedText(responseData: PromptGenerationResponse): string {
@@ -423,7 +531,7 @@ Example format: ${exampleTemplates}`;
         // Agent Settings
         systemPrompt: template.systemPrompt || "",
         firstMessage:
-          template.firstMessage || "Hello! How can I assist you today?",
+          template.firstMessage || "Hello! I am [AI Employee Name] from [Company Name], here to assist you. How can I help you today?",
         industryFocus: template.industryFocus || "",
         tone: template.tone || "Professional",
         gender: template.gender || "Not Specified",
@@ -437,9 +545,6 @@ Example format: ${exampleTemplates}`;
           : [],
 
         // Call Scripts
-        openingScript:
-          template.openingScript ||
-          "Hi there! Thanks for reaching out. How can I help?",
         keyTalkingPoints:
           template.keyTalkingPoints ||
           "• Quality service is our priority\n• We're here to help",
@@ -627,6 +732,38 @@ Example format: ${exampleTemplates}`;
       }
     });
 
+    // If no templates were recovered, try regex-based extraction
+    if (templates.length === 0) {
+      console.log("🔍 Attempting regex-based template extraction...");
+      const nameMatch = text.match(/"name"\s*:\s*"([^"]+)"/);
+      const descMatch = text.match(/"description"\s*:\s*"([^"]+)"/);
+      
+      if (nameMatch) {
+        console.log(`📝 Found template name: ${nameMatch[1]}`);
+        templates.push({
+          name: nameMatch[1],
+          description: descMatch ? descMatch[1] : "AI-powered assistant",
+          icon: "🤖",
+          features: ["AI Assistance", "Customer Support"],
+          systemPrompt: "",
+          firstMessage: "Hello! I am [AI Employee Name] from [Company Name], here to assist you. How can I help you today?",
+          industryFocus: "",
+          tone: "Professional",
+          gender: "Not Specified",
+          voice: "Professional",
+          personality: "Helpful",
+          manualKnowledge: "",
+          websiteUrls: [],
+          keyTalkingPoints: "• Quality service\n• Customer satisfaction",
+          closingScript: "Thank you for your time!",
+          objections: [],
+          conversationExamples: [],
+          intents: [],
+        });
+        console.log("✅ Created minimal template from regex extraction");
+      }
+    }
+
     console.log(`🎯 Fallback parsing recovered ${templates.length} templates`);
     return templates;
   }
@@ -681,6 +818,113 @@ Example format: ${exampleTemplates}`;
   }
 
   /**
+   * Generate a complementary template when only one template is generated
+   * This ensures the user always has at least 2 options to choose from
+   */
+  private generateComplementaryTemplate(
+    existingTemplate: GeneratedTemplate,
+    request: GenerateTemplateRequest,
+  ): GeneratedTemplate {
+    // Extract the exact AI employee name and company name from form data / additionalContext
+    const employeeNameMatch = request.additionalContext?.match(/The AI employee will be named:\s*(.+)/i);
+    const employeeName = employeeNameMatch
+      ? employeeNameMatch[1].trim()
+      : (request.companyName ? `${request.companyName} Assistant` : 'Your AI Assistant');
+    const companyName = request.companyName || 'our company';
+
+    // Use knowledge base content if available for realistic, data-driven content
+    const kbSnippet = request.extractedContent
+      ? request.extractedContent.substring(0, 2000)
+      : '';
+
+    const kbKnowledgeSection = kbSnippet
+      ? `\n\n## Company Knowledge (from provided documents)\n${kbSnippet}`
+      : '';
+
+    const manualKnowledge = existingTemplate.manualKnowledge ||
+      (kbSnippet ? kbSnippet : `${companyName} offers professional services tailored to ${request.industry} needs.`);
+
+    // Determine what is complementary to the existing template
+    const isExistingSales =
+      existingTemplate.name?.toLowerCase().includes('sales') ||
+      request.businessProcess?.toLowerCase().includes('sales');
+    const isExistingSupport =
+      existingTemplate.name?.toLowerCase().includes('support') ||
+      request.businessProcess?.toLowerCase().includes('support');
+    const isExistingFriendly =
+      existingTemplate.personality?.toLowerCase().includes('friendly') ||
+      existingTemplate.tone?.toLowerCase().includes('friendly');
+
+    let roleFocus: string;
+    let complementaryIcon: string;
+    let complementaryFeatures: string[];
+    let complementaryPersonality: string;
+    let complementaryTone: string;
+
+    if (isExistingSales) {
+      roleFocus = 'Customer Care Specialist';
+      complementaryIcon = '🎧';
+      complementaryFeatures = ['Customer Support', 'Issue Resolution', 'FAQ Handling', 'Follow-up Care'];
+      complementaryPersonality = 'Empathetic and Patient';
+      complementaryTone = 'Warm and Supportive';
+    } else if (isExistingSupport) {
+      roleFocus = 'Sales & Appointment Advisor';
+      complementaryIcon = '💼';
+      complementaryFeatures = ['Lead Engagement', 'Appointment Booking', 'Value Communication', 'Follow-up'];
+      complementaryPersonality = 'Confident and Persuasive';
+      complementaryTone = 'Professional and Engaging';
+    } else if (isExistingFriendly) {
+      roleFocus = 'Professional Consultant';
+      complementaryIcon = '👔';
+      complementaryFeatures = ['Expert Guidance', 'Detailed Information', 'Process Assistance', 'Escalation Handling'];
+      complementaryPersonality = 'Analytical and Direct';
+      complementaryTone = 'Formal and Professional';
+    } else {
+      roleFocus = 'Friendly Assistant';
+      complementaryIcon = '😊';
+      complementaryFeatures = ['Friendly Assistance', 'Personalized Help', 'Quick Responses', 'Supportive Guidance'];
+      complementaryPersonality = 'Friendly and Approachable';
+      complementaryTone = 'Warm and Conversational';
+    }
+
+    const complementaryName = `${employeeName} — ${roleFocus}`;
+    const complementaryDescription = `${employeeName} is a dedicated ${roleFocus.toLowerCase()} for ${companyName}, specializing in ${request.industry} with a ${complementaryTone.toLowerCase()} approach. Fully trained on ${companyName}'s services and policies to deliver accurate, helpful responses.`;
+
+    const complementarySystemPrompt =
+      `## Identity & Purpose\n\nYou are ${employeeName}, a ${roleFocus.toLowerCase()} for ${companyName}. ` +
+      `Your role is to assist customers professionally and efficiently in the context of ${request.businessProcess} within the ${request.industry} industry.\n\n` +
+      `## Voice & Persona\n\n### Personality\n- ${complementaryPersonality}\n- Knowledgeable about ${companyName}\'s services\n- Clear and accurate\n\n` +
+      `### Speech Characteristics\n- ${complementaryTone} tone\n- Listen actively before responding\n- Confirm key information\n\n` +
+      `## Conversation Flow\n\n1. Greet the caller warmly as ${employeeName} from ${companyName}\n2. Identify their need or question\n3. Provide accurate information from company knowledge\n4. Address any objections or concerns\n5. Confirm next steps and close professionally\n\n` +
+      `## Response Guidelines\n- Always identify yourself as ${employeeName}\n- Be concise and accurate\n- Never guess — use company knowledge\n- Escalate when needed\n\n` +
+      `## Scenario Handling\n\n### General Inquiry\n1. Listen to the customer's question\n2. Reference company knowledge to answer accurately\n3. Offer additional help if needed\n\n### Complaint or Issue\n1. Acknowledge the issue empathetically\n2. Apologize for the inconvenience\n3. Provide a resolution or escalate\n\n### Request for Services\n1. Clarify what the customer needs\n2. Explain relevant services from company knowledge\n3. Guide them to next steps\n` +
+      kbKnowledgeSection +
+      `\n\n## Call Management\n- If on hold: \'One moment, please.\'\n- For transfers: \'I will connect you with the right team.\'\n- Always end professionally: \'Thank you for contacting ${companyName}.\'`;
+
+    return {
+      name: complementaryName,
+      description: complementaryDescription,
+      icon: complementaryIcon,
+      features: complementaryFeatures,
+      systemPrompt: complementarySystemPrompt,
+      firstMessage: `Hello! I'm ${employeeName} from ${companyName}. How can I assist you today?`,
+      industryFocus: request.industry || '',
+      tone: complementaryTone,
+      gender: existingTemplate.gender === 'Female' ? 'Male' : 'Female',
+      voice: isExistingFriendly ? 'Professional' : 'Friendly',
+      personality: complementaryPersonality,
+      manualKnowledge,
+      websiteUrls: request.websiteUrls || [],
+      keyTalkingPoints: existingTemplate.keyTalkingPoints ||
+        `• ${companyName} is committed to excellent service\n• Accurate information from company knowledge\n• Professional and timely assistance`,
+      closingScript: `Thank you for contacting ${companyName}. Is there anything else I can help you with today?`,
+      objections: existingTemplate.objections || [],
+      conversationExamples: existingTemplate.conversationExamples || [],
+      intents: existingTemplate.intents || [],
+    };
+  }
+
+  /**
    * Normalize a template object with defaults
    */
   private normalizeTemplate(template: any): GeneratedTemplate {
@@ -693,7 +937,7 @@ Example format: ${exampleTemplates}`;
         : ["AI-powered assistance"],
       systemPrompt: template.systemPrompt || "",
       firstMessage:
-        template.firstMessage || "Hello! How can I assist you today?",
+        template.firstMessage || "Hello! I am [AI Employee Name] from [Company Name], here to assist you. How can I help you today?",
       industryFocus: template.industryFocus || "",
       tone: template.tone || "Professional",
       gender: template.gender || "Not Specified",
@@ -703,7 +947,6 @@ Example format: ${exampleTemplates}`;
       websiteUrls: Array.isArray(template.websiteUrls)
         ? template.websiteUrls
         : [],
-      openingScript: template.openingScript || "Hi there! How can I help?",
       keyTalkingPoints: template.keyTalkingPoints || "• Quality service",
       closingScript: template.closingScript || "Thank you for your time!",
       objections: Array.isArray(template.objections) ? template.objections : [],

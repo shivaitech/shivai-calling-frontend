@@ -1,7 +1,139 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
+/** Renders text content with search match highlights for the overlay div */
+function renderHighlightedContent(
+  content: string,
+  query: string,
+  matches: number[],
+  currentIdx: number
+): React.ReactNode {
+  if (!query || matches.length === 0) {
+    return <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{content}</span>;
+  }
+  const parts: React.ReactNode[] = [];
+  let lastIdx = 0;
+  matches.forEach((pos, i) => {
+    if (pos > lastIdx) {
+      parts.push(<span key={`t${i}`}>{content.slice(lastIdx, pos)}</span>);
+    }
+    parts.push(
+      <mark
+        key={`m${i}`}
+        style={{
+          backgroundColor: i === currentIdx ? '#f97316' : '#fde047',
+          color: 'transparent',
+          borderRadius: '2px',
+        }}
+      >
+        {content.slice(pos, pos + query.length)}
+      </mark>
+    );
+    lastIdx = pos + query.length;
+  });
+  if (lastIdx < content.length) {
+    parts.push(<span key="last">{content.slice(lastIdx)}</span>);
+  }
+  return <>{parts}</>;
+}
+
+/**
+ * Cleans document text that has been corrupted with excessive pipe characters
+ * from PDF/table conversion, and reconstructs proper markdown.
+ */
+function processKbContent(raw: string): string {
+  if (!raw) return '';
+
+  // Step 1: Replace runs of 2+ consecutive pipe separators (with optional whitespace)
+  // e.g. "text | | | | | more text" → "text  more text"
+  let cleaned = raw.replace(/(\s*\|\s*){2,}/g, ' ');
+
+  // Step 2: Process line by line
+  const inputLines = cleaned.split('\n');
+  const result: string[] = [];
+  let i = 0;
+
+  while (i < inputLines.length) {
+    const line = inputLines[i].trim();
+
+    // Count remaining single pipes in this line
+    const pipes = (line.match(/\|/g) || []).length;
+
+    if (pipes >= 2) {
+      // Looks like a table row — collect a run of such lines
+      const tableLines: string[] = [];
+      while (i < inputLines.length) {
+        const tl = inputLines[i].trim();
+        const tc = (tl.match(/\|/g) || []).length;
+        if (tc >= 2 && tl.length > 0) {
+          tableLines.push(tl);
+          i++;
+        } else {
+          break;
+        }
+      }
+
+      // Parse each table line into cells
+      const rows = tableLines.map(tl => {
+        // Split on | and clean each cell
+        const parts = tl.split('|').map(c => c.trim());
+        // Remove leading/trailing empty strings from line-boundary |
+        if (parts[0] === '') parts.shift();
+        if (parts[parts.length - 1] === '') parts.pop();
+        return parts.filter(c => c.length > 0);
+      }).filter(r => r.length > 0);
+
+      if (rows.length === 0) continue;
+
+      const maxCols = Math.max(...rows.map(r => r.length));
+
+      if (maxCols >= 2) {
+        // Header row
+        const header = [...rows[0]];
+        while (header.length < maxCols) header.push('');
+        result.push('| ' + header.join(' | ') + ' |');
+        result.push('| ' + Array(maxCols).fill('---').join(' | ') + ' |');
+
+        for (let r = 1; r < rows.length; r++) {
+          const row = [...rows[r]];
+          while (row.length < maxCols) row.push('');
+          result.push('| ' + row.join(' | ') + ' |');
+        }
+        result.push('');
+      } else {
+        // Fallback: render as plain lines
+        tableLines.forEach(tl => result.push(tl.replace(/\|/g, '').trim()));
+      }
+    } else if (line.length === 0) {
+      // Preserve blank lines as paragraph breaks (deduplicate)
+      if (result.length > 0 && result[result.length - 1] !== '') {
+        result.push('');
+      }
+      i++;
+    } else {
+      // Plain text line — keep as-is, strip stray single pipes
+      result.push(line.replace(/\s*\|\s*/g, ' ').trim());
+      i++;
+    }
+  }
+
+  return result.join('\n');
+}
+
+/**
+ * Returns a friendly display label for an existing KB file URL.
+ * All existing KB URLs represent the single merged main knowledge base on the backend.
+ * Display a clean, user-friendly label instead of the raw S3 filename.
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function getDisplayFilename(_fileUrl: string, index: number): string {
+  return index === 0 ? 'Main Knowledge Base' : `Main Knowledge Base ${index + 1}`;
+}
+
 import { useParams, useNavigate } from 'react-router-dom';
-import toast from 'react-hot-toast';
-import { ArrowLeft, Save, X, Bot, Globe, Settings, Sparkles, Info } from 'lucide-react';
+import appToast from '../../components/AppToast';
+import { ArrowLeft, Save, X, Bot, Globe, Settings, Sparkles, Info, Upload, Link, Share2, FileText, File, Image, Plus, BookOpen, Volume2, Play, Square, Pencil, Check, Loader2, Eye, Code2, Search, ChevronUp, ChevronDown, Trash2 } from 'lucide-react';
 import { useAgent } from '../../contexts/AgentContext';
 import { agentAPI } from '../../services/agentAPI';
 import GlassCard from '../../components/GlassCard';
@@ -20,7 +152,9 @@ const EditAgent = () => {
     subIndustry: "",
     persona: "Empathetic",
     language: "en-US",
-    voice: "alloy",
+    voice: "Achernar",
+    voiceSpeed: 1.0,
+    voiceStyle: "friendly",
     customInstructions: "",
     guardrailsLevel: "Medium",
     responseStyle: "Balanced",
@@ -28,6 +162,44 @@ const EditAgent = () => {
     contextWindow: "Standard (8K tokens)",
     temperature: 0.7,
   });
+
+  const [templateData, setTemplateData] = useState<any>(null);
+
+  // Tab state (like Training page)
+  const [activeTab, setActiveTab] = useState<string>('identity');
+  
+  // Tab configuration
+  const editTabs = [
+    { id: 'identity', label: 'Identity', icon: Bot },
+    { id: 'voice', label: 'Voice', icon: Volume2 },
+    { id: 'knowledge', label: 'Knowledge', icon: BookOpen },
+    { id: 'settings', label: 'Template Setting', icon: Settings },
+  ];
+
+  // Knowledge Base State
+  const [websiteUrls, setWebsiteUrls] = useState<string[]>(['']);
+  const [socialMediaUrls, setSocialMediaUrls] = useState<string[]>(['']);
+  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [uploadedFileUrls, setUploadedFileUrls] = useState<string[]>([]);
+  const [isUploadingFiles, setIsUploadingFiles] = useState(false);
+
+  // Existing KB file inline text editing
+  const [existingKbFiles, setExistingKbFiles] = useState<string[]>([]);
+  const [editingKbIndex, setEditingKbIndex] = useState<number | null>(null);
+  const [kbFileContents, setKbFileContents] = useState<Record<number, string>>({});
+  const [kbPreviewMode, setKbPreviewMode] = useState<Record<number, 'edit' | 'preview'>>({});
+  const [loadingKbIndex, setLoadingKbIndex] = useState<number | null>(null);
+  const [savingKbIndex, setSavingKbIndex] = useState<number | null>(null);
+  const [confirmDeleteKbIndex, setConfirmDeleteKbIndex] = useState<number | null>(null);
+  const [showKbInfo, setShowKbInfo] = useState(false);
+
+  // Search-in-editor state
+  const [kbSearchQuery, setKbSearchQuery] = useState<Record<number, string>>({});
+  const [kbSearchMatches, setKbSearchMatches] = useState<Record<number, number[]>>({});
+  const [kbSearchMatchIdx, setKbSearchMatchIdx] = useState<Record<number, number>>({});
+  const kbTextareaRefs = useRef<Record<number, HTMLTextAreaElement | null>>({});
+  const kbSearchInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
+  const kbOverlayRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
   const [isLoadingAgent, setIsLoadingAgent] = useState(true);
 
@@ -123,8 +295,8 @@ const EditAgent = () => {
       
       setIsLoadingAgent(true);
       try {
-        // Fetch agent data directly from API
-        const { agent: agentData } = await agentAPI.getAgent(id);
+        // Fetch full agent config from agent-configs API
+        const { agent: agentData } = await agentAPI.getAgentConfig(id);
         
         console.log("agentData", agentData);
         
@@ -155,7 +327,9 @@ const EditAgent = () => {
           subIndustry: mapSubIndustry(agentData.sub_industry),
           persona: mapPersonality(agentData.personality),
           language: agentData.language || "en-US",
-          voice: agentData.voice || "alloy",
+          voice: agentData.voice || "Achernar",
+          voiceSpeed: (agentData as any).voice_speed !== undefined ? (agentData as any).voice_speed : 1.0,
+          voiceStyle: (agentData as any).voice_style || "friendly",
           customInstructions: agentData.custom_instructions || "",
           guardrailsLevel: mapGuardrailsLevel(agentData.guardrails_level),
           responseStyle: mapResponseStyle(agentData.response_style),
@@ -163,9 +337,32 @@ const EditAgent = () => {
           contextWindow: mapContextWindow(agentData.context_window),
           temperature: agentData.temperature !== undefined ? agentData.temperature : 0.7,
         });
+
+        // Load template data if available
+        if (agentData.template) {
+          setTemplateData(agentData.template);
+        }
+
+        // Load existing knowledge base file URLs
+        const kbFiles = (agentData as any).knowledge_base_file_urls;
+        if (Array.isArray(kbFiles) && kbFiles.length > 0) {
+          setExistingKbFiles(kbFiles);
+        }
+
+        // Load existing website URLs
+        const existingWebsiteUrls = (agentData as any).website_urls;
+        if (Array.isArray(existingWebsiteUrls) && existingWebsiteUrls.length > 0) {
+          setWebsiteUrls(existingWebsiteUrls);
+        }
+
+        // Load existing social media URLs
+        const existingSocialUrls = (agentData as any).social_media_urls;
+        if (Array.isArray(existingSocialUrls) && existingSocialUrls.length > 0) {
+          setSocialMediaUrls(existingSocialUrls);
+        }
       } catch (error) {
         console.error("Error fetching agent:", error);
-        toast.error("Failed to load agent data");
+        appToast.error("Failed to load agent data");
         navigate('/agents');
       } finally {
         setIsLoadingAgent(false);
@@ -219,16 +416,26 @@ const EditAgent = () => {
 
   const subIndustries: Record<string, { value: string; label: string }[]> = {
     "real-estate": [
-      { value: "residential", label: "Residential" },
-      { value: "commercial", label: "Commercial" },
+      { value: "residential", label: "Residential Sales" },
+      { value: "commercial", label: "Commercial Real Estate" },
       { value: "property-management", label: "Property Management" },
+      { value: "luxury-real-estate", label: "Luxury Real Estate" },
+      { value: "vacation-rentals", label: "Vacation Rentals" },
       { value: "real-estate-investment", label: "Real Estate Investment" },
+      { value: "land-sales", label: "Land & Lot Sales" },
+      { value: "real-estate-appraisal", label: "Real Estate Appraisal" },
     ],
     "healthcare": [
       { value: "hospitals", label: "Hospitals" },
-      { value: "clinics", label: "Clinics" },
-      { value: "mental-health", label: "Mental Health" },
+      { value: "clinics", label: "General Clinics" },
+      { value: "mental-health", label: "Mental Health Services" },
       { value: "home-healthcare", label: "Home Healthcare" },
+      { value: "urgent-care", label: "Urgent Care Centers" },
+      { value: "specialized-clinics", label: "Specialized Clinics" },
+      { value: "diagnostic-centers", label: "Diagnostic Centers" },
+      { value: "rehabilitation", label: "Rehabilitation Centers" },
+      { value: "telemedicine", label: "Telemedicine" },
+      { value: "nursing-homes", label: "Nursing Homes" },
       { value: "medical-devices", label: "Medical Devices" },
       { value: "pharmaceuticals", label: "Pharmaceuticals" },
     ],
@@ -237,26 +444,44 @@ const EditAgent = () => {
       { value: "orthodontics", label: "Orthodontics" },
       { value: "cosmetic-dentistry", label: "Cosmetic Dentistry" },
       { value: "pediatric-dentistry", label: "Pediatric Dentistry" },
+      { value: "periodontics", label: "Periodontics" },
+      { value: "endodontics", label: "Endodontics" },
+      { value: "oral-surgery", label: "Oral Surgery" },
+      { value: "dental-implants", label: "Dental Implants" },
     ],
     "fitness": [
       { value: "gyms", label: "Gyms & Fitness Centers" },
       { value: "yoga-studios", label: "Yoga Studios" },
       { value: "personal-training", label: "Personal Training" },
+      { value: "crossfit", label: "CrossFit Gyms" },
+      { value: "pilates", label: "Pilates Studios" },
+      { value: "martial-arts", label: "Martial Arts & Boxing" },
+      { value: "dance-studios", label: "Dance Studios" },
+      { value: "sports-facilities", label: "Sports Facilities" },
+      { value: "wellness-centers", label: "Wellness Centers" },
       { value: "wellness-spas", label: "Wellness Spas" },
     ],
     "education": [
       { value: "k12", label: "K-12 Schools" },
       { value: "higher-education", label: "Higher Education" },
-      { value: "online-learning", label: "Online Learning" },
+      { value: "online-learning", label: "Online Learning Platforms" },
       { value: "tutoring", label: "Tutoring Services" },
+      { value: "vocational-training", label: "Vocational Training" },
       { value: "vocational", label: "Vocational Training" },
+      { value: "language-schools", label: "Language Schools" },
+      { value: "test-prep", label: "Test Preparation" },
+      { value: "preschool", label: "Preschool & Daycare" },
     ],
     "finance": [
-      { value: "banking", label: "Banking" },
+      { value: "banking", label: "Banking Services" },
       { value: "investment", label: "Investment Services" },
       { value: "wealth-management", label: "Wealth Management" },
       { value: "lending", label: "Lending & Mortgages" },
+      { value: "mortgage-lending", label: "Mortgage Lending" },
+      { value: "financial-planning", label: "Financial Planning" },
+      { value: "tax-services", label: "Tax Services" },
       { value: "fintech", label: "Fintech" },
+      { value: "credit-unions", label: "Credit Unions" },
     ],
     "insurance": [
       { value: "health-insurance", label: "Health Insurance" },
@@ -264,40 +489,61 @@ const EditAgent = () => {
       { value: "auto-insurance", label: "Auto Insurance" },
       { value: "property-insurance", label: "Property Insurance" },
       { value: "business-insurance", label: "Business Insurance" },
+      { value: "travel-insurance", label: "Travel Insurance" },
+      { value: "disability-insurance", label: "Disability Insurance" },
     ],
     "ecommerce": [
       { value: "fashion", label: "Fashion & Apparel" },
       { value: "electronics", label: "Electronics" },
       { value: "food-beverage", label: "Food & Beverage" },
+      { value: "home-decor", label: "Home Decor" },
       { value: "home-garden", label: "Home & Garden" },
+      { value: "beauty-products", label: "Beauty Products" },
+      { value: "sporting-goods", label: "Sporting Goods" },
+      { value: "toys-games", label: "Toys & Games" },
+      { value: "books-media", label: "Books & Media" },
+      { value: "pet-supplies", label: "Pet Supplies" },
       { value: "marketplace", label: "Marketplace" },
     ],
     "retail": [
-      { value: "grocery", label: "Grocery" },
+      { value: "grocery", label: "Grocery Stores" },
       { value: "fashion-retail", label: "Fashion Retail" },
       { value: "electronics-retail", label: "Electronics Retail" },
-      { value: "pharmacy", label: "Pharmacy" },
+      { value: "home-improvement", label: "Home Improvement" },
       { value: "department-stores", label: "Department Stores" },
+      { value: "specialty-retail", label: "Specialty Retail" },
+      { value: "convenience-stores", label: "Convenience Stores" },
+      { value: "furniture-stores", label: "Furniture Stores" },
+      { value: "pharmacy", label: "Pharmacy" },
     ],
     "technology": [
       { value: "software-development", label: "Software Development" },
-      { value: "it-services", label: "IT Services" },
+      { value: "it-services", label: "IT Services & Consulting" },
       { value: "cybersecurity", label: "Cybersecurity" },
       { value: "cloud-services", label: "Cloud Services" },
+      { value: "data-analytics", label: "Data Analytics" },
       { value: "ai-ml", label: "AI & Machine Learning" },
+      { value: "mobile-development", label: "Mobile App Development" },
+      { value: "web-development", label: "Web Development" },
     ],
     "saas": [
-      { value: "crm", label: "CRM" },
-      { value: "erp", label: "ERP" },
+      { value: "crm", label: "CRM Software" },
+      { value: "erp", label: "ERP Software" },
       { value: "marketing-automation", label: "Marketing Automation" },
       { value: "project-management", label: "Project Management" },
-      { value: "hr-software", label: "HR Software" },
+      { value: "hr-software", label: "HR & Payroll Software" },
+      { value: "accounting-software", label: "Accounting Software" },
+      { value: "collaboration-tools", label: "Collaboration Tools" },
+      { value: "analytics-platforms", label: "Analytics Platforms" },
     ],
     "legal": [
       { value: "corporate-law", label: "Corporate Law" },
       { value: "family-law", label: "Family Law" },
-      { value: "criminal-law", label: "Criminal Law" },
       { value: "immigration-law", label: "Immigration Law" },
+      { value: "criminal-law", label: "Criminal Defense" },
+      { value: "real-estate-law", label: "Real Estate Law" },
+      { value: "estate-planning", label: "Estate Planning" },
+      { value: "personal-injury", label: "Personal Injury" },
       { value: "intellectual-property", label: "Intellectual Property" },
     ],
     "consulting": [
@@ -313,23 +559,36 @@ const EditAgent = () => {
       { value: "payroll", label: "Payroll Services" },
     ],
     "hospitality": [
-      { value: "hotels", label: "Hotels" },
-      { value: "resorts", label: "Resorts" },
+      { value: "hotels", label: "Hotels & Motels" },
+      { value: "resorts", label: "Resorts & Spas" },
       { value: "event-venues", label: "Event Venues" },
+      { value: "bed-breakfast", label: "Bed & Breakfast" },
       { value: "vacation-rentals", label: "Vacation Rentals" },
+      { value: "hostels", label: "Hostels" },
+      { value: "conference-centers", label: "Conference Centers" },
     ],
     "restaurants": [
       { value: "fine-dining", label: "Fine Dining" },
       { value: "casual-dining", label: "Casual Dining" },
-      { value: "fast-food", label: "Fast Food" },
+      { value: "fast-food", label: "Fast Food & QSR" },
       { value: "cafes", label: "Cafes & Coffee Shops" },
-      { value: "catering", label: "Catering" },
+      { value: "food-trucks", label: "Food Trucks" },
+      { value: "bakeries", label: "Bakeries & Pastry Shops" },
+      { value: "catering", label: "Catering Services" },
+      { value: "bars-pubs", label: "Bars & Pubs" },
+      { value: "buffets", label: "Buffets" },
     ],
     "automotive": [
-      { value: "dealerships", label: "Dealerships" },
-      { value: "auto-repair", label: "Auto Repair" },
-      { value: "car-rental", label: "Car Rental" },
-      { value: "auto-parts", label: "Auto Parts" },
+      { value: "dealerships", label: "Car Dealerships" },
+      { value: "auto-repair", label: "Auto Repair & Maintenance" },
+      { value: "car-rental", label: "Car Rental Services" },
+      { value: "auto-parts", label: "Auto Parts & Accessories" },
+      { value: "car-wash", label: "Car Wash & Detailing" },
+      { value: "body-shops", label: "Body Shops & Collision Repair" },
+      { value: "tire-services", label: "Tire Services" },
+      { value: "oil-change", label: "Oil Change & Lube" },
+      { value: "auto-glass", label: "Auto Glass Repair" },
+      { value: "towing", label: "Towing Services" },
     ],
     "construction": [
       { value: "residential-construction", label: "Residential Construction" },
@@ -352,15 +611,27 @@ const EditAgent = () => {
     "beauty": [
       { value: "hair-salons", label: "Hair Salons" },
       { value: "nail-salons", label: "Nail Salons" },
-      { value: "med-spas", label: "Med Spas" },
+      { value: "med-spas", label: "Medical Spas" },
       { value: "barbershops", label: "Barbershops" },
+      { value: "day-spas", label: "Day Spas" },
+      { value: "cosmetics", label: "Cosmetics & Makeup" },
+      { value: "tattoo-piercing", label: "Tattoo & Piercing" },
+      { value: "waxing", label: "Waxing & Threading" },
+      { value: "aesthetic-clinics", label: "Aesthetic Clinics" },
     ],
     "home-services": [
-      { value: "plumbing", label: "Plumbing" },
-      { value: "electrical", label: "Electrical" },
-      { value: "hvac", label: "HVAC" },
+      { value: "plumbing", label: "Plumbing Services" },
+      { value: "electrical", label: "Electrical Services" },
+      { value: "hvac", label: "HVAC Services" },
       { value: "cleaning", label: "Cleaning Services" },
-      { value: "landscaping", label: "Landscaping" },
+      { value: "landscaping", label: "Landscaping & Lawn Care" },
+      { value: "pest-control", label: "Pest Control" },
+      { value: "roofing", label: "Roofing Services" },
+      { value: "painting", label: "Painting Services" },
+      { value: "moving", label: "Moving Services" },
+      { value: "handyman", label: "Handyman Services" },
+      { value: "carpet-cleaning", label: "Carpet Cleaning" },
+      { value: "window-cleaning", label: "Window Cleaning" },
     ],
     "nonprofit": [
       { value: "charity", label: "Charity" },
@@ -381,8 +652,10 @@ const EditAgent = () => {
       { value: "sports", label: "Sports" },
     ],
     "other": [
-      { value: "general", label: "General" },
-      { value: "custom", label: "Custom" },
+      { value: "general", label: "General Business" },
+      { value: "custom", label: "Custom Industry" },
+      { value: "non-profit", label: "Non-Profit Organization" },
+      { value: "government", label: "Government Services" },
     ],
   };
 
@@ -391,11 +664,131 @@ const EditAgent = () => {
     { value: "male", label: "Male" },
   ];
 
-  const responseStyleOptions = [
-    { value: "Concise", label: "Concise" },
-    { value: "Balanced", label: "Balanced" },
-    { value: "Detailed", label: "Detailed" },
-  ];
+  // Voice Options by Gender
+  // Multilingual voice support
+  const multilingualVoices: Record<string, string[]> = {
+    female: ["Aoede", "Kore", "Leda", "Zephyr"],
+    male: ["Puck", "Charon", "Fenrir", "Orus"],
+  };
+  const englishOnlyLanguages = ["en-US", "en-GB", "en-IN"];
+  const isMultilingualLanguage = !englishOnlyLanguages.includes(formData.language);
+
+  const getFilteredVoiceOptions = (gender: string) => {
+    const opts = voiceOptions[gender] || voiceOptions.female;
+    if (isMultilingualLanguage) {
+      return opts.filter((v) => (multilingualVoices[gender] || []).includes(v.value));
+    }
+    return opts;
+  };
+
+  const voiceOptions: Record<string, { value: string; label: string }[]> = {
+    female: [
+      { value: "Achernar", label: "Achernar" },
+      { value: "Aoede", label: "Aoede" },
+      { value: "Autonoe", label: "Autonoe" },
+      { value: "Callirrhoe", label: "Callirrhoe" },
+      { value: "Despina", label: "Despina" },
+      { value: "Erinome", label: "Erinome" },
+      { value: "Gacrux", label: "Gacrux" },
+      { value: "Kore", label: "Kore" },
+      { value: "Laomedeia", label: "Laomedeia" },
+      { value: "Leda", label: "Leda" },
+      { value: "Pulcherrima", label: "Pulcherrima" },
+      { value: "Sulafat", label: "Sulafat" },
+      { value: "Vindemiatrix", label: "Vindemiatrix" },
+      { value: "Zephyr", label: "Zephyr" },
+    ],
+    male: [
+      { value: "Achird", label: "Achird" },
+      { value: "Algenib", label: "Algenib" },
+      { value: "Algieba", label: "Algieba" },
+      { value: "Alnilam", label: "Alnilam" },
+      { value: "Charon", label: "Charon" },
+      { value: "Enceladus", label: "Enceladus" },
+      { value: "Fenrir", label: "Fenrir" },
+      { value: "Iapetus", label: "Iapetus" },
+      { value: "Orus", label: "Orus" },
+      { value: "Puck", label: "Puck" },
+      { value: "Rasalgethi", label: "Rasalgethi" },
+      { value: "Sadachbia", label: "Sadachbia" },
+      { value: "Sadaltager", label: "Sadaltager" },
+      { value: "Schedar", label: "Schedar" },
+      { value: "Umbriel", label: "Umbriel" },
+      { value: "Zubenelgenubi", label: "Zubenelgenubi" },
+    ],
+  };
+
+  // Voice preview state
+  const [isTestingVoice, setIsTestingVoice] = useState(false);
+  const [isLoadingVoicePreview, setIsLoadingVoicePreview] = useState(false);
+  const voicePreviewAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const previewGeminiVoice = async (voiceName: string) => {
+    if (voicePreviewAudioRef.current) {
+      voicePreviewAudioRef.current.pause();
+      voicePreviewAudioRef.current = null;
+    }
+    setIsTestingVoice(true);
+    setIsLoadingVoicePreview(true);
+    try {
+      const sampleText = `Hello! I'm ${formData.name || 'your AI assistant'}. How can I help you today?`;
+      const authTokens = localStorage.getItem('auth_tokens');
+      const accessToken = authTokens ? JSON.parse(authTokens)?.accessToken : null;
+      const response = await fetch('https://nodejs.service.callshivai.com/api/v1/voice/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({ voiceName, text: sampleText }),
+      });
+      if (!response.ok) throw new Error(`Voice preview failed: ${response.status}`);
+      const json = await response.json();
+      const audioData = json.data;
+      let audioUrl: string;
+      let isDataUrl = false;
+      if (audioData?.audioDataUrl) {
+        audioUrl = audioData.audioDataUrl;
+        isDataUrl = true;
+      } else if (audioData?.audioBase64) {
+        const byteChars = atob(audioData.audioBase64);
+        const byteNums = new Array(byteChars.length).fill(0).map((_, i) => byteChars.charCodeAt(i));
+        const byteArray = new Uint8Array(byteNums);
+        audioUrl = URL.createObjectURL(new Blob([byteArray], { type: 'audio/mp3' }));
+      } else {
+        throw new Error('No audio data in response');
+      }
+      const audio = new Audio(audioUrl);
+      voicePreviewAudioRef.current = audio;
+      audio.oncanplay = () => setIsLoadingVoicePreview(false);
+      audio.onended = () => {
+        setIsTestingVoice(false);
+        setIsLoadingVoicePreview(false);
+        if (!isDataUrl) URL.revokeObjectURL(audioUrl);
+        voicePreviewAudioRef.current = null;
+      };
+      audio.onerror = () => {
+        setIsTestingVoice(false);
+        setIsLoadingVoicePreview(false);
+        voicePreviewAudioRef.current = null;
+      };
+      await audio.play();
+      setIsLoadingVoicePreview(false);
+    } catch (error) {
+      setIsTestingVoice(false);
+      setIsLoadingVoicePreview(false);
+      appToast.error('Voice preview unavailable. Please try again later.');
+    }
+  };
+
+  const stopVoicePreview = () => {
+    if (voicePreviewAudioRef.current) {
+      voicePreviewAudioRef.current.pause();
+      voicePreviewAudioRef.current = null;
+    }
+    setIsTestingVoice(false);
+    setIsLoadingVoicePreview(false);
+  };
 
   const maxResponseOptions = [
     { value: "Short (50 words)", label: "Short (50 words)" },
@@ -403,31 +796,255 @@ const EditAgent = () => {
     { value: "Long (300 words)", label: "Long (300 words)" },
   ];
 
-  const contextWindowOptions = [
-    { value: "Small (4K tokens)", label: "Small (4K tokens)" },
-    { value: "Standard (8K tokens)", label: "Standard (8K tokens)" },
-    { value: "Large (16K tokens)", label: "Large (16K tokens)" },
-  ];
+  // Knowledge Base Handlers
+  const handleKnowledgeBaseUpload = async (files: File[]) => {
+    if (files.length === 0) return;
+
+    setIsUploadingFiles(true);
+    try {
+      setUploadedFiles((prev) => [...prev, ...files]);
+
+      // Upload files to the API
+      const response = await agentAPI.uploadKnowledgeBase(files);
+      console.log("📤 Knowledge base upload response:", response);
+
+      // Extract URLs from response.data.files array
+      const urls = response.data?.files?.map((file: any) => file.url) || [];
+      if (urls.length > 0) {
+        setUploadedFileUrls((prev) => [...prev, ...urls]);
+        console.log("✅ Knowledge base files uploaded:", urls);
+        appToast.success(`${files.length} file(s) uploaded successfully!`);
+      }
+    } catch (error) {
+      console.error("❌ Error uploading knowledge base files:", error);
+      appToast.error("Failed to upload files. Please try again.");
+      setUploadedFiles((prev) =>
+        prev.filter((f) => !files.some((newFile) => newFile.name === f.name))
+      );
+    } finally {
+      setIsUploadingFiles(false);
+    }
+  };
+
+  const handleRemoveKnowledgeBaseFile = (index: number) => {
+    setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
+    setUploadedFileUrls((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // --- Existing KB file inline text editing handlers ---
+  const handleToggleEditKbFile = async (index: number, fileUrl: string) => {
+    // Toggle off
+    if (editingKbIndex === index) {
+      setEditingKbIndex(null);
+      return;
+    }
+    setEditingKbIndex(index);
+    // Always load fresh content + presigned URL via API
+    if (kbFileContents[index] === undefined) {
+      if (!id) return;
+      setLoadingKbIndex(index);
+      try {
+        // Step 1: GET presigned-url → receive presignedUrl (PUT) + fileUrl (read)
+        const filename = fileUrl.split('/').pop() || 'knowledge.txt';
+        const result = await agentAPI.getPresignedUrl(id, filename);
+        const { fileUrl: freshFileUrl } = result.data;
+
+        // Step 2: Fetch document text from fileUrl
+        const res = await fetch(freshFileUrl);
+        if (!res.ok) throw new Error(`Failed to fetch file: ${res.status}`);
+        const text = await res.text();
+        setKbFileContents((prev) => ({ ...prev, [index]: text }));
+      } catch {
+        appToast.error('Failed to load file content');
+        setKbFileContents((prev) => ({ ...prev, [index]: '' }));
+      } finally {
+        setLoadingKbIndex(null);
+      }
+    }
+  };
+
+  const handleSaveKbFile = async (index: number, fileUrl: string) => {
+    if (!id) return;
+    const content = kbFileContents[index] ?? '';
+    setSavingKbIndex(index);
+    try {
+      // Re-fetch presigned URL in case the cached one expired (valid only 15 min)
+      const filename = fileUrl.split('/').pop() || 'knowledge.txt';
+      const result = await agentAPI.getPresignedUrl(id, filename);
+      const presignedUrl = result.data.presignedUrl;
+
+      // Step 3: PUT text content directly to S3 using presigned URL
+      const putRes = await fetch(presignedUrl, {
+        method: 'PUT',
+        body: content,
+        headers: { 'Content-Type': 'text/plain' },
+      });
+      if (!putRes.ok) throw new Error(`S3 PUT failed: ${putRes.status}`);
+      appToast.success('Knowledge base file updated successfully!');
+      // Invalidate cache so next open re-fetches fresh content
+      setKbFileContents((prev) => { const n = { ...prev }; delete n[index]; return n; });
+      setEditingKbIndex(null);
+    } catch (err) {
+      console.error('Save KB file error:', err);
+      appToast.error('Failed to save file content. Please try again.');
+    } finally {
+      setSavingKbIndex(null);
+    }
+  };
+
+  // --- KB search helpers ---
+  // Measures the exact pixel Y-offset of a character position inside a textarea
+  // using a hidden mirror div that replicates the textarea's layout.
+  const getMatchScrollTop = useCallback((ta: HTMLTextAreaElement, matchStart: number): number => {
+    const mirror = document.createElement('div');
+    const computed = window.getComputedStyle(ta);
+    // Copy every layout-relevant style from the textarea
+    const props: Array<keyof CSSStyleDeclaration> = [
+      'fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing',
+      'wordSpacing', 'textIndent', 'whiteSpace', 'wordWrap', 'wordBreak',
+      'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+      'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth',
+      'boxSizing',
+    ];
+    mirror.style.position = 'absolute';
+    mirror.style.visibility = 'hidden';
+    mirror.style.overflow = 'auto';
+    mirror.style.width = ta.offsetWidth + 'px';
+    mirror.style.height = ta.offsetHeight + 'px';
+    mirror.style.whiteSpace = 'pre-wrap';
+    mirror.style.wordBreak = 'break-word';
+    props.forEach((p) => {
+      (mirror.style as any)[p] = computed[p];
+    });
+    document.body.appendChild(mirror);
+
+    // Text before the match in a span, then a zero-width marker span
+    const before = document.createElement('span');
+    before.textContent = ta.value.slice(0, matchStart);
+    const marker = document.createElement('span');
+    marker.textContent = ta.value.slice(matchStart, matchStart + 1) || ' ';
+    mirror.appendChild(before);
+    mirror.appendChild(marker);
+
+    // The marker's offsetTop inside the mirror equals the match's pixel position
+    const matchTop = marker.offsetTop;
+    const matchHeight = marker.offsetHeight;
+    document.body.removeChild(mirror);
+
+    // Center the match in the textarea viewport
+    return Math.max(0, matchTop - ta.clientHeight / 2 + matchHeight / 2);
+  }, []);
+
+  // Scrolls textarea to the match, syncs overlay, returns focus to search input
+  const applyKbSelection = useCallback((fileIdx: number, matchStart: number, queryLen: number) => {
+    const ta = kbTextareaRefs.current[fileIdx];
+    if (!ta) return;
+
+    // Manually compute and set the exact scrollTop needed
+    const targetScrollTop = getMatchScrollTop(ta, matchStart);
+    ta.scrollTop = targetScrollTop;
+
+    // Select the match text (focus with preventScroll so PAGE doesn't jump)
+    ta.focus({ preventScroll: true });
+    ta.setSelectionRange(matchStart, matchStart + queryLen);
+
+    // Sync overlay
+    const overlay = kbOverlayRefs.current[fileIdx];
+    if (overlay) overlay.scrollTop = targetScrollTop;
+
+    // Return focus to search input without scrolling the page
+    requestAnimationFrame(() => {
+      kbSearchInputRefs.current[fileIdx]?.focus({ preventScroll: true });
+    });
+  }, [getMatchScrollTop]);
+
+  const handleKbSearch = useCallback((fileIdx: number, query: string, content: string) => {
+    setKbSearchQuery((prev) => ({ ...prev, [fileIdx]: query }));
+    if (!query.trim()) {
+      setKbSearchMatches((prev) => ({ ...prev, [fileIdx]: [] }));
+      setKbSearchMatchIdx((prev) => ({ ...prev, [fileIdx]: 0 }));
+      return;
+    }
+    const lowerContent = content.toLowerCase();
+    const lowerQuery = query.toLowerCase();
+    const positions: number[] = [];
+    let pos = lowerContent.indexOf(lowerQuery);
+    while (pos !== -1) {
+      positions.push(pos);
+      pos = lowerContent.indexOf(lowerQuery, pos + 1);
+    }
+    setKbSearchMatches((prev) => ({ ...prev, [fileIdx]: positions }));
+    // Start at -1 so first Enter/nav goes to match 0
+    setKbSearchMatchIdx((prev) => ({ ...prev, [fileIdx]: -1 }));
+    // Do NOT auto-jump or steal focus while user is still typing
+  }, []);
+
+  const handleKbSearchNav = useCallback((fileIdx: number, dir: 1 | -1) => {
+    const matches = kbSearchMatches[fileIdx] ?? [];
+    if (matches.length === 0) return;
+    const current = kbSearchMatchIdx[fileIdx] ?? -1;
+    // If not yet jumped (-1), first nav always goes to 0 (forward) or last (backward)
+    const next = current === -1
+      ? (dir === 1 ? 0 : matches.length - 1)
+      : (current + dir + matches.length) % matches.length;
+    setKbSearchMatchIdx((prev) => ({ ...prev, [fileIdx]: next }));
+    applyKbSelection(fileIdx, matches[next], (kbSearchQuery[fileIdx] ?? '').length);
+    // Return focus to the search input so further nav keys keep working
+    setTimeout(() => kbSearchInputRefs.current[fileIdx]?.focus(), 0);
+  }, [kbSearchMatches, kbSearchMatchIdx, kbSearchQuery, applyKbSelection]);
+
+  const handleDeleteKbFile = (index: number) => {
+    setExistingKbFiles((prev) => prev.filter((_, i) => i !== index));
+    // Clean up any related state for this index
+    setKbFileContents((prev) => { const n = { ...prev }; delete n[index]; return n; });
+    setKbPreviewMode((prev) => { const n = { ...prev }; delete n[index]; return n; });
+    if (editingKbIndex === index) setEditingKbIndex(null);
+    setConfirmDeleteKbIndex(null);
+    appToast.success('File removed from knowledge base.');
+  };
+
+  const handleAddWebsiteUrl = () => {    setWebsiteUrls((prev) => [...prev, ""]);
+  };
+
+  const handleRemoveWebsiteUrl = (index: number) => {
+    setWebsiteUrls((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleWebsiteUrlChange = (index: number, value: string) => {
+    setWebsiteUrls((prev) => prev.map((url, i) => (i === index ? value : url)));
+  };
+
+  const handleAddSocialMediaUrl = () => {
+    setSocialMediaUrls((prev) => [...prev, ""]);
+  };
+
+  const handleRemoveSocialMediaUrl = (index: number) => {
+    setSocialMediaUrls((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSocialMediaUrlChange = (index: number, value: string) => {
+    setSocialMediaUrls((prev) => prev.map((url, i) => (i === index ? value : url)));
+  };
 
   const handleSave = async () => {
     // Validate required fields
     if (!formData.name || formData.name.trim() === "") {
-      toast.error("Agent name is required. Please enter a name for your agent.");
+      appToast.error("Agent name is required. Please enter a name for your agent.");
       return;
     }
 
     if (!formData.businessProcess || formData.businessProcess.trim() === "") {
-      toast.error("Business process is required. Please select a business process.");
+      appToast.error("Business process is required. Please select a business process.");
       return;
     }
 
     if (!formData.industry || formData.industry.trim() === "") {
-      toast.error("Industry is required. Please select an industry.");
+      appToast.error("Industry is required. Please select an industry.");
       return;
     }
 
     if (currentAgent) {
-      const loadingToast = toast.loading("Updating agent...");
+      const loadingToast = appToast.loading("Updating agent...");
       try {
         // Reverse mapping functions - form values to API values
         const personalityToApi = (value: string) => {
@@ -482,6 +1099,8 @@ const EditAgent = () => {
           personality: personalityToApi(formData.persona),
           language: formData.language,
           voice: formData.voice,
+          voice_speed: formData.voiceSpeed,
+          voice_style: formData.voiceStyle,
           gender: formData.gender,
           business_process: formData.businessProcess.replace(/-/g, '_'),
           industry: formData.industry.replace(/-/g, '_'),
@@ -492,18 +1111,23 @@ const EditAgent = () => {
           max_response_length: maxResponseToApi(formData.maxResponseLength),
           context_window: contextWindowToApi(formData.contextWindow),
           temperature: formData.temperature,
+          // Include template data if available
+          template: templateData || undefined,
+          // Knowledge base URLs
+          website_urls: websiteUrls.filter((url) => url.trim()),
+          social_media_urls: socialMediaUrls.filter((url) => url.trim()),
+          // Merge existing KB file URLs with any newly uploaded ones (deduplicated)
+          knowledge_base_file_urls: [...new Set([...existingKbFiles, ...uploadedFileUrls])],
         };
 
         console.log('Sending update data:', updateData);
         
         await agentAPI.updateAgent(currentAgent.id, updateData);
-        toast.dismiss(loadingToast);
-        toast.success("Agent updated successfully!");
-        
-        navigate('/agents', { state: { refresh: true } });
+        appToast.dismiss(loadingToast);
+        appToast.success("Agent updated successfully!");
       } catch (error) {
-        toast.dismiss(loadingToast);
-        toast.error("Failed to update agent. Please try again.");
+        appToast.dismiss(loadingToast);
+        appToast.error("Failed to update agent. Please try again.");
         console.error("Update agent error:", error);
       }
     }
@@ -523,7 +1147,6 @@ const EditAgent = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6 w-full max-w-full overflow-visible">
-      {/* <Toaster position="top-right" /> */}
       {/* Header */}
       <GlassCard>
         <div className="p-4 sm:p-6">
@@ -552,19 +1175,23 @@ const EditAgent = () => {
                         {currentAgent.name}
                       </h1>
 
-                      {/* Agent meta info - Mobile optimized */}
+                      {/* Agent meta info */}
                       <div className="flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-1 text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
+                        <span className="font-medium capitalize">{formData.gender}</span>
+                        <span className="text-slate-400">•</span>
+                        <span className="truncate capitalize">{formData.voice}</span>
+                        <span className="text-slate-400">•</span>
                         <div className="flex items-center gap-1">
                           <Globe className="w-3 h-3 sm:w-4 sm:h-4" />
                           <span className="truncate text-xs sm:text-sm">
                             {currentAgent.language}
                           </span>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <span className="px-2 py-0.5 sm:px-3 sm:py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-xs font-medium flex-shrink-0">
-                            Editing
-                          </span>
-                        </div>
+                        <span
+                          className="px-2 py-0.5 sm:px-3 sm:py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-xs font-medium flex-shrink-0"
+                        >
+                          Editing
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -572,7 +1199,7 @@ const EditAgent = () => {
               </div>
             </div>
 
-            {/* Action buttons - Mobile compact */}
+            {/* Action buttons */}
             <div className="flex items-center gap-1.5 sm:gap-2 lg:gap-3 flex-shrink-0">
               <button
                 onClick={handleCancel}
@@ -596,321 +1223,1074 @@ const EditAgent = () => {
         </div>
       </GlassCard>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-4 sm:gap-6 lg:gap-8">
-        <div className="space-y-4 sm:space-y-6 min-w-0">
-          {/* Identity Section - Mobile Optimized */}
-          <GlassCard>
-            <div className="p-4 sm:p-5 lg:p-6">
-              <div className="flex items-center gap-2 mb-3 sm:mb-4">
-                <Bot className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400" />
-                <h2 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
-                  Identity & Persona
-                </h2>
-              </div>
-              <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mb-4 sm:mb-6">
-                Define your agent's basic identity and personality
-              </p>
+      {/* Tabs - Training Page Style */}
+      <GlassCard>
+        <div className="">
+          <div className="flex space-x-1 common-bg-icons rounded-xl px-4 py-3 overflow-x-auto">
+            {editTabs?.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 rounded-lg transition-all duration-200 whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? "common-button-bg2 shadow-sm"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition ease-in-out"
+                }`}
+              >
+                <tab.icon className="w-3 sm:w-4 h-3 sm:h-4" />
+                <span className="text-xs sm:text-sm">{tab.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </GlassCard>
 
-              <div className="space-y-4 sm:space-y-6">
-                {/* Agent Name */}
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
-                    Agent Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
-                    }
-                    placeholder="e.g., Sarah - Customer Support"
-                    className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg sm:rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/20 text-slate-800 dark:text-white text-sm sm:text-base transition-all duration-200"
-                  />
-                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-1.5">
-                    This name will be visible to your customers
-                  </p>
+      {/* Content based on active tab */}
+      <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 sm:gap-6">
+        <div className="lg:col-span-2">
+          {/* Identity Tab Content */}
+          {activeTab === 'identity' && (
+            <GlassCard>
+              <div className="p-4 sm:p-5 lg:p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Bot className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400" />
+                  <h2 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
+                    Identity & Persona
+                  </h2>
                 </div>
+                <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400 mb-4 sm:mb-6">
+                  Define your agent's basic identity and personality
+                </p>
 
-                {/* Business Process and Industry */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-4 sm:space-y-6">
+                  {/* Agent Name */}
                   <div>
                     <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
-                      Business Process <span className="text-red-500">*</span>
+                      Agent Name *
                     </label>
-                    <SearchableSelect
-                      options={businessProcesses}
-                      value={formData.businessProcess}
-                      onChange={(value) =>
-                        setFormData({ ...formData, businessProcess: value })
+                    <input
+                      type="text"
+                      value={formData.name}
+                      onChange={(e) =>
+                        setFormData({ ...formData, name: e.target.value })
                       }
-                      placeholder="Select process..."
+                      placeholder="e.g., Sarah - Customer Support"
+                      className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg sm:rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/20 text-slate-800 dark:text-white text-sm sm:text-base transition-all duration-200"
                     />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
-                      Industry <span className="text-red-500">*</span>
-                    </label>
-                    <SearchableSelect
-                      options={industries}
-                      value={formData.industry}
-                      onChange={(value) =>
-                        setFormData({ ...formData, industry: value, subIndustry: "" })
-                      }
-                      placeholder="Select industry..."
-                    />
-                  </div>
-                </div>
-
-                {/* Sub Industry */}
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
-                    Sub Industry
-                  </label>
-                  <SearchableSelect
-                    options={formData.industry ? (subIndustries[formData.industry] || []) : []}
-                    value={formData.subIndustry}
-                    onChange={(value) =>
-                      setFormData({ ...formData, subIndustry: value })
-                    }
-                    placeholder={formData.industry ? "Select sub-industry..." : "Select an industry first"}
-                    disabled={!formData.industry}
-                  />
-                  {!formData.industry && (
                     <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-1.5">
-                      Please select an industry first to see available sub-industries
+                      This name will be visible to your customers
                     </p>
+                  </div>
+
+                  {/* Business Process and Industry */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
+                        Business Process <span className="text-red-500">*</span>
+                      </label>
+                      <SearchableSelect
+                        options={businessProcesses}
+                        value={formData.businessProcess}
+                        onChange={(value) =>
+                          setFormData({ ...formData, businessProcess: value })
+                        }
+                        placeholder="Select process..."
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
+                        Industry <span className="text-red-500">*</span>
+                      </label>
+                      <SearchableSelect
+                        options={industries}
+                        value={formData.industry}
+                        onChange={(value) =>
+                          setFormData({ ...formData, industry: value, subIndustry: "" })
+                        }
+                        placeholder="Select industry..."
+                      />
+                    </div>
+                  </div>
+
+                  {/* Sub Industry */}
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
+                      Sub Industry
+                    </label>
+                    <SearchableSelect
+                      options={formData.industry ? (subIndustries[formData.industry] || []) : []}
+                      value={formData.subIndustry}
+                      onChange={(value) =>
+                        setFormData({ ...formData, subIndustry: value })
+                      }
+                      placeholder={formData.industry ? "Select sub-industry..." : "Select an industry first"}
+                      disabled={!formData.industry}
+                    />
+                    {!formData.industry && (
+                      <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-1.5">
+                        Please select an industry first to see available sub-industries
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </GlassCard>
+          )}
+
+          {/* Knowledge Tab Content */}
+          {activeTab === 'knowledge' && (
+            <GlassCard>
+              <div className="p-4 sm:p-5 lg:p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-600 dark:text-cyan-400" />
+                  <h2 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
+                    Knowledge Base
+                  </h2>
+                </div>
+                <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                  Upload documents or add URLs to train your AI with company-specific knowledge
+                </p>
+
+                <div className="space-y-4 sm:space-y-5">
+                  {/* Existing Knowledge Base Files (editable inline) */}
+                  {existingKbFiles.length > 0 && (
+                    <div className="space-y-2 sm:space-y-3">
+                      <label className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                        <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                        Main Knowledge Base
+                        <button
+                          type="button"
+                          onClick={() => setShowKbInfo((v) => !v)}
+                          title="How KB updates work"
+                          className={`ml-auto p-1 rounded-full transition-colors ${
+                            showKbInfo
+                              ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400'
+                              : 'text-slate-400 dark:text-slate-500 hover:text-amber-500 dark:hover:text-amber-400'
+                          }`}
+                        >
+                          <Info className="w-3.5 h-3.5" />
+                        </button>
+                      </label>
+
+                      {/* Collapsible info notice about KB append behaviour */}
+                      {showKbInfo && (
+                        <div className="flex gap-2.5 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50">
+                          <Info className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                          <div className="text-xs text-amber-800 dark:text-amber-300 space-y-1">
+                            <p className="font-semibold">How Knowledge Base updates work</p>
+                            <p>When you upload additional documents, the backend <span className="font-medium">appends</span> the new content to your existing knowledge base file — it does <span className="font-medium">not</span> replace it.</p>
+                            <p>To fully replace the knowledge base, <span className="font-medium">delete the existing file below</span> before uploading your new documents.</p>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="space-y-2">
+                        {existingKbFiles.slice(0, 1).map((fileUrl, index) => {
+                          const filename = getDisplayFilename(fileUrl, index);
+                          const isEditing = editingKbIndex === index;
+                          const isLoading = loadingKbIndex === index;
+                          const isSaving = savingKbIndex === index;
+                          return (
+                            <div key={index} className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                              {/* File row */}
+                              <div className="flex items-center gap-2 sm:gap-3 p-2 sm:p-3 bg-slate-50 dark:bg-slate-800">
+                                <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500 flex-shrink-0" />
+                                <span className="flex-1 text-xs sm:text-sm text-slate-700 dark:text-slate-300 truncate" title={fileUrl}>
+                                  {filename}
+                                </span>
+                                {/* Edit Text button */}
+                                <button
+                                  onClick={() => handleToggleEditKbFile(index, fileUrl)}
+                                  disabled={isLoading || isSaving}
+                                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                    isEditing
+                                      ? 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
+                                      : 'bg-cyan-50 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 hover:bg-cyan-100 dark:hover:bg-cyan-900/50'
+                                  } disabled:opacity-50`}
+                                >
+                                  {isLoading ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  ) : (
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  )}
+                                  {isEditing ? 'Close Editor' : 'Edit Text'}
+                                </button>
+
+                                {/* Delete button with confirm */}
+                                {confirmDeleteKbIndex === index ? (
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-[10px] text-red-600 dark:text-red-400 font-medium">Remove?</span>
+                                    <button
+                                      onClick={() => handleDeleteKbFile(index)}
+                                      className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium bg-red-500 text-white hover:bg-red-600 transition-colors"
+                                    >
+                                      <Check className="w-3.5 h-3.5" />
+                                      Yes
+                                    </button>
+                                    <button
+                                      onClick={() => setConfirmDeleteKbIndex(null)}
+                                      className="px-2 py-1.5 rounded-lg text-xs font-medium bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600 transition-colors"
+                                    >
+                                      No
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={() => setConfirmDeleteKbIndex(index)}
+                                    disabled={isLoading || isSaving}
+                                    title="Remove file"
+                                    className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* Inline text editor */}
+                              {isEditing && (
+                                <div className="border-t border-slate-200 dark:border-slate-700">
+                                  {isLoading ? (
+                                    <div className="flex items-center justify-center gap-2 p-6 text-slate-500 dark:text-slate-400 text-sm">
+                                      <Loader2 className="w-4 h-4 animate-spin" />
+                                      Loading file content...
+                                    </div>
+                                  ) : (
+                                    <div className="p-3 space-y-2">
+                                      {/* Edit / Preview tab toggle */}
+                                      <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1 w-fit">
+                                        <button
+                                          onClick={() => setKbPreviewMode((prev) => ({ ...prev, [index]: 'edit' }))}
+                                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                            (kbPreviewMode[index] ?? 'edit') === 'edit'
+                                              ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm'
+                                              : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                                          }`}
+                                        >
+                                          <Code2 className="w-3.5 h-3.5" />
+                                          Edit
+                                        </button>
+                                        <button
+                                          onClick={() => setKbPreviewMode((prev) => ({ ...prev, [index]: 'preview' }))}
+                                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                            kbPreviewMode[index] === 'preview'
+                                              ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm'
+                                              : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                                          }`}
+                                        >
+                                          <Eye className="w-3.5 h-3.5" />
+                                          Preview
+                                        </button>
+                                      </div>
+
+                                      {/* Editor area */}
+                                      {(kbPreviewMode[index] ?? 'edit') === 'edit' ? (
+                                        <div className="space-y-1.5">
+                                          {/* Search bar */}
+                                          <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg">
+                                            <Search className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                                            <input
+                                              ref={(el) => { kbSearchInputRefs.current[index] = el; }}
+                                              type="text"
+                                              placeholder="Search in text... (Enter to jump)"
+                                              value={kbSearchQuery[index] ?? ''}
+                                              onChange={(e) => handleKbSearch(index, e.target.value, kbFileContents[index] ?? '')}
+                                              onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                  e.preventDefault();
+                                                  handleKbSearchNav(index, e.shiftKey ? -1 : 1);
+                                                } else if (e.key === 'Escape') {
+                                                  handleKbSearch(index, '', kbFileContents[index] ?? '');
+                                                }
+                                              }}
+                                              className="flex-1 bg-transparent text-xs text-slate-700 dark:text-slate-300 placeholder-slate-400 focus:outline-none min-w-0"
+                                            />
+                                            {/* Match count */}
+                                            {(kbSearchQuery[index] ?? '') && (
+                                              <span className={`text-[10px] font-medium flex-shrink-0 px-1.5 py-0.5 rounded ${
+                                                (kbSearchMatches[index] ?? []).length === 0
+                                                  ? 'text-red-500 bg-red-50 dark:bg-red-900/20'
+                                                  : 'text-cyan-600 dark:text-cyan-400 bg-cyan-50 dark:bg-cyan-900/20'
+                                              }`}>
+                                                {(kbSearchMatches[index] ?? []).length === 0
+                                                  ? 'No results'
+                                                  : (kbSearchMatchIdx[index] ?? -1) < 0
+                                                    ? `${(kbSearchMatches[index] ?? []).length} match${(kbSearchMatches[index] ?? []).length === 1 ? '' : 'es'}`
+                                                    : `${(kbSearchMatchIdx[index] ?? 0) + 1} / ${(kbSearchMatches[index] ?? []).length}`}
+                                              </span>
+                                            )}
+                                            {/* Prev / Next */}
+                                            <button
+                                              onClick={() => handleKbSearchNav(index, -1)}
+                                              disabled={!(kbSearchMatches[index] ?? []).length}
+                                              title="Previous match (Shift+Enter)"
+                                              className="p-0.5 rounded text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 disabled:opacity-30 transition-colors"
+                                            >
+                                              <ChevronUp className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                              onClick={() => handleKbSearchNav(index, 1)}
+                                              disabled={!(kbSearchMatches[index] ?? []).length}
+                                              title="Next match (Enter)"
+                                              className="p-0.5 rounded text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 disabled:opacity-30 transition-colors"
+                                            >
+                                              <ChevronDown className="w-3.5 h-3.5" />
+                                            </button>
+                                            {/* Clear search */}
+                                            {(kbSearchQuery[index] ?? '') && (
+                                              <button
+                                                onClick={() => handleKbSearch(index, '', kbFileContents[index] ?? '')}
+                                                title="Clear search (Esc)"
+                                                className="p-0.5 rounded text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                                              >
+                                                <X className="w-3.5 h-3.5" />
+                                              </button>
+                                            )}
+                                          </div>
+
+                                          {/* Textarea with highlight overlay */}
+                                          <div className="relative rounded-lg">
+                                            {/* Overlay — sits behind textarea, shows coloured highlights */}
+                                            <div
+                                              ref={(el) => { kbOverlayRefs.current[index] = el; }}
+                                              aria-hidden="true"
+                                              className="absolute inset-0 overflow-hidden pointer-events-none z-0 px-3 py-2.5 text-xs sm:text-sm font-mono leading-relaxed bg-white dark:bg-slate-900 rounded-lg text-transparent"
+                                              style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'break-word' }}
+                                            >
+                                              {renderHighlightedContent(
+                                                kbFileContents[index] ?? '',
+                                                kbSearchQuery[index] ?? '',
+                                                kbSearchMatches[index] ?? [],
+                                                kbSearchMatchIdx[index] ?? -1
+                                              )}
+                                            </div>
+                                            {/* Transparent textarea on top */}
+                                            <textarea
+                                              ref={(el) => { kbTextareaRefs.current[index] = el; }}
+                                              value={kbFileContents[index] ?? ''}
+                                              onScroll={(e) => {
+                                                const overlay = kbOverlayRefs.current[index];
+                                                if (overlay) overlay.scrollTop = (e.target as HTMLTextAreaElement).scrollTop;
+                                              }}
+                                              onChange={(e) => {
+                                                const newVal = e.target.value;
+                                                setKbFileContents((prev) => ({ ...prev, [index]: newVal }));
+                                                if (kbSearchQuery[index]) handleKbSearch(index, kbSearchQuery[index], newVal);
+                                              }}
+                                              onKeyDown={(e) => {
+                                                if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+                                                  e.preventDefault();
+                                                  kbSearchInputRefs.current[index]?.focus({ preventScroll: true });
+                                                }
+                                              }}
+                                              rows={14}
+                                              placeholder="Enter knowledge base text content here..."
+                                              className="relative z-10 w-full px-3 py-2.5 bg-transparent border border-slate-200 dark:border-slate-600 rounded-lg text-slate-800 dark:text-white text-xs sm:text-sm font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50 transition-all resize-y min-h-[220px] caret-slate-800 dark:caret-white"
+                                            />
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <div className="w-full min-h-[220px] max-h-[420px] overflow-y-auto px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg">
+                                          <div className="prose prose-sm dark:prose-invert max-w-none
+                                            prose-headings:font-semibold prose-headings:text-slate-800 dark:prose-headings:text-white
+                                            prose-p:text-slate-700 dark:prose-p:text-slate-300 prose-p:leading-relaxed
+                                            prose-table:w-full prose-table:text-xs prose-table:border-collapse
+                                            prose-th:bg-slate-100 dark:prose-th:bg-slate-800 prose-th:px-3 prose-th:py-2 prose-th:text-left prose-th:font-semibold prose-th:border prose-th:border-slate-300 dark:prose-th:border-slate-600
+                                            prose-td:px-3 prose-td:py-2 prose-td:border prose-td:border-slate-200 dark:prose-td:border-slate-700
+                                            prose-tr:even:bg-slate-50 dark:prose-tr:even:bg-slate-800/40
+                                            prose-ul:list-disc prose-ul:pl-5 prose-ol:list-decimal prose-ol:pl-5
+                                            prose-li:text-slate-700 dark:prose-li:text-slate-300
+                                            prose-strong:text-slate-800 dark:prose-strong:text-white
+                                            prose-code:text-cyan-600 dark:prose-code:text-cyan-400 prose-code:bg-slate-100 dark:prose-code:bg-slate-800 prose-code:px-1 prose-code:rounded
+                                          ">
+                                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                              {processKbContent(kbFileContents[index] ?? '')}
+                                            </ReactMarkdown>
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      <div className="flex items-center justify-end gap-2 pt-1">
+                                        <button
+                                          onClick={() => setEditingKbIndex(null)}
+                                          disabled={isSaving}
+                                          className="px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-50"
+                                        >
+                                          Cancel
+                                        </button>
+                                        <button
+                                          onClick={() => handleSaveKbFile(index, fileUrl)}
+                                          disabled={isSaving}
+                                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-cyan-600 hover:bg-cyan-700 rounded-lg transition-colors disabled:opacity-50"
+                                        >
+                                          {isSaving ? (
+                                            <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...</>
+                                          ) : (
+                                            <><Check className="w-3.5 h-3.5" /> Save Changes</>
+                                          )}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* File Upload Section */}
+                  <div className="space-y-3">
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                      <Upload className="w-4 h-4" />
+                      Upload Files
+                    </label>
+
+                    {/* Drop Zone */}
+                    <div
+                      className={`border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl text-center hover:border-blue-400 dark:hover:border-blue-500 transition-colors bg-slate-50/50 dark:bg-slate-800/50 ${isUploadingFiles ? 'opacity-50 pointer-events-none' : ''}`}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        if (!isUploadingFiles) {
+                          e.currentTarget.classList.add("border-blue-400", "bg-blue-50/50");
+                        }
+                      }}
+                      onDragLeave={(e) => {
+                        e.currentTarget.classList.remove("border-blue-400", "bg-blue-50/50");
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.currentTarget.classList.remove("border-blue-400", "bg-blue-50/50");
+                        if (!isUploadingFiles) {
+                          const files = Array.from(e.dataTransfer.files);
+                          handleKnowledgeBaseUpload(files);
+                        }
+                      }}
+                    >
+                      <input
+                        id="edit-knowledge-file-input"
+                        type="file"
+                        multiple
+                        accept=".pdf,.doc,.docx,.txt,.csv,.xlsx,.xls,.png,.jpg,.jpeg,.gif,.webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/png,image/jpeg,image/gif,image/webp"
+                        className="hidden"
+                        disabled={isUploadingFiles}
+                        onChange={(e) => {
+                          const files = Array.from(e.target.files || []);
+                          handleKnowledgeBaseUpload(files);
+                          e.target.value = "";
+                        }}
+                      />
+                      {/* Use label for native file input trigger — works reliably on Android */}
+                      <label
+                        htmlFor={isUploadingFiles ? undefined : "edit-knowledge-file-input"}
+                        className="block p-4 sm:p-6 cursor-pointer"
+                      >
+                      <div className="flex flex-col items-center gap-1.5 sm:gap-2">
+                        {isUploadingFiles ? (
+                          <>
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+                              Uploading files...
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-2 sm:gap-3 text-slate-400">
+                              <FileText className="w-6 h-6 sm:w-8 sm:h-8" />
+                              <Image className="w-6 h-6 sm:w-8 sm:h-8" />
+                              <File className="w-6 h-6 sm:w-8 sm:h-8" />
+                            </div>
+                            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+                              <span className="text-blue-500 font-medium">Click to upload</span> or drag and drop
+                            </p>
+                            <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500">
+                              PDF, DOC, TXT, CSV, Excel, Images (max 10MB each)
+                            </p>
+                          </>
+                        )}
+                      </div>
+                      </label>
+                    </div>
+
+                    {/* Hint below upload */}
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
+                      <Info className="w-3 h-3 flex-shrink-0" />
+                      New files will be merged into the Main Knowledge Base. To fully replace it, delete the Main Knowledge Base file above first.
+                    </p>
+
+                    {/* All existing KB URLs — read-only reference list */}
+                    {existingKbFiles.length > 0 && (
+                      <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                        <div className="flex items-center gap-2 px-3 py-2 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+                          <FileText className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 flex-shrink-0" />
+                          <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wide">
+                            Knowledge Base URLs ({existingKbFiles.length})
+                          </span>
+                        </div>
+                        <div className="divide-y divide-slate-100 dark:divide-slate-700/60 max-h-40 overflow-y-auto">
+                          {existingKbFiles.map((url, i) => (
+                            <div key={i} className="flex items-center gap-2 px-3 py-1.5">
+                              <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 w-4 flex-shrink-0">{i + 1}.</span>
+                              <span className="flex-1 text-[11px] text-slate-500 dark:text-slate-400 truncate font-mono" title={url}>
+                                {url.split('/').pop()?.split('?')[0] || url}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Uploaded Files List */}
+                    {uploadedFiles.length > 0 && (
+                      <div className="space-y-1.5 sm:space-y-2 max-h-32 overflow-y-auto">
+                        {uploadedFiles.map((file, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center gap-2 sm:gap-3 p-1.5 sm:p-2 bg-slate-100 dark:bg-slate-800 rounded-lg"
+                          >
+                            {file.type.includes("image") ? (
+                              <Image className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-500 flex-shrink-0" />
+                            ) : file.type.includes("pdf") ? (
+                              <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-500 flex-shrink-0" />
+                            ) : (
+                              <File className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-500 flex-shrink-0" />
+                            )}
+                            <span className="flex-1 text-xs sm:text-sm text-slate-700 dark:text-slate-300 truncate">
+                              {file.name}
+                            </span>
+                            <span className="text-[10px] sm:text-xs text-slate-400 hidden sm:inline">
+                              {(file.size / 1024 / 1024).toFixed(2)} MB
+                            </span>
+                            {uploadedFileUrls[index] && (
+                              <span className="text-[10px] sm:text-xs text-green-500">✓</span>
+                            )}
+                            <button
+                              onClick={() => handleRemoveKnowledgeBaseFile(index)}
+                              disabled={isUploadingFiles}
+                              className="p-0.5 sm:p-1 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors disabled:opacity-50"
+                            >
+                              <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Website URLs Section */}
+                  <div className="space-y-2 sm:space-y-3">
+                    <label className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                      <Link className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      Website URLs
+                    </label>
+                    {websiteUrls.map((url, index) => (
+                      <div key={index} className="flex items-center gap-1.5 sm:gap-2">
+                        <input
+                          type="url"
+                          value={url}
+                          onChange={(e) => handleWebsiteUrlChange(index, e.target.value)}
+                          placeholder="https://yourcompany.com"
+                          className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all"
+                        />
+                        {websiteUrls.length > 1 && (
+                          <button
+                            onClick={() => handleRemoveWebsiteUrl(index)}
+                            className="p-2 sm:p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
+                          >
+                            <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      onClick={handleAddWebsiteUrl}
+                      className="w-full py-2 sm:py-2.5 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl text-slate-500 dark:text-slate-400 hover:border-blue-400 hover:text-blue-500 transition-colors flex items-center justify-center gap-2 text-xs sm:text-sm"
+                    >
+                      <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      Add another URL
+                    </button>
+                  </div>
+
+                  {/* Social Media URLs Section */}
+                  <div className="space-y-2 sm:space-y-3">
+                    <label className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                      <Share2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      Social Media Links
+                    </label>
+                    {socialMediaUrls.map((url, index) => (
+                      <div key={index} className="flex items-center gap-1.5 sm:gap-2">
+                        <input
+                          type="url"
+                          value={url}
+                          onChange={(e) => handleSocialMediaUrlChange(index, e.target.value)}
+                          placeholder="https://facebook.com/yourpage or https://x.com/yourhandle"
+                          className="flex-1 px-3 sm:px-4 py-2 sm:py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all"
+                        />
+                        {socialMediaUrls.length > 1 && (
+                          <button
+                            onClick={() => handleRemoveSocialMediaUrl(index)}
+                            className="p-2 sm:p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
+                          >
+                            <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      onClick={handleAddSocialMediaUrl}
+                      className="w-full py-2 sm:py-2.5 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl text-slate-500 dark:text-slate-400 hover:border-blue-400 hover:text-blue-500 transition-colors flex items-center justify-center gap-2 text-xs sm:text-sm"
+                    >
+                      <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      Add social media link
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </GlassCard>
+          )}
+
+          {/* Settings Tab Content */}
+          {activeTab === 'settings' && (
+            <GlassCard>
+              <div className="p-4 sm:p-5 lg:p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
+                  <h2 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
+                    Template Settings
+                  </h2>
+                </div>
+
+                <div className="space-y-4 sm:space-y-6">
+               
+{/* 
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
+                      Max Response Length
+                    </label>
+                    <SearchableSelect
+                      options={maxResponseOptions}
+                      value={formData.maxResponseLength}
+                      onChange={(value) =>
+                        setFormData({ ...formData, maxResponseLength: value })
+                      }
+                      placeholder="Select max response length..."
+                    />
+                  </div> */}
+
+                  {/* Temperature Slider */}
+                  {/* <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">
+                        Creativity Level
+                      </label>
+                      <span className="text-xs sm:text-sm font-medium text-blue-600 dark:text-blue-400">
+                        {formData.temperature}
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.1"
+                      value={formData.temperature}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          temperature: parseFloat(e.target.value),
+                        })
+                      }
+                      className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                    />
+                    <div className="flex justify-between text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      <span>More Focused</span>
+                      <span>More Creative</span>
+                    </div>
+                  </div> */}
+
+              
+
+                  {/* Template Editor Section */}
+                  {templateData && (
+                    <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                      {/* System Prompt */}
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                          System Prompt
+                        </label>
+                        <textarea
+                          value={templateData.systemPrompt || ''}
+                          onChange={(e) =>
+                            setTemplateData({
+                              ...templateData,
+                              systemPrompt: e.target.value,
+                            })
+                          }
+                          placeholder="Define the agent's core behavior and role..."
+                          rows={16}
+                          className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/20 text-slate-800 dark:text-white text-sm resize-y min-h-[200px]"
+                        />
+                      </div>
+
+                      {/* First Message */}
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                          First Message
+                        </label>
+                        <textarea
+                          value={templateData.firstMessage || ''}
+                          onChange={(e) =>
+                            setTemplateData({
+                              ...templateData,
+                              firstMessage: e.target.value,
+                            })
+                          }
+                          placeholder="Initial greeting message..."
+                          rows={2}
+                          className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/20 text-slate-800 dark:text-white text-sm resize-none"
+                        />
+                      </div>
+
+                   
+
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                          Key Talking Points
+                        </label>
+                        <textarea
+                          value={templateData.keyTalkingPoints || ''}
+                          onChange={(e) =>
+                            setTemplateData({
+                              ...templateData,
+                              keyTalkingPoints: e.target.value,
+                            })
+                          }
+                          placeholder="Important topics to cover..."
+                          rows={4}
+                          className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/20 text-slate-800 dark:text-white text-sm resize-none"
+                        />
+                      </div>
+
+                      {/* Closing Script */}
+                      <div>
+                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                          Closing Script
+                        </label>
+                        <textarea
+                          value={templateData.closingScript || ''}
+                          onChange={(e) =>
+                            setTemplateData({
+                              ...templateData,
+                              closingScript: e.target.value,
+                            })
+                          }
+                          placeholder="How to end conversations professionally..."
+                          rows={3}
+                          className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/20 text-slate-800 dark:text-white text-sm resize-none"
+                        />
+                      </div>
+
+                      {/* Objections */}
+                      {templateData.objections && templateData.objections.length > 0 && (
+                        <div>
+                          <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-2">
+                            Objection Handling ({templateData.objections.length})
+                          </label>
+                          <div className="space-y-3 max-h-60 overflow-y-auto">
+                            {templateData.objections.map((obj: any, index: number) => (
+                              <div
+                                key={index}
+                                className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg"
+                              >
+                                <input
+                                  value={obj.objection}
+                                  onChange={(e) => {
+                                    const updated = [...templateData.objections];
+                                    updated[index].objection = e.target.value;
+                                    setTemplateData({
+                                      ...templateData,
+                                      objections: updated,
+                                    });
+                                  }}
+                                  placeholder="Objection..."
+                                  className="w-full px-2 py-1.5 mb-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded text-xs"
+                                />
+                                <textarea
+                                  value={obj.response}
+                                  onChange={(e) => {
+                                    const updated = [...templateData.objections];
+                                    updated[index].response = e.target.value;
+                                    setTemplateData({
+                                      ...templateData,
+                                      objections: updated,
+                                    });
+                                  }}
+                                  placeholder="Response..."
+                                  rows={2}
+                                  className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded text-xs resize-none"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Conversation Examples */}
+                      {templateData.conversationExamples && templateData.conversationExamples.length > 0 && (
+                        <div>
+                          <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-2">
+                            Conversation Examples ({templateData.conversationExamples.length})
+                          </label>
+                          <div className="space-y-3 max-h-60 overflow-y-auto">
+                            {templateData.conversationExamples.map((example: any, index: number) => (
+                              <div
+                                key={index}
+                                className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg"
+                              >
+                                <input
+                                  value={example.customerInput}
+                                  onChange={(e) => {
+                                    const updated = [...templateData.conversationExamples];
+                                    updated[index].customerInput = e.target.value;
+                                    setTemplateData({
+                                      ...templateData,
+                                      conversationExamples: updated,
+                                    });
+                                  }}
+                                  placeholder="Customer says..."
+                                  className="w-full px-2 py-1.5 mb-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded text-xs"
+                                />
+                                <textarea
+                                  value={example.expectedResponse}
+                                  onChange={(e) => {
+                                    const updated = [...templateData.conversationExamples];
+                                    updated[index].expectedResponse = e.target.value;
+                                    setTemplateData({
+                                      ...templateData,
+                                      conversationExamples: updated,
+                                    });
+                                  }}
+                                  placeholder="Agent responds..."
+                                  rows={2}
+                                  className="w-full px-2 py-1.5 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded text-xs resize-none"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
-
-                {/* Gender */}
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
-                    Gender
-                  </label>
-                  <SearchableSelect
-                    options={genders}
-                    value={formData.gender}
-                    onChange={(value) =>
-                      setFormData({ ...formData, gender: value })
-                    }
-                    placeholder="Select gender..."
-                  />
-                </div>
-
-                {/* Personality */}
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
-                    Persona
-                  </label>
-                  <SearchableSelect
-                    options={[
-                      { value: "Friendly", label: "Friendly" },
-                      { value: "Formal", label: "Formal" },
-                      { value: "Empathetic", label: "Empathetic" },
-                      { value: "Persuasive (Sales)", label: "Persuasive (Sales)" },
-                      { value: "Reassuring (Support)", label: "Reassuring (Support)" },
-                    ]}
-                    value={formData.persona}
-                    onChange={(value) =>
-                      setFormData({ ...formData, persona: value })
-                    }
-                    placeholder="Select persona..."
-                  />
-                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-1.5">
-                    Choose the tone that best fits your brand
-                  </p>
-                </div>
               </div>
-            </div>
-          </GlassCard>
+            </GlassCard>
+          )}
 
-          {/* Advanced Settings */}
-          <GlassCard>
-            <div className="p-4 sm:p-5 lg:p-6 z-[99] relative">
-              <div className="flex items-center gap-2 mb-3 sm:mb-4">
-                <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
-                <h2 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
-                  Advanced Settings
-                </h2>
-              </div>
-
-              <div className="space-y-4 sm:space-y-6">
-                {/* Custom Instructions */}
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
-                    Custom Instructions
-                  </label>
-                  <textarea
-                    value={formData.customInstructions}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        customInstructions: e.target.value,
-                      })
-                    }
-                    placeholder="Add specific instructions or guidelines for your agent..."
-                    rows={4}
-                    className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg sm:rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500/20 text-slate-800 dark:text-white text-sm sm:text-base resize-none transition-all duration-200"
-                  />
+          {/* Voice Tab Content */}
+          {activeTab === 'voice' && (
+            <GlassCard>
+              <div className="p-4 sm:p-5 lg:p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Globe className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 dark:text-green-400" />
+                  <h2 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
+                    Voice & Language
+                  </h2>
                 </div>
+                <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+                  Configure language and voice settings
+                </p>
 
-                {/* Response Style */}
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
-                    Response Style
-                  </label>
-                  <SearchableSelect
-                    options={responseStyleOptions}
-                    value={formData.responseStyle}
-                    onChange={(value) =>
-                      setFormData({ ...formData, responseStyle: value })
-                    }
-                    placeholder="Select response style..."
-                  />
-                </div>
-
-                {/* Max Response Length */}
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
-                    Max Response Length
-                  </label>
-                  <SearchableSelect
-                    options={maxResponseOptions}
-                    value={formData.maxResponseLength}
-                    onChange={(value) =>
-                      setFormData({ ...formData, maxResponseLength: value })
-                    }
-                    placeholder="Select max response length..."
-                  />
-                </div>
-
-                {/* Temperature Slider */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">
-                      Creativity Level
+                <div className="space-y-4">
+                  {/* Gender */}
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
+                      Gender
                     </label>
-                    <span className="text-xs sm:text-sm font-medium text-blue-600 dark:text-blue-400">
-                      {formData.temperature}
-                    </span>
+                    <div className="grid grid-cols-2 gap-3">
+                      {genders.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => {
+                            const newGender = option.value;
+                            const needsMultilingual = !englishOnlyLanguages.includes(formData.language);
+                            const newVoice = needsMultilingual
+                              ? multilingualVoices[newGender]?.[0] || (newGender === 'female' ? 'Aoede' : 'Puck')
+                              : (newGender === 'female' ? 'Achernar' : 'Achird');
+                            setFormData({ ...formData, gender: newGender, voice: newVoice });
+                          }}
+                          className={`p-3 rounded-xl border-2 transition-all flex items-center justify-center ${
+                            formData.gender === option.value
+                              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                              : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                          }`}
+                        >
+                          <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{option.label}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.1"
-                    value={formData.temperature}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        temperature: parseFloat(e.target.value),
-                      })
-                    }
-                    className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                  />
-                  <div className="flex justify-between text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    <span>More Focused</span>
-                    <span>More Creative</span>
-                  </div>
-                </div>
 
-                {/* Context Window */}
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
-                    Context Window
-                  </label>
-                  <SearchableSelect
-                    options={contextWindowOptions}
-                    value={formData.contextWindow}
-                    onChange={(value) =>
-                      setFormData({ ...formData, contextWindow: value })
-                    }
-                    placeholder="Select context window..."
-                  />
-                  <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-1.5">
-                    Larger windows remember more conversation history
-                  </p>
+                  {/* Language */}
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
+                      Language
+                    </label>
+                    <select
+                      value={formData.language}
+                      onChange={(e) => {
+                        const newLang = e.target.value;
+                        const isNewMultilingual = !englishOnlyLanguages.includes(newLang);
+                        const gender = formData.gender;
+                        let newVoice = formData.voice;
+                        if (isNewMultilingual && !(multilingualVoices[gender] || []).includes(formData.voice)) {
+                          newVoice = multilingualVoices[gender]?.[0] || formData.voice;
+                        }
+                        setFormData({ ...formData, language: newLang, voice: newVoice });
+                      }}
+                      className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm sm:text-base text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all"
+                    >
+                      <option value="multilingual">🌐 Multilingual</option>
+                      <option value="en-US">🇺🇸 English (US)</option>
+                      <option value="en-GB">🇬🇧 English (UK)</option>
+                      <option value="en-IN">🇮🇳 English (India)</option>
+                      <option value="es">🇪🇸 Spanish</option>
+                      <option value="fr">🇫🇷 French</option>
+                      <option value="de">🇩🇪 German</option>
+                      <option value="it">🇮🇹 Italian</option>
+                      <option value="pt">🇵🇹 Portuguese</option>
+                      <option value="nl">🇳🇱 Dutch</option>
+                      <option value="pl">🇵🇱 Polish</option>
+                      <option value="ru">🇷🇺 Russian</option>
+                      <option value="ja">🇯🇵 Japanese</option>
+                      <option value="ko">🇰🇷 Korean</option>
+                      <option value="zh">🇨🇳 Chinese</option>
+                      <option value="ar">🇸🇦 Arabic</option>
+                      <option value="hi">🇮🇳 Hindi</option>
+                      <option value="tr">🇹🇷 Turkish</option>
+                    </select>
+                  </div>
+
+                  {/* Voice Type */}
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
+                      Voice Type
+                    </label>
+                    <div className="flex gap-2">
+                      <select
+                        value={formData.voice}
+                        onChange={(e) => setFormData({ ...formData, voice: e.target.value })}
+                        className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm sm:text-base text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all"
+                      >
+                        {getFilteredVoiceOptions(formData.gender).map((voice) => (
+                          <option key={voice.value} value={voice.value}>{voice.label}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        disabled={isLoadingVoicePreview}
+                        onClick={() => {
+                          if (isTestingVoice) {
+                            stopVoicePreview();
+                          } else {
+                            previewGeminiVoice(formData.voice);
+                          }
+                        }}
+                        className={`px-4 py-2.5 sm:py-3 rounded-xl font-medium transition-all flex items-center gap-2 ${
+                          isLoadingVoicePreview
+                            ? 'bg-slate-400 dark:bg-slate-600 text-white cursor-not-allowed'
+                            : isTestingVoice
+                            ? 'bg-red-500 hover:bg-red-600 text-white hover:scale-[1.02] active:scale-[0.98]'
+                            : 'common-button-bg hover:scale-[1.02] active:scale-[0.98]'
+                        }`}
+                      >
+                        {isLoadingVoicePreview ? (
+                          <>
+                            <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                            </svg>
+                            <span className="hidden sm:inline">Loading</span>
+                          </>
+                        ) : isTestingVoice ? (
+                          <>
+                            <Square className="w-4 h-4" />
+                            <span className="hidden sm:inline">Stop</span>
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-4 h-4" />
+                            <span className="hidden sm:inline">Test</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-1">
+                      Choose a voice that matches your brand personality
+                    </p>
+                  </div>
+
+                  {/* Voice Style */}
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
+                      Voice Style
+                    </label>
+                    <select
+                      value={formData.voiceStyle}
+                      onChange={(e) => setFormData({ ...formData, voiceStyle: e.target.value })}
+                      className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm sm:text-base text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all"
+                    >
+                      <option value="friendly">Friendly - Warm &amp; approachable</option>
+                      <option value="professional">Professional - Business-like &amp; formal</option>
+                      <option value="casual">Casual - Relaxed &amp; conversational</option>
+                      <option value="authoritative">Authoritative - Confident &amp; commanding</option>
+                      <option value="empathetic">Empathetic - Understanding &amp; supportive</option>
+                      <option value="enthusiastic">Enthusiastic - Energetic &amp; upbeat</option>
+                    </select>
+                    <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-1">
+                      Set the personality tone for your AI assistant
+                    </p>
+                  </div>
+
+                  {/* Voice Speed */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">
+                        Voice Speed
+                      </label>
+                      <span className="text-xs sm:text-sm font-medium text-blue-600 dark:text-blue-400">
+                        {formData.voiceSpeed.toFixed(1)}x
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.5"
+                      max="2.0"
+                      step="0.1"
+                      value={formData.voiceSpeed}
+                      onChange={(e) =>
+                        setFormData({ ...formData, voiceSpeed: parseFloat(e.target.value) })
+                      }
+                      className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                      style={{
+                        background: `linear-gradient(to right, #2563eb ${((formData.voiceSpeed - 0.5) / (2.0 - 0.5)) * 100}%, #e2e8f0 ${((formData.voiceSpeed - 0.5) / (2.0 - 0.5)) * 100}%)`,
+                      }}
+                    />
+                    <div className="flex justify-between text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-1">
+                      <span>Slower (0.5x)</span>
+                      <span>Normal (1.0x)</span>
+                      <span>Faster (2.0x)</span>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          </GlassCard>
+            </GlassCard>
+          )}
         </div>
 
-        {/* Sidebar - Mobile Stacked */}
+        {/* Sidebar - Tips Card */}
         <div className="space-y-4 sm:space-y-6">
-          <GlassCard>
-            <div className="p-4 sm:p-5 lg:p-6">
-              <div className="flex items-center gap-2 mb-3 sm:mb-4">
-                <Globe className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 dark:text-green-400" />
-                <h2 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
-                  Voice & Language
-                </h2>
-              </div>
-              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-                Configure language and voice settings
-              </p>
-
-              <div className="space-y-4">
-                {/* Language */}
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
-                    Language
-                  </label>
-                  <SearchableSelect
-                    options={[
-                      { value: "multilingual", label: "🌐 Multilingual" },
-                      { value: "ar", label: "🇸🇦 Arabic" },
-                      { value: "zh", label: "🇨🇳 Chinese" },
-                      { value: "nl", label: "🇳🇱 Dutch" },
-                      { value: "en-GB", label: "🇬🇧 English (UK)" },
-                      { value: "en-US", label: "🇺🇸 English (US)" },
-                      { value: "en-IN", label: "🇮🇳 English (India)" },
-                      { value: "fr", label: "🇫🇷 French" },
-                      { value: "de", label: "🇩🇪 German" },
-                      { value: "hi", label: "🇮🇳 Hindi" },
-                      { value: "it", label: "🇮🇹 Italian" },
-                      { value: "ja", label: "🇯🇵 Japanese" },
-                      { value: "ko", label: "🇰🇷 Korean" },
-                      { value: "pt", label: "🇵🇹 Portuguese" },
-                      { value: "pl", label: "🇵🇱 Polish" },
-                      { value: "ru", label: "🇷🇺 Russian" },
-                      { value: "es", label: "🇪🇸 Spanish" },
-                      { value: "tr", label: "🇹🇷 Turkish" },
-                    ]}
-                    value={formData.language}
-                    onChange={(value) =>
-                      setFormData({ ...formData, language: value })
-                    }
-                    placeholder="Select language..."
-                  />
-                </div>
-
-                {/* Voice */}
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
-                    Voice
-                  </label>
-                  <SearchableSelect
-                    options={[
-                      { value: "alloy", label: "Alloy - Neutral" },
-                      { value: "echo", label: "Echo - Male" },
-                      { value: "fable", label: "Fable - British Male" },
-                      { value: "onyx", label: "Onyx - Deep Male" },
-                      { value: "nova", label: "Nova - Female" },
-                      { value: "shimmer", label: "Shimmer - Soft Female" },
-                    ]}
-                    value={formData.voice}
-                    onChange={(value) =>
-                      setFormData({ ...formData, voice: value })
-                    }
-                    placeholder="Select voice..."
-                  />
-                </div>
-              </div>
-            </div>
-          </GlassCard>
-
           <GlassCard>
             <div className="p-4 sm:p-5 lg:p-6">
               <div className="flex items-center gap-2 mb-3 sm:mb-4">

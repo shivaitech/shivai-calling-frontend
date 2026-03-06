@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice AI Agent Tester</title>
+    <script src="https://unpkg.com/livekit-client@2.5.6/dist/livekit-client.umd.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh; display: flex; align-items: center; justify-content: center;
+            padding: 1rem;
+        }
+        .container { 
+            background: white; border-radius: 20px; padding: 2rem; box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            width: 100%; max-width: 600px; max-height: 95vh; overflow-y: auto;
+        }
+        .header { text-align: center; margin-bottom: 2rem; }
+        .header h1 { color: #333; font-size: 1.5rem; margin-bottom: 0.5rem; }
+        .header p { color: #666; font-size: 0.9rem; }
+        .form-group { margin-bottom: 1.5rem; }
+        label { display: block; margin-bottom: 0.5rem; color: #555; font-weight: 500; }
+        select, input { 
+            width: 100%; padding: 12px; border: 2px solid #e1e5e9; border-radius: 12px; 
+            font-size: 16px; transition: border-color 0.2s;
+        }
+        select:focus, input:focus { outline: none; border-color: #667eea; }
+        .form-row { display: flex; gap: 1rem; }
+        .form-row .form-group { flex: 1; }
+        button { 
+            width: 100%; padding: 14px; background: #667eea; color: white; 
+            border: none; border-radius: 12px; font-size: 16px; font-weight: 600;
+            cursor: pointer; transition: background 0.2s;
+        }
+        button:hover:not(:disabled) { background: #5a67d8; }
+        button:disabled { background: #a0aec0; cursor: not-allowed; }
+        .status { 
+            padding: 1rem; border-radius: 12px; margin: 1rem 0; 
+            text-align: center; font-weight: 500; 
+        }
+        .status.connecting { background: #fef5e7; color: #c05621; }
+        .status.connected { background: #c6f6d5; color: #22543d; }
+        .status.error { background: #fed7d7; color: #c53030; }
+        .call-controls { display: flex; gap: 1rem; margin-top: 1rem; }
+        .call-btn { 
+            flex: 1; padding: 12px; border-radius: 12px; border: none; 
+            font-weight: 600; cursor: pointer; transition: all 0.2s;
+        }
+        .call-btn:hover { transform: translateY(-2px); }
+        .mute { background: #fed7d7; color: #c53030; }
+        .end-call { background: #f56565; color: white; }
+        .hidden { display: none; }
+        
+        /* Transcript Styles */
+        .transcript-container {
+            margin-top: 1.5rem;
+        }
+        .transcript-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        .transcript-header h3 { color: #333; font-size: 1rem; }
+        .clear-btn {
+            padding: 4px 12px; font-size: 12px; background: #e2e8f0;
+            color: #4a5568; border: none; border-radius: 6px; cursor: pointer;
+        }
+        .transcript { 
+            background: #f7fafc; border-radius: 12px; padding: 1rem; 
+            max-height: 350px; overflow-y: auto; font-size: 14px;
+            border: 1px solid #e2e8f0;
+        }
+        .message { 
+            margin-bottom: 0.75rem; padding: 0.75rem; border-radius: 10px; 
+            animation: fadeIn 0.3s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .message.user { 
+            background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+            border-left: 3px solid #0284c7;
+            margin-right: 2rem;
+        }
+        .message.agent { 
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            border-left: 3px solid #16a34a;
+            margin-left: 2rem;
+        }
+        .message.interim {
+            opacity: 0.6;
+            font-style: italic;
+        }
+        .message-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 0.25rem;
+        }
+        .speaker {
+            font-weight: 600; font-size: 12px; text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .message.user .speaker { color: #0284c7; }
+        .message.agent .speaker { color: #16a34a; }
+        .timestamp { font-size: 11px; color: #94a3b8; }
+        .language-tag {
+            display: inline-block; font-size: 10px; padding: 2px 6px;
+            background: #e2e8f0; border-radius: 4px; margin-left: 8px;
+            color: #64748b;
+        }
+        .message-text { color: #334155; line-height: 1.5; }
+        
+        /* Session Info */
+        .session-info {
+            display: flex; gap: 0.5rem; flex-wrap: wrap;
+            margin-top: 0.5rem; justify-content: center;
+        }
+        .info-tag {
+            font-size: 11px; padding: 4px 10px; border-radius: 20px;
+            background: #e2e8f0; color: #475569;
+        }
+        .info-tag.realtime { background: #dbeafe; color: #1d4ed8; }
+        .info-tag.custom { background: #fef3c7; color: #92400e; }
+        .info-tag.locked { background: #fee2e2; color: #991b1b; }
+        
+        /* Connection indicator */
+        .connection-dot {
+            display: inline-block; width: 8px; height: 8px;
+            border-radius: 50%; margin-right: 6px;
+            animation: pulse 2s infinite;
+        }
+        .connection-dot.connected { background: #22c55e; }
+        .connection-dot.connecting { background: #f59e0b; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎙️ Voice AI Agent Tester</h1>
+            <p>Real-time transcription via Data Channel</p>
+        </div>
+
+        <div id="connection-form">
+            <div class="form-group">
+                <label>Tenant ID</label>
+                <input type="text" id="tenant-id" value="tenant_123">
+            </div>
+            <div class="form-group">
+                <label>Agent ID</label>
+                <input type="text" id="agent-id" value="agent_456">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Language</label>
+                    <select id="language">
+                        <option value="multilingual">🌍 Multilingual</option>
+                        <option value="en">🇺🇸 English Only</option>
+                        <option value="hi">🇮🇳 Hindi Only</option>
+                        <option value="es">🇪🇸 Spanish Only</option>
+                        <option value="ar">🇦🇪 Arabic Only</option>
+                        <option value="fr">🇫🇷 French Only</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Gender</label>
+                    <select id="gender">
+                        <option value="female">👩 Female Voice</option>
+                        <option value="male">👨 Male Voice</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Token Server</label>
+                <input type="url" id="token-url" value="https://voice.callshivai.com">
+            </div>
+            <button onclick="connect()">🚀 Start Call</button>
+        </div>
+
+        <div id="call-interface" class="hidden">
+            <div class="status" id="status">
+                <span class="connection-dot connecting"></span>
+                Connecting...
+            </div>
+            <div class="session-info" id="session-info"></div>
+            
+            <div class="call-controls">
+                <button class="call-btn" id="mute-btn" onclick="toggleMute()">🎤 Mic On</button>
+                <button class="call-btn end-call" onclick="disconnect()">📞 End Call</button>
+            </div>
+            
+            <div class="transcript-container">
+                <div class="transcript-header">
+                    <h3>💬 Live Transcript</h3>
+                    <button class="clear-btn" onclick="clearTranscript()">Clear</button>
+                </div>
+                <div class="transcript" id="transcript">
+                    <div class="message agent">
+                        <div class="message-header">
+                            <span class="speaker">System</span>
+                        </div>
+                        <div class="message-text">Waiting for connection...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let room = null;
+        let localAudioTrack = null;
+        let isMuted = false;
+        let sessionInfo = {};
+
+        async function connect() {
+            const config = {
+                tenantId: document.getElementById('tenant-id').value,
+                agentId: document.getElementById('agent-id').value,
+                language: document.getElementById('language').value,
+                gender: document.getElementById('gender').value,
+                tokenUrl: document.getElementById('token-url').value
+            };
+
+            try {
+                updateStatus('Fetching token...', 'connecting');
+                
+                // Include gender in the request if your backend supports it
+                const response = await fetch(`${config.tokenUrl}/token`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        tenant_id: config.tenantId, 
+                        agent_id: config.agentId, 
+                        language: config.language,
+                        gender: config.gender  // Send gender to backend
+                    })
+                });
+
+                if (!response.ok) throw new Error(`Token Server Error: ${response.status}`);
+                const data = await response.json();
+                
+                document.getElementById('connection-form').classList.add('hidden');
+                document.getElementById('call-interface').classList.remove('hidden');
+                clearTranscript();
+
+                room = new LivekitClient.Room({
+                    // Enable data channels
+                    adaptiveStream: true,
+                    dynacast: true,
+                });
+
+                // ══════════════════════════════════════════════════════════════
+                // HANDLE INCOMING AUDIO
+                // ══════════════════════════════════════════════════════════════
+                room.on(LivekitClient.RoomEvent.TrackSubscribed, (track, publication, participant) => {
+                    if (track.kind === LivekitClient.Track.Kind.Audio) {
+                        console.log("🔊 Agent audio track received");
+                        const element = track.attach(); 
+                        element.id = 'agent-audio';
+                        document.body.appendChild(element);
+                        addTranscript('system', 'Agent connected and listening...', false);
+                    }
+                });
+
+                // ══════════════════════════════════════════════════════════════
+                // HANDLE DATA CHANNEL MESSAGES (TRANSCRIPTIONS)
+                // ══════════════════════════════════════════════════════════════
+                room.on(LivekitClient.RoomEvent.DataReceived, (payload, participant, kind, topic) => {
+                    try {
+                        const message = JSON.parse(new TextDecoder().decode(payload));
+                        console.log("📨 Data received:", {topic, type: message.type, role: message.role, text: message.text?.substring(0, 50)});
+                        
+                        if (message.type === 'transcription') {
+                            // Normalize role: handle 'assistant' alias
+                            let role = message.role;
+                            if (role === 'assistant') role = 'agent';
+                            
+                            console.log(`📝 Adding transcript: role=${role}, final=${message.is_final}, lang=${message.language}`);
+                            
+                            // Handle transcription message
+                            addTranscript(
+                                role, 
+                                message.text, 
+                                message.is_final,
+                                message.language
+                            );
+                        } else if (message.type === 'event') {
+                            // Handle events
+                            handleEvent(message.event, message.data);
+                        } else {
+                            console.warn("⚠️ Unknown message type:", message.type, message);
+                        }
+                    } catch (e) {
+                        console.error("❌ Failed to parse data:", e);
+                        console.log("📨 Raw data:", new TextDecoder().decode(payload));
+                    }
+                });
+
+                // ══════════════════════════════════════════════════════════════
+                // ROOM CONNECTION EVENTS
+                // ══════════════════════════════════════════════════════════════
+                room.on(LivekitClient.RoomEvent.Connected, async () => {
+                    updateStatus('🎙️ Speak now...', 'connected');
+                    
+                    // Publish local audio
+                    localAudioTrack = await LivekitClient.createLocalAudioTrack({
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                    });
+                    await room.localParticipant.publishTrack(localAudioTrack);
+                    
+                    addTranscript('system', 'Microphone connected. You can speak now.', false);
+                });
+
+                room.on(LivekitClient.RoomEvent.Disconnected, (reason) => {
+                    updateStatus(`Call Ended: ${reason || 'Disconnected'}`, 'error');
+                    addTranscript('system', 'Call ended.', false);
+                    setTimeout(() => location.reload(), 3000);
+                });
+
+                room.on(LivekitClient.RoomEvent.ParticipantConnected, (participant) => {
+                    console.log("👤 Participant connected:", participant.identity);
+                    if (participant.identity.includes('agent')) {
+                        addTranscript('system', 'Agent joined the call.', false);
+                    }
+                });
+
+                // Connect to room
+                await room.connect(data.url, data.token);
+                console.log("✅ Connected to room:", room.name);
+                
+            } catch (error) {
+                updateStatus(`❌ Error: ${error.message}`, 'error');
+                console.error(error);
+            }
+        }
+
+        function handleEvent(eventType, data) {
+            console.log("🎉 Event:", eventType, data);
+            
+            switch (eventType) {
+                case 'session_started':
+                    sessionInfo = data;
+                    updateSessionInfo(data);
+                    addTranscript('system', `Session started (${data.mode}, ${data.language})`, false);
+                    break;
+                    
+                case 'agent_ready':
+                    addTranscript('system', `Agent ready (${data.gender} voice, ${data.language})`, false);
+                    break;
+                    
+                case 'language_changed':
+                    addTranscript('system', `Language switched to: ${data.language}`, false);
+                    break;
+            }
+        }
+
+        function updateSessionInfo(data) {
+            const infoContainer = document.getElementById('session-info');
+            infoContainer.innerHTML = '';
+            
+            // Mode tag
+            const modeTag = document.createElement('span');
+            modeTag.className = `info-tag ${data.mode === 'realtime' ? 'realtime' : 'custom'}`;
+            modeTag.textContent = data.mode === 'realtime' ? '⚡ Realtime API' : '🔧 Custom Pipeline';
+            infoContainer.appendChild(modeTag);
+            
+            // Language tag
+            const langTag = document.createElement('span');
+            langTag.className = 'info-tag';
+            langTag.textContent = `🌐 ${data.language?.toUpperCase() || 'EN'}`;
+            infoContainer.appendChild(langTag);
+            
+            // Gender tag
+            if (data.gender) {
+                const genderTag = document.createElement('span');
+                genderTag.className = 'info-tag';
+                genderTag.textContent = data.gender === 'male' ? '👨 Male' : '👩 Female';
+                infoContainer.appendChild(genderTag);
+            }
+            
+            // Locked tag
+            if (data.language_locked) {
+                const lockedTag = document.createElement('span');
+                lockedTag.className = 'info-tag locked';
+                lockedTag.textContent = '🔒 Locked';
+                infoContainer.appendChild(lockedTag);
+            }
+        }
+
+        async function toggleMute() {
+            if (!localAudioTrack) return;
+            isMuted = !isMuted;
+            isMuted ? await localAudioTrack.mute() : await localAudioTrack.unmute();
+            const btn = document.getElementById('mute-btn');
+            btn.textContent = isMuted ? '🔇 Muted' : '🎤 Mic On';
+            btn.className = isMuted ? 'call-btn mute' : 'call-btn';
+            addTranscript('system', isMuted ? 'Microphone muted' : 'Microphone unmuted', false);
+        }
+
+        async function disconnect() {
+            if (room) {
+                await room.disconnect();
+            }
+            location.reload();
+        }
+
+        function updateStatus(msg, type) {
+            const el = document.getElementById('status');
+            const dotClass = type === 'connected' ? 'connected' : 'connecting';
+            el.innerHTML = `<span class="connection-dot ${dotClass}"></span>${msg}`;
+            el.className = `status ${type}`;
+        }
+
+        function addTranscript(speaker, text, isFinal = true, language = null) {
+            if (!text || !text.trim()) return;
+            
+            console.log(`🎯 addTranscript called: speaker="${speaker}", isFinal=${isFinal}, lang=${language}, text="${text.substring(0, 30)}..."`);
+            
+            const transcript = document.getElementById('transcript');
+            
+            // For interim results, update the last message if it's from the same speaker
+            if (!isFinal && speaker !== 'system') {
+                const lastMessage = transcript.querySelector(`.message.${speaker}.interim`);
+                if (lastMessage) {
+                    lastMessage.querySelector('.message-text').textContent = text;
+                    return;
+                }
+            }
+            
+            // Remove interim message when final arrives
+            if (isFinal && speaker !== 'system') {
+                const interimMessage = transcript.querySelector(`.message.${speaker}.interim`);
+                if (interimMessage) {
+                    interimMessage.remove();
+                }
+            }
+            
+            const message = document.createElement('div');
+            message.className = `message ${speaker}${!isFinal ? ' interim' : ''}`;
+            
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const langTag = language ? `<span class="language-tag">${language.toUpperCase()}</span>` : '';
+            
+            // Map speaker to label
+            const speakerLabel = speaker === 'user' ? '👤 You' : 
+                                 speaker === 'agent' ? '🤖 Agent' : 
+                                 'ℹ️ System';
+            
+            console.log(`✅ Creating message element with label: ${speakerLabel} (speaker="${speaker}")`);
+            
+            message.innerHTML = `
+                <div class="message-header">
+                    <span class="speaker">${speakerLabel}${langTag}</span>
+                    <span class="timestamp">${time}</span>
+                </div>
+                <div class="message-text">${text}</div>
+            `;
+            
+            transcript.appendChild(message);
+            transcript.scrollTop = transcript.scrollHeight;
+        }
+
+        function clearTranscript() {
+            const transcript = document.getElementById('transcript');
+            transcript.innerHTML = '';
+        }
+    </script>
+</body>
+</html>

@@ -1,6 +1,7 @@
 import React from "react";
 import { QrCode, X } from "lucide-react";
 import QRCode from "react-qr-code";
+import { useAuth } from "../../../contexts/AuthContext";
 
 interface Agent {
   id: string;
@@ -14,7 +15,12 @@ interface AgentQRModalProps {
 }
 
 const AgentQRModal: React.FC<AgentQRModalProps> = ({ agent, onClose }) => {
-  const agentUrl = `https://widget.callshivai.com/agent/${agent.id}`;
+  const { user } = useAuth();
+  const params = new URLSearchParams();
+  params.set('agentId', agent.id);
+  if (user?.id) params.set('userId', user.id);
+  const agentUrl = `https://callshivai.com/widget2.js?${params.toString()}`;
+  const widgetPageUrl = `https://callshivai.com/MyAIEmployee/${agent.id}${user?.id ? `?userId=${user.id}` : ''}`;
   const [qrSize, setQrSize] = React.useState(180);
 
   React.useEffect(() => {
@@ -83,7 +89,7 @@ const AgentQRModal: React.FC<AgentQRModalProps> = ({ agent, onClose }) => {
   };
 
   const handleCopyURL = () => {
-    navigator.clipboard.writeText(agentUrl);
+    navigator.clipboard.writeText(widgetPageUrl);
     
     // Show success feedback
     const button = document.getElementById('copy-url-btn');
@@ -144,7 +150,7 @@ const AgentQRModal: React.FC<AgentQRModalProps> = ({ agent, onClose }) => {
                 <div className="bg-white p-2 sm:p-3 rounded-lg border border-slate-100">
                   <QRCode
                     id="qr-code-svg"
-                    value={agentUrl}
+                    value={widgetPageUrl}
                     size={qrSize}
                     style={{ height: "auto", maxWidth: "100%", width: "100%" }}
                     viewBox={`0 0 256 256`}
@@ -203,16 +209,24 @@ const AgentQRModal: React.FC<AgentQRModalProps> = ({ agent, onClose }) => {
               
               <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-600">
                 <p className="text-slate-500 dark:text-slate-400 text-xs font-medium mb-1 uppercase tracking-wide">
-                  Widget URL
+                  Agent Page URL
                 </p>
                 <p className="font-mono text-xs sm:text-sm text-gray-600 dark:text-gray-400 break-all bg-gray-100 dark:bg-gray-800/20 px-2 py-1.5 rounded">
-                  {agentUrl}
+                  {widgetPageUrl}
+                </p>
+              </div>
+              <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-600 mt-3">
+                <p className="text-slate-500 dark:text-slate-400 text-xs font-medium mb-1 uppercase tracking-wide">
+                  Embed Script
+                </p>
+                <p className="font-mono text-xs text-gray-600 dark:text-gray-400 break-all bg-gray-100 dark:bg-gray-800/20 px-2 py-1.5 rounded">
+                  {`<script src="${agentUrl}"></script>`}
                 </p>
               </div>
             </div>
 
             {/* Action Buttons */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <button
                 onClick={handleDownload}
                 className="group bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white font-semibold py-3 px-4 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 touch-manipulation"
@@ -239,6 +253,26 @@ const AgentQRModal: React.FC<AgentQRModalProps> = ({ agent, onClose }) => {
                   </svg>
                 </div>
                 <span className="text-sm sm:text-base">Copy Link</span>
+              </button>
+              <button
+                id="copy-script-btn"
+                onClick={() => {
+                  navigator.clipboard.writeText(`<script src="${agentUrl}"></script>`);
+                  const btn = document.getElementById('copy-script-btn');
+                  if (btn) {
+                    const orig = btn.innerHTML;
+                    btn.innerHTML = `<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg><span class="text-sm">Copied!</span>`;
+                    setTimeout(() => { btn.innerHTML = orig; }, 2000);
+                  }
+                }}
+                className="group bg-white hover:bg-slate-50 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-semibold py-3 px-4 rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98] border-2 border-slate-200 dark:border-slate-600 flex items-center justify-center gap-2 touch-manipulation"
+              >
+                <div className="w-4 h-4 transition-transform group-hover:scale-110">
+                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                  </svg>
+                </div>
+                <span className="text-sm sm:text-base">Copy Script</span>
               </button>
             </div>
 

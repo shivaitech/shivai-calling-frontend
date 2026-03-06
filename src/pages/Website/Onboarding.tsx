@@ -3,7 +3,7 @@
 import React, { useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { motion, AnimatePresence } from "framer-motion";
-import toast, { Toaster } from "react-hot-toast";
+import appToast from "../../components/AppToast";
 import {
   ArrowRight,
   ArrowLeft,
@@ -503,9 +503,8 @@ let location = useLocation();
       
       // Show success message after a short delay to ensure all data is set
       setTimeout(() => {
-        toast.success('Draft loaded successfully! You can continue where you left off.', {
-          duration: 4000,
-          icon: '📝'
+        appToast.success('Draft loaded successfully! You can continue where you left off.', {
+          duration: 4000
         });
       }, 500);
     }
@@ -851,7 +850,7 @@ let location = useLocation();
       console.log('Saving draft with payload:', JSON.stringify(payloadData, null, 2));
       console.log('AI Employees data:', payloadData.ai_employees);
 
-      const loadingToast = toast.loading('Saving draft...');
+      const loadingToast = appToast.loading('Saving draft...');
 
       // Get pending auth token
       const pendingTokens = localStorage.getItem("pending_auth_tokens");
@@ -892,12 +891,12 @@ let location = useLocation();
       // Send JSON data to onboarding endpoint with uploaded files info
       await authAPI.saveDraftOnboarding(payloadData as any, accessToken);
 
-      toast.dismiss(loadingToast);
+      appToast.dismiss(loadingToast);
       
       // Show draft modal instead of navigating
       setShowDraftModal(true);
     } catch (error: any) {
-      toast.dismiss();
+      appToast.dismiss();
       
       // Enhanced error handling with detailed messages
       let errorMessage = "Failed to save draft. Please try again.";
@@ -914,19 +913,19 @@ let location = useLocation();
           return err.message || err;
         });
         errorMessage = errorMessages.join('\n');
-        toast.error(errorMessage, { duration: 6000 });
+        appToast.error(errorMessage, { duration: 6000 });
       } else if (error?.response?.data?.message) {
         // Handle single error message
         errorMessage = error.response.data.message;
-        toast.error(errorMessage, { duration: 5000 });
+        appToast.error(errorMessage, { duration: 5000 });
       } else if (error?.response?.status === 400) {
         errorMessage = "Invalid data. Please check your inputs and try again.";
-        toast.error(errorMessage);
+        appToast.error(errorMessage);
       } else if (error?.response?.status === 401) {
         errorMessage = "Authentication failed. Please log in again.";
-        toast.error(errorMessage);
+        appToast.error(errorMessage);
       } else {
-        toast.error(errorMessage);
+        appToast.error(errorMessage);
       }
     } finally {
       setIsSavingDraft(false);
@@ -948,7 +947,7 @@ let location = useLocation();
       console.log('Submitting onboarding with payload:', JSON.stringify(payloadData, null, 2));
       console.log('AI Employees data:', payloadData.ai_employees);
 
-      const loadingToast = toast.loading('Setting up your account...');
+      const loadingToast = appToast.loading('Setting up your account...');
 
       // Get pending auth token
       const pendingTokens = localStorage.getItem("pending_auth_tokens");
@@ -989,12 +988,12 @@ let location = useLocation();
       // Send JSON data to onboarding endpoint with uploaded files info
       await authAPI.createOnboarding(payloadData as any, accessToken);
 
-      toast.dismiss(loadingToast);
-      toast.success('Onboarding completed successfully!');
+      appToast.dismiss(loadingToast);
+      appToast.success('Onboarding completed successfully!');
 
       setShowSuccessModal(true);
     } catch (error: any) {
-      toast.dismiss();
+      appToast.dismiss();
 
       // Enhanced error handling with detailed validation messages
       let errorMessage = "There was an error submitting your onboarding. Please try again.";
@@ -1013,33 +1012,30 @@ let location = useLocation();
         
         // Show first error immediately, then all errors
         if (errorMessages.length === 1) {
-          toast.error(errorMessages[0], { duration: 6000 });
+          appToast.error(errorMessages[0], { duration: 6000 });
         } else {
-          toast.error(`Validation failed:\n${errorMessages.slice(0, 3).join('\n')}${errorMessages.length > 3 ? `\n... and ${errorMessages.length - 3} more` : ''}`, { 
-            duration: 8000,
-            style: {
-              whiteSpace: 'pre-line'
-            }
+          appToast.error(`Validation failed:\n${errorMessages.slice(0, 3).join('\n')}${errorMessages.length > 3 ? `\n... and ${errorMessages.length - 3} more` : ''}`, { 
+            duration: 8000
           });
         }
       } else if (error?.response?.data?.message) {
         // Handle API error messages (including 409 conflict)
         errorMessage = error.response.data.message;
-        toast.error(errorMessage, { duration: 6000 });
+        appToast.error(errorMessage, { duration: 6000 });
       } else if (error?.response?.status === 400) {
         errorMessage = "Invalid data submitted. Please check your inputs and try again.";
-        toast.error(errorMessage);
+        appToast.error(errorMessage);
       } else if (error?.response?.status === 401) {
         errorMessage = "Authentication failed. Please log in again and try submitting.";
-        toast.error(errorMessage);
+        appToast.error(errorMessage);
       } else if (error?.response?.status === 500) {
         errorMessage = "Server error. Please try again in a few minutes.";
-        toast.error(errorMessage);
+        appToast.error(errorMessage);
       } else if (error?.message?.includes("Network")) {
         errorMessage = "Network error. Please check your connection and try again.";
-        toast.error(errorMessage);
+        appToast.error(errorMessage);
       } else {
-        toast.error(errorMessage);
+        appToast.error(errorMessage);
       }
     } finally {
       setIsSubmitting(false);
@@ -2363,7 +2359,6 @@ let location = useLocation();
   return (
     <div className="min-h-screen bg-[#F0F0F0]">
       {/* Toast Notifications */}
-      <Toaster position="top-right" />
       
       {/* Header */}
       <div className="bg-white border-b border-gray-200 sticky top-0 z-50">

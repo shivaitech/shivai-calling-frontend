@@ -1,8 +1,10 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Smartphone, Monitor, Save, RefreshCw, Settings2, ChevronLeft, ChevronRight } from "lucide-react";
+import appToast from "../../../components/AppToast";
 import Slider from "react-slick";
 import GlassCard from "../../../components/GlassCard";
 import { agentAPI } from "../../../services/agentAPI";
+import { useAuth } from "../../../contexts/AuthContext";
 
 interface WidgetConfig {
   theme: {
@@ -21,12 +23,16 @@ interface WidgetConfig {
     autoOpen: boolean;
     minimizeButton: boolean;
     draggable: boolean;
+    visibility: 'public' | 'private';
+    allowedDomains: string[];
   };
   content: {
     welcomeMessage: string;
     companyName: string;
     companyDescription: string;
     companyLogo: string;
+    triggerButtonImage: string;
+    callToActionText: string;
     placeholderText: string;
     offlineMessage: string;
   };
@@ -52,6 +58,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
   agentName,
   isPublished = false,
 }) => {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("configure");
   const [previewDevice, setPreviewDevice] = useState<"mobile" | "desktop">(
     "mobile"
@@ -61,6 +68,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [logoPreview, setLogoPreview] = useState<string>("");
+  const [triggerButtonImagePreview, setTriggerButtonImagePreview] = useState<string>("");
   const [previewKey, setPreviewKey] = useState(0);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const configTimeoutRef = useRef<number | null>(null);
@@ -212,6 +220,8 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
       autoOpen: false,
       minimizeButton: true,
       draggable: true,
+      visibility: 'public',
+      allowedDomains: [],
     },
     content: {
       welcomeMessage: `Hi! I'm ${agentName}. How can I help you today?`,
@@ -219,6 +229,8 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
       companyDescription:
         "AI-Powered Support - We offer 24/7 voice support to handle your business calls effieciently and professionally.",
       companyLogo: "",
+      triggerButtonImage: "",
+      callToActionText: "📞 Call ShivAI!",
       placeholderText: "Type your message...",
       offlineMessage: "We're currently offline. Please leave a message.",
     },
@@ -241,6 +253,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
       console.log("✅ No saved config found, setting defaults for agent:", agentName);
       console.log("🧹 Also clearing any cached logo preview");
       setLogoPreview(""); // Clear any cached logo
+      setTriggerButtonImagePreview(""); // Clear trigger button image
       setWidgetConfig((prev) => ({
         ...prev,
         content: {
@@ -258,19 +271,16 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
   useEffect(() => {
     const loadWidgetConfig = async () => {
       setIsLoading(true);
-      // Clear any existing logo preview at start
+      // Clear any existing logo/trigger previews at start
       setLogoPreview("");
-      console.log("🔄 Cleared logo preview at start of load");
+      setTriggerButtonImagePreview("");
       
       try {
-        console.log("🔄 Loading widget config for agentId:", agentId);
-        const response = await fetch(`https://nodejs.service.callshivai.com/api/v1/agents/${agentId}`);
-        if (response.ok) {
-          const data = await response.json();
-          console.log("📦 API Response:", data);
+        console.log("🔄 Loading widget config via agent-config API for agentId:", agentId);
+        const { agent } = await agentAPI.getAgentConfig(agentId);
+        console.log("📦 agent-config response:", agent);
 
           // Check if agent and widget configuration exists in response
-          const agent = data?.data?.agent;
           if (agent?.widget) {
             console.log("✅ Widget configuration found, prefilling form...");
             const widget = agent.widget;
@@ -300,6 +310,8 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                 autoOpen: false,
                 minimizeButton: true,
                 draggable: true,
+                visibility: (widget.visibility as 'public' | 'private') || 'public',
+                allowedDomains: widget.allowed_domains || [],
               },
               content: {
                 welcomeMessage:
@@ -310,6 +322,8 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                   widget.ai_employee_description ||
                   "AI-Powered Support - We offer 24/7 voice support to handle your business calls effieciently and professionally.",
                 companyLogo: widget.company_logo || "",
+                triggerButtonImage: widget.trigger_button_image || "",
+                callToActionText: widget.button_text || "📞 Call ShivAI!",
                 placeholderText: "Type your message...",
                 offlineMessage: "We're currently offline. Please leave a message.",
               },
@@ -357,24 +371,24 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
               // Clear logo preview if no logo in API response
               setLogoPreview("");
             }
+
+            // Set trigger button image preview if it exists
+            if (widget.trigger_button_image) {
+              setTriggerButtonImagePreview(widget.trigger_button_image);
+            } else {
+              setTriggerButtonImagePreview("");
+            }
             
             setLastSaved(
               new Date(widget.updatedAt || widget.createdAt || Date.now())
             );
             console.log("✅ Widget configuration loaded and prefilled");
           } else {
-            console.log("ℹ️ No agent or widget configuration found in API response");
-            console.log("🔍 Response structure:", {
-              hasData: !!data?.data,
-              hasAgent: !!data?.data?.agent,
-              hasWidget: !!data?.data?.agent?.widget,
-              dataKeys: data?.data ? Object.keys(data.data) : 'no data',
-              agentKeys: data?.data?.agent ? Object.keys(data.data.agent) : 'no agent'
-            });
-            
+            console.log("ℹ️ No widget configuration found in agent-config response");
             // Explicitly clear logo and reset to defaults for new agent
             console.log("🧹 Clearing logo preview and resetting to defaults");
             setLogoPreview("");
+            setTriggerButtonImagePreview("");
             setWidgetConfig((prev) => ({
               ...prev,
               content: {
@@ -383,13 +397,11 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                 companyName: agentName,
                 companyDescription: "AI-Powered Support - We offer 24/7 voice support to handle your business calls effieciently and professionally.",
                 welcomeMessage: `Hi! I'm ${agentName}. How can I help you today?`,
+                callToActionText: "📞 Call ShivAI!",
               }
             }));
             console.log("✅ Reset to clean defaults for new agent");
           }
-        } else {
-          console.error("❌ Failed to fetch widget config:", response.status, response.statusText);
-        }
       } catch (error) {
         console.error("❌ Failed to load widget configuration:", error);
       } finally {
@@ -415,23 +427,23 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
     // File type validation
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
-      showToast('Please select a valid image file (JPG, PNG, GIF, or WebP)', 'error');
+      appToast.error('Please select a valid image file (JPG, PNG, GIF, or WebP)');
       e.target.value = ''; // Clear the input
       return;
     }
 
-    // File size validation (200KB = 200 * 1024 bytes)
-    const maxSizeInBytes = 200 * 1024; // 200KB
+    // File size validation (1MB = 1024 * 1024 bytes)
+    const maxSizeInBytes = 1024 * 1024; // 1MB
     if (file.size > maxSizeInBytes) {
       const fileSizeInKB = Math.round(file.size / 1024);
-      showToast(`Logo file size (${fileSizeInKB}KB) exceeds the maximum limit of 200KB. Please choose a smaller image.`, 'error');
+      appToast.error(`Logo file size (${fileSizeInKB}KB) exceeds the maximum limit of 1MB. Please choose a smaller image.`);
       e.target.value = ''; // Clear the input
       return;
     }
 
     // File name validation
     if (file.name.length > 100) {
-      showToast('Logo file name is too long. Please rename the file and try again.', 'error');
+      appToast.error('Logo file name is too long. Please rename the file and try again.');
       e.target.value = ''; // Clear the input
       return;
     }
@@ -444,59 +456,53 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
       updateConfig("content", "companyLogo", base64);
       
       const fileSizeInKB = Math.round(file.size / 1024);
-      showToast(`Logo uploaded successfully (${fileSizeInKB}KB)`, 'success');
+      appToast.success(`Logo uploaded successfully (${fileSizeInKB}KB)`);
     };
     
     reader.onerror = () => {
-      showToast('Error reading the logo file. Please try again.', 'error');
+      appToast.error('Error reading the logo file. Please try again.');
       e.target.value = ''; // Clear the input
     };
     
     reader.readAsDataURL(file);
   };
 
-  // Toast notification function
-  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
-    const toastColors = {
-      success: 'bg-green-500',
-      error: 'bg-red-500', 
-      info: 'bg-blue-500'
+  // Handle trigger button image upload
+  const handleTriggerButtonImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      appToast.error('Please select a valid image file (JPG, PNG, GIF, or WebP)');
+      e.target.value = '';
+      return;
+    }
+
+    const maxSizeInBytes = 1024 * 1024; // 1MB
+    if (file.size > maxSizeInBytes) {
+      const fileSizeInKB = Math.round(file.size / 1024);
+      appToast.error(`Image size (${fileSizeInKB}KB) exceeds the 1MB limit. Please choose a smaller image.`);
+      e.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result as string;
+      setTriggerButtonImagePreview(base64);
+      updateConfig('content', 'triggerButtonImage', base64);
+      const fileSizeInKB = Math.round(file.size / 1024);
+      appToast.success(`Trigger button image uploaded (${fileSizeInKB}KB)`);
     };
-
-    const toastIcons = {
-      success: '✅',
-      error: '❌',
-      info: 'ℹ️'
+    reader.onerror = () => {
+      appToast.error('Error reading the image file. Please try again.');
+      e.target.value = '';
     };
-
-    const toast = document.createElement('div');
-    toast.className = `fixed top-4 right-4 ${toastColors[type]} text-white px-4 py-3 rounded-lg shadow-lg z-50 transition-all transform translate-x-0 opacity-100 max-w-md`;
-    toast.innerHTML = `
-      <div class="flex items-start gap-3">
-        <span class="text-lg">${toastIcons[type]}</span>
-        <div class="flex-1">
-          <div class="font-medium text-sm leading-tight">${message}</div>
-        </div>
-        <button onclick="this.parentElement.parentElement.remove()" class="ml-2 text-white/80 hover:text-white text-lg leading-none">&times;</button>
-      </div>
-    `;
-
-    document.body.appendChild(toast);
-
-    // Auto remove after 5 seconds for error messages, 3 seconds for others
-    const autoRemoveTime = type === 'error' ? 5000 : 3000;
-    setTimeout(() => {
-      if (toast.parentElement) {
-        toast.style.opacity = '0';
-        toast.style.transform = 'translateX(100%)';
-        setTimeout(() => {
-          toast.remove();
-        }, 300);
-      }
-    }, autoRemoveTime);
+    reader.readAsDataURL(file);
   };
 
-  const saveWidgetConfig = async () => {
+  const saveWidgetConfig = async (silent = false) => {
     setIsSaving(true);
     try {
       let finalLogoUrl = widgetConfig.content.companyLogo;
@@ -505,21 +511,14 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
       if (finalLogoUrl && finalLogoUrl.startsWith("data:image")) {
         console.log("📤 Logo is local, uploading to server first...");
 
-        // Convert base64 to blob
         const response = await fetch(finalLogoUrl);
         const blob = await response.blob();
-
-        // Create a File object from the blob
         const file = new File([blob], "logo.png", { type: blob.type });
-
-        // Upload the file
         const uploadResponse = await agentAPI.uploadLogo(file);
         console.log("✅ Logo uploaded successfully");
 
-        // Extract the URL from upload response
         if (uploadResponse?.logo_url) {
           finalLogoUrl = uploadResponse.logo_url;
-          console.log("✅ Using server logo URL:", finalLogoUrl);
         } else if (uploadResponse?.data?.logo_url) {
           finalLogoUrl = uploadResponse.data.logo_url;
         } else if (uploadResponse?.data?.data?.logo_url) {
@@ -529,31 +528,53 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
         }
       }
 
-      // Step 2: Save widget configuration with final logo URL
+      // Step 1b: Upload trigger button image if it's base64
+      let finalTriggerButtonImageUrl = widgetConfig.content.triggerButtonImage;
+      if (finalTriggerButtonImageUrl && finalTriggerButtonImageUrl.startsWith("data:image")) {
+        console.log("📤 Trigger button image is local, uploading to server first...");
+        const response = await fetch(finalTriggerButtonImageUrl);
+        const blob = await response.blob();
+        const file = new File([blob], "trigger_button.png", { type: blob.type });
+        const uploadResponse = await agentAPI.uploadLogo(file);
+        console.log("✅ Trigger button image uploaded successfully");
+        if (uploadResponse?.logo_url) {
+          finalTriggerButtonImageUrl = uploadResponse.logo_url;
+        } else if (uploadResponse?.data?.logo_url) {
+          finalTriggerButtonImageUrl = uploadResponse.data.logo_url;
+        } else if (uploadResponse?.data?.data?.logo_url) {
+          finalTriggerButtonImageUrl = uploadResponse.data.data.logo_url;
+        }
+      }
+
+      // Step 2: Save widget configuration
       console.log("📤 Saving widget configuration...");
       const widgetData = {
         agent_id: agentId,
         company_logo: finalLogoUrl,
+        trigger_button_image: finalTriggerButtonImageUrl,
         ai_employee_name: widgetConfig.content.companyName,
         ai_employee_description: widgetConfig.content.companyDescription,
         theme: "shivai-blue",
         position: widgetConfig.ui.position,
-        button_text: "Call ShivAI!",
+        button_text: widgetConfig.content.callToActionText || "📞 Call ShivAI!",
         welcome_message: widgetConfig.content.welcomeMessage,
         primary_color: widgetConfig.theme.primaryColor,
         gradient_start: widgetConfig.theme.primaryColor,
         gradient_end: widgetConfig.theme.accentColor,
+        visibility: widgetConfig.ui.visibility,
+        allowed_domains: widgetConfig.ui.allowedDomains,
       };
 
       const saveResponse = await agentAPI.saveWidgetConfig(widgetData);
       console.log("✅ Widget configuration saved successfully:", saveResponse);
 
-      // Update local config with the final logo URL
+      // Update local config with final URLs
       setWidgetConfig((prev) => ({
         ...prev,
         content: {
           ...prev.content,
           companyLogo: finalLogoUrl,
+          triggerButtonImage: finalTriggerButtonImageUrl,
         },
       }));
 
@@ -571,15 +592,15 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
       });
       window.dispatchEvent(event);
 
-      // Show success notification
-      showToast('Widget configuration saved successfully!', 'success');
+      // Show success notification (suppressed for internal/publish-triggered saves)
+      if (!silent) appToast.success('Widget configuration saved successfully!');
     } catch (error) {
       console.error("❌ Error saving widget configuration:", error);
 
       // Show error notification with details
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error occurred";
-      showToast(`Failed to save widget configuration: ${errorMessage}`, 'error');
+      appToast.error(`Failed to save widget configuration: ${errorMessage}`);
 
       alert(
         "Failed to save widget configuration. Please check the console for details and try again."
@@ -589,76 +610,20 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
     }
   };
 
-  // Real-time widget configuration update
-  const updateWidgetJS = async () => {
-    try {
-      const customizedJS = await generateCustomizedWidget();
-
-      // Send to backend to update widget.js file
-      const response = await fetch("/api/widget/update", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          agentId,
-          widgetCode: customizedJS,
-          config: widgetConfig,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to update widget.js");
-      }
-
-      console.log("✅ Widget.js updated successfully");
-    } catch (error) {
-      console.error("Failed to update widget.js:", error);
-    }
-  };
-
-  const generateCustomizedWidget = async () => {
-    // Read the base widget.js and apply customizations
-    const response = await fetch("/widget.js");
-    let widgetCode = await response.text();
-
-    // Apply theme customizations
-    widgetCode = widgetCode.replace(
-      /background: linear-gradient\(135deg, #4b5563 0%, #6b7280 30%, #374151 70%, #1f2937 100%\)/g,
-      `background: linear-gradient(135deg, ${widgetConfig.theme.primaryColor} 0%, ${widgetConfig.theme.accentColor} 100%)`
-    );
-
-    // Apply UI customizations
-    widgetCode = widgetCode.replace(
-      /bottom: 20px;\s*right: 20px;/g,
-      `${
-        widgetConfig.ui.position.includes("bottom") ? "bottom" : "top"
-      }: 20px; ${
-        widgetConfig.ui.position.includes("right") ? "right" : "left"
-      }: 20px;`
-    );
-
-    // Apply content customizations
-    widgetCode = widgetCode.replace(
-      /"ShivAI Employee"/g,
-      `"${widgetConfig.content.companyName}"`
-    );
-
-    widgetCode = widgetCode.replace(
-      /"AI-Powered Support"/g,
-      `"${widgetConfig.content.companyDescription}"`
-    );
-
-    // Add custom CSS if provided
-    if (widgetConfig.customCSS) {
-      widgetCode = widgetCode.replace(
-        "// Custom styles will be inserted here",
-        widgetConfig.customCSS
-      );
-    }
-
-    return widgetCode;
-  };
+  // Listen for external save trigger (publish / test button in parent)
+  // Ref pattern keeps the listener stable without re-registering on every render.
+  const saveWidgetConfigRef = useRef(saveWidgetConfig);
+  useEffect(() => { saveWidgetConfigRef.current = saveWidgetConfig; });
+  useEffect(() => {
+    const handleExternalSave = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.agentId && detail.agentId !== agentId) return;
+      console.log("💾 External save triggered for agent:", agentId);
+      saveWidgetConfigRef.current(true);
+    };
+    window.addEventListener("shivai:save-widget-config", handleExternalSave);
+    return () => window.removeEventListener("shivai:save-widget-config", handleExternalSave);
+  }, [agentId]);
 
   const updateConfig = (
     section: keyof WidgetConfig,
@@ -731,24 +696,11 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
               )}
             </h3>
 
-            {/* Tabs */}
-            <div className="flex gap-2 mb-6 border-b border-slate-200 dark:border-slate-700">
-              <button
-                onClick={() => setActiveTab("configure")}
-                className={`px-4 py-2 text-sm font-medium transition-colors ${
-                  activeTab === "configure"
-                    ? "text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400"
-                    : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
-                }`}
-              >
-                Configure
-              </button>
-
-              {/* Save Button in Header */}
-              <div className="ml-auto flex items-center gap-2">
+            {/* Save Button */}
+            <div className="flex justify-end gap-2 mb-6">
               
                 <button
-                  onClick={saveWidgetConfig}
+                  onClick={() => saveWidgetConfig()}
                   disabled={isSaving || !hasUnsavedChanges}
                   className="common-button-bg text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
                   title={
@@ -769,11 +721,10 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                     </>
                   )}
                 </button>
-              </div>
             </div>
 
-            {/* Customize Tab */}
-            {activeTab === "configure" && (
+            {/* Customization Content */}
+            <div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Customization Panel */}
                 <div className="space-y-6">
@@ -784,7 +735,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                     <div className="space-y-4">
                       <div>
                         <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">
-                          Company Logo <span className="text-slate-400">(Max: 200KB)</span>
+                          Company Logo <span className="text-slate-400">(Max: 1MB)</span>
                         </label>
                         <div className="relative group w-32 h-32">
                           <input
@@ -875,6 +826,79 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                         </div>
                       </div>
 
+                      {/* Trigger Button Image */}
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">
+                          Trigger Button Image <span className="text-slate-400">(Max: 1MB — shown on the call button)</span>
+                        </label>
+                        <div className="relative group w-28 h-28">
+                          <input
+                            type="file"
+                            id="trigger-btn-upload"
+                            accept="image/*"
+                            onChange={handleTriggerButtonImageUpload}
+                            className="hidden"
+                          />
+                          <div className="relative w-full h-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 rounded-full border-2 border-dashed border-slate-300 dark:border-slate-600 overflow-hidden">
+                            {triggerButtonImagePreview ? (
+                              <label htmlFor="trigger-btn-upload" className="cursor-pointer block w-full h-full">
+                                <img
+                                  src={triggerButtonImagePreview}
+                                  alt="Trigger Button"
+                                  className="w-full h-full object-cover"
+                                  onError={() => setTriggerButtonImagePreview("")}
+                                />
+                              </label>
+                            ) : (
+                              <label htmlFor="trigger-btn-upload" className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors rounded-full">
+                                <svg className="w-9 h-9 text-slate-400 dark:text-slate-500 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                </svg>
+                                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Upload</span>
+                              </label>
+                            )}
+                          </div>
+                          {/* Remove button outside overflow-hidden so it's never clipped */}
+                          {triggerButtonImagePreview && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setTriggerButtonImagePreview("");
+                                updateConfig("content", "triggerButtonImage", "");
+                              }}
+                              className="absolute -top-1.5 -right-1.5 p-1.5 bg-red-500 hover:bg-red-600 text-white rounded-full shadow-lg transition-all duration-200 hover:scale-110 z-20"
+                              title="Remove image"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-500 mt-2">Upload a photo (e.g. agent avatar) to display inside the floating call button.</p>
+                      </div>
+
+                      {/* Call to Action Text */}
+                      <div>
+                        <label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">
+                          Cloud Bubble Text
+                        </label>
+                        <input
+                          type="text"
+                          value={widgetConfig.content.callToActionText}
+                          onChange={(e) =>
+                            updateConfig(
+                              "content",
+                              "callToActionText",
+                              e.target.value
+                            )
+                          }
+                          placeholder="📞 Call ShivAI!"
+                          className="common-bg-icons w-full px-3 py-2 rounded-lg text-sm"
+                        />
+                        <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">Animated text shown in the cloud bubble next to the trigger button.</p>
+                      </div>
+
                       {/* Company Name */}
                       <div>
                         <label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">
@@ -913,6 +937,115 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                           rows={3}
                           className="common-bg-icons w-full px-3 py-2 rounded-lg text-sm resize-none"
                         />
+                      </div>
+
+                      {/* Widget Visibility */}
+                      <div className={`rounded-xl border-2 p-4 transition-all duration-200 ${
+                        widgetConfig.ui.visibility === 'public'
+                          ? 'border-amber-400 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-500/60'
+                          : 'border-green-400 bg-green-50 dark:bg-green-900/10 dark:border-green-500/60'
+                      }`}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                            Widget Visibility
+                          </span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                            widgetConfig.ui.visibility === 'public'
+                              ? 'bg-amber-200 text-amber-800 dark:bg-amber-700/40 dark:text-amber-300'
+                              : 'bg-green-200 text-green-800 dark:bg-green-700/40 dark:text-green-300'
+                          }`}>
+                            {widgetConfig.ui.visibility === 'public' ? 'Public' : 'Private'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">
+                          Control which websites can load your widget.
+                        </p>
+
+                        {/* Toggle */}
+                        <div className="flex gap-2 mb-3">
+                          <button
+                            onClick={() => updateConfig('ui', 'visibility', 'public')}
+                            className={`flex-1 py-2 rounded-lg text-xs font-semibold border transition-all ${
+                              widgetConfig.ui.visibility === 'public'
+                                ? 'bg-amber-400 border-amber-500 text-white shadow'
+                                : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-amber-400'
+                            }`}
+                          >
+                            All Websites
+                          </button>
+                          <button
+                            onClick={() => updateConfig('ui', 'visibility', 'private')}
+                            className={`flex-1 py-2 rounded-lg text-xs font-semibold border transition-all ${
+                              widgetConfig.ui.visibility === 'private'
+                                ? 'bg-green-500 border-green-600 text-white shadow'
+                                : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-green-400'
+                            }`}
+                          >
+                            Specific URLs
+                          </button>
+                        </div>
+
+                        {/* Warning banner when All */}
+                        {widgetConfig.ui.visibility === 'public' && (
+                          <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-100 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-600">
+                            <span className="text-base mt-0.5">⚠️</span>
+                            <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-snug">
+                              <strong>Heads up:</strong> Setting visibility to <em>All Websites</em> means anyone with your agent ID can embed this widget anywhere. Your AI may get misused. We recommend restricting to specific URLs.
+                            </p>
+                          </div>
+                        )}
+
+                        {/* URL list when Private */}
+                        {widgetConfig.ui.visibility === 'private' && (
+                          <div className="space-y-2">
+                            <p className="text-[11px] text-green-700 dark:text-green-400 font-medium">
+                              Widget will only load on the URLs listed below:
+                            </p>
+                            {(widgetConfig.ui.allowedDomains.length === 0 ? [''] : widgetConfig.ui.allowedDomains).map((url, idx) => (
+                              <div key={idx} className="flex items-center gap-2">
+                                <input
+                                  type="text"
+                                  value={url}
+                                  onChange={(e) => {
+                                    const updated = [...widgetConfig.ui.allowedDomains];
+                                    if (updated.length === 0) updated.push('');
+                                    updated[idx] = e.target.value;
+                                    updateConfig('ui', 'allowedDomains', updated);
+                                  }}
+                                  placeholder="https://yoursite.com"
+                                  className="common-bg-icons flex-1 px-3 py-1.5 rounded-lg text-xs"
+                                />
+                                {widgetConfig.ui.allowedDomains.length > 1 && (
+                                  <button
+                                    onClick={() => {
+                                      const updated = widgetConfig.ui.allowedDomains.filter((_, i) => i !== idx);
+                                      updateConfig('ui', 'allowedDomains', updated);
+                                    }}
+                                    className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                            <button
+                              onClick={() => {
+                                const updated = widgetConfig.ui.allowedDomains.length === 0
+                                  ? ['', '']
+                                  : [...widgetConfig.ui.allowedDomains, ''];
+                                updateConfig('ui', 'allowedDomains', updated);
+                              }}
+                              className="text-[11px] text-green-600 dark:text-green-400 hover:underline flex items-center gap-1 mt-1"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                              </svg>
+                              Add another URL
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1013,7 +1146,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                 </div>
 
                 {/* Live Preview Panel */}
-                <div className="space-y-4">
+                <div id="widget-live-preview" className="space-y-4 scroll-mt-4">
                   <div className="flex items-center justify-between">
                     <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                       Live Preview
@@ -1188,11 +1321,18 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                 ? `companyLogo: "${widgetConfig.content.companyLogo}",`
                 : ""
             }
+            ${
+              widgetConfig.content.triggerButtonImage
+                ? `triggerButtonImage: "${widgetConfig.content.triggerButtonImage}",`
+                : ""
+            }
+            callToActionText: "${widgetConfig.content.callToActionText || '📞 Call ShivAI!'}",
         };
         
-        // Also set SHIVAI_CONFIG for agent ID
+        // Also set SHIVAI_CONFIG for agent ID and user ID (tenant_id)
         window.SHIVAI_CONFIG = {
             agentId: "${agentId}",
+            userId: "${user?.id || ''}",
             theme: ${JSON.stringify(widgetConfig.theme)},
             ui: ${JSON.stringify(widgetConfig.ui)},
             content: ${JSON.stringify(widgetConfig.content)},
@@ -1211,7 +1351,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
     </script>
     
     <!-- Load the actual widget.js -->
-    <script src="/widget.js?agentId=${agentId}&companyName=${encodeURIComponent(
+    <script src="/widget.js?agentId=${agentId}&userId=${user?.id || ''}&companyName=${encodeURIComponent(
                         widgetConfig.content.companyName
                       )}&companyDescription=${encodeURIComponent(
                         widgetConfig.content.companyDescription
@@ -1227,7 +1367,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                   </div>
                 </div>
               </div>
-            )}
+            </div>
           </>
         )}
       </div>

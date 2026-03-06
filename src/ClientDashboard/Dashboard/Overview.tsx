@@ -18,7 +18,7 @@ import {
 const Overview = () => {
   const { agents } = useAgent();
   const { user } = useAuth();
-  const navigate = useNavigate();
+  const navigate = useNavigate(); 
   const [welcomeMessage, setWelcomeMessage] = useState("");
   const isDeveloper = isDeveloperUser(user?.email);
 

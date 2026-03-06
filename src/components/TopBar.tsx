@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Bell, ChevronDown, Moon, Sun, Menu } from "lucide-react";
+import { Bell, ChevronDown, Moon, Sun, Menu, User, User2Icon, UserCheck2Icon } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { useTheme } from "../contexts/ThemeContext";
 import { useAuth } from "../contexts/AuthContext";
@@ -14,11 +14,10 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
   const location = useLocation();
   const [tenantDropdownOpen, setTenantDropdownOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
-  // Function to get current module name based on route
   const getCurrentModule = () => {
     const path = location.pathname;
-    
     if (path === "/dashboard") return "Dashboard";
     if (path === "/analytics") return "Analytics & Call History";
     if (path.includes("/agents")) {
@@ -34,7 +33,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
     if (path === "/billing") return "Billing";
     if (path === "/settings") return "Settings";
     
-    return "Dashboard"; // Default fallback
+    return "Dashboard";
   };
 
   const handleLogout = async () => {
@@ -46,20 +45,14 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
     }
   };
 
-  // Extract user details with fallbacks
   const userName = user?.fullName || "User";
   const userEmail = user?.email || "user@example.com";
-  const userInitials = userName
-    .split(" ")
-    .map((name) => name[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
+
+
 
   return (
     <div className="absolute w-full  top-0 right-0 pl-0 lg:pl-5 h-12 lg:h-20 py-2 lg:py-4 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-700/50 z-30">
       <div className="flex items-center justify-between h-full px-3 sm:px-4 lg:px-6">
-        {/* Left side - Mobile and Desktop */}
         <div className="flex items-center gap-2 sm:gap-4">
           <button
             onClick={onMenuClick}
@@ -68,14 +61,12 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
             <Menu className="w-5 h-5 text-slate-600 dark:text-slate-300" />
           </button>
 
-          {/* Mobile Module Display */}
           <div className="block sm:hidden">
             <h1 className="text-base font-bold text-slate-800 dark:text-white truncate max-w-[200px]">
               {getCurrentModule()}
             </h1>
           </div>
 
-          {/* Desktop Module Display */}
           <div className="relative hidden sm:block pl-2">
             <div className="mb-4 lg:mb-0 px-1">
               <h1 className="text-sm lg:text-2xl font-bold text-slate-800 dark:text-white break-words max-w-full">
@@ -118,34 +109,50 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
             )}
           </button>
 
-          <button className="relative p-1.5 sm:p-2 rounded-lg bg-slate-100/50 dark:bg-slate-800/50 hover:bg-slate-200/50 dark:hover:bg-slate-700/50 transition-colors">
-            <Bell className="w-4 sm:w-5 h-4 sm:h-5 text-slate-600 dark:text-slate-300" />
-            <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></div>
-          </button>
+          <div className="relative">
+            <button 
+              onClick={() => setNotificationsOpen(!notificationsOpen)}
+              className="relative p-1.5 sm:p-2 rounded-lg bg-slate-100/50 dark:bg-slate-800/50 hover:bg-slate-200/50 dark:hover:bg-slate-700/50 transition-colors"
+            >
+              <Bell className="w-4 sm:w-5 h-4 sm:h-5 text-slate-600 dark:text-slate-300" />
+              <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full"></div>
+            </button>
+
+            {notificationsOpen && (
+              <div className="absolute top-full mt-2 right-0 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl z-[99999] overflow-hidden w-80">
+                <div className="p-3 border-b border-slate-200 dark:border-slate-700">
+                  <h3 className="font-semibold text-slate-800 dark:text-white">Notifications</h3>
+                </div>
+                <div className="max-h-96 overflow-y-auto">
+                  <div className="p-8 text-center text-slate-500 dark:text-slate-400">
+                    <Bell className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                    <p className="text-sm">No new notifications</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Updated Profile Section with Real User Data */}
-          <div className="relative">
+          <div className="relative flex-shrink-0">
             <button
               onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-              className="flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-1 sm:py-2 rounded-lg bg-slate-100/50 dark:bg-slate-800/50 hover:bg-slate-200/50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer"
+              className="flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-slate-100/50 dark:bg-slate-800/50 hover:bg-slate-200/50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer min-h-[44px]"
+              aria-label="User menu"
             >
-              {/* User Avatar with dynamic initials or profile picture */}
-              {user?.profilePicture ? (
-                <img
-                  src={user.profilePicture}
-                  alt={userName}
-                  className="w-6 sm:w-8 h-6 sm:h-8 rounded-full object-cover"
-                />
-              ) : (
-                <div className="w-6 sm:w-8 h-6 sm:h-8 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-full flex items-center justify-center">
-                  <span className="text-white text-xs sm:text-sm font-semibold">
-                    {userInitials}
-                  </span>
-                </div>
-              )}
+            <div className="w-8 h-8 rounded-full bg-slate-300 dark:bg-slate-600 flex items-center justify-center text-sm font-medium text-white overflow-hidden">
+              <UserCheck2Icon />
+            </div>
 
               {/* User Info with real data */}
-              <div className="text-left hidden sm:block"></div>
+              <div className="text-left hidden sm:block">
+                <p className="text-sm font-medium text-slate-800 dark:text-white leading-tight">
+                  {userName}
+                </p>
+                <p className="text-xs text-slate-600 dark:text-slate-400 leading-tight">
+                  {userEmail}
+                </p>
+              </div>
               <ChevronDown
                 className={`w-3 sm:w-4 h-3 sm:h-4 text-slate-400 hidden sm:block transition-transform ${
                   profileDropdownOpen ? "rotate-180" : ""
@@ -195,7 +202,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
         </div>
       </div>
 
-      {/* Click outside handlers remain the same */}
+      {/* Click outside handlers */}
       {profileDropdownOpen && (
         <div
           className="fixed inset-0 z-20"
@@ -206,6 +213,12 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
         <div
           className="fixed inset-0 z-20"
           onClick={() => setTenantDropdownOpen(false)}
+        />
+      )}
+      {notificationsOpen && (
+        <div
+          className="fixed inset-0 z-20"
+          onClick={() => setNotificationsOpen(false)}
         />
       )}
     </div>

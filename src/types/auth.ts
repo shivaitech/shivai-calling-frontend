@@ -4,6 +4,7 @@ export interface User {
   fullName: string;
   profilePicture?: string;
   emailVerified: boolean;
+  company?: string;
 }
 
 export interface AuthTokens {

@@ -17,9 +17,6 @@ import {
   FileText,
   Target,
   Globe,
-  Smartphone,
-  Monitor,
-  MessageCircle,
   Users,
   Phone,
   Crown,
@@ -764,6 +761,60 @@ const Step3: React.FC<Step3Props> = ({
     }
   }, [activeAgentTab, watch]);
 
+  // Sync form data to local state when switching agents
+  useEffect(() => {
+    const currentAgent = watch(`agents.${activeAgentTab}`);
+    if (currentAgent) {
+      // Sync deployment targets from form to local state
+      if (currentAgent.deploymentTargets && Array.isArray(currentAgent.deploymentTargets)) {
+        setSelectedDeploymentTargets(prev => ({ 
+          ...prev, 
+          [activeAgentTab]: currentAgent.deploymentTargets || [] 
+        }));
+      }
+      
+      // Sync workflows from form to local state  
+      if (currentAgent.selectedWorkflows && Array.isArray(currentAgent.selectedWorkflows)) {
+        setSelectedWorkflows(prev => ({ 
+          ...prev, 
+          [activeAgentTab]: currentAgent.selectedWorkflows || [] 
+        }));
+      }
+      
+      // Sync workflow instructions from form to local state
+      if (currentAgent.workflowInstructions && typeof currentAgent.workflowInstructions === 'object') {
+        setWorkflowInstructions(prev => ({ 
+          ...prev, 
+          [activeAgentTab]: currentAgent.workflowInstructions || {} 
+        }));
+      }
+      
+      // Sync social links from form to local state
+      if (currentAgent.socialLinks && Array.isArray(currentAgent.socialLinks)) {
+        setSocialLinks(prev => ({
+          ...prev,
+          [activeAgentTab]: currentAgent.socialLinks && currentAgent.socialLinks.length > 0 ? currentAgent.socialLinks : [""]
+        }));
+      }
+      
+      // Sync fallback contacts from form to local state
+      if (currentAgent.fallbackContacts && Array.isArray(currentAgent.fallbackContacts)) {
+        setFallbackContacts(prev => ({
+          ...prev,
+          [activeAgentTab]: currentAgent.fallbackContacts && currentAgent.fallbackContacts.length > 0 ? currentAgent.fallbackContacts : [""]
+        }));
+      }
+      
+      // Sync success metrics from form to local state
+      if (currentAgent.successMetrics && Array.isArray(currentAgent.successMetrics)) {
+        setSuccessMetrics(prev => ({
+          ...prev,
+          [activeAgentTab]: currentAgent.successMetrics && currentAgent.successMetrics.length > 0 ? currentAgent.successMetrics : [""]
+        }));
+      }
+    }
+  }, [activeAgentTab, watch]);
+
   // Helper functions for managing dynamic arrays (website management removed for simplicity)
 
   const addSocialLink = () => {
@@ -824,16 +875,6 @@ const Step3: React.FC<Step3Props> = ({
     newMetrics[index] = value;
     setSuccessMetrics(prev => ({ ...prev, [activeAgentTab]: newMetrics }));
     setValue(`agents.${activeAgentTab}.successMetrics`, newMetrics);
-  };
-
-  const toggleDeploymentTarget = (target: string) => {
-    const currentTargets = selectedDeploymentTargets[activeAgentTab] || [];
-    const newTargets = currentTargets.includes(target)
-      ? currentTargets.filter((t) => t !== target)
-      : [...currentTargets, target];
-    
-    setSelectedDeploymentTargets(prev => ({ ...prev, [activeAgentTab]: newTargets }));
-    setValue(`agents.${activeAgentTab}.deploymentTargets`, newTargets);
   };
 
   // Workflow integration handlers

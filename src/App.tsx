@@ -31,6 +31,7 @@ const Monitoring = lazy(() => import("./ClientDashboard/Monitoring/Monitoring"))
 const Billing = lazy(() => import("./ClientDashboard/Billing/Billing"));
 const Settings = lazy(() => import("./ClientDashboard/Settings/Settings"));
 const ResetPassword = lazy(() => import("./components/ResetPassword"));
+const AgentPublicPage = lazy(() => import("./pages/AgentPublicPage"));
 
 function LoadingFallback() {
   return (
@@ -54,11 +55,12 @@ function AppContent() {
   const isResetPassword = location.pathname.startsWith("/reset-password");
   const isOnboarding =
     location.pathname === "/onboarding" || location.pathname === "/onBoarding";
+  const isAgentPublicPage = location.pathname.startsWith("/MyAIEmployee");
   const [collapsed, setCollapsed] = useState(false);
 
   return (
     <div className="min-h-screen">
-      {isLandingPage || isAuthCallback || isResetPassword || isOnboarding ? (
+      {isLandingPage || isAuthCallback || isResetPassword || isOnboarding || isAgentPublicPage ? (
         <Suspense fallback={<LoadingFallback />}>
           <Routes>
             <Route
@@ -102,6 +104,9 @@ function AppContent() {
               }
             />
             <Route path="/auth/google/callback" element={<GoogleCallback />} />
+
+            {/* Public agent test page - no auth required */}
+            <Route path="/MyAIEmployee/:agentId" element={<AgentPublicPage />} />
 
             {/* Catch all other public routes and redirect to landing */}
             <Route path="*" element={<Navigate to="/landing" replace />} />
@@ -217,27 +222,8 @@ function App() {
             <AppContent />
             <Toaster
               position="top-right"
-              toastOptions={{
-                duration: 4000,
-                style: {
-                  background: '#363636',
-                  color: '#fff',
-                },
-                success: {
-                  duration: 3000,
-                  iconTheme: {
-                    primary: '#10B981',
-                    secondary: '#fff',
-                  },
-                },
-                error: {
-                  duration: 5000,
-                  iconTheme: {
-                    primary: '#EF4444',
-                    secondary: '#fff',
-                  },
-                },
-              }}
+              toastOptions={{ duration: 4000 }}
+              containerStyle={{ zIndex: 99999 }}
             />
           </AgentProvider>
         </Router>

@@ -169,7 +169,7 @@ const Analytics = () => {
     } finally {
       setSessionLoading(false);
     }
-  };
+  };  
 
   // Fetch sessions when employee changes (reset to page 1)
   useEffect(() => {
@@ -700,7 +700,7 @@ const Analytics = () => {
                                 Session ID
                               </p>
                               <span className="text-sm font-mono font-semibold text-blue-600 dark:text-blue-400">
-                                {session.session_id || "N/A"}
+                                {session.session_id || session.id || session.call_id || "N/A"}
                               </span>
                             </div>
                           </div>
@@ -726,20 +726,19 @@ const Analytics = () => {
                           </div>
 
                           {/* Location Badge */}
-                          {(session.location?.city ||
-                            session.location?.country) && (
-                            <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900/30 px-3 py-1.5 rounded-lg text-xs">
-                              <MapPin className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
-                              <span className="font-medium text-slate-700 dark:text-slate-300">
-                                {session.location?.city &&
-                                session.location?.country
-                                  ? `${session.location.city}, ${session.location.country}`
-                                  : session.location?.city ||
-                                    session.location?.country ||
-                                    "Unknown"}
-                              </span>
-                            </div>
-                          )}
+                          {(() => {
+                            const city = session.location?.city?.toLowerCase() !== 'unknown' ? session.location?.city : '';
+                            const country = session.location?.country?.toLowerCase() !== 'unknown' ? session.location?.country : '';
+                            const locationLabel = [city, country].filter(Boolean).join(', ');
+                            return locationLabel ? (
+                              <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900/30 px-3 py-1.5 rounded-lg text-xs">
+                                <MapPin className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
+                                <span className="font-medium text-slate-700 dark:text-slate-300">
+                                  {locationLabel}
+                                </span>
+                              </div>
+                            ) : null;
+                          })()}
                         </div>
 
                         {/* Status Badge */}

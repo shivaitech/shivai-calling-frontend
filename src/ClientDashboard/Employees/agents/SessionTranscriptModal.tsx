@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, FileText, Clock, MapPin, Calendar, Users, MessageSquare, Loader2, Bot, Play, Pause, Download, Volume2, VolumeX, SkipBack, SkipForward, TrendingUp, CheckCircle, XCircle, Phone, Mail, Share2 } from "lucide-react";
 import { agentAPI } from '../../../services/agentAPI';
+import appToast from '../../../components/AppToast';
 
 interface SessionTranscriptModalProps {
   session: any;
@@ -32,13 +33,25 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
 
   useEffect(() => {
     const fetchTranscripts = async () => {
-      if (!session?.session_id) return;
-      
+      // If transcripts are already embedded in the session object, use them directly
+      if (Array.isArray(session?.transcripts) && session.transcripts.length > 0) {
+        setTranscripts(session.transcripts);
+        setLoading(false);
+        return;
+      }
+
+      // Resolve the session identifier — API may return id, call_id, or session_id
+      const sessionId = session?.session_id || session?.id || session?.call_id;
+      if (!sessionId) {
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       setError(null);
-      
+
       try {
-        const data = await agentAPI.getSessionTranscripts(session.session_id);
+        const data = await agentAPI.getSessionTranscripts(sessionId);
         setTranscripts(data.transcripts || []);
       } catch (err: any) {
         console.error('Failed to fetch transcripts:', err);
@@ -68,7 +81,7 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
 
     fetchTranscripts();
     fetchCallSummary();
-  }, [session?.session_id, session?.agent?.id, session?.agent_id]);
+  }, [session?.session_id, session?.id, session?.call_id, session?.agent?.id, session?.agent_id]);
 
   // Audio player handlers
   const togglePlayPause = () => {
@@ -150,12 +163,12 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
   const handleDownload = async () => {
     const recordingUrl = session?.recording?.url;
     if (!recordingUrl) {
-      showToast('Recording not available for download', 'error');
+      appToast.error('Recording not available for download');
       return;
     }
 
     try {
-      showToast('Downloading recording...', 'info');
+      appToast.info('Downloading recording...');
       
       // Fetch the file as a blob
       const response = await fetch(recordingUrl);
@@ -179,17 +192,17 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
       // Clean up the blob URL
       window.URL.revokeObjectURL(blobUrl);
       
-      showToast('Recording downloaded successfully', 'success');
+      appToast.success('Recording downloaded successfully');
     } catch (error) {
       console.error('Download error:', error);
-      showToast('Failed to download recording', 'error');
+      appToast.error('Failed to download recording');
     }
   };
 
   const handleShare = async () => {
     const recordingUrl = session?.recording?.url;
     if (!recordingUrl) {
-      showToast('Recording not available for sharing', 'error');
+      appToast.error('Recording not available for sharing');
       return;
     }
 
@@ -205,45 +218,19 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
       } else {
         // Fallback: copy URL to clipboard
         await navigator.clipboard.writeText(recordingUrl);
-        showToast('Recording URL copied to clipboard', 'success');
+        appToast.success('Recording URL copied to clipboard');
       }
     } catch (error: any) {
       if (error.name !== 'AbortError') {
         // Fallback to clipboard if share was cancelled or failed
         try {
           await navigator.clipboard.writeText(recordingUrl);
-          showToast('Recording URL copied to clipboard', 'success');
+          appToast.success('Recording URL copied to clipboard');
         } catch {
-          showToast('Failed to share recording', 'error');
+          appToast.error('Failed to share recording');
         }
       }
     }
-  };
-
-  // Toast notification function
-  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
-    const toastColors = {
-      success: 'bg-green-500',
-      error: 'bg-red-500',
-      info: 'bg-blue-500'
-    };
-
-    const toast = document.createElement('div');
-    toast.className = `fixed top-4 right-4 ${toastColors[type]} text-white px-4 py-3 rounded-lg shadow-lg z-[100] transition-all`;
-    toast.innerHTML = `
-      <div class="flex items-center gap-2">
-        <span class="text-sm">${message}</span>
-        <button onclick="this.parentElement.parentElement.remove()" class="ml-2 text-white/80 hover:text-white">&times;</button>
-      </div>
-    `;
-    
-    document.body.appendChild(toast);
-    setTimeout(() => {
-      if (toast.parentElement) {
-        toast.style.opacity = '0';
-        setTimeout(() => toast.remove(), 300);
-      }
-    }, 3000);
   };
 
   const formatTimeDisplay = (seconds: number) => {

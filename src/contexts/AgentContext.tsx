@@ -312,13 +312,13 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({
         // Update local state directly without calling agents API
         setAgents((prev) =>
           prev.map((agent) =>
-            agent.id === id ? { ...agent, status: "Published" } : agent
+            agent.id === id ? { ...agent, status: "Published", is_active: true } as any : agent
           )
         );
 
         if (currentAgent?.id === id) {
           setCurrentAgent((prev) =>
-            prev ? { ...prev, status: "Published" } : null
+            prev ? { ...prev, status: "Published", is_active: true } as any : null
           );
         }
       } else {
@@ -344,13 +344,13 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({
         // Update local state directly without calling agents API
         setAgents((prev) =>
           prev.map((agent) =>
-            agent.id === id ? { ...agent, status: "Pending" } : agent
+            agent.id === id ? { ...agent, status: "Pending", is_active: false } as any : agent
           )
         );
 
         if (currentAgent?.id === id) {
           setCurrentAgent((prev) =>
-            prev ? { ...prev, status: "Pending" } : null
+            prev ? { ...prev, status: "Pending", is_active: false } as any : null
           );
         }
       } else {

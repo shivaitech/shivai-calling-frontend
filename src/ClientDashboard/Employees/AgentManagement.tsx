@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
-import toast from "react-hot-toast";
+import appToast from "../../components/AppToast";
+import pdfToText from "react-pdftotext";
 import {
   useParams,
   useNavigate,
@@ -21,8 +22,6 @@ import { useAuth } from "../../contexts/AuthContext";
 import {
   aiEmployeeTemplates,
   getMatchingTemplatesWithScore,
-  getMatchDescription,
-  getMatchBadgeColor,
   TemplateMatchResult,
 } from "../../constants/aiEmployeeTemplates";
 import {
@@ -39,9 +38,9 @@ import { agentAPI } from "../../services/agentAPI";
 import {
   Bot,
   ArrowLeft,
-  Save,
   Play,
   Pause,
+  Square,
   Eye,
   Edit,
   Edit2,
@@ -50,25 +49,21 @@ import {
   Download,
   MessageSquare,
   Globe,
-  Shield,
   Zap,
   Clock,
   Users,
   CheckCircle,
-  Info,
   Lightbulb,
   Plus,
   Search,
   Filter,
   Settings,
-  QrCode,
   X,
   Send,
   Phone,
   PhoneCall,
   Mic,
   MicOff,
-  BarChart3,
   Building2,
   Briefcase,
   Factory,
@@ -86,6 +81,7 @@ import {
   File,
   UploadCloud,
   PauseCircle,
+  QrCode,
 } from "lucide-react";
 
 const AGENTS_PER_PAGE = 6;
@@ -113,7 +109,7 @@ const AgentManagement = () => {
   const isView = id && !isTrain;
   const isList = !id; // Main agent list page
 
-  const [formData, setFormData] = useState({
+  const [_formData, setFormData] = useState({
     name: "",
     gender: "Female",
     businessProcess: "",
@@ -174,9 +170,9 @@ const AgentManagement = () => {
   >([
     {
       id: "1",
-      text: `Hi! I'm ${
+      text: `Hello! I am ${
         currentAgent?.name || "your AI assistant"
-      }. How can I help you today?`,
+      }${user?.company ? ` from ${user.company}` : ""}, here to assist you. How can I help you today?`,
       isUser: false,
       timestamp: new Date(),
     },
@@ -196,14 +192,125 @@ const AgentManagement = () => {
   const [quickCreateData, setQuickCreateData] = useState({
     companyName: "",
     aiEmployeeName: "",
+    language: "en-US",
+    voice: "Achernar",
+    voiceSpeed: 1.0,
+    voiceStyle: "friendly",
+    gender: "female",
     businessProcess: "",
     industry: "",
     subIndustry: "",
     websiteUrls: [""],
     socialMediaUrls: [""],
     uploadedFiles: [] as File[],
+    uploadedFileUrls: [] as string[],
+    extractedFileContent: "" as string, // Extracted text from uploaded files
+    extractedWebsiteContent: "" as string, // Crawled content from websites
     selectedTemplate: null as string | null,
   });
+  const [isUploadingFiles, setIsUploadingFiles] = useState(false);
+  const [isExtractingContent, setIsExtractingContent] = useState(false);
+  const [isTestingVoice, setIsTestingVoice] = useState(false);
+  const [isLoadingVoicePreview, setIsLoadingVoicePreview] = useState(false);
+  const voicePreviewAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Function to preview Gemini TTS voice
+  const previewGeminiVoice = async (voiceName: string, speed: number = 1.0, customText?: string) => {
+    // Stop any currently playing audio
+    if (voicePreviewAudioRef.current) {
+      voicePreviewAudioRef.current.pause();
+      voicePreviewAudioRef.current = null;
+    }
+
+    setIsTestingVoice(true);
+    setIsLoadingVoicePreview(true);
+
+    try {
+      const sampleText = customText || `Hello! I'm ${quickCreateData.aiEmployeeName || 'your AI assistant'}. How can I help you today?`;
+
+      console.log(`🎙️ Voice preview: voiceName=${voiceName}, speed=${speed}`);
+
+      // Get auth token same as other API calls
+      const authTokens = localStorage.getItem('auth_tokens');
+      const accessToken = authTokens ? JSON.parse(authTokens)?.accessToken : null;
+
+      const response = await fetch('https://nodejs.service.callshivai.com/api/v1/voice/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({
+          voiceName: voiceName,
+          text: sampleText,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Voice preview failed: ${response.status}`);
+      }
+
+      // Response: { success, data: { audioDataUrl, audioBase64, audioFormat, ... } }
+      const json = await response.json();
+      const audioData = json.data;
+      let audioUrl: string;
+      let isDataUrl = false;
+
+      if (audioData?.audioDataUrl) {
+        // Use the ready-made data URL directly
+        audioUrl = audioData.audioDataUrl;
+        isDataUrl = true;
+      } else if (audioData?.audioBase64) {
+        const byteChars = atob(audioData.audioBase64);
+        const byteNums = new Array(byteChars.length).fill(0).map((_, i) => byteChars.charCodeAt(i));
+        const byteArray = new Uint8Array(byteNums);
+        audioUrl = URL.createObjectURL(new Blob([byteArray], { type: 'audio/mp3' }));
+      } else {
+        throw new Error('No audio data in response');
+      }
+
+      // Create and play audio
+      const audio = new Audio(audioUrl);
+      voicePreviewAudioRef.current = audio;
+
+      audio.oncanplay = () => {
+        setIsLoadingVoicePreview(false);
+      };
+
+      audio.onended = () => {
+        setIsTestingVoice(false);
+        setIsLoadingVoicePreview(false);
+        if (!isDataUrl) URL.revokeObjectURL(audioUrl);
+        voicePreviewAudioRef.current = null;
+      };
+
+      audio.onerror = () => {
+        setIsTestingVoice(false);
+        setIsLoadingVoicePreview(false);
+        if (!isDataUrl) URL.revokeObjectURL(audioUrl);
+        voicePreviewAudioRef.current = null;
+        appToast.error('Failed to play voice preview');
+      };
+
+      await audio.play();
+      setIsLoadingVoicePreview(false);
+    } catch (error) {
+      console.error('❌ Voice preview error:', error);
+      setIsTestingVoice(false);
+      setIsLoadingVoicePreview(false);
+      appToast.error('Voice preview unavailable. Please try again later.');
+    }
+  };
+
+  // Stop voice preview
+  const stopVoicePreview = () => {
+    if (voicePreviewAudioRef.current) {
+      voicePreviewAudioRef.current.pause();
+      voicePreviewAudioRef.current = null;
+    }
+    setIsTestingVoice(false);
+    setIsLoadingVoicePreview(false);
+  };
 
   // Template Details Modal State
   const [showTemplateDetails, setShowTemplateDetails] = useState(false);
@@ -213,16 +320,98 @@ const AgentManagement = () => {
   const [isEditingTemplate, setIsEditingTemplate] = useState(false);
   const [editedTemplate, setEditedTemplate] =
     useState<Partial<GeneratedTemplate> | null>(null);
+  const [activeTemplateSection, setActiveTemplateSection] = useState('overview');
+  const templateContentRef = useRef<HTMLDivElement>(null);
+
+  const openAgentTestPage = () => {
+    if (!currentAgent?.id) return;
+    // Trigger widget config save before opening test page
+    window.dispatchEvent(new CustomEvent("shivai:save-widget-config", { detail: { agentId: currentAgent.id } }));
+    const params = new URLSearchParams();
+    params.set("agentId", currentAgent.id);
+    if (user?.id) params.set("userId", user.id);
+    const url = `/MyAIEmployee/${currentAgent.id}?${params.toString()}`;
+    // Small delay to let save fire before navigating
+    setTimeout(() => window.open(url, "_blank", "noopener,noreferrer"), 300);
+  };
+
+  // Template section navigation tabs
+  const templateSections = [
+    { id: 'overview', label: 'Overview', icon: '📋' },
+    { id: 'settings', label: 'Settings', icon: '⚙️' },
+    { id: 'system-prompt', label: 'System Prompt', icon: '🤖' },
+    { id: 'first-message', label: 'First Message', icon: '💬' },
+    { id: 'knowledge', label: 'Knowledge', icon: '📚' },
+    { id: 'scripts', label: 'Scripts', icon: '📝' },
+    { id: 'training', label: 'Training', icon: '🎯' },
+  ];
+
+  // Scroll to section in template details
+  const scrollToTemplateSection = (sectionId: string) => {
+    const element = document.getElementById(`template-section-${sectionId}`);
+    const container = templateContentRef.current;
+    if (element && container) {
+      const containerTop = container.getBoundingClientRect().top;
+      const elementTop = element.getBoundingClientRect().top;
+      const offset = elementTop - containerTop + container.scrollTop - 10;
+      container.scrollTo({ top: offset, behavior: 'smooth' });
+      setActiveTemplateSection(sectionId);
+    }
+  };
+
+  // Handle scroll to update active section
+  const handleTemplateScroll = useCallback(() => {
+    const container = templateContentRef.current;
+    if (!container) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const containerTop = containerRect.top;
+    const threshold = 120; // How far from top a section must be to be considered "active"
+    
+    // Find the last section that has scrolled past the threshold
+    let activeSection = templateSections[0].id;
+    
+    for (const section of templateSections) {
+      const element = document.getElementById(`template-section-${section.id}`);
+      if (element) {
+        const elementRect = element.getBoundingClientRect();
+        const relativeTop = elementRect.top - containerTop;
+        
+        // If this section's top is at or above the threshold, it becomes the active one
+        // We continue iterating to find the last one that meets this criteria
+        if (relativeTop <= threshold) {
+          activeSection = section.id;
+        }
+      }
+    }
+    
+    setActiveTemplateSection(activeSection);
+  }, []);
 
   // AI-Generated Templates State
   const [aiGeneratedTemplates, setAIGeneratedTemplates] = useState<
     GeneratedTemplate[]
   >([]);
   const [isGeneratingTemplates, setIsGeneratingTemplates] = useState(false);
+  const [isGeneratingSystemPrompts, setIsGeneratingSystemPrompts] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
   const [templateGenerationError, setTemplateGenerationError] = useState<
     string | null
   >(null);
+
+  // Helper function to replace template placeholders with actual values
+  const replaceTemplatePlaceholders = (text: string | undefined): string => {
+    if (!text) return "";
+    return text
+      .replace(/\[AI Employee Name\]/g, quickCreateData.aiEmployeeName || "AI Assistant")
+      .replace(/\[Company Name\]/g, quickCreateData.companyName || "Company")
+      .replace(/\[Company\]/g, quickCreateData.companyName || "Company")
+      .replace(/\[Business Name\]/g, quickCreateData.companyName || "Company")
+      .replace(/\[Store Name\]/g, quickCreateData.companyName || "Company")
+      .replace(/\[Clinic Name\]/g, quickCreateData.companyName || "Company")
+      .replace(/\[Real Estate Company\]/g, quickCreateData.companyName || "Company")
+      .replace(/\[Agent Name\]/g, quickCreateData.aiEmployeeName || "AI Assistant");
+  };
 
   // Business Process Options
   const businessProcessOptions = [
@@ -235,6 +424,66 @@ const AgentManagement = () => {
     { value: "billing-inquiries", label: "Billing Inquiries", icon: "💳" },
     { value: "onboarding", label: "Customer Onboarding", icon: "🚀" },
   ];
+
+  // Voice Options by Gender
+  const voiceOptions = {
+    female: [
+      { value: "Achernar", label: "Achernar" },
+      { value: "Aoede", label: "Aoede" },
+      { value: "Autonoe", label: "Autonoe" },
+      { value: "Callirrhoe", label: "Callirrhoe" },
+      { value: "Despina", label: "Despina" },
+      { value: "Erinome", label: "Erinome" },
+      { value: "Gacrux", label: "Gacrux" },
+      { value: "Kore", label: "Kore" },
+      { value: "Laomedeia", label: "Laomedeia" },
+      { value: "Leda", label: "Leda" },
+      { value: "Pulcherrima", label: "Pulcherrima" },
+      { value: "Sulafat", label: "Sulafat" },
+      { value: "Vindemiatrix", label: "Vindemiatrix" },
+      { value: "Zephyr", label: "Zephyr" },
+    ],
+    male: [
+      { value: "Achird", label: "Achird" },
+      { value: "Algenib", label: "Algenib" },
+      { value: "Algieba", label: "Algieba" },
+      { value: "Alnilam", label: "Alnilam" },
+      { value: "Charon", label: "Charon" },
+      { value: "Enceladus", label: "Enceladus" },
+      { value: "Fenrir", label: "Fenrir" },
+      { value: "Iapetus", label: "Iapetus" },
+      { value: "Orus", label: "Orus" },
+      { value: "Puck", label: "Puck" },
+      { value: "Rasalgethi", label: "Rasalgethi" },
+      { value: "Sadachbia", label: "Sadachbia" },
+      { value: "Sadaltager", label: "Sadaltager" },
+      { value: "Schedar", label: "Schedar" },
+      { value: "Umbriel", label: "Umbriel" },
+      { value: "Zubenelgenubi", label: "Zubenelgenubi" },
+    ],
+  };
+
+  // Multilingual voices - these voices support non-English languages
+  const multilingualVoices = {
+    female: ["Aoede", "Kore", "Leda", "Zephyr"],
+    male: ["Puck", "Charon", "Fenrir", "Orus"],
+  };
+
+  // English-only language codes
+  const englishOnlyLanguages = ["en-US", "en-GB", "en-IN"];
+
+  // Check if current language requires multilingual voices
+  const isMultilingualLanguage = !englishOnlyLanguages.includes(quickCreateData.language);
+
+  // Get filtered voice options based on selected language
+  const getFilteredVoiceOptions = (gender: 'female' | 'male') => {
+    if (isMultilingualLanguage) {
+      return voiceOptions[gender].filter((v) =>
+        multilingualVoices[gender].includes(v.value)
+      );
+    }
+    return voiceOptions[gender];
+  };
 
   // Industry Options
   const industryOptions = [
@@ -460,12 +709,12 @@ const AgentManagement = () => {
 
   // Handle quick create wizard navigation
   const handleQuickCreateNext = async () => {
-    if (quickCreateStep < 6) {
+    if (quickCreateStep < 7) {
       const nextStep = quickCreateStep + 1;
       setQuickCreateStep(nextStep);
 
-      // Generate AI templates when moving to step 6
-      if (nextStep === 6) {
+      // Generate AI templates when moving to step 7
+      if (nextStep === 7) {
         await generateAITemplates();
       }
     }
@@ -479,26 +728,62 @@ const AgentManagement = () => {
     const progressInterval = setInterval(() => {
       setGenerationProgress((prev) => {
         if (prev >= 90) return prev;
-        return prev + Math.random() * 15;
+        return Math.min(90, prev + Math.random() * 15);
       });
     }, 400);
 
     try {
-      const templates = await aiTemplateService.generateTemplates({
-        companyName: quickCreateData.companyName,
-        businessProcess: quickCreateData.businessProcess,
-        industry: quickCreateData.industry,
-        subIndustry: quickCreateData.subIndustry,
-        websiteUrls: quickCreateData.websiteUrls.filter((url) => url.trim()),
-        additionalContext: quickCreateData.aiEmployeeName
-          ? `The AI employee will be named: ${quickCreateData.aiEmployeeName}`
-          : undefined,
-      });
+      // Build additional context from extracted content
+      let additionalContext = quickCreateData.aiEmployeeName
+        ? `The AI employee will be named: ${quickCreateData.aiEmployeeName}`
+        : '';
+      
+      // Add extracted file content to context
+      if (quickCreateData.extractedFileContent) {
+        const truncatedContent = quickCreateData.extractedFileContent.substring(0, 15000); // Limit to ~15k chars
+        additionalContext += `\n\n--- Extracted Knowledge Base Content ---\n${truncatedContent}`;
+        console.log('📚 Including extracted file content in template generation, length:', quickCreateData.extractedFileContent.length);
+        console.log('📚 Extracted content preview:', quickCreateData.extractedFileContent.substring(0, 500) + '...');
+      } else {
+        console.log('⚠️ No extracted file content available for template generation');
+      }
+      
+      // Add social media URLs to context
+      const validSocialUrls = quickCreateData.socialMediaUrls.filter((url) => url.trim());
+      if (validSocialUrls.length > 0) {
+        additionalContext += `\n\nSocial Media Profiles: ${validSocialUrls.join(', ')}`;
+      }
 
+      // Set BG flag BEFORE calling generateTemplates so it's true when callbacks fire
+      setIsGeneratingSystemPrompts(true);
+
+      const templates = await aiTemplateService.generateTemplates(
+        {
+          companyName: quickCreateData.companyName,
+          businessProcess: quickCreateData.businessProcess,
+          industry: quickCreateData.industry,
+          subIndustry: quickCreateData.subIndustry,
+          websiteUrls: quickCreateData.websiteUrls.filter((url) => url.trim()),
+          additionalContext: additionalContext || undefined,
+          extractedContent: quickCreateData.extractedFileContent || undefined,
+        },
+        // Background callback: system prompts trickle in after loading is done
+        (updatedTemplates) => {
+          setAIGeneratedTemplates([...updatedTemplates]);
+          // Stop BG indicator when every template has a real system prompt
+          const allReady = updatedTemplates.every(
+            (t) => t.systemPrompt && t.systemPrompt.length > 100,
+          );
+          if (allReady) setIsGeneratingSystemPrompts(false);
+        },
+      );
+
+      // ✅ Metadata is ready — stop loading immediately, show templates
       clearInterval(progressInterval);
       setGenerationProgress(100);
       setAIGeneratedTemplates(templates);
-      console.log("✅ AI templates generated successfully");
+      // isGeneratingSystemPrompts already true — background callbacks will flip it false
+      console.log("✅ AI template metadata ready — system prompts generating in background");
     } catch (error) {
       clearInterval(progressInterval);
       console.error("❌ Error generating AI templates:", error);
@@ -516,11 +801,12 @@ const AgentManagement = () => {
         })),
       );
       setGenerationProgress(100);
+      setIsGeneratingSystemPrompts(false); // Fallback templates have no BG generation
     } finally {
       setTimeout(() => {
         setIsGeneratingTemplates(false);
         setGenerationProgress(0);
-      }, 500);
+      }, 300);
     }
   };
 
@@ -531,6 +817,11 @@ const AgentManagement = () => {
   };
 
   const handleQuickCreateClose = () => {
+    // Don't allow closing while creating agent
+    if (isCreatingAgent) {
+      return;
+    }
+    
     setShowQuickCreateModal(false);
     setQuickCreateStep(1);
     setBusinessProcessSlideIndex(0);
@@ -538,18 +829,133 @@ const AgentManagement = () => {
     setSubIndustrySlideIndex(0);
     setTemplateSlideIndex(0);
     setAIGeneratedTemplates([]);
+    setIsGeneratingSystemPrompts(false);
     setTemplateGenerationError(null);
+    setIsCreatingAgent(false);
+    setKbCreationProgress(null);
+    setIsExtractingContent(false);
     setQuickCreateData({
       companyName: "",
       aiEmployeeName: "",
+      language: "en-US",
+      voice: "Achernar",
+      voiceSpeed: 1.0,
+      voiceStyle: "friendly",
+      gender: "female",
       businessProcess: "",
       industry: "",
       subIndustry: "",
       websiteUrls: [""],
       socialMediaUrls: [""],
       uploadedFiles: [],
+      uploadedFileUrls: [],
+      extractedFileContent: "",
+      extractedWebsiteContent: "",
       selectedTemplate: null,
     });
+  };
+
+  // Helper function to extract text from a file based on its type
+  const extractTextFromFile = async (file: File): Promise<string> => {
+    const fileType = file.type.toLowerCase();
+    const fileName = file.name.toLowerCase();
+    
+    try {
+      // PDF files
+      if (fileType === 'application/pdf' || fileName.endsWith('.pdf')) {
+        const text = await pdfToText(file);
+        return text;
+      }
+      
+      // Text files
+      if (fileType === 'text/plain' || fileName.endsWith('.txt')) {
+        return await file.text();
+      }
+      
+      // CSV files
+      if (fileType === 'text/csv' || fileName.endsWith('.csv')) {
+        return await file.text();
+      }
+      
+      // For other file types (DOCX, etc.), we'll skip extraction for now
+      // as they require more complex parsing libraries
+      console.log(`📄 Skipping text extraction for: ${file.name} (${fileType})`);
+      return '';
+    } catch (error) {
+      console.error(`❌ Error extracting text from ${file.name}:`, error);
+      return '';
+    }
+  };
+
+  // Handle knowledge base file upload with text extraction
+  const handleKnowledgeBaseUpload = async (files: File[]) => {
+    if (files.length === 0) return;
+
+    setIsUploadingFiles(true);
+    setIsExtractingContent(true);
+    
+    try {
+      setQuickCreateData((prev) => ({
+        ...prev,
+        uploadedFiles: [...prev.uploadedFiles, ...files],
+      }));
+
+      // Extract text from files in parallel
+      console.log('📄 Extracting text from files...');
+      const extractionPromises = files.map(extractTextFromFile);
+      const extractedTexts = await Promise.all(extractionPromises);
+      
+      // Combine all extracted texts
+      const newExtractedContent = extractedTexts
+        .filter(text => text.trim().length > 0)
+        .join('\n\n--- Next Document ---\n\n');
+      
+      if (newExtractedContent) {
+        setQuickCreateData((prev) => ({
+          ...prev,
+          extractedFileContent: prev.extractedFileContent 
+            ? `${prev.extractedFileContent}\n\n--- Next Document ---\n\n${newExtractedContent}`
+            : newExtractedContent,
+        }));
+        console.log('✅ Text extracted from files:', newExtractedContent.substring(0, 200) + '...');
+      }
+
+      // Upload files to the API
+      const response = await agentAPI.uploadKnowledgeBase(files);
+      console.log("📤 Knowledge base upload response:", response);
+
+      // Extract URLs from response.data.files array
+      const urls = response.data?.files?.map((file: any) => file.url) || [];
+      if (urls.length > 0) {
+        setQuickCreateData((prev) => ({
+          ...prev,
+          uploadedFileUrls: [...prev.uploadedFileUrls, ...urls],
+        }));
+        console.log("✅ Knowledge base files uploaded:", urls);
+        appToast.success(`${files.length} file(s) uploaded and processed successfully!`);
+      }
+    } catch (error) {
+      console.error("❌ Error uploading knowledge base files:", error);
+      appToast.error("Failed to upload files. Please try again.");
+      setQuickCreateData((prev) => ({
+        ...prev,
+        uploadedFiles: prev.uploadedFiles.filter(
+          (f) => !files.some((newFile) => newFile.name === f.name)
+        ),
+      }));
+    } finally {
+      setIsUploadingFiles(false);
+      setIsExtractingContent(false);
+    }
+  };
+
+  // Handle knowledge base file removal
+  const handleRemoveKnowledgeBaseFile = (index: number) => {
+    setQuickCreateData((prev) => ({
+      ...prev,
+      uploadedFiles: prev.uploadedFiles.filter((_, i) => i !== index),
+      uploadedFileUrls: prev.uploadedFileUrls.filter((_, i) => i !== index),
+    }));
   };
 
   const handleAddWebsiteUrl = () => {
@@ -631,36 +1037,22 @@ const AgentManagement = () => {
     }
 
     // If template IS selected, create agent directly via API
-    const loadingToast = toast.loading("Creating agent...");
+    console.log('🚀 [CREATE] Starting agent creation...');
+    setIsCreatingAgent(true);
+    console.log('🚀 [CREATE] isCreatingAgent set to TRUE');
+    setKbCreationProgress({
+      agentId: '',
+      status: 'pending',
+      progress: 0,
+      message: 'Creating agent...',
+    });
+    console.log('🚀 [CREATE] Initial KB progress set');
 
     try {
       console.log(
         "📤 Creating agent with selected template:",
         quickCreateData.aiEmployeeName,
       );
-
-      // Map voice to one of the valid enum values
-      const validVoices = [
-        "alloy",
-        "echo",
-        "fable",
-        "onyx",
-        "nova",
-        "shimmer",
-        "sage",
-      ];
-      let mappedVoice = "alloy"; // default
-
-      if (selectedTemplateData?.voice) {
-        const voiceLower = selectedTemplateData.voice.toLowerCase();
-        // Try to find a matching voice
-        if (validVoices.includes(voiceLower)) {
-          mappedVoice = voiceLower;
-        } else {
-          // Use first valid voice as fallback
-          mappedVoice = validVoices[0];
-        }
-      }
 
       // Filter and prepare website URLs
       const validWebsiteUrls = quickCreateData.websiteUrls.filter(
@@ -672,38 +1064,54 @@ const AgentManagement = () => {
         (url) => url.trim().length > 0,
       );
 
-      // Prepare knowledge base file URLs (if files were uploaded, their URLs would be here)
-      const knowledgeBaseFileUrls = quickCreateData.uploadedFiles.map(
-        (file: any) =>
-          typeof file === "string" ? file : file.url || file.name,
-      );
+      // Use the uploaded file URLs from the API
+      const knowledgeBaseFileUrls = quickCreateData.uploadedFileUrls;
+
+      // Always use Step 2 voice configuration — never let AI template override these
+      const voiceStyleInstructionMap: Record<string, string> = {
+        friendly:       "Speak clearly and warmly with a friendly, approachable tone",
+        professional:   "Speak clearly and professionally with a business-like, formal tone",
+        casual:         "Speak casually and conversationally with a relaxed, natural tone",
+        authoritative:  "Speak with confidence and authority in a commanding, decisive tone",
+        empathetic:     "Speak with empathy and understanding in a supportive, compassionate tone",
+        enthusiastic:   "Speak energetically and enthusiastically with an upbeat, positive tone",
+      };
+      const selectedStyle = (quickCreateData.voiceStyle || "friendly").trim().toLowerCase();
+      const voiceInstruction =
+        voiceStyleInstructionMap[selectedStyle] ||
+        "Speak clearly and professionally with a friendly tone";
+      const clampedVoiceSpeed = Math.min(2.0, Math.max(0.5, quickCreateData.voiceSpeed ?? 1.0));
 
       const agentPayload = {
         name: quickCreateData.aiEmployeeName,
-        gender: "female",
+        gender: quickCreateData.gender || "female",
         business_process: quickCreateData.businessProcess,
         industry: quickCreateData.industry,
+        sub_industry: quickCreateData.subIndustry || undefined,
         personality: selectedTemplateData?.personality || "Professional",
-        language: "English (US)",
-        voice: mappedVoice,
-        custom_instructions: selectedTemplateData?.description || "",
+        language: quickCreateData.language || "en-US",
+        voice: quickCreateData.voice || "Achernar",
+        voice_config: {
+          voice_instruction: voiceInstruction,
+          voice_speed: clampedVoiceSpeed,
+        },
+        custom_instructions: replaceTemplatePlaceholders(selectedTemplateData?.systemPrompt || ""),
         guardrails_level: "medium",
         response_style: "Balanced",
         max_response_length: "Medium (150 words)",
         context_window: "Standard (8K tokens)",
         temperature: 0.5, // Must be <= 1 (temperature scale is 0-1, not 0-100)
-        // Template object with all details
+        // Template object with all details - replace placeholders with actual values
         template: selectedTemplateData
           ? {
               name: selectedTemplateData.name,
-              description: selectedTemplateData.description,
+              description: replaceTemplatePlaceholders(selectedTemplateData.description),
               icon: selectedTemplateData.icon,
               features: selectedTemplateData.features,
-              systemPrompt: selectedTemplateData.systemPrompt,
-              firstMessage: selectedTemplateData.firstMessage,
-              openingScript: selectedTemplateData.openingScript,
-              keyTalkingPoints: selectedTemplateData.keyTalkingPoints,
-              closingScript: selectedTemplateData.closingScript,
+              systemPrompt: replaceTemplatePlaceholders(selectedTemplateData.systemPrompt),
+              firstMessage: replaceTemplatePlaceholders(selectedTemplateData.firstMessage),
+              keyTalkingPoints: replaceTemplatePlaceholders(selectedTemplateData.keyTalkingPoints),
+              closingScript: replaceTemplatePlaceholders(selectedTemplateData.closingScript),
               objections: selectedTemplateData.objections,
               conversationExamples: selectedTemplateData.conversationExamples,
             }
@@ -719,42 +1127,43 @@ const AgentManagement = () => {
       console.log("� Social Media URLs:", validSocialMediaUrls);
       console.log("�📎 Knowledge Base Files:", knowledgeBaseFileUrls);
 
-      // Call the agent creation API
-      const newAgent = await agentAPI.createAgent(agentPayload);
+      // Call the agent creation API (synchronous - API handles KB creation)
+      const newAgent = await agentAPI.createAgentFull(agentPayload);
 
-      console.log("✅ Agent created successfully:", newAgent);
+      console.log('✅ Agent created successfully:', newAgent);
+      console.log('✅ New Agent ID:', newAgent?.id);
 
-      // Dismiss loading toast
-      toast.dismiss(loadingToast);
-
-      // Close the modal and refresh agents
-      handleQuickCreateClose();
-      await refreshAgents();
-
-      // Show success toast notification
-      toast.success(
-        `✅ ${quickCreateData.aiEmployeeName} has been created successfully!`,
-        {
-          duration: 3000,
-        },
-      );
-
-      // Navigate back to agents list
-      navigate("/agents");
+      // API call completed - agent and KB are ready
+      setKbCreationProgress({
+        agentId: newAgent?.id || '',
+        status: 'completed',
+        progress: 100,
+        message: 'Agent created successfully!',
+      });
+      
+      // Show success toast
+      appToast.success(`${quickCreateData.aiEmployeeName} has been created successfully!`, { duration: 4000 });
+      
+      // Close modal and refresh agents
+      setTimeout(() => {
+        handleQuickCreateClose();
+        refreshAgents();
+        navigate('/agents');
+      }, 500);
+      
+      console.log('✅ Agent creation complete!');
     } catch (error) {
       console.error("❌ Error creating agent:", error);
 
-      // Dismiss loading toast
-      toast.dismiss(loadingToast);
+      setIsCreatingAgent(false);
+      setKbCreationProgress(null);
 
       // Show error toast
       const errorMessage =
         error instanceof Error
           ? error.message
           : "Failed to create agent. Please try again.";
-      toast.error(errorMessage, {
-        duration: 4000,
-      });
+      appToast.error(errorMessage, { duration: 4000 });
     }
   };
 
@@ -766,15 +1175,25 @@ const AgentManagement = () => {
           quickCreateData.aiEmployeeName.trim().length > 0
         );
       case 2:
-        return quickCreateData.businessProcess.length > 0;
+        return quickCreateData.language.length > 0 && quickCreateData.voice.length > 0; // Voice configuration
       case 3:
-        return quickCreateData.industry.length > 0;
+        return quickCreateData.businessProcess.length > 0;
       case 4:
-        return true; // Sub-industry is optional
+        return quickCreateData.industry.length > 0;
       case 5:
-        return true; // Website URLs are optional
+        return true; // Sub-industry is optional
       case 6:
+        return true; // Website URLs are optional
+      case 7: {
+        // If a template is selected, block until its system prompt is ready
+        if (isGeneratingSystemPrompts && quickCreateData.selectedTemplate) {
+          const sel = aiGeneratedTemplates.find(
+            (t) => t.name === quickCreateData.selectedTemplate,
+          );
+          if (!sel?.systemPrompt || sel.systemPrompt.length < 100) return false;
+        }
         return true; // Template selection is optional
+      }
       default:
         return false;
     }
@@ -783,17 +1202,24 @@ const AgentManagement = () => {
   const [publishingAgents, setPublishingAgents] = useState<Set<string>>(
     new Set(),
   );
+  const [isCreatingAgent, setIsCreatingAgent] = useState(false);
+  const [kbCreationProgress, setKbCreationProgress] = useState<{
+    agentId: string;
+    status: 'pending' | 'processing' | 'completed' | 'failed';
+    progress: number;
+    message?: string;
+  } | null>(null);
   const [connectionStatus, setConnectionStatus] = useState("disconnected");
   const [statusMessage, setStatusMessage] = useState("Ready to connect");
   const [isMuted, setIsMuted] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [room, setRoom] = useState<any>(null);
-  const [sessionHistory, setSessionHistory] = useState<any[]>([]);
-  const [sessionLoading, setSessionLoading] = useState(false);
-  const [sessionError, setSessionError] = useState<string | null>(null);
-  const [isRecording, setIsRecording] = useState(false);
-  const [testStatus, setTestStatus] = useState("📞 Ready to start call");
+  const [_sessionHistory, setSessionHistory] = useState<any[]>([]);
+  const [_sessionLoading, setSessionLoading] = useState(false);
+  const [_sessionError, setSessionError] = useState<string | null>(null);
+  const [_isRecording, setIsRecording] = useState(false);
+  const [_testStatus, setTestStatus] = useState("📞 Ready to start call");
 
   useEffect(() => {
     // Setup LiveKit callbacks
@@ -843,7 +1269,7 @@ const AgentManagement = () => {
       },
     };
 
-    liveKitService.setCallbacks(callbacks);
+      liveKitService.setCallbacks(callbacks);
 
     // Cleanup on unmount
     return () => {
@@ -854,15 +1280,46 @@ const AgentManagement = () => {
     };
   }, [callTimerInterval]);
 
-  // Blur any focused element when Quick Create modal opens to prevent keyboard auto-open on mobile
+  // Note: WebSocket KB tracking removed - API handles KB creation synchronously
+
+  // Prevent body scroll when any modal is open
   useEffect(() => {
-    if (showQuickCreateModal) {
-      // Blur any currently focused element
-      if (document.activeElement instanceof HTMLElement) {
+    const isAnyModalOpen = showQuickCreateModal || showTemplateDetails || showTestChat;
+    
+    if (isAnyModalOpen) {
+      // Blur any currently focused element to prevent keyboard auto-open on mobile
+      if (showQuickCreateModal && document.activeElement instanceof HTMLElement) {
         document.activeElement.blur();
       }
+      // Prevent background scrolling - comprehensive fix for mobile
+      const scrollY = window.scrollY;
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.left = '0';
+      document.body.style.right = '0';
+      document.body.style.overflow = 'hidden';
+    } else {
+      // Restore scrolling when all modals are closed
+      const scrollY = document.body.style.top;
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
+      document.body.style.overflow = '';
+      if (scrollY) {
+        window.scrollTo(0, parseInt(scrollY || '0') * -1);
+      }
     }
-  }, [showQuickCreateModal]);
+    
+    // Cleanup on unmount
+    return () => {
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
+      document.body.style.overflow = '';
+    };
+  }, [showQuickCreateModal, showTemplateDetails, showTestChat]);
 
   useEffect(() => {
     if (id) {
@@ -884,11 +1341,11 @@ const AgentManagement = () => {
           contextWindow: "Standard (8K tokens)",
           temperature: 50,
         });
-        // Reset messages when agent changes with correct agent name
+        // Reset messages when agent changes with correct agent name and company
         setMessages([
           {
             id: "1",
-            text: `Hi! I'm ${agent.name}. How can I help you today?`,
+            text: `Hello! I am ${agent.name}${user?.company ? ` from ${user.company}` : ""}, here to assist you. How can I help you today?`,
             isUser: false,
             timestamp: new Date(),
           },
@@ -943,6 +1400,9 @@ const AgentManagement = () => {
 
     setIsPublishing(true);
     try {
+      // Trigger widget config save before publishing so widget has latest data
+      window.dispatchEvent(new CustomEvent("shivai:save-widget-config", { detail: { agentId: agentToPublish } }));
+
       // Add to publishing set for loading state
       setPublishingAgents((prev) => new Set(prev).add(agentToPublish));
 
@@ -951,12 +1411,12 @@ const AgentManagement = () => {
       console.log("✅ Agent published successfully");
       
       // Show success toast
-      toast.success("Agent published successfully!", { duration: 3000 });
+      appToast.success("Agent published successfully!", { duration: 3000 });
       setShowPublishConfirm(false);
       setAgentToPublish(null);
     } catch (error: any) {
       console.error("❌ Error publishing agent:", error);
-      toast.error(error.message || "Failed to publish agent. Please try again.", { duration: 4000 });
+      appToast.error(error.message || "Failed to publish agent. Please try again.", { duration: 4000 });
     } finally {
       setIsPublishing(false);
       // Remove from publishing set
@@ -991,12 +1451,12 @@ const AgentManagement = () => {
       console.log("✅ Agent paused successfully");
       
       // Show success toast
-      toast.success("Agent paused successfully!", { duration: 3000 });
+      appToast.success("Agent paused successfully!", { duration: 3000 });
       setShowPauseConfirm(false);
       setAgentToPause(null);
     } catch (error: any) {
       console.error("❌ Error pausing agent:", error);
-      toast.error(error.message || "Failed to pause agent. Please try again.", { duration: 4000 });
+      appToast.error(error.message || "Failed to pause agent. Please try again.", { duration: 4000 });
     } finally {
       setIsPausing(false);
       // Remove from publishing set
@@ -2161,10 +2621,14 @@ const AgentManagement = () => {
 
         {/* Mobile-First Agent Grid */}
         {!isLoadingAgents && paginatedAgents.length > 0 && (
+          <>
+            {console.log('🎨 [Render] Rendering', paginatedAgents.length, 'agents')}
+            {console.log('🎨 [Render] Paginated agent IDs:', paginatedAgents.map(a => a.id))}
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
-            {paginatedAgents.map((agent) => (
+            {paginatedAgents.map((agent) => {
+              return (
               <GlassCard key={agent.id} hover>
-                <div className="p-4 sm:p-5 lg:p-6">
+                <div className="p-4 sm:p-5 lg:p-6 relative">
                   {/* Agent Header - Mobile Optimized */}
                   <div className="flex items-start gap-3 mb-4">
                     <div className="w-10 sm:w-12 h-10 sm:h-12 common-bg-icons rounded-xl flex items-center justify-center flex-shrink-0">
@@ -2219,37 +2683,37 @@ const AgentManagement = () => {
 
                   {/* Primary Actions - Properly Aligned */}
                   <div className="flex items-center gap-2 mb-3">
-                    <button
-                      onClick={() => navigate(`/agents/${agent.id}`)}
-                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-all duration-200 text-sm font-medium active:scale-[0.98]"
-                    >
-                      <Eye className="w-4 h-4" />
-                      View
-                    </button>
+                        <button
+                          onClick={() => navigate(`/agents/${agent.id}`)}
+                          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-all duration-200 text-sm font-medium active:scale-[0.98]"
+                        >
+                          <Eye className="w-4 h-4" />
+                          View
+                        </button>
 
-                    <button
-                      onClick={() => navigate(`/agents/${agent.id}/edit`)}
-                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-all duration-200 text-sm font-medium active:scale-[0.98]"
-                    >
-                      <Edit className="w-4 h-4" />
-                      Edit
-                    </button>
+                        <button
+                          onClick={() => navigate(`/agents/${agent.id}/edit`)}
+                          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-all duration-200 text-sm font-medium active:scale-[0.98]"
+                        >
+                          <Edit className="w-4 h-4" />
+                          Edit
+                        </button>
 
-                    <button
-                      onClick={() =>
-                        navigate(`/agents/${agent.id}/train`, {
-                          state: { from: "list" },
-                        })
-                      }
-                      className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-all duration-200 text-sm font-medium active:scale-[0.98]"
-                    >
-                      <Zap className="w-4 h-4" />
-                      Train
-                    </button>
-                  </div>
+                        <button
+                          onClick={() =>
+                            navigate(`/agents/${agent.id}/train`, {
+                              state: { from: "list" },
+                            })
+                          }
+                          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-all duration-200 text-sm font-medium active:scale-[0.98]"
+                        >
+                          <Zap className="w-4 h-4" />
+                          Train
+                        </button>
+                      </div>
 
-                  {/* Secondary Actions */}
-                  <div className="flex items-center gap-2">
+                      {/* Secondary Actions */}
+                      <div className="flex items-center gap-2">
                     {agent.status === "Published" ? (
                       <button
                         onClick={() => handlePause(agent.id)}
@@ -2304,16 +2768,18 @@ const AgentManagement = () => {
                       </button>
                     )}
 
+                    {(agent.status === "Published" || (agent as any).is_active) && (
                     <button
                       onClick={() => {
-                        setAgentForIntegration(agent.id);
-                        setShowIntegrationCodeModal(true);
+                        setCurrentAgent(agent);
+                        setShowQRModal(true);
                       }}
                       className="p-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 active:scale-95"
-                      title="Copy integration code"
+                      title="Show QR code"
                     >
-                      <Copy className="w-4 h-4" />
+                      <QrCode className="w-4 h-4" />
                     </button>
+                    )}
 
                     <button
                       onClick={() => handleDeleteClick(agent.id)}
@@ -2325,8 +2791,10 @@ const AgentManagement = () => {
                   </div>
                 </div>
               </GlassCard>
-            ))}
+              );
+            })}
           </div>
+          </>
         )}
 
         {/* Pagination */}
@@ -2359,10 +2827,10 @@ const AgentManagement = () => {
             {!searchTerm && genderFilter === "all" && isDeveloper && (
               <div className="space-y-3">
                 <button
-                  onClick={() => navigate("/agents/create")}
+                  onClick={() => setShowQuickCreateModal(true)}
                   className="w-full sm:w-auto common-button-bg px-6 py-3 rounded-xl shadow-sm hover:shadow-md transform hover:scale-[1.02] active:scale-[0.98]"
                 >
-                  Create Your First Agent
+                  Create your first AI Employee
                 </button>
                 <p className="text-xs sm:text-sm text-slate-400 dark:text-slate-500">
                   Get started in just 2 minutes ⚡
@@ -2383,10 +2851,18 @@ const AgentManagement = () => {
           </div>
         )}
 
+        {/* QR Modal */}
+        {showQRModal && currentAgent && (
+          <AgentQRModal
+            agent={currentAgent}
+            onClose={() => setShowQRModal(false)}
+          />
+        )}
+
         {/* Delete Confirmation Modal */}
         {showDeleteConfirm &&
           createPortal(
-            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+            <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
               <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-xl border border-slate-200 dark:border-slate-700">
                 <div className="p-6">
                   <div className="flex items-center justify-center w-12 h-12 bg-red-100 dark:bg-red-900/20 rounded-full mx-auto mb-4">
@@ -2434,7 +2910,7 @@ const AgentManagement = () => {
         {/* Publish Confirmation Modal */}
         {showPublishConfirm &&
           createPortal(
-            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+            <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
               <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-xl border border-slate-200 dark:border-slate-700">
                 <div className="p-6">
                   <div className="flex items-center justify-center w-12 h-12 bg-blue-100 dark:bg-blue-900/20 rounded-full mx-auto mb-4">
@@ -2481,7 +2957,7 @@ const AgentManagement = () => {
         {/* Pause Confirmation Modal */}
         {showPauseConfirm &&
           createPortal(
-            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+            <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
               <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-xl border border-slate-200 dark:border-slate-700">
                 <div className="p-6">
                   <div className="flex items-center justify-center w-12 h-12 bg-amber-100 dark:bg-amber-900/20 rounded-full mx-auto mb-4">
@@ -2528,7 +3004,7 @@ const AgentManagement = () => {
         {/* Integration Code Modal */}
         {showIntegrationCodeModal && agentForIntegration &&
           createPortal(
-            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-2 sm:p-4">
+            <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-2 sm:p-4">
               <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-2xl shadow-xl border border-slate-200 dark:border-slate-700 max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
                 <div className="p-4 sm:p-6">
                   {/* Header */}
@@ -2565,20 +3041,28 @@ const AgentManagement = () => {
                     </div>
 
                     <div className="relative">
+                      {(() => {
+                        const agentObj = agents.find((a: any) => a.id === agentForIntegration);
+                        const agentLang = agentObj?.language || '';
+                        const embedUrl = `https://callshivai.com/widget2.js?agentId=${agentForIntegration}&userId=${user?.id || ''}${agentLang ? `&language=${agentLang}` : ''}`;
+                        const embedCode = `<script src="${embedUrl}"><\/script>`;
+                        return (
+                          <>
                       <code className="common-bg-icons block w-full p-4 rounded-lg text-xs sm:text-sm font-mono text-slate-800 dark:text-white overflow-x-auto whitespace-pre-wrap max-h-48 overflow-y-auto">
-                        {`<script src="https://callshivai.com/widget2.js?agentId=${agentForIntegration}"><\/script>`}
+                        {embedCode}
                       </code>
                       <button
                         onClick={() => {
-                          navigator.clipboard.writeText(
-                            `<script src="https://callshivai.com/widget2.js?agentId=${agentForIntegration}"><\/script>`
-                          );
-                          toast.success("Code copied to clipboard!", { duration: 2000 });
+                          navigator.clipboard.writeText(embedCode);
+                          appToast.success("Code copied to clipboard!", { duration: 2000 });
                         }}
                         className="absolute top-3 right-3 p-2 common-button-bg rounded-lg hover:shadow-sm transition-all min-h-[36px] min-w-[36px] flex items-center justify-center"
                       >
                         <Copy className="w-4 h-4 text-white" />
                       </button>
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
 
@@ -2618,11 +3102,11 @@ const AgentManagement = () => {
             <div className="lg:hidden">
               {/* Backdrop */}
               <div
-                className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9998]"
+                className="fixed inset-0 bg-black/50 z-[50]"
                 onClick={() => setShowMobileFilters(false)}
               />
               {/* Bottom Sheet */}
-              <div className="fixed inset-x-0 bottom-0 z-[9999] animate-slide-up">
+              <div className="fixed inset-x-0 bottom-0 z-[51] animate-slide-up">
                 <div className="bg-white dark:bg-slate-800 rounded-t-3xl shadow-2xl max-h-[85vh] overflow-hidden">
                   {/* Handle Bar */}
                   <div className="flex justify-center pt-3 pb-2">
@@ -2728,20 +3212,18 @@ const AgentManagement = () => {
         {showQuickCreateModal &&
           createPortal(
             <div
-              className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4"
-              onClick={(e) =>
-                e.target === e.currentTarget && handleQuickCreateClose()
-              }
+              className="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-4"
+              onTouchMove={(e) => e.target === e.currentTarget && e.preventDefault()}
             >
               {/* Backdrop */}
               <div
-                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-                onClick={handleQuickCreateClose}
+                className="absolute inset-0 bg-black/60"
+                onTouchMove={(e) => e.preventDefault()}
               />
 
               {/* Modal */}
               <div
-                className="relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl h-auto  sm:max-h-[90vh] flex flex-col overflow-hidden border border-slate-200 dark:border-slate-700"
+                className="relative bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] sm:max-h-[90vh] flex flex-col overflow-hidden border border-slate-200 dark:border-slate-700"
                 tabIndex={-1}
               >
                 {/* Header */}
@@ -2755,13 +3237,18 @@ const AgentManagement = () => {
                         Create AI Employee
                       </h2>
                       <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400">
-                        Step {quickCreateStep} of 6
+                        Step {quickCreateStep} of 7
                       </p>
                     </div>
                   </div>
                   <button
                     onClick={handleQuickCreateClose}
-                    className="p-1.5 sm:p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                    disabled={isCreatingAgent}
+                    className={`p-1.5 sm:p-2 rounded-lg transition-colors ${
+                      isCreatingAgent
+                        ? 'opacity-50 cursor-not-allowed'
+                        : 'hover:bg-slate-200 dark:hover:bg-slate-700'
+                    }`}
                   >
                     <X className="w-4 h-4 sm:w-5 sm:h-5 text-slate-500" />
                   </button>
@@ -2770,7 +3257,7 @@ const AgentManagement = () => {
                 {/* Progress Bar */}
                 <div className="px-3 sm:px-5 pt-3 sm:pt-4 flex-shrink-0">
                   <div className="flex items-center gap-1 sm:gap-2">
-                    {[1, 2, 3, 4, 5, 6].map((step) => (
+                    {[1, 2, 3, 4, 5, 6, 7].map((step) => (
                       <div key={step} className="flex-1 flex items-center">
                         <div
                           className={`h-1.5 sm:h-2 w-full rounded-full transition-all duration-300 ${
@@ -2849,8 +3336,247 @@ const AgentManagement = () => {
                     </div>
                   )}
 
-                  {/* Step 2: Business Process */}
+                  {/* Step 2: Voice Configuration */}
                   {quickCreateStep === 2 && (
+                    <div className="space-y-3 sm:space-y-4 animate-fadeIn">
+                      <div className="text-center mb-4 sm:mb-6">
+                        <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-center">
+                          <Globe className="w-6 h-6 sm:w-8 sm:h-8 text-green-600 dark:text-green-400" />
+                        </div>
+                        <h3 className="text-lg sm:text-xl font-semibold text-slate-800 dark:text-white mb-1 sm:mb-2">
+                          Voice & Language Settings
+                        </h3>
+                        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto px-2">
+                          Configure how your AI Employee will sound and communicate
+                        </p>
+                      </div>
+
+                      <div className="space-y-4">
+                        {/* Gender Selection */}
+                        <div>
+                          <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                            Gender
+                          </label>
+                          <div className="grid grid-cols-2 gap-3">
+                            {[
+                              { value: 'female', label: 'Female' },
+                              { value: 'male', label: 'Male' },
+                            ].map((option) => (
+                              <button
+                                key={option.value}
+                                type="button"
+                                onClick={() =>
+                                  setQuickCreateData((prev) => {
+                                    const newGender = option.value as 'female' | 'male';
+                                    const needsMultilingual = !englishOnlyLanguages.includes(prev.language);
+                                    // Pick the first multilingual voice if non-English, otherwise first voice
+                                    const newVoice = needsMultilingual
+                                      ? multilingualVoices[newGender][0]
+                                      : (newGender === 'female' ? 'Achernar' : 'Achird');
+                                    return {
+                                      ...prev,
+                                      gender: option.value,
+                                      voice: newVoice,
+                                    };
+                                  })
+                                }
+                                className={`p-3 sm:p-4 rounded-xl border-2 transition-all flex items-center justify-center ${
+                                  quickCreateData.gender === option.value
+                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                                    : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                                }`}
+                              >
+                                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{option.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Language Selection */}
+                        <div>
+                          <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                            Language
+                          </label>
+                          <select
+                            value={quickCreateData.language}
+                            onChange={(e) => {
+                              const newLang = e.target.value;
+                              const isNewLangMultilingual = !englishOnlyLanguages.includes(newLang);
+                              const gender = quickCreateData.gender as 'female' | 'male';
+                              const currentVoice = quickCreateData.voice;
+
+                              // If switching to a multilingual language, check if current voice is supported
+                              let newVoice = currentVoice;
+                              if (isNewLangMultilingual && !multilingualVoices[gender].includes(currentVoice)) {
+                                // Auto-select the first multilingual voice for this gender
+                                newVoice = multilingualVoices[gender][0];
+                              }
+
+                              setQuickCreateData((prev) => ({
+                                ...prev,
+                                language: newLang,
+                                voice: newVoice,
+                              }));
+                            }}
+                            className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm sm:text-base text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all"
+                          >
+                            <option value="multilingual">🌐 Multilingual</option>
+                            <option value="en-US">🇺🇸 English (US)</option>
+                            <option value="en-GB">🇬🇧 English (UK)</option>
+                            <option value="en-IN">🇮🇳 English (India)</option>
+                            <option value="es">🇪🇸 Spanish</option>
+                            <option value="fr">🇫🇷 French</option>
+                            <option value="de">🇩🇪 German</option>
+                            <option value="it">🇮🇹 Italian</option>
+                            <option value="pt">🇵🇹 Portuguese</option>
+                            <option value="nl">🇳🇱 Dutch</option>
+                            <option value="pl">🇵🇱 Polish</option>
+                            <option value="ru">🇷🇺 Russian</option>
+                            <option value="ja">🇯🇵 Japanese</option>
+                            <option value="ko">🇰🇷 Korean</option>
+                            <option value="zh">🇨🇳 Chinese</option>
+                            <option value="ar">🇸🇦 Arabic</option>
+                            <option value="hi">🇮🇳 Hindi</option>
+                            <option value="tr">🇹🇷 Turkish</option>
+                          </select>
+                        </div>
+
+                        {/* Voice Selection */}
+                        <div>
+                          <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                            Voice Type
+                          </label>
+                          <div className="flex gap-2">
+                            <select
+                              value={quickCreateData.voice}
+                              onChange={(e) =>
+                                setQuickCreateData((prev) => ({
+                                  ...prev,
+                                  voice: e.target.value,
+                                }))
+                              }
+                              className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm sm:text-base text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all"
+                            >
+                              {getFilteredVoiceOptions(quickCreateData.gender as 'female' | 'male').map((voice) => (
+                                <option key={voice.value} value={voice.value}>
+                                  {voice.label}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              disabled={isLoadingVoicePreview}
+                              onClick={() => {
+                                if (isTestingVoice) {
+                                  stopVoicePreview();
+                                } else {
+                                  previewGeminiVoice(
+                                    quickCreateData.voice,
+                                    quickCreateData.voiceSpeed,
+                                    `Hello! I'm ${quickCreateData.aiEmployeeName || 'your AI assistant'}. How can I help you today?`
+                                  );
+                                }
+                              }}
+                              className={`px-4 py-2.5 sm:py-3 rounded-xl font-medium transition-all flex items-center gap-2 ${
+                                isLoadingVoicePreview
+                                  ? 'bg-slate-400 dark:bg-slate-600 text-white cursor-not-allowed'
+                                  : isTestingVoice
+                                  ? 'bg-red-500 hover:bg-red-600 text-white hover:scale-[1.02] active:scale-[0.98]'
+                                  : 'common-button-bg hover:scale-[1.02] active:scale-[0.98]'
+                              }`}
+                            >
+                              {isLoadingVoicePreview ? (
+                                <>
+                                  <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                                  </svg>
+                                  <span className="hidden sm:inline">Loading</span>
+                                </>
+                              ) : isTestingVoice ? (
+                                <>
+                                  <Square className="w-4 h-4" />
+                                  <span className="hidden sm:inline">Stop</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Play className="w-4 h-4" />
+                                  <span className="hidden sm:inline">Test</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                          <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-1">
+                            Choose a voice that matches your brand personality
+                          </p>
+                        </div>
+
+                        {/* Voice Style Selection */}
+                        <div>
+                          <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                            Voice Style
+                          </label>
+                          <select
+                            value={quickCreateData.voiceStyle}
+                            onChange={(e) =>
+                              setQuickCreateData((prev) => ({
+                                ...prev,
+                                voiceStyle: e.target.value,
+                              }))
+                            }
+                            className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm sm:text-base text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all"
+                          >
+                            <option value="friendly">Friendly - Warm & approachable</option>
+                            <option value="professional">Professional - Business-like & formal</option>
+                            <option value="casual"> Casual - Relaxed & conversational</option>
+                            <option value="authoritative">Authoritative - Confident & commanding</option>
+                            <option value="empathetic">Empathetic - Understanding & supportive</option>
+                            <option value="enthusiastic">Enthusiastic - Energetic & upbeat</option>
+                          </select>
+                          <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-1">
+                            Set the personality tone for your AI assistant
+                          </p>
+                        </div>
+
+                        {/* Voice Speed Slider */}
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">
+                              Voice Speed
+                            </label>
+                            <span className="text-xs sm:text-sm font-medium text-blue-600 dark:text-blue-400">
+                              {quickCreateData.voiceSpeed.toFixed(1)}x
+                            </span>
+                          </div>
+                          <input
+                            type="range"
+                            min="0.5"
+                            max="2.0"
+                            step="0.1"
+                            value={quickCreateData.voiceSpeed}
+                            onChange={(e) =>
+                              setQuickCreateData((prev) => ({
+                                ...prev,
+                                voiceSpeed: parseFloat(e.target.value),
+                              }))
+                            }
+                            className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                            style={{
+                              background: `linear-gradient(to right, #2563eb ${((quickCreateData.voiceSpeed - 0.5) / (2.0 - 0.5)) * 100}%, #e2e8f0 ${((quickCreateData.voiceSpeed - 0.5) / (2.0 - 0.5)) * 100}%)`,
+                            }}
+                          />
+                          <div className="flex justify-between text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-1">
+                            <span>Slower (0.5x)</span>
+                            <span>Normal (1.0x)</span>
+                            <span>Faster (2.0x)</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Step 3: Business Process */}
+                  {quickCreateStep === 3 && (
                     <div className="space-y-3 sm:space-y-4 animate-fadeIn">
                       <div className="text-center mb-4 sm:mb-6">
                         <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-center">
@@ -2993,8 +3719,8 @@ const AgentManagement = () => {
                     </div>
                   )}
 
-                  {/* Step 3: Industry */}
-                  {quickCreateStep === 3 && (
+                  {/* Step 4: Industry */}
+                  {quickCreateStep === 4 && (
                     <div className="space-y-3 sm:space-y-4 animate-fadeIn">
                       <div className="text-center mb-4 sm:mb-6">
                         <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-center">
@@ -3127,8 +3853,8 @@ const AgentManagement = () => {
                     </div>
                   )}
 
-                  {/* Step 4: Sub-Industry */}
-                  {quickCreateStep === 4 && (
+                  {/* Step 5: Sub-Industry */}
+                  {quickCreateStep === 5 && (
                     <div className="space-y-3 sm:space-y-4 animate-fadeIn">
                       <div className="text-center mb-4 sm:mb-6">
                         <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-center">
@@ -3296,8 +4022,8 @@ const AgentManagement = () => {
                     </div>
                   )}
 
-                  {/* Step 5: Knowledge Base */}
-                  {quickCreateStep === 5 && (
+                  {/* Step 6: Knowledge Base */}
+                  {quickCreateStep === 6 && (
                     <div className="space-y-3 sm:space-y-4 animate-fadeIn">
                       <div className="text-center mb-4 sm:mb-6">
                         <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-center">
@@ -3306,7 +4032,7 @@ const AgentManagement = () => {
                         <h3 className="text-lg sm:text-xl font-semibold text-slate-800 dark:text-white mb-1 sm:mb-2">
                           Train Your AI
                         </h3>
-                        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto px-2">
+                        <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-lg mx-auto px-2">
                           Upload your documents, FAQs, or website links. Your AI
                           will learn from these to give accurate,
                           company-specific answers.
@@ -3315,7 +4041,7 @@ const AgentManagement = () => {
 
                       {/* Scrollable Content Container */}
                       <div 
-                        className="max-h-[50vh] overflow-y-auto space-y-3 sm:space-y-4 [&::-webkit-scrollbar]:hidden"
+                        className=" space-y-3 sm:space-y-4 [&::-webkit-scrollbar]:hidden"
                         style={{
                           scrollbarWidth: 'none',
                           msOverflowStyle: 'none'
@@ -3330,18 +4056,20 @@ const AgentManagement = () => {
 
                         {/* Drop Zone */}
                         <div
-                          className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-4 sm:p-6 text-center hover:border-blue-400 dark:hover:border-blue-500 transition-colors cursor-pointer bg-slate-50/50 dark:bg-slate-800/50"
+                          className={`border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-4 sm:p-6 text-center hover:border-blue-400 dark:hover:border-blue-500 transition-colors cursor-pointer bg-slate-50/50 dark:bg-slate-800/50 ${isUploadingFiles || isExtractingContent ? 'opacity-50 pointer-events-none' : ''}`}
                           onClick={() =>
-                            document
+                            !isUploadingFiles && !isExtractingContent && document
                               .getElementById("knowledge-file-input")
                               ?.click()
                           }
                           onDragOver={(e) => {
                             e.preventDefault();
-                            e.currentTarget.classList.add(
-                              "border-blue-400",
-                              "bg-blue-50/50",
-                            );
+                            if (!isUploadingFiles && !isExtractingContent) {
+                              e.currentTarget.classList.add(
+                                "border-blue-400",
+                                "bg-blue-50/50",
+                              );
+                            }
                           }}
                           onDragLeave={(e) => {
                             e.currentTarget.classList.remove(
@@ -3355,46 +4083,50 @@ const AgentManagement = () => {
                               "border-blue-400",
                               "bg-blue-50/50",
                             );
-                            const files = Array.from(e.dataTransfer.files);
-                            setQuickCreateData((prev) => ({
-                              ...prev,
-                              uploadedFiles: [...prev.uploadedFiles, ...files],
-                            }));
+                            if (!isUploadingFiles && !isExtractingContent) {
+                              const files = Array.from(e.dataTransfer.files);
+                              handleKnowledgeBaseUpload(files);
+                            }
                           }}
                         >
                           <input
                             id="knowledge-file-input"
                             type="file"
                             multiple
-                            accept=".pdf,.doc,.docx,.txt,.csv,.xlsx,.xls,.png,.jpg,.jpeg,.gif,.webp"
+                            accept=".pdf,.doc,.docx,.txt,.csv,.xlsx,.xls,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                             className="hidden"
+                            disabled={isUploadingFiles || isExtractingContent}
                             onChange={(e) => {
                               const files = Array.from(e.target.files || []);
-                              setQuickCreateData((prev) => ({
-                                ...prev,
-                                uploadedFiles: [
-                                  ...prev.uploadedFiles,
-                                  ...files,
-                                ],
-                              }));
+                              handleKnowledgeBaseUpload(files);
                               e.target.value = "";
                             }}
                           />
                           <div className="flex flex-col items-center gap-1.5 sm:gap-2">
-                            <div className="flex items-center gap-2 sm:gap-3 text-slate-400">
-                              <FileText className="w-6 h-6 sm:w-8 sm:h-8" />
-                              <Image className="w-6 h-6 sm:w-8 sm:h-8" />
-                              <File className="w-6 h-6 sm:w-8 sm:h-8" />
-                            </div>
-                            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
-                              <span className="text-blue-500 font-medium">
-                                Click to upload
-                              </span>{" "}
-                              or drag and drop
-                            </p>
-                            <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500">
-                              PDF, DOC, TXT, CSV, Excel, Images (max 10MB each)
-                            </p>
+                            {isUploadingFiles || isExtractingContent ? (
+                              <>
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+                                  {isExtractingContent ? 'Extracting content from files...' : 'Uploading files...'}
+                                </p>
+                              </>
+                            ) : (
+                              <>
+                                <div className="flex items-center gap-2 sm:gap-3 text-slate-400">
+                                  <FileText className="w-6 h-6 sm:w-8 sm:h-8" />
+                                  <File className="w-6 h-6 sm:w-8 sm:h-8" />
+                                </div>
+                                <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
+                                  <span className="text-blue-500 font-medium">
+                                    Click to upload
+                                  </span>{" "}
+                                  or drag and drop
+                                </p>
+                                <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500">
+                                  PDF, DOC, DOCX, TXT, CSV, Excel (max 10MB each)
+                                </p>
+                              </>
+                            )}
                           </div>
                         </div>
 
@@ -3420,17 +4152,15 @@ const AgentManagement = () => {
                                   <span className="text-[10px] sm:text-xs text-slate-400 hidden sm:inline">
                                     {(file.size / 1024 / 1024).toFixed(2)} MB
                                   </span>
+                                  {quickCreateData.uploadedFileUrls[index] && (
+                                    <span className="text-[10px] sm:text-xs text-green-500">
+                                      ✓
+                                    </span>
+                                  )}
                                   <button
-                                    onClick={() =>
-                                      setQuickCreateData((prev) => ({
-                                        ...prev,
-                                        uploadedFiles:
-                                          prev.uploadedFiles.filter(
-                                            (_, i) => i !== index,
-                                          ),
-                                      }))
-                                    }
-                                    className="p-0.5 sm:p-1 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors"
+                                    onClick={() => handleRemoveKnowledgeBaseFile(index)}
+                                    disabled={isUploadingFiles}
+                                    className="p-0.5 sm:p-1 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors disabled:opacity-50"
                                   >
                                     <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                                   </button>
@@ -3546,8 +4276,8 @@ const AgentManagement = () => {
                     </div>
                   )}
 
-                  {/* Step 6: Template Selection with AI-Generated Templates */}
-                  {quickCreateStep === 6 &&
+                  {/* Step 7: Template Selection with AI-Generated Templates */}
+                  {quickCreateStep === 7 &&
                     (() => {
                       // Use AI-generated templates, fallback to scored templates
                       const templates =
@@ -3841,10 +4571,15 @@ const AgentManagement = () => {
                                                   const isSelected =
                                                     quickCreateData.selectedTemplate ===
                                                     template.name;
+                                                  const sysPromptPending =
+                                                    isGeneratingSystemPrompts &&
+                                                    (!(template as GeneratedTemplate).systemPrompt ||
+                                                      (template as GeneratedTemplate).systemPrompt!.length < 100);
                                                   return (
                                                     <div
                                                       key={templateKey}
-                                                      onClick={() =>
+                                                      onClick={() => {
+                                                        if (sysPromptPending) return;
                                                         setQuickCreateData(
                                                           (prev) => ({
                                                             ...prev,
@@ -3853,19 +4588,24 @@ const AgentManagement = () => {
                                                                 ? null
                                                                 : template.name,
                                                           }),
-                                                        )
-                                                      }
-                                                      className={`${isMobile ? "w-full max-w-xs" : " max-w-[260px]"} p-3 sm:p-4 rounded-xl border-2 text-left transition-colors duration-200 relative cursor-pointer ${
-                                                        quickCreateData.selectedTemplate ===
-                                                        template.name
-                                                          ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-md"
-                                                          : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 bg-white dark:bg-slate-800/50"
+                                                        );
+                                                      }}
+                                                      className={`${isMobile ? "w-full max-w-xs" : " max-w-[260px]"} p-3 sm:p-4 rounded-xl border-2 text-left transition-colors duration-200 relative ${
+                                                        sysPromptPending
+                                                          ? "cursor-not-allowed opacity-70 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50"
+                                                          : quickCreateData.selectedTemplate === template.name
+                                                            ? "cursor-pointer border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-md"
+                                                            : "cursor-pointer border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 bg-white dark:bg-slate-800/50"
                                                       }`}
                                                     >
-                                                      {quickCreateData.selectedTemplate ===
-                                                        template.name && (
+                                                      {/* Top-right: spinner while system prompt generates, checkmark when selected */}
+                                                      {sysPromptPending ? (
+                                                        <div className="absolute top-2 right-2" title="Generating system prompt…">
+                                                          <div className="w-3.5 h-3.5 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin" />
+                                                        </div>
+                                                      ) : isSelected ? (
                                                         <CheckCircle className="w-4 h-4 text-blue-500 absolute top-2 right-2" />
-                                                      )}
+                                                      ) : null}
 
                                                       <div className="flex flex-col h-full mt-1">
                                                         <div className="flex items-center gap-2 sm:gap-3 mb-1.5 sm:mb-2">
@@ -3967,7 +4707,7 @@ const AgentManagement = () => {
                     )}
 
                     <div className="flex items-center gap-1.5 sm:gap-2">
-                      {quickCreateStep === 6 && (
+                      {quickCreateStep === 7 && (
                         <button
                           onClick={() => {
                             handleQuickCreateClose();
@@ -3984,7 +4724,7 @@ const AgentManagement = () => {
                         </button>
                       )}
 
-                      {quickCreateStep < 6 ? (
+                      {quickCreateStep < 7 ? (
                         <button
                           onClick={handleQuickCreateNext}
                           disabled={!canProceedToNextStep()}
@@ -4002,28 +4742,52 @@ const AgentManagement = () => {
                           onClick={handleProceedToCreate}
                           disabled={
                             isGeneratingTemplates ||
-                            !quickCreateData.selectedTemplate
+                            isGeneratingSystemPrompts ||
+                            !quickCreateData.selectedTemplate ||
+                            isCreatingAgent
                           }
                           className={`flex items-center gap-1.5 sm:gap-2 px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl font-medium transition-all text-sm sm:text-base ${
                             isGeneratingTemplates ||
-                            !quickCreateData.selectedTemplate
+                            isGeneratingSystemPrompts ||
+                            !quickCreateData.selectedTemplate ||
+                            isCreatingAgent
                               ? "bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed"
                               : "common-button-bg hover:scale-[1.02] active:scale-[0.98]"
                           }`}
                         >
-                          <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                          <span className="hidden sm:inline">
-                            Create AI Employee
-                          </span>
-                          <span className="sm:hidden">Create</span>
-                          <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          {isCreatingAgent ? (
+                            <>
+                              <svg className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" viewBox="0 0 24 24" fill="none">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              <span>
+                                {kbCreationProgress?.progress !== undefined ? `${Math.round(kbCreationProgress.progress)}%` : 'Creating...'}
+                              </span>
+                            </>
+                          ) : isGeneratingSystemPrompts ? (
+                            <>
+                              <div className="w-3.5 h-3.5 border-2 border-slate-400 border-t-slate-600 dark:border-slate-500 dark:border-t-slate-300 rounded-full animate-spin" />
+                              <span className="hidden sm:inline">Building prompts…</span>
+                              <span className="sm:hidden">Building…</span>
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                              <span className="hidden sm:inline">
+                                Create AI Employee
+                              </span>
+                              <span className="sm:hidden">Create</span>
+                              <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                            </>
+                          )}
                         </button>
                       )}
                     </div>
                   </div>
 
-                  {/* Mobile Skip Button for Step 6 */}
-                  {quickCreateStep === 6 && (
+                  {/* Mobile Skip Button for Step 7 */}
+                  {quickCreateStep === 7 && (
                     <button
                       onClick={() => {
                         handleQuickCreateClose();
@@ -4049,10 +4813,14 @@ const AgentManagement = () => {
         {showTemplateDetails &&
           selectedTemplateForDetails &&
           createPortal(
-            <div className="fixed inset-0 z-[10000] flex items-center justify-center p-2 sm:p-4">
+            <div 
+              className="fixed inset-0 z-[65] flex items-center justify-center p-2 sm:p-4"
+              onTouchMove={(e) => e.target === e.currentTarget && e.preventDefault()}
+            >
               {/* Backdrop */}
               <div
-                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                className="absolute inset-0 bg-black/60"
+                onTouchMove={(e) => e.preventDefault()}
                 onClick={() => setShowTemplateDetails(false)}
               />
 
@@ -4069,7 +4837,7 @@ const AgentManagement = () => {
                         "🤖"}
                     </div>
                     <div className="flex-1">
-                      <h2 className="text-lg font-bold text-slate-800 dark:text-white">
+                      <h2 className="text-lg font-bold text-slate-800 dark:text-white line-clamp-1">
                         {selectedTemplateForDetails}
                       </h2>
                       <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -4085,8 +4853,34 @@ const AgentManagement = () => {
                   </button>
                 </div>
 
+                {/* Section Navigation Tabs */}
+                <div className="flex-shrink-0 border-b border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/50 backdrop-blur-sm">
+                  <div 
+                    className="flex overflow-x-auto px-2 sm:px-4 py-2 gap-1 [&::-webkit-scrollbar]:hidden"
+                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                  >
+                    {templateSections.map((section) => (
+                      <button
+                        key={section.id}
+                        onClick={() => scrollToTemplateSection(section.id)}
+                        className={`flex items-center px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all
+                          ${activeTemplateSection === section.id
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                          }`}
+                      >
+                        {section.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Content */}
-                <div className="p-4 sm:p-5 overflow-y-auto flex-1 min-h-0 space-y-4">
+                <div 
+                  ref={templateContentRef}
+                  onScroll={handleTemplateScroll}
+                  className="p-4 sm:p-5 overflow-y-auto flex-1 min-h-0 space-y-4 scroll-smooth"
+                >
                   {(() => {
                     // Try to find in AI-generated templates first, then fallback to predefined
                     const aiTemplate = aiGeneratedTemplates.find(
@@ -4100,6 +4894,9 @@ const AgentManagement = () => {
 
                     return (
                       <>
+                        {/* Section Markers for Navigation */}
+                        <div id="template-section-overview" className="scroll-mt-2" />
+                        
                         {/* Description */}
                         <div>
                           <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
@@ -4165,39 +4962,55 @@ const AgentManagement = () => {
                           )}
                         </div>
 
-                        {/* AI-Generated Template Specific Fields */}
-                        {aiTemplate && (
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
-                              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">
-                                Gender
-                              </p>
-                              <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                                {aiTemplate.gender || "Not specified"}
-                              </p>
-                            </div>
-                            <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
-                              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">
-                                Voice Type
-                              </p>
-                              <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                                {aiTemplate.voice || "Not specified"}
-                              </p>
-                            </div>
-                            <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
-                              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">
-                                Personality
-                              </p>
-                              <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                                {aiTemplate.personality || "Not specified"}
-                              </p>
-                            </div>
+                        {/* Settings Section Marker */}
+                        <div id="template-section-settings" className="scroll-mt-2" />
+                        
+                        {/* Voice Configuration — always from Step 2, never from AI template */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                            <p className="text-xs text-blue-500 dark:text-blue-400 mb-1 font-medium">Gender</p>
+                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 capitalize">
+                              {quickCreateData.gender || "Female"}
+                            </p>
                           </div>
-                        )}
+                          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                            <p className="text-xs text-blue-500 dark:text-blue-400 mb-1 font-medium">Voice</p>
+                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                              {quickCreateData.voice || "Achernar"}
+                            </p>
+                          </div>
+                          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                            <p className="text-xs text-blue-500 dark:text-blue-400 mb-1 font-medium">Voice Speed</p>
+                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                              {quickCreateData.voiceSpeed?.toFixed(1) ?? "1.0"}x
+                            </p>
+                          </div>
+                          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                            <p className="text-xs text-blue-500 dark:text-blue-400 mb-1 font-medium">Voice Style</p>
+                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 capitalize">
+                              {quickCreateData.voiceStyle || "Friendly"}
+                            </p>
+                          </div>
+                          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                            <p className="text-xs text-blue-500 dark:text-blue-400 mb-1 font-medium">Language</p>
+                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                              {quickCreateData.language || "en-US"}
+                            </p>
+                          </div>
+                          {aiTemplate && (
+                            <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Personality</p>
+                              <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                                {aiTemplate.personality || "Professional"}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-xs text-blue-500 dark:text-blue-400 mt-1">✓ Voice settings are locked to your Step 2 selections</p>
 
                         {/* Tone and Industry Focus (both templates) */}
                         {(aiTemplate?.tone || aiTemplate?.industryFocus) && (
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
                             {aiTemplate?.tone && (
                               <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
                                 <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">
@@ -4221,14 +5034,32 @@ const AgentManagement = () => {
                           </div>
                         )}
 
-                        {/* System Prompt */}
-                        {(aiTemplate?.systemPrompt ||
-                          template?.systemPrompt) && (
-                          <div>
-                            <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                              System Prompt
-                            </h3>
-                            {isEditingTemplate ? (
+                        {/* System Prompt Section Marker */}
+                        <div id="template-section-system-prompt" className="scroll-mt-2" />
+
+                        <div>
+                          <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2">
+                            System Prompt
+                            {isGeneratingSystemPrompts &&
+                              (!aiTemplate?.systemPrompt ||
+                                aiTemplate.systemPrompt.length < 100) && (
+                                <span className="flex items-center gap-1.5 text-[10px] font-medium text-blue-500 dark:text-blue-400">
+                                  <div className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                                  Generating…
+                                </span>
+                              )}
+                          </h3>
+                          {isGeneratingSystemPrompts &&
+                          (!aiTemplate?.systemPrompt ||
+                            aiTemplate.systemPrompt.length < 100) ? (
+                            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-6 border border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center gap-3">
+                              <div className="w-8 h-8 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin" />
+                              <p className="text-xs text-slate-500 dark:text-slate-400 text-center">
+                                Crafting a detailed voice-optimized system prompt…
+                              </p>
+                            </div>
+                          ) : (aiTemplate?.systemPrompt || template?.systemPrompt) ? (
+                            isEditingTemplate ? (
                               <textarea
                                 value={editedTemplate?.systemPrompt || ""}
                                 onChange={(e) =>
@@ -4237,21 +5068,22 @@ const AgentManagement = () => {
                                     systemPrompt: e.target.value,
                                   }))
                                 }
-                                className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                rows={4}
+                                className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                                rows={16}
                               />
                             ) : (
-                              <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700 max-h-24 overflow-y-auto">
-                                <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap">
-                                  {aiTemplate?.systemPrompt ||
-                                    template?.systemPrompt}
-                                </p>
+                              <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700 max-h-[40vh] overflow-y-auto">
+                                <pre className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap font-sans">
+                                  {aiTemplate?.systemPrompt || template?.systemPrompt}
+                                </pre>
                               </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* First Message */}
+                            )
+                          ) : null}
+                        </div>
+                        {/* First Message Section */}
+                        {/* First Message Section Marker */}
+                        <div id="template-section-first-message" className="scroll-mt-2" />
+                        
                         {(aiTemplate?.firstMessage ||
                           template?.firstMessage) && (
                           <div>
@@ -4274,8 +5106,8 @@ const AgentManagement = () => {
                               <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700">
                                 <p className="text-sm text-slate-600 dark:text-slate-400 italic">
                                   "
-                                  {aiTemplate?.firstMessage ||
-                                    template?.firstMessage}
+                                  {replaceTemplatePlaceholders(aiTemplate?.firstMessage ||
+                                    template?.firstMessage)}
                                   "
                                 </p>
                               </div>
@@ -4283,20 +5115,26 @@ const AgentManagement = () => {
                           </div>
                         )}
 
+                        {/* Knowledge Section Marker */}
+                        <div id="template-section-knowledge" className="scroll-mt-2" />
+                        
                         {/* Manual Knowledge / Knowledge Base */}
                         {aiTemplate?.manualKnowledge && (
                           <div>
                             <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
                               Knowledge Base
                             </h3>
-                            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700 max-h-24 overflow-y-auto">
-                              <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap">
+                            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700 max-h-48 overflow-y-auto">
+                              <pre className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap font-sans">
                                 {aiTemplate.manualKnowledge}
-                              </p>
+                              </pre>
                             </div>
                           </div>
                         )}
 
+                        {/* Scripts Section Marker */}
+                        <div id="template-section-scripts" className="scroll-mt-2" />
+                        
                         {/* Divider for Call Scripts */}
                         <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
                           <h3 className="text-sm font-bold text-slate-800 dark:text-white mb-3">
@@ -4305,37 +5143,7 @@ const AgentManagement = () => {
                         </div>
 
                         {/* Call Scripts Grid */}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                          {/* Opening Script */}
-                          {(aiTemplate?.openingScript ||
-                            template?.openingScript) && (
-                            <div>
-                              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                                Opening Script
-                              </h3>
-                              {isEditingTemplate ? (
-                                <textarea
-                                  value={editedTemplate?.openingScript || ""}
-                                  onChange={(e) =>
-                                    setEditedTemplate((prev) => ({
-                                      ...prev,
-                                      openingScript: e.target.value,
-                                    }))
-                                  }
-                                  className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                  rows={3}
-                                />
-                              ) : (
-                                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700 max-h-20 overflow-y-auto">
-                                  <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap">
-                                    {aiTemplate?.openingScript ||
-                                      template?.openingScript}
-                                  </p>
-                                </div>
-                              )}
-                            </div>
-                          )}
-
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           {/* Key Talking Points */}
                           {(aiTemplate?.keyTalkingPoints ||
                             template?.keyTalkingPoints) && (
@@ -4356,7 +5164,7 @@ const AgentManagement = () => {
                                   rows={3}
                                 />
                               ) : (
-                                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700 max-h-20 overflow-y-auto">
+                                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700 max-h-40 overflow-y-auto">
                                   <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap">
                                     {aiTemplate?.keyTalkingPoints ||
                                       template?.keyTalkingPoints}
@@ -4386,7 +5194,7 @@ const AgentManagement = () => {
                                   rows={3}
                                 />
                               ) : (
-                                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700 max-h-20 overflow-y-auto">
+                                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700 max-h-40 overflow-y-auto">
                                   <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap">
                                     {aiTemplate?.closingScript ||
                                       template?.closingScript}
@@ -4397,6 +5205,9 @@ const AgentManagement = () => {
                           )}
                         </div>
 
+                        {/* Training Section Marker */}
+                        <div id="template-section-training" className="scroll-mt-2" />
+                        
                         {/* Divider for Training Data */}
                         {(aiTemplate?.objections?.length ||
                           aiTemplate?.conversationExamples?.length ||
@@ -4583,32 +5394,20 @@ const AgentManagement = () => {
                               </h3>
                               <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700">
                                 <p className="text-sm text-slate-600 dark:text-slate-400 italic">
-                                  "{predefinedTemplate.firstMessage}"
+                                  "{replaceTemplatePlaceholders(predefinedTemplate.firstMessage)}"
                                 </p>
                               </div>
                             </div>
 
                             {/* Call Scripts */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              <div>
-                                <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                                  Opening Script
-                                </h3>
-                                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700 h-24 overflow-y-auto">
-                                  <p className="text-xs text-slate-600 dark:text-slate-400">
-                                    {predefinedTemplate.openingScript}
-                                  </p>
-                                </div>
-                              </div>
-                              <div>
-                                <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                                  Closing Script
-                                </h3>
-                                <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700 h-24 overflow-y-auto">
-                                  <p className="text-xs text-slate-600 dark:text-slate-400">
-                                    {predefinedTemplate.closingScript}
-                                  </p>
-                                </div>
+                            <div>
+                              <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                                Closing Script
+                              </h3>
+                              <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700 max-h-24 overflow-y-auto">
+                                <p className="text-xs text-slate-600 dark:text-slate-400">
+                                  {replaceTemplatePlaceholders(predefinedTemplate.closingScript)}
+                                </p>
                               </div>
                             </div>
 
@@ -4619,7 +5418,7 @@ const AgentManagement = () => {
                               </h3>
                               <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700 max-h-24 overflow-y-auto">
                                 <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-line">
-                                  {predefinedTemplate.keyTalkingPoints}
+                                  {replaceTemplatePlaceholders(predefinedTemplate.keyTalkingPoints)}
                                 </p>
                               </div>
                             </div>
@@ -4679,7 +5478,6 @@ const AgentManagement = () => {
                   })()}
                 </div>
 
-                {/* Footer */}
                 <div className="p-4 sm:p-5 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex-shrink-0">
                   <div className="flex gap-3">
                     <button
@@ -4694,8 +5492,8 @@ const AgentManagement = () => {
                     </button>
                     {isEditingTemplate ? (
                       <button
+
                         onClick={() => {
-                          // Save the edited template
                           if (editedTemplate) {
                             const templateIndex =
                               aiGeneratedTemplates.findIndex(
@@ -4760,281 +5558,400 @@ const AgentManagement = () => {
     );
   }
 
-  // VIEW MODE - Show agent details
   if (isView && currentAgent) {
     return (
       <div className="space-y-3 sm:space-y-4 lg:space-y-6 w-full">
-        {/* Enhanced Mobile-First Header */}
         <GlassCard>
-          <div className="p-4 sm:p-6">
-            {/* Top row with back button and actions */}
-            <div className="flex flex-col gap-3 sm:gap-4 sm:flex-row sm:items-start sm:justify-between">
-              {/* Main agent info section */}
-              <div className="flex items-start gap-2 sm:gap-3 lg:gap-4 min-w-0 flex-1">
+          <div className="p-3 sm:p-4 md:p-6">
+            {/* Mobile: Stacked layout */}
+            <div className="flex flex-col gap-3 sm:hidden mb-4">
+              {/* Top row: Back button + Agent info */}
+              <div className="flex items-center gap-2">
                 <button
                   onClick={() => navigate("/agents")}
-                  className="common-button-bg2 p-1.5 sm:p-2.5 rounded-lg sm:rounded-xl flex-shrink-0 touch-manipulation"
+                  className="common-button-bg2 p-2 rounded-lg flex-shrink-0 touch-manipulation"
                 >
-                  <ArrowLeft className="w-4 sm:w-5 h-4 sm:h-5 text-slate-600 dark:text-slate-300" />
+                  <ArrowLeft className="w-4 h-4 text-slate-600 dark:text-slate-300" />
                 </button>
 
-                <div className="flex items-start gap-2 sm:gap-3 lg:gap-4 min-w-0 flex-1">
-                  {/* Agent avatar/icon */}
-                  <div className="w-10 h-10 sm:w-14 sm:h-14 lg:w-16 lg:h-16 common-bg-icons flex items-center justify-center flex-shrink-0 rounded-lg sm:rounded-xl">
-                    <Bot className="w-5 h-5 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-black dark:text-white" />
-                  </div>
+                <div className="w-9 h-9 common-bg-icons flex items-center justify-center flex-shrink-0 rounded-lg">
+                  <Bot className="w-4 h-4 text-black dark:text-white" />
+                </div>
 
-                  {/* Agent details */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-col gap-1.5 sm:gap-2 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="min-w-0 flex-1">
-                        <h1 className="text-base sm:text-xl lg:text-2xl font-bold text-slate-800 dark:text-white leading-tight truncate">
-                          {currentAgent.name}
-                        </h1>
-
-                        {/* Agent meta info - Mobile optimized */}
-                        <div className="flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-1 text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
-                          <div className="flex items-center gap-1">
-                            <Globe className="w-3 h-3 sm:w-4 sm:h-4" />
-                            <span className="truncate text-xs sm:text-sm">
-                              {currentAgent.language}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <span
-                              className={`px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-xs font-medium flex-shrink-0 ${
-                                currentAgent.status === "Published" ||
-                                (currentAgent as any).is_active
-                                  ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
-                                  : "bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400"
-                              }`}
-                            >
-                              {currentAgent.status === "Published" ||
-                              (currentAgent as any).is_active
-                                ? "Live"
-                                : "Unpublished"}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                <div className="min-w-0 flex-1">
+                  <h1 className="text-sm font-bold text-slate-800 dark:text-white leading-tight truncate">
+                    {currentAgent.name}
+                  </h1>
+                  <span
+                    className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${
+                      currentAgent.status === "Published" ||
+                      (currentAgent as any).is_active
+                        ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
+                        : "bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400"
+                    }`}
+                  >
+                    {currentAgent.status === "Published" ||
+                    (currentAgent as any).is_active
+                      ? "Live"
+                      : "Unpublished"}
+                  </span>
                 </div>
               </div>
 
-              {/* Action buttons - Mobile compact */}
-              <div className="flex items-center gap-1.5 sm:gap-2 lg:gap-3 flex-shrink-0">
+              {/* Action buttons row - Mobile */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {(currentAgent.status === "Published" || (currentAgent as any).is_active) && (
+                <button
+                  onClick={() => setShowQRModal(true)}
+                  className="common-button-bg2 flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg touch-manipulation text-xs font-medium"
+                >
+                  <QrCode className="w-3.5 h-3.5" />
+                  QR
+                </button>
+                )}
                 <button
                   onClick={() => navigate(`/agents/${currentAgent.id}/edit`)}
-                  className="flex-1 sm:flex-none common-button-bg2 flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-3 lg:px-4 py-1.5 sm:py-2 lg:py-2.5 rounded-lg sm:rounded-xl touch-manipulation min-h-[36px] sm:min-h-[40px]"
+                  className="common-button-bg2 flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg touch-manipulation text-xs font-medium"
                 >
-                  <Edit className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  <span className="text-xs sm:text-sm font-medium">Edit</span>
+                  <Edit className="w-3.5 h-3.5" />
+                  Edit
                 </button>
+                
                 {(currentAgent.status === "Published" ||
                   (currentAgent as any).is_active) && (
+                  <>
+                    <button
+                      onClick={openAgentTestPage}
+                      className="common-button-bg flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg touch-manipulation text-xs font-medium text-white"
+                    >
+                      <Play className="w-3.5 h-3.5" />
+                      Test
+                    </button>
+                    <button
+                      onClick={() => handlePause(currentAgent.id)}
+                      disabled={publishingAgents.has(currentAgent.id)}
+                      className={`common-button-bg2 flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg touch-manipulation text-xs font-medium ${
+                        publishingAgents.has(currentAgent.id)
+                          ? "opacity-50 cursor-not-allowed"
+                          : ""
+                      }`}
+                    >
+                      {publishingAgents.has(currentAgent.id) ? (
+                        <div className="w-3.5 h-3.5 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                      ) : (
+                        <Pause className="w-3.5 h-3.5" />
+                      )}
+                      {publishingAgents.has(currentAgent.id) ? "..." : "Pause"}
+                    </button>
+                  </>
+                )}
+                
+                {!(currentAgent.status === "Published" || (currentAgent as any).is_active) && (
                   <button
-                    onClick={() => setShowQRModal(true)}
-                    className="flex-none common-button-bg2 flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-3 lg:px-4 py-1.5 sm:py-2 lg:py-2.5 rounded-lg sm:rounded-xl touch-manipulation min-h-[36px] sm:min-h-[40px]"
+                    onClick={() => handlePublish(currentAgent.id)}
+                    disabled={publishingAgents.has(currentAgent.id)}
+                    className={`common-button-bg flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg touch-manipulation text-xs font-medium text-white ${
+                      publishingAgents.has(currentAgent.id)
+                        ? "opacity-50 cursor-not-allowed"
+                        : ""
+                    }`}
                   >
-                    <QrCode className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                    <span className="hidden sm:inline text-xs sm:text-sm font-medium">
-                      QR
-                    </span>
+                    {publishingAgents.has(currentAgent.id) ? (
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Play className="w-3.5 h-3.5" />
+                    )}
+                    {publishingAgents.has(currentAgent.id) ? "..." : "Publish"}
                   </button>
                 )}
-                {currentAgent.status === "Published" ? (
+              </div>
+            </div>
+
+            {/* Tablet/Desktop: Horizontal layout */}
+            <div className="hidden sm:flex items-center justify-between mb-4 md:mb-6">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <button
+                  onClick={() => navigate("/agents")}
+                  className="common-button-bg2 p-2.5 rounded-xl flex-shrink-0 touch-manipulation"
+                >
+                  <ArrowLeft className="w-5 h-5 text-slate-600 dark:text-slate-300" />
+                </button>
+
+                <div className="w-12 h-12 common-bg-icons flex items-center justify-center flex-shrink-0 rounded-xl">
+                  <Bot className="w-6 h-6 text-black dark:text-white" />
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <h1 className="text-xl lg:text-2xl font-bold text-slate-800 dark:text-white leading-tight truncate">
+                    {currentAgent.name}
+                  </h1>
+                  <span
+                    className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium mt-1 ${
+                      currentAgent.status === "Published" ||
+                      (currentAgent as any).is_active
+                        ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
+                        : "bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400"
+                    }`}
+                  >
+                    {currentAgent.status === "Published" ||
+                    (currentAgent as any).is_active
+                      ? "Live"
+                      : "Unpublished"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Action buttons - Tablet/Desktop */}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {(currentAgent.status === "Published" || (currentAgent as any).is_active) && (
+                <button
+                  onClick={() => setShowQRModal(true)}
+                  className="common-button-bg2 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg touch-manipulation"
+                >
+                  <QrCode className="w-4 h-4" />
+                  <span className="text-sm font-medium">QR</span>
+                </button>
+                )}
+                <button
+                  onClick={() => navigate(`/agents/${currentAgent.id}/edit`)}
+                  className="common-button-bg2 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg touch-manipulation"
+                >
+                  <Edit className="w-4 h-4" />
+                  <span className="text-sm font-medium">Edit</span>
+                </button>
+                
+                {(currentAgent.status === "Published" ||
+                  (currentAgent as any).is_active) && (
+                  <>
+                    <button
+                      onClick={openAgentTestPage}
+                      className="common-button-bg flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg touch-manipulation"
+                    >
+                      <Play className="w-4 h-4" />
+                      <span className="text-sm font-medium text-white">Test</span>
+                    </button>
+                    <button
+                      onClick={() => handlePause(currentAgent.id)}
+                      disabled={publishingAgents.has(currentAgent.id)}
+                      className={`common-button-bg2 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg touch-manipulation ${
+                        publishingAgents.has(currentAgent.id)
+                          ? "opacity-50 cursor-not-allowed"
+                          : ""
+                      }`}
+                    >
+                      {publishingAgents.has(currentAgent.id) ? (
+                        <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                      ) : (
+                        <Pause className="w-4 h-4" />
+                      )}
+                      <span className="text-sm font-medium">
+                        {publishingAgents.has(currentAgent.id) ? "..." : "Pause"}
+                      </span>
+                    </button>
+                  </>
+                )}
+                
+                {!(currentAgent.status === "Published" || (currentAgent as any).is_active) && (
                   <button
-                    onClick={() => handlePause(currentAgent.id)}
+                    onClick={() => handlePublish(currentAgent.id)}
                     disabled={publishingAgents.has(currentAgent.id)}
-                    className={`flex-none common-button-bg2 flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-3 lg:px-4 py-1.5 sm:py-2 lg:py-2.5 rounded-lg sm:rounded-xl touch-manipulation min-h-[36px] sm:min-h-[40px] ${
+                    className={`common-button-bg flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg touch-manipulation ${
                       publishingAgents.has(currentAgent.id)
                         ? "opacity-50 cursor-not-allowed"
                         : ""
                     }`}
                   >
                     {publishingAgents.has(currentAgent.id) ? (
-                      <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     ) : (
-                      <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      <Play className="w-4 h-4" />
                     )}
-                    <span className="text-xs sm:text-sm font-medium">
-                      {publishingAgents.has(currentAgent.id) ? "..." : "Pause"}
-                    </span>
-                  </button>
-                ) : (
-                  <button
-                    onClick={() =>
-                      (currentAgent as any).is_active
-                        ? handlePause(currentAgent.id)
-                        : handlePublish(currentAgent.id)
-                    }
-                    disabled={publishingAgents.has(currentAgent.id)}
-                    className={`flex-none flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-3 lg:px-4 py-1.5 sm:py-2 lg:py-2.5 rounded-lg sm:rounded-xl touch-manipulation min-h-[36px] sm:min-h-[40px] ${
-                      publishingAgents.has(currentAgent.id)
-                        ? "opacity-50 cursor-not-allowed"
-                        : ""
-                    } ${
-                      (currentAgent as any).is_active
-                        ? "common-button-bg2"
-                        : "common-button-bg"
-                    }`}
-                  >
-                    {publishingAgents.has(currentAgent.id) ? (
-                      <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-                    ) : (currentAgent as any).is_active ? (
-                      <Pause className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                    ) : (
-                      <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                    )}
-                    <span className="text-xs sm:text-sm font-medium">
-                      {publishingAgents.has(currentAgent.id)
-                        ? "..."
-                        : (currentAgent as any).is_active
-                          ? "Pause"
-                          : "Publish"}
+                    <span className="text-sm font-medium text-white">
+                      {publishingAgents.has(currentAgent.id) ? "..." : "Publish"}
                     </span>
                   </button>
                 )}
               </div>
             </div>
 
-            {/* Agent info section */}
+            {/* Configuration Grid - Simple & Clean */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+              <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Globe className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-600 dark:text-slate-400 flex-shrink-0" />
+                  <span className="text-[10px] sm:text-xs font-medium text-slate-600 dark:text-slate-400">Language</span>
+                </div>
+                <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-white truncate">
+                  {currentAgent.language}
+                </p>
+              </div>
+
+              <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <MessageSquare className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-600 dark:text-slate-400 flex-shrink-0" />
+                  <span className="text-[10px] sm:text-xs font-medium text-slate-600 dark:text-slate-400">Voice</span>
+                </div>
+                <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-white truncate">
+                  {currentAgent.voice}
+                </p>
+              </div>
+
+              <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Users className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-600 dark:text-slate-400 flex-shrink-0" />
+                  <span className="text-[10px] sm:text-xs font-medium text-slate-600 dark:text-slate-400">Persona</span>
+                </div>
+                <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-white truncate">
+                  {currentAgent.persona}
+                </p>
+              </div>
+
+              <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-600 dark:text-slate-400 flex-shrink-0" />
+                  <span className="text-[10px] sm:text-xs font-medium text-slate-600 dark:text-slate-400">Created</span>
+                </div>
+                <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-white truncate">
+                  {new Date(currentAgent.createdAt).toLocaleDateString()}
+                </p>
+              </div>
+            </div>
           </div>
         </GlassCard>
 
-        {/* Performance Overview - Compact Grid on Mobile */}
-        <div className="lg:hidden grid grid-cols-2 gap-2">
-          <GlassCard className="hover:shadow-md transition-all duration-200">
-            <div className="p-2">
-              <div className="flex flex-col items-center gap-1">
-                <div className="w-7 h-7 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
-                  <MessageSquare className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                </div>
-                <p className="text-base font-bold text-slate-800 dark:text-white">
-                  {currentAgent.stats.conversations.toLocaleString()}
-                </p>
-                <p className="text-[10px] text-slate-600 dark:text-slate-400">
-                  Conversations
-                </p>
-                {currentAgent.stats.conversations > 0 ? (
-                  <span className="text-[10px] font-medium text-green-600 dark:text-green-400">
-                    +12%
-                  </span>
-                ) : (
-                  <span className="text-[10px] text-slate-500 dark:text-slate-500">
-                    No data
-                  </span>
-                )}
-              </div>
-            </div>
-          </GlassCard>
-
-          <GlassCard className="hover:shadow-md transition-all duration-200">
-            <div className="p-2">
-              <div className="flex flex-col items-center gap-1">
-                <div className="w-7 h-7 bg-green-50 dark:bg-green-900/20 rounded-lg flex items-center justify-center">
-                  <CheckCircle className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
-                </div>
-                <p className="text-base font-bold text-slate-800 dark:text-white">
-                  {currentAgent.stats.successRate}%
-                </p>
-                <p className="text-[10px] text-slate-600 dark:text-slate-400">
-                  Success Rate
-                </p>
-                {currentAgent.stats.successRate > 0 ? (
-                  <span className="text-[10px] font-medium text-green-600 dark:text-green-400">
-                    +2.1%
-                  </span>
-                ) : (
-                  <span className="text-[10px] text-slate-500 dark:text-slate-500">
-                    No data
-                  </span>
-                )}
-              </div>
-            </div>
-          </GlassCard>
-
-          <GlassCard className="hover:shadow-md transition-all duration-200">
-            <div className="p-2">
-              <div className="flex flex-col items-center gap-1">
-                <div className="w-7 h-7 bg-purple-50 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
-                  <Clock className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                </div>
-                <p className="text-base font-bold text-slate-800 dark:text-white">
-                  {currentAgent.stats.avgResponseTime}s
-                </p>
-                <p className="text-[10px] text-slate-600 dark:text-slate-400">
-                  Avg Response
-                </p>
-                {currentAgent.stats.avgResponseTime > 0 ? (
-                  <span className="text-[10px] font-medium text-green-600 dark:text-green-400">
-                    -0.3s
-                  </span>
-                ) : (
-                  <span className="text-[10px] text-slate-500 dark:text-slate-500">
-                    No data
-                  </span>
-                )}
-              </div>
-            </div>
-          </GlassCard>
-
-          <GlassCard className="hover:shadow-md transition-all duration-200">
-            <div className="p-2">
-              <div className="flex flex-col items-center gap-1">
-                <div className="w-7 h-7 bg-orange-50 dark:bg-orange-900/20 rounded-lg flex items-center justify-center">
-                  <Users className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
-                </div>
-                <p className="text-base font-bold text-slate-800 dark:text-white">
-                  {currentAgent.stats.activeUsers}
-                </p>
-                <p className="text-[10px] text-slate-600 dark:text-slate-400">
-                  Active Users
-                </p>
-                {currentAgent.stats.activeUsers > 0 ? (
-                  <span className="text-[10px] font-medium text-green-600 dark:text-green-400">
-                    +8%
-                  </span>
-                ) : (
-                  <span className="text-[10px] text-slate-500 dark:text-slate-500">
-                    No data
-                  </span>
-                )}
-              </div>
-            </div>
-          </GlassCard>
-        </div>
-
-        {/* Desktop Grid View */}
-        <div className="hidden lg:grid grid-cols-4 gap-4">
-          <GlassCard className="hover:shadow-lg transition-all duration-300">
-            <div className="p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/20 rounded-xl flex items-center justify-center">
-                  <MessageSquare className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                </div>
-                <div className="text-right">
-                  <p className="text-2xl font-bold text-slate-800 dark:text-white">
+        {/* Performance Overview - Mobile Slider */}
+        <div className="sm:hidden">
+          <div className="flex gap-2 overflow-x-auto pb-2 px-0.5 snap-x snap-mandatory scrollbar-hide -mx-0.5">
+            {/* Conversations Card */}
+            <GlassCard className="flex-shrink-0 w-[calc(50%-4px)] min-w-[120px] max-w-[140px] snap-start">
+              <div className="p-2.5">
+                <div className="flex flex-col items-center gap-0.5">
+                  <div className="w-6 h-6 bg-blue-50 dark:bg-blue-900/20 rounded-md flex items-center justify-center mb-1">
+                    <MessageSquare className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <p className="text-base font-bold text-slate-800 dark:text-white">
                     {currentAgent.stats.conversations.toLocaleString()}
                   </p>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                  <p className="text-[10px] text-slate-600 dark:text-slate-400 text-center leading-tight">
+                    Conversations
+                  </p>
+                  {currentAgent.stats.conversations > 0 ? (
+                    <span className="text-[10px] font-medium text-green-600 dark:text-green-400">
+                      No data
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-slate-500 dark:text-slate-500">
+                      No data
+                    </span>
+                  )}
+                </div>
+              </div>
+            </GlassCard>
+
+            {/* Success Rate Card */}
+            <GlassCard className="flex-shrink-0 w-[calc(50%-4px)] min-w-[120px] max-w-[140px] snap-start">
+              <div className="p-2.5">
+                <div className="flex flex-col items-center gap-0.5">
+                  <div className="w-6 h-6 bg-green-50 dark:bg-green-900/20 rounded-md flex items-center justify-center mb-1">
+                    <CheckCircle className="w-3 h-3 text-green-600 dark:text-green-400" />
+                  </div>
+                  <p className="text-base font-bold text-slate-800 dark:text-white">
+                    {currentAgent.stats.successRate}%
+                  </p>
+                  <p className="text-[10px] text-slate-600 dark:text-slate-400 text-center leading-tight">
+                    Success Rate
+                  </p>
+                  {currentAgent.stats.successRate > 0 ? (
+                    <span className="text-[10px] font-medium text-green-600 dark:text-green-400">
+                      No data
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-slate-500 dark:text-slate-500">
+                      No data
+                    </span>
+                  )}
+                </div>
+              </div>
+            </GlassCard>
+
+            {/* Avg Response Card */}
+            <GlassCard className="flex-shrink-0 w-[calc(50%-4px)] min-w-[120px] max-w-[140px] snap-start">
+              <div className="p-2.5">
+                <div className="flex flex-col items-center gap-0.5">
+                  <div className="w-6 h-6 bg-purple-50 dark:bg-purple-900/20 rounded-md flex items-center justify-center mb-1">
+                    <Clock className="w-3 h-3 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <p className="text-base font-bold text-slate-800 dark:text-white">
+                    {currentAgent.stats.avgResponseTime}s
+                  </p>
+                  <p className="text-[10px] text-slate-600 dark:text-slate-400 text-center leading-tight">
+                    Avg Response
+                  </p>
+                  {currentAgent.stats.avgResponseTime > 0 ? (
+                    <span className="text-[10px] font-medium text-green-600 dark:text-green-400">
+                      No data
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-slate-500 dark:text-slate-500">
+                      No data
+                    </span>
+                  )}
+                </div>
+              </div>
+            </GlassCard>
+
+            {/* Active Users Card */}
+            <GlassCard className="flex-shrink-0 w-[calc(50%-4px)] min-w-[120px] max-w-[140px] snap-start">
+              <div className="p-2.5">
+                <div className="flex flex-col items-center gap-0.5">
+                  <div className="w-6 h-6 bg-orange-50 dark:bg-orange-900/20 rounded-md flex items-center justify-center mb-1">
+                    <Users className="w-3 h-3 text-orange-600 dark:text-orange-400" />
+                  </div>
+                  <p className="text-base font-bold text-slate-800 dark:text-white">
+                    {currentAgent.stats.activeUsers}
+                  </p>
+                  <p className="text-[10px] text-slate-600 dark:text-slate-400 text-center leading-tight">
+                    Active Users
+                  </p>
+                  {currentAgent.stats.activeUsers > 0 ? (
+                    <span className="text-[10px] font-medium text-green-600 dark:text-green-400">
+                      No data
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-slate-500 dark:text-slate-500">
+                      No data
+                    </span>
+                  )}
+                </div>
+              </div>
+            </GlassCard>
+          </div>
+        </div>
+
+        {/* Tablet & Desktop Grid View - Compact */}
+        <div className="hidden sm:grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
+          <GlassCard className="hover:shadow-md transition-all duration-200">
+            <div className="p-3 md:p-3.5">
+              <div className="flex items-center justify-between mb-2 gap-2">
+                <div className="w-8 h-8 md:w-10 md:h-10 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <MessageSquare className="w-4 h-4 md:w-5 md:h-5 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div className="text-right min-w-0">
+                  <p className="text-lg md:text-xl font-bold text-slate-800 dark:text-white truncate">
+                    {currentAgent.stats.conversations.toLocaleString()}
+                  </p>
+                  <p className="text-[10px] md:text-xs text-slate-600 dark:text-slate-400">
                     Conversations
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-1">
                 {currentAgent.stats.conversations > 0 ? (
-                  <>
-                    <span className="text-sm font-medium text-green-600 dark:text-green-400">
-                      +12%
-                    </span>
-                    <span className="text-xs text-slate-500 dark:text-slate-500">
-                      this week
-                    </span>
-                  </>
+                  <span className="text-[10px] md:text-xs text-slate-500 dark:text-slate-500">
+                    No data
+                  </span>
                 ) : (
-                  <span className="text-xs text-slate-500 dark:text-slate-500">
+                  <span className="text-[10px] md:text-xs text-slate-500 dark:text-slate-500">
                     No data yet
                   </span>
                 )}
@@ -5042,33 +5959,28 @@ const AgentManagement = () => {
             </div>
           </GlassCard>
 
-          <GlassCard className="hover:shadow-lg transition-all duration-300">
-            <div className="p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-12 h-12 bg-green-50 dark:bg-green-900/20 rounded-xl flex items-center justify-center">
-                  <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400" />
+          <GlassCard className="hover:shadow-md transition-all duration-200">
+            <div className="p-3 md:p-3.5">
+              <div className="flex items-center justify-between mb-2 gap-2">
+                <div className="w-8 h-8 md:w-10 md:h-10 bg-green-50 dark:bg-green-900/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <CheckCircle className="w-4 h-4 md:w-5 md:h-5 text-green-600 dark:text-green-400" />
                 </div>
-                <div className="text-right">
-                  <p className="text-2xl font-bold text-slate-800 dark:text-white">
+                <div className="text-right min-w-0">
+                  <p className="text-lg md:text-xl font-bold text-slate-800 dark:text-white truncate">
                     {currentAgent.stats.successRate}%
                   </p>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                  <p className="text-[10px] md:text-xs text-slate-600 dark:text-slate-400">
                     Success Rate
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-1">
                 {currentAgent.stats.successRate > 0 ? (
-                  <>
-                    <span className="text-sm font-medium text-green-600 dark:text-green-400">
-                      +2.1%
-                    </span>
-                    <span className="text-xs text-slate-500 dark:text-slate-500">
-                      improved
-                    </span>
-                  </>
+                  <span className="text-[10px] md:text-xs text-slate-500 dark:text-slate-500">
+                    No data
+                  </span>
                 ) : (
-                  <span className="text-xs text-slate-500 dark:text-slate-500">
+                  <span className="text-[10px] md:text-xs text-slate-500 dark:text-slate-500">
                     No data yet
                   </span>
                 )}
@@ -5076,33 +5988,28 @@ const AgentManagement = () => {
             </div>
           </GlassCard>
 
-          <GlassCard className="hover:shadow-lg transition-all duration-300">
-            <div className="p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-12 h-12 bg-purple-50 dark:bg-purple-900/20 rounded-xl flex items-center justify-center">
-                  <Clock className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+          <GlassCard className="hover:shadow-md transition-all duration-200">
+            <div className="p-3 md:p-3.5">
+              <div className="flex items-center justify-between mb-2 gap-2">
+                <div className="w-8 h-8 md:w-10 md:h-10 bg-purple-50 dark:bg-purple-900/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Clock className="w-4 h-4 md:w-5 md:h-5 text-purple-600 dark:text-purple-400" />
                 </div>
-                <div className="text-right">
-                  <p className="text-2xl font-bold text-slate-800 dark:text-white">
+                <div className="text-right min-w-0">
+                  <p className="text-lg md:text-xl font-bold text-slate-800 dark:text-white truncate">
                     {currentAgent.stats.avgResponseTime}s
                   </p>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                  <p className="text-[10px] md:text-xs text-slate-600 dark:text-slate-400">
                     Avg Response
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-1">
                 {currentAgent.stats.avgResponseTime > 0 ? (
-                  <>
-                    <span className="text-sm font-medium text-green-600 dark:text-green-400">
-                      -0.3s
-                    </span>
-                    <span className="text-xs text-slate-500 dark:text-slate-500">
-                      faster
-                    </span>
-                  </>
+                  <span className="text-[10px] md:text-xs text-slate-500 dark:text-slate-500">
+                    No data
+                  </span>
                 ) : (
-                  <span className="text-xs text-slate-500 dark:text-slate-500">
+                  <span className="text-[10px] md:text-xs text-slate-500 dark:text-slate-500">
                     No data yet
                   </span>
                 )}
@@ -5110,124 +6017,34 @@ const AgentManagement = () => {
             </div>
           </GlassCard>
 
-          <GlassCard className="hover:shadow-lg transition-all duration-300">
-            <div className="p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-12 h-12 bg-orange-50 dark:bg-orange-900/20 rounded-xl flex items-center justify-center">
-                  <Users className="w-6 h-6 text-orange-600 dark:text-orange-400" />
+          <GlassCard className="hover:shadow-md transition-all duration-200">
+            <div className="p-3 md:p-3.5">
+              <div className="flex items-center justify-between mb-2 gap-2">
+                <div className="w-8 h-8 md:w-10 md:h-10 bg-orange-50 dark:bg-orange-900/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Users className="w-4 h-4 md:w-5 md:h-5 text-orange-600 dark:text-orange-400" />
                 </div>
-                <div className="text-right">
-                  <p className="text-2xl font-bold text-slate-800 dark:text-white">
+                <div className="text-right min-w-0">
+                  <p className="text-lg md:text-xl font-bold text-slate-800 dark:text-white truncate">
                     {currentAgent.stats.activeUsers}
                   </p>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
+                  <p className="text-[10px] md:text-xs text-slate-600 dark:text-slate-400">
                     Active Users
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-1">
                 {currentAgent.stats.activeUsers > 0 ? (
-                  <>
-                    <span className="text-sm font-medium text-green-600 dark:text-green-400">
-                      +8%
-                    </span>
-                    <span className="text-xs text-slate-500 dark:text-slate-500">
-                      today
-                    </span>
-                  </>
+                  <span className="text-[10px] md:text-xs text-slate-500 dark:text-slate-500">
+                    No data
+                  </span>
                 ) : (
-                  <span className="text-xs text-slate-500 dark:text-slate-500">
+                  <span className="text-[10px] md:text-xs text-slate-500 dark:text-slate-500">
                     No data yet
                   </span>
                 )}
               </div>
             </div>
           </GlassCard>
-        </div>
-
-        {/* Enhanced Content Grid - Mobile Responsive */}
-        <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:gap-6">
-          {/* Agent Configuration - Mobile Optimized */}
-          <div className="order-1 lg:order-1">
-            <GlassCard>
-              <div className="p-2 sm:p-3">
-                <div className="flex flex-row sm:items-center sm:justify-between gap-2 mb-2">
-                  <div className="flex items-center gap-1.5 sm:gap-2">
-                    <div className="w-5 h-5 sm:w-6 sm:h-6 bg-slate-50 dark:bg-slate-800 rounded-lg flex items-center justify-center">
-                      <Settings className="w-3 h-3 text-slate-600 dark:text-slate-400" />
-                    </div>
-                    <h3 className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-white">
-                      Configuration
-                    </h3>
-                  </div>
-
-                  {/* Test Button - Only show when agent is published */}
-                  {(currentAgent.status === "Published" ||
-                    (currentAgent as any).is_active) && (
-                    <button
-                      onClick={() => setShowTestChat(true)}
-                      className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 py-1.5 sm:py-2 border border-1 dark:bg-green-900/20 text-black dark:text-green-300 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-all duration-200 text-xs sm:text-sm font-medium shadow-sm hover:shadow-md self-start"
-                    >
-                      <Play className="w-3 h-3 sm:w-4 sm:h-4" />
-                      <span>Test</span>
-                    </button>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  {/* Row 1 */}
-                  <div className="p-2 bg-slate-50 border dark:bg-slate-800/50 rounded-lg">
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <Globe className="w-3 h-3 text-blue-600 dark:text-blue-400" />
-                      <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                        Language
-                      </span>
-                    </div>
-                    <p className="text-sm font-semibold text-slate-800 dark:text-white">
-                      {currentAgent.language}
-                    </p>
-                  </div>
-
-                  <div className="p-2 bg-slate-50 border dark:bg-slate-800/50 rounded-lg">
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <MessageSquare className="w-3 h-3 text-purple-600 dark:text-purple-400" />
-                      <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                        Voice
-                      </span>
-                    </div>
-                    <p className="text-sm font-semibold text-slate-800 dark:text-white">
-                      {currentAgent.voice}
-                    </p>
-                  </div>
-
-                  {/* Row 2 */}
-                  <div className="p-2 bg-slate-50 border dark:bg-slate-800/50 rounded-lg">
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <Users className="w-3 h-3 text-green-600 dark:text-green-400" />
-                      <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                        Persona
-                      </span>
-                    </div>
-                    <p className="text-sm font-semibold text-slate-800 dark:text-white">
-                      {currentAgent.persona}
-                    </p>
-                  </div>
-
-                  <div className="p-2 bg-slate-50 border dark:bg-slate-800/50 rounded-lg">
-                    <div className="flex items-center gap-1.5 mb-0.5">
-                      <Clock className="w-3 h-3 text-orange-600 dark:text-orange-400" />
-                      <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                        Created
-                      </span>
-                    </div>
-                    <p className="text-sm font-semibold text-slate-800 dark:text-white">
-                      {new Date(currentAgent.createdAt).toLocaleDateString()}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </GlassCard>
-          </div>
         </div>
 
         {/* Widget Customization Section - Only show when agent is published */}
@@ -5256,7 +6073,7 @@ const AgentManagement = () => {
 
         {/* Delete Confirmation Modal */}
         {showDeleteConfirm && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
             <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-xl border border-slate-200 dark:border-slate-700">
               <div className="p-6">
                 <div className="flex items-center justify-center w-12 h-12 bg-red-100 dark:bg-red-900/20 rounded-full mx-auto mb-4">
@@ -5337,32 +6154,32 @@ const AgentManagement = () => {
           {/* Desktop: Horizontal Grid */}
           <div className="hidden lg:block">
             <GlassCard>
-              <div className="p-3 sm:p-4 lg:p-6">
-                <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-                  <div className="w-6 h-6 sm:w-8 sm:h-8 bg-slate-50 dark:bg-slate-800 rounded-lg sm:rounded-xl flex items-center justify-center">
-                    <Zap className="w-3 h-3 sm:w-4 sm:h-4 text-slate-600 dark:text-slate-400" />
+              <div className="p-4 lg:p-5">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-8 h-8 bg-slate-50 dark:bg-slate-800 rounded-lg flex items-center justify-center">
+                    <Zap className="w-4 h-4 text-slate-600 dark:text-slate-400" />
                   </div>
-                  <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-slate-800 dark:text-white">
+                  <h3 className="text-base font-semibold text-slate-800 dark:text-white">
                     Quick Actions
                   </h3>
                 </div>
 
-                <div className="grid grid-cols-2 lg:grid-cols-2 gap-2 sm:gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   <button
                     onClick={() => navigate(`/agents/${currentAgent.id}/train`, {
                       state: { from: "list" },
                     })}
-                    className="common-bg-icons hover:shadow-md transition-all duration-200 p-3 sm:p-4 rounded-lg touch-manipulation group"
+                    className="common-bg-icons hover:shadow-md transition-all duration-200 p-4 rounded-lg touch-manipulation group"
                   >
-                    <div className="flex flex-col items-center gap-2 sm:gap-3">
-                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <Lightbulb className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400" />
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <Lightbulb className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                       </div>
                       <div className="text-center">
-                        <p className="text-sm sm:text-base font-medium text-slate-800 dark:text-white">
+                        <p className="text-sm font-semibold text-slate-800 dark:text-white">
                           Train Agent
                         </p>
-                        <p className="text-xs text-slate-600 dark:text-slate-400">
+                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
                           Improve responses
                         </p>
                       </div>
@@ -5372,16 +6189,16 @@ const AgentManagement = () => {
                
 
                 
-                  <button className="common-bg-icons hover:shadow-md transition-all duration-200 p-3 sm:p-4 rounded-lg touch-manipulation group">
-                    <div className="flex flex-col items-center gap-2 sm:gap-3">
-                      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-purple-50 dark:bg-purple-900/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <Download className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
+                  <button className="common-bg-icons hover:shadow-md transition-all duration-200 p-4 rounded-lg touch-manipulation group">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-10 h-10 bg-purple-50 dark:bg-purple-900/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+                        <Download className="w-5 h-5 text-purple-600 dark:text-purple-400" />
                       </div>
                       <div className="text-center">
-                        <p className="text-sm sm:text-base font-medium text-slate-800 dark:text-white">
+                        <p className="text-sm font-semibold text-slate-800 dark:text-white">
                           Export Data
                         </p>
-                        <p className="text-xs text-slate-600 dark:text-slate-400">
+                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
                           Download config
                         </p>
                       </div>
@@ -5397,7 +6214,11 @@ const AgentManagement = () => {
         {showTestChat &&
           currentAgent &&
           currentAgent.status === "Published" && (
-            <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[60] flex items-center justify-center p-3 sm:p-4 -top-8">
+            <div 
+              className="fixed inset-0 bg-black/20 z-[60] flex items-center justify-center p-3 sm:p-4 -top-8"
+              onTouchMove={(e) => e.target === e.currentTarget && e.preventDefault()}
+              onClick={(e) => e.target === e.currentTarget && setShowTestChat(false)}
+            >
               <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl w-full max-w-2xl h-[80vh] max-h-[600px] relative flex flex-col shadow-xl border border-white/20 dark:border-slate-700/50">
                 {/* Minimalist Header */}
                 <div className="flex items-center justify-between p-4 border-b border-slate-200/50 dark:border-slate-700/50">
@@ -5723,6 +6544,96 @@ const AgentManagement = () => {
               </div>
             </div>
           )}
+
+        {/* Publish Confirmation Modal */}
+        {showPublishConfirm && (
+          <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-xl border border-slate-200 dark:border-slate-700">
+              <div className="p-6">
+                <div className="flex items-center justify-center w-12 h-12 bg-blue-100 dark:bg-blue-900/20 rounded-full mx-auto mb-4">
+                  <UploadCloud className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                </div>
+                <h3 className="text-xl font-semibold text-slate-800 dark:text-white text-center mb-2">
+                  Publish Agent?
+                </h3>
+                <p className="text-sm text-slate-600 dark:text-slate-400 text-center mb-6">
+                  Are you sure you want to publish this agent? It will become available to users.
+                </p>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handlePublishCancel}
+                    disabled={isPublishing}
+                    className="flex-1 h-11 px-4 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handlePublishConfirm}
+                    disabled={isPublishing}
+                    className="flex-1 h-11 px-4 rounded-xl transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 common-button-bg"
+                  >
+                    {isPublishing ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                        <span>Publishing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <UploadCloud className="w-4 h-4" />
+                        <span>Publish</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Pause Confirmation Modal */}
+        {showPauseConfirm && (
+          <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-xl border border-slate-200 dark:border-slate-700">
+              <div className="p-6">
+                <div className="flex items-center justify-center w-12 h-12 bg-amber-100 dark:bg-amber-900/20 rounded-full mx-auto mb-4">
+                  <PauseCircle className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+                </div>
+                <h3 className="text-xl font-semibold text-slate-800 dark:text-white text-center mb-2">
+                  Pause Agent?
+                </h3>
+                <p className="text-sm text-slate-600 dark:text-slate-400 text-center mb-6">
+                  Are you sure you want to pause this agent? It will no longer be available to users.
+                </p>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handlePauseCancel}
+                    disabled={isPausing}
+                    className="flex-1 h-11 px-4 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handlePauseConfirm}
+                    disabled={isPausing}
+                    className="flex-1 h-11 px-4 rounded-xl transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 common-button-bg2"
+                  >
+                    {isPausing ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-slate-400 dark:border-slate-300 border-t-slate-700 dark:border-t-slate-100"></div>
+                        <span>Pausing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <PauseCircle className="w-4 h-4" />
+                        <span>Pause</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

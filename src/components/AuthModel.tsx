@@ -52,7 +52,7 @@ const AuthModel: React.FC<AuthModelProps> = ({
   const passwordValidation = usePasswordValidation(
     formData.password,
     formData.email,
-    authMode
+    authMode,
   );
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [confirmPasswordError, setConfirmPasswordError] = React.useState<
@@ -64,7 +64,7 @@ const AuthModel: React.FC<AuthModelProps> = ({
   const [showOnboardingCodeModal, setShowOnboardingCodeModal] = useState(false);
   const [onboardingCode, setOnboardingCode] = useState("");
   const [onboardingCodeError, setOnboardingCodeError] = useState<string | null>(
-    null
+    null,
   );
   const [isVerifyingCode, setIsVerifyingCode] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
@@ -79,9 +79,11 @@ const AuthModel: React.FC<AuthModelProps> = ({
 
     // Only allow letters (any language), spaces, hyphens, and apostrophes
     const nameRegex = /^[a-zA-Z\s'-]+$/;
-    
+
     if (!nameRegex.test(name)) {
-      setNameError("Name can only contain letters, spaces, hyphens, and apostrophes");
+      setNameError(
+        "Name can only contain letters, spaces, hyphens, and apostrophes",
+      );
       return false;
     }
 
@@ -125,7 +127,7 @@ const AuthModel: React.FC<AuthModelProps> = ({
 
       const response = await authAPI.verifyOnboardingCode(
         onboardingCode,
-        accessToken
+        accessToken,
       );
 
       if (response.success || response.valid) {
@@ -182,7 +184,7 @@ const AuthModel: React.FC<AuthModelProps> = ({
       return () => clearTimeout(timer);
     }
   }, [shake]);
-  
+
   useEffect(() => {
     if (authMode === "signup" && formData.confirmPassword) {
       if (formData.password !== formData.confirmPassword) {
@@ -197,7 +199,7 @@ const AuthModel: React.FC<AuthModelProps> = ({
   const renderPasswordRequirement = (
     satisfied: boolean,
     label: string,
-    isActive: boolean
+    isActive: boolean,
   ) => (
     <div className="flex items-center space-x-2">
       {satisfied ? (
@@ -216,8 +218,8 @@ const AuthModel: React.FC<AuthModelProps> = ({
           satisfied
             ? "text-emerald-600"
             : isActive
-            ? "text-red-600"
-            : "text-gray-500"
+              ? "text-red-600"
+              : "text-gray-500"
         }`}
       >
         {label}
@@ -301,8 +303,8 @@ const AuthModel: React.FC<AuthModelProps> = ({
                         nameError && formData.name
                           ? "border-red-500 pr-10"
                           : !nameError && formData.name
-                          ? "border-green-500 pr-10"
-                          : ""
+                            ? "border-green-500 pr-10"
+                            : ""
                       }`}
                       placeholder="Enter your full name"
                       required
@@ -345,8 +347,8 @@ const AuthModel: React.FC<AuthModelProps> = ({
                         emailValidation.error
                           ? "border-red-500"
                           : emailValidation.isValid && formData.email
-                          ? "border-emerald-500"
-                          : ""
+                            ? "border-emerald-500"
+                            : ""
                       }`}
                       placeholder="Email"
                       required
@@ -363,10 +365,9 @@ const AuthModel: React.FC<AuthModelProps> = ({
                       ) : null}
                     </div>
                   </div>
-                  {emailValidation.error && formData.email && (
+                  {emailValidation.error && formData.email ? (
                     <p className="auth-error">{emailValidation.error}</p>
-                  )}
-                  {!emailValidation.error && formData.email && emailValidation.isValid && (
+                  ) : (
                     <p className="mt-1 text-xs text-gray-500">
                       {AUTH_MESSAGES.helper.signup_email}
                     </p>
@@ -393,8 +394,8 @@ const AuthModel: React.FC<AuthModelProps> = ({
                       emailValidation.error
                         ? "border-red-500"
                         : emailValidation.isValid && formData.email
-                        ? "border-emerald-500"
-                        : ""
+                          ? "border-emerald-500"
+                          : ""
                     }`}
                     placeholder="Email"
                     required
@@ -436,8 +437,8 @@ const AuthModel: React.FC<AuthModelProps> = ({
                         passwordValidation.error && formData.password
                           ? "border-red-500"
                           : passwordValidation.isValid && formData.password
-                          ? "border-emerald-500"
-                          : ""
+                            ? "border-emerald-500"
+                            : ""
                       }`}
                       placeholder="Password"
                       required
@@ -458,7 +459,9 @@ const AuthModel: React.FC<AuthModelProps> = ({
                     </button>
                   </div>
                   {passwordValidation.error && formData.password && (
-                    <p className="auth-error mt-1 mb-1">{passwordValidation.error}</p>
+                    <p className="auth-error mt-1 mb-1">
+                      {passwordValidation.error}
+                    </p>
                   )}
                   {!formData.password && (
                     <p className="mt-1 text-xs text-gray-500">
@@ -473,8 +476,8 @@ const AuthModel: React.FC<AuthModelProps> = ({
                             passwordValidation.requirements[req.id],
                             req.label,
                             formData.password.length > 0 &&
-                              !passwordValidation.requirements[req.id]
-                          )
+                              !passwordValidation.requirements[req.id],
+                          ),
                       )}
                     </div>
                   )}
@@ -497,8 +500,8 @@ const AuthModel: React.FC<AuthModelProps> = ({
                         confirmPasswordError
                           ? "border-red-500"
                           : formData.confirmPassword && !confirmPasswordError
-                          ? "border-black"
-                          : ""
+                            ? "border-black"
+                            : ""
                       }`}
                       placeholder="Password"
                       required
@@ -542,8 +545,8 @@ const AuthModel: React.FC<AuthModelProps> = ({
                       passwordValidation.error
                         ? "border-red-500"
                         : passwordValidation.isValid && formData.password
-                        ? "border-emerald-500"
-                        : ""
+                          ? "border-emerald-500"
+                          : ""
                     }`}
                     placeholder="Enter Password"
                     required
@@ -564,9 +567,7 @@ const AuthModel: React.FC<AuthModelProps> = ({
                   </button>
                 </div>
                 {passwordValidation.error && formData.password && (
-                  <p className="auth-error">
-                    {passwordValidation.error}
-                  </p>
+                  <p className="auth-error">{passwordValidation.error}</p>
                 )}
               </div>
             )}
@@ -595,10 +596,10 @@ const AuthModel: React.FC<AuthModelProps> = ({
                 !emailValidation.isValid ||
                 !passwordValidation.isValid ||
                 (authMode === "signup" &&
-                  (!!confirmPasswordError || 
-                   !formData.confirmPassword || 
-                   !!nameError || 
-                   !formData.name))
+                  (!!confirmPasswordError ||
+                    !formData.confirmPassword ||
+                    !!nameError ||
+                    !formData.name))
               }
               className="auth-button auth-button-primary mt-6"
             >

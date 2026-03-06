@@ -42,6 +42,41 @@ apiClient.interceptors.response.use(
   }
 );
 
+// Separate client for voice API (fixed base URL)
+const voiceApiClient = axios.create({
+  baseURL: "https://voice.callshivai.com",
+  timeout: 120000,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
+voiceApiClient.interceptors.request.use((config) => {
+  const tokens = localStorage.getItem("auth_tokens");
+  if (tokens) {
+    try {
+      const { accessToken } = JSON.parse(tokens);
+      if (accessToken) {
+        config.headers.Authorization = `Bearer ${accessToken}`;
+      }
+    } catch (error) {
+      console.warn("Failed to parse auth tokens:", error);
+    }
+  }
+  return config;
+});
+
+voiceApiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem("auth_tokens");
+      window.location.href = "/landing";
+    }
+    return Promise.reject(error);
+  }
+);
+
 export interface ApiAgent {
   id: string;
   name: string;
@@ -63,6 +98,22 @@ export interface ApiAgent {
   temperature?: number;
   greeting_message?: {
     [key: string]: string;
+  };
+  template?: {
+    name: string;
+    description: string;
+    icon: string;
+    features: string[];
+    systemPrompt?: string;
+    firstMessage?: string;
+    openingScript?: string;
+    keyTalkingPoints?: string;
+    closingScript?: string;
+    objections?: Array<{ objection: string; response: string }>;
+    conversationExamples?: Array<{
+      customerInput: string;
+      expectedResponse: string;
+    }>;
   };
 
   stats?: {
@@ -115,6 +166,7 @@ interface UpdateAgentRequest {
   gender?: string;
   business_process?: string;
   industry?: string;
+  sub_industry?: string;
   custom_instructions?: string;
   guardrails_level?: string;
   response_style?: string;
@@ -122,6 +174,22 @@ interface UpdateAgentRequest {
   context_window?: string;
   temperature?: number;
   status?: "Pending" | "Published";
+  template?: {
+    name: string;
+    description: string;
+    icon: string;
+    features: string[];
+    systemPrompt?: string;
+    firstMessage?: string;
+    openingScript?: string;
+    keyTalkingPoints?: string;
+    closingScript?: string;
+    objections?: Array<{ objection: string; response: string }>;
+    conversationExamples?: Array<{
+      customerInput: string;
+      expectedResponse: string;
+    }>;
+  };
 }
 
 export interface PublicationRequest {
@@ -289,6 +357,27 @@ class AgentAPI {
       throw new Error(response.data.message || "Agent not found");
     } catch (error: any) {
       console.error("Error fetching agent:", error);
+      throw error;
+    }
+  }
+
+  // Fetch full agent config (used in edit/view pages)
+  // Endpoint: GET /agent-configs/:id
+  async getAgentConfig(id: string): Promise<{ agent: any }> {
+    try {
+      const response: AxiosResponse<{
+        success: boolean;
+        data?: { agent: any };
+        message?: string;
+      }> = await apiClient.get(`/agent-configs/${id}`);
+
+      if (response.data.success && response.data.data?.agent) {
+        return { agent: response.data.data.agent };
+      }
+
+      throw new Error(response.data.message || "Agent config not found");
+    } catch (error: any) {
+      console.error("Error fetching agent config:", error);
       throw error;
     }
   }
@@ -471,12 +560,17 @@ class AgentAPI {
   async saveWidgetConfig(widgetData: {
     agent_id: string;
     company_logo?: string;
+    trigger_button_image?: string;
     ai_employee_name: string;
     ai_employee_description: string;
     theme?: string;
     position?: string;
     button_text?: string;
     welcome_message?: string;
+    primary_color?: string;
+    gradient_start?: string;
+    gradient_end?: string;
+    visibility?: 'public' | 'private';
     allowed_domains?: string[];
   }): Promise<any> {
     try {
@@ -510,6 +604,26 @@ class AgentAPI {
     }
   }
 
+  // Create agent with full payload (includes voice_speed, voice_style, template, knowledge base URLs)
+  async createAgentFull(agentData: Record<string, any>): Promise<any> {
+    try {
+      const response: AxiosResponse<{
+        success: boolean;
+        data: any;
+        message?: string;
+      }> = await voiceApiClient.post("/agents/create-agent", agentData);
+
+      if (response.data.success && response.data.data) {
+        return response.data.data;
+      }
+
+      throw new Error(response.data.message || "Failed to create agent");
+    } catch (error: any) {
+      console.error("Error creating agent (full):", error);
+      throw error;
+    }
+  }
+
   // Generate AI Prompt API - with extended timeout for AI generation
   async generatePrompt(prompt: string): Promise<any> {
     try {
@@ -521,6 +635,59 @@ class AgentAPI {
       return response.data;
     } catch (error: any) {
       console.error("Error generating prompt:", error);
+      throw error;
+    }
+  }
+
+  // Generate Presigned URL for knowledge base file editing
+  async getPresignedUrl(agentId: string, filename: string): Promise<{
+    success: boolean;
+    statusCode: number;
+    message: string;
+    data: {
+      presignedUrl: string;
+      fileUrl: string;
+    };
+  }> {
+    try {
+      const response = await apiClient.get(`/agents/${agentId}/presigned-url`, {
+        params: { filename },
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error("Error getting presigned URL:", error);
+      throw error;
+    }
+  }
+
+  // Knowledge Base Upload API
+  async uploadKnowledgeBase(files: File[]): Promise<{
+    success: boolean;
+    statusCode: number;
+    message: string;
+    data: {
+      files: Array<{
+        filename: string;
+        size: number;
+        url: string;
+      }>;
+      count: number;
+    };
+  }> {
+    try {
+      const formData = new FormData();
+      files.forEach((file) => {
+        formData.append("files", file);
+      });
+      const response = await apiClient.post("/agents/upload/knowledge-bases", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+        timeout: 60000, // 1 minute timeout for file uploads
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error("Error uploading knowledge base files:", error);
       throw error;
     }
   }
