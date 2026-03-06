@@ -129,7 +129,7 @@ const AgentIntegrationCode: React.FC<AgentIntegrationCodeProps> = ({
     if (user?.id) {
       params.set('userId', user.id);
     }
-    return `<script src="https://callshivai.com/widget2.js?${params.toString()}"></script>`;
+    return `<script src="https://www.callshivai.com/widget2.js?${params.toString()}"></script>`;
   };
 
   const embedCode = generateEmbedCode();

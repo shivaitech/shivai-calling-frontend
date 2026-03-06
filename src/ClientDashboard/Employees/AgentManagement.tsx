@@ -3044,7 +3044,7 @@ const AgentManagement = () => {
                       {(() => {
                         const agentObj = agents.find((a: any) => a.id === agentForIntegration);
                         const agentLang = agentObj?.language || '';
-                        const embedUrl = `https://callshivai.com/widget2.js?agentId=${agentForIntegration}&userId=${user?.id || ''}${agentLang ? `&language=${agentLang}` : ''}`;
+                        const embedUrl = `https://www.callshivai.com/widget2.js?agentId=${agentForIntegration}&userId=${user?.id || ''}${agentLang ? `&language=${agentLang}` : ''}`;
                         const embedCode = `<script src="${embedUrl}"><\/script>`;
                         return (
                           <>
