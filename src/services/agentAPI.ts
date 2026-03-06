@@ -570,7 +570,7 @@ class AgentAPI {
     primary_color?: string;
     gradient_start?: string;
     gradient_end?: string;
-    visibility?: 'all' | 'private';
+    visibility?: 'public' | 'private';
     allowed_domains?: string[];
   }): Promise<any> {
     try {

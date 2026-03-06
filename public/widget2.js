@@ -419,7 +419,7 @@
           // refreshWidgetContent() will be called there after createWidgetUI()
 
           // ✅ Domain restriction check
-          const widgetVisibility = agentRes.widget.visibility || 'all';
+          const widgetVisibility = agentRes.widget.visibility || 'public';
           const allowedDomains = agentRes.widget.allowed_domains || [];
           if (widgetVisibility === 'private' && allowedDomains.length > 0) {
             const currentOrigin = window.location.origin.toLowerCase();

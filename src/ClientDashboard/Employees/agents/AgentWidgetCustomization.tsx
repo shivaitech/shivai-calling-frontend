@@ -23,7 +23,7 @@ interface WidgetConfig {
     autoOpen: boolean;
     minimizeButton: boolean;
     draggable: boolean;
-    visibility: 'all' | 'private';
+    visibility: 'public' | 'private';
     allowedDomains: string[];
   };
   content: {
@@ -220,7 +220,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
       autoOpen: false,
       minimizeButton: true,
       draggable: true,
-      visibility: 'all',
+      visibility: 'public',
       allowedDomains: [],
     },
     content: {
@@ -274,17 +274,13 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
       // Clear any existing logo/trigger previews at start
       setLogoPreview("");
       setTriggerButtonImagePreview("");
-      console.log("🔄 Cleared logo preview at start of load");
       
       try {
-        console.log("🔄 Loading widget config for agentId:", agentId);
-        const response = await fetch(`https://nodejs.service.callshivai.com/api/v1/agents/${agentId}`);
-        if (response.ok) {
-          const data = await response.json();
-          console.log("📦 API Response:", data);
+        console.log("🔄 Loading widget config via agent-config API for agentId:", agentId);
+        const { agent } = await agentAPI.getAgentConfig(agentId);
+        console.log("📦 agent-config response:", agent);
 
           // Check if agent and widget configuration exists in response
-          const agent = data?.data?.agent;
           if (agent?.widget) {
             console.log("✅ Widget configuration found, prefilling form...");
             const widget = agent.widget;
@@ -314,7 +310,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                 autoOpen: false,
                 minimizeButton: true,
                 draggable: true,
-                visibility: (widget.visibility as 'all' | 'private') || 'all',
+                visibility: (widget.visibility as 'public' | 'private') || 'public',
                 allowedDomains: widget.allowed_domains || [],
               },
               content: {
@@ -388,15 +384,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
             );
             console.log("✅ Widget configuration loaded and prefilled");
           } else {
-            console.log("ℹ️ No agent or widget configuration found in API response");
-            console.log("🔍 Response structure:", {
-              hasData: !!data?.data,
-              hasAgent: !!data?.data?.agent,
-              hasWidget: !!data?.data?.agent?.widget,
-              dataKeys: data?.data ? Object.keys(data.data) : 'no data',
-              agentKeys: data?.data?.agent ? Object.keys(data.data.agent) : 'no agent'
-            });
-            
+            console.log("ℹ️ No widget configuration found in agent-config response");
             // Explicitly clear logo and reset to defaults for new agent
             console.log("🧹 Clearing logo preview and resetting to defaults");
             setLogoPreview("");
@@ -414,9 +402,6 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
             }));
             console.log("✅ Reset to clean defaults for new agent");
           }
-        } else {
-          console.error("❌ Failed to fetch widget config:", response.status, response.statusText);
-        }
       } catch (error) {
         console.error("❌ Failed to load widget configuration:", error);
       } finally {
@@ -517,7 +502,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
     reader.readAsDataURL(file);
   };
 
-  const saveWidgetConfig = async () => {
+  const saveWidgetConfig = async (silent = false) => {
     setIsSaving(true);
     try {
       let finalLogoUrl = widgetConfig.content.companyLogo;
@@ -607,8 +592,8 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
       });
       window.dispatchEvent(event);
 
-      // Show success notification
-      appToast.success('Widget configuration saved successfully!');
+      // Show success notification (suppressed for internal/publish-triggered saves)
+      if (!silent) appToast.success('Widget configuration saved successfully!');
     } catch (error) {
       console.error("❌ Error saving widget configuration:", error);
 
@@ -634,7 +619,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
       const detail = (e as CustomEvent).detail;
       if (detail?.agentId && detail.agentId !== agentId) return;
       console.log("💾 External save triggered for agent:", agentId);
-      saveWidgetConfigRef.current();
+      saveWidgetConfigRef.current(true);
     };
     window.addEventListener("shivai:save-widget-config", handleExternalSave);
     return () => window.removeEventListener("shivai:save-widget-config", handleExternalSave);
@@ -715,7 +700,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
             <div className="flex justify-end gap-2 mb-6">
               
                 <button
-                  onClick={saveWidgetConfig}
+                  onClick={() => saveWidgetConfig()}
                   disabled={isSaving || !hasUnsavedChanges}
                   className="common-button-bg text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
                   title={
@@ -956,7 +941,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
 
                       {/* Widget Visibility */}
                       <div className={`rounded-xl border-2 p-4 transition-all duration-200 ${
-                        widgetConfig.ui.visibility === 'all'
+                        widgetConfig.ui.visibility === 'public'
                           ? 'border-amber-400 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-500/60'
                           : 'border-green-400 bg-green-50 dark:bg-green-900/10 dark:border-green-500/60'
                       }`}>
@@ -965,11 +950,11 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                             Widget Visibility
                           </span>
                           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                            widgetConfig.ui.visibility === 'all'
+                            widgetConfig.ui.visibility === 'public'
                               ? 'bg-amber-200 text-amber-800 dark:bg-amber-700/40 dark:text-amber-300'
                               : 'bg-green-200 text-green-800 dark:bg-green-700/40 dark:text-green-300'
                           }`}>
-                            {widgetConfig.ui.visibility === 'all' ? 'Public' : 'Private'}
+                            {widgetConfig.ui.visibility === 'public' ? 'Public' : 'Private'}
                           </span>
                         </div>
                         <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-3">
@@ -979,9 +964,9 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                         {/* Toggle */}
                         <div className="flex gap-2 mb-3">
                           <button
-                            onClick={() => updateConfig('ui', 'visibility', 'all')}
+                            onClick={() => updateConfig('ui', 'visibility', 'public')}
                             className={`flex-1 py-2 rounded-lg text-xs font-semibold border transition-all ${
-                              widgetConfig.ui.visibility === 'all'
+                              widgetConfig.ui.visibility === 'public'
                                 ? 'bg-amber-400 border-amber-500 text-white shadow'
                                 : 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:border-amber-400'
                             }`}
@@ -1001,7 +986,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                         </div>
 
                         {/* Warning banner when All */}
-                        {widgetConfig.ui.visibility === 'all' && (
+                        {widgetConfig.ui.visibility === 'public' && (
                           <div className="flex items-start gap-2 p-2.5 rounded-lg bg-amber-100 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-600">
                             <span className="text-base mt-0.5">⚠️</span>
                             <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-snug">
