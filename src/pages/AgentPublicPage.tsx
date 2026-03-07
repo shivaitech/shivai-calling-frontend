@@ -43,9 +43,16 @@ export default function AgentPublicPage() {
 
   console.log("Loaded agent info:", agentInfo);
 
-  // Append widget2.js script once — window flag survives StrictMode double-invoke
+  // Append widget2.js script once — guard against duplicate scripts already on the page
   useEffect(() => {
     if (!agentId) return;
+
+    // If any widget2.js script already exists in the DOM (e.g. global embed), don't add another
+    const existing = Array.from(document.querySelectorAll('script')).find(
+      (s) => s.src && s.src.includes('/widget2.js')
+    );
+    if (existing) return;
+
     if ((window as any).__shivaiWidgetInjected) return;
     (window as any).__shivaiWidgetInjected = true;
     const params = new URLSearchParams();
@@ -55,6 +62,11 @@ export default function AgentPublicPage() {
     script.src = `/widget2.js?${params.toString()}`;
     script.async = true;
     document.body.appendChild(script);
+
+    return () => {
+      // Reset flag so re-navigating to this page re-injects correctly
+      (window as any).__shivaiWidgetInjected = false;
+    };
   }, [agentId, userId]);
 
   const agentName = agentInfo?.name || "Your AI Employee";

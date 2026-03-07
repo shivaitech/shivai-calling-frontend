@@ -727,7 +727,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
             <div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Customization Panel */}
-                <div className="space-y-6">
+                <div className="space-y-6 min-w-0">
                   <div>
                     <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">
                       Company Branding
@@ -940,7 +940,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                       </div>
 
                       {/* Widget Visibility */}
-                      <div className={`rounded-xl border-2 p-4 transition-all duration-200 ${
+                      <div className={`rounded-xl border-2 p-4 transition-all duration-200 overflow-hidden ${
                         widgetConfig.ui.visibility === 'public'
                           ? 'border-amber-400 bg-amber-50 dark:bg-amber-900/10 dark:border-amber-500/60'
                           : 'border-green-400 bg-green-50 dark:bg-green-900/10 dark:border-green-500/60'
@@ -1002,7 +1002,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                               Widget will only load on the URLs listed below:
                             </p>
                             {(widgetConfig.ui.allowedDomains.length === 0 ? [''] : widgetConfig.ui.allowedDomains).map((url, idx) => (
-                              <div key={idx} className="flex items-center gap-2">
+                              <div key={idx} className="flex items-center gap-2 min-w-0">
                                 <input
                                   type="text"
                                   value={url}

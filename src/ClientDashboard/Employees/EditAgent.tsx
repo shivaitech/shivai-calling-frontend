@@ -142,7 +142,7 @@ import SearchableSelect from '../../components/SearchableSelect';
 const EditAgent = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { currentAgent, setCurrentAgent } = useAgent();
+  const { currentAgent, setCurrentAgent, refreshAgents } = useAgent();
 
   const [formData, setFormData] = useState({
     name: "",
@@ -1125,6 +1125,8 @@ const EditAgent = () => {
         await agentAPI.updateAgent(currentAgent.id, updateData);
         appToast.dismiss(loadingToast);
         appToast.success("Agent updated successfully!");
+        // Refresh the agents list in context so view page shows updated data immediately
+        await refreshAgents();
       } catch (error) {
         appToast.dismiss(loadingToast);
         appToast.error("Failed to update agent. Please try again.");
