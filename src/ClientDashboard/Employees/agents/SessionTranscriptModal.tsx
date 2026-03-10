@@ -79,8 +79,30 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
       }
     };
 
+    // 🧹 Prevent background scrolling when modal is open
+    const scrollY = window.scrollY;
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.left = '0';
+    document.body.style.right = '0';
+    document.body.style.width = '100%';
+    document.body.style.overflow = 'hidden';
+
     fetchTranscripts();
     fetchCallSummary();
+
+    // 🧹 Cleanup: Restore scrolling on modal close
+    return () => {
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
+      document.body.style.width = '';
+      document.body.style.overflow = '';
+      if (scrollY) {
+        window.scrollTo(0, scrollY);
+      }
+    };
   }, [session?.session_id, session?.id, session?.call_id, session?.agent?.id, session?.agent_id]);
 
   // Audio player handlers

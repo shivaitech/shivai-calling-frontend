@@ -72,6 +72,10 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
   const [previewKey, setPreviewKey] = useState(0);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const configTimeoutRef = useRef<number | null>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const triggerButtonInputRef = useRef<HTMLInputElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const currentRequestIdRef = useRef<string>("");
 
   // Gradient presets for theme customization
   const gradientPresets = [
@@ -224,10 +228,9 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
       allowedDomains: [],
     },
     content: {
-      welcomeMessage: `Hi! I'm ${agentName}. How can I help you today?`,
-      companyName: agentName,
-      companyDescription:
-        "AI-Powered Support - We offer 24/7 voice support to handle your business calls effieciently and professionally.",
+      welcomeMessage: "Loading...",
+      companyName: "",
+      companyDescription: "",
       companyLogo: "",
       triggerButtonImage: "",
       callToActionText: "📞 Call ShivAI!",
@@ -245,39 +248,100 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
     customCSS: "",
   });
 
-  // Update widget config when agent changes (only if no saved config exists)
-  useEffect(() => {
-    console.log("🔄 Agent name effect triggered. agentName:", agentName, "lastSaved:", !!lastSaved);
-    // Only update defaults if we haven't loaded a saved config yet
-    if (!lastSaved) {
-      console.log("✅ No saved config found, setting defaults for agent:", agentName);
-      console.log("🧹 Also clearing any cached logo preview");
-      setLogoPreview(""); // Clear any cached logo
-      setTriggerButtonImagePreview(""); // Clear trigger button image
-      setWidgetConfig((prev) => ({
-        ...prev,
-        content: {
-          ...prev.content,
-          welcomeMessage: `Hi! I'm ${agentName}. How can I help you today?`,
-          companyName: agentName,
-          companyLogo: "", // Explicitly clear logo
-        },
-      }));
-    } else {
-      console.log("⏭️ Saved config exists, skipping defaults override");
-    }
-  }, [agentName, lastSaved]); // Add lastSaved as dependency to prevent override
-
+  // Main effect to load widget config - this is the ONLY place state should be updated
   useEffect(() => {
     const loadWidgetConfig = async () => {
+      // 🧹 CRITICAL: Reset ALL state FIRST before anything else
+      console.log("🧹 AGGRESSIVE STATE RESET: Clearing ALL widget state for agentId:", agentId);
       setIsLoading(true);
-      // Clear any existing logo/trigger previews at start
+      setHasUnsavedChanges(false);
+      setLastSaved(null);
+      setActiveTab("configure");
       setLogoPreview("");
       setTriggerButtonImagePreview("");
+      setPreviewKey(0);
+      
+      // 🧹 CRITICAL: Clear file input refs to prevent showing old images
+      if (logoInputRef.current) {
+        logoInputRef.current.value = "";
+        console.log("🧹 Cleared logoInputRef");
+      }
+      if (triggerButtonInputRef.current) {
+        triggerButtonInputRef.current.value = "";
+        console.log("🧹 Cleared triggerButtonInputRef");
+      }
+      
+      // Reset widget config to initial default state
+      const defaultConfig: WidgetConfig = {
+        theme: {
+          primaryColor: "#4b5563",
+          secondaryColor: "#6b7280",
+          accentColor: "#374151",
+          borderRadius: "16px",
+          buttonStyle: "floating",
+          widgetStyle: "modern",
+        },
+        ui: {
+          position: "bottom-right",
+          buttonSize: "medium",
+          chatHeight: "320px",
+          chatWidth: "380px",
+          autoOpen: false,
+          minimizeButton: true,
+          draggable: true,
+          visibility: 'public',
+          allowedDomains: [],
+        },
+        content: {
+          welcomeMessage: `Hi! I'm ${agentName}. How can I help you today?`,
+          companyName: agentName,
+          companyDescription: "AI-Powered Support - We offer 24/7 voice support to handle your business calls effieciently and professionally.",
+          companyLogo: "",
+          triggerButtonImage: "",
+          callToActionText: "📞 Call ShivAI!",
+          placeholderText: "Type your message...",
+          offlineMessage: "We're currently offline. Please leave a message.",
+        },
+        features: {
+          voiceEnabled: true,
+          soundEffects: true,
+          showBranding: true,
+          messageHistory: true,
+          typingIndicator: true,
+          fileUpload: false,
+        },
+        customCSS: "",
+      };
+      
+      // Apply default config immediately before any API call
+      setWidgetConfig(defaultConfig);
+      console.log("✅ Default config applied - all fields reset to defaults");
+      console.log("   allowedDomains explicitly set to:", defaultConfig.ui.allowedDomains);
+      
+      // 🔄 REQUEST ID TRACKING: Prevent race conditions where old API responses overwrite new agent data
+      const requestId = `${agentId}-${Date.now()}-${Math.random()}`;
+      currentRequestIdRef.current = requestId;
+      console.log("📌 Created new request ID:", requestId);
+      
+      // 🛑 ABORT CONTROLLER: Cancel previous API calls if user switches agents quickly
+      if (abortControllerRef.current) {
+        console.log("🛑 Aborting previous API request");
+        abortControllerRef.current.abort();
+      }
+      abortControllerRef.current = new AbortController();
       
       try {
         console.log("🔄 Loading widget config via agent-config API for agentId:", agentId);
         const { agent } = await agentAPI.getAgentConfig(agentId);
+        
+        // ⚡ CHECK: Only apply response if request ID still matches (no race condition)
+        if (currentRequestIdRef.current !== requestId) {
+          console.log("⚠️ RACE CONDITION DETECTED: Request ID mismatch. Ignoring stale response.");
+          console.log("   Current ID:", currentRequestIdRef.current, "Response ID:", requestId);
+          setIsLoading(false);
+          return;
+        }
+        
         console.log("📦 agent-config response:", agent);
 
           // Check if agent and widget configuration exists in response
@@ -291,6 +355,9 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
             console.log("  company_logo:", widget.company_logo);
             console.log("  primary_color:", widget.primary_color);
             console.log("  gradient_end:", widget.gradient_end);
+            console.log("  allowed_domains:", widget.allowed_domains);
+            console.log("  visibility:", widget.visibility);
+            console.log("  trigger_button_image:", widget.trigger_button_image);
 
             // Map API response to widget config state
             const loadedConfig: WidgetConfig = {
@@ -311,7 +378,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                 minimizeButton: true,
                 draggable: true,
                 visibility: (widget.visibility as 'public' | 'private') || 'public',
-                allowedDomains: widget.allowed_domains || [],
+                allowedDomains: Array.isArray(widget.allowed_domains) ? widget.allowed_domains : [],
               },
               content: {
                 welcomeMessage:
@@ -343,6 +410,16 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
             console.log("  companyDescription:", loadedConfig.content.companyDescription);
             console.log("  companyLogo:", loadedConfig.content.companyLogo);
             console.log("  primaryColor:", loadedConfig.theme.primaryColor);
+            console.log("  ✅ allowedDomains from API:", loadedConfig.ui.allowedDomains);
+            console.log("  ✅ visibility from API:", loadedConfig.ui.visibility);
+            console.log("  ✅ triggerButtonImage from API:", loadedConfig.content.triggerButtonImage);
+            
+            // ⚡ FINAL CHECK: Verify request ID AGAIN before committing state changes
+            if (currentRequestIdRef.current !== requestId) {
+              console.log("⚠️ RACE CONDITION DETECTED on state update: Ignoring stale response");
+              setIsLoading(false);
+              return;
+            }
             
             setWidgetConfig(loadedConfig);
             
@@ -385,22 +462,20 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
             console.log("✅ Widget configuration loaded and prefilled");
           } else {
             console.log("ℹ️ No widget configuration found in agent-config response");
-            // Explicitly clear logo and reset to defaults for new agent
-            console.log("🧹 Clearing logo preview and resetting to defaults");
+            
+            // ⚡ RACE CONDITION CHECK: before applying defaults to new agent
+            if (currentRequestIdRef.current !== requestId) {
+              console.log("⚠️ RACE CONDITION DETECTED (no widget): Ignoring stale response");
+              setIsLoading(false);
+              return;
+            }
+            
+            // Explicitly clear EVERYTHING including allowedDomains for new agent
+            console.log("🧹 Clearing ALL fields - No previous widget found");
             setLogoPreview("");
             setTriggerButtonImagePreview("");
-            setWidgetConfig((prev) => ({
-              ...prev,
-              content: {
-                ...prev.content,
-                companyLogo: "",
-                companyName: agentName,
-                companyDescription: "AI-Powered Support - We offer 24/7 voice support to handle your business calls effieciently and professionally.",
-                welcomeMessage: `Hi! I'm ${agentName}. How can I help you today?`,
-                callToActionText: "📞 Call ShivAI!",
-              }
-            }));
-            console.log("✅ Reset to clean defaults for new agent");
+            setWidgetConfig(defaultConfig);
+            console.log("✅ Reset to clean defaults for new agent - allowedDomains cleared to:", defaultConfig.ui.allowedDomains);
           }
       } catch (error) {
         console.error("❌ Failed to load widget configuration:", error);
@@ -411,8 +486,12 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
 
     loadWidgetConfig();
 
-    // Cleanup timeout on unmount
+    // Cleanup: Abort previous request and clear timeouts on unmount or agent change
     return () => {
+      if (abortControllerRef.current) {
+        console.log("🛑 Cleanup: Aborting widget config request");
+        abortControllerRef.current.abort();
+      }
       if (configTimeoutRef.current) {
         clearTimeout(configTimeoutRef.current);
       }
@@ -739,6 +818,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                         </label>
                         <div className="relative group w-32 h-32">
                           <input
+                            ref={logoInputRef}
                             type="file"
                             id="logo-upload"
                             accept="image/*"
@@ -833,6 +913,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                         </label>
                         <div className="relative group w-28 h-28">
                           <input
+                            ref={triggerButtonInputRef}
                             type="file"
                             id="trigger-btn-upload"
                             accept="image/*"
