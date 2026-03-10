@@ -21,7 +21,6 @@ export default function AgentPublicPage() {
 
   const [agentInfo, setAgentInfo] = useState<AgentInfo | null>(null);
 
-  // Fetch basic agent info from public endpoint
   useEffect(() => {
     if (!agentId) return;
     const fetchAgent = async () => {
@@ -35,7 +34,6 @@ export default function AgentPublicPage() {
           setAgentInfo(data?.data?.agent || data);
         }
       } catch {
-        // Agent info not critical — widget still loads
       }
     };
     fetchAgent();
@@ -43,7 +41,6 @@ export default function AgentPublicPage() {
 
   console.log("Loaded agent info:", agentInfo);
 
-  // Append widget2.js script once — guard against duplicate scripts already on the page
   useEffect(() => {
     if (!agentId) return;
 

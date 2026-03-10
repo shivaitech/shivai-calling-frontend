@@ -332,7 +332,8 @@ const EditAgent = () => {
           voiceSpeed: (agentData as any).voice_speed !== undefined ? (agentData as any).voice_speed : 1.0,
           voiceStyle: (agentData as any).voice_style || "friendly",
           voiceInstruction: (agentData as any).voice_instruction || "Speak clearly and warmly with a friendly, approachable tone.",
-          customInstructions: agentData.custom_instructions || "",
+          // Prioritize template's systemPrompt if available, otherwise use custom_instructions
+          customInstructions: (agentData.template?.systemPrompt) || agentData.custom_instructions || "",
           guardrailsLevel: mapGuardrailsLevel(agentData.guardrails_level),
           responseStyle: mapResponseStyle(agentData.response_style),
           maxResponseLength: mapMaxResponseLength(agentData.max_response_length),
@@ -373,6 +374,17 @@ const EditAgent = () => {
 
     fetchAgentData();
   }, [id, setCurrentAgent, navigate]);
+
+  // Sync customInstructions with templateData.systemPrompt whenever template changes
+  useEffect(() => {
+    if (templateData?.systemPrompt) {
+      console.log("📝 Syncing templateData.systemPrompt to customInstructions");
+      setFormData((prev) => ({
+        ...prev,
+        customInstructions: templateData.systemPrompt,
+      }));
+    }
+  }, [templateData]); // Track entire templateData object, not just systemPrompt
 
   const businessProcesses = [
     { value: "customer-support", label: "Customer Support", group: "Support" },
@@ -1108,18 +1120,16 @@ const EditAgent = () => {
           business_process: formData.businessProcess.replace(/-/g, '_'),
           industry: formData.industry.replace(/-/g, '_'),
           sub_industry: formData.subIndustry ? formData.subIndustry.replace(/-/g, '_') : undefined,
-          custom_instructions: formData.customInstructions,
+          // Use template's systemPrompt if available (synced with Training page), otherwise use customInstructions
+          custom_instructions: templateData?.systemPrompt || formData.customInstructions,
           guardrails_level: guardrailsToApi(formData.guardrailsLevel),
           response_style: responseStyleToApi(formData.responseStyle),
           max_response_length: maxResponseToApi(formData.maxResponseLength),
           context_window: contextWindowToApi(formData.contextWindow),
           temperature: formData.temperature,
-          // Include template data if available
           template: templateData || undefined,
-          // Knowledge base URLs
           website_urls: websiteUrls.filter((url) => url.trim()),
           social_media_urls: socialMediaUrls.filter((url) => url.trim()),
-          // Merge existing KB file URLs with any newly uploaded ones (deduplicated)
           knowledge_base_file_urls: [...new Set([...existingKbFiles, ...uploadedFileUrls])],
         };
 
