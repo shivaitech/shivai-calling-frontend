@@ -332,8 +332,8 @@ const EditAgent = () => {
           voiceSpeed: (agentData as any).voice_speed !== undefined ? (agentData as any).voice_speed : 1.0,
           voiceStyle: (agentData as any).voice_style || "friendly",
           voiceInstruction: (agentData as any).voice_instruction || "Speak clearly and warmly with a friendly, approachable tone.",
-          // Prioritize template's systemPrompt if available, otherwise use custom_instructions
-          customInstructions: (agentData.template?.systemPrompt) || agentData.custom_instructions || "",
+          // Use custom_instructions from API response
+          customInstructions: agentData.custom_instructions || "",
           guardrailsLevel: mapGuardrailsLevel(agentData.guardrails_level),
           responseStyle: mapResponseStyle(agentData.response_style),
           maxResponseLength: mapMaxResponseLength(agentData.max_response_length),
@@ -374,17 +374,6 @@ const EditAgent = () => {
 
     fetchAgentData();
   }, [id, setCurrentAgent, navigate]);
-
-  // Sync customInstructions with templateData.systemPrompt whenever template changes
-  useEffect(() => {
-    if (templateData?.systemPrompt) {
-      console.log("📝 Syncing templateData.systemPrompt to customInstructions");
-      setFormData((prev) => ({
-        ...prev,
-        customInstructions: templateData.systemPrompt,
-      }));
-    }
-  }, [templateData]); // Track entire templateData object, not just systemPrompt
 
   const businessProcesses = [
     { value: "customer-support", label: "Customer Support", group: "Support" },
@@ -1120,14 +1109,13 @@ const EditAgent = () => {
           business_process: formData.businessProcess.replace(/-/g, '_'),
           industry: formData.industry.replace(/-/g, '_'),
           sub_industry: formData.subIndustry ? formData.subIndustry.replace(/-/g, '_') : undefined,
-          // Use template's systemPrompt if available (synced with Training page), otherwise use customInstructions
-          custom_instructions: templateData?.systemPrompt || formData.customInstructions,
+          // Send only custom_instructions (System Prompt / Custom Instructions)
+          custom_instructions: formData.customInstructions,
           guardrails_level: guardrailsToApi(formData.guardrailsLevel),
           response_style: responseStyleToApi(formData.responseStyle),
           max_response_length: maxResponseToApi(formData.maxResponseLength),
           context_window: contextWindowToApi(formData.contextWindow),
           temperature: formData.temperature,
-          template: templateData || undefined,
           website_urls: websiteUrls.filter((url) => url.trim()),
           social_media_urls: socialMediaUrls.filter((url) => url.trim()),
           knowledge_base_file_urls: [...new Set([...existingKbFiles, ...uploadedFileUrls])],
@@ -1927,26 +1915,27 @@ const EditAgent = () => {
               
 
                   {/* Template Editor Section */}
+                  {/* System Prompt / Custom Instructions */}
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                      System Prompt / Custom Instructions
+                    </label>
+                    <textarea
+                      value={formData.customInstructions}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          customInstructions: e.target.value,
+                        })
+                      }
+                      placeholder="Define the agent's core behavior and role..."
+                      rows={16}
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/20 text-slate-800 dark:text-white text-sm resize-y min-h-[200px]"
+                    />
+                  </div>
+
                   {templateData && (
                     <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-                      {/* System Prompt */}
-                      <div>
-                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                          System Prompt
-                        </label>
-                        <textarea
-                          value={templateData.systemPrompt || ''}
-                          onChange={(e) =>
-                            setTemplateData({
-                              ...templateData,
-                              systemPrompt: e.target.value,
-                            })
-                          }
-                          placeholder="Define the agent's core behavior and role..."
-                          rows={16}
-                          className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/20 text-slate-800 dark:text-white text-sm resize-y min-h-[200px]"
-                        />
-                      </div>
 
                       {/* First Message */}
                       <div>

@@ -17,3 +17,8 @@ export function isDeveloperUser(userEmail?: string): boolean {
     // userEmail === "web@asianadventures.in"
   );
 }
+
+// Check if user is a special client (PMJC/Kunal Prakash)
+export function isKunalPrakashClient(userEmail?: string): boolean {
+  return userEmail === "kunalprakashjha@gmail.com";
+}
