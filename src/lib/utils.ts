@@ -12,8 +12,13 @@ export function isDeveloperUser(userEmail?: string): boolean {
     userEmail === "rs@shivaitech.com" ||
     userEmail === "demo@callshivai.com" || 
     userEmail === "demo@callshivai1.com" || 
-    userEmail === "official.social.nwp@gmail.com" 
+    userEmail === "kunalprakashjha@gmail.com" 
     // || 
     // userEmail === "web@asianadventures.in"
   );
+}
+
+// Check if user is a special client (PMJC/Kunal Prakash)
+export function isKunalPrakashClient(userEmail?: string): boolean {
+  return userEmail === "kunalprakashjha@gmail.com";
 }

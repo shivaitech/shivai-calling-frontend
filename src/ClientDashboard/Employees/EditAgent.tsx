@@ -142,7 +142,7 @@ import SearchableSelect from '../../components/SearchableSelect';
 const EditAgent = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { currentAgent, setCurrentAgent } = useAgent();
+  const { currentAgent, setCurrentAgent, refreshAgents } = useAgent();
 
   const [formData, setFormData] = useState({
     name: "",
@@ -155,6 +155,7 @@ const EditAgent = () => {
     voice: "Achernar",
     voiceSpeed: 1.0,
     voiceStyle: "friendly",
+    voiceInstruction: "Speak clearly and warmly with a friendly, approachable tone.",
     customInstructions: "",
     guardrailsLevel: "Medium",
     responseStyle: "Balanced",
@@ -330,6 +331,8 @@ const EditAgent = () => {
           voice: agentData.voice || "Achernar",
           voiceSpeed: (agentData as any).voice_speed !== undefined ? (agentData as any).voice_speed : 1.0,
           voiceStyle: (agentData as any).voice_style || "friendly",
+          voiceInstruction: (agentData as any).voice_instruction || "Speak clearly and warmly with a friendly, approachable tone.",
+          // Use custom_instructions from API response
           customInstructions: agentData.custom_instructions || "",
           guardrailsLevel: mapGuardrailsLevel(agentData.guardrails_level),
           responseStyle: mapResponseStyle(agentData.response_style),
@@ -1101,22 +1104,20 @@ const EditAgent = () => {
           voice: formData.voice,
           voice_speed: formData.voiceSpeed,
           voice_style: formData.voiceStyle,
+          voice_instruction: formData.voiceInstruction,
           gender: formData.gender,
           business_process: formData.businessProcess.replace(/-/g, '_'),
           industry: formData.industry.replace(/-/g, '_'),
           sub_industry: formData.subIndustry ? formData.subIndustry.replace(/-/g, '_') : undefined,
+          // Send only custom_instructions (System Prompt / Custom Instructions)
           custom_instructions: formData.customInstructions,
           guardrails_level: guardrailsToApi(formData.guardrailsLevel),
           response_style: responseStyleToApi(formData.responseStyle),
           max_response_length: maxResponseToApi(formData.maxResponseLength),
           context_window: contextWindowToApi(formData.contextWindow),
           temperature: formData.temperature,
-          // Include template data if available
-          template: templateData || undefined,
-          // Knowledge base URLs
           website_urls: websiteUrls.filter((url) => url.trim()),
           social_media_urls: socialMediaUrls.filter((url) => url.trim()),
-          // Merge existing KB file URLs with any newly uploaded ones (deduplicated)
           knowledge_base_file_urls: [...new Set([...existingKbFiles, ...uploadedFileUrls])],
         };
 
@@ -1125,6 +1126,8 @@ const EditAgent = () => {
         await agentAPI.updateAgent(currentAgent.id, updateData);
         appToast.dismiss(loadingToast);
         appToast.success("Agent updated successfully!");
+        // Refresh the agents list in context so view page shows updated data immediately
+        await refreshAgents();
       } catch (error) {
         appToast.dismiss(loadingToast);
         appToast.error("Failed to update agent. Please try again.");
@@ -1912,26 +1915,27 @@ const EditAgent = () => {
               
 
                   {/* Template Editor Section */}
+                  {/* System Prompt / Custom Instructions */}
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                      System Prompt / Custom Instructions
+                    </label>
+                    <textarea
+                      value={formData.customInstructions}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          customInstructions: e.target.value,
+                        })
+                      }
+                      placeholder="Define the agent's core behavior and role..."
+                      rows={16}
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/20 text-slate-800 dark:text-white text-sm resize-y min-h-[200px]"
+                    />
+                  </div>
+
                   {templateData && (
                     <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-                      {/* System Prompt */}
-                      <div>
-                        <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                          System Prompt
-                        </label>
-                        <textarea
-                          value={templateData.systemPrompt || ''}
-                          onChange={(e) =>
-                            setTemplateData({
-                              ...templateData,
-                              systemPrompt: e.target.value,
-                            })
-                          }
-                          placeholder="Define the agent's core behavior and role..."
-                          rows={16}
-                          className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/20 text-slate-800 dark:text-white text-sm resize-y min-h-[200px]"
-                        />
-                      </div>
 
                       {/* First Message */}
                       <div>
@@ -2250,6 +2254,23 @@ const EditAgent = () => {
                     </select>
                     <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-1">
                       Set the personality tone for your AI assistant
+                    </p>
+                  </div>
+
+                  {/* Voice Instruction */}
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
+                      Voice Instruction
+                    </label>
+                    <textarea
+                      value={formData.voiceInstruction}
+                      onChange={(e) => setFormData({ ...formData, voiceInstruction: e.target.value })}
+                      placeholder="e.g., Speak clearly and warmly with a friendly, approachable tone. Use pauses for emphasis..."
+                      className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm sm:text-base text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all resize-none"
+                      rows={3}
+                    />
+                    <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-1">
+                      Add custom instructions for how the voice should sound and behave
                     </p>
                   </div>
 

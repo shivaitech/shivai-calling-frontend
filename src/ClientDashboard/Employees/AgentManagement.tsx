@@ -1043,10 +1043,23 @@ const AgentManagement = () => {
     setKbCreationProgress({
       agentId: '',
       status: 'pending',
-      progress: 0,
-      message: 'Creating agent...',
+      progress: 5,
+      message: 'Preparing agent configuration...',
     });
     console.log('🚀 [CREATE] Initial KB progress set');
+
+    // Start progress simulation interval - only update percentage
+    const progressInterval = setInterval(() => {
+      setKbCreationProgress((prev) => {
+        if (!prev) return null;
+        // Gradually increase progress but cap at 95% until API completes
+        const newProgress = Math.min(prev.progress + Math.random() * 15, 95);
+        return {
+          ...prev,
+          progress: Math.floor(newProgress),
+        };
+      });
+    }, 800);
 
     try {
       console.log(
@@ -1124,16 +1137,19 @@ const AgentManagement = () => {
 
       console.log("📤 Agent payload:", agentPayload);
       console.log("📄 Website URLs:", validWebsiteUrls);
-      console.log("� Social Media URLs:", validSocialMediaUrls);
-      console.log("�📎 Knowledge Base Files:", knowledgeBaseFileUrls);
+      console.log("📱 Social Media URLs:", validSocialMediaUrls);
+      console.log("📎 Knowledge Base Files:", knowledgeBaseFileUrls);
 
       // Call the agent creation API (synchronous - API handles KB creation)
       const newAgent = await agentAPI.createAgentFull(agentPayload);
 
+      // Stop progress simulation - API completed
+      clearInterval(progressInterval);
+
       console.log('✅ Agent created successfully:', newAgent);
       console.log('✅ New Agent ID:', newAgent?.id);
 
-      // API call completed - agent and KB are ready
+      // API call completed - agent and KB are ready - set to 100%
       setKbCreationProgress({
         agentId: newAgent?.id || '',
         status: 'completed',
@@ -1153,6 +1169,9 @@ const AgentManagement = () => {
       
       console.log('✅ Agent creation complete!');
     } catch (error) {
+      // Stop progress simulation on error
+      clearInterval(progressInterval);
+
       console.error("❌ Error creating agent:", error);
 
       setIsCreatingAgent(false);

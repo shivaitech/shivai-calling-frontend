@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Orb, oceanDepthsPreset } from "react-ai-orb";
 import bgNew from "../resources/AiImages/bg22.webp";
+import { isKunalPrakashClient } from "../lib/utils";
 
 interface AgentInfo {
   name: string;
@@ -20,10 +21,35 @@ export default function AgentPublicPage() {
   const userId = searchParams.get("userId");
 
   const [agentInfo, setAgentInfo] = useState<AgentInfo | null>(null);
+  const agentFetchRef = useRef<string | null>(null);
+  const widgetLoadRef = useRef<string | null>(null);
 
-  // Fetch basic agent info from public endpoint
+  // Get user email from localStorage
+  const getUserEmailFromStorage = () => {
+    try {
+      const authUser = localStorage.getItem("auth_user");
+      if (authUser) {
+        const userData = JSON.parse(authUser);
+        return userData?.email || userData?.user?.email || null;
+      }
+    } catch (error) {
+      console.error("Error parsing auth_user from localStorage:", error);
+    }
+    return null;
+  };
+
+  const userEmail = getUserEmailFromStorage();
+  
+  // Check if this is the Kunal Prakash client with custom UI
+  const isKunalClient = isKunalPrakashClient(userEmail || undefined);
+
   useEffect(() => {
     if (!agentId) return;
+
+    // Prevent duplicate fetches for the same agent
+    if (agentFetchRef.current === agentId) return;
+    agentFetchRef.current = agentId;
+
     const fetchAgent = async () => {
       try {
         const response = await fetch(
@@ -32,32 +58,48 @@ export default function AgentPublicPage() {
         );
         if (response.ok) {
           const data = await response.json();
-          setAgentInfo(data?.data?.agent || data);
+          // Only set agent info if this is still the current agentId
+          if (agentFetchRef.current === agentId) {
+            setAgentInfo(data?.data?.agent || data);
+          }
         }
       } catch {
-        // Agent info not critical — widget still loads
+        // Silently fail
       }
     };
+
     fetchAgent();
+
+    return () => {
+      // Reset fetch ref on unmount
+      agentFetchRef.current = null;
+    };
   }, [agentId]);
 
-  console.log("Loaded agent info:", agentInfo);
-
-  // Append widget2.js script once — window flag survives StrictMode double-invoke
   useEffect(() => {
-    if (!agentId) return;
-    if ((window as any).__shivaiWidgetInjected) return;
-    (window as any).__shivaiWidgetInjected = true;
-    const params = new URLSearchParams();
-    params.set("agentId", agentId);
-    if (userId) params.set("userId", userId);
-    const script = document.createElement("script");
-    script.src = `/widget2.js?${params.toString()}`;
-    script.async = true;
-    document.body.appendChild(script);
-  }, [agentId, userId]);
+    // Load widget2.js for this specific agent
+    if (agentId) {
+      const params = new URLSearchParams();
+      params.set("agentId", agentId);
+      if (userId) params.set("userId", userId);
+
+      const script = document.createElement("script");
+      script.src = `/widget2.js?${params.toString()}`;
+      script.async = false;
+      document.body.appendChild(script);
+    }
+  }, []);
 
   const agentName = agentInfo?.name || "Your AI Employee";
+
+  // Debug: log when data changes
+  useEffect(() => {
+    console.log("🔄 Component state updated:", {
+      userEmail,
+      isKunalClient,
+      agentName,
+    });
+  }, [userEmail, isKunalClient, agentName]);
 
   return (
     <div
@@ -122,19 +164,20 @@ export default function AgentPublicPage() {
         >
           <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 border border-white/20 text-white/80 text-xs font-medium backdrop-blur-sm">
             <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
-            AI Employee · Ready to Talk
+            {isKunalClient ? "AI Politician · Ready to Talk" : "AI Employee · Ready to Talk"}
           </span>
 
           <h1 className="text-white text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-semibold leading-tight tracking-tight">
             Talk to{" "}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-slate-200 via-white to-slate-300">
-              {agentName}
+              {isKunalClient ? "PMJC" : agentName}
             </span>
           </h1>
 
           <p className="text-white/70 text-sm sm:text-base md:text-lg max-w-lg leading-relaxed">
-            Your AI employee is ready. Click the chat button in the bottom-right
-            corner to start a conversation.
+            {isKunalClient 
+              ? "Click the chat button in the bottom-right corner to start a conversation."
+              : "Your AI employee is ready. Click the chat button in the bottom-right corner to start a conversation."}
           </p>
         </motion.div>
 
