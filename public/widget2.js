@@ -313,6 +313,7 @@
     try {
       // Get agent ID and tenant ID from configuration (dynamic)
       let agentId = null;
+      let bypassDomainCheck = false;
       
       // First try to get from URL parameters of the widget script
       const scriptTags = document.getElementsByTagName('script');
@@ -325,6 +326,8 @@
             const url = new URL(script.src);
             const urlAgentId = url.searchParams.get('agentId');
             const urlUserId = url.searchParams.get('userId');
+            const urlBypass = url.searchParams.get('bypass');
+            
             if (urlAgentId) {
               agentId = urlAgentId;
               foundFromUrl = true;
@@ -333,6 +336,10 @@
             if (urlUserId) {
               globalTenantId = urlUserId;
               console.log("👤 Using userId (tenant_id) from URL:", globalTenantId);
+            }
+            if (urlBypass === 'true') {
+              bypassDomainCheck = true;
+              console.log("✅ Domain check bypass enabled - testing/preview mode");
             }
             if (foundFromUrl) break;
           } catch (urlErr) {
@@ -421,7 +428,11 @@
           // ✅ Domain restriction check
           const widgetVisibility = agentRes.widget.visibility || 'public';
           const allowedDomains = agentRes.widget.allowed_domains || [];
-          if (widgetVisibility === 'private' && allowedDomains.length > 0) {
+          
+          // Skip domain check if bypass is enabled (for preview/testing/QR pages)
+          if (bypassDomainCheck) {
+            console.log('✅ Domain check skipped - bypass mode enabled');
+          } else if (widgetVisibility === 'private' && allowedDomains.length > 0) {
             const currentOrigin = window.location.origin.toLowerCase();
             const currentHost = window.location.hostname.toLowerCase();
             const isAllowed = allowedDomains.some(function(domain) {

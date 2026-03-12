@@ -641,7 +641,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
         gradient_start: widgetConfig.theme.primaryColor,
         gradient_end: widgetConfig.theme.accentColor,
         visibility: widgetConfig.ui.visibility,
-        allowed_domains: widgetConfig.ui.allowedDomains,
+        allowed_domains: widgetConfig.ui.allowedDomains.filter((domain: string) => domain.trim() !== ''), // Filter out empty domains
       };
 
       const saveResponse = await agentAPI.saveWidgetConfig(widgetData);
@@ -1432,7 +1432,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
     </script>
     
     <!-- Load the actual widget.js -->
-    <script src="/widget.js?agentId=${agentId}&userId=${user?.id || ''}&companyName=${encodeURIComponent(
+    <script src="/widget.js?agentId=${agentId}&userId=${user?.id || ''}&bypass=true&companyName=${encodeURIComponent(
                         widgetConfig.content.companyName
                       )}&companyDescription=${encodeURIComponent(
                         widgetConfig.content.companyDescription

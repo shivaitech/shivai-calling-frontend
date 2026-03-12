@@ -39,7 +39,13 @@ const Analytics = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalSessions, setTotalSessions] = useState(0);
+  const [totalAgents, setTotalAgents] = useState(0);
+  const [totalAgentPages, setTotalAgentPages] = useState(1);
+  const [agentLoadPage, setAgentLoadPage] = useState(1);
+  const [isLoadingMoreAgents, setIsLoadingMoreAgents] = useState(false);
+  const [showAgentDropdown, setShowAgentDropdown] = useState(false);
   const pageSize = 10;
+  const agentPageSize = 10;
 
   // Date range state
   const [dateRange, setDateRange] = useState({
@@ -80,18 +86,26 @@ const Analytics = () => {
 
       try {
         console.log("🚀 Fetching agents...");
-        const fetchedAgents = await agentAPI.getAgents();
-        setAgentsList(fetchedAgents || []);
-        console.log("✅ Agents loaded:", fetchedAgents.length);
+        const response = await agentAPI.getAgentsWithFilters({
+          page: 1,
+          limit: agentPageSize,
+        });
+        
+        setAgentsList(response.agents || []);
+        setTotalAgents(response.total || 0);
+        setTotalAgentPages(response.totalPages || 1);
+        setAgentLoadPage(1);
+        
+        console.log("✅ Agents loaded:", response.agents.length, "out of", response.total);
 
         // Auto-select first agent
-        if (fetchedAgents.length > 0 && !selectedEmployee) {
+        if (response.agents.length > 0 && !selectedEmployee) {
           console.log(
             "✅ Setting default agent:",
-            fetchedAgents[0].id,
-            fetchedAgents[0].name
+            response.agents[0].id,
+            response.agents[0].name
           );
-          setSelectedEmployee(fetchedAgents[0].id);
+          setSelectedEmployee(response.agents[0].id);
         }
       } catch (error) {
         console.error("❌ Error fetching agents:", error);
@@ -100,6 +114,32 @@ const Analytics = () => {
 
     fetchAgents();
   }, [isDeveloper]);
+
+  // Load more agents when clicked
+  const loadMoreAgents = async () => {
+    if (!isDeveloper || agentLoadPage >= totalAgentPages) return;
+
+    setIsLoadingMoreAgents(true);
+    try {
+      const nextPage = agentLoadPage + 1;
+      console.log("🚀 Loading more agents, page:", nextPage);
+      
+      const response = await agentAPI.getAgentsWithFilters({
+        page: nextPage,
+        limit: agentPageSize,
+      });
+
+      // Append new agents to existing list
+      setAgentsList((prev) => [...prev, ...(response.agents || [])]);
+      setAgentLoadPage(nextPage);
+      
+      console.log("✅ Loaded", response.agents.length, "more agents");
+    } catch (error) {
+      console.error("❌ Error loading more agents:", error);
+    } finally {
+      setIsLoadingMoreAgents(false);
+    }
+  };
 
   // Fetch session history from API with pagination
   const fetchSessionHistory = async (agentId: string, page: number = 1) => {
@@ -184,6 +224,22 @@ const Analytics = () => {
       fetchSessionHistory(selectedEmployee, 1);
     }
   }, [selectedEmployee, isDeveloper, deviceFilter, dateRange, searchQuery]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest(".agent-dropdown-container")) {
+        setShowAgentDropdown(false);
+      }
+    };
+
+    if (showAgentDropdown) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () =>
+        document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [showAgentDropdown]);
 
   // Filter handlers
   const handleDeviceTypeFilter = (deviceType: string) => {
@@ -372,38 +428,83 @@ const Analytics = () => {
       {isDeveloper && employees?.length > 0 && (
         <div className="mb-4">
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-            <div className="relative">
-              <select
-                value={selectedEmployee}
-                onChange={(e) => setSelectedEmployee(e.target.value)}
-                disabled={!isDeveloper}
-                className={`text-sm sm:text-base font-semibold px-3 py-1.5 pr-8 rounded-lg border-2 appearance-none cursor-pointer transition-all ${
+            <div className="agent-dropdown-container relative w-full sm:w-auto">
+              <button
+                onClick={() => setShowAgentDropdown(!showAgentDropdown)}
+                className={`text-sm sm:text-base font-semibold px-3 py-1.5 pr-8 rounded-lg border-2 cursor-pointer transition-all w-full sm:w-auto text-left flex items-center justify-between ${
                   isDeveloper
                     ? "bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-blue-200 dark:border-blue-700 text-slate-800 dark:text-white hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md"
                     : "bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed"
                 } focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
               >
-                {employees?.map((employee) => (
-                  <option
-                    key={employee.id}
-                    value={employee.id}
-                    className="bg-white dark:bg-slate-800 text-slate-800 dark:text-white"
-                  >
-                    {employee.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown
-                className={`absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 pointer-events-none transition-colors ${
-                  isDeveloper
-                    ? "text-blue-600 dark:text-blue-400"
-                    : "text-gray-400"
-                }`}
-              />
+                <span>
+                  {agentsList.find((a) => a.id === selectedEmployee)?.name ||
+                    "Select Agent"}
+                </span>
+                <ChevronDown
+                  className={`absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 pointer-events-none transition-transform ${
+                    showAgentDropdown ? "rotate-180" : ""
+                  } ${
+                    isDeveloper
+                      ? "text-blue-600 dark:text-blue-400"
+                      : "text-gray-400"
+                  }`}
+                />
+              </button>
+
+              {/* Custom Dropdown Menu */}
+              {showAgentDropdown && isDeveloper && (
+                <div className="absolute top-full left-0 mt-2 w-full sm:w-80 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg z-50">
+                  <div className="max-h-64 overflow-y-auto">
+                    {/* Agents List */}
+                    {agentsList.map((agent) => (
+                      <button
+                        key={agent.id}
+                        onClick={() => {
+                          setSelectedEmployee(agent.id);
+                          setShowAgentDropdown(false);
+                        }}
+                        className={`w-full text-left px-4 py-2.5 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors border-b border-slate-100 dark:border-slate-700 text-sm ${
+                          selectedEmployee === agent.id
+                            ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-semibold"
+                            : "text-slate-800 dark:text-white"
+                        }`}
+                      >
+                        {agent.name}
+                      </button>
+                    ))}
+
+                    {/* Load More Button */}
+                    {agentLoadPage < totalAgentPages && (
+                      <button
+                        onClick={loadMoreAgents}
+                        disabled={isLoadingMoreAgents}
+                        className="w-full px-4 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 hover:from-blue-100 hover:to-indigo-100 dark:hover:from-blue-900/30 dark:hover:to-indigo-900/30 text-blue-600 dark:text-blue-400 font-semibold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed border-t border-slate-200 dark:border-slate-700"
+                      >
+                        {isLoadingMoreAgents ? (
+                          <div className="flex items-center justify-center gap-2">
+                            <div className="animate-spin h-3 w-3 border-2 border-blue-600 dark:border-blue-400 border-t-transparent rounded-full"></div>
+                            <span>Loading...</span>
+                          </div>
+                        ) : (
+                          `Load More (${agentsList.length} of ${totalAgents})`
+                        )}
+                      </button>
+                    )}
+
+                    {/* No More Items Message */}
+                    {agentLoadPage >= totalAgentPages && totalAgents > 0 && (
+                      <div className="px-4 py-3 bg-slate-50 dark:bg-slate-900/30 text-slate-500 dark:text-slate-400 text-center text-sm border-t border-slate-200 dark:border-slate-700">
+                        All {totalAgents} agents loaded
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
-            {isDeveloper && employees.length > 1 && (
+            {isDeveloper && totalAgents > 1 && (
               <span className="text-xs text-slate-500 dark:text-slate-400 italic">
-                ({employees.length - 1} more agents)
+                ({totalAgents} agents total)
               </span>
             )}
           </div>

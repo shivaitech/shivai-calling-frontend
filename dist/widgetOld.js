@@ -1,8 +1,23 @@
 (function () {
   "use strict";
 
+  // Check if bypass parameter is set (for testing/preview pages and QR codes)
+  const scriptSrc = document.currentScript?.src || '';
+  const bypassMatch = new URLSearchParams(scriptSrc.split('?')[1]).get('bypass');
+  const isBypassEnabled = bypassMatch === 'true';
+
+  if (isBypassEnabled) {
+    console.log("✅ Domain restrictions bypassed - testing/preview mode enabled");
+  }
+
   // Domain restriction - only allow widget on specific domains and paths
   function isAllowedDomain() {
+    // If bypass is enabled, skip domain checks entirely
+    if (isBypassEnabled) {
+      console.log("✅ Domain check skipped - bypass mode active");
+      return true;
+    }
+
     const currentHostname = window.location.hostname;
     const currentPath = window.location.pathname;
 

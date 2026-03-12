@@ -2435,7 +2435,7 @@ const AgentManagement = () => {
           <div className="grid grid-cols-3 gap-2 lg:gap-4 flex-1">
             <div className="bg-white/50 flex items-center justify-center gap-1.5 dark:bg-slate-800/50 rounded-lg px-2 lg:px-6 py-2 lg:py-2 text-center shadow-sm transition-all duration-200 hover:shadow-md">
               <p className="text-base lg:text-2xl font-bold text-slate-800 dark:text-white">
-                {isDeveloper ? agents.length : 0}
+                {isDeveloper ? totalAgents : 0}
               </p>
               <p className="text-[10px] lg:text-sm font-medium text-slate-600 dark:text-slate-400">
                 Total

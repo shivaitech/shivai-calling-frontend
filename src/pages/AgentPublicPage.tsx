@@ -78,10 +78,12 @@ export default function AgentPublicPage() {
 
   useEffect(() => {
     // Load widget2.js for this specific agent
+    // Add bypass=true to skip domain restrictions on QR/public pages
     if (agentId) {
       const params = new URLSearchParams();
       params.set("agentId", agentId);
       if (userId) params.set("userId", userId);
+      params.set("bypass", "true"); // Bypass domain restrictions for QR/public pages
 
       const script = document.createElement("script");
       script.src = `/widget2.js?${params.toString()}`;
@@ -126,17 +128,10 @@ export default function AgentPublicPage() {
 
       {/* Top branding bar */}
       <div className="relative z-20 flex items-center justify-between px-6 py-4 border-b border-white/10">
+       
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 bg-gradient-to-br from-gray-400 to-gray-600 rounded-lg flex items-center justify-center shadow-lg">
-            <span className="text-white font-bold text-xs">AI</span>
-          </div>
-          <span className="text-white/90 text-sm font-semibold tracking-wide">
-            callshivai.com
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-          <span className="text-white/70 text-xs">Live AI Agent</span>
+          <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse" />
+          <span className="text-white/70 text-xs">Live</span>
         </div>
       </div>
 
@@ -250,43 +245,11 @@ export default function AgentPublicPage() {
           </motion.div>
         )}
 
-        {/* Arrow hint pointing to widget */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.8, duration: 0.5 }}
-          className="mt-10 flex flex-col items-center gap-1 text-white/40 text-xs"
-        >
-          <svg
-            className="w-5 h-5 animate-bounce"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.5}
-              d="M19 9l-7 7-7-7"
-            />
-          </svg>
-          <span>Click the chat button to begin</span>
-        </motion.div>
       </main>
 
       {/* Footer */}
       <div className="relative z-20 text-center pb-6">
-        <p className="text-white/30 text-xs">
-          Powered by{" "}
-          <a
-            href="https://www.callshivai.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-white/50 hover:text-white/80 transition-colors underline underline-offset-2"
-          >
-            callshivai.com
-          </a>
-        </p>
+      
       </div>
     </div>
   );
