@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, FileText, Clock, MapPin, Calendar, Users, MessageSquare, Loader2, Bot, Play, Pause, Download, Volume2, VolumeX, SkipBack, SkipForward, TrendingUp, CheckCircle, XCircle, Phone, Mail, Share2 } from "lucide-react";
 import { agentAPI } from '../../../services/agentAPI';
+import { geoIPService, GeoIPData } from '../../../services/geoIPService';
 import appToast from '../../../components/AppToast';
 
 interface SessionTranscriptModalProps {
@@ -12,6 +13,10 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
   const [transcripts, setTranscripts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Location state
+  const [location, setLocation] = useState<GeoIPData | null>(null);
+  const [locationLoading, setLocationLoading] = useState(false);
   
   // Tab state
   const [activeTab, setActiveTab] = useState<'transcripts' | 'recording'>('transcripts');
@@ -103,7 +108,29 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
         window.scrollTo(0, scrollY);
       }
     };
-  }, [session?.session_id, session?.id, session?.call_id, session?.agent?.id, session?.agent_id]);
+  }, [session]);
+
+  // Fetch location data from IP address
+  useEffect(() => {
+    const fetchLocationFromIP = async () => {
+      const ip = session?.user_ip || session?.ip;
+      if (!ip) return;
+
+      setLocationLoading(true);
+      try {
+        const geoData = await geoIPService.resolveIP(ip);
+        setLocation(geoData);
+        console.log('🌍 Location resolved:', geoData);
+      } catch (error) {
+        console.error('Failed to resolve location from IP:', error);
+        // Don't show error to user, just fail silently
+      } finally {
+        setLocationLoading(false);
+      }
+    };
+
+    fetchLocationFromIP();
+  }, [session?.user_ip, session?.ip]);
 
   // Audio player handlers
   const togglePlayPause = () => {
@@ -340,9 +367,18 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
             <div className="flex items-center gap-1.5 min-w-0 bg-slate-50 dark:bg-slate-900/30 px-1.5 sm:px-2 py-1.5 rounded-md">
               <MapPin className="w-3 h-3 text-slate-500 dark:text-slate-400 flex-shrink-0" />
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 hidden sm:block">IP Address</p>
+                <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 hidden sm:block">Location</p>
                 <span className="text-[10px] sm:text-xs font-medium text-slate-700 dark:text-slate-300 truncate block">
-                  {session.user_ip || session.ip || 'Unknown'}
+                  {locationLoading ? (
+                    <span className="flex items-center gap-1">
+                      <Loader2 className="w-2 h-2 animate-spin" />
+                      Resolving...
+                    </span>
+                  ) : location?.city || location?.country ? (
+                    `${location?.city || ''}${location?.city && location?.country ? ', ' : ''}${location?.country || ''}`.trim()
+                  ) : (
+                    session.user_ip || session.ip || 'Unknown'
+                  )}
                 </span>
               </div>
             </div>

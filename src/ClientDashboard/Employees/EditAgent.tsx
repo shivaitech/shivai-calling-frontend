@@ -165,6 +165,7 @@ const EditAgent = () => {
   });
 
   const [templateData, setTemplateData] = useState<any>(null);
+  const [originalAgentName, setOriginalAgentName] = useState<string>("");
 
   // Tab state (like Training page)
   const [activeTab, setActiveTab] = useState<string>('identity');
@@ -346,6 +347,9 @@ const EditAgent = () => {
           setTemplateData(agentData.template);
         }
 
+        // Store the original agent name for tracking changes
+        setOriginalAgentName(agentData.name || "");
+
         // Load existing knowledge base file URLs
         const kbFiles = (agentData as any).knowledge_base_file_urls;
         if (Array.isArray(kbFiles) && kbFiles.length > 0) {
@@ -374,6 +378,75 @@ const EditAgent = () => {
 
     fetchAgentData();
   }, [id, setCurrentAgent, navigate]);
+
+  // Update template fields when agent name changes
+  useEffect(() => {
+    if (!templateData || !originalAgentName || !formData.name) {
+      return;
+    }
+
+    // Only update if the name actually changed
+    if (formData.name === originalAgentName) {
+      return;
+    }
+
+    const oldName = originalAgentName;
+    const newName = formData.name;
+
+    console.log("🔄 Updating template with new agent name:", {
+      oldName,
+      newName,
+    });
+
+    // Helper function to replace agent name in text
+    const replaceAgentNameInText = (text: string | undefined | null): string => {
+      if (!text) return text || "";
+
+      // Try word-boundary match first (handles "Rock", "Linda", "Sarah")
+      const nameRegex = new RegExp(`\\b${oldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+      let result = text.replace(nameRegex, newName);
+
+      // If no matches with word boundaries, try substring match
+      if (result === text && oldName.length > 0) {
+        const substringRegex = new RegExp(oldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+        result = result.replace(substringRegex, newName);
+      }
+
+      return result;
+    };
+
+    // Update all template fields with the new name
+    const updatedTemplate = {
+      ...templateData,
+      description: replaceAgentNameInText(templateData.description),
+      systemPrompt: replaceAgentNameInText(templateData.systemPrompt),
+      firstMessage: replaceAgentNameInText(templateData.firstMessage),
+      openingScript: replaceAgentNameInText(templateData.openingScript),
+      keyTalkingPoints: replaceAgentNameInText(templateData.keyTalkingPoints),
+      closingScript: replaceAgentNameInText(templateData.closingScript),
+      ...(templateData.objections?.length > 0 && {
+        objections: templateData.objections.map((obj: any) => ({
+          objection: replaceAgentNameInText(obj.objection),
+          response: replaceAgentNameInText(obj.response),
+        })),
+      }),
+      ...(templateData.conversationExamples?.length > 0 && {
+        conversationExamples: templateData.conversationExamples.map((ex: any) => ({
+          customerInput: replaceAgentNameInText(ex.customerInput),
+          expectedResponse: replaceAgentNameInText(ex.expectedResponse),
+        })),
+      }),
+    };
+
+    console.log("📋 Updated template with new name:", {
+      firstMessageBefore: templateData.firstMessage?.substring(0, 100),
+      firstMessageAfter: updatedTemplate.firstMessage?.substring(0, 100),
+      keyTalkingPointsBefore: templateData.keyTalkingPoints?.substring(0, 100),
+      keyTalkingPointsAfter: updatedTemplate.keyTalkingPoints?.substring(0, 100),
+    });
+
+    setTemplateData(updatedTemplate);
+  }, [formData.name, templateData, originalAgentName]);
 
   const businessProcesses = [
     { value: "customer-support", label: "Customer Support", group: "Support" },
@@ -1119,6 +1192,22 @@ const EditAgent = () => {
           website_urls: websiteUrls.filter((url) => url.trim()),
           social_media_urls: socialMediaUrls.filter((url) => url.trim()),
           knowledge_base_file_urls: [...new Set([...existingKbFiles, ...uploadedFileUrls])],
+          // Include template data if it exists (firstMessage, keyTalkingPoints, closingScript, etc.)
+          ...(templateData && {
+            template: {
+              name: templateData.name,
+              description: templateData.description,
+              icon: templateData.icon,
+              features: templateData.features || [],
+              systemPrompt: templateData.systemPrompt,
+              firstMessage: templateData.firstMessage,
+              openingScript: templateData.openingScript,
+              keyTalkingPoints: templateData.keyTalkingPoints,
+              closingScript: templateData.closingScript,
+              objections: templateData.objections,
+              conversationExamples: templateData.conversationExamples,
+            },
+          }),
         };
 
         console.log('Sending update data:', updateData);

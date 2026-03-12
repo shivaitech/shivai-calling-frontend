@@ -13,6 +13,23 @@ export interface Agent {
     [key: string]: any; // Allow for multiple language keys
   };
   voice: string;
+  custom_instructions?: string;
+  template?: {
+    name: string;
+    description: string;
+    icon: string;
+    features: string[];
+    systemPrompt?: string;
+    firstMessage?: string;
+    openingScript?: string;
+    keyTalkingPoints?: string;
+    closingScript?: string;
+    objections?: Array<{ objection: string; response: string }>;
+    conversationExamples?: Array<{
+      customerInput: string;
+      expectedResponse: string;
+    }>;
+  };
   createdAt: Date;
   stats: {
     conversations: number;

@@ -4,6 +4,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { isDeveloperUser } from "../../lib/utils";
 import Slider from "react-slick";
 import { agentAPI } from "../../services/agentAPI";
+import { geoIPService } from "../../services/geoIPService";
 import SessionTranscriptModal from "../Employees/agents/SessionTranscriptModal";
 import Pagination from "../../components/Pagination";
 import {
@@ -44,6 +45,7 @@ const Analytics = () => {
   const [agentLoadPage, setAgentLoadPage] = useState(1);
   const [isLoadingMoreAgents, setIsLoadingMoreAgents] = useState(false);
   const [showAgentDropdown, setShowAgentDropdown] = useState(false);
+  const [sessionLocations, setSessionLocations] = useState<Map<string, any>>(new Map());
   const pageSize = 10;
   const agentPageSize = 10;
 
@@ -240,6 +242,36 @@ const Analytics = () => {
         document.removeEventListener("mousedown", handleClickOutside);
     }
   }, [showAgentDropdown]);
+
+  // Fetch location data for all sessions
+  useEffect(() => {
+    const fetchLocations = async () => {
+      const newLocations = new Map(sessionLocations);
+      
+      for (const session of sessionHistory) {
+        const sessionId = session.session_id || session.id;
+        const ip = session.user_ip || session.ip;
+        
+        // Skip if already have location or no IP
+        if (!ip || newLocations.has(sessionId)) continue;
+        
+        try {
+          const geoData = await geoIPService.resolveIP(ip);
+          if (geoData) {
+            newLocations.set(sessionId, geoData);
+          }
+        } catch (error) {
+          console.warn(`Failed to resolve location for IP ${ip}:`, error);
+        }
+      }
+      
+      setSessionLocations(newLocations);
+    };
+
+    if (sessionHistory.length > 0) {
+      fetchLocations();
+    }
+  }, [sessionHistory]);
 
   // Filter handlers
   const handleDeviceTypeFilter = (deviceType: string) => {
@@ -828,14 +860,18 @@ const Analytics = () => {
 
                           {/* Location Badge */}
                           {(() => {
-                            const city = session.location?.city?.toLowerCase() !== 'unknown' ? session.location?.city : '';
-                            const country = session.location?.country?.toLowerCase() !== 'unknown' ? session.location?.country : '';
+                            // Try to get location from sessionLocations first, then from session.location, then try to resolve from IP
+                            const sessionId = session.session_id || session.id;
+                            const resolvedLocation = sessionLocations.get(sessionId);
+                            const city = resolvedLocation?.city || session.location?.city?.toLowerCase() !== 'unknown' ? resolvedLocation?.city || session.location?.city : '';
+                            const country = resolvedLocation?.country || session.location?.country?.toLowerCase() !== 'unknown' ? resolvedLocation?.country || session.location?.country : '';
                             const locationLabel = [city, country].filter(Boolean).join(', ');
-                            return locationLabel ? (
+                            
+                            return locationLabel || resolvedLocation ? (
                               <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900/30 px-3 py-1.5 rounded-lg text-xs">
                                 <MapPin className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
                                 <span className="font-medium text-slate-700 dark:text-slate-300">
-                                  {locationLabel}
+                                  {locationLabel || `${resolvedLocation?.city || ''}${resolvedLocation?.city && resolvedLocation?.country ? ', ' : ''}${resolvedLocation?.country || ''}`.trim() || 'Resolving...'}
                                 </span>
                               </div>
                             ) : null;

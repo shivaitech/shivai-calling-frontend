@@ -1384,6 +1384,31 @@ const AgentManagement = () => {
     }
   }, [location.state?.refresh, refreshAgents, navigate, location.pathname]);
 
+  // Listen for agent updates (e.g., name change from widget customization)
+  useEffect(() => {
+    const handleAgentUpdate = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.agentId && currentAgent?.id === detail.agentId) {
+        console.log("🔄 Agent updated event received, updating header...");
+        
+        // Update currentAgent with new values
+        if (currentAgent) {
+          setCurrentAgent({
+            ...currentAgent,
+            name: detail.updatedFields?.name || currentAgent.name,
+            custom_instructions:
+              detail.updatedFields?.custom_instructions ||
+              currentAgent.custom_instructions,
+            template: detail.updatedFields?.template || currentAgent.template,
+          });
+        }
+      }
+    };
+
+    window.addEventListener("agentUpdated", handleAgentUpdate);
+    return () => window.removeEventListener("agentUpdated", handleAgentUpdate);
+  }, [currentAgent?.id, setCurrentAgent]);
+
   // Fetch session history from API
   const fetchSessionHistory = async (agentId: string) => {
     setSessionLoading(true);

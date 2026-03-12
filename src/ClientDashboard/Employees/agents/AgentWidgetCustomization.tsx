@@ -647,6 +647,198 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
       const saveResponse = await agentAPI.saveWidgetConfig(widgetData);
       console.log("✅ Widget configuration saved successfully:", saveResponse);
 
+      // Step 3: Update agent name and custom instructions in EditAgent API
+      try {
+        console.log("📤 Updating agent name in all template fields...");
+        
+        // Fetch current agent data to get custom_instructions and template fields
+        const agentConfigResponse = await agentAPI.getAgentConfig(agentId);
+        const agentData = agentConfigResponse.agent;
+        
+        // Get the ACTUAL old agent name from the API response
+        // This is the current name stored in the database
+        const oldAgentName = agentData?.name || agentName;
+        
+        console.log("🎯 Using agent name for replacement:", {
+          fromAPI: agentData?.name,
+          fromProp: agentName,
+          using: oldAgentName,
+        });
+        
+        const newAgentName = widgetConfig.content.companyName;
+        
+        console.log("🔍 Agent data fetched:", {
+          hasTemplate: !!agentData?.template,
+          templateFields: agentData?.template ? Object.keys(agentData.template) : [],
+          oldName: oldAgentName,
+          newName: newAgentName,
+          extractedFromFirstMessage: agentData?.template?.firstMessage?.substring(0, 100),
+          firstMessageSample: agentData?.template?.firstMessage?.substring(0, 150),
+        });
+        
+        // Helper function to replace agent name in text (case-insensitive, word boundaries)
+        const replaceAgentName = (text: string | undefined | null): string => {
+          if (!text) return text || ""; // Preserve empty/null/undefined as is
+          if (!oldAgentName || !newAgentName) {
+            console.log("⚠️ Missing names:", { oldAgentName, newAgentName });
+            return text; // If old or new name missing, return original
+          }
+          
+          console.log("🔍 Starting replacement:", {
+            searchingFor: oldAgentName,
+            replacingWith: newAgentName,
+            textLength: text.length,
+            textStart: text.substring(0, 150),
+          });
+
+          // Try 1: Exact word-boundary match (handles "Rock", "Linda", etc.)
+          const nameRegex = new RegExp(`\\b${oldAgentName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+          console.log("🔎 Regex pattern:", nameRegex.toString());
+          console.log("🔎 Regex test result:", nameRegex.test(text));
+          
+          // Reset the regex since test() advances the lastIndex
+          const nameRegex2 = new RegExp(`\\b${oldAgentName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+          let result = text.replace(nameRegex2, newAgentName);
+          let matchCount = (text.match(nameRegex2) || []).length;
+          
+          console.log("🔄 Replacement attempt (word boundaries):", {
+            searchingFor: oldAgentName,
+            replacingWith: newAgentName,
+            original: text.substring(0, 100),
+            replaced: result.substring(0, 100),
+            changed: result !== text,
+            matchCount: matchCount,
+          });
+
+          // Try 2: If no matches, try case-insensitive substring match
+          if (matchCount === 0) {
+            console.log("⚠️ No word-boundary matches found, trying substring match...");
+            const caseInsensitiveRegex = new RegExp(oldAgentName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+            result = result.replace(caseInsensitiveRegex, newAgentName);
+            const newMatchCount = (result === text ? 0 : 1); // Rough estimate
+            console.log("🔄 Replacement attempt (substring):", {
+              searchingFor: oldAgentName,
+              replacingWith: newAgentName,
+              original: text.substring(0, 100),
+              replaced: result.substring(0, 100),
+              changed: result !== text,
+            });
+          }
+          
+          return result;
+        };
+        
+        // Update custom_instructions (systemPrompt)
+        let customInstructions = replaceAgentName(agentData?.custom_instructions);
+        console.log("✏️ Custom instructions updated:", {
+          oldLength: agentData?.custom_instructions?.length || 0,
+          newLength: customInstructions?.length || 0,
+        });
+        
+        // Update template fields if they exist - always create updatedTemplate to send all fields
+        const updatedTemplate = agentData?.template ? {
+          // Required fields - preserve from original
+          name: agentData.template.name,
+          description: replaceAgentName(agentData.template.description),
+          icon: agentData.template.icon,
+          features: agentData.template.features,
+          // Optional fields - update with name replacement
+          systemPrompt: replaceAgentName(agentData.template.systemPrompt),
+          firstMessage: replaceAgentName(agentData.template.firstMessage),
+          openingScript: replaceAgentName(agentData.template.openingScript),
+          keyTalkingPoints: replaceAgentName(agentData.template.keyTalkingPoints),
+          closingScript: replaceAgentName(agentData.template.closingScript),
+          // Also update objections if they exist
+          ...(agentData.template.objections?.length > 0 && {
+            objections: agentData.template.objections.map((obj: any) => ({
+              objection: replaceAgentName(obj.objection),
+              response: replaceAgentName(obj.response),
+            })),
+          }),
+          // Also update conversation examples if they exist
+          ...(agentData.template.conversationExamples?.length > 0 && {
+            conversationExamples: agentData.template.conversationExamples.map((ex: any) => ({
+              customerInput: replaceAgentName(ex.customerInput),
+              expectedResponse: replaceAgentName(ex.expectedResponse),
+            })),
+          }),
+        } : undefined;
+
+        console.log("📋 Updated template structure:", {
+          hasUpdatedTemplate: !!updatedTemplate,
+          requiredFields: {
+            name: updatedTemplate?.name,
+            description: updatedTemplate?.description?.substring(0, 50),
+            icon: updatedTemplate?.icon,
+            featuresCount: updatedTemplate?.features?.length,
+          },
+          optionalFields: {
+            systemPrompt: !!updatedTemplate?.systemPrompt,
+            firstMessage: !!updatedTemplate?.firstMessage,
+            openingScript: !!updatedTemplate?.openingScript,
+            keyTalkingPoints: !!updatedTemplate?.keyTalkingPoints,
+            closingScript: !!updatedTemplate?.closingScript,
+            objections: updatedTemplate?.objections?.length || 0,
+            conversationExamples: updatedTemplate?.conversationExamples?.length || 0,
+          },
+          values: {
+            firstMessageBefore: agentData?.template?.firstMessage?.substring(0, 150),
+            firstMessageAfter: updatedTemplate?.firstMessage?.substring(0, 150),
+            keyTalkingPointsBefore: agentData?.template?.keyTalkingPoints?.substring(0, 150),
+            keyTalkingPointsAfter: updatedTemplate?.keyTalkingPoints?.substring(0, 150),
+            closingScriptBefore: agentData?.template?.closingScript?.substring(0, 150),
+            closingScriptAfter: updatedTemplate?.closingScript?.substring(0, 150),
+          },
+        });
+
+        // Build update payload with all template fields
+        const updatePayload: any = {
+          name: widgetConfig.content.companyName,
+          custom_instructions: customInstructions,
+        };
+
+        // Include template if it exists
+        if (updatedTemplate) {
+          updatePayload.template = updatedTemplate;
+        }
+
+        console.log("📤 Sending update payload:", JSON.stringify(updatePayload, null, 2));
+        
+        const updateResponse = await agentAPI.updateAgent(agentId, updatePayload);
+        console.log("✅ Agent update response:", {
+          receivedName: updateResponse?.name,
+          hasTemplate: !!updateResponse?.template,
+          receivedTemplate: updateResponse?.template ? {
+            name: updateResponse.template.name,
+            firstMessage: updateResponse.template.firstMessage?.substring(0, 100),
+          } : null,
+        });
+        
+        console.log("✅ Agent name updated in all template fields successfully");
+
+        // Emit event to notify parent component that agent was updated
+        const agentUpdateEvent = new CustomEvent("agentUpdated", {
+          detail: {
+            agentId,
+            updatedFields: {
+              name: widgetConfig.content.companyName,
+              custom_instructions: customInstructions,
+              template: updatedTemplate,
+            },
+          },
+        });
+        window.dispatchEvent(agentUpdateEvent);
+      } catch (error: any) {
+        console.error("❌ Error updating agent name in template fields:", {
+          errorMessage: error?.message,
+          errorStatus: error?.response?.status,
+          errorData: error?.response?.data,
+          fullError: error,
+        });
+        console.warn("⚠️ Failed to update agent name in template fields:", error);
+        // Don't fail the entire save if this step fails, just log a warning
+      }
+
       // Update local config with final URLs
       setWidgetConfig((prev) => ({
         ...prev,
