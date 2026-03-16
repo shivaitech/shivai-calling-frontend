@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, FileText, Clock, MapPin, Calendar, Users, MessageSquare, Loader2, Bot, Play, Pause, Download, Volume2, VolumeX, SkipBack, SkipForward, TrendingUp, CheckCircle, XCircle, Phone, Mail, Share2 } from "lucide-react";
 import { agentAPI } from '../../../services/agentAPI';
-import { geoIPService, GeoIPData } from '../../../services/geoIPService';
 import appToast from '../../../components/AppToast';
 
 interface SessionTranscriptModalProps {
@@ -14,10 +13,6 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // Location state
-  const [location, setLocation] = useState<GeoIPData | null>(null);
-  const [locationLoading, setLocationLoading] = useState(false);
-  
   // Tab state
   const [activeTab, setActiveTab] = useState<'transcripts' | 'recording'>('transcripts');
   
@@ -25,6 +20,10 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
   const [callSummary, setCallSummary] = useState<any>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
+  
+  // Location state
+  const [locationData, setLocationData] = useState<any>(null);
+  const [ipLocationCache, setIpLocationCache] = useState<any>({});
   
   // Audio player state
   const [isPlaying, setIsPlaying] = useState(false);
@@ -35,6 +34,91 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const audioRef = useRef<HTMLAudioElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
+
+  // Function to resolve IP to location
+  const resolveIPLocation = async (ip: string) => {
+    // Check if IP is valid
+    if (!ip || ip === "Unknown" || ip === "N/A") {
+      return {
+        city: "Unknown",
+        region: "",
+        country: "Unknown",
+        countryCode: "",
+        isp: "Unknown ISP",
+        lat: null,
+        lon: null,
+        timezone: "",
+      };
+    }
+
+    // Check cache first
+    if (ipLocationCache[ip]) {
+      return ipLocationCache[ip];
+    }
+
+    try {
+      // Use HTTPS endpoint with CORS support
+      const response = await fetch(
+        `https://ipapi.co/${ip}/json/`,
+        {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json'
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      // ipapi.co response format
+      const result = {
+        city: data.city || "Unknown",
+        region: data.region || "",
+        country: data.country_name || "Unknown",
+        countryCode: data.country_code || "",
+        zip: data.postal || "",
+        isp: data.org || "Unknown ISP",
+        lat: data.latitude || null,
+        lon: data.longitude || null,
+        timezone: data.timezone || "",
+        as: data.asn || "",
+      };
+
+      // Cache the result
+      setIpLocationCache((prev: any) => ({
+        ...prev,
+        [ip]: result,
+      }));
+
+      return result;
+    } catch (error) {
+      console.error(`Error resolving IP location for ${ip}:`, error);
+      
+      // Return a default response with Unknown values instead of failing
+      const defaultResponse = {
+        city: "Unknown",
+        region: "",
+        country: "Unknown",
+        countryCode: "",
+        isp: "Unknown ISP",
+        lat: null,
+        lon: null,
+        timezone: "",
+      };
+
+      // Cache the error response to avoid repeated failed requests
+      setIpLocationCache((prev: any) => ({
+        ...prev,
+        [ip]: defaultResponse,
+      }));
+
+      return defaultResponse;
+    }
+  };
 
   useEffect(() => {
     const fetchTranscripts = async () => {
@@ -110,26 +194,21 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
     };
   }, [session]);
 
-  // Fetch location data from IP address
+  // Resolve IP to location when session IP changes
   useEffect(() => {
-    const fetchLocationFromIP = async () => {
+    const fetchLocation = async () => {
       const ip = session?.user_ip || session?.ip;
       if (!ip) return;
 
-      setLocationLoading(true);
       try {
-        const geoData = await geoIPService.resolveIP(ip);
-        setLocation(geoData);
-        console.log('🌍 Location resolved:', geoData);
+        const location = await resolveIPLocation(ip);
+        setLocationData(location);
       } catch (error) {
-        console.error('Failed to resolve location from IP:', error);
-        // Don't show error to user, just fail silently
-      } finally {
-        setLocationLoading(false);
+        console.error('Failed to resolve location:', error);
       }
     };
 
-    fetchLocationFromIP();
+    fetchLocation();
   }, [session?.user_ip, session?.ip]);
 
   // Audio player handlers
@@ -369,16 +448,19 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
               <div className="min-w-0 flex-1">
                 <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 hidden sm:block">Location</p>
                 <span className="text-[10px] sm:text-xs font-medium text-slate-700 dark:text-slate-300 truncate block">
-                  {locationLoading ? (
-                    <span className="flex items-center gap-1">
-                      <Loader2 className="w-2 h-2 animate-spin" />
-                      Resolving...
-                    </span>
-                  ) : location?.city || location?.country ? (
-                    `${location?.city || ''}${location?.city && location?.country ? ', ' : ''}${location?.country || ''}`.trim()
-                  ) : (
-                    session.user_ip || session.ip || 'Unknown'
-                  )}
+                  {(() => {
+                    // First try resolved location data
+                    if (locationData?.city && locationData.city !== 'Unknown') {
+                      const city = locationData.city;
+                      const country = locationData.country;
+                      return [city, country].filter((x: string) => x && x !== 'Unknown').join(', ') || 'Unknown';
+                    }
+                    // Fallback to session location
+                    const city = session?.location?.city?.toLowerCase() !== 'unknown' ? session?.location?.city : '';
+                    const country = session?.location?.country?.toLowerCase() !== 'unknown' ? session?.location?.country : '';
+                    const locationLabel = [city, country].filter(Boolean).join(', ');
+                    return locationLabel || 'Unknown';
+                  })()}
                 </span>
               </div>
             </div>

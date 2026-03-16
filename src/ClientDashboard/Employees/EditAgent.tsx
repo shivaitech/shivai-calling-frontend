@@ -139,6 +139,108 @@ import { agentAPI } from '../../services/agentAPI';
 import GlassCard from '../../components/GlassCard';
 import SearchableSelect from '../../components/SearchableSelect';
 
+// Voice style → short instruction for voice_config.voice_instruction
+const VOICE_STYLE_SHORT_MAP: Record<string, string> = {
+  friendly:      'Speak clearly and warmly with a friendly, approachable tone',
+  professional:  'Speak clearly and professionally with a business-like, formal tone',
+  casual:        'Speak casually and conversationally with a relaxed, natural tone',
+  authoritative: 'Speak with confidence and authority in a commanding, decisive tone',
+  empathetic:    'Speak with empathy and understanding in a supportive, compassionate tone',
+  enthusiastic:  'Speak energetically and enthusiastically with an upbeat, positive tone',
+};
+
+// Voice style → detailed text used inside the ## Voice Instructions section of the system prompt
+const VOICE_STYLE_SP_MAP: Record<string, string> = {
+  friendly:      'Speak in a warm, welcoming tone that makes callers feel comfortable and valued. Use conversational language, positive affirmations, and show genuine interest in helping. Maintain an upbeat but not overwhelming energy level.',
+  professional:  'Maintain a formal, business-like tone throughout all interactions. Speak clearly and confidently with proper grammar. Avoid slang or overly casual expressions. Project expertise and reliability while remaining approachable.',
+  casual:        'Speak in a relaxed, laid-back manner as if talking to a friend. Use everyday language and contractions freely. Keep the conversation light and natural while still being helpful and informative.',
+  authoritative: 'Speak with confidence and clarity. Project expertise with direct, clear statements. Use a measured, deliberate pace and avoid filler words. Lead conversations decisively while remaining respectful and solution-focused.',
+  empathetic:    'Lead with empathy and emotional awareness. Acknowledge feelings and concerns before offering solutions. Use active listening phrases and validate the caller\'s experience. Speak in a calm, reassuring tone.',
+  enthusiastic:  'Bring high energy and genuine excitement to every interaction. Use expressive, positive language and let your enthusiasm be contagious. Celebrate wins with the caller and maintain an optimistic, can-do attitude throughout.',
+};
+
+/** Replaces the Voice Instructions section in a system prompt with newContent.
+ *  Uses content-match first (fast, duplicate-free for all subsequent calls),
+ *  then falls back to line-by-line header detection for the very first call.
+ */
+function updateVoiceInstructionsSection(prompt: string, newContent: string): string {
+  if (!prompt) return prompt;
+
+  // ── Strategy 1: content-match replacement ──────────────────────────────────
+  // After the first update we always have one of our known strings in the prompt,
+  // so this branch handles every subsequent call without any duplication risk.
+  for (const known of Object.values(VOICE_STYLE_SP_MAP)) {
+    if (prompt.includes(known)) {
+      return prompt.replace(known, newContent);
+    }
+  }
+
+  // ── Strategy 2: header-based line replacement (first call / AI-generated) ──
+  // Find the Voice Instructions header line, then replace until the next section.
+  const lines = prompt.split('\n');
+  const hIdx = lines.findIndex(l => /^##?\s*voice instructions\s*$/i.test(l.trim()));
+  if (hIdx !== -1) {
+    // Walk forward: section ends when we hit a blank line followed immediately
+    // by a non-blank line starting with an uppercase letter or '#'.
+    let eIdx = hIdx + 1;
+    while (eIdx < lines.length - 1) {
+      if (
+        lines[eIdx].trim() === '' &&
+        lines[eIdx + 1].trim() !== '' &&
+        /^[A-Z#]/.test(lines[eIdx + 1].trim())
+      ) break;
+      eIdx++;
+    }
+    return [
+      ...lines.slice(0, hIdx + 1),
+      '',
+      newContent,
+      '',
+      ...lines.slice(eIdx + 1),
+    ].join('\n');
+  }
+
+  // ── Strategy 3: inject after Identity section ───────────────────────────────
+  const iIdx = lines.findIndex(l => /^##?\s*identity\s*$/i.test(l.trim()));
+  if (iIdx !== -1) {
+    let eIdx = iIdx + 1;
+    while (eIdx < lines.length - 1) {
+      if (
+        lines[eIdx].trim() === '' &&
+        lines[eIdx + 1].trim() !== '' &&
+        /^[A-Z#]/.test(lines[eIdx + 1].trim())
+      ) break;
+      eIdx++;
+    }
+    return [
+      ...lines.slice(0, eIdx),
+      '',
+      'Voice Instructions',
+      newContent,
+      '',
+      ...lines.slice(eIdx),
+    ].join('\n');
+  }
+
+  // ── Fallback: prepend ───────────────────────────────────────────────────────
+  return `Voice Instructions\n${newContent}\n\n${prompt}`;
+}
+
+/**
+ * Reverse-maps a stored voice_instruction string back to its VOICE_STYLE_SP_MAP key.
+ * Falls back to 'friendly' if no match is found.
+ */
+function detectVoiceStyleFromInstruction(instruction: string | undefined): string {
+  if (!instruction) return 'friendly';
+  const needle = instruction.trim().toLowerCase();
+  for (const [key, value] of Object.entries(VOICE_STYLE_SP_MAP)) {
+    if (needle === value.toLowerCase() || needle.startsWith(value.toLowerCase().slice(0, 30))) {
+      return key;
+    }
+  }
+  return 'friendly';
+}
+
 const EditAgent = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -155,7 +257,6 @@ const EditAgent = () => {
     voice: "Achernar",
     voiceSpeed: 1.0,
     voiceStyle: "friendly",
-    voiceInstruction: "Speak clearly and warmly with a friendly, approachable tone.",
     customInstructions: "",
     guardrailsLevel: "Medium",
     responseStyle: "Balanced",
@@ -184,6 +285,25 @@ const EditAgent = () => {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [uploadedFileUrls, setUploadedFileUrls] = useState<string[]>([]);
   const [isUploadingFiles, setIsUploadingFiles] = useState(false);
+
+  // Ref to detect user-initiated voice style changes (not API-load)
+  const voiceStyleDirtyRef = useRef(false);
+  // Tracks the last agent name applied to customInstructions (supports multiple renames)
+  const prevNameRef = useRef<string>('');
+
+  // When the user explicitly changes Voice Style, patch the Voice Instructions
+  // section of the system prompt with the new static content.
+  useEffect(() => {
+    if (!voiceStyleDirtyRef.current) return;
+    voiceStyleDirtyRef.current = false;
+    const style = formData.voiceStyle;
+    const newContent = VOICE_STYLE_SP_MAP[style] || VOICE_STYLE_SP_MAP['friendly'];
+    setFormData((prev) => {
+      const updated = updateVoiceInstructionsSection(prev.customInstructions, newContent);
+      return updated !== prev.customInstructions ? { ...prev, customInstructions: updated } : prev;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.voiceStyle]);
 
   // Existing KB file inline text editing
   const [existingKbFiles, setExistingKbFiles] = useState<string[]>([]);
@@ -331,8 +451,8 @@ const EditAgent = () => {
           language: agentData.language || "en-US",
           voice: agentData.voice || "Achernar",
           voiceSpeed: (agentData as any).voice_speed !== undefined ? (agentData as any).voice_speed : 1.0,
-          voiceStyle: (agentData as any).voice_style || "friendly",
-          voiceInstruction: (agentData as any).voice_instruction || "Speak clearly and warmly with a friendly, approachable tone.",
+          voiceStyle: (agentData as any).voice_style ||
+            detectVoiceStyleFromInstruction((agentData as any).voice_config?.voice_instruction),
           // Use custom_instructions from API response
           customInstructions: agentData.custom_instructions || "",
           guardrailsLevel: mapGuardrailsLevel(agentData.guardrails_level),
@@ -349,6 +469,7 @@ const EditAgent = () => {
 
         // Store the original agent name for tracking changes
         setOriginalAgentName(agentData.name || "");
+        prevNameRef.current = agentData.name || "";
 
         // Load existing knowledge base file URLs
         const kbFiles = (agentData as any).knowledge_base_file_urls;
@@ -446,6 +567,17 @@ const EditAgent = () => {
     });
 
     setTemplateData(updatedTemplate);
+
+    // Also replace the agent name in customInstructions (system prompt)
+    if (prevNameRef.current && prevNameRef.current !== newName) {
+      const escapedOld = prevNameRef.current.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const nameRegex = new RegExp(`\\b${escapedOld}\\b`, 'gi');
+      setFormData((prev) => ({
+        ...prev,
+        customInstructions: prev.customInstructions.replace(nameRegex, newName),
+      }));
+    }
+    prevNameRef.current = newName;
   }, [formData.name, templateData, originalAgentName]);
 
   const businessProcesses = [
@@ -1177,7 +1309,7 @@ const EditAgent = () => {
           voice: formData.voice,
           voice_speed: formData.voiceSpeed,
           voice_style: formData.voiceStyle,
-          voice_instruction: formData.voiceInstruction,
+          voice_instruction: VOICE_STYLE_SP_MAP[formData.voiceStyle] || VOICE_STYLE_SP_MAP['friendly'],
           gender: formData.gender,
           business_process: formData.businessProcess.replace(/-/g, '_'),
           industry: formData.industry.replace(/-/g, '_'),
@@ -1822,14 +1954,26 @@ const EditAgent = () => {
                           </span>
                         </div>
                         <div className="divide-y divide-slate-100 dark:divide-slate-700/60 max-h-40 overflow-y-auto">
-                          {existingKbFiles.map((url, i) => (
-                            <div key={i} className="flex items-center gap-2 px-3 py-1.5">
-                              <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 w-4 flex-shrink-0">{i + 1}.</span>
-                              <span className="flex-1 text-[11px] text-slate-500 dark:text-slate-400 truncate font-mono" title={url}>
-                                {url.split('/').pop()?.split('?')[0] || url}
-                              </span>
-                            </div>
-                          ))}
+                          {existingKbFiles.map((url, i) => {
+                            const filename = url.split('/').pop()?.split('?')[0] || url;
+                            return (
+                              <div key={i} className="flex items-center gap-2 px-3 py-1.5">
+                                <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 w-4 flex-shrink-0">{i + 1}.</span>
+                                <span className="flex-1 text-[11px] text-slate-500 dark:text-slate-400 truncate font-mono" title={url}>
+                                  {filename}
+                                </span>
+                                <a
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title="View file"
+                                  className="flex-shrink-0 p-1 rounded text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                </a>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -2343,7 +2487,10 @@ const EditAgent = () => {
                     </label>
                     <select
                       value={formData.voiceStyle}
-                      onChange={(e) => setFormData({ ...formData, voiceStyle: e.target.value })}
+                      onChange={(e) => {
+                        voiceStyleDirtyRef.current = true;
+                        setFormData({ ...formData, voiceStyle: e.target.value });
+                      }}
                       className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm sm:text-base text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all"
                     >
                       <option value="friendly">Friendly - Warm &amp; approachable</option>
@@ -2355,23 +2502,6 @@ const EditAgent = () => {
                     </select>
                     <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-1">
                       Set the personality tone for your AI assistant
-                    </p>
-                  </div>
-
-                  {/* Voice Instruction */}
-                  <div>
-                    <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
-                      Voice Instruction
-                    </label>
-                    <textarea
-                      value={formData.voiceInstruction}
-                      onChange={(e) => setFormData({ ...formData, voiceInstruction: e.target.value })}
-                      placeholder="e.g., Speak clearly and warmly with a friendly, approachable tone. Use pauses for emphasis..."
-                      className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm sm:text-base text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all resize-none"
-                      rows={3}
-                    />
-                    <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-1">
-                      Add custom instructions for how the voice should sound and behave
                     </p>
                   </div>
 

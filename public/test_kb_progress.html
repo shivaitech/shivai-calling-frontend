@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>KB Progress Tester</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0f0f13;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+    h1 {
+      font-size: 22px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: #f8fafc;
+    }
+    p.sub {
+      font-size: 13px;
+      color: #64748b;
+      margin-bottom: 30px;
+    }
+    .card {
+      background: #1a1a24;
+      border: 1px solid #2a2a3a;
+      border-radius: 12px;
+      padding: 24px;
+      max-width: 680px;
+      margin: 0 auto 24px;
+    }
+    .card h2 {
+      font-size: 14px;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      margin-bottom: 16px;
+    }
+    label {
+      display: block;
+      font-size: 12px;
+      color: #64748b;
+      margin-bottom: 4px;
+    }
+    input, textarea {
+      width: 100%;
+      background: #0f0f18;
+      border: 1px solid #2a2a3a;
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: #e2e8f0;
+      font-size: 13px;
+      margin-bottom: 14px;
+      outline: none;
+      transition: border-color .2s;
+    }
+    input:focus, textarea:focus { border-color: #6366f1; }
+    textarea { resize: vertical; min-height: 80px; font-family: monospace; }
+    .row { display: flex; gap: 12px; }
+    .row > * { flex: 1; }
+    button {
+      width: 100%;
+      padding: 11px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .2s;
+    }
+    button:hover { opacity: .85; }
+    .btn-primary { background: #6366f1; color: #fff; }
+    .btn-danger  { background: #ef4444; color: #fff; }
+
+    /* Progress section */
+    #progress-section { display: none; }
+    .overall-bar-wrap {
+      margin-bottom: 20px;
+    }
+    .overall-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      color: #94a3b8;
+      margin-bottom: 8px;
+    }
+    .bar-track {
+      background: #1e1e2e;
+      border-radius: 999px;
+      height: 10px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #6366f1, #8b5cf6);
+      transition: width .4s ease;
+      width: 0%;
+    }
+    .stage-badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      margin-bottom: 16px;
+    }
+    .stage-processing { background: #1e3a5f; color: #60a5fa; }
+    .stage-done       { background: #14532d; color: #4ade80; }
+    .stage-error      { background: #450a0a; color: #f87171; }
+
+    .file-card {
+      background: #13131d;
+      border: 1px solid #2a2a3a;
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 10px;
+    }
+    .file-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .file-name {
+      font-size: 13px;
+      font-weight: 500;
+      color: #cbd5e1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 70%;
+    }
+    .file-pct {
+      font-size: 12px;
+      color: #6366f1;
+      font-weight: 600;
+    }
+    .file-bar-fill {
+      background: linear-gradient(90deg, #6366f1, #a78bfa);
+    }
+    .file-stage {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 6px;
+    }
+
+    /* Log */
+    #log-wrap { margin-top: 8px; }
+    #log {
+      background: #080810;
+      border: 1px solid #1e1e2e;
+      border-radius: 8px;
+      padding: 12px;
+      font-family: monospace;
+      font-size: 12px;
+      color: #a0aec0;
+      height: 220px;
+      overflow-y: auto;
+    }
+    #log .ts  { color: #4a5568; }
+    #log .ok  { color: #4ade80; }
+    #log .err { color: #f87171; }
+    #log .info{ color: #60a5fa; }
+
+    .ws-status {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-weight: 600;
+    }
+    .ws-connected    { background: #14532d; color: #4ade80; }
+    .ws-disconnected { background: #1e1e2e; color: #64748b; }
+    .ws-error        { background: #450a0a; color: #f87171; }
+
+    .flex-between {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+  </style>
+</head>
+<body>
+
+<div style="max-width:680px;margin:0 auto;">
+  <h1>KB Ingestion Progress Tester</h1>
+  <p class="sub">Test WebSocket real-time progress for knowledge base creation.</p>
+
+  <!-- Step 1: Config -->
+  <div class="card">
+    <h2>1. Config</h2>
+    <label>Backend Base URL</label>
+    <input id="base-url" value="http://localhost:8080" placeholder="http://localhost:8080"/>
+    <label>JWT Token (Bearer)</label>
+    <input id="jwt" type="password" placeholder="Paste your JWT here"/>
+  </div>
+
+  <!-- Step 2: Create Agent -->
+  <div class="card">
+    <h2>2. Create Agent with KB URLs</h2>
+    <div class="row">
+      <div>
+        <label>Agent Name</label>
+        <input id="agent-name" value="Test KB Agent"/>
+      </div>
+      <div>
+        <label>Industry</label>
+        <input id="industry" value="education"/>
+      </div>
+    </div>
+    <label>Knowledge Base File URLs (one per line — S3 or HTTP PDF/DOCX URLs)</label>
+    <textarea id="kb-urls" placeholder="https://your-bucket.s3.amazonaws.com/file.pdf&#10;https://example.com/doc.pdf"></textarea>
+    <button class="btn-primary" onclick="createAgent()">Create Agent & Start Watching Progress</button>
+  </div>
+
+  <!-- Step 3: Progress -->
+  <div class="card" id="progress-section">
+    <div class="flex-between">
+      <h2>3. Live Progress</h2>
+      <span id="ws-status" class="ws-status ws-disconnected">Disconnected</span>
+    </div>
+
+    <div class="overall-bar-wrap">
+      <div class="overall-label">
+        <span>Overall Progress</span>
+        <span id="overall-pct-label">0%</span>
+      </div>
+      <div class="bar-track">
+        <div class="bar-fill" id="overall-bar"></div>
+      </div>
+    </div>
+
+    <span id="stage-badge" class="stage-badge stage-processing">Waiting...</span>
+
+    <div id="file-list"></div>
+
+    <div id="log-wrap">
+      <div class="flex-between" style="margin-bottom:6px;">
+        <label style="margin:0;">Event Log</label>
+        <button onclick="clearLog()" style="width:auto;padding:4px 12px;background:#1e1e2e;color:#94a3b8;font-size:11px;border-radius:6px;">Clear</button>
+      </div>
+      <div id="log"></div>
+    </div>
+  </div>
+
+  <!-- Step 4: Watch existing agent -->
+  <div class="card">
+    <h2>Watch Existing Agent ID</h2>
+    <label>Agent ID (if already created)</label>
+    <div class="row">
+      <input id="watch-agent-id" placeholder="6657abc123def456..."/>
+      <button class="btn-primary" style="margin-bottom:14px;" onclick="watchAgent()">Connect WS</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let ws = null;
+  let fileStates = {};
+
+  function getWsUrl(agentId) {
+    const base = document.getElementById('base-url').value.trim();
+    const wsBase = base.replace(/^http/, 'ws');
+    return `${wsBase}/ws/kb-progress/${agentId}`;
+  }
+
+  function log(msg, type = 'info') {
+    const el = document.getElementById('log');
+    const ts = new Date().toLocaleTimeString();
+    el.innerHTML += `<div><span class="ts">[${ts}]</span> <span class="${type}">${msg}</span></div>`;
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function clearLog() {
+    document.getElementById('log').innerHTML = '';
+  }
+
+  function setWsStatus(state) {
+    const el = document.getElementById('ws-status');
+    el.className = `ws-status ws-${state}`;
+    el.textContent = state.charAt(0).toUpperCase() + state.slice(1);
+  }
+
+  function connectWs(agentId) {
+    if (ws) { ws.close(); }
+
+    document.getElementById('progress-section').style.display = 'block';
+    fileStates = {};
+    document.getElementById('file-list').innerHTML = '';
+    document.getElementById('overall-bar').style.width = '0%';
+    document.getElementById('overall-pct-label').textContent = '0%';
+
+    const url = getWsUrl(agentId);
+    log(`Connecting to ${url}`, 'info');
+    ws = new WebSocket(url);
+
+    ws.onopen = () => {
+      setWsStatus('connected');
+      log(`WebSocket connected for agent: ${agentId}`, 'ok');
+    };
+
+    ws.onmessage = (e) => {
+      let data;
+      try { data = JSON.parse(e.data); } catch { log(`Raw: ${e.data}`, 'info'); return; }
+      log(JSON.stringify(data), 'info');
+      handleEvent(data);
+    };
+
+    ws.onerror = (e) => {
+      setWsStatus('error');
+      log('WebSocket error', 'err');
+    };
+
+    ws.onclose = () => {
+      setWsStatus('disconnected');
+      log('WebSocket closed', 'info');
+    };
+  }
+
+  function handleEvent(data) {
+    // Overall bar
+    const pct = data.overall_percent ?? 0;
+    document.getElementById('overall-bar').style.width = pct + '%';
+    document.getElementById('overall-pct-label').textContent = pct + '%';
+
+    // Stage badge
+    const badge = document.getElementById('stage-badge');
+    const stage = data.stage || data.status || '';
+    if (stage === 'done' || data.status === 'completed') {
+      badge.textContent = '✓ Completed';
+      badge.className = 'stage-badge stage-done';
+    } else if (stage === 'error' || data.status === 'failed') {
+      badge.textContent = '✗ Failed' + (data.error ? `: ${data.error}` : '');
+      badge.className = 'stage-badge stage-error';
+    } else {
+      badge.textContent = stage || 'Processing...';
+      badge.className = 'stage-badge stage-processing';
+    }
+
+    // Per-file card
+    if (data.file_index !== undefined) {
+      const idx = data.file_index;
+      const fileId = `file-${idx}`;
+      let cardEl = document.getElementById(fileId);
+      if (!cardEl) {
+        cardEl = document.createElement('div');
+        cardEl.className = 'file-card';
+        cardEl.id = fileId;
+        document.getElementById('file-list').appendChild(cardEl);
+      }
+      const fp = data.file_percent ?? 0;
+      const fname = data.file_name || `File ${idx + 1}`;
+      cardEl.innerHTML = `
+        <div class="file-header">
+          <div class="file-name" title="${fname}">${fname}</div>
+          <div class="file-pct">${fp}%</div>
+        </div>
+        <div class="bar-track">
+          <div class="bar-fill file-bar-fill" style="width:${fp}%"></div>
+        </div>
+        <div class="file-stage">${stageLabel(data.stage)}</div>
+      `;
+    }
+  }
+
+  function stageLabel(stage) {
+    const map = {
+      downloading: '⬇ Downloading file...',
+      downloaded:  '✓ Download complete',
+      parsing:     '⚙ Parsing document...',
+      uploading:   '☁ Uploading to S3...',
+      done:        '✓ Done',
+      error:       '✗ Error',
+    };
+    return map[stage] || stage || '';
+  }
+
+  async function createAgent() {
+    const base = document.getElementById('base-url').value.trim();
+    const jwt  = document.getElementById('jwt').value.trim();
+    const name = document.getElementById('agent-name').value.trim();
+    const industry = document.getElementById('industry').value.trim();
+    const rawUrls = document.getElementById('kb-urls').value.trim();
+
+    if (!jwt) { alert('Please enter your JWT token.'); return; }
+    if (!rawUrls) { alert('Please enter at least one KB URL.'); return; }
+
+    const kbUrls = rawUrls.split('\n').map(u => u.trim()).filter(Boolean);
+
+    const body = {
+      name,
+      industry,
+      business_process: "support",
+      personality: "friendly",
+      language: "en-US",
+      knowledge_base_file_urls: kbUrls,
+    };
+
+    log(`POST ${base}/agents/create-agent`, 'info');
+
+    try {
+      const res = await fetch(`${base}/agents/create-agent`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${jwt}`,
+        },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      log(`Response: ${JSON.stringify(json)}`, res.ok ? 'ok' : 'err');
+
+      const agentId = json?.data?.id;
+      if (!agentId) { log('Could not extract agent ID from response', 'err'); return; }
+
+      log(`Agent ID: ${agentId}`, 'ok');
+      document.getElementById('watch-agent-id').value = agentId;
+      connectWs(agentId);
+
+    } catch (err) {
+      log(`Fetch error: ${err.message}`, 'err');
+    }
+  }
+
+  function watchAgent() {
+    const agentId = document.getElementById('watch-agent-id').value.trim();
+    if (!agentId) { alert('Enter an agent ID.'); return; }
+    connectWs(agentId);
+  }
+</script>
+</body>
+</html>

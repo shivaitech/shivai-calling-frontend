@@ -1,10 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import GlassCard from "../../components/GlassCard";
 import { useAuth } from "../../contexts/AuthContext";
 import { isDeveloperUser } from "../../lib/utils";
 import Slider from "react-slick";
 import { agentAPI } from "../../services/agentAPI";
-import { geoIPService } from "../../services/geoIPService";
 import SessionTranscriptModal from "../Employees/agents/SessionTranscriptModal";
 import Pagination from "../../components/Pagination";
 import {
@@ -45,9 +44,72 @@ const Analytics = () => {
   const [agentLoadPage, setAgentLoadPage] = useState(1);
   const [isLoadingMoreAgents, setIsLoadingMoreAgents] = useState(false);
   const [showAgentDropdown, setShowAgentDropdown] = useState(false);
-  const [sessionLocations, setSessionLocations] = useState<Map<string, any>>(new Map());
+  const ipLocationCacheRef = useRef<any>({});
   const pageSize = 10;
   const agentPageSize = 10;
+
+  // Function to resolve IP to location
+  const resolveIPLocation = async (ip: string) => {
+    // Check if IP is valid
+    if (!ip || ip === "Unknown" || ip === "N/A") {
+      return {
+        city: "Unknown",
+        country: "Unknown",
+      };
+    }
+
+    // Check cache first
+    if (ipLocationCacheRef.current[ip]) {
+      console.log(`📦 Using cached location for IP ${ip}`);
+      return ipLocationCacheRef.current[ip];
+    }
+
+    try {
+      console.log(`🌐 Resolving location for IP: ${ip}`);
+      // Use HTTPS endpoint with CORS support
+      const response = await fetch(
+        `https://ipapi.co/${ip}/json/`,
+        {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json'
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      // ipapi.co response format
+      const result = {
+        city: data.city || "Unknown",
+        country: data.country_name || "Unknown",
+      };
+
+      console.log(`✅ Resolved location for ${ip}:`, result);
+
+      // Cache the result
+      ipLocationCacheRef.current[ip] = result;
+
+      return result;
+    } catch (error) {
+      console.error(`Error resolving IP location for ${ip}:`, error);
+      
+      // Return a default response with Unknown values instead of failing
+      const defaultResponse = {
+        city: "Unknown",
+        country: "Unknown",
+      };
+
+      // Cache the error response to avoid repeated failed requests
+      ipLocationCacheRef.current[ip] = defaultResponse;
+
+      return defaultResponse;
+    }
+  };
 
   // Date range state
   const [dateRange, setDateRange] = useState({
@@ -191,7 +253,19 @@ const Analytics = () => {
       const sessions = response?.sessions || [];
       const pagination = response?.pagination || {};
 
-      setSessionHistory(sessions);
+      // Resolve IP locations for all sessions
+      const sessionsWithLocations = await Promise.all(
+        sessions.map(async (session: any) => {
+          const ip = session?.user_ip || session?.ip;
+          if (ip && !session?.location) {
+            const location = await resolveIPLocation(ip);
+            return { ...session, location };
+          }
+          return session;
+        })
+      );
+
+      setSessionHistory(sessionsWithLocations);
       setTotalPages(pagination.totalPages || 1);
       setTotalSessions(pagination.total || sessions.length);
       setCurrentPage(pagination.page || page);
@@ -242,36 +316,6 @@ const Analytics = () => {
         document.removeEventListener("mousedown", handleClickOutside);
     }
   }, [showAgentDropdown]);
-
-  // Fetch location data for all sessions
-  useEffect(() => {
-    const fetchLocations = async () => {
-      const newLocations = new Map(sessionLocations);
-      
-      for (const session of sessionHistory) {
-        const sessionId = session.session_id || session.id;
-        const ip = session.user_ip || session.ip;
-        
-        // Skip if already have location or no IP
-        if (!ip || newLocations.has(sessionId)) continue;
-        
-        try {
-          const geoData = await geoIPService.resolveIP(ip);
-          if (geoData) {
-            newLocations.set(sessionId, geoData);
-          }
-        } catch (error) {
-          console.warn(`Failed to resolve location for IP ${ip}:`, error);
-        }
-      }
-      
-      setSessionLocations(newLocations);
-    };
-
-    if (sessionHistory.length > 0) {
-      fetchLocations();
-    }
-  }, [sessionHistory]);
 
   // Filter handlers
   const handleDeviceTypeFilter = (deviceType: string) => {
@@ -860,18 +904,16 @@ const Analytics = () => {
 
                           {/* Location Badge */}
                           {(() => {
-                            // Try to get location from sessionLocations first, then from session.location, then try to resolve from IP
-                            const sessionId = session.session_id || session.id;
-                            const resolvedLocation = sessionLocations.get(sessionId);
-                            const city = resolvedLocation?.city || session.location?.city?.toLowerCase() !== 'unknown' ? resolvedLocation?.city || session.location?.city : '';
-                            const country = resolvedLocation?.country || session.location?.country?.toLowerCase() !== 'unknown' ? resolvedLocation?.country || session.location?.country : '';
+                            // Use location from session data
+                            const city = session.location?.city?.toLowerCase() !== 'unknown' ? session.location?.city : '';
+                            const country = session.location?.country?.toLowerCase() !== 'unknown' ? session.location?.country : '';
                             const locationLabel = [city, country].filter(Boolean).join(', ');
                             
-                            return locationLabel || resolvedLocation ? (
+                            return locationLabel ? (
                               <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900/30 px-3 py-1.5 rounded-lg text-xs">
                                 <MapPin className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
                                 <span className="font-medium text-slate-700 dark:text-slate-300">
-                                  {locationLabel || `${resolvedLocation?.city || ''}${resolvedLocation?.city && resolvedLocation?.country ? ', ' : ''}${resolvedLocation?.country || ''}`.trim() || 'Resolving...'}
+                                  {locationLabel}
                                 </span>
                               </div>
                             ) : null;

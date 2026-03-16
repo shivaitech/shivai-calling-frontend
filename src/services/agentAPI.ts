@@ -287,6 +287,9 @@ class AgentAPI {
       if (response.data.success && response.data.data.agents) {
         const agents = response.data.data.agents.map((agent) => ({
           ...agent,
+          // Normalise status: the API returns is_active=true for published agents
+          // but may not set status="Published". Ensure both fields are consistent.
+          status: (agent as any).is_active ? 'Published' : (agent.status || 'Pending'),
           stats: agent.stats || {
             conversations: 0,
             successRate: 0,

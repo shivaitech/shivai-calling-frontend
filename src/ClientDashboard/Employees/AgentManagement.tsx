@@ -82,9 +82,42 @@ import {
   UploadCloud,
   PauseCircle,
   QrCode,
+  Minimize2,
 } from "lucide-react";
 
 const AGENTS_PER_PAGE = 6;
+
+// Detailed voice-style descriptions — used both in the system prompt and as voice_instruction
+const VOICE_STYLE_SP_MAP: Record<string, string> = {
+  friendly:      'Speak in a warm, welcoming tone that makes callers feel comfortable and valued. Use conversational language, positive affirmations, and show genuine interest in helping. Maintain an upbeat but not overwhelming energy level.',
+  professional:  'Maintain a formal, business-like tone throughout all interactions. Speak clearly and confidently with proper grammar. Avoid slang or overly casual expressions. Project expertise and reliability while remaining approachable.',
+  casual:        'Speak in a relaxed, laid-back manner as if talking to a friend. Use everyday language and contractions freely. Keep the conversation light and natural while still being helpful and informative.',
+  authoritative: 'Speak with confidence and clarity. Project expertise with direct, clear statements. Use a measured, deliberate pace and avoid filler words. Lead conversations decisively while remaining respectful and solution-focused.',
+  empathetic:    'Lead with empathy and emotional awareness. Acknowledge feelings and concerns before offering solutions. Use active listening phrases and validate the caller\'s experience. Speak in a calm, reassuring tone.',
+  enthusiastic:  'Bring high energy and genuine excitement to every interaction. Use expressive, positive language and let your enthusiasm be contagious. Celebrate wins with the caller and maintain an optimistic, can-do attitude throughout.',
+};
+
+/** Replace the ## Voice Instructions section in a system prompt with our predefined content.
+ *  If no such section exists, injects it right after the Identity section. */
+function replaceVoiceSection(prompt: string, voiceStyle: string): string {
+  if (!prompt) return prompt;
+  const content = VOICE_STYLE_SP_MAP[voiceStyle] || VOICE_STYLE_SP_MAP['friendly'];
+
+  // Case 1: section already exists (AI generated one despite instructions) — replace it
+  const replacePattern = /(##?\s*Voice Instructions[^\n]*\n)([\s\S]*?)(?=\n##?\s|\n---\s*\n|$)/i;
+  if (replacePattern.test(prompt)) {
+    return prompt.replace(replacePattern, `$1\n${content}\n\n`);
+  }
+
+  // Case 2: no section found — inject after the Identity section
+  const identityPattern = /(Identity[^\n]*\n[\s\S]*?)(?=\n(?:Voice|Core|Natural|Human|Scenario|Company|When|Communication|##))/i;
+  if (identityPattern.test(prompt)) {
+    return prompt.replace(identityPattern, `$1\n\nVoice Instructions\n${content}\n`);
+  }
+
+  // Fallback: prepend at top
+  return `Voice Instructions\n${content}\n\n${prompt}`;
+}
 
 const AgentManagement = () => {
   const { id } = useParams();
@@ -133,6 +166,9 @@ const AgentManagement = () => {
   // Server-side filtered agents state
   const [filteredAgents, setFilteredAgents] = useState<any[]>([]);
   const [totalAgents, setTotalAgents] = useState(0);
+  // Ref kept in sync with context agents — used in fetchFilteredAgents fallback
+  // WITHOUT adding `agents` to the callback dep array (avoids stale-filter race on publish/pause)
+  const agentsRef = useRef<any[]>([]);
   const [totalPages, setTotalPages] = useState(0);
   const [isLoadingAgents, setIsLoadingAgents] = useState(false);
 
@@ -710,6 +746,24 @@ const AgentManagement = () => {
   // Handle quick create wizard navigation
   const handleQuickCreateNext = async () => {
     if (quickCreateStep < 7) {
+      // Validate Step 2: Voice & Language are required
+      if (quickCreateStep === 2) {
+        if (!quickCreateData.language || !quickCreateData.voice) {
+          appToast.error('Please select a language and voice before proceeding.');
+          return;
+        }
+      }
+
+      // Validate Step 6: Knowledge Base requires at least one file or website URL
+      if (quickCreateStep === 6) {
+        const hasFiles = quickCreateData.uploadedFiles.length > 0;
+        const hasUrls = quickCreateData.websiteUrls.some((url) => url.trim());
+        if (!hasFiles && !hasUrls) {
+          appToast.error('Please upload at least one file or add a website URL to train your AI.');
+          return;
+        }
+      }
+
       const nextStep = quickCreateStep + 1;
       setQuickCreateStep(nextStep);
 
@@ -766,12 +820,20 @@ const AgentManagement = () => {
           websiteUrls: quickCreateData.websiteUrls.filter((url) => url.trim()),
           additionalContext: additionalContext || undefined,
           extractedContent: quickCreateData.extractedFileContent || undefined,
+          voiceStyle: quickCreateData.voiceStyle || undefined,
         },
         // Background callback: system prompts trickle in after loading is done
         (updatedTemplates) => {
-          setAIGeneratedTemplates([...updatedTemplates]);
+          // Overwrite the Voice Instructions section in every generated system prompt
+          // so the user always sees our predefined instructions in the preview.
+          const patchedTemplates = updatedTemplates.map((t) =>
+            t.systemPrompt
+              ? { ...t, systemPrompt: replaceVoiceSection(t.systemPrompt, quickCreateData.voiceStyle) }
+              : t
+          );
+          setAIGeneratedTemplates([...patchedTemplates]);
           // Stop BG indicator when every template has a real system prompt
-          const allReady = updatedTemplates.every(
+          const allReady = patchedTemplates.every(
             (t) => t.systemPrompt && t.systemPrompt.length > 100,
           );
           if (allReady) setIsGeneratingSystemPrompts(false);
@@ -833,6 +895,17 @@ const AgentManagement = () => {
     setTemplateGenerationError(null);
     setIsCreatingAgent(false);
     setKbCreationProgress(null);
+    setKbFileProgress([]);
+    setIsModalMinimized(false);
+    setCreatingAgentId(null);
+    // Clear persisted KB session
+    localStorage.removeItem('kb_progress_agentId');
+    localStorage.removeItem('kb_progress_agentName');
+    // Close any open KB WebSocket
+    if (kbWsRef.current) {
+      kbWsRef.current.close();
+      kbWsRef.current = null;
+    }
     setIsExtractingContent(false);
     setQuickCreateData({
       companyName: "",
@@ -1039,6 +1112,7 @@ const AgentManagement = () => {
     // If template IS selected, create agent directly via API
     console.log('🚀 [CREATE] Starting agent creation...');
     setIsCreatingAgent(true);
+    setKbFileProgress([]);
     console.log('🚀 [CREATE] isCreatingAgent set to TRUE');
     setKbCreationProgress({
       agentId: '',
@@ -1080,19 +1154,9 @@ const AgentManagement = () => {
       // Use the uploaded file URLs from the API
       const knowledgeBaseFileUrls = quickCreateData.uploadedFileUrls;
 
-      // Always use Step 2 voice configuration — never let AI template override these
-      const voiceStyleInstructionMap: Record<string, string> = {
-        friendly:       "Speak clearly and warmly with a friendly, approachable tone",
-        professional:   "Speak clearly and professionally with a business-like, formal tone",
-        casual:         "Speak casually and conversationally with a relaxed, natural tone",
-        authoritative:  "Speak with confidence and authority in a commanding, decisive tone",
-        empathetic:     "Speak with empathy and understanding in a supportive, compassionate tone",
-        enthusiastic:   "Speak energetically and enthusiastically with an upbeat, positive tone",
-      };
+      // Always use Step 2 voice configuration — use module-level VOICE_STYLE_SP_MAP
       const selectedStyle = (quickCreateData.voiceStyle || "friendly").trim().toLowerCase();
-      const voiceInstruction =
-        voiceStyleInstructionMap[selectedStyle] ||
-        "Speak clearly and professionally with a friendly tone";
+      const voiceInstruction = VOICE_STYLE_SP_MAP[selectedStyle] || VOICE_STYLE_SP_MAP['friendly'];
       const clampedVoiceSpeed = Math.min(2.0, Math.max(0.5, quickCreateData.voiceSpeed ?? 1.0));
 
       const agentPayload = {
@@ -1108,7 +1172,10 @@ const AgentManagement = () => {
           voice_instruction: voiceInstruction,
           voice_speed: clampedVoiceSpeed,
         },
-        custom_instructions: replaceTemplatePlaceholders(selectedTemplateData?.systemPrompt || ""),
+        custom_instructions: replaceVoiceSection(
+          replaceTemplatePlaceholders(selectedTemplateData?.systemPrompt || ""),
+          selectedStyle
+        ),
         guardrails_level: "medium",
         response_style: "Balanced",
         max_response_length: "Medium (150 words)",
@@ -1121,7 +1188,10 @@ const AgentManagement = () => {
               description: replaceTemplatePlaceholders(selectedTemplateData.description),
               icon: selectedTemplateData.icon,
               features: selectedTemplateData.features,
-              systemPrompt: replaceTemplatePlaceholders(selectedTemplateData.systemPrompt),
+              systemPrompt: replaceVoiceSection(
+                replaceTemplatePlaceholders(selectedTemplateData.systemPrompt),
+                selectedStyle
+              ),
               firstMessage: replaceTemplatePlaceholders(selectedTemplateData.firstMessage),
               keyTalkingPoints: replaceTemplatePlaceholders(selectedTemplateData.keyTalkingPoints),
               closingScript: replaceTemplatePlaceholders(selectedTemplateData.closingScript),
@@ -1149,24 +1219,32 @@ const AgentManagement = () => {
       console.log('✅ Agent created successfully:', newAgent);
       console.log('✅ New Agent ID:', newAgent?.id);
 
-      // API call completed - agent and KB are ready - set to 100%
-      setKbCreationProgress({
-        agentId: newAgent?.id || '',
-        status: 'completed',
-        progress: 100,
-        message: 'Agent created successfully!',
-      });
-      
-      // Show success toast
-      appToast.success(`${quickCreateData.aiEmployeeName} has been created successfully!`, { duration: 4000 });
-      
-      // Close modal and refresh agents
-      setTimeout(() => {
-        handleQuickCreateClose();
-        refreshAgents();
-        navigate('/agents');
-      }, 500);
-      
+      const agentId = newAgent?.id || '';
+      setCreatingAgentId(agentId);
+      // Refresh so the newly created agent card appears in the list while KB processes
+      refreshAgents();
+
+      // Connect per-file WebSocket for real-time KB progress
+      if (agentId && (quickCreateData.uploadedFileUrls.length > 0 || quickCreateData.websiteUrls.some(u => u.trim()))) {
+        connectKbWebSocket(agentId, quickCreateData.aiEmployeeName || 'AI Employee');
+      } else {
+        // No KB files — just mark complete immediately
+        localStorage.removeItem('kb_progress_agentId');
+        localStorage.removeItem('kb_progress_agentName');
+        setKbCreationProgress({
+          agentId,
+          status: 'completed',
+          progress: 100,
+          message: 'Agent created successfully!',
+        });
+        appToast.success(`${quickCreateData.aiEmployeeName} has been created successfully!`, { duration: 4000 });
+        setTimeout(() => {
+          handleQuickCreateClose();
+          refreshAgents();
+          navigate('/agents');
+        }, 500);
+      }
+
       console.log('✅ Agent creation complete!');
     } catch (error) {
       // Stop progress simulation on error
@@ -1228,6 +1306,15 @@ const AgentManagement = () => {
     progress: number;
     message?: string;
   } | null>(null);
+  const [kbFileProgress, setKbFileProgress] = useState<Array<{
+    file_index: number;
+    file_name: string;
+    file_percent: number;
+    stage: string;
+  }>>([]);
+  const kbWsRef = useRef<WebSocket | null>(null);
+  const [isModalMinimized, setIsModalMinimized] = useState(false);
+  const [creatingAgentId, setCreatingAgentId] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState("disconnected");
   const [statusMessage, setStatusMessage] = useState("Ready to connect");
   const [isMuted, setIsMuted] = useState(false);
@@ -1299,11 +1386,154 @@ const AgentManagement = () => {
     };
   }, [callTimerInterval]);
 
-  // Note: WebSocket KB tracking removed - API handles KB creation synchronously
+  // ── KB WebSocket helper ─────────────────────────────────────────────────────
+  // Connects to the KB progress WS and drives all progress state.
+  // Persists agentId + agentName to localStorage so a page reload can reconnect.
+  const connectKbWebSocket = useCallback(
+    (agentId: string, agentName: string) => {
+      // Persist session so we can recover on reload
+      localStorage.setItem('kb_progress_agentId', agentId);
+      localStorage.setItem('kb_progress_agentName', agentName);
+
+      const wsUrl = `wss://voice.callshivai.com/ws/kb-progress/${agentId}`;
+      console.log('🔌 Connecting to KB progress WS:', wsUrl);
+
+      if (kbWsRef.current) {
+        kbWsRef.current.close();
+        kbWsRef.current = null;
+      }
+
+      const ws = new WebSocket(wsUrl);
+      kbWsRef.current = ws;
+
+      ws.onopen = () => {
+        console.log('✅ KB progress WebSocket connected');
+        setKbCreationProgress((prev) =>
+          prev
+            ? prev
+            : { agentId, status: 'processing', progress: 10, message: 'Processing knowledge base...' }
+        );
+      };
+
+      ws.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          console.log('📡 KB WS event:', data);
+
+          const overall = data.overall_percent ?? data.progress ?? 0;
+          const stage = data.stage || data.status || '';
+          const isDone = stage === 'done' || data.status === 'completed';
+          const isFailed = stage === 'error' || data.status === 'failed';
+
+          setKbCreationProgress({
+            agentId,
+            status: isDone ? 'completed' : isFailed ? 'failed' : 'processing',
+            progress: isDone ? 100 : Math.min(Math.round(overall), 99),
+            message: isDone
+              ? 'Knowledge base ready!'
+              : isFailed
+              ? data.error || 'Processing failed'
+              : data.message || `Processing... ${Math.round(overall)}%`,
+          });
+
+          if (data.file_index !== undefined) {
+            setKbFileProgress((prev) => {
+              const updated = [...prev];
+              updated[data.file_index] = {
+                file_index: data.file_index,
+                file_name: data.file_name || `File ${data.file_index + 1}`,
+                file_percent: data.file_percent ?? 0,
+                stage: data.stage || '',
+              };
+              return updated;
+            });
+          }
+
+          if (isDone) {
+            ws.close();
+            kbWsRef.current = null;
+            localStorage.removeItem('kb_progress_agentId');
+            localStorage.removeItem('kb_progress_agentName');
+            setKbCreationProgress({ agentId, status: 'completed', progress: 100, message: 'Knowledge base ready!' });
+            appToast.success(`${agentName} has been created successfully!`, { duration: 4000 });
+            setTimeout(() => {
+              setIsCreatingAgent(false);
+              setIsModalMinimized(false);
+              setCreatingAgentId(null);
+              setKbCreationProgress(null);
+              setKbFileProgress([]);
+              setShowQuickCreateModal(false);
+              refreshAgents();
+              navigate('/agents');
+            }, 1500);
+          }
+        } catch {
+          console.warn('KB WS: could not parse message');
+        }
+      };
+
+      ws.onerror = () => console.warn('⚠️ KB progress WS error');
+
+      ws.onclose = () => {
+        console.log('🔌 KB progress WS closed');
+        kbWsRef.current = null;
+      };
+
+      // Fallback: 2-minute timeout
+      setTimeout(() => {
+        if (kbWsRef.current) {
+          kbWsRef.current.close();
+          kbWsRef.current = null;
+        }
+        localStorage.removeItem('kb_progress_agentId');
+        localStorage.removeItem('kb_progress_agentName');
+        setKbCreationProgress((prev) => {
+          if (prev && prev.status !== 'completed') {
+            appToast.success(`${agentName} has been created successfully!`, { duration: 4000 });
+            setTimeout(() => {
+              setIsCreatingAgent(false);
+              setIsModalMinimized(false);
+              setCreatingAgentId(null);
+              setKbCreationProgress(null);
+              setKbFileProgress([]);
+              setShowQuickCreateModal(false);
+              refreshAgents();
+              navigate('/agents');
+            }, 500);
+            return { ...prev, status: 'completed', progress: 100, message: 'Agent created successfully!' };
+          }
+          return prev;
+        });
+      }, 120000);
+    },
+    [refreshAgents, navigate]
+  );
+
+  // ── Reload reconnect: restore in-progress KB session from localStorage ───────
+  useEffect(() => {
+    const savedAgentId = localStorage.getItem('kb_progress_agentId');
+    const savedAgentName = localStorage.getItem('kb_progress_agentName');
+    if (savedAgentId) {
+      console.log('🔄 Restoring KB progress session for agent:', savedAgentId);
+      setCreatingAgentId(savedAgentId);
+      setIsCreatingAgent(true);
+      setIsModalMinimized(true);
+      setShowQuickCreateModal(true);
+      setKbCreationProgress({
+        agentId: savedAgentId,
+        status: 'processing',
+        progress: 10,
+        message: 'Reconnecting to knowledge base processing...',
+      });
+      connectKbWebSocket(savedAgentId, savedAgentName || 'AI Employee');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // ─────────────────────────────────────────────────────────────────────────────
 
   // Prevent body scroll when any modal is open
   useEffect(() => {
-    const isAnyModalOpen = showQuickCreateModal || showTemplateDetails || showTestChat;
+    const isAnyModalOpen = (showQuickCreateModal && !isModalMinimized) || showTemplateDetails || showTestChat;
     
     if (isAnyModalOpen) {
       // Blur any currently focused element to prevent keyboard auto-open on mobile
@@ -1338,7 +1568,7 @@ const AgentManagement = () => {
       document.body.style.right = '';
       document.body.style.overflow = '';
     };
-  }, [showQuickCreateModal, showTemplateDetails, showTestChat]);
+  }, [showQuickCreateModal, isModalMinimized, showTemplateDetails, showTestChat]);
 
   useEffect(() => {
     if (id) {
@@ -1409,7 +1639,6 @@ const AgentManagement = () => {
     return () => window.removeEventListener("agentUpdated", handleAgentUpdate);
   }, [currentAgent?.id, setCurrentAgent]);
 
-  // Fetch session history from API
   const fetchSessionHistory = async (agentId: string) => {
     setSessionLoading(true);
     setSessionError(null);
@@ -1451,13 +1680,30 @@ const AgentManagement = () => {
       setPublishingAgents((prev) => new Set(prev).add(agentToPublish));
 
       await publishAgentStatus(agentToPublish);
-      await refreshAgents();
+      // Optimistically update filteredAgents so the UI reflects Published state
+      // immediately — before refreshAgents() triggers any background re-fetch.
+      const publishedId = agentToPublish;
+      setFilteredAgents((prev) =>
+        prev.map((a) =>
+          a.id === publishedId ? { ...a, status: 'Published', is_active: true } : a
+        )
+      );
+      // Also update currentAgent directly — the context's publishAgentStatus has a
+      // stale-closure guard (currentAgent?.id === id) that can miss in some cases.
+      if (currentAgent && currentAgent.id === publishedId) {
+        setCurrentAgent({ ...currentAgent, status: 'Published' });
+      }
+      // Note: refreshAgents() intentionally omitted — publishAgentStatus() already
+      // updates context agents in-memory. A server re-fetch here would race with
+      // the optimistic filteredAgents update above.
       console.log("✅ Agent published successfully");
       
       // Show success toast
       appToast.success("Agent published successfully!", { duration: 3000 });
       setShowPublishConfirm(false);
       setAgentToPublish(null);
+      // Reload the page so all state reflects the published status
+      setTimeout(() => window.location.reload(), 500);
     } catch (error: any) {
       console.error("❌ Error publishing agent:", error);
       appToast.error(error.message || "Failed to publish agent. Please try again.", { duration: 4000 });
@@ -1491,7 +1737,19 @@ const AgentManagement = () => {
       setPublishingAgents((prev) => new Set(prev).add(agentToPause));
 
       await unpublishAgentStatus(agentToPause);
-      await refreshAgents();
+      // Optimistically update filteredAgents so the UI reflects Pending state immediately.
+      const pausedId = agentToPause;
+      setFilteredAgents((prev) =>
+        prev.map((a) =>
+          a.id === pausedId ? { ...a, status: 'Pending', is_active: false } : a
+        )
+      );
+      // Also update currentAgent directly for the view page.
+      if (currentAgent && currentAgent.id === pausedId) {
+        setCurrentAgent({ ...currentAgent, status: 'Pending' });
+      }
+      // Note: refreshAgents() intentionally omitted — unpublishAgentStatus() already
+      // updates context agents in-memory.
       console.log("✅ Agent paused successfully");
       
       // Show success toast
@@ -2372,7 +2630,7 @@ const AgentManagement = () => {
     } catch (error) {
       console.error("Error fetching filtered agents:", error);
       // Fallback to client-side filtering if API fails
-      const fallbackFiltered = agents
+      const fallbackFiltered = agentsRef.current
         .filter((agent) => {
           const matchesSearch = agent.name
             .toLowerCase()
@@ -2424,8 +2682,15 @@ const AgentManagement = () => {
     sortBy,
     debouncedSearchTerm,
     currentPage,
-    agents,
+    // NOTE: `agents` intentionally excluded — adding it would cause fetchFilteredAgents to
+    // re-run after every publish/pause and overwrite the optimistic UI update with stale
+    // filter-API data. agentsRef.current is used in the catch fallback instead.
   ]);
+
+  // Keep agentsRef in sync with the context agents list (used in fetchFilteredAgents fallback)
+  useEffect(() => {
+    agentsRef.current = agents;
+  }, [agents]);
 
   // Fetch agents when filters or page changes
   useEffect(() => {
@@ -2494,10 +2759,14 @@ const AgentManagement = () => {
 
           {/* Create Button */}
           <button
-            onClick={() => isDeveloper && setShowQuickCreateModal(true)}
-            disabled={!isDeveloper}
+            onClick={() => {
+              if (!isDeveloper || (isCreatingAgent && isModalMinimized)) return;
+              setShowQuickCreateModal(true);
+            }}
+            disabled={!isDeveloper || (isCreatingAgent && isModalMinimized)}
+            title={isCreatingAgent && isModalMinimized ? 'Knowledge base training in progress…' : undefined}
             className={`relative overflow-hidden flex items-center justify-center gap-2 px-4 lg:px-6 py-2.5 lg:py-3 rounded-xl transition-all duration-200 shadow-sm whitespace-nowrap ${
-              isDeveloper
+              isDeveloper && !(isCreatingAgent && isModalMinimized)
                 ? "common-button-bg transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
                 : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50"
             }`}
@@ -2673,6 +2942,34 @@ const AgentManagement = () => {
               return (
               <GlassCard key={agent.id} hover>
                 <div className="p-4 sm:p-5 lg:p-6 relative">
+                  {/* KB Processing Overlay — shown when modal is minimized */}
+                  {creatingAgentId && agent.id === creatingAgentId && isCreatingAgent && isModalMinimized && (
+                    <div
+                      className="absolute inset-0 z-10 rounded-xl sm:rounded-2xl bg-blue-50/95 dark:bg-slate-900/95 flex flex-col items-center justify-center gap-3 cursor-pointer"
+                      onClick={() => {
+                        setIsModalMinimized(false);
+                        setShowQuickCreateModal(true);
+                      }}
+                    >
+                      <div className="w-10 h-10 border-[3px] border-blue-500 border-t-transparent rounded-full animate-spin" />
+                      <div className="text-center px-4">
+                        <p className="text-sm font-semibold text-slate-800 dark:text-white">
+                          Training Knowledge Base
+                        </p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                          Click to view progress
+                        </p>
+                      </div>
+                      {kbCreationProgress?.progress !== undefined && (
+                        <div className="w-32 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                            style={{ width: `${kbCreationProgress.progress}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {/* Agent Header - Mobile Optimized */}
                   <div className="flex items-start gap-3 mb-4">
                     <div className="w-10 sm:w-12 h-10 sm:h-12 common-bg-icons rounded-xl flex items-center justify-center flex-shrink-0">
@@ -3253,7 +3550,7 @@ const AgentManagement = () => {
           )}
 
         {/* Quick Create AI Employee Modal */}
-        {showQuickCreateModal &&
+        {showQuickCreateModal && !isModalMinimized &&
           createPortal(
             <div
               className="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-4"
@@ -3285,17 +3582,28 @@ const AgentManagement = () => {
                       </p>
                     </div>
                   </div>
-                  <button
-                    onClick={handleQuickCreateClose}
-                    disabled={isCreatingAgent}
-                    className={`p-1.5 sm:p-2 rounded-lg transition-colors ${
-                      isCreatingAgent
-                        ? 'opacity-50 cursor-not-allowed'
-                        : 'hover:bg-slate-200 dark:hover:bg-slate-700'
-                    }`}
-                  >
-                    <X className="w-4 h-4 sm:w-5 sm:h-5 text-slate-500" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    {isCreatingAgent && (
+                      <button
+                        onClick={() => setIsModalMinimized(true)}
+                        className="p-1.5 sm:p-2 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                        title="Minimize — monitor progress from agent card"
+                      >
+                        <Minimize2 className="w-4 h-4 sm:w-5 sm:h-5 text-slate-500" />
+                      </button>
+                    )}
+                    <button
+                      onClick={handleQuickCreateClose}
+                      disabled={isCreatingAgent}
+                      className={`p-1.5 sm:p-2 rounded-lg transition-colors ${
+                        isCreatingAgent
+                          ? 'opacity-50 cursor-not-allowed'
+                          : 'hover:bg-slate-200 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      <X className="w-4 h-4 sm:w-5 sm:h-5 text-slate-500" />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Progress Bar */}
@@ -3317,8 +3625,165 @@ const AgentManagement = () => {
 
                 {/* Content */}
                 <div className="p-3 py-4 sm:p-5 overflow-y-auto flex-1 min-h-0 ">
+
+                  {/* ── KB Creation Progress Screen ────────────────────── */}
+                  {isCreatingAgent && (
+                    <div className="flex flex-col gap-4 animate-fadeIn">
+                      {/* Header */}
+                      <div className="text-center">
+                        <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center">
+                          <Bot className="w-7 h-7 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <h3 className="text-lg font-semibold text-slate-800 dark:text-white mb-1">
+                          Creating {quickCreateData.aiEmployeeName || 'Your AI Employee'}
+                        </h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          {kbCreationProgress?.message || 'Setting up your AI employee...'}
+                        </p>
+                      </div>
+
+                      {/* Overall progress bar */}
+                      <div>
+                        <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400 mb-1.5">
+                          <span>
+                            {kbCreationProgress?.status === 'completed'
+                              ? '✓ Complete'
+                              : kbCreationProgress?.status === 'failed'
+                              ? '✗ Failed'
+                              : 'Overall Progress'}
+                          </span>
+                          <span className={`font-semibold ${
+                            kbCreationProgress?.status === 'completed'
+                              ? 'text-green-600 dark:text-green-400'
+                              : kbCreationProgress?.status === 'failed'
+                              ? 'text-red-500'
+                              : 'text-blue-600 dark:text-blue-400'
+                          }`}>
+                            {kbCreationProgress?.progress ?? 0}%
+                          </span>
+                        </div>
+                        <div className="h-2.5 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${
+                              kbCreationProgress?.status === 'completed'
+                                ? 'bg-green-500'
+                                : kbCreationProgress?.status === 'failed'
+                                ? 'bg-red-500'
+                                : 'bg-gradient-to-r from-blue-500 to-indigo-500'
+                            }`}
+                            style={{ width: `${kbCreationProgress?.progress ?? 0}%` }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Steps list */}
+                      <div className="space-y-2">
+                        {[
+                          { label: 'Preparing configuration', done: (kbCreationProgress?.progress ?? 0) >= 10 },
+                          { label: 'Creating AI employee profile', done: (kbCreationProgress?.progress ?? 0) >= 20 },
+                          { label: 'Processing knowledge base', done: kbCreationProgress?.status === 'completed' },
+                        ].map((step, i) => (
+                          <div
+                            key={i}
+                            className="flex items-center gap-2.5 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800/50"
+                          >
+                            {step.done ? (
+                              <div className="w-5 h-5 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center flex-shrink-0">
+                                <CheckCircle className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+                              </div>
+                            ) : (kbCreationProgress?.progress ?? 0) > (i === 0 ? 0 : i === 1 ? 10 : 20) ? (
+                              <div className="w-5 h-5 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center flex-shrink-0">
+                                <svg className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 animate-spin" viewBox="0 0 24 24" fill="none">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                                </svg>
+                              </div>
+                            ) : (
+                              <div className="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700 flex-shrink-0" />
+                            )}
+                            <span className={`text-sm ${step.done ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400 dark:text-slate-500'}`}>
+                              {step.label}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Per-file KB progress cards */}
+                      {kbFileProgress.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                            Knowledge Base Files
+                          </p>
+                          {kbFileProgress.map((file) => {
+                            const stageLabel: Record<string, string> = {
+                              downloading: '⬇ Downloading...',
+                              downloaded: '✓ Downloaded',
+                              parsing: '⚙ Parsing document...',
+                              uploading: '☁ Uploading...',
+                              done: '✓ Done',
+                              error: '✗ Error',
+                            };
+                            const isDoneFile = file.stage === 'done';
+                            const isErrorFile = file.stage === 'error';
+                            return (
+                              <div
+                                key={file.file_index}
+                                className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50"
+                              >
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <FileText className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                                    <span className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate">
+                                      {file.file_name}
+                                    </span>
+                                  </div>
+                                  <span className={`text-xs font-semibold flex-shrink-0 ml-2 ${
+                                    isDoneFile ? 'text-green-600 dark:text-green-400' : isErrorFile ? 'text-red-500' : 'text-blue-600 dark:text-blue-400'
+                                  }`}>
+                                    {file.file_percent}%
+                                  </span>
+                                </div>
+                                <div className="h-1.5 w-full rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full transition-all duration-400 ${
+                                      isDoneFile ? 'bg-green-500' : isErrorFile ? 'bg-red-500' : 'bg-gradient-to-r from-blue-500 to-violet-500'
+                                    }`}
+                                    style={{ width: `${file.file_percent}%` }}
+                                  />
+                                </div>
+                                <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">
+                                  {stageLabel[file.stage] || file.stage}
+                                </p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* Completion message */}
+                      {kbCreationProgress?.status === 'completed' && (
+                        <div className="flex items-center gap-2.5 p-3 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                          <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0" />
+                          <p className="text-sm font-medium text-green-700 dark:text-green-400">
+                            {quickCreateData.aiEmployeeName || 'Your AI Employee'} is ready!
+                          </p>
+                        </div>
+                      )}
+
+                      {kbCreationProgress?.status === 'failed' && (
+                        <div className="flex items-center gap-2.5 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                          <MessageSquare className="w-5 h-5 text-red-500 flex-shrink-0" />
+                          <p className="text-sm text-red-600 dark:text-red-400">
+                            {kbCreationProgress.message || 'Something went wrong. Please try again.'}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {/* ── End KB Creation Progress Screen ────────────────── */}
+
                   {/* Step 1: Company Name & AI Employee Name */}
-                  {quickCreateStep === 1 && (
+                  {!isCreatingAgent && quickCreateStep === 1 && (
                     <div className="space-y-3 sm:space-y-4 animate-fadeIn">
                       <div className="text-center mb-4 sm:mb-6">
                         <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-center">
@@ -3381,7 +3846,7 @@ const AgentManagement = () => {
                   )}
 
                   {/* Step 2: Voice Configuration */}
-                  {quickCreateStep === 2 && (
+                  {!isCreatingAgent && quickCreateStep === 2 && (
                     <div className="space-y-3 sm:space-y-4 animate-fadeIn">
                       <div className="text-center mb-4 sm:mb-6">
                         <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-center">
@@ -3439,7 +3904,7 @@ const AgentManagement = () => {
                         {/* Language Selection */}
                         <div>
                           <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                            Language
+                            Language <span className="text-red-500">*</span>
                           </label>
                           <select
                             value={quickCreateData.language}
@@ -3488,7 +3953,7 @@ const AgentManagement = () => {
                         {/* Voice Selection */}
                         <div>
                           <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                            Voice Type
+                            Voice Type <span className="text-red-500">*</span>
                           </label>
                           <div className="flex gap-2">
                             <select
@@ -3620,7 +4085,7 @@ const AgentManagement = () => {
                   )}
 
                   {/* Step 3: Business Process */}
-                  {quickCreateStep === 3 && (
+                  {!isCreatingAgent && quickCreateStep === 3 && (
                     <div className="space-y-3 sm:space-y-4 animate-fadeIn">
                       <div className="text-center mb-4 sm:mb-6">
                         <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-center">
@@ -3764,7 +4229,7 @@ const AgentManagement = () => {
                   )}
 
                   {/* Step 4: Industry */}
-                  {quickCreateStep === 4 && (
+                  {!isCreatingAgent && quickCreateStep === 4 && (
                     <div className="space-y-3 sm:space-y-4 animate-fadeIn">
                       <div className="text-center mb-4 sm:mb-6">
                         <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-center">
@@ -3898,7 +4363,7 @@ const AgentManagement = () => {
                   )}
 
                   {/* Step 5: Sub-Industry */}
-                  {quickCreateStep === 5 && (
+                  {!isCreatingAgent && quickCreateStep === 5 && (
                     <div className="space-y-3 sm:space-y-4 animate-fadeIn">
                       <div className="text-center mb-4 sm:mb-6">
                         <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-center">
@@ -4067,7 +4532,7 @@ const AgentManagement = () => {
                   )}
 
                   {/* Step 6: Knowledge Base */}
-                  {quickCreateStep === 6 && (
+                  {quickCreateStep === 6 && !isCreatingAgent && (
                     <div className="space-y-3 sm:space-y-4 animate-fadeIn">
                       <div className="text-center mb-4 sm:mb-6">
                         <div className="w-12 h-12 sm:w-16 sm:h-16 mx-auto mb-3 sm:mb-4 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-center">
@@ -4095,7 +4560,7 @@ const AgentManagement = () => {
                         <div className="space-y-3">
                         <label className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
                           <Upload className="w-4 h-4" />
-                          Upload Files
+                          Upload Files <span className="text-red-500 text-xs">(required — at least one file or URL)</span>
                         </label>
 
                         {/* Drop Zone */}
@@ -4219,7 +4684,7 @@ const AgentManagement = () => {
                       <div className="space-y-2 sm:space-y-3">
                         <label className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
                           <Link className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                          Website URLs
+                          Website URLs <span className="text-red-500">*</span>
                         </label>
                         {quickCreateData.websiteUrls.map((url, index) => (
                           <div
@@ -4321,7 +4786,7 @@ const AgentManagement = () => {
                   )}
 
                   {/* Step 7: Template Selection with AI-Generated Templates */}
-                  {quickCreateStep === 7 &&
+                  {!isCreatingAgent && quickCreateStep === 7 &&
                     (() => {
                       // Use AI-generated templates, fallback to scored templates
                       const templates =
@@ -4737,6 +5202,20 @@ const AgentManagement = () => {
 
                 {/* Footer */}
                 <div className="p-3 sm:p-5 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex-shrink-0">
+                  {isCreatingAgent ? (
+                    /* During creation show minimal footer */
+                    <div className="flex items-center justify-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                      <svg className="w-4 h-4 animate-spin text-blue-500" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                      </svg>
+                      <span>
+                        {kbCreationProgress?.status === 'completed'
+                          ? 'Finalizing...'
+                          : `Building ${quickCreateData.aiEmployeeName || 'your AI employee'}...`}
+                      </span>
+                    </div>
+                  ) : (
                   <div className="flex items-center justify-between gap-2 sm:gap-3">
                     {quickCreateStep > 1 ? (
                       <button
@@ -4829,9 +5308,10 @@ const AgentManagement = () => {
                       )}
                     </div>
                   </div>
+                  )} {/* end isCreatingAgent ternary */}
 
                   {/* Mobile Skip Button for Step 7 */}
-                  {quickCreateStep === 7 && (
+                  {!isCreatingAgent && quickCreateStep === 7 && (
                     <button
                       onClick={() => {
                         handleQuickCreateClose();

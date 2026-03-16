@@ -83,6 +83,7 @@ export interface GenerateTemplateRequest {
   websiteUrls?: string[];
   additionalContext?: string;
   extractedContent?: string; // Extracted text from uploaded files (PDFs, docs, etc.)
+  voiceStyle?: string; // e.g. friendly, professional, casual, authoritative, empathetic, enthusiastic
 }
 
 interface PromptGenerationData {
@@ -154,6 +155,7 @@ class AITemplateService {
             request.businessProcess,
             template.manualKnowledge,
             request.subIndustry,
+            request.voiceStyle,
           ).then((sysPrompt) => {
             if (sysPrompt.trim().length > 100) {
               bgTemplates[i] = { ...bgTemplates[i], systemPrompt: sysPrompt };
@@ -329,6 +331,28 @@ Example format: ${exampleTemplates}`;
    * Generate a detailed, voice-AI-optimized system prompt for a given template via a separate API call.
    * Called individually per template after initial metadata generation.
    */
+  /**
+   * Maps a voice style value to detailed voice instruction guidelines.
+   */
+  private getVoiceStyleInstructions(voiceStyle?: string): string {
+    const styleMap: Record<string, string> = {
+      friendly:
+        "Speak in a warm, welcoming, and approachable manner. Use casual but professional language. Express genuine care for the caller. Open with energy and positivity. Use phrases like \"Great to hear from you!\", \"Happy to help!\", \"Of course!\". Smile through your voice — let enthusiasm be naturally audible.",
+      professional:
+        "Maintain a formal, business-like tone at all times. Use precise, concise language. Avoid slang, filler words, and overly casual phrases. Project confidence and authority. Use phrases like \"Certainly\", \"Absolutely\", \"Allow me to assist you with that\". Keep responses structured and to the point.",
+      casual:
+        "Speak in a relaxed, laid-back, conversational style. Contractions are welcome — say \"I'll\" not \"I will\". Keep it light and easy. Avoid corporate-sounding phrases. Use everyday language. Treat the caller like a friend you're helping out. Phrases like \"No worries!\", \"Sure thing!\", \"Let me check that out for you\" fit perfectly.",
+      authoritative:
+        "Speak with confidence and clarity. Use assertive, direct statements. Avoid hedging words like \"maybe\", \"possibly\", \"I think\". Project expertise and decisiveness. Callers should feel they are speaking to an expert who knows exactly what they're talking about. Use phrases like \"Here's what we'll do\", \"The right approach is\", \"I can confirm that\".",
+      empathetic:
+        "Lead with empathy and emotional awareness. Always acknowledge the caller's feelings before diving into solutions. Validate concerns with phrases like \"I completely understand\", \"I'm sorry you experienced that\", \"That must be frustrating — let me help\".. Keep your voice calm, soft, and reassuring throughout. Never rush the caller. Create a safe space where they feel heard.",
+      enthusiastic:
+        "Bring high energy and genuine excitement to every call. Be upbeat, positive, and motivating. Use positive reinforcement often — \"That's a great choice!\", \"Absolutely!\", \"You're going to love this!\". Keep the energy up without being overwhelming. Make the caller feel excited about the interaction and the outcome.",
+    };
+    const style = (voiceStyle || "friendly").toLowerCase();
+    return styleMap[style] || styleMap["friendly"];
+  }
+
   async generateSystemPromptForTemplate(
     templateName: string,
     description: string,
@@ -338,6 +362,7 @@ Example format: ${exampleTemplates}`;
     businessProcess: string,
     manualKnowledge?: string,
     subIndustry?: string,
+    _voiceStyle?: string, // reserved — Voice Instructions are injected externally
   ): Promise<string> {
     const subLine = subIndustry ? `\nSub-industry: ${subIndustry}` : "";
     const kbSection = manualKnowledge?.trim()
@@ -362,7 +387,9 @@ Requirements:
 5. Never use robotic language or long paragraphs
 6. The agent should sound experienced, confident, and human
 
-Write the system prompt using EXACTLY these sections:
+⛔ IMPORTANT: Do NOT include a "Voice Instructions" section. This section is managed externally and will be injected automatically — any Voice Instructions content you write will be discarded and replaced.
+
+Write the system prompt using EXACTLY these sections in this order:
 
 Identity
 [Who the agent is, what they do, who they work for, and their primary goal]
