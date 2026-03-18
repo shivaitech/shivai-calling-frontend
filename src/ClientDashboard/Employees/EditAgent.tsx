@@ -39,87 +39,201 @@ function renderHighlightedContent(
 }
 
 /**
- * Cleans document text that has been corrupted with excessive pipe characters
- * from PDF/table conversion, and reconstructs proper markdown.
+ * Cleans document text for markdown preview.
+ *
+ * Handles three distinct content sources:
+ *   1. Already-valid GFM markdown  → passed through untouched
+ *   2. Raw PDF-extracted tables     → reconstructed as proper GFM tables
+ *   3. Pipe-noise lines             → silently dropped
  */
 function processKbContent(raw: string): string {
   if (!raw) return '';
 
-  // Step 1: Replace runs of 2+ consecutive pipe separators (with optional whitespace)
-  // e.g. "text | | | | | more text" → "text  more text"
-  let cleaned = raw.replace(/(\s*\|\s*){2,}/g, ' ');
+  // ── Step 0: Detect KB JSON format ─────────────────────────────────────────
+  // The backend stores KB files as JSON:
+  // { "doc_name": "...", "structure": [{ "title": "...", "text": "..." }, ...] }
+  // Parse it and reconstruct as readable plain text before any other processing.
+  try {
+    const parsed = JSON.parse(raw.trim());
+    if (parsed && Array.isArray(parsed.structure)) {
+      const sections: string[] = [];
 
-  // Step 2: Process line by line
-  const inputLines = cleaned.split('\n');
-  const result: string[] = [];
-  let i = 0;
+      // Optional: emit doc description as a preamble
+      if (parsed.doc_description) {
+        sections.push(`> ${parsed.doc_description}`);
+        sections.push('');
+      }
 
-  while (i < inputLines.length) {
-    const line = inputLines[i].trim();
+      for (const node of parsed.structure) {
+        const nodeText: string = (node.text ?? '').trim();
+        if (!nodeText) continue;
+        if (node.title && node.title !== 'Prefaces') {
+          sections.push(`## ${String(node.title).trim()}`);
+          sections.push('');
+        }
+        sections.push(nodeText);
+        sections.push('');
+      }
 
-    // Count remaining single pipes in this line
-    const pipes = (line.match(/\|/g) || []).length;
+      raw = sections.join('\n');
+    }
+  } catch {
+    // Not JSON — continue with raw text as-is
+  }
 
-    if (pipes >= 2) {
-      // Looks like a table row — collect a run of such lines
-      const tableLines: string[] = [];
-      while (i < inputLines.length) {
-        const tl = inputLines[i].trim();
-        const tc = (tl.match(/\|/g) || []).length;
-        if (tc >= 2 && tl.length > 0) {
-          tableLines.push(tl);
-          i++;
+  // ── Step 1: Detect & repair "word-per-line" PDF extraction artifact ────────
+  // Symptom: many lines that are purely whitespace (` `, `  `) acting as
+  // word separators, with content words on individual lines.
+  // e.g. "Trade\n \nFX\n \nServices\n \n–\n \nOfficial..."
+  {
+    const rawLines = raw.split('\n');
+    const wsOnlyCount = rawLines.filter(l => l.length > 0 && l.trim() === '').length;
+    if (wsOnlyCount > rawLines.length * 0.15) {
+      const joined: string[] = [];
+      let wordBuf: string[] = [];
+      const flushBuf = () => {
+        if (wordBuf.length > 0) {
+          joined.push(wordBuf.join(' ').trim());
+          wordBuf = [];
+        }
+      };
+      for (const line of rawLines) {
+        if (line.length === 0) {
+          // True empty line → paragraph break
+          flushBuf();
+          joined.push('');
+        } else if (line.trim() === '') {
+          // Whitespace-only → invisible word separator, skip
+        } else if (/^#{1,6}\s/.test(line.trim())) {
+          // Heading line → flush current paragraph, emit heading as-is
+          flushBuf();
+          joined.push(line.trim());
+          joined.push('');
         } else {
-          break;
+          wordBuf.push(line.trim());
         }
       }
-
-      // Parse each table line into cells
-      const rows = tableLines.map(tl => {
-        // Split on | and clean each cell
-        const parts = tl.split('|').map(c => c.trim());
-        // Remove leading/trailing empty strings from line-boundary |
-        if (parts[0] === '') parts.shift();
-        if (parts[parts.length - 1] === '') parts.pop();
-        return parts.filter(c => c.length > 0);
-      }).filter(r => r.length > 0);
-
-      if (rows.length === 0) continue;
-
-      const maxCols = Math.max(...rows.map(r => r.length));
-
-      if (maxCols >= 2) {
-        // Header row
-        const header = [...rows[0]];
-        while (header.length < maxCols) header.push('');
-        result.push('| ' + header.join(' | ') + ' |');
-        result.push('| ' + Array(maxCols).fill('---').join(' | ') + ' |');
-
-        for (let r = 1; r < rows.length; r++) {
-          const row = [...rows[r]];
-          while (row.length < maxCols) row.push('');
-          result.push('| ' + row.join(' | ') + ' |');
-        }
-        result.push('');
-      } else {
-        // Fallback: render as plain lines
-        tableLines.forEach(tl => result.push(tl.replace(/\|/g, '').trim()));
-      }
-    } else if (line.length === 0) {
-      // Preserve blank lines as paragraph breaks (deduplicate)
-      if (result.length > 0 && result[result.length - 1] !== '') {
-        result.push('');
-      }
-      i++;
-    } else {
-      // Plain text line — keep as-is, strip stray single pipes
-      result.push(line.replace(/\s*\|\s*/g, ' ').trim());
-      i++;
+      flushBuf();
+      raw = joined.join('\n');
     }
   }
 
-  return result.join('\n');
+  const lines = raw.split('\n');
+  const result: string[] = [];
+  let inCodeBlock = false;
+  let i = 0;
+
+  while (i < lines.length) {
+    const originalLine = lines[i];
+    const trimmed = originalLine.trim();
+
+    // ── Code fence tracking: never touch content inside ``` / ~~~ blocks ──────
+    if (/^(```|~~~)/.test(trimmed)) {
+      inCodeBlock = !inCodeBlock;
+      result.push(originalLine);
+      i++;
+      continue;
+    }
+    if (inCodeBlock) {
+      result.push(originalLine);
+      i++;
+      continue;
+    }
+
+    // ── Blank line ────────────────────────────────────────────────────────────
+    if (trimmed === '') {
+      // Deduplicate: don't push two blank lines in a row
+      if (result.length > 0 && result[result.length - 1] !== '') result.push('');
+      i++;
+      continue;
+    }
+
+    // ── Pure pipe-noise (3+ consecutive pipes or line is only pipes/spaces) ──
+    // These are garbled PDF artifacts — drop them completely.
+    if (/(\|\s*){3,}/.test(trimmed) || /^[\|\s]+$/.test(trimmed)) {
+      i++;
+      continue;
+    }
+
+    // ── Already-valid GFM table ───────────────────────────────────────────────
+    // Identified by: current line has pipes AND the next non-blank line is a
+    // GFM separator (only -, |, :, space).  Copy the whole block as-is.
+    if (trimmed.startsWith('|')) {
+      let nextNonBlank = '';
+      for (let k = i + 1; k < lines.length; k++) {
+        const t = lines[k].trim();
+        if (t) { nextNonBlank = t; break; }
+      }
+      if (/^\|[\s\-:|]+\|$/.test(nextNonBlank)) {
+        // Valid GFM table — copy every row until a blank line or non-pipe line
+        while (i < lines.length && lines[i].trim() !== '') {
+          result.push(lines[i]);
+          i++;
+        }
+        result.push('');
+        continue;
+      }
+    }
+
+    // ── Raw/broken PDF table (2+ pipes, no GFM separator below) ─────────────
+    // Collect consecutive pipe-heavy lines, skip separator-pattern lines,
+    // then rebuild as a proper GFM table.
+    const pipeCount = (trimmed.match(/\|/g) || []).length;
+    if (pipeCount >= 2) {
+      const tableLines: string[] = [];
+      let j = i;
+      while (j < lines.length) {
+        const tl = lines[j].trim();
+        if (!tl) break;
+        // Skip rows that are purely separators (--- | --- style)
+        if (/^[\|\s\-:]+$/.test(tl)) { j++; continue; }
+        const tc = (tl.match(/\|/g) || []).length;
+        if (tc >= 2) { tableLines.push(tl); j++; }
+        else break;
+      }
+
+      const rows = tableLines
+        .map(tl => tl.split('|').map(c => c.trim()).filter(c => c.length > 0))
+        .filter(r => r.length > 0);
+
+      if (rows.length > 0) {
+        const maxCols = Math.max(...rows.map(r => r.length));
+        if (maxCols >= 2) {
+          const header = [...rows[0]];
+          while (header.length < maxCols) header.push('');
+          result.push('| ' + header.join(' | ') + ' |');
+          result.push('| ' + Array(maxCols).fill('---').join(' | ') + ' |');
+          for (let r = 1; r < rows.length; r++) {
+            const row = [...rows[r]];
+            while (row.length < maxCols) row.push('');
+            result.push('| ' + row.join(' | ') + ' |');
+          }
+          result.push('');
+          i = j;
+          continue;
+        }
+      }
+    }
+
+    // ── Regular / markdown-syntax line ───────────────────────────────────────
+    // Preserve the original line for all markdown markers (headings, lists,
+    // blockquotes, ordered lists, thematic breaks, bold/italic, etc.).
+    // Only strip stray lone-pipe artifacts from plain prose lines.
+    const isMarkdownSyntax = /^(#{1,6}\s|[-*+]\s|>\s?|\d+\.\s|---$|\*\*\*$|___$)/.test(trimmed);
+    if (isMarkdownSyntax) {
+      result.push(originalLine); // keep original indentation & syntax intact
+    } else {
+      // Strip lone single-pipe artifacts (PDF extraction noise) from prose,
+      // but do NOT trim leading spaces (preserves nested list indentation).
+      result.push(originalLine.replace(/\s*\|\s*/g, ' ').trimEnd());
+    }
+    i++;
+  }
+
+  // Collapse runs of 3+ blank lines down to 2 (single paragraph boundary)
+  return result.join('\n').replace(/\n{3,}/g, '\n\n');
 }
+
 
 /**
  * Returns a friendly display label for an existing KB file URL.
@@ -131,11 +245,73 @@ function getDisplayFilename(_fileUrl: string, index: number): string {
   return index === 0 ? 'Main Knowledge Base' : `Main Knowledge Base ${index + 1}`;
 }
 
+/**
+ * Detects the AI-generated agent name baked into a template's firstMessage.
+ * Looks for common patterns like "I'm Cler", "This is Linda", etc.
+ * Returns the detected name, or null if not found.
+ */
+function detectNameInTemplate(firstMessage?: string): string | null {
+  if (!firstMessage) return null;
+  const patterns = [
+    /\bI'(?:m|ve) ([A-Z][a-zA-Z]+)\b/,
+    /\bI am ([A-Z][a-zA-Z]+)\b/,
+    /\bThis is ([A-Z][a-zA-Z]+)\b/,
+    /\bMy name is ([A-Z][a-zA-Z]+)\b/i,
+    /\bYou(?:'re| are) speaking (?:with|to) ([A-Z][a-zA-Z]+)\b/i,
+  ];
+  for (const p of patterns) {
+    const m = firstMessage.match(p);
+    if (m?.[1]) return m[1];
+  }
+  return null;
+}
+
+/**
+ * Converts user-edited markdown text back into the KB JSON node-tree format
+ * that the AI backend expects.  Preserves doc_name and doc_description from
+ * the original JSON; splits the body by ## headings to rebuild structure[].
+ */
+function reconstructKbJson(originalJson: any, editedText: string): string {
+  const doc_name = originalJson.doc_name || '';
+  const doc_description = originalJson.doc_description || '';
+
+  // Strip the leading blockquote line ("> doc_description") if present
+  const lines = editedText.split('\n');
+  let startIdx = 0;
+  if (lines[0]?.startsWith('> ')) {
+    startIdx = 1;
+    while (startIdx < lines.length && lines[startIdx].trim() === '') startIdx++;
+  }
+  const body = lines.slice(startIdx).join('\n');
+
+  // Split at every "## Heading" line
+  // parts = [preface_text, heading1, text1, heading2, text2, ...]
+  const parts = body.split(/^## (.+)$/m);
+  const structure: any[] = [];
+  let nodeCounter = 0;
+  const makeId = () => String(nodeCounter++).padStart(4, '0');
+
+  // Text before the first ## heading → Prefaces node
+  if (parts[0].trim()) {
+    structure.push({ title: 'Prefaces', node_id: makeId(), text: parts[0].trim() });
+  }
+
+  // Remaining pairs: [heading, text]
+  for (let i = 1; i < parts.length; i += 2) {
+    const title = parts[i]?.trim() || '';
+    const text = parts[i + 1]?.trim() || '';
+    if (title) structure.push({ title, node_id: makeId(), text });
+  }
+
+  return JSON.stringify({ doc_name, doc_description, structure }, null, 2);
+}
+
 import { useParams, useNavigate } from 'react-router-dom';
 import appToast from '../../components/AppToast';
-import { ArrowLeft, Save, X, Bot, Globe, Settings, Sparkles, Info, Upload, Link, Share2, FileText, File, Image, Plus, BookOpen, Volume2, Play, Square, Pencil, Check, Loader2, Eye, Code2, Search, ChevronUp, ChevronDown, Trash2 } from 'lucide-react';
+import { ArrowLeft, Save, X, Bot, Globe, Settings, Sparkles, Info, Upload, Link, Share2, FileText, File, Image, Plus, BookOpen, Volume2, Play, Square, Pencil, Check, Loader2, Eye, Code2, Search, ChevronUp, ChevronDown, Trash2, RefreshCw } from 'lucide-react';
 import { useAgent } from '../../contexts/AgentContext';
 import { agentAPI } from '../../services/agentAPI';
+import { aiTemplateService } from '../../services/aiTemplateService';
 import GlassCard from '../../components/GlassCard';
 import SearchableSelect from '../../components/SearchableSelect';
 
@@ -248,6 +424,7 @@ const EditAgent = () => {
 
   const [formData, setFormData] = useState({
     name: "",
+    companyName: "",
     gender: "female",
     businessProcess: "",
     industry: "",
@@ -266,7 +443,14 @@ const EditAgent = () => {
   });
 
   const [templateData, setTemplateData] = useState<any>(null);
-  const [originalAgentName, setOriginalAgentName] = useState<string>("");
+  const [isRegeneratingTemplate, setIsRegeneratingTemplate] = useState(false);
+  const [isSpGenerating, setIsSpGenerating] = useState(false);
+  const [templateRegenNeeded, setTemplateRegenNeeded] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  // Stores the baseline key fields as loaded from API — used to detect meaningful changes
+  const baselineTemplateFieldsRef = useRef<{ businessProcess: string; industry: string; subIndustry: string; voiceStyle: string } | null>(null);
+  // Tracks the original company name loaded from the API to detect user changes
+  const originalCompanyNameRef = useRef<string>('');
 
   // Tab state (like Training page)
   const [activeTab, setActiveTab] = useState<string>('identity');
@@ -291,6 +475,28 @@ const EditAgent = () => {
   // Tracks the last agent name applied to customInstructions (supports multiple renames)
   const prevNameRef = useRef<string>('');
 
+  // Mark dirty whenever form data or template data changes (after initial load).
+  // isLoadedRef is armed by a separate useEffect on isLoadingAgent so it only
+  // becomes true AFTER the loaded-data render has already flushed — preventing
+  // the false "Unsaved Changes" on first load.
+  const isLoadedRef = useRef(false);
+  useEffect(() => {
+    if (!isLoadedRef.current) return;
+    setIsDirty(true);
+  }, [formData, templateData]);
+
+  // Detect when key template-driving fields drift from their loaded baseline
+  useEffect(() => {
+    if (!templateData || !baselineTemplateFieldsRef.current) return;
+    const baseline = baselineTemplateFieldsRef.current;
+    const changed =
+      formData.businessProcess !== baseline.businessProcess ||
+      formData.industry !== baseline.industry ||
+      formData.subIndustry !== baseline.subIndustry ||
+      formData.voiceStyle !== baseline.voiceStyle;
+    setTemplateRegenNeeded(changed);
+  }, [formData.businessProcess, formData.industry, formData.subIndustry, formData.voiceStyle, templateData]);
+
   // When the user explicitly changes Voice Style, patch the Voice Instructions
   // section of the system prompt with the new static content.
   useEffect(() => {
@@ -314,6 +520,8 @@ const EditAgent = () => {
   const [savingKbIndex, setSavingKbIndex] = useState<number | null>(null);
   const [confirmDeleteKbIndex, setConfirmDeleteKbIndex] = useState<number | null>(null);
   const [showKbInfo, setShowKbInfo] = useState(false);
+  // Caches the original parsed JSON for each KB file so edits can be saved in node-tree format
+  const [kbOriginalJson, setKbOriginalJson] = useState<Record<number, any>>({});
 
   // Search-in-editor state
   const [kbSearchQuery, setKbSearchQuery] = useState<Record<number, string>>({});
@@ -324,6 +532,16 @@ const EditAgent = () => {
   const kbOverlayRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
   const [isLoadingAgent, setIsLoadingAgent] = useState(true);
+
+  // Arm the dirty-tracker only after the loading spinner goes away.
+  // Placed here (after isLoadingAgent declaration) to avoid use-before-declaration.
+  // One-tick delay so all state-update effects from the load have already run
+  // before we start watching for user changes.
+  useEffect(() => {
+    if (isLoadingAgent) return;
+    const t = setTimeout(() => { isLoadedRef.current = true; }, 0);
+    return () => clearTimeout(t);
+  }, [isLoadingAgent]);
 
   // Helper functions to map API values to form values
   const mapBusinessProcess = (apiValue: string | undefined) => {
@@ -441,8 +659,11 @@ const EditAgent = () => {
         setCurrentAgent(agentForContext);
         
         // Prefill form with all API data (mapping API values to form values)
+        const loadedCompanyName = (agentData as any).company_name || "";
+        originalCompanyNameRef.current = loadedCompanyName;
         setFormData({
           name: agentData.name || "",
+          companyName: loadedCompanyName,
           gender: agentData.gender || "female",
           businessProcess: mapBusinessProcess(agentData.business_process),
           industry: mapIndustry(agentData.industry),
@@ -462,14 +683,62 @@ const EditAgent = () => {
           temperature: agentData.temperature !== undefined ? agentData.temperature : 0.7,
         });
 
-        // Load template data if available
+        // Load template data if available.
+        // Normalize: if the AI chose a different name (e.g. "Cler") than the
+        // actual agent name (e.g. "Claya"), replace it in all template fields
+        // immediately so real-time name updates work correctly from the start.
         if (agentData.template) {
-          setTemplateData(agentData.template);
+          const tmpl = agentData.template;
+          const agentName = agentData.name || '';
+          const nameInTemplate = detectNameInTemplate(tmpl.firstMessage);
+          if (nameInTemplate && nameInTemplate.toLowerCase() !== agentName.toLowerCase()) {
+            const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const norm = (text: string | undefined | null): string => {
+              if (!text) return text || '';
+              return text.replace(new RegExp(`\\b${escape(nameInTemplate)}\\b`, 'gi'), agentName);
+            };
+            setTemplateData({
+              ...tmpl,
+              firstMessage: norm(tmpl.firstMessage),
+              closingScript: norm(tmpl.closingScript),
+              systemPrompt: norm(tmpl.systemPrompt),
+              openingScript: norm(tmpl.openingScript),
+              keyTalkingPoints: norm(tmpl.keyTalkingPoints),
+              description: norm(tmpl.description),
+              ...(tmpl.objections?.length > 0 && {
+                objections: tmpl.objections.map((o: any) => ({
+                  objection: norm(o.objection),
+                  response: norm(o.response),
+                })),
+              }),
+              ...(tmpl.conversationExamples?.length > 0 && {
+                conversationExamples: tmpl.conversationExamples.map((ex: any) => ({
+                  customerInput: norm(ex.customerInput),
+                  expectedResponse: norm(ex.expectedResponse),
+                })),
+              }),
+            });
+          } else {
+            setTemplateData(tmpl);
+          }
         }
 
         // Store the original agent name for tracking changes
-        setOriginalAgentName(agentData.name || "");
+        // prevNameRef must be set AFTER template normalisation above so it
+        // reflects the name now baked into all template fields (the agent name).
         prevNameRef.current = agentData.name || "";
+
+        // Store baseline fields for regen-dirty detection
+        baselineTemplateFieldsRef.current = {
+          businessProcess: mapBusinessProcess(agentData.business_process),
+          industry: mapIndustry(agentData.industry),
+          subIndustry: mapSubIndustry(agentData.sub_industry),
+          voiceStyle: (agentData as any).voice_style ||
+            detectVoiceStyleFromInstruction((agentData as any).voice_config?.voice_instruction),
+        };
+
+        // Mark as loaded so subsequent formData/templateData changes set isDirty
+        // (the flag is actually armed via a useEffect on isLoadingAgent below)
 
         // Load existing knowledge base file URLs
         const kbFiles = (agentData as any).knowledge_base_file_urls;
@@ -500,85 +769,67 @@ const EditAgent = () => {
     fetchAgentData();
   }, [id, setCurrentAgent, navigate]);
 
-  // Update template fields when agent name changes
+  // Update ALL template fields + system prompt whenever the agent name field changes.
+  // Depends ONLY on formData.name so it fires exactly once per keystroke-commit,
+  // with no re-fire caused by the setTemplateData / setFormData calls below.
   useEffect(() => {
-    if (!templateData || !originalAgentName || !formData.name) {
-      return;
-    }
-
-    // Only update if the name actually changed
-    if (formData.name === originalAgentName) {
-      return;
-    }
-
-    const oldName = originalAgentName;
     const newName = formData.name;
+    if (!newName) return;
 
-    console.log("🔄 Updating template with new agent name:", {
-      oldName,
-      newName,
-    });
+    // prevNameRef.current tracks the last name applied to ALL content fields.
+    // It is initialised at API load time and updated here on every rename.
+    const oldName = prevNameRef.current;
+    if (!oldName || oldName === newName) return;
 
-    // Helper function to replace agent name in text
-    const replaceAgentNameInText = (text: string | undefined | null): string => {
-      if (!text) return text || "";
-
-      // Try word-boundary match first (handles "Rock", "Linda", "Sarah")
-      const nameRegex = new RegExp(`\\b${oldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
-      let result = text.replace(nameRegex, newName);
-
-      // If no matches with word boundaries, try substring match
-      if (result === text && oldName.length > 0) {
-        const substringRegex = new RegExp(oldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-        result = result.replace(substringRegex, newName);
-      }
-
-      return result;
+    const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const replaceInText = (text: string | undefined | null): string => {
+      if (!text) return text || '';
+      // Word-boundary match first (handles single-word names like "Cler" or "Linda")
+      const r1 = text.replace(new RegExp(`\\b${escape(oldName)}\\b`, 'gi'), newName);
+      if (r1 !== text) return r1;
+      // Fallback: substring match (handles names embedded without word boundaries)
+      return text.replace(new RegExp(escape(oldName), 'gi'), newName);
     };
 
-    // Update all template fields with the new name
-    const updatedTemplate = {
-      ...templateData,
-      description: replaceAgentNameInText(templateData.description),
-      systemPrompt: replaceAgentNameInText(templateData.systemPrompt),
-      firstMessage: replaceAgentNameInText(templateData.firstMessage),
-      openingScript: replaceAgentNameInText(templateData.openingScript),
-      keyTalkingPoints: replaceAgentNameInText(templateData.keyTalkingPoints),
-      closingScript: replaceAgentNameInText(templateData.closingScript),
-      ...(templateData.objections?.length > 0 && {
-        objections: templateData.objections.map((obj: any) => ({
-          objection: replaceAgentNameInText(obj.objection),
-          response: replaceAgentNameInText(obj.response),
-        })),
-      }),
-      ...(templateData.conversationExamples?.length > 0 && {
-        conversationExamples: templateData.conversationExamples.map((ex: any) => ({
-          customerInput: replaceAgentNameInText(ex.customerInput),
-          expectedResponse: replaceAgentNameInText(ex.expectedResponse),
-        })),
-      }),
-    };
+    console.log(`🔄 Name change: "${oldName}" → "${newName}"`);
 
-    console.log("📋 Updated template with new name:", {
-      firstMessageBefore: templateData.firstMessage?.substring(0, 100),
-      firstMessageAfter: updatedTemplate.firstMessage?.substring(0, 100),
-      keyTalkingPointsBefore: templateData.keyTalkingPoints?.substring(0, 100),
-      keyTalkingPointsAfter: updatedTemplate.keyTalkingPoints?.substring(0, 100),
-    });
+    // Update system prompt (customInstructions) via functional setter
+    setFormData((prev) => ({
+      ...prev,
+      customInstructions: replaceInText(prev.customInstructions),
+    }));
 
-    setTemplateData(updatedTemplate);
-
-    // Also replace the agent name in customInstructions (system prompt)
-    if (prevNameRef.current && prevNameRef.current !== newName) {
-      const escapedOld = prevNameRef.current.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const nameRegex = new RegExp(`\\b${escapedOld}\\b`, 'gi');
-      setFormData((prev) => ({
+    // Update every templateData field via functional setter — no stale closure,
+    // no re-triggering of this effect because templateData is NOT in the dep array.
+    setTemplateData((prev: any) => {
+      if (!prev) return prev;
+      return {
         ...prev,
-        customInstructions: prev.customInstructions.replace(nameRegex, newName),
-      }));
-    }
+        description: replaceInText(prev.description),
+        systemPrompt: replaceInText(prev.systemPrompt),
+        firstMessage: replaceInText(prev.firstMessage),
+        openingScript: replaceInText(prev.openingScript),
+        keyTalkingPoints: replaceInText(prev.keyTalkingPoints),
+        closingScript: replaceInText(prev.closingScript),
+        ...(prev.objections?.length > 0 && {
+          objections: prev.objections.map((obj: any) => ({
+            objection: replaceInText(obj.objection),
+            response: replaceInText(obj.response),
+          })),
+        }),
+        ...(prev.conversationExamples?.length > 0 && {
+          conversationExamples: prev.conversationExamples.map((ex: any) => ({
+            customerInput: replaceInText(ex.customerInput),
+            expectedResponse: replaceInText(ex.expectedResponse),
+          })),
+        }),
+      };
+    });
+
+    // Advance the tracked name so chained renames (A→B→C) work correctly
     prevNameRef.current = newName;
-  }, [formData.name, templateData, originalAgentName]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.name]);
 
   const businessProcesses = [
     { value: "customer-support", label: "Customer Support", group: "Support" },
@@ -1061,7 +1312,15 @@ const EditAgent = () => {
         const res = await fetch(freshFileUrl);
         if (!res.ok) throw new Error(`Failed to fetch file: ${res.status}`);
         const text = await res.text();
-        setKbFileContents((prev) => ({ ...prev, [index]: text }));
+        // Cache original JSON structure so edits can be saved back in node-tree format
+        try {
+          const parsed = JSON.parse(text.trim());
+          if (parsed && Array.isArray(parsed.structure)) {
+            setKbOriginalJson((prev) => ({ ...prev, [index]: parsed }));
+          }
+        } catch { /* not JSON — save as plain text */ }
+        // Process content (JSON → readable text, word-per-line repair, etc.)
+        setKbFileContents((prev) => ({ ...prev, [index]: processKbContent(text) }));
       } catch {
         appToast.error('Failed to load file content');
         setKbFileContents((prev) => ({ ...prev, [index]: '' }));
@@ -1081,16 +1340,51 @@ const EditAgent = () => {
       const result = await agentAPI.getPresignedUrl(id, filename);
       const presignedUrl = result.data.presignedUrl;
 
-      // Step 3: PUT text content directly to S3 using presigned URL
+      // If original was KB JSON format, reconstruct node-tree so AI can process it
+      const originalJson = kbOriginalJson[index];
+      const payload = originalJson ? reconstructKbJson(originalJson, content) : content;
+      const contentType = originalJson ? 'application/json' : 'text/plain';
+
+      console.group('📤 KB Save — payload verification');
+      console.log('contentType:', contentType);
+      console.log('originalJson cached?', !!originalJson);
+      if (originalJson) {
+        try {
+          const parsed = JSON.parse(payload);
+          console.log('doc_name:', parsed.doc_name);
+          console.log('doc_description:', parsed.doc_description);
+          console.log('structure nodes:', parsed.structure?.length);
+          console.table(parsed.structure?.map((n: any) => ({
+            node_id: n.node_id,
+            title: n.title,
+            textSnippet: (n.text || '').slice(0, 80).replace(/\n/g, '↵'),
+          })));
+        } catch {
+          console.warn('Could not parse reconstructed payload as JSON');
+        }
+      } else {
+        console.log('payload (plain text, first 300 chars):', payload.slice(0, 300));
+      }
+      console.groupEnd();
+
+      // Step 3: PUT content directly to S3 using presigned URL
       const putRes = await fetch(presignedUrl, {
         method: 'PUT',
-        body: content,
-        headers: { 'Content-Type': 'text/plain' },
+        body: payload,
+        headers: { 'Content-Type': contentType },
       });
       if (!putRes.ok) throw new Error(`S3 PUT failed: ${putRes.status}`);
       appToast.success('Knowledge base file updated successfully!');
-      // Invalidate cache so next open re-fetches fresh content
-      setKbFileContents((prev) => { const n = { ...prev }; delete n[index]; return n; });
+      // Keep kbFileContents[index] as-is — the edited text IS the up-to-date display content.
+      // Update kbOriginalJson so further saves reconstruct correctly from the new structure.
+      if (originalJson) {
+        try {
+          const reparsed = JSON.parse(payload);
+          setKbOriginalJson((prev) => ({ ...prev, [index]: reparsed }));
+        } catch { /* ignore */ }
+      }
+      // Switch back to preview so the user can immediately see the updated content
+      setKbPreviewMode((prev) => ({ ...prev, [index]: 'preview' }));
       setEditingKbIndex(null);
     } catch (err) {
       console.error('Save KB file error:', err);
@@ -1206,6 +1500,7 @@ const EditAgent = () => {
     // Clean up any related state for this index
     setKbFileContents((prev) => { const n = { ...prev }; delete n[index]; return n; });
     setKbPreviewMode((prev) => { const n = { ...prev }; delete n[index]; return n; });
+    setKbOriginalJson((prev) => { const n = { ...prev }; delete n[index]; return n; });
     if (editingKbIndex === index) setEditingKbIndex(null);
     setConfirmDeleteKbIndex(null);
     appToast.success('File removed from knowledge base.');
@@ -1304,6 +1599,7 @@ const EditAgent = () => {
 
         const updateData = {
           name: formData.name,
+          company_name: formData.companyName,
           personality: personalityToApi(formData.persona),
           language: formData.language,
           voice: formData.voice,
@@ -1347,6 +1643,7 @@ const EditAgent = () => {
         await agentAPI.updateAgent(currentAgent.id, updateData);
         appToast.dismiss(loadingToast);
         appToast.success("Agent updated successfully!");
+        setIsDirty(false);
         // Refresh the agents list in context so view page shows updated data immediately
         await refreshAgents();
       } catch (error) {
@@ -1359,6 +1656,112 @@ const EditAgent = () => {
 
   const handleCancel = () => {
     navigate(-1);
+  };
+
+  /**
+   * Fully regenerates the template (system prompt + all template fields) using the
+   * current form values. Called when the user changes business process, industry,
+   * sub-industry, or voice style — fields that fundamentally reshape the content.
+   */
+  const handleRegenerateTemplate = async () => {
+    setIsRegeneratingTemplate(true);
+    setIsSpGenerating(true);
+    const regenToast = appToast.loading('Regenerating template with AI…');
+    try {
+      const companyName = formData.companyName || currentAgent?.name || 'the Company';
+
+      const agentName = formData.name || prevNameRef.current || 'Assistant';
+
+      const request = {
+        companyName,
+        businessProcess: formData.businessProcess,
+        industry: formData.industry,
+        subIndustry: formData.subIndustry || undefined,
+        voiceStyle: formData.voiceStyle,
+        additionalContext: `The AI employee will be named: ${agentName}`,
+      };
+
+      console.log('🔄 Regenerating template with request:', request);
+
+      let freshTemplates = await aiTemplateService.generateTemplates(
+        request,
+        // When system prompt comes back from background call (call 2), patch customInstructions
+        (templates) => {
+          // Always clear SP loading when this callback fires — this is the signal that call 2 is done
+          setIsSpGenerating(false);
+          const sysPrompt = templates[0]?.systemPrompt;
+          if (sysPrompt && sysPrompt.trim().length > 100) {
+            // Inject the correct voice style into the regenerated system prompt
+            const voiceContent = VOICE_STYLE_SP_MAP[formData.voiceStyle] || VOICE_STYLE_SP_MAP['friendly'];
+            const withVoice = updateVoiceInstructionsSection(sysPrompt, voiceContent) || sysPrompt;
+            setFormData((prev) => ({ ...prev, customInstructions: withVoice }));
+          }
+        },
+      );
+
+      const fresh = freshTemplates[0];
+      if (!fresh) throw new Error('No template returned from AI');
+
+      // Normalise: replace whatever AI name the model chose with the user-provided name.
+      // The agent name must ONLY come from formData.name — never from the KB.
+      const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const forceAgentName = (text: string | undefined): string => {
+        if (!text) return text || '';
+        // Replace any single capitalised word that follows "I'm" / "I am" / "is" patterns
+        // so whatever placeholder the AI picked gets swapped for the real name.
+        return text
+          .replace(/\bI'm ([A-Z][a-z]+)\b/g, `I'm ${agentName}`)
+          .replace(/\bI am ([A-Z][a-z]+)\b/g, `I am ${agentName}`)
+          .replace(/\bThis is ([A-Z][a-z]+)\b/g, `This is ${agentName}`)
+          .replace(/\bYou are ([A-Z][a-z]+)\b/g, `You are ${agentName}`)
+          // Also replace whatever name was previously tracked
+          .replace(new RegExp(`\\b${escape(prevNameRef.current)}\\b`, 'gi'), agentName);
+      };
+
+      // Update templateData with all freshly generated fields
+      setTemplateData((prev: any) => ({
+        ...(prev || {}),
+        ...fresh,
+        firstMessage: forceAgentName(fresh.firstMessage) || prev?.firstMessage,
+        closingScript: forceAgentName(fresh.closingScript) || prev?.closingScript,
+        systemPrompt: forceAgentName(fresh.systemPrompt),
+      }));
+
+      // Advance prevNameRef so subsequent renames propagate correctly
+      prevNameRef.current = agentName;
+
+      // If system prompt was already in the first batch (some APIs return it synchronously), apply it now.
+      // NOTE: We do NOT clear isSpGenerating here — we always wait for the background call 2 callback.
+      if (fresh.systemPrompt && fresh.systemPrompt.trim().length > 100) {
+        const voiceContent = VOICE_STYLE_SP_MAP[formData.voiceStyle] || VOICE_STYLE_SP_MAP['friendly'];
+        const withVoice = updateVoiceInstructionsSection(fresh.systemPrompt, voiceContent) || fresh.systemPrompt;
+        setFormData((prev) => ({ ...prev, customInstructions: withVoice }));
+        // isSpGenerating stays true — background call 2 will still run and clear it
+      }
+
+      // Reset baseline so the dirty banner goes away
+      baselineTemplateFieldsRef.current = {
+        businessProcess: formData.businessProcess,
+        industry: formData.industry,
+        subIndustry: formData.subIndustry,
+        voiceStyle: formData.voiceStyle,
+      };
+      setTemplateRegenNeeded(false);
+      // Update company name baseline so the amber warning banner is dismissed
+      originalCompanyNameRef.current = formData.companyName;
+
+      appToast.dismiss(regenToast);
+      appToast.success('Template regenerated! Review the changes and save when ready.');
+    } catch (err) {
+      console.error('Regenerate template error:', err);
+      appToast.dismiss(regenToast);
+      appToast.error('Failed to regenerate template. Please try again.');
+      setIsSpGenerating(false); // clear SP loading on error since background callback won't fire
+    } finally {
+      setIsRegeneratingTemplate(false);
+      // NOTE: isSpGenerating is NOT cleared here — the background SP callback clears it.
+      // It is only cleared early in catch (error) or when SP arrives synchronously.
+    }
   };
 
   if (isLoadingAgent || !currentAgent) {
@@ -1396,7 +1799,7 @@ const EditAgent = () => {
                   <div className="flex flex-col gap-1.5 sm:gap-2">
                     <div className="min-w-0 flex-1">
                       <h1 className="text-base sm:text-xl lg:text-2xl font-bold text-slate-800 dark:text-white leading-tight truncate">
-                        {currentAgent.name}
+                        {formData.name || currentAgent.name}
                       </h1>
 
                       {/* Agent meta info */}
@@ -1411,11 +1814,15 @@ const EditAgent = () => {
                             {currentAgent.language}
                           </span>
                         </div>
-                        <span
-                          className="px-2 py-0.5 sm:px-3 sm:py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-xs font-medium flex-shrink-0"
-                        >
-                          Editing
-                        </span>
+                        {isDirty ? (
+                          <span className="px-2 py-0.5 sm:px-3 sm:py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-full text-xs font-medium flex-shrink-0">
+                            Unsaved Changes
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 sm:px-3 sm:py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full text-xs font-medium flex-shrink-0">
+                            Editing
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1461,13 +1868,54 @@ const EditAgent = () => {
                     : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition ease-in-out"
                 }`}
               >
-                <tab.icon className="w-3 sm:w-4 h-3 sm:h-4" />
+                {tab.id === 'settings' && (isRegeneratingTemplate || isSpGenerating) ? (
+                  <svg className="w-3 sm:w-4 h-3 sm:h-4 animate-spin text-violet-500" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                ) : (
+                  <tab.icon className="w-3 sm:w-4 h-3 sm:h-4" />
+                )}
                 <span className="text-xs sm:text-sm">{tab.label}</span>
+                {tab.id === 'settings' && (isRegeneratingTemplate || isSpGenerating) && (
+                  <span className="ml-0.5 text-[10px] font-medium text-violet-500 dark:text-violet-400">
+                    {isRegeneratingTemplate ? 'Generating…' : 'SP…'}
+                  </span>
+                )}
               </button>
             ))}
           </div>
         </div>
       </GlassCard>
+
+      {/* Regenerate template banner — shown whenever key fields drift from their loaded baseline */}
+      {templateRegenNeeded && templateData && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-700/50 rounded-xl">
+          <Sparkles className="w-4 h-4 text-violet-600 dark:text-violet-400 flex-shrink-0" />
+          <p className="flex-1 text-xs sm:text-sm text-violet-800 dark:text-violet-300">
+            <strong>Business settings changed.</strong> Regenerate the template so the system prompt, first message, scripts and examples all match your new configuration — no duplication.
+          </p>
+          <button
+            onClick={handleRegenerateTemplate}
+            disabled={isRegeneratingTemplate}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white text-xs font-medium rounded-lg transition-colors flex-shrink-0"
+          >
+            {isRegeneratingTemplate ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="w-3.5 h-3.5" />
+            )}
+            {isRegeneratingTemplate ? 'Regenerating…' : 'Regenerate'}
+          </button>
+          <button
+            onClick={() => setTemplateRegenNeeded(false)}
+            className="p-1 text-violet-500 hover:text-violet-700 dark:hover:text-violet-300 flex-shrink-0"
+            title="Dismiss"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Content based on active tab */}
       <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 sm:gap-6">
@@ -1487,6 +1935,60 @@ const EditAgent = () => {
                 </p>
 
                 <div className="space-y-4 sm:space-y-6">
+                  {/* Company Name */}
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
+                      Company Name
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.companyName}
+                      onChange={(e) =>
+                        setFormData({ ...formData, companyName: e.target.value })
+                      }
+                      placeholder="e.g., Acme Corp"
+                      className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg sm:rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/20 text-slate-800 dark:text-white text-sm sm:text-base transition-all duration-200"
+                    />
+                    <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-1.5">
+                      The company this agent represents
+                    </p>
+                    {formData.companyName !== originalCompanyNameRef.current && originalCompanyNameRef.current !== '' && (
+                      <div className="mt-2 flex flex-col gap-2 rounded-lg border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 px-3 py-2.5">
+                        <div className="flex items-start gap-2">
+                          <svg className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                          </svg>
+                          <p className="text-[11px] sm:text-xs text-amber-700 dark:text-amber-400 leading-snug">
+                            Company name changed — the System Prompt and Knowledge Base may still reference the old name. Regenerate the template or update the references manually in the System Prompt and Knowledge Base.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleRegenerateTemplate}
+                          disabled={isRegeneratingTemplate}
+                          className="self-start flex items-center gap-1.5 rounded-md bg-amber-500 hover:bg-amber-600 disabled:opacity-60 disabled:cursor-not-allowed px-3 py-1.5 text-[11px] sm:text-xs font-semibold text-white transition-colors"
+                        >
+                          {isRegeneratingTemplate ? (
+                            <>
+                              <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                              </svg>
+                              Regenerating…
+                            </>
+                          ) : (
+                            <>
+                              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                              </svg>
+                              Regenerate Template
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Agent Name */}
                   <div>
                     <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
@@ -1681,6 +2183,13 @@ const EditAgent = () => {
                                     </div>
                                   ) : (
                                     <div className="p-3 space-y-2">
+                                      {/* Guideline notice */}
+                                      <div className="flex items-start gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-lg text-xs text-amber-800 dark:text-amber-300">
+                                        <span className="mt-0.5 flex-shrink-0">⚠️</span>
+                                        <span>
+                                          <strong>Minor edits only.</strong> For major changes, upload a new file instead — editing here replaces the entire document.
+                                        </span>
+                                      </div>
                                       {/* Edit / Preview tab toggle */}
                                       <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-lg p-1 w-fit">
                                         <button
@@ -2153,19 +2662,33 @@ const EditAgent = () => {
                     <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                       System Prompt / Custom Instructions
                     </label>
-                    <textarea
-                      value={formData.customInstructions}
-                      onChange={(e) => {
-                        const trimmedValue = e.target.value.slice(0, 10000);
-                        setFormData({
-                          ...formData,
-                          customInstructions: trimmedValue,
-                        });
-                      }}
-                      placeholder="Define the agent's core behavior and role..."
-                      rows={16}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/20 text-slate-800 dark:text-white text-sm resize-y min-h-[200px]"
-                    />
+                    <div className="relative">
+                      <textarea
+                        value={formData.customInstructions}
+                        onChange={(e) => {
+                          const trimmedValue = e.target.value.slice(0, 10000);
+                          setFormData({
+                            ...formData,
+                            customInstructions: trimmedValue,
+                          });
+                        }}
+                        placeholder="Define the agent's core behavior and role..."
+                        rows={16}
+                        disabled={isRegeneratingTemplate}
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/20 text-slate-800 dark:text-white text-sm resize-y min-h-[200px] disabled:opacity-50"
+                      />
+                      {isRegeneratingTemplate || isSpGenerating ? (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 rounded-lg bg-slate-50/80 dark:bg-slate-700/80 backdrop-blur-[2px]">
+                          <svg className="h-6 w-6 animate-spin text-violet-500" viewBox="0 0 24 24" fill="none">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                          </svg>
+                          <span className="text-xs font-medium text-violet-600 dark:text-violet-400">
+                            {isRegeneratingTemplate ? 'Generating Template…' : 'Generating System Prompt…'}
+                          </span>
+                        </div>
+                      ) : null}
+                    </div>
                     <div className="flex justify-end mt-1.5">
                       <span className={`text-xs font-medium ${
                         formData.customInstructions.length > 9000

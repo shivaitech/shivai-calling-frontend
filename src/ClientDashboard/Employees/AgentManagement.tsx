@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import appToast from "../../components/AppToast";
-import pdfToText from "react-pdftotext";
+import { extractTextWithUnstructured } from "../../services/unstructuredService";
 import {
   useParams,
   useNavigate,
@@ -127,6 +127,7 @@ const AgentManagement = () => {
   const {
     agents,
     currentAgent,
+    isLoading: isAgentsLoading,
     setCurrentAgent,
     publishAgentStatus,
     unpublishAgentStatus,
@@ -166,6 +167,8 @@ const AgentManagement = () => {
   // Server-side filtered agents state
   const [filteredAgents, setFilteredAgents] = useState<any[]>([]);
   const [totalAgents, setTotalAgents] = useState(0);
+  // Increment to force fetchFilteredAgents to re-run (e.g. after agent creation)
+  const [agentListRefreshToken, setAgentListRefreshToken] = useState(0);
   // Ref kept in sync with context agents — used in fetchFilteredAgents fallback
   // WITHOUT adding `agents` to the callback dep array (avoids stale-filter race on publish/pause)
   const agentsRef = useRef<any[]>([]);
@@ -227,6 +230,7 @@ const AgentManagement = () => {
   const [templateSlideIndex, setTemplateSlideIndex] = useState(0);
   const [quickCreateData, setQuickCreateData] = useState({
     companyName: "",
+    useCompanyNameForTemplate: true,
     aiEmployeeName: "",
     language: "en-US",
     voice: "Achernar",
@@ -430,6 +434,8 @@ const AgentManagement = () => {
   >([]);
   const [isGeneratingTemplates, setIsGeneratingTemplates] = useState(false);
   const [isGeneratingSystemPrompts, setIsGeneratingSystemPrompts] = useState(false);
+  // Tracks which template names have received their final system prompt from the BG callback
+  const [spReadyTemplates, setSpReadyTemplates] = useState<Set<string>>(new Set());
   const [generationProgress, setGenerationProgress] = useState(0);
   const [templateGenerationError, setTemplateGenerationError] = useState<
     string | null
@@ -810,10 +816,11 @@ const AgentManagement = () => {
 
       // Set BG flag BEFORE calling generateTemplates so it's true when callbacks fire
       setIsGeneratingSystemPrompts(true);
+      setSpReadyTemplates(new Set()); // Reset per-template readiness
 
       const templates = await aiTemplateService.generateTemplates(
         {
-          companyName: quickCreateData.companyName,
+          companyName: quickCreateData.useCompanyNameForTemplate ? (quickCreateData.companyName || "") : "",
           businessProcess: quickCreateData.businessProcess,
           industry: quickCreateData.industry,
           subIndustry: quickCreateData.subIndustry,
@@ -832,7 +839,14 @@ const AgentManagement = () => {
               : t
           );
           setAIGeneratedTemplates([...patchedTemplates]);
-          // Stop BG indicator when every template has a real system prompt
+          // Mark each template whose SP has arrived as ready
+          const newlyReady = patchedTemplates
+            .filter((t) => t.systemPrompt && t.systemPrompt.length > 100)
+            .map((t) => t.name);
+          if (newlyReady.length > 0) {
+            setSpReadyTemplates((prev) => new Set([...prev, ...newlyReady]));
+          }
+          // Stop global BG indicator when every template has a real system prompt
           const allReady = patchedTemplates.every(
             (t) => t.systemPrompt && t.systemPrompt.length > 100,
           );
@@ -909,6 +923,7 @@ const AgentManagement = () => {
     setIsExtractingContent(false);
     setQuickCreateData({
       companyName: "",
+      useCompanyNameForTemplate: true,
       aiEmployeeName: "",
       language: "en-US",
       voice: "Achernar",
@@ -928,37 +943,9 @@ const AgentManagement = () => {
     });
   };
 
-  // Helper function to extract text from a file based on its type
-  const extractTextFromFile = async (file: File): Promise<string> => {
-    const fileType = file.type.toLowerCase();
-    const fileName = file.name.toLowerCase();
-    
-    try {
-      // PDF files
-      if (fileType === 'application/pdf' || fileName.endsWith('.pdf')) {
-        const text = await pdfToText(file);
-        return text;
-      }
-      
-      // Text files
-      if (fileType === 'text/plain' || fileName.endsWith('.txt')) {
-        return await file.text();
-      }
-      
-      // CSV files
-      if (fileType === 'text/csv' || fileName.endsWith('.csv')) {
-        return await file.text();
-      }
-      
-      // For other file types (DOCX, etc.), we'll skip extraction for now
-      // as they require more complex parsing libraries
-      console.log(`📄 Skipping text extraction for: ${file.name} (${fileType})`);
-      return '';
-    } catch (error) {
-      console.error(`❌ Error extracting text from ${file.name}:`, error);
-      return '';
-    }
-  };
+  // Extract structured text from any file using the Unstructured IO API
+  const extractTextFromFile = (file: File): Promise<string> =>
+    extractTextWithUnstructured(file);
 
   // Handle knowledge base file upload with text extraction
   const handleKnowledgeBaseUpload = async (files: File[]) => {
@@ -1181,6 +1168,7 @@ const AgentManagement = () => {
         max_response_length: "Medium (150 words)",
         context_window: "Standard (8K tokens)",
         temperature: 0.5, // Must be <= 1 (temperature scale is 0-1, not 0-100)
+        company_name: quickCreateData.companyName || undefined,
         // Template object with all details - replace placeholders with actual values
         template: selectedTemplateData
           ? {
@@ -1221,8 +1209,10 @@ const AgentManagement = () => {
 
       const agentId = newAgent?.id || '';
       setCreatingAgentId(agentId);
-      // Refresh so the newly created agent card appears in the list while KB processes
+      // Refresh context agents and re-fetch the filtered list so the new agent card
+      // (with KB loading overlay) appears in the grid immediately when modal is minimized.
       refreshAgents();
+      setAgentListRefreshToken((t) => t + 1);
 
       // Connect per-file WebSocket for real-time KB progress
       if (agentId && (quickCreateData.uploadedFileUrls.length > 0 || quickCreateData.websiteUrls.some(u => u.trim()))) {
@@ -1241,6 +1231,7 @@ const AgentManagement = () => {
         setTimeout(() => {
           handleQuickCreateClose();
           refreshAgents();
+          setAgentListRefreshToken((t) => t + 1);
           navigate('/agents');
         }, 500);
       }
@@ -1464,6 +1455,7 @@ const AgentManagement = () => {
               setKbFileProgress([]);
               setShowQuickCreateModal(false);
               refreshAgents();
+              setAgentListRefreshToken((t) => t + 1);
               navigate('/agents');
             }, 1500);
           }
@@ -1498,6 +1490,7 @@ const AgentManagement = () => {
               setKbFileProgress([]);
               setShowQuickCreateModal(false);
               refreshAgents();
+              setAgentListRefreshToken((t) => t + 1);
               navigate('/agents');
             }, 500);
             return { ...prev, status: 'completed', progress: 100, message: 'Agent created successfully!' };
@@ -1784,20 +1777,24 @@ const AgentManagement = () => {
     if (!agentToDelete) return;
 
     setIsDeleting(true);
+    const deletedId = agentToDelete;
     try {
-      await deleteAgent(agentToDelete);
-      await refreshAgents();
+      await deleteAgent(deletedId);
       console.log("✅ Agent deleted successfully");
+      // Re-fetch the list from the server to reflect actual state
+      await fetchFilteredAgents();
+      refreshAgents();
+      appToast.success("Agent deleted successfully!", { duration: 3000 });
       setShowDeleteConfirm(false);
       setAgentToDelete(null);
 
       // If we're viewing the deleted agent, navigate back to list
-      if (currentAgent?.id === agentToDelete) {
+      if (currentAgent?.id === deletedId) {
         navigate("/agents");
       }
     } catch (error: any) {
       console.error("❌ Error deleting agent:", error);
-      alert(error.message || "Failed to delete agent. Please try again.");
+      appToast.error(error.message || "Failed to delete agent. Please try again.", { duration: 4000 });
     } finally {
       setIsDeleting(false);
     }
@@ -2682,6 +2679,7 @@ const AgentManagement = () => {
     sortBy,
     debouncedSearchTerm,
     currentPage,
+    agentListRefreshToken,
     // NOTE: `agents` intentionally excluded — adding it would cause fetchFilteredAgents to
     // re-run after every publish/pause and overwrite the optimistic UI update with stale
     // filter-API data. agentsRef.current is used in the catch fallback instead.
@@ -3817,6 +3815,60 @@ const AgentManagement = () => {
                           placeholder="e.g., Acme Corporation"
                           className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm sm:text-base text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all"
                         />
+
+                        {/* Primary company name toggle */}
+                        <label
+                          className={`flex items-start gap-2.5 mt-2 px-3 py-2.5 rounded-xl border cursor-pointer transition-all select-none ${
+                            quickCreateData.useCompanyNameForTemplate
+                              ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-300 dark:border-blue-700'
+                              : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
+                          }`}
+                        >
+                          <div className="relative flex-shrink-0 mt-0.5">
+                            <input
+                              type="checkbox"
+                              className="sr-only"
+                              checked={quickCreateData.useCompanyNameForTemplate}
+                              onChange={(e) =>
+                                setQuickCreateData((prev) => ({
+                                  ...prev,
+                                  useCompanyNameForTemplate: e.target.checked,
+                                }))
+                              }
+                            />
+                            <div
+                              className={`w-4 h-4 rounded flex items-center justify-center border-2 transition-all ${
+                                quickCreateData.useCompanyNameForTemplate
+                                  ? 'bg-blue-600 border-blue-600'
+                                  : 'bg-white dark:bg-slate-700 border-slate-300 dark:border-slate-500'
+                              }`}
+                            >
+                              {quickCreateData.useCompanyNameForTemplate && (
+                                <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 10 8">
+                                  <path d="M1 4l3 3 5-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-xs font-semibold leading-snug ${
+                              quickCreateData.useCompanyNameForTemplate
+                                ? 'text-blue-700 dark:text-blue-300'
+                                : 'text-slate-600 dark:text-slate-400'
+                            }`}>
+                              Use as primary company name for AI template
+                            </p>
+                            <p className={`text-[10px] mt-0.5 leading-snug ${
+                              quickCreateData.useCompanyNameForTemplate
+                                ? 'text-blue-600/80 dark:text-blue-400/80'
+                                : 'text-slate-400 dark:text-slate-500'
+                            }`}>
+                              {quickCreateData.useCompanyNameForTemplate
+                                ? `The AI template will be generated using "${quickCreateData.companyName || 'your company name'}"`
+                                : 'Company name will be inferred automatically from your knowledge base'}
+                            </p>
+                          </div>
+                        </label>
                       </div>
 
                       {/* AI Employee Name Input */}
@@ -5387,13 +5439,18 @@ const AgentManagement = () => {
                       <button
                         key={section.id}
                         onClick={() => scrollToTemplateSection(section.id)}
-                        className={`flex items-center px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all
                           ${activeTemplateSection === section.id
                             ? 'bg-blue-600 text-white shadow-sm'
                             : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
                           }`}
                       >
                         {section.label}
+                        {section.id === 'system-prompt' &&
+                          isGeneratingSystemPrompts &&
+                          !spReadyTemplates.has(selectedTemplateForDetails ?? '') && (
+                            <div className="w-2.5 h-2.5 border-2 border-current border-t-transparent rounded-full animate-spin opacity-70" />
+                          )}
                       </button>
                     ))}
                   </div>
@@ -5565,8 +5622,7 @@ const AgentManagement = () => {
                           <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2">
                             System Prompt
                             {isGeneratingSystemPrompts &&
-                              (!aiTemplate?.systemPrompt ||
-                                aiTemplate.systemPrompt.length < 100) && (
+                              !spReadyTemplates.has(aiTemplate?.name ?? template?.name ?? '') && (
                                 <span className="flex items-center gap-1.5 text-[10px] font-medium text-blue-500 dark:text-blue-400">
                                   <div className="w-3 h-3 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
                                   Generating…
@@ -5574,8 +5630,7 @@ const AgentManagement = () => {
                               )}
                           </h3>
                           {isGeneratingSystemPrompts &&
-                          (!aiTemplate?.systemPrompt ||
-                            aiTemplate.systemPrompt.length < 100) ? (
+                          !spReadyTemplates.has(aiTemplate?.name ?? template?.name ?? '') ? (
                             <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-6 border border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center gap-3">
                               <div className="w-8 h-8 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin" />
                               <p className="text-xs text-slate-500 dark:text-slate-400 text-center">
@@ -7162,7 +7217,7 @@ const AgentManagement = () => {
     );
   }
 
-  return <Navigate to="/agents" replace />;
+  return isView && isAgentsLoading ? null : <Navigate to="/agents" replace />;
 };
 
 export default AgentManagement;

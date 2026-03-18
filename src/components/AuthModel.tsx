@@ -8,8 +8,6 @@ import { debounce } from "lodash";
 import { AUTH_MESSAGES } from "../constants/validation";
 import ForgotPassword from "./ForgotPassword";
 import "./AuthModel.css";
-import { useNavigate } from "react-router-dom";
-import { authAPI } from "../services/authAPI";
 
 interface FormData {
   email: string;
@@ -61,15 +59,7 @@ const AuthModel: React.FC<AuthModelProps> = ({
   const [isValidatingEmail, setIsValidatingEmail] = useState(false);
   const [shake, setShake] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [showOnboardingCodeModal, setShowOnboardingCodeModal] = useState(false);
-  const [onboardingCode, setOnboardingCode] = useState("");
-  const [onboardingCodeError, setOnboardingCodeError] = useState<string | null>(
-    null,
-  );
-  const [isVerifyingCode, setIsVerifyingCode] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
-  const navigate = useNavigate();
-
   // Validate full name - only letters and spaces
   const validateName = (name: string): boolean => {
     if (!name.trim()) {
@@ -98,69 +88,7 @@ const AuthModel: React.FC<AuthModelProps> = ({
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (authMode === "signup") {
-      await handleAuth(e);
-      setShowOnboardingCodeModal(true);
-    } else {
-      await handleAuth(e);
-    }
-  };
-
-  const handleOnboardingCodeSubmit = async () => {
-    if (!onboardingCode.trim()) {
-      setOnboardingCodeError("Please enter an onboarding code");
-      return;
-    }
-
-    setOnboardingCodeError(null);
-    setIsVerifyingCode(true);
-
-    try {
-      const pendingTokens = localStorage.getItem("pending_auth_tokens");
-      let accessToken = "";
-
-      if (pendingTokens) {
-        const tokens = JSON.parse(pendingTokens);
-        accessToken = tokens.accessToken;
-      }
-
-      const response = await authAPI.verifyOnboardingCode(
-        onboardingCode,
-        accessToken,
-      );
-
-      if (response.success || response.valid) {
-        const data = response.data;
-
-        if (data?.code) {
-          localStorage.setItem("onboarding_code", data.code);
-        } else {
-          localStorage.setItem("onboarding_code", onboardingCode);
-        }
-
-        if (data?.userId) {
-          localStorage.setItem("onboarding_user_id", data.userId);
-        }
-
-        if (data?.id) {
-          localStorage.setItem("onboarding_verification_id", data.id);
-        }
-
-        setShowOnboardingCodeModal(false);
-
-        navigate("/onboarding");
-      } else {
-        setOnboardingCodeError(response.message || "Invalid onboarding code");
-      }
-    } catch (error: any) {
-      const errorMessage =
-        error?.response?.data?.message ||
-        "Failed to verify code. Please try again.";
-      setOnboardingCodeError(errorMessage);
-    } finally {
-      setIsVerifyingCode(false);
-    }
+    await handleAuth(e);
   };
 
   const debouncedValidateEmail = debounce(async (email: string) => {
@@ -697,88 +625,7 @@ const AuthModel: React.FC<AuthModelProps> = ({
         />
       )}
 
-      {/* Onboarding Code Modal */}
-      {showOnboardingCodeModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md relative animate-fadeIn">
-            <div className="p-6 md:p-8">
-              <div className="text-center mb-6">
-                <div
-                  style={{
-                    padding: "6px",
-                  }}
-                  className="w-16 h-16 common-button-bg rounded-full flex items-center justify-center mx-auto mb-4"
-                >
-                  <CheckCircle className="w-8 h-8 text-white" />
-                </div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                  Welcome Aboard!
-                </h2>
-                <p className="text-sm text-gray-600">
-                  Your account has been created successfully
-                </p>
-              </div>
 
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Do you have an onboarding code?
-                </label>
-                <input
-                  type="text"
-                  value={onboardingCode}
-                  onChange={(e) => {
-                    setOnboardingCode(e.target.value.toUpperCase());
-                    setOnboardingCodeError(null);
-                  }}
-                  placeholder="Enter code (e.g., ONBOARD123)"
-                  className={`w-full px-4 py-3 border ${
-                    onboardingCodeError ? "border-red-300" : "border-gray-300"
-                  } rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all text-center text-lg font-mono tracking-wider`}
-                  maxLength={20}
-                />
-                {onboardingCodeError && (
-                  <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
-                    <XCircle className="w-4 h-4" />
-                    {onboardingCodeError}
-                  </p>
-                )}
-                <p className="mt-2 text-xs text-gray-500 text-center">
-                  If you received a code from our organization, enter it here
-                </p>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowOnboardingCodeModal(false);
-                    navigate("/");
-                    window.location.reload();
-                  }}
-                  className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors"
-                >
-                  Skip for now
-                </button>
-                <button
-                  type="button"
-                  onClick={handleOnboardingCodeSubmit}
-                  disabled={isVerifyingCode}
-                  className="flex-1 px-4 py-3 auth-button auth-button-primary text-white rounded-lg font-medium hover:from-emerald-600 hover:to-emerald-700 transition-all shadow-lg shadow-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {isVerifyingCode ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Verifying...
-                    </>
-                  ) : (
-                    "Continue"
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
