@@ -1,37 +1,52 @@
 import bgNew from "../../resources/AiImages/bg22.webp";
 import { motion } from "framer-motion";
-import { Orb, oceanDepthsPreset, galaxyPreset } from "react-ai-orb";
+import { Orb, oceanDepthsPreset } from "react-ai-orb";
+import { useState } from "react";
 export default function TryVoice() {
+  const [bgLoaded, setBgLoaded] = useState(false);
   return (
     <div
-      style={{
-        zIndex: 100,
-      }}
-      className=" font-sans px-2 sm:px-4 md:px-6 lg:px-8 xl:px-12 "
+      className=" font-sans px-2 sm:px-4 md:px-6 lg:px-8 xl:px-12 mb-[150px] lg:mb-0"
     >
       {/* Main Container */}
       <main
         id="demo-content"
-        className="relative shadow-xl py-4 sm:py-6 md:py-0 lg:py-0 xl:py-0 lg:top-10 -top-[18vh]  xl:max-w-8xl mx-auto lg:shadow-lg rounded-3xl  lg:rounded-[40px] xl:rounded-[50px] sm:mx-2 md:m-4 lg:m-6 xl:m-8  overflow-hidden"
+        className="relative shadow-xl py-4 sm:py-6 md:py-0 lg:py-0 xl:py-0 lg:mt-10 xl:max-w-8xl mx-auto lg:shadow-lg rounded-3xl  lg:rounded-[40px] xl:rounded-[50px] sm:mx-2 md:m-4 lg:m-6 xl:m-8  overflow-hidden"
         role="main"
         aria-labelledby="main-heading"
       >
+        {/* Skeleton shown while background image loads */}
+        {!bgLoaded && (
+          <div className="absolute inset-0 rounded-3xl lg:rounded-[40px] xl:rounded-[50px] bg-slate-800 overflow-hidden pointer-events-none" aria-hidden="true">
+            <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+          </div>
+        )}
+
+        {/* Hidden img to detect when the webp bg is loaded */}
+        <img
+          src={bgNew}
+          alt=""
+          className="sr-only"
+          aria-hidden="true"
+          onLoad={() => setBgLoaded(true)}
+        />
+
         <div
-          className="absolute inset-0  pointer-events-none filter blur-[0px] lg:blur-[0px]"
+          className="absolute inset-0 pointer-events-none"
           style={{
             background: `url(${bgNew})`,
             backgroundPosition: "center",
             backgroundRepeat: "no-repeat",
             backgroundSize: "cover",
-            backgroundAttachment: "fixed",
-            
+            opacity: bgLoaded ? 1 : 0,
+            transition: "opacity 0.5s ease",
           }}
           aria-hidden="true"
         />
 
         {/* Main Content */}
         <div className="relative z-10 flex flex-col gap-5 lg:gap-1 justify-center items-center h-auto px-4 py-2 sm:px-6 md:px-8 lg:px-12 xl:px-16  md:py-12 lg:py-10 xl:py-10 space-y-0  md:space-y-8 lg:space-y-10 min-h-[44vh] md:min-h-[40vh] lg:min-h-[40vh] xl:min-h-[40vh]">
-          <div className="relative flex items-center justify-center mb-0 sm:mb-0 md:mb-2 z-20">
+          <div className="relative flex items-center justify-center mb-0 sm:mb-0 md:mb-2 z-20 w-[200px] h-[100px]">
             {/* Glow effect */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="w-[120px] h-[120px] rounded-full bg-white opacity-30 blur-2xl" />
@@ -58,7 +73,8 @@ export default function TryVoice() {
           <div className="flex flex-col items-center w-full max-w-4xl relative">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-50px" }}
               transition={{ duration: 0.5 }}
               className="bg-white/5 backdrop-blur-[0.2px] rounded-2xl border border-white/20 px-6 py-4 md:px-10 md:py-6 text-center"
             >

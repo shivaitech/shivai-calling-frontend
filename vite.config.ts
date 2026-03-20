@@ -23,5 +23,23 @@ export default defineConfig({
         comments: false,
       },
     },
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Core React — always needed
+          "vendor-react": ["react", "react-dom", "react-router-dom"],
+          // Animation library — large, only for landing animations
+          "vendor-motion": ["framer-motion"],
+          // 3D orb — only used in TryVoice & LoadingFallback
+          "vendor-orb": ["react-ai-orb"],
+          // LiveKit — only used in dashboard / agent calls
+          "vendor-livekit": ["livekit-client"],
+          // Carousel — only used in WhatShivaiDo
+          "vendor-slick": ["react-slick", "slick-carousel"],
+          // Auth & form utilities
+          "vendor-form": ["react-hook-form", "@hookform/resolvers", "zod"],
+        },
+      },
+    },
   },
 });

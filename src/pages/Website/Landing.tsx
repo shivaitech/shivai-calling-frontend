@@ -1,16 +1,36 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, Suspense, lazy } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import AuthModel from "../../components/AuthModel";
 import Hero from "./Hero";
 import Navbar from "./Navbar";
-import TryVoice from "./TryVoice";
-import { WhatShivaiDo } from "./WhatShivaiDo";
-import { WhatWeWork } from "./WhatWeWork";
-import { WorkTools } from "./WorkTools";
-import { ShivaiSubsPlan } from "./ShivaiSubsPlan";
-import { FAQ } from "./FAQ";
-import Footer from "./Footer";
+
+// Below-fold sections — load only when needed
+const TryVoice = lazy(() => import("./TryVoice"));
+const WhatShivaiDo = lazy(() => import("./WhatShivaiDo").then(m => ({ default: m.WhatShivaiDo })));
+const WhatWeWork = lazy(() => import("./WhatWeWork").then(m => ({ default: m.WhatWeWork })));
+const WorkTools = lazy(() => import("./WorkTools").then(m => ({ default: m.WorkTools })));
+const ShivaiSubsPlan = lazy(() => import("./ShivaiSubsPlan").then(m => ({ default: m.ShivaiSubsPlan })));
+const FAQ = lazy(() => import("./FAQ").then(m => ({ default: m.FAQ })));
+const Footer = lazy(() => import("./Footer"));
+
+/**
+ * Per-section skeleton placeholder.
+ * Uses a dark-to-light shimmer so it's visible against both light and dark
+ * page backgrounds. Height should approximate the real section height so the
+ * scroll position doesn't jump when the section swaps in.
+ */
+function SectionSkeleton({ minHeight = "60vh", dark = false }: { minHeight?: string; dark?: boolean }) {
+  return (
+    <div
+      className={`w-full relative overflow-hidden ${dark ? "bg-slate-800" : "bg-gray-100"}`}
+      style={{ minHeight }}
+      aria-hidden="true"
+    >
+      <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+    </div>
+  );
+}
 
 const Landing: React.FC = () => {
   const navigate = useNavigate();
@@ -54,11 +74,21 @@ const Landing: React.FC = () => {
     }
   }, [searchParams]);
 
-  // Scroll handler
+  // Scroll handler — throttled to avoid unnecessary re-renders
+  const rafRef = useRef<number | null>(null);
   useEffect(() => {
-    const handleScroll = () => setScrollY(window.scrollY);
-    window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
+    const handleScroll = () => {
+      if (rafRef.current !== null) return;
+      rafRef.current = requestAnimationFrame(() => {
+        setScrollY(window.scrollY);
+        rafRef.current = null;
+      });
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    };
   }, []);
 
   const handleAuth = async (e: React.FormEvent) => {
@@ -134,7 +164,7 @@ const Landing: React.FC = () => {
   }, [showAuthModal, clearError]);
 
   return (
-    <div className="min-h-screen bg-[#F0F0F0] overflow-hidden">
+    <div className="min-h-screen bg-[#F0F0F0] overflow-x-hidden">
       <Navbar
         setAuthMode={setAuthMode}
         setShowAuthModal={setShowAuthModal}
@@ -144,32 +174,44 @@ const Landing: React.FC = () => {
       <section id="" className="">
         <Hero setAuthMode={setAuthMode} setShowAuthModal={setShowAuthModal} />
       </section>
-      <section id="demo" className="py-0 px-3 lg:px-0 mt-40 lg:mt-5 h-auto ">
-        <TryVoice />
-      </section>
-      <section id="features" className="py-0 px-2 lg:px-0">
-        <WhatShivaiDo />
-      </section>
-      <section id="features" className="py-0 px-0 lg:px-0">
-        <WhatWeWork />
-      </section>
-      <section id="features" className="py-0 px-0 lg:px-0">
-        <WorkTools />
-      </section>
-      <section id="pricing" className="py-0 px-6 lg:px-0">
-        <ShivaiSubsPlan />
-      </section>
-
-      <section id="features" className="py-0 px-0 lg:px-0">
-        <FAQ setAuthMode={setAuthMode} setShowAuthModal={setShowAuthModal} />
-      </section>
-
-      <section
-        id="footer"
-        className="relative w-[100vw] py-0 px-0 lg:px-0 bg-black"
-      >
-        <Footer />
-      </section>
+      <Suspense fallback={<SectionSkeleton minHeight="55vh" dark />}>
+        <section id="demo" className="py-0 px-3 lg:px-0 mt-6 sm:mt-8 md:mt-10 lg:mt-5 h-auto ">
+          <TryVoice />
+        </section>
+      </Suspense>
+      <Suspense fallback={<SectionSkeleton minHeight="80vh" />}>
+        <section id="features" className="py-0 px-2 lg:px-0">
+          <WhatShivaiDo />
+        </section>
+      </Suspense>
+      <Suspense fallback={<SectionSkeleton minHeight="70vh" />}>
+        <section id="features" className="py-0 px-0 lg:px-0">
+          <WhatWeWork />
+        </section>
+      </Suspense>
+      <Suspense fallback={<SectionSkeleton minHeight="60vh" />}>
+        <section id="features" className="py-0 px-0 lg:px-0">
+          <WorkTools />
+        </section>
+      </Suspense>
+      <Suspense fallback={<SectionSkeleton minHeight="80vh" />}>
+        <section id="pricing" className="py-0 px-6 lg:px-0">
+          <ShivaiSubsPlan />
+        </section>
+      </Suspense>
+      <Suspense fallback={<SectionSkeleton minHeight="50vh" />}>
+        <section id="features" className="py-0 px-0 lg:px-0">
+          <FAQ setAuthMode={setAuthMode} setShowAuthModal={setShowAuthModal} />
+        </section>
+      </Suspense>
+      <Suspense fallback={<SectionSkeleton minHeight="30vh" dark />}>
+        <section
+          id="footer"
+          className="relative w-[100vw] py-0 px-0 lg:px-0 bg-black"
+        >
+          <Footer />
+        </section>
+      </Suspense>
 
       {/* Authentication Modal */}
       {showAuthModal && (

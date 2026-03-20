@@ -1774,12 +1774,9 @@ const EditAgent = () => {
 
   return (
     <div className="space-y-4 sm:space-y-6 w-full max-w-full overflow-visible">
-      {/* Header */}
       <GlassCard>
         <div className="p-4 sm:p-6">
-          {/* Top row with back button and actions */}
           <div className="flex flex-col gap-3 sm:gap-4 sm:flex-row sm:items-start sm:justify-between">
-            {/* Main agent info section */}
             <div className="flex items-start gap-2 sm:gap-3 lg:gap-4 min-w-0 flex-1">
               <button
                 onClick={handleCancel}
@@ -1789,12 +1786,10 @@ const EditAgent = () => {
               </button>
 
               <div className="flex items-start gap-2 sm:gap-3 lg:gap-4 min-w-0 flex-1">
-                {/* Agent Icon */}
                 <div className="w-10 h-10 sm:w-14 sm:h-14 lg:w-16 lg:h-16 common-bg-icons flex items-center justify-center flex-shrink-0 rounded-lg sm:rounded-xl">
                   <Bot className="w-5 h-5 sm:w-7 sm:h-7 lg:w-8 lg:h-8 text-black dark:text-white" />
                 </div>
 
-                {/* Agent Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-col gap-1.5 sm:gap-2">
                     <div className="min-w-0 flex-1">
@@ -1802,7 +1797,6 @@ const EditAgent = () => {
                         {formData.name || currentAgent.name}
                       </h1>
 
-                      {/* Agent meta info */}
                       <div className="flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-1 text-xs sm:text-sm text-slate-600 dark:text-slate-400 mt-1">
                         <span className="font-medium capitalize">{formData.gender}</span>
                         <span className="text-slate-400">•</span>

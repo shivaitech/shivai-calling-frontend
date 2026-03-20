@@ -8,6 +8,22 @@
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
     />
 
+    <!-- Preload critical above-the-fold assets -->
+    <link rel="preload" as="image" href="/assets/shiv-D3Go-VCq.webp" type="image/webp" fetchpriority="high" />
+
+    <!-- Non-blocking Google Fonts (replaces @import in CSS which blocks render) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
+      media="print"
+      onload="this.media='all'"
+    />
+    <noscript>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" />
+    </noscript>
+
     <title>
       Call ShivAI - Voice-Powered AI Assistant & No-Code AI Platform
     </title>
@@ -125,13 +141,15 @@
       href="/assets/shiv-D3Go-VCq.webp"
       fetchpriority="high"
     />
-    <script type="module" crossorigin src="/assets/index-C5Js4rHq.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-Dnev5FxH.css">
+    <script type="module" crossorigin src="/assets/index-505Tw0zp.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/vendor-react-DRPb7tK7.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-motion-CPkjzDo7.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-CxgvBOK5.css">
   </head>
 
   <body>
     <div id="root"></div>
-    <script src="/widgetOld.js"></script>
+    <script src="/widgetOld.js" defer></script>
     <!-- <script src="/widget2.js?agentId=69a57ec3d61dda04df37b9fc&userId=692171eb24ccf4fc9a268065"></script> -->
   </body>
 </html>

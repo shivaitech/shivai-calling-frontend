@@ -1,11 +1,42 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import Slider from "react-slick";
-import OptimizedImage from "../../components/OptimizedImage";
 import integration from "../../resources/images/02.svg";
 import voice from "../../resources/images/03.svg";
 import language from "../../resources/images/04.svg";
 import security from "../../resources/images/01.svg";
 import learning from "../../resources/images/05.svg";
+
+/** Skeleton-loading wrapper for the heavy SVG illustrations (01–05.svg, 2–4 MB each) */
+const IllustrationImage = React.memo(
+  ({ src, alt, mobile = false }: { src: string; alt: string; mobile?: boolean }) => {
+    const [isLoaded, setIsLoaded] = useState(false);
+    return (
+      <div
+        className={`relative w-full overflow-hidden rounded-xl ${
+          mobile ? "min-h-[220px] max-h-[40vh]" : "min-h-[180px] lg:min-h-[220px]"
+        }`}
+      >
+        {/* Shimmer skeleton shown while the SVG downloads */}
+        {!isLoaded && (
+          <div className="absolute inset-0 rounded-xl bg-gray-100 overflow-hidden">
+            <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/70 to-transparent" />
+          </div>
+        )}
+        <img
+          src={src}
+          alt={alt}
+          className={`w-full h-full object-contain transition-opacity duration-500 ${
+            isLoaded ? "opacity-100" : "opacity-0"
+          }`}
+          loading="lazy"
+          decoding="async"
+          onLoad={() => setIsLoaded(true)}
+          onError={() => setIsLoaded(true)}
+        />
+      </div>
+    );
+  }
+);
 
 const features = [
   {
@@ -70,32 +101,12 @@ export const WhatShivaiDo = React.memo(() => {
     learning
   }), []);
 
-  // Preload images for better performance
-  useEffect(() => {
-    const preloadImages = () => {
-      Object.values(illustrationMap).forEach((src) => {
-        const img = new Image();
-        img.src = src;
-      });
-    };
-    
-    // Preload images after component mounts
-    const timeoutId = setTimeout(preloadImages, 100);
-    return () => clearTimeout(timeoutId);
-  }, [illustrationMap]);
-
-  const getIllustration = useCallback((type: string) => {
+  const getIllustration = useCallback((type: string, mobile = false) => {
     try {
       const src = illustrationMap[type as keyof typeof illustrationMap] || voice;
-
       return (
-        <div className="h-[60%] w-[90%] lg:w-full lg:h-full max-w-screen-sm flex items-center justify-center mt-4 lg:mt-1">
-          <OptimizedImage
-            src={src}
-            alt={type}
-            className="w-full h-full object-contain"
-            lazy={false}
-          />
+        <div className="w-[90%] lg:w-full max-w-screen-sm flex items-center justify-center mt-4 lg:mt-1">
+          <IllustrationImage src={src} alt={type} mobile={mobile} />
         </div>
       );
     } catch {
@@ -402,8 +413,8 @@ export const WhatShivaiDo = React.memo(() => {
               {features.map((feature) => (
                 <div key={feature.id} className="px-2">
                   <div className="bg-white rounded-[20px] overflow-hidden shadow-lg">
-                    <div className="w-full h-full max-h-[40vh] flex items-center justify-center rounded-[18px]">
-                      {getIllustration(feature.illustration)}
+                    <div className="w-full flex items-center justify-center rounded-[18px]">
+                      {getIllustration(feature.illustration, true)}
                     </div>
                     <div className="p-6 text-center">
                       <h3 className="text-xl font-bold text-gray-900 mb-3">

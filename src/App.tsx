@@ -14,7 +14,24 @@ import ScrollToTop from "./components/ScrollToTop";
 import PublicRoute from "./components/PublicRoute";
 import ProtectedRoute from "./components/ProtectedRoute";
 import GoogleCallback from "./components/GoogleCallback";
-import { oceanDepthsPreset, Orb } from "react-ai-orb";
+
+// Lazy-load orb so it is NOT in the main bundle critical path
+const OrbFallback = lazy(() =>
+  import("react-ai-orb").then(({ Orb, oceanDepthsPreset }) => ({
+    default: function OrbFallbackInner() {
+      return (
+        <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 via-slate-200 to-slate-300 dark:from-slate-900 dark:via-slate-800 dark:to-slate-700">
+          <div className="scale-50">
+            <Orb {...oceanDepthsPreset} />
+          </div>
+          <p className="text-slate-700 dark:text-slate-300 text-xs font-small relative -top-2">
+            callshivai.com
+          </p>
+        </div>
+      );
+    },
+  }))
+);
 
 const Landing = lazy(() => import("./pages/Website/Landing"));
 const Onboarding = lazy(() => import("./pages/Website/Onboarding"));
@@ -35,14 +52,13 @@ const AgentPublicPage = lazy(() => import("./pages/AgentPublicPage"));
 
 function LoadingFallback() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-100 via-slate-200 to-slate-300 dark:from-slate-900 dark:via-slate-800 dark:to-slate-700">
-      <div className="scale-50">
-        <Orb {...oceanDepthsPreset} />
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-100 via-slate-200 to-slate-300 dark:from-slate-900 dark:via-slate-800 dark:to-slate-700">
+        <p className="text-slate-700 dark:text-slate-300 text-xs">callshivai.com</p>
       </div>
-      <p className="text-slate-700 dark:text-slate-300 text-xs font-small relative -top-2">
-        callshivai.com
-      </p>
-    </div>
+    }>
+      <OrbFallback />
+    </Suspense>
   );
 }
 

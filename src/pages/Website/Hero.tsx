@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { motion } from "framer-motion";
 import { ChevronDown } from "lucide-react";
 import HeroImage from "../../resources/images/shiv.webp";
@@ -14,12 +14,6 @@ interface HeroProps {
 }
 
 const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
@@ -67,12 +61,8 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
     },
   };
 
-  if (!isMounted) {
-    return null;
-  }
-
   return (
-    <div className="min-h-[620px]  max-h-screen lg:min-h-[96vh] xs:min-h-screen  overflow-hidden relative mb-8 sm:mb-2 mt-14">
+    <div className="min-h-[620px] max-h-screen lg:min-h-[96vh] xs:min-h-screen relative mb-8 sm:mb-2 mt-14">
       <div className="relative px-4 sm:px-6 lg:px-8">
         <div className="hidden md:flex absolute left-[4vw]   top-[6vh] bottom-0 w-8  h-[80vh] overflow-hidden gap-4 flex-col justify-between items-center ">
           <div className="relative top-[65px]  -rotate-90 origin-center">
@@ -189,7 +179,7 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
                   whileHover={{ scale: 1.02 }}
                   transition={{ duration: 0.6, ease: "easeOut" }}
                 >
-                  <img src={HeroImage2} alt={""} className=" w-[700px] " />
+                  <img src={HeroImage2} alt="" className=" w-[700px] " width="700" height="700" loading="eager" />
                   <div className="w-[320px] mx-auto absolute left-[32vw] right-0 bottom-0 mb-4">
                     <motion.div
                       initial={{ opacity: 0, y: 20 }}
@@ -322,7 +312,7 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
                   whileHover={{ scale: 1.02 }}
                   transition={{ duration: 0.6, ease: "easeOut" }}
                 >
-                  <img src={HeroImage2} alt={""} className=" hero_img " />
+                  <img src={HeroImage2} alt="" className=" hero_img " width="700" height="700" loading="eager" />
                   <div className="w-[320px]  absolute  right-0 bottom-0 mb-4 hero_btn">
                     <motion.div
                       initial={{ opacity: 0, y: 20 }}
@@ -464,6 +454,9 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
                     src={HeroImage2}
                     alt="Professional AI Assistant"
                     className="w-full h-auto"
+                    lazy={false}
+                    width={700}
+                    height={700}
                   />
                 </motion.div>
               </div>
@@ -560,6 +553,9 @@ const Hero: React.FC<HeroProps> = ({ setAuthMode, setShowAuthModal }) => {
                       src={HeroImage}
                       alt="Professional AI Assistant"
                       className="w-full h-full object-cover bg-transparent"
+                      lazy={false}
+                      width={700}
+                      height={700}
                     />
                     </motion.div>
                 </div>
