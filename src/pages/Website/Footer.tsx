@@ -1,8 +1,6 @@
 import React from "react";
 import Shivlogo from "../../resources/images/LogoFooter.svg";
 import ShivAi from "../../resources/images/ShivaiLogo.svg";
-import twitterIcon from "../../resources/Icon/twitter.svg";
-import fbIcon from "../../resources/Icon/fb.svg";
 import instaIcon from "../../resources/Icon/insta.svg";
 import linkedinIcon from "../../resources/Icon/linkin.svg";
 import uaeFlag from "../../resources/Icon/uae-flag.svg";
@@ -100,27 +98,9 @@ const Footer = () => {
             {/* Social Media Icons */}
             <div className="flex space-x-2 md:space-x-3">
               <a
-                // href="#"
-                className="w-8 h-8 md:w-12 md:h-12 bg-black border border-gray-800 rounded-full p-1.5 md:p-3 flex items-center justify-center hover:bg-gray-200 transition-colors"
-              >
-                <img
-                  src={twitterIcon}
-                  alt="Twitter"
-                  className="w-full h-full object-contain"
-                />
-              </a>
-              <a
-                // href="#"
-                className="w-8 h-8 md:w-12 md:h-12 bg-black border border-gray-800 rounded-full p-1.5 md:p-3 flex items-center justify-center hover:bg-gray-200 transition-colors"
-              >
-                <img
-                  src={fbIcon}
-                  alt="Facebook"
-                  className="w-full h-full object-contain"
-                />
-              </a>
-              <a
-                // href="#"
+                href="https://www.instagram.com/callshivai?igsh=dzZnMjk4ZG1kc2ow"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="w-8 h-8 md:w-12 md:h-12 bg-black border border-gray-800 rounded-full p-1.5 md:p-3 flex items-center justify-center hover:bg-gray-200 transition-colors"
               >
                 <img
@@ -130,7 +110,9 @@ const Footer = () => {
                 />
               </a>
               <a
-                // href="#"
+                href="https://www.linkedin.com/company/callshivai/"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="w-8 h-8 md:w-12 md:h-12 bg-black border border-gray-800 rounded-full p-1.5 md:p-3 flex items-center justify-center hover:bg-gray-200 transition-colors"
               >
                 <img
