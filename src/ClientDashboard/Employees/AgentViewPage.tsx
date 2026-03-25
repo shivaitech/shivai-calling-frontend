@@ -35,6 +35,8 @@ import {
   UploadCloud,
   PauseCircle,
   Trash2,
+  Languages,
+  Volume2,
 } from "lucide-react";
 
 interface AgentViewPageProps {
@@ -444,6 +446,39 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
                 {new Date(agent.createdAt).toLocaleDateString()}
               </p>
             </div>
+
+            {/* Multilingual cards — shown only when "multilingual" is in the language array */}
+            {Array.isArray((agent as any).language) &&
+              (agent as any).language.some(
+                (l: string) => String(l).toLowerCase() === "multilingual"
+              ) && (
+                <>
+                  <div className="p-2 sm:p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-700/50 overflow-hidden">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Languages className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-purple-600 dark:text-purple-400 flex-shrink-0" />
+                      <span className="text-[10px] sm:text-xs font-medium text-purple-600 dark:text-purple-400">
+                        Multilingual Mode
+                      </span>
+                    </div>
+                    <p className="text-xs sm:text-sm font-semibold text-purple-700 dark:text-purple-300 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-purple-500 inline-block" />
+                      Enabled
+                    </p>
+                  </div>
+
+                  <div className="p-2 sm:p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-700/50 overflow-hidden">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Volume2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-purple-600 dark:text-purple-400 flex-shrink-0" />
+                      <span className="text-[10px] sm:text-xs font-medium text-purple-600 dark:text-purple-400">
+                        Multilingual Voice
+                      </span>
+                    </div>
+                    <p className="text-xs sm:text-sm font-semibold text-purple-700 dark:text-purple-300 truncate capitalize">
+                      {(agent as any).multilingual_voice || "—"}
+                    </p>
+                  </div>
+                </>
+              )}
           </div>
         </div>
       </GlassCard>

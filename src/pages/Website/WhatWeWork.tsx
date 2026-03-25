@@ -10,6 +10,7 @@ import edTechIcon from "../../resources/Icon/edTech.svg";
 import locationIcon from "../../resources/Icon/location.svg";
 import realStateIcon from "../../resources/Icon/realState.svg";
 import customIcon from "../../resources/Icon/custom.svg";
+import governmentIcon from "../../resources/Icon/government.svg";
 
 // Industry data matching the image
 const industries = [
@@ -85,6 +86,15 @@ const industries = [
     icon: customIcon,
     color: "bg-gray-50 hover:bg-gray-100",
     iconColor: "text-gray-600",
+  },
+  {
+    id: 10,
+    title: "Government & Public Services",
+    description:
+      "Assist citizens with enquiries, automate service requests, schedule appointments, and provide multilingual support for public programs, documentation, and compliance processes.",
+    icon: governmentIcon,
+    color: "bg-indigo-50 hover:bg-indigo-100",
+    iconColor: "text-indigo-600",
   },
 ];
 

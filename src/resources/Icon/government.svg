@@ -1,0 +1,50 @@
+<svg width="102" height="102" viewBox="0 0 102 102" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Main background card -->
+  <foreignObject x="10" y="10" width="72" height="76"><div xmlns="http://www.w3.org/1999/xhtml" style="backdrop-filter:blur(4.49px);clip-path:url(#gov_bg_clip);height:100%;width:100%"></div></foreignObject>
+  <rect data-figma-bg-blur-radius="8.98699" x="19" y="18" width="64" height="66" rx="14" fill="url(#gov_paint0)"/>
+
+  <!-- Glass overlay card -->
+  <foreignObject x="10" y="30" width="82" height="60"><div xmlns="http://www.w3.org/1999/xhtml" style="backdrop-filter:blur(4.49px);clip-path:url(#gov_overlay_clip);height:100%;width:100%"></div></foreignObject>
+  <rect data-figma-bg-blur-radius="8.98699" x="20" y="33" width="62" height="46" rx="13" fill="#A5B4FC" fill-opacity="0.55" stroke="url(#gov_paint1)" stroke-width="0.42"/>
+
+  <!-- Flag pole -->
+  <rect x="50" y="17" width="2" height="9" rx="0.8" fill="white" fill-opacity="0.95"/>
+  <!-- Flag -->
+  <path d="M52 17.5L60.5 20.5L52 24Z" fill="white" fill-opacity="0.88"/>
+
+  <!-- Pediment (triangular roof) -->
+  <path d="M27 44L51 26L75 44Z" fill="white" fill-opacity="0.93"/>
+
+  <!-- Entablature bar (top of columns) -->
+  <rect x="27" y="44" width="48" height="3.5" rx="0.8" fill="white" fill-opacity="0.97"/>
+
+  <!-- Columns (4×) -->
+  <rect x="31" y="47.5" width="5.5" height="19" rx="1.5" fill="white" fill-opacity="0.82"/>
+  <rect x="43" y="47.5" width="5.5" height="19" rx="1.5" fill="white" fill-opacity="0.82"/>
+  <rect x="55" y="47.5" width="5.5" height="19" rx="1.5" fill="white" fill-opacity="0.82"/>
+  <rect x="66.5" y="47.5" width="5.5" height="19" rx="1.5" fill="white" fill-opacity="0.82"/>
+
+  <!-- Stylobate (base of columns) -->
+  <rect x="27" y="66.5" width="48" height="3" rx="0.8" fill="white" fill-opacity="0.97"/>
+
+  <!-- Steps -->
+  <rect x="23" y="69.5" width="56" height="4" rx="1" fill="white" fill-opacity="0.9"/>
+  <rect x="19.5" y="73.5" width="63" height="4" rx="1" fill="white" fill-opacity="0.72"/>
+
+  <defs>
+    <clipPath id="gov_bg_clip" transform="translate(-10 -10)">
+      <rect x="19" y="18" width="64" height="66" rx="14"/>
+    </clipPath>
+    <clipPath id="gov_overlay_clip" transform="translate(-10 -30)">
+      <rect x="20" y="33" width="62" height="46" rx="13"/>
+    </clipPath>
+    <linearGradient id="gov_paint0" x1="35" y1="31" x2="77" y2="47" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#818CF8"/>
+      <stop offset="1" stop-color="#3730A3"/>
+    </linearGradient>
+    <linearGradient id="gov_paint1" x1="15" y1="37" x2="93" y2="88" gradientUnits="userSpaceOnUse">
+      <stop stop-color="white"/>
+      <stop offset="1" stop-color="white" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+</svg>
