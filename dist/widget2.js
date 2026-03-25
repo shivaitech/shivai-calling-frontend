@@ -1473,24 +1473,6 @@
         <div class="language-section-landing">
           <label class="language-label-landing">Select your preferred language:</label>
           <select id="shivai-language-landing" class="language-select-styled-landing">
-            <option value="multilingual" selected>🌐 Multilingual</option>
-            <option value="ar">🇸🇦 Arabic</option>
-            <option value="zh">🇨🇳 Chinese</option>
-            <option value="nl">🇳🇱 Dutch</option>
-            <option value="en-GB">🇬🇧 English (UK)</option>
-            <option value="en-US">🇺🇸 English (US)</option>
-            <option value="en-IN">🇮🇳 English (India)</option>
-            <option value="fr">🇫🇷 French</option>
-            <option value="de">🇩🇪 German</option>
-            <option value="hi">🇮🇳 Hindi</option>
-            <option value="it">🇮🇹 Italian</option>
-            <option value="ja">🇯🇵 Japanese</option>
-            <option value="ko">🇰🇷 Korean</option>
-            <option value="pt">🇵🇹 Portuguese</option>
-            <option value="pl">🇵🇱 Polish</option>
-            <option value="ru">🇷🇺 Russian</option>
-            <option value="es">🇪🇸 Spanish</option>
-            <option value="tr">🇹🇷 Turkish</option>
           </select>
         </div>
         <div id="landing-action-area">
@@ -1534,7 +1516,7 @@
       </svg>
       </button>
       <div class="call-info">
-      <div class="call-info-name text-2xl">${callCompanyInfo.agentName}</div>
+      <div class="call-info-name text-2xl">${callCompanyInfo.agentName}</div>p
       <div class="call-info-status" id="shivai-status">
       <span class="status-text ">Online</span>
       </div>
@@ -1545,24 +1527,6 @@
       <div class="language-section">
       <label class="language-label">Selected preferred language:</label>
       <select id="shivai-language" class="language-select-styled">
-      <option value="multilingual">🌐 Multilingual</option>
-      <option value="ar">🇸🇦 Arabic</option>
-      <option value="zh">🇨🇳 Chinese</option>
-      <option value="nl">🇳🇱 Dutch</option>
-      <option value="en-GB">🇬🇧 English (UK)</option>
-      <option value="en-US">🇺🇸 English (US)</option>
-      <option value="en-IN">🇮🇳 English (India)</option>
-      <option value="fr">🇫🇷 French</option>
-      <option value="de">🇩🇪 German</option>
-      <option value="hi">🇮🇳 Hindi</option>
-      <option value="it">🇮🇹 Italian</option>
-      <option value="ja">🇯🇵 Japanese</option>
-      <option value="ko">🇰🇷 Korean</option>
-      <option value="pt">🇵🇹 Portuguese</option>
-      <option value="pl">🇵🇱 Polish</option>
-      <option value="ru">🇷🇺 Russian</option>
-      <option value="es">🇪🇸 Spanish</option>
-      <option value="tr">🇹🇷 Turkish</option>
       </select>
       </div>
       <div class="messages-container" id="shivai-messages">
@@ -1805,55 +1769,82 @@
     setDefaultLanguage();
   }
   function setDefaultLanguage() {
-    // Map language codes to widget <select> option values
-    const langToOption = {
-      "ar": "ar",
-      "zh": "zh", "zh-CN": "zh", "zh-TW": "zh",
-      "nl": "nl",
-      "en": "en-US", "en-US": "en-US", "en-GB": "en-GB", "en-IN": "en-IN",
-      "fr": "fr",
-      "de": "de",
-      "hi": "hi", "hi-IN": "hi",
-      "it": "it",
-      "ja": "ja",
-      "ko": "ko",
-      "pt": "pt", "pt-BR": "pt",
-      "pl": "pl",
-      "ru": "ru",
-      "es": "es", "es-ES": "es", "es-MX": "es",
-      "tr": "tr",
-      "multilingual": "multilingual",
+    // Complete language code -> display label map (no emojis)
+    const langToLabel = {
+      // Global
+      "en": "English", "en-us": "English (US)", "en-gb": "English (UK)",
+      "es": "Spanish", "fr": "French", "de": "German", "pt": "Portuguese",
+      "ar": "Arabic", "ja": "Japanese", "ko": "Korean", "zh": "Chinese",
+      "th": "Thai", "id": "Indonesian", "ru": "Russian", "it": "Italian",
+      "nl": "Dutch", "pl": "Polish", "sv": "Swedish", "da": "Danish",
+      "nb": "Norwegian", "fi": "Finnish", "tr": "Turkish", "uk": "Ukrainian",
+      "cs": "Czech", "ro": "Romanian", "hu": "Hungarian", "bg": "Bulgarian",
+      "el": "Greek", "he": "Hebrew", "vi": "Vietnamese", "hr": "Croatian",
+      "sr": "Serbian", "sk": "Slovak", "sl": "Slovenian", "et": "Estonian",
+      "lv": "Latvian", "lt": "Lithuanian",
+      // Indian Regional
+      "en-in": "Indian English", "hi": "Hindi", "ta": "Tamil", "te": "Telugu",
+      "mr": "Marathi", "bn": "Bengali", "gu": "Gujarati", "kn": "Kannada",
+      "ml": "Malayalam", "pa": "Punjabi", "ur": "Urdu",
     };
 
-    function resolveOption(lang) {
-      if (!lang) return null;
-      return langToOption[lang] || langToOption[lang.split('-')[0]] || null;
+    function buildOptions(selectEl, langArray) {
+      if (!selectEl || !Array.isArray(langArray) || langArray.length === 0) return;
+      selectEl.innerHTML = '';
+      // Add Multilingual only if explicitly present in the API language array
+      const hasMulti = langArray.some(c => String(c).toLowerCase() === 'multilingual');
+      if (hasMulti) {
+        const opt = document.createElement('option');
+        opt.value = 'multilingual';
+        opt.textContent = 'Multilingual';
+        selectEl.appendChild(opt);
+      }
+      langArray.forEach(code => {
+        const key = String(code).toLowerCase();
+        if (key === 'multilingual') return; // already added above
+        const label = langToLabel[key] || code;
+        const opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = label;
+        selectEl.appendChild(opt);
+      });
     }
 
+    const langArray = Array.isArray(agentLanguage)
+      ? agentLanguage
+      : (agentLanguage ? [agentLanguage] : null);
+
+    if (langArray && langArray.length > 0) {
+      if (languageSelect) buildOptions(languageSelect, langArray);
+      const landingLanguageSelect = document.getElementById('shivai-language-landing');
+      if (landingLanguageSelect) buildOptions(landingLanguageSelect, langArray);
+    }
+
+    // Determine default selected value
+    let defaultLang = null;
     // Priority 1: language URL param in the script tag
-    let sourceLang = null;
     const scriptTags = document.getElementsByTagName('script');
     for (let i = scriptTags.length - 1; i >= 0; i--) {
       const s = scriptTags[i];
       if (s.src && (s.src.includes('/widget2.js') || s.src.includes('/widget.js') || s.src.includes('/widget3.js'))) {
         try {
           const p = new URL(s.src).searchParams.get('language');
-          if (p) { sourceLang = p; break; }
+          if (p) { defaultLang = String(p).toLowerCase(); break; }
         } catch (e) {}
       }
     }
-    // Priority 2: agentLanguage fetched from agent config API
-    if (!sourceLang && agentLanguage) sourceLang = agentLanguage;
-    // Priority 3: SHIVAI_CONFIG.language
-    if (!sourceLang && window.SHIVAI_CONFIG && window.SHIVAI_CONFIG.language) sourceLang = window.SHIVAI_CONFIG.language;
+    if (!defaultLang && langArray && langArray.length > 0) {
+      const hasMulti = langArray.some(c => String(c).toLowerCase() === 'multilingual');
+      defaultLang = hasMulti ? 'multilingual' : String(langArray[0]).toLowerCase();
+    }
 
-    const defaultLang = resolveOption(sourceLang) || "multilingual";
+    console.log(`🌐 [widget2.js] Default language: ${defaultLang}`);
 
-    console.log(`🌐 [widget2.js] Default language: ${defaultLang} (source: ${sourceLang || 'none'})`);
-
-    if (languageSelect) languageSelect.value = defaultLang;
-    const landingLanguageSelect = document.getElementById("shivai-language-landing");
-    if (landingLanguageSelect) landingLanguageSelect.value = defaultLang;
+    if (defaultLang) {
+      if (languageSelect) languageSelect.value = defaultLang;
+      const landingLanguageSelect = document.getElementById('shivai-language-landing');
+      if (landingLanguageSelect) landingLanguageSelect.value = defaultLang;
+    }
   }
 
   // Functions to show/hide message interface based on connection state

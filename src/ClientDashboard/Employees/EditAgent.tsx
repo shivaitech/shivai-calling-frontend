@@ -313,6 +313,7 @@ import { useAgent } from '../../contexts/AgentContext';
 import { agentAPI } from '../../services/agentAPI';
 import { aiTemplateService } from '../../services/aiTemplateService';
 import GlassCard from '../../components/GlassCard';
+import { formatAgentLanguages } from '../../lib/utils';
 import SearchableSelect from '../../components/SearchableSelect';
 
 // Voice style → short instruction for voice_config.voice_instruction
@@ -430,7 +431,7 @@ const EditAgent = () => {
     industry: "",
     subIndustry: "",
     persona: "Empathetic",
-    language: "en-US",
+    languages: ["en-US"] as string[],
     voice: "Achernar",
     voiceSpeed: 1.0,
     voiceStyle: "friendly",
@@ -440,6 +441,8 @@ const EditAgent = () => {
     maxResponseLength: "Medium (150 words)",
     contextWindow: "Standard (8K tokens)",
     temperature: 0.7,
+    countries: [] as string[],
+    realtimeVoice: "alloy",
   });
 
   const [templateData, setTemplateData] = useState<any>(null);
@@ -669,7 +672,7 @@ const EditAgent = () => {
           industry: mapIndustry(agentData.industry),
           subIndustry: mapSubIndustry(agentData.sub_industry),
           persona: mapPersonality(agentData.personality),
-          language: agentData.language || "en-US",
+          languages: Array.isArray((agentData as any).language) ? (agentData as any).language : ((agentData as any).language ? [(agentData as any).language] : ["en-US"]),
           voice: agentData.voice || "Achernar",
           voiceSpeed: (agentData as any).voice_speed !== undefined ? (agentData as any).voice_speed : 1.0,
           voiceStyle: (agentData as any).voice_style ||
@@ -681,6 +684,8 @@ const EditAgent = () => {
           maxResponseLength: mapMaxResponseLength(agentData.max_response_length),
           contextWindow: mapContextWindow(agentData.context_window),
           temperature: agentData.temperature !== undefined ? agentData.temperature : 0.7,
+          countries: Array.isArray((agentData as any).countries) ? (agentData as any).countries : [],
+          realtimeVoice: (agentData as any).multilingual_voice || "alloy",
         });
 
         // Load template data if available.
@@ -1129,8 +1134,132 @@ const EditAgent = () => {
     female: ["Aoede", "Kore", "Leda", "Zephyr"],
     male: ["Puck", "Charon", "Fenrir", "Orus"],
   };
-  const englishOnlyLanguages = ["en-US", "en-GB", "en-IN"];
-  const isMultilingualLanguage = !englishOnlyLanguages.includes(formData.language);
+  const englishOnlyLanguages = ["en-US", "en-GB", "en-IN", "en-AU", "en-CA"];
+  const isMultilingualMode = formData.languages.includes("multilingual");
+  const isMultilingualLanguage = formData.languages.some((l) => !englishOnlyLanguages.includes(l) && l !== "multilingual");
+
+  const ALL_LANGUAGES: { value: string; label: string; flag: string; countryCodes: string[] }[] = [
+    { value: "en-US",  label: "English (US)",       flag: "🇺🇸", countryCodes: ["US"] },
+    { value: "en-GB",  label: "English (UK)",        flag: "🇬🇧", countryCodes: ["GB"] },
+    { value: "en-AU",  label: "English (Australia)", flag: "🇦🇺", countryCodes: ["AU"] },
+    { value: "en-CA",  label: "English (Canada)",    flag: "🇨🇦", countryCodes: ["CA"] },
+    { value: "en-IN",  label: "English (India)",     flag: "🇮🇳", countryCodes: ["IN"] },
+    { value: "es",     label: "Spanish",             flag: "🇪🇸", countryCodes: ["ES", "MX", "AR", "CO"] },
+    { value: "fr",     label: "French",              flag: "🇫🇷", countryCodes: ["FR", "CA", "BE"] },
+    { value: "de",     label: "German",              flag: "🇩🇪", countryCodes: ["DE", "AT", "CH"] },
+    { value: "it",     label: "Italian",             flag: "🇮🇹", countryCodes: ["IT"] },
+    { value: "pt",     label: "Portuguese",          flag: "🇵🇹", countryCodes: ["PT", "BR"] },
+    { value: "nl",     label: "Dutch",               flag: "🇳🇱", countryCodes: ["NL", "BE"] },
+    { value: "pl",     label: "Polish",              flag: "🇵🇱", countryCodes: ["PL"] },
+    { value: "ru",     label: "Russian",             flag: "🇷🇺", countryCodes: ["RU"] },
+    { value: "uk",     label: "Ukrainian",           flag: "🇺🇦", countryCodes: ["UA"] },
+    { value: "ja",     label: "Japanese",            flag: "🇯🇵", countryCodes: ["JP"] },
+    { value: "ko",     label: "Korean",              flag: "🇰🇷", countryCodes: ["KR"] },
+    { value: "zh",     label: "Chinese",             flag: "🇨🇳", countryCodes: ["CN", "TW"] },
+    { value: "ar",     label: "Arabic",              flag: "🇸🇦", countryCodes: ["SA", "AE", "EG"] },
+    { value: "hi",     label: "Hindi",               flag: "🇮🇳", countryCodes: ["IN"] },
+    { value: "ta",     label: "Tamil",               flag: "🇮🇳", countryCodes: ["IN"] },
+    { value: "te",     label: "Telugu",              flag: "🇮🇳", countryCodes: ["IN"] },
+    { value: "mr",     label: "Marathi",             flag: "🇮🇳", countryCodes: ["IN"] },
+    { value: "bn",     label: "Bengali",             flag: "🇮🇳", countryCodes: ["IN", "BD"] },
+    { value: "gu",     label: "Gujarati",            flag: "🇮🇳", countryCodes: ["IN"] },
+    { value: "kn",     label: "Kannada",             flag: "🇮🇳", countryCodes: ["IN"] },
+    { value: "ml",     label: "Malayalam",           flag: "🇮🇳", countryCodes: ["IN"] },
+    { value: "pa",     label: "Punjabi",             flag: "🇮🇳", countryCodes: ["IN"] },
+    { value: "ur",     label: "Urdu",                flag: "🇵🇰", countryCodes: ["PK", "IN"] },
+    { value: "tr",     label: "Turkish",             flag: "🇹🇷", countryCodes: ["TR"] },
+    { value: "he",     label: "Hebrew",              flag: "🇮🇱", countryCodes: ["IL"] },
+    { value: "sv",     label: "Swedish",             flag: "🇸🇪", countryCodes: ["SE"] },
+    { value: "nb",     label: "Norwegian",           flag: "🇳🇴", countryCodes: ["NO"] },
+    { value: "da",     label: "Danish",              flag: "🇩🇰", countryCodes: ["DK"] },
+    { value: "fi",     label: "Finnish",             flag: "🇫🇮", countryCodes: ["FI"] },
+    { value: "el",     label: "Greek",               flag: "🇬🇷", countryCodes: ["GR"] },
+    { value: "cs",     label: "Czech",               flag: "🇨🇿", countryCodes: ["CZ"] },
+    { value: "hu",     label: "Hungarian",           flag: "🇭🇺", countryCodes: ["HU"] },
+    { value: "ro",     label: "Romanian",            flag: "🇷🇴", countryCodes: ["RO"] },
+    { value: "bg",     label: "Bulgarian",           flag: "🇧🇬", countryCodes: ["BG"] },
+    { value: "hr",     label: "Croatian",            flag: "🇭🇷", countryCodes: ["HR"] },
+    { value: "sr",     label: "Serbian",             flag: "🇷🇸", countryCodes: ["RS"] },
+    { value: "sk",     label: "Slovak",              flag: "🇸🇰", countryCodes: ["SK"] },
+    { value: "sl",     label: "Slovenian",           flag: "🇸🇮", countryCodes: ["SI"] },
+    { value: "et",     label: "Estonian",            flag: "🇪🇪", countryCodes: ["EE"] },
+    { value: "lv",     label: "Latvian",             flag: "🇱🇻", countryCodes: ["LV"] },
+    { value: "lt",     label: "Lithuanian",          flag: "🇱🇹", countryCodes: ["LT"] },
+    { value: "th",     label: "Thai",               flag: "🇹🇭", countryCodes: ["TH"] },
+    { value: "vi",     label: "Vietnamese",          flag: "🇻🇳", countryCodes: ["VN"] },
+    { value: "id",     label: "Indonesian",          flag: "🇮🇩", countryCodes: ["ID"] },
+  ];
+
+  const realtimeTTSVoices: Record<string, { value: string; label: string }[]> = {
+    female: [
+      { value: "alloy",   label: "Alloy" },
+      { value: "coral",   label: "Coral" },
+      { value: "sage",    label: "Sage" },
+      { value: "shimmer", label: "Shimmer" },
+    ],
+    male: [
+      { value: "ash",    label: "Ash" },
+      { value: "ballad", label: "Ballad" },
+      { value: "echo",   label: "Echo" },
+      { value: "verse",  label: "Verse" },
+    ],
+  };
+
+  const ALL_COUNTRIES = [
+    { code: "IN",  name: "India",                 flag: "🇮🇳" },
+    { code: "US",  name: "United States",          flag: "🇺🇸" },
+    { code: "GB",  name: "United Kingdom",         flag: "🇬🇧" },
+    { code: "AU",  name: "Australia",              flag: "🇦🇺" },
+    { code: "CA",  name: "Canada",                 flag: "🇨🇦" },
+    { code: "AE",  name: "United Arab Emirates",   flag: "🇦🇪" },
+    { code: "SA",  name: "Saudi Arabia",           flag: "🇸🇦" },
+    { code: "ES",  name: "Spain",                  flag: "🇪🇸" },
+    { code: "MX",  name: "Mexico",                 flag: "🇲🇽" },
+    { code: "AR",  name: "Argentina",              flag: "🇦🇷" },
+    { code: "CO",  name: "Colombia",               flag: "🇨🇴" },
+    { code: "FR",  name: "France",                 flag: "🇫🇷" },
+    { code: "BE",  name: "Belgium",                flag: "🇧🇪" },
+    { code: "DE",  name: "Germany",                flag: "🇩🇪" },
+    { code: "AT",  name: "Austria",                flag: "🇦🇹" },
+    { code: "CH",  name: "Switzerland",            flag: "🇨🇭" },
+    { code: "IT",  name: "Italy",                  flag: "🇮🇹" },
+    { code: "PT",  name: "Portugal",               flag: "🇵🇹" },
+    { code: "BR",  name: "Brazil",                 flag: "🇧🇷" },
+    { code: "NL",  name: "Netherlands",            flag: "🇳🇱" },
+    { code: "PL",  name: "Poland",                 flag: "🇵🇱" },
+    { code: "RU",  name: "Russia",                 flag: "🇷🇺" },
+    { code: "UA",  name: "Ukraine",                flag: "🇺🇦" },
+    { code: "JP",  name: "Japan",                  flag: "🇯🇵" },
+    { code: "KR",  name: "South Korea",            flag: "🇰🇷" },
+    { code: "CN",  name: "China",                  flag: "🇨🇳" },
+    { code: "TW",  name: "Taiwan",                 flag: "🇹🇼" },
+    { code: "EG",  name: "Egypt",                  flag: "🇪🇬" },
+    { code: "PK",  name: "Pakistan",               flag: "🇵🇰" },
+    { code: "BD",  name: "Bangladesh",             flag: "🇧🇩" },
+    { code: "TR",  name: "Turkey",                 flag: "🇹🇷" },
+    { code: "IL",  name: "Israel",                 flag: "🇮🇱" },
+    { code: "SE",  name: "Sweden",                 flag: "🇸🇪" },
+    { code: "NO",  name: "Norway",                 flag: "🇳🇴" },
+    { code: "DK",  name: "Denmark",                flag: "🇩🇰" },
+    { code: "FI",  name: "Finland",                flag: "🇫🇮" },
+    { code: "GR",  name: "Greece",                 flag: "🇬🇷" },
+    { code: "CZ",  name: "Czech Republic",         flag: "🇨🇿" },
+    { code: "HU",  name: "Hungary",                flag: "🇭🇺" },
+    { code: "RO",  name: "Romania",                flag: "🇷🇴" },
+    { code: "BG",  name: "Bulgaria",               flag: "🇧🇬" },
+    { code: "HR",  name: "Croatia",                flag: "🇭🇷" },
+    { code: "RS",  name: "Serbia",                 flag: "🇷🇸" },
+    { code: "SK",  name: "Slovakia",               flag: "🇸🇰" },
+    { code: "SI",  name: "Slovenia",               flag: "🇸🇮" },
+    { code: "EE",  name: "Estonia",                flag: "🇪🇪" },
+    { code: "LV",  name: "Latvia",                 flag: "🇱🇻" },
+    { code: "LT",  name: "Lithuania",              flag: "🇱🇹" },
+    { code: "TH",  name: "Thailand",               flag: "🇹🇭" },
+    { code: "VN",  name: "Vietnam",                flag: "🇻🇳" },
+    { code: "ID",  name: "Indonesia",              flag: "🇮🇩" },
+    { code: "MY",  name: "Malaysia",               flag: "🇲🇾" },
+    { code: "PH",  name: "Philippines",            flag: "🇵🇭" },
+  ];
 
   const getFilteredVoiceOptions = (gender: string) => {
     const opts = voiceOptions[gender] || voiceOptions.female;
@@ -1181,6 +1310,16 @@ const EditAgent = () => {
   const [isTestingVoice, setIsTestingVoice] = useState(false);
   const [isLoadingVoicePreview, setIsLoadingVoicePreview] = useState(false);
   const voicePreviewAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Country dropdown state
+  const [countryDropdownOpen, setCountryDropdownOpen] = useState(false);
+  const [countrySearch, setCountrySearch] = useState("");
+  const countryDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Language dropdown state
+  const [langDropdownOpen, setLangDropdownOpen] = useState(false);
+  const [langSearch, setLangSearch] = useState("");
+  const langDropdownRef = useRef<HTMLDivElement>(null);
 
   const previewGeminiVoice = async (voiceName: string) => {
     if (voicePreviewAudioRef.current) {
@@ -1601,12 +1740,14 @@ const EditAgent = () => {
           name: formData.name,
           company_name: formData.companyName,
           personality: personalityToApi(formData.persona),
-          language: formData.language,
+          language: formData.languages?.length ? formData.languages : ["en-US"],
           voice: formData.voice,
           voice_speed: formData.voiceSpeed,
           voice_style: formData.voiceStyle,
           voice_instruction: VOICE_STYLE_SP_MAP[formData.voiceStyle] || VOICE_STYLE_SP_MAP['friendly'],
           gender: formData.gender,
+          countries: formData.countries?.length ? formData.countries : undefined,
+          multilingual_voice: isMultilingualMode ? formData.realtimeVoice : undefined,
           business_process: formData.businessProcess.replace(/-/g, '_'),
           industry: formData.industry.replace(/-/g, '_'),
           sub_industry: formData.subIndustry ? formData.subIndustry.replace(/-/g, '_') : undefined,
@@ -1805,7 +1946,7 @@ const EditAgent = () => {
                         <div className="flex items-center gap-1">
                           <Globe className="w-3 h-3 sm:w-4 sm:h-4" />
                           <span className="truncate text-xs sm:text-sm">
-                            {currentAgent.language}
+                            {formatAgentLanguages((currentAgent as any).language)}
                           </span>
                         </div>
                         {isDirty ? (
@@ -2880,7 +3021,7 @@ const EditAgent = () => {
                           type="button"
                           onClick={() => {
                             const newGender = option.value;
-                            const needsMultilingual = !englishOnlyLanguages.includes(formData.language);
+                            const needsMultilingual = isMultilingualLanguage;
                             const newVoice = needsMultilingual
                               ? multilingualVoices[newGender]?.[0] || (newGender === 'female' ? 'Aoede' : 'Puck')
                               : (newGender === 'female' ? 'Achernar' : 'Achird');
@@ -2898,44 +3039,310 @@ const EditAgent = () => {
                     </div>
                   </div>
 
-                  {/* Language */}
+                  {/* Multilingual Mode */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">
+                        Multilingual Mode
+                      </label>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[10px] font-semibold">
+                        ⭐ Enterprise
+                      </span>
+                    </div>
+                    <div className={`rounded-xl border-2 transition-all overflow-hidden ${
+                      isMultilingualMode ? "border-purple-500" : "border-slate-200 dark:border-slate-700"
+                    }`}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const isOn = isMultilingualMode;
+                          setFormData((prev) => {
+                            const newLangs = isOn
+                              ? prev.languages.filter((l) => l !== "multilingual")
+                              : [...prev.languages, "multilingual"];
+                            if (!isOn) {
+                              // Enabling multilingual: make sure realtimeVoice is a valid
+                              // option for the current gender so the visible pre-selection
+                              // matches what actually gets saved in multilingual_voice.
+                              const validVoices = realtimeTTSVoices[prev.gender] || realtimeTTSVoices.female;
+                              const isCurrentValid = validVoices.some((v) => v.value === prev.realtimeVoice);
+                              return {
+                                ...prev,
+                                languages: newLangs,
+                                realtimeVoice: isCurrentValid ? prev.realtimeVoice : validVoices[0].value,
+                              };
+                            }
+                            return { ...prev, languages: newLangs };
+                          });
+                        }}
+                        className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all ${
+                          isMultilingualMode
+                            ? "bg-purple-50 dark:bg-purple-900/20"
+                            : "bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700/50"
+                        }`}
+                      >
+                        <span className="text-2xl flex-shrink-0">🌐</span>
+                        <div className="flex-1 min-w-0">
+                          <div className={`text-sm font-semibold ${
+                            isMultilingualMode ? "text-purple-700 dark:text-purple-300" : "text-slate-700 dark:text-slate-200"
+                          }`}>Enable Multilingual</div>
+                          <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">Auto-detect &amp; respond in any language</div>
+                        </div>
+                        <div className={`w-10 h-5 rounded-full flex-shrink-0 transition-colors relative ${
+                          isMultilingualMode ? "bg-purple-500" : "bg-slate-300 dark:bg-slate-600"
+                        }`}>
+                          <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                            isMultilingualMode ? "translate-x-5" : "translate-x-0.5"
+                          }`} />
+                        </div>
+                      </button>
+                      {isMultilingualMode && (
+                        <div className="flex items-center gap-3 px-4 py-2.5 border-t border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-900">
+                          <span className="text-xs text-slate-400 dark:text-slate-500 flex-shrink-0">Voice</span>
+                          <select
+                            value={formData.realtimeVoice}
+                            onChange={(e) => setFormData({ ...formData, realtimeVoice: e.target.value })}
+                            className="flex-1 py-1 bg-transparent text-sm text-slate-800 dark:text-white focus:outline-none"
+                          >
+                            {(realtimeTTSVoices[formData.gender] || realtimeTTSVoices.female).map((v) => (
+                              <option key={v.value} value={v.value}>{v.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Target Countries */}
                   <div>
                     <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
-                      Language
+                      Target Countries
+                      <span className="ml-1 text-[10px] text-slate-400 dark:text-slate-500 font-normal">(optional)</span>
                     </label>
-                    <select
-                      value={formData.language}
-                      onChange={(e) => {
-                        const newLang = e.target.value;
-                        const isNewMultilingual = !englishOnlyLanguages.includes(newLang);
-                        const gender = formData.gender;
-                        let newVoice = formData.voice;
-                        if (isNewMultilingual && !(multilingualVoices[gender] || []).includes(formData.voice)) {
-                          newVoice = multilingualVoices[gender]?.[0] || formData.voice;
-                        }
-                        setFormData({ ...formData, language: newLang, voice: newVoice });
-                      }}
-                      className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm sm:text-base text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all"
-                    >
-                      <option value="multilingual">🌐 Multilingual</option>
-                      <option value="en-US">🇺🇸 English (US)</option>
-                      <option value="en-GB">🇬🇧 English (UK)</option>
-                      <option value="en-IN">🇮🇳 English (India)</option>
-                      <option value="es">🇪🇸 Spanish</option>
-                      <option value="fr">🇫🇷 French</option>
-                      <option value="de">🇩🇪 German</option>
-                      <option value="it">🇮🇹 Italian</option>
-                      <option value="pt">🇵🇹 Portuguese</option>
-                      <option value="nl">🇳🇱 Dutch</option>
-                      <option value="pl">🇵🇱 Polish</option>
-                      <option value="ru">🇷🇺 Russian</option>
-                      <option value="ja">🇯🇵 Japanese</option>
-                      <option value="ko">🇰🇷 Korean</option>
-                      <option value="zh">🇨🇳 Chinese</option>
-                      <option value="ar">🇸🇦 Arabic</option>
-                      <option value="hi">🇮🇳 Hindi</option>
-                      <option value="tr">🇹🇷 Turkish</option>
-                    </select>
+                    <div className="relative" ref={countryDropdownRef}>
+                      {countryDropdownOpen && (
+                        <div
+                          className="fixed inset-0 z-40"
+                          onClick={() => { setCountryDropdownOpen(false); setCountrySearch(""); }}
+                          aria-hidden="true"
+                        />
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => { setCountryDropdownOpen((p) => !p); setCountrySearch(""); }}
+                        className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-left text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition-all flex items-center justify-between gap-2 min-h-[46px]"
+                      >
+                        <div className="flex flex-wrap gap-1 flex-1 min-w-0">
+                          {formData.countries.length === 0 ? (
+                            <span className="text-slate-400 dark:text-slate-500 text-sm">Select countries...</span>
+                          ) : (
+                            <>
+                              {formData.countries.slice(0, 4).map((code) => {
+                                const c = ALL_COUNTRIES.find((x) => x.code === code);
+                                return (
+                                  <span key={code} className="inline-flex items-center gap-1 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 text-xs rounded-full px-2 py-0.5">
+                                    <span>{c?.flag}</span>
+                                    <span className="truncate max-w-[70px]">{c?.name}</span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setFormData((prev) => ({ ...prev, countries: prev.countries.filter((x) => x !== code) }));
+                                      }}
+                                      className="ml-0.5 hover:text-indigo-900 dark:hover:text-indigo-100 leading-none"
+                                    >×</button>
+                                  </span>
+                                );
+                              })}
+                              {formData.countries.length > 4 && (
+                                <span className="inline-flex items-center bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs rounded-full px-2 py-0.5">
+                                  +{formData.countries.length - 4} more
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </div>
+                        {countryDropdownOpen ? (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setCountryDropdownOpen(false); setCountrySearch(""); }}
+                            className="flex-shrink-0 w-5 h-5 flex items-center justify-center rounded-full bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500 text-slate-500 dark:text-slate-300 transition-colors"
+                          >✕</button>
+                        ) : (
+                          <svg className="w-4 h-4 flex-shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                        )}
+                      </button>
+                      {countryDropdownOpen && (
+                        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl overflow-hidden">
+                          <div className="p-2 border-b border-slate-100 dark:border-slate-700">
+                            <input
+                              type="text"
+                              placeholder="Search countries..."
+                              value={countrySearch}
+                              onChange={(e) => setCountrySearch(e.target.value)}
+                              className="w-full px-3 py-1.5 text-sm bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none"
+                            />
+                          </div>
+                          <div className="overflow-y-auto max-h-48">
+                            {ALL_COUNTRIES.filter((c) => !countrySearch || c.name.toLowerCase().includes(countrySearch.toLowerCase())).map((country) => {
+                              const isSelected = formData.countries.includes(country.code);
+                              return (
+                                <button
+                                  key={country.code}
+                                  type="button"
+                                  onClick={() => {
+                                    setFormData((prev) => ({
+                                      ...prev,
+                                      countries: isSelected
+                                        ? prev.countries.filter((x) => x !== country.code)
+                                        : [...prev.countries, country.code],
+                                    }));
+                                  }}
+                                  className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors ${
+                                    isSelected
+                                      ? "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300"
+                                      : "text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+                                  }`}
+                                >
+                                  <span>{country.flag}</span>
+                                  <span className="flex-1 text-left">{country.name}</span>
+                                  {isSelected && <span className="text-indigo-600 dark:text-indigo-400 text-xs font-bold">✓</span>}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Languages Multi-Select */}
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
+                      Languages
+                    </label>
+                    <div className="relative" ref={langDropdownRef}>
+                      {langDropdownOpen && (
+                        <div
+                          className="fixed inset-0 z-40"
+                          onClick={() => { setLangDropdownOpen(false); setLangSearch(""); }}
+                          aria-hidden="true"
+                        />
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => { setLangDropdownOpen((p) => !p); setLangSearch(""); }}
+                        className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-left text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition-all flex items-center justify-between gap-2 min-h-[46px]"
+                      >
+                        <div className="flex flex-wrap gap-1 flex-1 min-w-0">
+                          {formData.languages.filter((l) => l !== "multilingual").length === 0 ? (
+                            <span className="text-slate-400 dark:text-slate-500 text-sm">Select languages...</span>
+                          ) : (
+                            <>
+                              {formData.languages.filter((l) => l !== "multilingual").slice(0, 3).map((langVal) => {
+                                const langObj = ALL_LANGUAGES.find((l) => l.value === langVal);
+                                return (
+                                  <span key={langVal} className="inline-flex items-center gap-1 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs rounded-full px-2 py-0.5">
+                                    <span>{langObj?.flag}</span>
+                                    <span className="truncate max-w-[80px]">{langObj?.label.split(" (")[0]}</span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setFormData((prev) => ({
+                                          ...prev,
+                                          languages: prev.languages.filter((x) => x !== langVal),
+                                        }));
+                                      }}
+                                      className="ml-0.5 hover:text-blue-900 dark:hover:text-blue-100 leading-none"
+                                    >×</button>
+                                  </span>
+                                );
+                              })}
+                              {formData.languages.filter((l) => l !== "multilingual").length > 3 && (
+                                <span className="inline-flex items-center bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs rounded-full px-2 py-0.5">
+                                  +{formData.languages.filter((l) => l !== "multilingual").length - 3} more
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </div>
+                        {langDropdownOpen ? (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setLangDropdownOpen(false); setLangSearch(""); }}
+                            className="flex-shrink-0 w-5 h-5 flex items-center justify-center rounded-full bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500 text-slate-500 dark:text-slate-300 transition-colors"
+                          >✕</button>
+                        ) : (
+                          <svg className="w-4 h-4 flex-shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                        )}
+                      </button>
+                      {langDropdownOpen && (() => {
+                        const selectedCountries = formData.countries;
+                        const filteredLangs = selectedCountries.length === 0
+                          ? ALL_LANGUAGES
+                          : ALL_LANGUAGES.filter((l) => l.countryCodes.some((cc) => selectedCountries.includes(cc)));
+                        const searchedLangs = !langSearch
+                          ? filteredLangs
+                          : filteredLangs.filter((l) => l.label.toLowerCase().includes(langSearch.toLowerCase()));
+                        return (
+                          <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl overflow-hidden">
+                            <div className="p-2 border-b border-slate-100 dark:border-slate-700">
+                              <input
+                                type="text"
+                                placeholder="Search languages..."
+                                value={langSearch}
+                                onChange={(e) => setLangSearch(e.target.value)}
+                                className="w-full px-3 py-1.5 text-sm bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none"
+                              />
+                            </div>
+                            <div className="overflow-y-auto max-h-52">
+                              {searchedLangs.map((lang) => {
+                                const isSelected = formData.languages.includes(lang.value);
+                                return (
+                                  <button
+                                    key={lang.value}
+                                    type="button"
+                                    onClick={() => {
+                                      const hasNonEnglish = !englishOnlyLanguages.includes(lang.value);
+                                      setFormData((prev) => {
+                                        const newLangs = isSelected
+                                          ? prev.languages.filter((x) => x !== lang.value)
+                                          : [...prev.languages, lang.value];
+                                        let newVoice = prev.voice;
+                                        if (hasNonEnglish && !isSelected && !(multilingualVoices[prev.gender] || []).includes(prev.voice)) {
+                                          newVoice = multilingualVoices[prev.gender]?.[0] || prev.voice;
+                                        }
+                                        return { ...prev, languages: newLangs, voice: newVoice };
+                                      });
+                                    }}
+                                    className={`w-full flex items-center gap-2 px-3 py-2 text-sm transition-colors ${
+                                      isSelected
+                                        ? "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                                        : "text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+                                    }`}
+                                  >
+                                    <span>{lang.flag}</span>
+                                    <span className="flex-1 text-left">{lang.label}</span>
+                                    {isSelected && <span className="text-blue-600 dark:text-blue-400 text-xs font-bold">✓</span>}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            {formData.languages.filter((l) => l !== "multilingual").length > 0 && (
+                              <div className="p-2 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                                <span className="text-xs text-slate-500">{formData.languages.filter((l) => l !== "multilingual").length} selected</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setFormData((prev) => ({ ...prev, languages: prev.languages.filter((l) => l === "multilingual") }))}
+                                  className="text-xs text-red-500 hover:text-red-600"
+                                >Clear all</button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
                   </div>
 
                   {/* Voice Type */}

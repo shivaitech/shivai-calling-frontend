@@ -13,10 +13,9 @@ import GlassCard from "../../components/GlassCard";
 import SearchableSelect from "../../components/SearchableSelect";
 import Pagination from "../../components/Pagination";
 import {
-  AgentWidgetCustomization,
   AgentQRModal,
-  AgentIntegrationCode,
 } from "./agents";
+import AgentViewPage from "./AgentViewPage";
 import { useAgent } from "../../contexts/AgentContext";
 import { useAuth } from "../../contexts/AuthContext";
 import {
@@ -28,7 +27,7 @@ import {
   aiTemplateService,
   GeneratedTemplate,
 } from "../../services/aiTemplateService";
-import { isDeveloperUser } from "../../lib/utils";
+import { isDeveloperUser, formatAgentLanguages } from "../../lib/utils";
 import {
   liveKitService,
   LiveKitMessage,
@@ -37,7 +36,6 @@ import {
 import { agentAPI } from "../../services/agentAPI";
 import {
   Bot,
-  ArrowLeft,
   Play,
   Pause,
   Square,
@@ -46,24 +44,14 @@ import {
   Edit2,
   Trash2,
   Copy,
-  Download,
   MessageSquare,
   Globe,
   Zap,
-  Clock,
-  Users,
   CheckCircle,
-  Lightbulb,
   Plus,
   Search,
   Filter,
-  Settings,
   X,
-  Send,
-  Phone,
-  PhoneCall,
-  Mic,
-  MicOff,
   Building2,
   Briefcase,
   Factory,
@@ -72,9 +60,9 @@ import {
   Share2,
   ChevronRight,
   ChevronLeft,
+  ChevronDown,
   Sparkles,
   ArrowRight,
-  SkipForward,
   FileText,
   Image,
   Upload,
@@ -97,6 +85,138 @@ const VOICE_STYLE_SP_MAP: Record<string, string> = {
   enthusiastic:  'Bring high energy and genuine excitement to every interaction. Use expressive, positive language and let your enthusiasm be contagious. Celebrate wins with the caller and maintain an optimistic, can-do attitude throughout.',
 };
 
+// Country list with flags and STT provider info
+// stt: "deepgram" = Deepgram STT (major languages), "sarvam" = Deepgram (major) + Sarvam (regional) for India
+const ALL_COUNTRIES = [
+  { code: "IN",  name: "India",          flag: "🇮🇳", stt: "sarvam" },
+  { code: "US",  name: "United States",  flag: "🇺🇸", stt: "deepgram" },
+  { code: "GB",  name: "United Kingdom", flag: "🇬🇧", stt: "deepgram" },
+  { code: "AU",  name: "Australia",      flag: "🇦🇺", stt: "deepgram" },
+  { code: "CA",  name: "Canada",         flag: "🇨🇦", stt: "deepgram" },
+  { code: "ES",  name: "Spain",          flag: "🇪🇸", stt: "deepgram" },
+  { code: "MX",  name: "Mexico",         flag: "🇲🇽", stt: "deepgram" },
+  { code: "AR",  name: "Argentina",      flag: "🇦🇷", stt: "deepgram" },
+  { code: "CO",  name: "Colombia",       flag: "🇨🇴", stt: "deepgram" },
+  { code: "FR",  name: "France",         flag: "🇫🇷", stt: "deepgram" },
+  { code: "BE",  name: "Belgium",        flag: "🇧🇪", stt: "deepgram" },
+  { code: "DE",  name: "Germany",        flag: "🇩🇪", stt: "deepgram" },
+  { code: "AT",  name: "Austria",        flag: "🇦🇹", stt: "deepgram" },
+  { code: "CH",  name: "Switzerland",    flag: "🇨🇭", stt: "deepgram" },
+  { code: "IT",  name: "Italy",          flag: "🇮🇹", stt: "deepgram" },
+  { code: "PT",  name: "Portugal",       flag: "🇵🇹", stt: "deepgram" },
+  { code: "BR",  name: "Brazil",         flag: "🇧🇷", stt: "deepgram" },
+  { code: "NL",  name: "Netherlands",    flag: "🇳🇱", stt: "deepgram" },
+  { code: "PL",  name: "Poland",         flag: "🇵🇱", stt: "deepgram" },
+  { code: "RU",  name: "Russia",         flag: "🇷🇺", stt: "deepgram" },
+  { code: "UA",  name: "Ukraine",        flag: "🇺🇦", stt: "deepgram" },
+  { code: "JP",  name: "Japan",          flag: "🇯🇵", stt: "deepgram" },
+  { code: "KR",  name: "South Korea",    flag: "🇰🇷", stt: "deepgram" },
+  { code: "CN",  name: "China",          flag: "🇨🇳", stt: "deepgram" },
+  { code: "TW",  name: "Taiwan",         flag: "🇹🇼", stt: "deepgram" },
+  { code: "SA",  name: "Saudi Arabia",   flag: "🇸🇦", stt: "deepgram" },
+  { code: "AE",  name: "United Arab Emirates", flag: "🇦🇪", stt: "deepgram" },
+  { code: "EG",  name: "Egypt",          flag: "🇪🇬", stt: "deepgram" },
+  { code: "BD",  name: "Bangladesh",     flag: "🇧🇩", stt: "deepgram" },
+  { code: "PK",  name: "Pakistan",       flag: "🇵🇰", stt: "deepgram" },
+  { code: "TR",  name: "Turkey",         flag: "🇹🇷", stt: "deepgram" },
+  { code: "IL",  name: "Israel",         flag: "🇮🇱", stt: "deepgram" },
+  { code: "SE",  name: "Sweden",         flag: "🇸🇪", stt: "deepgram" },
+  { code: "NO",  name: "Norway",         flag: "🇳🇴", stt: "deepgram" },
+  { code: "DK",  name: "Denmark",        flag: "🇩🇰", stt: "deepgram" },
+  { code: "FI",  name: "Finland",        flag: "🇫🇮", stt: "deepgram" },
+  { code: "GR",  name: "Greece",         flag: "🇬🇷", stt: "deepgram" },
+  { code: "CZ",  name: "Czech Republic", flag: "🇨🇿", stt: "deepgram" },
+  { code: "HU",  name: "Hungary",        flag: "🇭🇺", stt: "deepgram" },
+  { code: "RO",  name: "Romania",        flag: "🇷🇴", stt: "deepgram" },
+  { code: "TH",  name: "Thailand",       flag: "🇹🇭", stt: "deepgram" },
+  { code: "VN",  name: "Vietnam",        flag: "🇻🇳", stt: "deepgram" },
+  { code: "ID",  name: "Indonesia",      flag: "🇮🇩", stt: "deepgram" },
+  { code: "MY",  name: "Malaysia",       flag: "🇲🇾", stt: "deepgram" },
+  { code: "PH",  name: "Philippines",    flag: "🇵🇭", stt: "deepgram" },
+  { code: "BG",  name: "Bulgaria",       flag: "🇧🇬", stt: "deepgram" },
+  { code: "HR",  name: "Croatia",        flag: "🇭🇷", stt: "deepgram" },
+  { code: "RS",  name: "Serbia",         flag: "🇷🇸", stt: "deepgram" },
+  { code: "SK",  name: "Slovakia",       flag: "🇸🇰", stt: "deepgram" },
+  { code: "SI",  name: "Slovenia",       flag: "🇸🇮", stt: "deepgram" },
+  { code: "EE",  name: "Estonia",        flag: "🇪🇪", stt: "deepgram" },
+  { code: "LV",  name: "Latvia",         flag: "🇱🇻", stt: "deepgram" },
+  { code: "LT",  name: "Lithuania",      flag: "🇱🇹", stt: "deepgram" },
+];
+
+// Language list — each entry maps to one or more countryCodes
+const ALL_LANGUAGES: { value: string; label: string; flag: string; countryCodes: string[] }[] = [
+  // English
+  { value: "en-US",  label: "English (US)",        flag: "🇺🇸", countryCodes: ["US"] },
+  { value: "en-GB",  label: "English (UK)",         flag: "🇬🇧", countryCodes: ["GB"] },
+  { value: "en-AU",  label: "English (Australia)",  flag: "🇦🇺", countryCodes: ["AU"] },
+  { value: "en-CA",  label: "English (Canada)",     flag: "🇨🇦", countryCodes: ["CA"] },
+  // Spanish (one code covers all Spanish-speaking countries)
+  { value: "es",     label: "Spanish",              flag: "🇪🇸", countryCodes: ["ES", "MX", "AR", "CO"] },
+  // French
+  { value: "fr",     label: "French",               flag: "🇫🇷", countryCodes: ["FR", "CA", "BE"] },
+  // German
+  { value: "de",     label: "German",               flag: "🇩🇪", countryCodes: ["DE", "AT", "CH"] },
+  // Italian
+  { value: "it",     label: "Italian",              flag: "🇮🇹", countryCodes: ["IT"] },
+  // Portuguese
+  { value: "pt",     label: "Portuguese",           flag: "🇵🇹", countryCodes: ["PT", "BR"] },
+  // Dutch
+  { value: "nl",     label: "Dutch",                flag: "🇳🇱", countryCodes: ["NL", "BE"] },
+  // Polish
+  { value: "pl",     label: "Polish",               flag: "🇵🇱", countryCodes: ["PL"] },
+  // Russian
+  { value: "ru",     label: "Russian",              flag: "🇷🇺", countryCodes: ["RU"] },
+  // Ukrainian
+  { value: "uk",     label: "Ukrainian",            flag: "🇺🇦", countryCodes: ["UA"] },
+  // Japanese
+  { value: "ja",     label: "Japanese",             flag: "🇯🇵", countryCodes: ["JP"] },
+  // Korean
+  { value: "ko",     label: "Korean",               flag: "🇰🇷", countryCodes: ["KR"] },
+  // Chinese
+  { value: "zh",     label: "Chinese",              flag: "🇨🇳", countryCodes: ["CN", "TW"] },
+  // Arabic
+  { value: "ar",     label: "Arabic",               flag: "🇸🇦", countryCodes: ["SA", "AE", "EG"] },
+  // Turkish
+  { value: "tr",     label: "Turkish",              flag: "🇹🇷", countryCodes: ["TR"] },
+  // Hebrew
+  { value: "he",     label: "Hebrew",               flag: "🇮🇱", countryCodes: ["IL"] },
+  // Scandinavian
+  { value: "sv",     label: "Swedish",              flag: "🇸🇪", countryCodes: ["SE"] },
+  { value: "nb",     label: "Norwegian",            flag: "🇳🇴", countryCodes: ["NO"] },
+  { value: "da",     label: "Danish",               flag: "🇩🇰", countryCodes: ["DK"] },
+  { value: "fi",     label: "Finnish",              flag: "🇫🇮", countryCodes: ["FI"] },
+  // Eastern European
+  { value: "el",     label: "Greek",                flag: "🇬🇷", countryCodes: ["GR"] },
+  { value: "cs",     label: "Czech",                flag: "🇨🇿", countryCodes: ["CZ"] },
+  { value: "hu",     label: "Hungarian",            flag: "🇭🇺", countryCodes: ["HU"] },
+  { value: "ro",     label: "Romanian",             flag: "🇷🇴", countryCodes: ["RO"] },
+  { value: "bg",     label: "Bulgarian",            flag: "🇧🇬", countryCodes: ["BG"] },
+  { value: "hr",     label: "Croatian",             flag: "🇭🇷", countryCodes: ["HR"] },
+  { value: "sr",     label: "Serbian",              flag: "🇷🇸", countryCodes: ["RS"] },
+  { value: "sk",     label: "Slovak",               flag: "🇸🇰", countryCodes: ["SK"] },
+  { value: "sl",     label: "Slovenian",            flag: "🇸🇮", countryCodes: ["SI"] },
+  { value: "et",     label: "Estonian",             flag: "🇪🇪", countryCodes: ["EE"] },
+  { value: "lv",     label: "Latvian",              flag: "🇱🇻", countryCodes: ["LV"] },
+  { value: "lt",     label: "Lithuanian",           flag: "🇱🇹", countryCodes: ["LT"] },
+  // South-East Asian
+  { value: "th",     label: "Thai",                 flag: "🇹🇭", countryCodes: ["TH"] },
+  { value: "vi",     label: "Vietnamese",           flag: "🇻🇳", countryCodes: ["VN"] },
+  { value: "id",     label: "Indonesian",           flag: "🇮🇩", countryCodes: ["ID"] },
+  // Indian languages (Sarvam STT + Google TTS)
+  { value: "en-IN",  label: "English (India)",      flag: "🇮🇳", countryCodes: ["IN"] },
+  { value: "hi",     label: "Hindi",                flag: "🇮🇳", countryCodes: ["IN"] },
+  { value: "ta",     label: "Tamil",                flag: "🇮🇳", countryCodes: ["IN"] },
+  { value: "te",     label: "Telugu",               flag: "🇮🇳", countryCodes: ["IN"] },
+  { value: "mr",     label: "Marathi",              flag: "🇮🇳", countryCodes: ["IN"] },
+  { value: "bn",     label: "Bengali",              flag: "🇮🇳", countryCodes: ["IN", "BD"] },
+  { value: "gu",     label: "Gujarati",             flag: "🇮🇳", countryCodes: ["IN"] },
+  { value: "kn",     label: "Kannada",              flag: "🇮🇳", countryCodes: ["IN"] },
+  { value: "ml",     label: "Malayalam",            flag: "🇮🇳", countryCodes: ["IN"] },
+  { value: "pa",     label: "Punjabi",              flag: "🇮🇳", countryCodes: ["IN"] },
+  { value: "ur",     label: "Urdu",                 flag: "🇵🇰", countryCodes: ["PK", "IN"] },
+];
+
+// Voice-language affinity map — best Gemini voice per language per gender
 /** Replace the ## Voice Instructions section in a system prompt with our predefined content.
  *  If no such section exists, injects it right after the Identity section. */
 function replaceVoiceSection(prompt: string, voiceStyle: string): string {
@@ -127,7 +247,6 @@ const AgentManagement = () => {
   const {
     agents,
     currentAgent,
-    isLoading: isAgentsLoading,
     setCurrentAgent,
     publishAgentStatus,
     unpublishAgentStatus,
@@ -232,8 +351,10 @@ const AgentManagement = () => {
     companyName: "",
     useCompanyNameForTemplate: true,
     aiEmployeeName: "",
-    language: "en-US",
+    countries: [] as string[],
+    languages: ["en-US"] as string[],
     voice: "Achernar",
+    realtimeVoice: "alloy",
     voiceSpeed: 1.0,
     voiceStyle: "friendly",
     gender: "female",
@@ -253,6 +374,14 @@ const AgentManagement = () => {
   const [isTestingVoice, setIsTestingVoice] = useState(false);
   const [isLoadingVoicePreview, setIsLoadingVoicePreview] = useState(false);
   const voicePreviewAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [countryDropdownOpen, setCountryDropdownOpen] = useState(false);
+  const [countrySearch, setCountrySearch] = useState("");
+  const countryDropdownRef = useRef<HTMLDivElement>(null);
+  const [langDropdownOpen, setLangDropdownOpen] = useState(false);
+  const [langSearch, setLangSearch] = useState("");
+  const langDropdownRef = useRef<HTMLDivElement>(null);
+  const [voiceSelectOpen, setVoiceSelectOpen] = useState(false);
+  const [realtimeVoiceSelectOpen, setRealtimeVoiceSelectOpen] = useState(false);
 
   // Function to preview Gemini TTS voice
   const previewGeminiVoice = async (voiceName: string, speed: number = 1.0, customText?: string) => {
@@ -505,6 +634,22 @@ const AgentManagement = () => {
     ],
   };
 
+  // Realtime Preview API TTS voices (used when "multilingual" language is selected)
+  const realtimeTTSVoices = {
+    female: [
+      { value: "alloy",   label: "Alloy" },
+      { value: "coral",   label: "Coral" },
+      { value: "sage",    label: "Sage" },
+      { value: "shimmer", label: "Shimmer" },
+    ],
+    male: [
+      { value: "ash",     label: "Ash" },
+      { value: "ballad",  label: "Ballad" },
+      { value: "echo",    label: "Echo" },
+      { value: "verse",   label: "Verse" },
+    ],
+  };
+
   // Multilingual voices - these voices support non-English languages
   const multilingualVoices = {
     female: ["Aoede", "Kore", "Leda", "Zephyr"],
@@ -512,19 +657,21 @@ const AgentManagement = () => {
   };
 
   // English-only language codes
-  const englishOnlyLanguages = ["en-US", "en-GB", "en-IN"];
+  const englishOnlyLanguages = ["en-US", "en-GB", "en-IN", "en-AU", "en-CA"];
 
-  // Check if current language requires multilingual voices
-  const isMultilingualLanguage = !englishOnlyLanguages.includes(quickCreateData.language);
+  // Check if any selected language requires multilingual voices
+  const isMultilingualLanguage = quickCreateData.languages.some(
+    (lang) => !englishOnlyLanguages.includes(lang)
+  );
 
-  // Get filtered voice options based on selected language
+  // True when user selects the special "multilingual" option → use Realtime TTS voices
+  const isMultilingualMode = quickCreateData.languages.includes("multilingual");
+
+  // Get filtered voice options based on selected language, with "Best for X" suggestions
   const getFilteredVoiceOptions = (gender: 'female' | 'male') => {
-    if (isMultilingualLanguage) {
-      return voiceOptions[gender].filter((v) =>
-        multilingualVoices[gender].includes(v.value)
-      );
-    }
-    return voiceOptions[gender];
+    return isMultilingualLanguage
+      ? voiceOptions[gender].filter((v) => multilingualVoices[gender].includes(v.value))
+      : voiceOptions[gender];
   };
 
   // Industry Options
@@ -754,8 +901,8 @@ const AgentManagement = () => {
     if (quickCreateStep < 7) {
       // Validate Step 2: Voice & Language are required
       if (quickCreateStep === 2) {
-        if (!quickCreateData.language || !quickCreateData.voice) {
-          appToast.error('Please select a language and voice before proceeding.');
+        if (!quickCreateData.languages?.length || !quickCreateData.voice) {
+          appToast.error('Please select at least one language and a voice before proceeding.');
           return;
         }
       }
@@ -925,8 +1072,10 @@ const AgentManagement = () => {
       companyName: "",
       useCompanyNameForTemplate: true,
       aiEmployeeName: "",
-      language: "en-US",
+      countries: [],
+      languages: ["en-US"],
       voice: "Achernar",
+      realtimeVoice: "alloy",
       voiceSpeed: 1.0,
       voiceStyle: "friendly",
       gender: "female",
@@ -1153,8 +1302,10 @@ const AgentManagement = () => {
         industry: quickCreateData.industry,
         sub_industry: quickCreateData.subIndustry || undefined,
         personality: selectedTemplateData?.personality || "Professional",
-        language: quickCreateData.language || "en-US",
+        language: quickCreateData.languages?.length ? quickCreateData.languages : ["en-US"],
+        countries: quickCreateData.countries?.length ? quickCreateData.countries : undefined,
         voice: quickCreateData.voice || "Achernar",
+        multilingual_voice: quickCreateData.languages.includes("multilingual") ? (quickCreateData.realtimeVoice || "alloy") : undefined,
         voice_config: {
           voice_instruction: voiceInstruction,
           voice_speed: clampedVoiceSpeed,
@@ -1263,7 +1414,7 @@ const AgentManagement = () => {
           quickCreateData.aiEmployeeName.trim().length > 0
         );
       case 2:
-        return quickCreateData.language.length > 0 && quickCreateData.voice.length > 0; // Voice configuration
+        return quickCreateData.languages.length > 0 && quickCreateData.voice.length > 0; // Voice configuration
       case 3:
         return quickCreateData.businessProcess.length > 0;
       case 4:
@@ -1565,35 +1716,98 @@ const AgentManagement = () => {
 
   useEffect(() => {
     if (id) {
-      const agent = agents.find((a) => a.id === id);
-      if (agent) {
-        setCurrentAgent(agent);
-        setFormData({
-          name: agent.name,
-          gender: "Female",
-          businessProcess: "",
-          industry: "",
-          persona: agent.persona,
-          language: agent.language,
-          voice: agent.voice,
-          customInstructions: "",
-          guardrailsLevel: "Medium",
-          responseStyle: "Balanced",
-          maxResponseLength: "Medium (150 words)",
-          contextWindow: "Standard (8K tokens)",
-          temperature: 50,
-        });
-        // Reset messages when agent changes with correct agent name and company
-        setMessages([
-          {
-            id: "1",
-            text: `Hello! I am ${agent.name}${user?.company ? ` from ${user.company}` : ""}, here to assist you. How can I help you today?`,
-            isUser: false,
-            timestamp: new Date(),
-          },
-        ]);
-        // Fetch session history for this agent
-        fetchSessionHistory(agent.id);
+      // For view/edit pages, fetch full agent config from API
+      if (isView || id) {
+        const fetchAgentForEdit = async () => {
+          try {
+            const { agent: fetchedAgent } = await agentAPI.getAgentConfig(id);
+            
+            // Transform API response to match component expectations
+            const transformedAgent = {
+              ...fetchedAgent,
+              // Map is_active to status
+              status: fetchedAgent.is_active ? "Published" : "Pending",
+              // Map personality to persona
+              persona: fetchedAgent.personality || "Professional",
+              // Ensure language is a string (API returns array)
+              language: Array.isArray(fetchedAgent.language) 
+                ? fetchedAgent.language[0] || "en"
+                : fetchedAgent.language || "en",
+              // Add default stats if missing
+              stats: fetchedAgent.stats || {
+                conversations: 0,
+                successRate: 0,
+                avgResponseTime: 0,
+                activeUsers: 0,
+              },
+            };
+            
+            setCurrentAgent(transformedAgent as any);
+            setFormData({
+              name: transformedAgent.name,
+              gender: "Female",
+              businessProcess: "",
+              industry: "",
+              persona: transformedAgent.persona,
+              language: transformedAgent.language,
+              voice: transformedAgent.voice,
+              customInstructions: "",
+              guardrailsLevel: "Medium",
+              responseStyle: "Balanced",
+              maxResponseLength: "Medium (150 words)",
+              contextWindow: "Standard (8K tokens)",
+              temperature: 50,
+            });
+            // Reset messages when agent changes with correct agent name and company
+            setMessages([
+              {
+                id: "1",
+                text: `Hello! I am ${transformedAgent.name}${user?.company ? ` from ${user.company}` : ""}, here to assist you. How can I help you today?`,
+                isUser: false,
+                timestamp: new Date(),
+              },
+            ]);
+            // Fetch session history for this agent
+            fetchSessionHistory(transformedAgent.id);
+          } catch (error) {
+            console.error("Error fetching agent config:", error);
+            appToast.error("Failed to load agent");
+            navigate("/agents");
+          }
+        };
+        fetchAgentForEdit();
+      } else {
+        // Fallback: search in local agents list
+        const agent = agents.find((a) => a.id === id);
+        if (agent) {
+          setCurrentAgent(agent);
+          setFormData({
+            name: agent.name,
+            gender: "Female",
+            businessProcess: "",
+            industry: "",
+            persona: agent.persona,
+            language: agent.language,
+            voice: agent.voice,
+            customInstructions: "",
+            guardrailsLevel: "Medium",
+            responseStyle: "Balanced",
+            maxResponseLength: "Medium (150 words)",
+            contextWindow: "Standard (8K tokens)",
+            temperature: 50,
+          });
+          // Reset messages when agent changes with correct agent name and company
+          setMessages([
+            {
+              id: "1",
+              text: `Hello! I am ${agent.name}${user?.company ? ` from ${user.company}` : ""}, here to assist you. How can I help you today?`,
+              isUser: false,
+              timestamp: new Date(),
+            },
+          ]);
+          // Fetch session history for this agent
+          fetchSessionHistory(agent.id);
+        }
       }
     }
   }, [id, agents, setCurrentAgent]);
@@ -1749,6 +1963,7 @@ const AgentManagement = () => {
       appToast.success("Agent paused successfully!", { duration: 3000 });
       setShowPauseConfirm(false);
       setAgentToPause(null);
+      window.location.reload();
     } catch (error: any) {
       console.error("❌ Error pausing agent:", error);
       appToast.error(error.message || "Failed to pause agent. Please try again.", { duration: 4000 });
@@ -2713,6 +2928,73 @@ const AgentManagement = () => {
     }
   }, [debouncedSearchTerm, genderFilter, sortBy]);
 
+  // AGENT VIEW PAGE - Show whenever there's an ID and not on train route
+  if (isView) {
+    // If currentAgent is not yet loaded, show a loading state
+    if (!currentAgent) {
+      return (
+        <div className="flex items-center justify-center h-screen">
+          <div className="text-center">
+            <Bot className="w-16 h-16 text-slate-300 dark:text-slate-600 mx-auto mb-4 animate-pulse" />
+            <p className="text-slate-600 dark:text-slate-400">Loading agent...</p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <AgentViewPage
+        currentAgent={currentAgent}
+        publishingAgents={publishingAgents}
+        showQRModal={showQRModal}
+        setShowQRModal={setShowQRModal}
+        openAgentTestPage={openAgentTestPage}
+        handlePublish={handlePublish}
+        showPublishConfirm={showPublishConfirm}
+        handlePublishCancel={handlePublishCancel}
+        handlePublishConfirm={handlePublishConfirm}
+        isPublishing={isPublishing}
+        handlePause={handlePause}
+        showPauseConfirm={showPauseConfirm}
+        handlePauseCancel={handlePauseCancel}
+        handlePauseConfirm={handlePauseConfirm}
+        isPausing={isPausing}
+        showDeleteConfirm={showDeleteConfirm}
+        handleDeleteCancel={handleDeleteCancel}
+        handleDeleteConfirm={handleDeleteConfirm}
+        isDeleting={isDeleting}
+        showTestChat={showTestChat}
+        setShowTestChat={setShowTestChat}
+        room={room}
+        setIsCallActive={setIsCallActive}
+        setIsRecording={setIsRecording}
+        setConnectionStatus={setConnectionStatus}
+        setStatusMessage={setStatusMessage}
+        callTimerInterval={callTimerInterval}
+        setCallTimerInterval={setCallTimerInterval}
+        setCallDuration={setCallDuration}
+        activeTestTab={activeTestTab}
+        setActiveTestTab={setActiveTestTab}
+        connectionStatus={connectionStatus}
+        statusMessage={statusMessage}
+        isCallActive={isCallActive}
+        callDuration={callDuration}
+        formatCallDuration={formatCallDuration}
+        handleStartCall={handleStartCall}
+        isTestLoading={isTestLoading}
+        isConnecting={isConnecting}
+        handleToggleMute={handleToggleMute}
+        isMuted={isMuted}
+        handleEndCall={handleEndCall}
+        testConnection={testConnection}
+        messages={messages}
+        testInput={testInput}
+        setTestInput={setTestInput}
+        handleTestSend={handleTestSend}
+      />
+    );
+  }
+
   // MAIN AGENT LIST PAGE
   if (isList) {
     return (
@@ -2980,7 +3262,7 @@ const AgentManagement = () => {
                             {agent.name}
                           </h3>
                           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 truncate">
-                            {agent.language} • {agent.persona}
+                            {formatAgentLanguages((agent as any).language)} • {agent.persona}
                           </p>
                         </div>
                         <span
@@ -3929,7 +4211,7 @@ const AgentManagement = () => {
                                 onClick={() =>
                                   setQuickCreateData((prev) => {
                                     const newGender = option.value as 'female' | 'male';
-                                    const needsMultilingual = !englishOnlyLanguages.includes(prev.language);
+                                    const needsMultilingual = prev.languages.some((l) => l !== "multilingual" && !englishOnlyLanguages.includes(l));
                                     // Pick the first multilingual voice if non-English, otherwise first voice
                                     const newVoice = needsMultilingual
                                       ? multilingualVoices[newGender][0]
@@ -3953,59 +4235,445 @@ const AgentManagement = () => {
                           </div>
                         </div>
 
-                        {/* Language Selection */}
+                        {/* ── Multilingual Toggle ── */}
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">
+                              Multilingual Mode
+                            </label>
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[10px] font-semibold">
+                              ⭐ Enterprise
+                            </span>
+                          </div>
+                          <div className={`rounded-xl border-2 transition-all overflow-hidden ${
+                            quickCreateData.languages.includes("multilingual")
+                              ? "border-purple-500"
+                              : "border-slate-200 dark:border-slate-700"
+                          }`}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const isOn = quickCreateData.languages.includes("multilingual");
+                                setQuickCreateData((prev) => ({
+                                  ...prev,
+                                  languages: isOn
+                                    ? prev.languages.filter((l) => l !== "multilingual")
+                                    : [...prev.languages, "multilingual"],
+                                }));
+                              }}
+                              className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all ${
+                                quickCreateData.languages.includes("multilingual")
+                                  ? "bg-purple-50 dark:bg-purple-900/20"
+                                  : "bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700/50"
+                              }`}
+                            >
+                              <span className="text-2xl flex-shrink-0">🌐</span>
+                              <div className="flex-1 min-w-0">
+                                <div className={`text-sm font-semibold ${
+                                  quickCreateData.languages.includes("multilingual")
+                                    ? "text-purple-700 dark:text-purple-300"
+                                    : "text-slate-700 dark:text-slate-200"
+                                }`}>Enable Multilingual</div>
+                                <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">Auto-detect &amp; respond in any language</div>
+                              </div>
+                              <div className={`w-10 h-5 rounded-full flex-shrink-0 transition-colors relative ${
+                                quickCreateData.languages.includes("multilingual")
+                                  ? "bg-purple-500"
+                                  : "bg-slate-300 dark:bg-slate-600"
+                              }`}>
+                                <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                                  quickCreateData.languages.includes("multilingual") ? "translate-x-5" : "translate-x-0.5"
+                                }`} />
+                              </div>
+                            </button>
+                            {isMultilingualMode && (
+                              <div className="flex items-center gap-3 px-4 py-2.5 border-t border-purple-200 dark:border-purple-800 bg-white dark:bg-slate-900">
+                                <span className="text-xs text-slate-400 dark:text-slate-500 flex-shrink-0">Voice</span>
+                                <select
+                                  value={quickCreateData.realtimeVoice}
+                                  onChange={(e) =>
+                                    setQuickCreateData((prev) => ({
+                                      ...prev,
+                                      realtimeVoice: e.target.value,
+                                    }))
+                                  }
+                                  className="flex-1 py-1 bg-transparent text-sm text-slate-800 dark:text-white focus:outline-none"
+                                  onFocus={() => setRealtimeVoiceSelectOpen(true)}
+                                  onBlur={() => setRealtimeVoiceSelectOpen(false)}
+                                >
+                                  {realtimeTTSVoices[quickCreateData.gender as 'female' | 'male'].map(v => (
+                                    <option key={v.value} value={v.value}>{v.label}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* ── Country Selection ── */}
+                        <div>
+                          <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                            Target Countries
+                            <span className="ml-1 text-[10px] text-slate-400 dark:text-slate-500 font-normal">(filters languages below)</span>
+                          </label>
+
+                          <div className="relative" ref={countryDropdownRef}>
+                            {/* Backdrop */}
+                            {countryDropdownOpen && (
+                              <div
+                                className="fixed inset-0 z-40"
+                                onClick={() => { setCountryDropdownOpen(false); setCountrySearch(""); }}
+                                aria-hidden="true"
+                              />
+                            )}
+
+                            {/* Trigger */}
+                            <button
+                              type="button"
+                              onClick={() => { setCountryDropdownOpen((p) => !p); setCountrySearch(""); }}
+                              className="w-full px-3 sm:px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-left text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all flex items-center justify-between gap-2 min-h-[46px]"
+                            >
+                              <div className="flex flex-wrap gap-1 flex-1 min-w-0">
+                                {quickCreateData.countries.length === 0 ? (
+                                  <span className="text-slate-400 dark:text-slate-500 text-sm">Select countries...</span>
+                                ) : (
+                                  <>
+                                    {quickCreateData.countries.slice(0, 4).map((code) => {
+                                      const c = ALL_COUNTRIES.find((x) => x.code === code);
+                                      return (
+                                        <span key={code} className="inline-flex items-center gap-1 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 text-xs rounded-full px-2 py-0.5">
+                                          <span>{c?.flag}</span>
+                                          <span className="truncate max-w-[70px]">{c?.name}</span>
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              const newCountries = quickCreateData.countries.filter((x) => x !== code);
+                                              // Remove languages that no longer belong to any selected country
+                                              const newLangs = newCountries.length === 0
+                                                ? quickCreateData.languages
+                                                : quickCreateData.languages.filter((lang) => {
+                                                    if (lang === "multilingual") return true;
+                                                    const lo = ALL_LANGUAGES.find((l) => l.value === lang);
+                                                    return lo?.countryCodes.some((cc) => newCountries.includes(cc));
+                                                  });
+                                              setQuickCreateData((prev) => ({ ...prev, countries: newCountries, languages: newLangs }));
+                                            }}
+                                            className="ml-0.5 hover:text-indigo-900 dark:hover:text-indigo-100 leading-none"
+                                            aria-label={`Remove ${c?.name}`}
+                                          >×</button>
+                                        </span>
+                                      );
+                                    })}
+                                    {quickCreateData.countries.length > 4 && (
+                                      <span className="inline-flex items-center bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs rounded-full px-2 py-0.5">
+                                        +{quickCreateData.countries.length - 4} more
+                                      </span>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                              <ChevronDown className={`w-4 h-4 flex-shrink-0 text-slate-400 transition-transform ${countryDropdownOpen ? "rotate-180" : ""}`} />
+                            </button>
+
+                            {/* Panel */}
+                            {countryDropdownOpen && (
+                              <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl overflow-hidden">
+                                <div className="p-2 border-b border-slate-100 dark:border-slate-700 flex items-center gap-2">
+                                  <div className="relative flex-1">
+                                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                                    <input
+                                      type="text" value={countrySearch}
+                                      onChange={(e) => setCountrySearch(e.target.value)}
+                                      placeholder="Search countries..."
+                                      className="w-full pl-8 pr-3 py-2 text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                                    />
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => { setCountryDropdownOpen(false); setCountrySearch(""); }}
+                                    className="flex-shrink-0 p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                                    aria-label="Close country dropdown"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </button>
+                                </div>
+                                <div className="overflow-y-auto max-h-52">
+                                  {ALL_COUNTRIES.filter((c) => {
+                                    const q = countrySearch.toLowerCase();
+                                    return !q || c.name.toLowerCase().includes(q);
+                                  }).map((country) => {
+                                    const isSelected = quickCreateData.countries.includes(country.code);
+                                    return (
+                                      <button
+                                        key={country.code}
+                                        type="button"
+                                        onClick={() => {
+                                          const newCountries = isSelected
+                                            ? quickCreateData.countries.filter((x) => x !== country.code)
+                                            : [...quickCreateData.countries, country.code];
+                                          // When deselecting, strip languages that no longer have any country match
+                                          const newLangs = newCountries.length === 0
+                                            ? quickCreateData.languages
+                                            : quickCreateData.languages.filter((lang) => {
+                                                if (lang === "multilingual") return true;
+                                                const lo = ALL_LANGUAGES.find((l) => l.value === lang);
+                                                return lo?.countryCodes.some((cc) => newCountries.includes(cc));
+                                              });
+                                          // Auto-adjust voice for multilingual need
+                                          const needsMulti = newLangs.some((l) => !englishOnlyLanguages.includes(l) && l !== "multilingual");
+                                          const gender = quickCreateData.gender as "female" | "male";
+                                          let newVoice = quickCreateData.voice;
+                                          if (needsMulti && !multilingualVoices[gender].includes(newVoice)) {
+                                            newVoice = multilingualVoices[gender][0];
+                                          }
+                                          setQuickCreateData((prev) => ({ ...prev, countries: newCountries, languages: newLangs, voice: newVoice }));
+                                        }}
+                                        className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${
+                                          isSelected
+                                            ? "bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300"
+                                            : "text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                                        }`}
+                                      >
+                                        <span className="text-base w-6 flex-shrink-0 text-center">{country.flag}</span>
+                                        <span className="flex-1 text-xs font-medium">{country.name}</span>
+                                        {isSelected && <CheckCircle className="w-4 h-4 flex-shrink-0 text-indigo-500" />}
+                                      </button>
+                                    );
+                                  })}
+                                  {ALL_COUNTRIES.filter((c) => {
+                                    const q = countrySearch.toLowerCase();
+                                    return !q || c.name.toLowerCase().includes(q);
+                                  }).length === 0 && (
+                                    <div className="px-4 py-6 text-center text-xs text-slate-400 dark:text-slate-500">
+                                      No countries found for "{countrySearch}"
+                                    </div>
+                                  )}
+                                </div>
+                                {quickCreateData.countries.length > 0 && (
+                                  <div className="p-2 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                                    <span className="text-xs text-slate-500 dark:text-slate-400">{quickCreateData.countries.length} selected</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setQuickCreateData((prev) => ({ ...prev, countries: [], languages: prev.languages.filter((l) => l === "multilingual") }))}
+                                      className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 transition-colors"
+                                    >Clear all</button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* ── Language Selection ── */}
                         <div>
                           <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                             Language <span className="text-red-500">*</span>
+                            {quickCreateData.countries.length > 0 && !quickCreateData.languages.includes("multilingual") && (
+                              <span className="ml-1 text-[10px] text-blue-500 dark:text-blue-400 font-normal">
+                                — showing languages for selected countries
+                              </span>
+                            )}
                           </label>
-                          <select
-                            value={quickCreateData.language}
-                            onChange={(e) => {
-                              const newLang = e.target.value;
-                              const isNewLangMultilingual = !englishOnlyLanguages.includes(newLang);
-                              const gender = quickCreateData.gender as 'female' | 'male';
-                              const currentVoice = quickCreateData.voice;
 
-                              // If switching to a multilingual language, check if current voice is supported
-                              let newVoice = currentVoice;
-                              if (isNewLangMultilingual && !multilingualVoices[gender].includes(currentVoice)) {
-                                // Auto-select the first multilingual voice for this gender
-                                newVoice = multilingualVoices[gender][0];
-                              }
+                          {/* Multi-select language dropdown */}
+                          <div className="relative" ref={langDropdownRef}>
+                            {/* Backdrop to close on outside click */}
+                            {langDropdownOpen && (
+                              <div
+                                className="fixed inset-0 z-40"
+                                onClick={() => {
+                                  setLangDropdownOpen(false);
+                                  setLangSearch("");
+                                }}
+                                aria-hidden="true"
+                              />
+                            )}
 
-                              setQuickCreateData((prev) => ({
-                                ...prev,
-                                language: newLang,
-                                voice: newVoice,
-                              }));
-                            }}
-                            className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm sm:text-base text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all"
-                          >
-                            <option value="multilingual">🌐 Multilingual</option>
-                            <option value="en-US">🇺🇸 English (US)</option>
-                            <option value="en-GB">🇬🇧 English (UK)</option>
-                            <option value="en-IN">🇮🇳 English (India)</option>
-                            <option value="es">🇪🇸 Spanish</option>
-                            <option value="fr">🇫🇷 French</option>
-                            <option value="de">🇩🇪 German</option>
-                            <option value="it">🇮🇹 Italian</option>
-                            <option value="pt">🇵🇹 Portuguese</option>
-                            <option value="nl">🇳🇱 Dutch</option>
-                            <option value="pl">🇵🇱 Polish</option>
-                            <option value="ru">🇷🇺 Russian</option>
-                            <option value="ja">🇯🇵 Japanese</option>
-                            <option value="ko">🇰🇷 Korean</option>
-                            <option value="zh">🇨🇳 Chinese</option>
-                            <option value="ar">🇸🇦 Arabic</option>
-                            <option value="hi">🇮🇳 Hindi</option>
-                            <option value="tr">🇹🇷 Turkish</option>
-                          </select>
+                            {/* Trigger button */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setLangDropdownOpen((prev) => !prev);
+                                setLangSearch("");
+                              }}
+                              className="w-full px-3 sm:px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-left text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all flex items-center justify-between gap-2 min-h-[46px]"
+                            >
+                              <div className="flex flex-wrap gap-1 flex-1 min-w-0">
+                                {quickCreateData.languages.filter((l) => l !== "multilingual").length === 0 ? (
+                                  <span className="text-slate-400 dark:text-slate-500 text-sm">
+                                    Select languages...
+                                  </span>
+                                ) : (
+                                  <>
+                                    {quickCreateData.languages.filter((l) => l !== "multilingual").slice(0, 3).map((langVal) => {
+                                      const langObj = ALL_LANGUAGES.find((l) => l.value === langVal);
+                                      return (
+                                        <span
+                                          key={langVal}
+                                          className="inline-flex items-center gap-1 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs rounded-full px-2 py-0.5"
+                                        >
+                                          <span>{langObj?.flag}</span>
+                                          <span className="truncate max-w-[80px]">
+                                            {langObj?.label.split(" (")[0]}
+                                          </span>
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setQuickCreateData((prev) => ({
+                                                ...prev,
+                                                languages: prev.languages.filter((l) => l !== langVal),
+                                              }));
+                                            }}
+                                            className="ml-0.5 hover:text-blue-900 dark:hover:text-blue-100 leading-none"
+                                            aria-label={`Remove language`}
+                                          >
+                                            ×
+                                          </button>
+                                        </span>
+                                      );
+                                    })}
+                                    {quickCreateData.languages.filter((l) => l !== "multilingual").length > 3 && (
+                                      <span className="inline-flex items-center bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs rounded-full px-2 py-0.5">
+                                        +{quickCreateData.languages.filter((l) => l !== "multilingual").length - 3} more
+                                      </span>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                              <ChevronDown
+                                className={`w-4 h-4 flex-shrink-0 text-slate-400 transition-transform ${langDropdownOpen ? "rotate-180" : ""}`}
+                              />
+                            </button>
+
+                            {/* Dropdown panel */}
+                            {langDropdownOpen && (() => {
+                              // Determine which languages to show
+                              const selectedCountries = quickCreateData.countries;
+                              const filteredLangs = selectedCountries.length === 0
+                                ? ALL_LANGUAGES
+                                : ALL_LANGUAGES.filter((l) => l.countryCodes.some((cc) => selectedCountries.includes(cc)));
+                              const displayLangs = filteredLangs.filter((lang) => {
+                                const q = langSearch.toLowerCase();
+                                return !q || lang.label.toLowerCase().includes(q);
+                              });
+                              return (
+                                <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl overflow-hidden">
+                                  {/* Search */}
+                                  <div className="p-2 border-b border-slate-100 dark:border-slate-700 flex items-center gap-2">
+                                    <div className="relative flex-1">
+                                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                                      <input
+                                        type="text"
+                                        value={langSearch}
+                                        onChange={(e) => setLangSearch(e.target.value)}
+                                        placeholder="Search languages..."
+                                        className="w-full pl-8 pr-3 py-2 text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                                      />
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => { setLangDropdownOpen(false); setLangSearch(""); }}
+                                      className="flex-shrink-0 p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                                      aria-label="Close language dropdown"
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </button>
+                                  </div>
+
+                                  {/* Language list */}
+                                  <div className="overflow-y-auto max-h-52">
+                                    {displayLangs.map((lang) => {
+                                      const isSelected = quickCreateData.languages.includes(lang.value);
+                                      return (
+                                        <button
+                                          key={lang.value}
+                                          type="button"
+                                          onClick={() => {
+                                            const newLangs = isSelected
+                                              ? quickCreateData.languages.filter((l) => l !== lang.value)
+                                              : [...quickCreateData.languages, lang.value];
+
+                                            // Auto-adjust voice if non-English language selected
+                                            const needsMultilingual = newLangs.some(
+                                              (l) => !englishOnlyLanguages.includes(l) && l !== "multilingual"
+                                            );
+                                            const gender = quickCreateData.gender as "female" | "male";
+                                            let newVoice = quickCreateData.voice;
+                                            if (
+                                              needsMultilingual &&
+                                              !multilingualVoices[gender].includes(newVoice)
+                                            ) {
+                                              newVoice = multilingualVoices[gender][0];
+                                            }
+
+                                            setQuickCreateData((prev) => ({
+                                              ...prev,
+                                              languages: newLangs,
+                                              voice: newVoice,
+                                            }));
+                                          }}
+                                          className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${
+                                            isSelected
+                                              ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
+                                              : "text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                                          }`}
+                                        >
+                                          <span className="text-base w-6 flex-shrink-0 text-center">
+                                            {lang.flag}
+                                          </span>
+                                          <div className="flex-1 min-w-0">
+                                            <div className="text-xs font-medium leading-tight">
+                                              {lang.label}
+                                            </div>
+                                          </div>
+                                          {isSelected && (
+                                            <CheckCircle className="w-4 h-4 flex-shrink-0 text-blue-500" />
+                                          )}
+                                        </button>
+                                      );
+                                    })}
+                                    {displayLangs.length === 0 && (
+                                      <div className="px-4 py-6 text-center text-xs text-slate-400 dark:text-slate-500">
+                                        {langSearch
+                                          ? `No languages found for "${langSearch}"`
+                                          : "No languages available for the selected countries"}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Footer */}
+                                  {quickCreateData.languages.filter((l) => l !== "multilingual").length > 0 && (
+                                    <div className="p-2 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                                      <span className="text-xs text-slate-500 dark:text-slate-400">
+                                        {quickCreateData.languages.filter((l) => l !== "multilingual").length} selected
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setQuickCreateData((prev) => ({
+                                            ...prev,
+                                            languages: prev.languages.filter((l) => l === "multilingual"),
+                                          }))
+                                        }
+                                        className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 transition-colors"
+                                      >
+                                        Clear all
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </div>
                         </div>
 
-                        {/* Voice Selection */}
+                        {/* Voice Selection — Language Voice */}
                         <div>
                           <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                            Voice Type <span className="text-red-500">*</span>
+                            Voice <span className="text-red-500">*</span>
+                            <span className="ml-1 text-[10px] text-slate-400 font-normal">— for selected languages</span>
                           </label>
                           <div className="flex gap-2">
                             <select
@@ -4016,12 +4684,12 @@ const AgentManagement = () => {
                                   voice: e.target.value,
                                 }))
                               }
+                              onFocus={() => setVoiceSelectOpen(true)}
+                              onBlur={() => setVoiceSelectOpen(false)}
                               className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm sm:text-base text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all"
                             >
-                              {getFilteredVoiceOptions(quickCreateData.gender as 'female' | 'male').map((voice) => (
-                                <option key={voice.value} value={voice.value}>
-                                  {voice.label}
-                                </option>
+                              {getFilteredVoiceOptions(quickCreateData.gender as 'female' | 'male').map(v => (
+                                <option key={v.value} value={v.value}>{v.label}</option>
                               ))}
                             </select>
                             <button
@@ -4956,7 +5624,7 @@ const AgentManagement = () => {
                                   {/* Subtle Hint Text */}
                                   <p className="text-xs text-slate-500 dark:text-slate-500 animate-pulse">
                                     Hang tight, we're building your AI Employee in 
-                                    <span className="font-semibold text-purple-600 dark:text-purple-400"> 5 simple steps</span>
+                                    <span className="font-semibold text-purple-600 dark:text-purple-400"> 7 simple steps</span>
                                   </p>
                                 </div>
                               </div>
@@ -5282,29 +5950,12 @@ const AgentManagement = () => {
                     )}
 
                     <div className="flex items-center gap-1.5 sm:gap-2">
-                      {quickCreateStep === 7 && (
-                        <button
-                          onClick={() => {
-                            handleQuickCreateClose();
-                            navigate(`/agents/create`, {
-                              state: {
-                                quickCreateData: quickCreateData,
-                              },
-                            });
-                          }}
-                          className="hidden sm:flex items-center gap-2 px-4 py-2.5 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
-                        >
-                          <SkipForward className="w-4 h-4" />
-                          Skip & Configure Manually
-                        </button>
-                      )}
-
                       {quickCreateStep < 7 ? (
                         <button
                           onClick={handleQuickCreateNext}
-                          disabled={!canProceedToNextStep()}
+                          disabled={!canProceedToNextStep() || (quickCreateStep === 2 && (countryDropdownOpen || langDropdownOpen))}
                           className={`flex items-center gap-1.5 sm:gap-2 px-4 sm:px-6 py-2 sm:py-2.5 rounded-xl font-medium transition-all text-sm sm:text-base ${
-                            canProceedToNextStep()
+                            canProceedToNextStep() && !(quickCreateStep === 2 && (countryDropdownOpen || langDropdownOpen))
                               ? "common-button-bg hover:scale-[1.02] active:scale-[0.98]"
                               : "bg-slate-200 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed"
                           }`}
@@ -5362,23 +6013,6 @@ const AgentManagement = () => {
                   </div>
                   )} {/* end isCreatingAgent ternary */}
 
-                  {/* Mobile Skip Button for Step 7 */}
-                  {!isCreatingAgent && quickCreateStep === 7 && (
-                    <button
-                      onClick={() => {
-                        handleQuickCreateClose();
-                        navigate(`/agents/create`, {
-                          state: {
-                            quickCreateData: quickCreateData,
-                          },
-                        });
-                      }}
-                      className="sm:hidden w-full mt-2 flex items-center justify-center gap-2 py-2 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
-                    >
-                      <SkipForward className="w-3.5 h-3.5" />
-                      Skip & Configure Manually
-                    </button>
-                  )}
                 </div>
               </div>
             </div>,
@@ -5575,7 +6209,9 @@ const AgentManagement = () => {
                           <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                             <p className="text-xs text-blue-500 dark:text-blue-400 mb-1 font-medium">Language</p>
                             <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                              {quickCreateData.language || "en-US"}
+                              {quickCreateData.languages.length > 0
+                                ? quickCreateData.languages.map((l) => ALL_LANGUAGES.find((al) => al.value === l)?.label || l).join(", ")
+                                : "en-US"}
                             </p>
                           </div>
                           {aiTemplate && (
@@ -6137,1087 +6773,9 @@ const AgentManagement = () => {
     );
   }
 
-  if (isView && currentAgent) {
-    return (
-      <div className="space-y-3 sm:space-y-4 lg:space-y-6 w-full">
-        <GlassCard>
-          <div className="p-3 sm:p-4 md:p-6">
-            {/* Mobile: Stacked layout */}
-            <div className="flex flex-col gap-3 sm:hidden mb-4">
-              {/* Top row: Back button + Agent info */}
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => navigate("/agents")}
-                  className="common-button-bg2 p-2 rounded-lg flex-shrink-0 touch-manipulation"
-                >
-                  <ArrowLeft className="w-4 h-4 text-slate-600 dark:text-slate-300" />
-                </button>
 
-                <div className="w-9 h-9 common-bg-icons flex items-center justify-center flex-shrink-0 rounded-lg">
-                  <Bot className="w-4 h-4 text-black dark:text-white" />
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <h1 className="text-sm font-bold text-slate-800 dark:text-white leading-tight truncate">
-                    {currentAgent.name}
-                  </h1>
-                  <span
-                    className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${
-                      currentAgent.status === "Published" ||
-                      (currentAgent as any).is_active
-                        ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
-                        : "bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400"
-                    }`}
-                  >
-                    {currentAgent.status === "Published" ||
-                    (currentAgent as any).is_active
-                      ? "Live"
-                      : "Unpublished"}
-                  </span>
-                </div>
-              </div>
-
-              {/* Action buttons row - Mobile */}
-              <div className="flex items-center gap-2 flex-wrap">
-                {(currentAgent.status === "Published" || (currentAgent as any).is_active) && (
-                <button
-                  onClick={() => setShowQRModal(true)}
-                  className="common-button-bg2 flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg touch-manipulation text-xs font-medium"
-                >
-                  <QrCode className="w-3.5 h-3.5" />
-                  QR
-                </button>
-                )}
-                <button
-                  onClick={() => navigate(`/agents/${currentAgent.id}/edit`)}
-                  className="common-button-bg2 flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg touch-manipulation text-xs font-medium"
-                >
-                  <Edit className="w-3.5 h-3.5" />
-                  Edit
-                </button>
-                
-                {(currentAgent.status === "Published" ||
-                  (currentAgent as any).is_active) && (
-                  <>
-                    <button
-                      onClick={openAgentTestPage}
-                      className="common-button-bg flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg touch-manipulation text-xs font-medium text-white"
-                    >
-                      <Play className="w-3.5 h-3.5" />
-                      Test
-                    </button>
-                    <button
-                      onClick={() => handlePause(currentAgent.id)}
-                      disabled={publishingAgents.has(currentAgent.id)}
-                      className={`common-button-bg2 flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg touch-manipulation text-xs font-medium ${
-                        publishingAgents.has(currentAgent.id)
-                          ? "opacity-50 cursor-not-allowed"
-                          : ""
-                      }`}
-                    >
-                      {publishingAgents.has(currentAgent.id) ? (
-                        <div className="w-3.5 h-3.5 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-                      ) : (
-                        <Pause className="w-3.5 h-3.5" />
-                      )}
-                      {publishingAgents.has(currentAgent.id) ? "..." : "Pause"}
-                    </button>
-                  </>
-                )}
-                
-                {!(currentAgent.status === "Published" || (currentAgent as any).is_active) && (
-                  <button
-                    onClick={() => handlePublish(currentAgent.id)}
-                    disabled={publishingAgents.has(currentAgent.id)}
-                    className={`common-button-bg flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-lg touch-manipulation text-xs font-medium text-white ${
-                      publishingAgents.has(currentAgent.id)
-                        ? "opacity-50 cursor-not-allowed"
-                        : ""
-                    }`}
-                  >
-                    {publishingAgents.has(currentAgent.id) ? (
-                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <Play className="w-3.5 h-3.5" />
-                    )}
-                    {publishingAgents.has(currentAgent.id) ? "..." : "Publish"}
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Tablet/Desktop: Horizontal layout */}
-            <div className="hidden sm:flex items-center justify-between mb-4 md:mb-6">
-              <div className="flex items-center gap-3 min-w-0 flex-1">
-                <button
-                  onClick={() => navigate("/agents")}
-                  className="common-button-bg2 p-2.5 rounded-xl flex-shrink-0 touch-manipulation"
-                >
-                  <ArrowLeft className="w-5 h-5 text-slate-600 dark:text-slate-300" />
-                </button>
-
-                <div className="w-12 h-12 common-bg-icons flex items-center justify-center flex-shrink-0 rounded-xl">
-                  <Bot className="w-6 h-6 text-black dark:text-white" />
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <h1 className="text-xl lg:text-2xl font-bold text-slate-800 dark:text-white leading-tight truncate">
-                    {currentAgent.name}
-                  </h1>
-                  <span
-                    className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium mt-1 ${
-                      currentAgent.status === "Published" ||
-                      (currentAgent as any).is_active
-                        ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
-                        : "bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400"
-                    }`}
-                  >
-                    {currentAgent.status === "Published" ||
-                    (currentAgent as any).is_active
-                      ? "Live"
-                      : "Unpublished"}
-                  </span>
-                </div>
-              </div>
-
-              {/* Action buttons - Tablet/Desktop */}
-              <div className="flex items-center gap-2 flex-shrink-0">
-                {(currentAgent.status === "Published" || (currentAgent as any).is_active) && (
-                <button
-                  onClick={() => setShowQRModal(true)}
-                  className="common-button-bg2 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg touch-manipulation"
-                >
-                  <QrCode className="w-4 h-4" />
-                  <span className="text-sm font-medium">QR</span>
-                </button>
-                )}
-                <button
-                  onClick={() => navigate(`/agents/${currentAgent.id}/edit`)}
-                  className="common-button-bg2 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg touch-manipulation"
-                >
-                  <Edit className="w-4 h-4" />
-                  <span className="text-sm font-medium">Edit</span>
-                </button>
-                
-                {(currentAgent.status === "Published" ||
-                  (currentAgent as any).is_active) && (
-                  <>
-                    <button
-                      onClick={openAgentTestPage}
-                      className="common-button-bg flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg touch-manipulation"
-                    >
-                      <Play className="w-4 h-4" />
-                      <span className="text-sm font-medium text-white">Test</span>
-                    </button>
-                    <button
-                      onClick={() => handlePause(currentAgent.id)}
-                      disabled={publishingAgents.has(currentAgent.id)}
-                      className={`common-button-bg2 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg touch-manipulation ${
-                        publishingAgents.has(currentAgent.id)
-                          ? "opacity-50 cursor-not-allowed"
-                          : ""
-                      }`}
-                    >
-                      {publishingAgents.has(currentAgent.id) ? (
-                        <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-                      ) : (
-                        <Pause className="w-4 h-4" />
-                      )}
-                      <span className="text-sm font-medium">
-                        {publishingAgents.has(currentAgent.id) ? "..." : "Pause"}
-                      </span>
-                    </button>
-                  </>
-                )}
-                
-                {!(currentAgent.status === "Published" || (currentAgent as any).is_active) && (
-                  <button
-                    onClick={() => handlePublish(currentAgent.id)}
-                    disabled={publishingAgents.has(currentAgent.id)}
-                    className={`common-button-bg flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg touch-manipulation ${
-                      publishingAgents.has(currentAgent.id)
-                        ? "opacity-50 cursor-not-allowed"
-                        : ""
-                    }`}
-                  >
-                    {publishingAgents.has(currentAgent.id) ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <Play className="w-4 h-4" />
-                    )}
-                    <span className="text-sm font-medium text-white">
-                      {publishingAgents.has(currentAgent.id) ? "..." : "Publish"}
-                    </span>
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Configuration Grid - Simple & Clean */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
-              <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <Globe className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-600 dark:text-slate-400 flex-shrink-0" />
-                  <span className="text-[10px] sm:text-xs font-medium text-slate-600 dark:text-slate-400">Language</span>
-                </div>
-                <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-white truncate">
-                  {currentAgent.language}
-                </p>
-              </div>
-
-              <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <MessageSquare className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-600 dark:text-slate-400 flex-shrink-0" />
-                  <span className="text-[10px] sm:text-xs font-medium text-slate-600 dark:text-slate-400">Voice</span>
-                </div>
-                <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-white truncate">
-                  {currentAgent.voice}
-                </p>
-              </div>
-
-              <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <Users className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-600 dark:text-slate-400 flex-shrink-0" />
-                  <span className="text-[10px] sm:text-xs font-medium text-slate-600 dark:text-slate-400">Persona</span>
-                </div>
-                <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-white truncate">
-                  {currentAgent.persona}
-                </p>
-              </div>
-
-              <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <Clock className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-600 dark:text-slate-400 flex-shrink-0" />
-                  <span className="text-[10px] sm:text-xs font-medium text-slate-600 dark:text-slate-400">Created</span>
-                </div>
-                <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-white truncate">
-                  {new Date(currentAgent.createdAt).toLocaleDateString()}
-                </p>
-              </div>
-            </div>
-          </div>
-        </GlassCard>
-
-        {/* Performance Overview - Mobile Slider */}
-        <div className="sm:hidden">
-          <div className="flex gap-2 overflow-x-auto pb-2 px-0.5 snap-x snap-mandatory scrollbar-hide -mx-0.5">
-            {/* Conversations Card */}
-            <GlassCard className="flex-shrink-0 w-[calc(50%-4px)] min-w-[120px] max-w-[140px] snap-start">
-              <div className="p-2.5">
-                <div className="flex flex-col items-center gap-0.5">
-                  <div className="w-6 h-6 bg-blue-50 dark:bg-blue-900/20 rounded-md flex items-center justify-center mb-1">
-                    <MessageSquare className="w-3 h-3 text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <p className="text-base font-bold text-slate-800 dark:text-white">
-                    {currentAgent.stats.conversations.toLocaleString()}
-                  </p>
-                  <p className="text-[10px] text-slate-600 dark:text-slate-400 text-center leading-tight">
-                    Conversations
-                  </p>
-                  {currentAgent.stats.conversations > 0 ? (
-                    <span className="text-[10px] font-medium text-green-600 dark:text-green-400">
-                      No data
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-slate-500 dark:text-slate-500">
-                      No data
-                    </span>
-                  )}
-                </div>
-              </div>
-            </GlassCard>
-
-            {/* Success Rate Card */}
-            <GlassCard className="flex-shrink-0 w-[calc(50%-4px)] min-w-[120px] max-w-[140px] snap-start">
-              <div className="p-2.5">
-                <div className="flex flex-col items-center gap-0.5">
-                  <div className="w-6 h-6 bg-green-50 dark:bg-green-900/20 rounded-md flex items-center justify-center mb-1">
-                    <CheckCircle className="w-3 h-3 text-green-600 dark:text-green-400" />
-                  </div>
-                  <p className="text-base font-bold text-slate-800 dark:text-white">
-                    {currentAgent.stats.successRate}%
-                  </p>
-                  <p className="text-[10px] text-slate-600 dark:text-slate-400 text-center leading-tight">
-                    Success Rate
-                  </p>
-                  {currentAgent.stats.successRate > 0 ? (
-                    <span className="text-[10px] font-medium text-green-600 dark:text-green-400">
-                      No data
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-slate-500 dark:text-slate-500">
-                      No data
-                    </span>
-                  )}
-                </div>
-              </div>
-            </GlassCard>
-
-            {/* Avg Response Card */}
-            <GlassCard className="flex-shrink-0 w-[calc(50%-4px)] min-w-[120px] max-w-[140px] snap-start">
-              <div className="p-2.5">
-                <div className="flex flex-col items-center gap-0.5">
-                  <div className="w-6 h-6 bg-purple-50 dark:bg-purple-900/20 rounded-md flex items-center justify-center mb-1">
-                    <Clock className="w-3 h-3 text-purple-600 dark:text-purple-400" />
-                  </div>
-                  <p className="text-base font-bold text-slate-800 dark:text-white">
-                    {currentAgent.stats.avgResponseTime}s
-                  </p>
-                  <p className="text-[10px] text-slate-600 dark:text-slate-400 text-center leading-tight">
-                    Avg Response
-                  </p>
-                  {currentAgent.stats.avgResponseTime > 0 ? (
-                    <span className="text-[10px] font-medium text-green-600 dark:text-green-400">
-                      No data
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-slate-500 dark:text-slate-500">
-                      No data
-                    </span>
-                  )}
-                </div>
-              </div>
-            </GlassCard>
-
-            {/* Active Users Card */}
-            <GlassCard className="flex-shrink-0 w-[calc(50%-4px)] min-w-[120px] max-w-[140px] snap-start">
-              <div className="p-2.5">
-                <div className="flex flex-col items-center gap-0.5">
-                  <div className="w-6 h-6 bg-orange-50 dark:bg-orange-900/20 rounded-md flex items-center justify-center mb-1">
-                    <Users className="w-3 h-3 text-orange-600 dark:text-orange-400" />
-                  </div>
-                  <p className="text-base font-bold text-slate-800 dark:text-white">
-                    {currentAgent.stats.activeUsers}
-                  </p>
-                  <p className="text-[10px] text-slate-600 dark:text-slate-400 text-center leading-tight">
-                    Active Users
-                  </p>
-                  {currentAgent.stats.activeUsers > 0 ? (
-                    <span className="text-[10px] font-medium text-green-600 dark:text-green-400">
-                      No data
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-slate-500 dark:text-slate-500">
-                      No data
-                    </span>
-                  )}
-                </div>
-              </div>
-            </GlassCard>
-          </div>
-        </div>
-
-        {/* Tablet & Desktop Grid View - Compact */}
-        <div className="hidden sm:grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
-          <GlassCard className="hover:shadow-md transition-all duration-200">
-            <div className="p-3 md:p-3.5">
-              <div className="flex items-center justify-between mb-2 gap-2">
-                <div className="w-8 h-8 md:w-10 md:h-10 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <MessageSquare className="w-4 h-4 md:w-5 md:h-5 text-blue-600 dark:text-blue-400" />
-                </div>
-                <div className="text-right min-w-0">
-                  <p className="text-lg md:text-xl font-bold text-slate-800 dark:text-white truncate">
-                    {currentAgent.stats.conversations.toLocaleString()}
-                  </p>
-                  <p className="text-[10px] md:text-xs text-slate-600 dark:text-slate-400">
-                    Conversations
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-1">
-                {currentAgent.stats.conversations > 0 ? (
-                  <span className="text-[10px] md:text-xs text-slate-500 dark:text-slate-500">
-                    No data
-                  </span>
-                ) : (
-                  <span className="text-[10px] md:text-xs text-slate-500 dark:text-slate-500">
-                    No data yet
-                  </span>
-                )}
-              </div>
-            </div>
-          </GlassCard>
-
-          <GlassCard className="hover:shadow-md transition-all duration-200">
-            <div className="p-3 md:p-3.5">
-              <div className="flex items-center justify-between mb-2 gap-2">
-                <div className="w-8 h-8 md:w-10 md:h-10 bg-green-50 dark:bg-green-900/20 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <CheckCircle className="w-4 h-4 md:w-5 md:h-5 text-green-600 dark:text-green-400" />
-                </div>
-                <div className="text-right min-w-0">
-                  <p className="text-lg md:text-xl font-bold text-slate-800 dark:text-white truncate">
-                    {currentAgent.stats.successRate}%
-                  </p>
-                  <p className="text-[10px] md:text-xs text-slate-600 dark:text-slate-400">
-                    Success Rate
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-1">
-                {currentAgent.stats.successRate > 0 ? (
-                  <span className="text-[10px] md:text-xs text-slate-500 dark:text-slate-500">
-                    No data
-                  </span>
-                ) : (
-                  <span className="text-[10px] md:text-xs text-slate-500 dark:text-slate-500">
-                    No data yet
-                  </span>
-                )}
-              </div>
-            </div>
-          </GlassCard>
-
-          <GlassCard className="hover:shadow-md transition-all duration-200">
-            <div className="p-3 md:p-3.5">
-              <div className="flex items-center justify-between mb-2 gap-2">
-                <div className="w-8 h-8 md:w-10 md:h-10 bg-purple-50 dark:bg-purple-900/20 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <Clock className="w-4 h-4 md:w-5 md:h-5 text-purple-600 dark:text-purple-400" />
-                </div>
-                <div className="text-right min-w-0">
-                  <p className="text-lg md:text-xl font-bold text-slate-800 dark:text-white truncate">
-                    {currentAgent.stats.avgResponseTime}s
-                  </p>
-                  <p className="text-[10px] md:text-xs text-slate-600 dark:text-slate-400">
-                    Avg Response
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-1">
-                {currentAgent.stats.avgResponseTime > 0 ? (
-                  <span className="text-[10px] md:text-xs text-slate-500 dark:text-slate-500">
-                    No data
-                  </span>
-                ) : (
-                  <span className="text-[10px] md:text-xs text-slate-500 dark:text-slate-500">
-                    No data yet
-                  </span>
-                )}
-              </div>
-            </div>
-          </GlassCard>
-
-          <GlassCard className="hover:shadow-md transition-all duration-200">
-            <div className="p-3 md:p-3.5">
-              <div className="flex items-center justify-between mb-2 gap-2">
-                <div className="w-8 h-8 md:w-10 md:h-10 bg-orange-50 dark:bg-orange-900/20 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <Users className="w-4 h-4 md:w-5 md:h-5 text-orange-600 dark:text-orange-400" />
-                </div>
-                <div className="text-right min-w-0">
-                  <p className="text-lg md:text-xl font-bold text-slate-800 dark:text-white truncate">
-                    {currentAgent.stats.activeUsers}
-                  </p>
-                  <p className="text-[10px] md:text-xs text-slate-600 dark:text-slate-400">
-                    Active Users
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-1">
-                {currentAgent.stats.activeUsers > 0 ? (
-                  <span className="text-[10px] md:text-xs text-slate-500 dark:text-slate-500">
-                    No data
-                  </span>
-                ) : (
-                  <span className="text-[10px] md:text-xs text-slate-500 dark:text-slate-500">
-                    No data yet
-                  </span>
-                )}
-              </div>
-            </div>
-          </GlassCard>
-        </div>
-
-        {/* Widget Customization Section - Only show when agent is published */}
-        <div className="mt-3 sm:mt-4 lg:mt-6">
-          <AgentWidgetCustomization
-            agentId={currentAgent.id}
-            agentName={currentAgent.name}
-            isPublished={true}
-          />
-        </div>
-
-        {/* Integration Code Section - Only show when agent is published */}
-        {(currentAgent.status === "Published" ||
-          (currentAgent as any).is_active) && (
-          <div className="mt-4 sm:mt-6">
-            <AgentIntegrationCode currentAgent={currentAgent} />
-          </div>
-        )}
-
-        {showQRModal && currentAgent && (
-          <AgentQRModal
-            agent={currentAgent}
-            onClose={() => setShowQRModal(false)}
-          />
-        )}
-
-        {/* Delete Confirmation Modal */}
-        {showDeleteConfirm && (
-          <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-xl border border-slate-200 dark:border-slate-700">
-              <div className="p-6">
-                <div className="flex items-center justify-center w-12 h-12 bg-red-100 dark:bg-red-900/20 rounded-full mx-auto mb-4">
-                  <Trash2 className="w-6 h-6 text-red-600 dark:text-red-400" />
-                </div>
-                <h3 className="text-xl font-semibold text-slate-800 dark:text-white text-center mb-2">
-                  Delete Agent?
-                </h3>
-                <p className="text-sm text-slate-600 dark:text-slate-400 text-center mb-6">
-                  Are you sure you want to delete this agent? This action cannot
-                  be undone and all associated data will be permanently removed.
-                </p>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={handleDeleteCancel}
-                    disabled={isDeleting}
-                    className="flex-1 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleDeleteConfirm}
-                    disabled={isDeleting}
-                    className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  >
-                    {isDeleting ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                        <span>Deleting...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Trash2 className="w-4 h-4" />
-                        <span>Delete</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Quick Actions - Bottom Section */}
-        <div className="mt-4 sm:mt-6">
-          {/* Mobile: Compact Stack */}
-          <div className="lg:hidden">
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => navigate(`/agents/${currentAgent.id}/train`, {
-                  state: { from: "view" },
-                })}
-                className="common-bg-icons hover:shadow-md transition-all duration-200 p-2 rounded-lg touch-manipulation group"
-              >
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
-                    <Lightbulb className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <p className="text-xs font-medium text-slate-800 dark:text-white">
-                    Train
-                  </p>
-                </div>
-              </button>
-
-              <button className="common-bg-icons hover:shadow-md transition-all duration-200 p-2 rounded-lg touch-manipulation group">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 bg-purple-50 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
-                    <Download className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                  </div>
-                  <p className="text-xs font-medium text-slate-800 dark:text-white">
-                    Export
-                  </p>
-                </div>
-              </button>
-            </div>
-          </div>
-
-          {/* Desktop: Horizontal Grid */}
-          <div className="hidden lg:block">
-            <GlassCard>
-              <div className="p-4 lg:p-5">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-8 h-8 bg-slate-50 dark:bg-slate-800 rounded-lg flex items-center justify-center">
-                    <Zap className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                  </div>
-                  <h3 className="text-base font-semibold text-slate-800 dark:text-white">
-                    Quick Actions
-                  </h3>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    onClick={() => navigate(`/agents/${currentAgent.id}/train`, {
-                      state: { from: "list" },
-                    })}
-                    className="common-bg-icons hover:shadow-md transition-all duration-200 p-4 rounded-lg touch-manipulation group"
-                  >
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <Lightbulb className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                      </div>
-                      <div className="text-center">
-                        <p className="text-sm font-semibold text-slate-800 dark:text-white">
-                          Train Agent
-                        </p>
-                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
-                          Improve responses
-                        </p>
-                      </div>
-                    </div>
-                  </button>
-
-               
-
-                
-                  <button className="common-bg-icons hover:shadow-md transition-all duration-200 p-4 rounded-lg touch-manipulation group">
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="w-10 h-10 bg-purple-50 dark:bg-purple-900/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
-                        <Download className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                      </div>
-                      <div className="text-center">
-                        <p className="text-sm font-semibold text-slate-800 dark:text-white">
-                          Export Data
-                        </p>
-                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
-                          Download config
-                        </p>
-                      </div>
-                    </div>
-                  </button>
-                </div>
-              </div>
-            </GlassCard>
-          </div>
-        </div>
-
-        {/* Comprehensive Agent Testing Modal - Only show for published agents */}
-        {showTestChat &&
-          currentAgent &&
-          currentAgent.status === "Published" && (
-            <div 
-              className="fixed inset-0 bg-black/20 z-[60] flex items-center justify-center p-3 sm:p-4 -top-8"
-              onTouchMove={(e) => e.target === e.currentTarget && e.preventDefault()}
-              onClick={(e) => e.target === e.currentTarget && setShowTestChat(false)}
-            >
-              <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl w-full max-w-2xl h-[80vh] max-h-[600px] relative flex flex-col shadow-xl border border-white/20 dark:border-slate-700/50">
-                {/* Minimalist Header */}
-                <div className="flex items-center justify-between p-4 border-b border-slate-200/50 dark:border-slate-700/50">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                      Test {currentAgent.name}
-                    </h3>
-                  </div>
-                  <button
-                    onClick={async () => {
-                      // Cleanup and close
-                      if (room) {
-                        try {
-                          await room.disconnect();
-                        } catch (error) {
-                          console.error("Error disconnecting on close:", error);
-                        }
-                      }
-
-                      setShowTestChat(false);
-                      setIsCallActive(false);
-                      setIsRecording(false);
-                      setConnectionStatus("disconnected");
-                      setStatusMessage("Ready to connect");
-                      if (callTimerInterval) {
-                        clearInterval(callTimerInterval);
-                        setCallTimerInterval(null);
-                      }
-                      setCallDuration(0);
-                      setActiveTestTab("call");
-                    }}
-                    className="w-8 h-8 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
-                  >
-                    <X className="w-4 h-4 text-slate-400" />
-                  </button>
-                </div>
-
-                {/* Minimalist Tab Navigation */}
-                <div className="flex border-b border-slate-200/50 dark:border-slate-700/50">
-                  {[
-                    { id: "call", label: "Voice", icon: Phone },
-                    {
-                      id: "conversation",
-                      label: "Conversation",
-                      icon: MessageSquare,
-                    },
-                  ].map(({ id, label, icon: Icon }) => (
-                    <button
-                      key={id}
-                      onClick={() => setActiveTestTab(id as any)}
-                      className={`flex-1 flex items-center justify-center gap-2 py-3 text-xs font-medium transition-colors ${
-                        activeTestTab === id
-                          ? "text-slate-900 dark:text-white border-b-2 border-slate-900 dark:border-white bg-slate-50/50 dark:bg-slate-800/50"
-                          : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
-                      }`}
-                    >
-                      <Icon className="w-4 h-4" />
-                      <span>{label}</span>
-                    </button>
-                  ))}
-                </div>
-
-                {/* Content Area */}
-                <div className="flex-1 overflow-hidden">
-                  {/* Call Tab */}
-                  {activeTestTab === "call" && (
-                    <div className="h-full flex flex-col items-center justify-center p-6">
-                      {/* Status Indicator */}
-                      <div className="text-center mb-6">
-                        <div
-                          className={`w-20 h-20 rounded-full flex items-center justify-center mb-4 mx-auto transition-all ${
-                            connectionStatus === "connected"
-                              ? "bg-green-100 dark:bg-green-900/20"
-                              : connectionStatus === "connecting"
-                                ? "bg-yellow-100 dark:bg-yellow-900/20 animate-pulse"
-                                : "bg-slate-100 dark:bg-slate-800/50"
-                          }`}
-                        >
-                          <Phone
-                            className={`w-8 h-8 ${
-                              connectionStatus === "connected"
-                                ? "text-green-600 dark:text-green-400"
-                                : connectionStatus === "connecting"
-                                  ? "text-yellow-600 dark:text-yellow-400"
-                                  : "text-slate-400"
-                            }`}
-                          />
-                        </div>
-
-                        <h3 className="text-lg font-medium text-slate-800 dark:text-white mb-1">
-                          {connectionStatus === "connected"
-                            ? "Connected"
-                            : connectionStatus === "connecting"
-                              ? "Connecting..."
-                              : "Ready to Call"}
-                        </h3>
-
-                        <p className="text-sm text-slate-500 dark:text-slate-400">
-                          {statusMessage}
-                        </p>
-
-                        {isCallActive && (
-                          <p className="text-sm font-mono text-slate-600 dark:text-slate-300 mt-2">
-                            {formatCallDuration(callDuration)}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Simple Controls */}
-                      <div className="flex items-center gap-3">
-                        {!isCallActive && !isConnecting ? (
-                          <>
-                            <button
-                              onClick={handleStartCall}
-                              disabled={isTestLoading || isConnecting}
-                              className="flex items-center gap-2 px-6 py-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl hover:bg-slate-800 dark:hover:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
-                            >
-                              <PhoneCall className="w-4 h-4" />
-                              {isConnecting ? "Connecting..." : "Start Call"}
-                            </button>
-
-                            <button
-                              onClick={testConnection}
-                              className="flex items-center gap-2 px-4 py-3 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors text-sm"
-                            >
-                              <Settings className="w-4 h-4" />
-                              Test
-                            </button>
-                          </>
-                        ) : isCallActive ? (
-                          <>
-                            <button
-                              onClick={handleToggleMute}
-                              className={`p-3 rounded-xl transition-colors ${
-                                isMuted
-                                  ? "bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400"
-                                  : "bg-green-100 dark:bg-green-900/20 text-green-600 dark:text-green-400"
-                              }`}
-                              title={isMuted ? "Unmute" : "Mute"}
-                            >
-                              {isMuted ? (
-                                <MicOff className="w-5 h-5" />
-                              ) : (
-                                <Mic className="w-5 h-5" />
-                              )}
-                            </button>
-
-                            <button
-                              onClick={handleEndCall}
-                              className="p-3 bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors"
-                              title="End Call"
-                            >
-                              <Phone className="w-5 h-5" />
-                            </button>
-                          </>
-                        ) : (
-                          <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-sm">
-                            <div className="w-4 h-4 border-2 border-slate-300 dark:border-slate-600 border-t-slate-900 dark:border-t-white rounded-full animate-spin"></div>
-                            <span>Connecting...</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {isCallActive && (
-                        <div className="mt-6 text-center">
-                          <div className="flex items-center justify-center gap-2 text-sm text-slate-500 dark:text-slate-400">
-                            <div
-                              className={`w-2 h-2 rounded-full ${
-                                !isMuted ? "bg-green-500" : "bg-red-500"
-                              }`}
-                            ></div>
-                            {!isMuted ? "Listening" : "Muted"}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Conversation Tab (Combined Transcript + Chat) */}
-                  {activeTestTab === "conversation" && (
-                    <div className="h-full flex flex-col">
-                      <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                        {messages.length === 0 ? (
-                          <div className="text-center py-8">
-                            <MessageSquare className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
-                            <p className="text-sm text-slate-500 dark:text-slate-400">
-                              Start a conversation to see messages
-                            </p>
-                          </div>
-                        ) : (
-                          messages.map((message) => (
-                            <div
-                              key={message.id}
-                              className={`flex mb-4 ${
-                                message.isUser ? "justify-end" : "justify-start"
-                              }`}
-                            >
-                              <div
-                                className={`flex gap-3 max-w-[80%] ${
-                                  message.isUser ? "flex-row-reverse" : ""
-                                }`}
-                              >
-                                <div
-                                  className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                                    message.isUser
-                                      ? "bg-blue-500 text-white"
-                                      : "bg-green-500 text-white"
-                                  }`}
-                                >
-                                  {message.isUser ? (
-                                    <span className="text-sm font-medium">
-                                      U
-                                    </span>
-                                  ) : (
-                                    <span className="text-sm font-medium">
-                                      AI
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="flex flex-col">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                                      {message.isUser ? "You" : "AI Employee"}
-                                    </span>
-                                    <span className="text-xs text-slate-400 dark:text-slate-500">
-                                      {message.timestamp.toLocaleTimeString(
-                                        [],
-                                        { hour: "2-digit", minute: "2-digit" },
-                                      )}
-                                    </span>
-                                    {message.source && (
-                                      <span
-                                        className={`text-xs px-2 py-0.5 rounded-full ${
-                                          message.source === "voice"
-                                            ? "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400"
-                                            : "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
-                                        }`}
-                                      >
-                                        {message.source === "voice"
-                                          ? "🎙️"
-                                          : "💬"}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div
-                                    className={`px-4 py-2 rounded-2xl text-sm ${
-                                      message.isUser
-                                        ? "bg-blue-500 text-white"
-                                        : "bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200"
-                                    }`}
-                                  >
-                                    {message.text}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          ))
-                        )}
-                        {isTestLoading && (
-                          <div className="flex justify-start mb-4">
-                            <div className="flex gap-3 max-w-[80%]">
-                              <div className="w-8 h-8 rounded-full bg-green-500 text-white flex items-center justify-center flex-shrink-0">
-                                <span className="text-sm font-medium">AI</span>
-                              </div>
-                              <div className="flex flex-col">
-                                <div className="px-4 py-2 rounded-2xl bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200">
-                                  <div className="flex items-center gap-1">
-                                    <div className="w-2 h-2 bg-slate-400 rounded-full animate-pulse"></div>
-                                    <div
-                                      className="w-2 h-2 bg-slate-400 rounded-full animate-pulse"
-                                      style={{ animationDelay: "0.1s" }}
-                                    ></div>
-                                    <div
-                                      className="w-2 h-2 bg-slate-400 rounded-full animate-pulse"
-                                      style={{ animationDelay: "0.2s" }}
-                                    ></div>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Chat Input */}
-                      <div className="p-4 border-t border-slate-200/50 dark:border-slate-700/50">
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={testInput}
-                            onChange={(e) => setTestInput(e.target.value)}
-                            onKeyPress={(e) => {
-                              if (e.key === "Enter" && !isTestLoading) {
-                                handleTestSend();
-                              }
-                            }}
-                            placeholder={
-                              connectionStatus === "connected"
-                                ? "Type a message or use voice..."
-                                : "Type a message..."
-                            }
-                            className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800 border-0 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900/10 dark:focus:ring-white/10 text-slate-700 dark:text-slate-300 text-sm placeholder-slate-400 dark:placeholder-slate-500"
-                            disabled={isTestLoading}
-                          />
-                          <button
-                            onClick={handleTestSend}
-                            disabled={!testInput.trim() || isTestLoading}
-                            className="px-3 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-lg hover:bg-slate-800 dark:hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                          >
-                            <Send className="w-4 h-4" />
-                          </button>
-                        </div>
-                        {connectionStatus === "connected" && (
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 text-center">
-                            🔴 Live conversation • Voice and text messages
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-        {/* Publish Confirmation Modal */}
-        {showPublishConfirm && (
-          <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-xl border border-slate-200 dark:border-slate-700">
-              <div className="p-6">
-                <div className="flex items-center justify-center w-12 h-12 bg-blue-100 dark:bg-blue-900/20 rounded-full mx-auto mb-4">
-                  <UploadCloud className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                </div>
-                <h3 className="text-xl font-semibold text-slate-800 dark:text-white text-center mb-2">
-                  Publish Agent?
-                </h3>
-                <p className="text-sm text-slate-600 dark:text-slate-400 text-center mb-6">
-                  Are you sure you want to publish this agent? It will become available to users.
-                </p>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={handlePublishCancel}
-                    disabled={isPublishing}
-                    className="flex-1 h-11 px-4 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handlePublishConfirm}
-                    disabled={isPublishing}
-                    className="flex-1 h-11 px-4 rounded-xl transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 common-button-bg"
-                  >
-                    {isPublishing ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                        <span>Publishing...</span>
-                      </>
-                    ) : (
-                      <>
-                        <UploadCloud className="w-4 h-4" />
-                        <span>Publish</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Pause Confirmation Modal */}
-        {showPauseConfirm && (
-          <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-xl border border-slate-200 dark:border-slate-700">
-              <div className="p-6">
-                <div className="flex items-center justify-center w-12 h-12 bg-amber-100 dark:bg-amber-900/20 rounded-full mx-auto mb-4">
-                  <PauseCircle className="w-6 h-6 text-amber-600 dark:text-amber-400" />
-                </div>
-                <h3 className="text-xl font-semibold text-slate-800 dark:text-white text-center mb-2">
-                  Pause Agent?
-                </h3>
-                <p className="text-sm text-slate-600 dark:text-slate-400 text-center mb-6">
-                  Are you sure you want to pause this agent? It will no longer be available to users.
-                </p>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={handlePauseCancel}
-                    disabled={isPausing}
-                    className="flex-1 h-11 px-4 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handlePauseConfirm}
-                    disabled={isPausing}
-                    className="flex-1 h-11 px-4 rounded-xl transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 common-button-bg2"
-                  >
-                    {isPausing ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-slate-400 dark:border-slate-300 border-t-slate-700 dark:border-t-slate-100"></div>
-                        <span>Pausing...</span>
-                      </>
-                    ) : (
-                      <>
-                        <PauseCircle className="w-4 h-4" />
-                        <span>Pause</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  return isView && isAgentsLoading ? null : <Navigate to="/agents" replace />;
+  // Fallback redirect if no route matched
+  return <Navigate to="/agents" replace />;
 };
 
 export default AgentManagement;

@@ -2,6 +2,7 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Bot, Eye, Edit, Zap, Play, Pause, Copy, Trash2, Globe } from "lucide-react";
 import GlassCard from "../../../components/GlassCard";
+import { formatAgentLanguages } from "../../../lib/utils";
 
 interface Agent {
   id: string;
@@ -76,7 +77,7 @@ const AgentCard: React.FC<AgentCardProps> = ({ agent, onPublish, onPause }) => {
             </span>
             <span className="text-slate-700 dark:text-slate-300 font-medium flex items-center gap-1">
               <Globe className="w-3 h-3" />
-              {agent.language}
+              {formatAgentLanguages((agent as any).language)}
             </span>
           </div>
         </div>

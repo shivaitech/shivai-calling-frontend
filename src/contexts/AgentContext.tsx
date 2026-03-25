@@ -90,7 +90,13 @@ const extractLanguageFromGreeting = (apiAgent: any): string => {
   }
 
   // Fallback to the language field from API
-  return formatSingleLanguage(apiAgent.language || "en");
+  const lang = apiAgent.language;
+  if (Array.isArray(lang)) {
+    if (lang.length > 1) return "Multi-lingual";
+    if (lang.length === 1) return formatSingleLanguage(String(lang[0]));
+    return "English";
+  }
+  return formatSingleLanguage(lang || "en");
 };
 
 // Helper function to format single language display

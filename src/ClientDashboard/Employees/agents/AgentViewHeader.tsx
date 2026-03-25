@@ -1,6 +1,7 @@
 import React from "react";
 import { ArrowLeft, Bot, Edit, QrCode, Play, Pause } from "lucide-react";
 import GlassCard from "../../../components/GlassCard";
+import { formatAgentLanguages } from "../../../lib/utils";
 
 interface Agent {
   id: string;
@@ -72,7 +73,7 @@ const AgentViewHeader: React.FC<AgentViewHeaderProps> = ({
                     {agent.persona}
                   </span>
                   <span className="text-xs sm:text-sm text-slate-600 dark:text-slate-400">
-                    {agent.language}
+                    {formatAgentLanguages((agent as any).language)}
                   </span>
                 </div>
               </div>
