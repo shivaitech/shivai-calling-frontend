@@ -17,7 +17,7 @@ const LanguagePicker: React.FC<LanguagePickerProps> = ({ value, onChange, classN
   const languageGroups = {
     'India': [
       'Hindi', 'Punjabi', 'Tamil', 'Telugu', 'Bengali', 
-      'Marathi', 'Gujarati', 'Kannada', 'Malayalam', 'Odia', 'Urdu'
+      'Marathi', 'Gujarati', 'Kannada', 'Malayalam', 'Odia'
     ],
     'Middle East': ['Arabic', 'Persian', 'Hebrew', 'Turkish'],
     'Europe': ['English (UK)', 'French', 'German', 'Spanish', 'Italian', 'Dutch'],

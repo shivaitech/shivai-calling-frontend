@@ -1166,7 +1166,6 @@ const EditAgent = () => {
     { value: "kn",     label: "Kannada",             flag: "🇮🇳", countryCodes: ["IN"] },
     { value: "ml",     label: "Malayalam",           flag: "🇮🇳", countryCodes: ["IN"] },
     { value: "pa",     label: "Punjabi",             flag: "🇮🇳", countryCodes: ["IN"] },
-    { value: "ur",     label: "Urdu",                flag: "🇵🇰", countryCodes: ["PK", "IN"] },
     { value: "tr",     label: "Turkish",             flag: "🇹🇷", countryCodes: ["TR"] },
     { value: "he",     label: "Hebrew",              flag: "🇮🇱", countryCodes: ["IL"] },
     { value: "sv",     label: "Swedish",             flag: "🇸🇪", countryCodes: ["SE"] },

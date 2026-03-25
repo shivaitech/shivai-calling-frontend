@@ -17,7 +17,7 @@ const LANG_TO_LABEL: Record<string, string> = {
   sk: "Slovak", sl: "Slovenian", lt: "Lithuanian", lv: "Latvian", et: "Estonian",
   el: "Greek", sr: "Serbian", bn: "Bengali", ta: "Tamil", te: "Telugu",
   ml: "Malayalam", kn: "Kannada", mr: "Marathi", gu: "Gujarati", pa: "Punjabi",
-  ur: "Urdu", or: "Odia", as: "Assamese", multilingual: "Multilingual",
+  or: "Odia", as: "Assamese", multilingual: "Multilingual",
 };
 
 export function formatAgentLanguages(lang: string | string[] | undefined | null): string {

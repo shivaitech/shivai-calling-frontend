@@ -78,17 +78,8 @@ const industries = [
     color: "bg-orange-50 hover:bg-orange-100",
     iconColor: "text-orange-600",
   },
-  {
+   {
     id: 9,
-    title: "Custom",
-    description:
-      "Enterprise-ready customizations enabling ShivAI to fit your workflows and deliver outcomes. Schedule a call to explore.",
-    icon: customIcon,
-    color: "bg-gray-50 hover:bg-gray-100",
-    iconColor: "text-gray-600",
-  },
-  {
-    id: 10,
     title: "Government & Public Services",
     description:
       "Assist citizens with enquiries, automate service requests, schedule appointments, and provide multilingual support for public programs, documentation, and compliance processes.",
@@ -96,6 +87,16 @@ const industries = [
     color: "bg-indigo-50 hover:bg-indigo-100",
     iconColor: "text-indigo-600",
   },
+  {
+    id: 10,
+    title: "Custom",
+    description:
+      "Enterprise-ready customizations enabling ShivAI to fit your workflows and deliver outcomes. Schedule a call to explore.",
+    icon: customIcon,
+    color: "bg-gray-50 hover:bg-gray-100",
+    iconColor: "text-gray-600",
+  },
+ 
 ];
 
 export const WhatWeWork = () => {

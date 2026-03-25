@@ -213,7 +213,6 @@ const ALL_LANGUAGES: { value: string; label: string; flag: string; countryCodes:
   { value: "kn",     label: "Kannada",              flag: "🇮🇳", countryCodes: ["IN"] },
   { value: "ml",     label: "Malayalam",            flag: "🇮🇳", countryCodes: ["IN"] },
   { value: "pa",     label: "Punjabi",              flag: "🇮🇳", countryCodes: ["IN"] },
-  { value: "ur",     label: "Urdu",                 flag: "🇵🇰", countryCodes: ["PK", "IN"] },
 ];
 
 // Voice-language affinity map — best Gemini voice per language per gender

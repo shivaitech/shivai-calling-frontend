@@ -1480,7 +1480,7 @@
       // Indian Regional
       "en-in": "Indian English", "hi": "Hindi", "ta": "Tamil", "te": "Telugu",
       "mr": "Marathi", "bn": "Bengali", "gu": "Gujarati", "kn": "Kannada",
-      "ml": "Malayalam", "pa": "Punjabi", "ur": "Urdu",
+      "ml": "Malayalam", "pa": "Punjabi",
     };
 
     function buildOptions(selectEl, langArray) {

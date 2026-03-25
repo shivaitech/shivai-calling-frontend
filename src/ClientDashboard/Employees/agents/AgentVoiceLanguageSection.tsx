@@ -26,7 +26,6 @@ const AgentVoiceLanguageSection: React.FC<AgentVoiceLanguageSectionProps> = ({
     { value: "Kannada", label: "Kannada", group: "India" },
     { value: "Malayalam", label: "Malayalam", group: "India" },
     { value: "Odia", label: "Odia", group: "India" },
-    { value: "Urdu", label: "Urdu", group: "India" },
     { value: "Arabic", label: "Arabic", group: "Middle East" },
     { value: "Persian", label: "Persian", group: "Middle East" },
     { value: "Hebrew", label: "Hebrew", group: "Middle East" },
