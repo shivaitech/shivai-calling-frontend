@@ -51,7 +51,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
 
 
   return (
-    <div className="absolute w-full  top-0 right-0 pl-0 lg:pl-5 h-12 lg:h-20 py-2 lg:py-4 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-700/50 z-30">
+    <div className="absolute w-full top-0 right-0 pl-0 lg:pl-5 h-12 sm:h-16 lg:h-20 py-2 lg:py-4 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-700/50 z-30">
       <div className="flex items-center justify-between h-full px-3 sm:px-4 lg:px-6">
         <div className="flex items-center gap-2 sm:gap-4">
           <button
@@ -68,11 +68,11 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
           </div>
 
           <div className="relative hidden sm:block pl-2">
-            <div className="mb-4 lg:mb-0 px-1">
-              <h1 className="text-sm lg:text-2xl font-bold text-slate-800 dark:text-white break-words max-w-full">
+            <div className="px-1">
+              <h1 className="text-base sm:text-lg lg:text-2xl font-bold text-slate-800 dark:text-white leading-tight">
                 {getCurrentModule()}
               </h1>
-              <p className="hidden lg:block text-sm lg:text-sm text-slate-600 dark:text-slate-400 break-words max-w-full">
+              <p className="hidden lg:block text-sm text-slate-600 dark:text-slate-400 mt-0.5">
                 {(() => {
                   const path = location.pathname;
                   if (path === "/dashboard") return "Here's what's happening with your AI Employees and Customers.";

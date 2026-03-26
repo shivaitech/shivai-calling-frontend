@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import GlassCard from "../../components/GlassCard";
 import { agentAPI } from "../../services/agentAPI";
@@ -158,6 +158,7 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
 }) => {
   const navigate = useNavigate();
   const { id } = useParams();
+  const location = useLocation();
   const [agentData, setAgentData] = useState<any>(null);
 
   // Fetch agent config data using same API as Edit page
@@ -177,6 +178,38 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
 
     fetchAgentConfig();
   }, [id, navigate]);
+
+  // Re-fetch when navigating back from edit page with refreshed flag
+  useEffect(() => {
+    if (!id || !location.state?.refreshed) return;
+    const fetchLatest = async () => {
+      try {
+        const { agent: fetchedAgent } = await agentAPI.getAgentConfig(id);
+        setAgentData(fetchedAgent);
+      } catch {}
+    };
+    fetchLatest();
+    // Clear the flag so it doesn't re-fire on subsequent renders
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [id, location.state?.refreshed, navigate, location.pathname]);
+
+  // Listen for agentUpdated event (e.g. name change from widget customization)
+  useEffect(() => {
+    const handleAgentUpdate = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.agentId && String(detail.agentId) === String(id)) {
+        setAgentData((prev: any) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            ...detail.updatedFields,
+          };
+        });
+      }
+    };
+    window.addEventListener("agentUpdated", handleAgentUpdate);
+    return () => window.removeEventListener("agentUpdated", handleAgentUpdate);
+  }, [id]);
 
   // Use fetched agent data if available, otherwise use prop
   const agent = agentData || currentAgent;

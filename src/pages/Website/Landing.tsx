@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, Suspense, lazy } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import toast from "react-hot-toast";
 import { useAuth } from "../../contexts/AuthContext";
 import AuthModel from "../../components/AuthModel";
 import Hero from "./Hero";
@@ -38,6 +39,7 @@ const Landing: React.FC = () => {
   const {
     login,
     register,
+    completeOnboarding,
     getGoogleAuthUrl,
     isLoading,
     error,
@@ -104,27 +106,16 @@ const Landing: React.FC = () => {
           formData.password,
           formData.confirmPassword
         );
+        completeOnboarding();
+        toast.success("Account created successfully! Welcome aboard.");
+        setShowAuthModal(false);
+        navigate("/dashboard");
       } else {
         const response = await login(formData.email, formData.password);
         setShowAuthModal(false);
-        if (response.codeVerified === false || response.user?.isOnboarded) {
-          localStorage.setItem("auth_tokens", JSON.stringify(response.tokens));
-          localStorage.setItem("auth_user", JSON.stringify(response.user));
-          navigate("/dashboard");
-        } else if (
-          response.user?.isOnboarded === false ||
-          response.codeVerified
-        ) {
-          localStorage.setItem(
-            "pending_auth_tokens",
-            JSON.stringify(response.tokens)
-          );
-          localStorage.setItem(
-            "pending_auth_user",
-            JSON.stringify(response.user)
-          );
-          navigate("/onboarding", { state: response?.onboarding });
-        }
+        localStorage.setItem("auth_tokens", JSON.stringify(response.tokens));
+        localStorage.setItem("auth_user", JSON.stringify(response.user));
+        navigate("/dashboard");
       }
     } catch (error: any) {
       if (error.response?.status === 422 && error.response?.data?.errors) {
@@ -139,11 +130,6 @@ const Landing: React.FC = () => {
       }
       throw error;
     }
-  };
-
-  const handleSignupSuccess = () => {
-    setShowAuthModal(false);
-    navigate("/onboarding");
   };
 
   const handleSocialAuth = async (provider: string) => {
@@ -228,7 +214,6 @@ const Landing: React.FC = () => {
           setShowPassword={setShowPassword}
           isLoading={isLoading}
           fieldErrors={fieldErrors}
-          onSignupSuccess={handleSignupSuccess}
         />
       )}
     </div>

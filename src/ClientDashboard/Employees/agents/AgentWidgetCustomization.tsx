@@ -384,7 +384,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                 welcomeMessage:
                   widget.welcome_message ||
                   `Hi! I'm ${agentName}. How can I help you today?`,
-                companyName: widget.ai_employee_name || agentName,
+                companyName: agentName || widget.ai_employee_name,
                 companyDescription:
                   widget.ai_employee_description ||
                   "AI-Powered Support - We offer 24/7 voice support to handle your business calls effieciently and professionally.",

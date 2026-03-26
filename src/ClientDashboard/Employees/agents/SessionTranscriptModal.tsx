@@ -846,84 +846,169 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
                       </div>
                     )}
 
-                    {/* Lead Contact Information */}
-                    {lead.leadData && (
-                      <div>
-                        <p className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">Lead Information</p>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {lead.leadData.name && (
-                            <div className="flex items-start gap-2">
-                              <Users className="w-4 h-4 text-slate-500 dark:text-slate-400 mt-0.5 flex-shrink-0" />
-                              <div className="min-w-0">
-                                <p className="text-xs text-slate-500 dark:text-slate-400">Name</p>
-                                <p className="text-sm font-medium text-slate-800 dark:text-white truncate">{lead.leadData.name}</p>
-                              </div>
-                            </div>
-                          )}
-                          
-                          {lead.leadData.email && (
-                            <div className="flex items-start gap-2">
-                              <Mail className="w-4 h-4 text-slate-500 dark:text-slate-400 mt-0.5 flex-shrink-0" />
-                              <div className="min-w-0">
-                                <p className="text-xs text-slate-500 dark:text-slate-400">Email</p>
-                                <p className="text-sm font-medium text-slate-800 dark:text-white truncate">{lead.leadData.email}</p>
-                              </div>
-                            </div>
-                          )}
-                          
-                          {lead.leadData.phone && (
-                            <div className="flex items-start gap-2">
-                              <Phone className="w-4 h-4 text-slate-500 dark:text-slate-400 mt-0.5 flex-shrink-0" />
-                              <div className="min-w-0">
-                                <p className="text-xs text-slate-500 dark:text-slate-400">Phone</p>
-                                <p className="text-sm font-medium text-slate-800 dark:text-white">{lead.leadData.phone}</p>
-                              </div>
-                            </div>
-                          )}
+                    {/* Lead Information — fully dynamic, works for any industry */}
+                    {lead.leadData && Object.keys(lead.leadData).length > 0 && (() => {
+                      const formatLabel = (key: string) =>
+                        key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').trim().replace(/^\w/, c => c.toUpperCase());
 
-                          {lead.leadData.status && (
-                            <div className="flex items-start gap-2">
-                              <TrendingUp className="w-4 h-4 text-slate-500 dark:text-slate-400 mt-0.5 flex-shrink-0" />
-                              <div>
-                                <p className="text-xs text-slate-500 dark:text-slate-400">Status</p>
-                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                                  lead.leadData.status === 'qualified' 
-                                    ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400'
-                                    : lead.leadData.status === 'interested'
-                                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
-                                    : lead.leadData.status === 'new'
-                                    ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/20 dark:text-purple-400'
-                                    : 'bg-slate-100 text-slate-700 dark:bg-slate-900/20 dark:text-slate-400'
-                                }`}>
-                                  {lead.leadData.status === 'qualified' && <CheckCircle className="w-3 h-3" />}
-                                  {lead.leadData.status}
+                      const iconForKey = (key: string) => {
+                        const k = key.toLowerCase();
+                        if (k.includes('email')) return Mail;
+                        if (k.includes('phone') || k.includes('mobile') || k.includes('contact') || k.includes('number')) return Phone;
+                        if (k.includes('date') || k.includes('travel') || k.includes('schedule')) return Calendar;
+                        if (k.includes('time') || k.includes('duration') || k.includes('hour')) return Clock;
+                        if (k.includes('status') || k.includes('stage') || k.includes('priority')) return TrendingUp;
+                        if (k.includes('name') || k.includes('person') || k.includes('group') || k.includes('size') || k.includes('count') || k.includes('people')) return Users;
+                        return FileText;
+                      };
+
+                      const statusColors: Record<string, string> = {
+                        qualified: 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400 border border-green-200 dark:border-green-800',
+                        interested: 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400 border border-blue-200 dark:border-blue-800',
+                        new: 'bg-purple-100 text-purple-700 dark:bg-purple-900/20 dark:text-purple-400 border border-purple-200 dark:border-purple-800',
+                        hot: 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400 border border-red-200 dark:border-red-800',
+                        warm: 'bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400 border border-orange-200 dark:border-orange-800',
+                        cold: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700',
+                      };
+
+                      // Render a single scalar value
+                      const renderScalar = (v: any): React.ReactNode => {
+                        if (v === null || v === undefined || v === '') return null;
+                        if (typeof v === 'boolean') {
+                          return (
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${v ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
+                              {v ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                              {v ? 'Yes' : 'No'}
+                            </span>
+                          );
+                        }
+                        const str = String(v);
+                        if (statusColors[str.toLowerCase()]) {
+                          return (
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${statusColors[str.toLowerCase()]}`}>
+                              {str.toLowerCase() === 'qualified' && <CheckCircle className="w-3 h-3" />}
+                              {str}
+                            </span>
+                          );
+                        }
+                        return <span className="text-sm font-medium text-slate-800 dark:text-white">{str}</span>;
+                      };
+
+                      // Render an object as a mini card with key-value rows
+                      const renderObjectCard = (obj: Record<string, any>, index: number) => {
+                        const objEntries = Object.entries(obj).filter(([, v]) => v !== null && v !== undefined && v !== '' && v !== false);
+                        if (objEntries.length === 0) return null;
+                        return (
+                          <div key={index} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg p-2.5 space-y-1.5">
+                            {objEntries.map(([k, v]) => (
+                              <div key={k} className="flex items-start justify-between gap-2">
+                                <span className="text-xs text-slate-500 dark:text-slate-400 shrink-0">{formatLabel(k)}</span>
+                                <span className="text-xs font-medium text-slate-800 dark:text-white text-right">{typeof v === 'boolean' ? (v ? '✓ Yes' : '✗ No') : String(v)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      };
+
+                      // Main value renderer
+                      const renderValue = (value: any): React.ReactNode => {
+                        if (value === null || value === undefined || value === '') return null;
+
+                        // Array
+                        if (Array.isArray(value)) {
+                          if (value.length === 0) return null;
+                          const hasObjects = value.some(i => typeof i === 'object' && i !== null);
+                          if (hasObjects) {
+                            // Array of objects → mini cards (full width)
+                            return (
+                              <div className="space-y-2 mt-1">
+                                {value.map((item, i) =>
+                                  typeof item === 'object' && item !== null
+                                    ? renderObjectCard(item, i)
+                                    : <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300">{String(item)}</span>
+                                )}
+                              </div>
+                            );
+                          }
+                          // Array of scalars → pill tags
+                          return (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {value.map((item, i) => (
+                                <span key={i} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800">
+                                  {String(item)}
                                 </span>
-                              </div>
+                              ))}
+                            </div>
+                          );
+                        }
+
+                        // Plain object → key-value mini card
+                        if (typeof value === 'object') {
+                          return <div className="mt-1">{renderObjectCard(value, 0)}</div>;
+                        }
+
+                        // Scalar
+                        return renderScalar(value);
+                      };
+
+                      const entries = Object.entries(lead.leadData).filter(([, v]) => {
+                        if (v === null || v === undefined || v === '') return false;
+                        if (typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0) return false;
+                        if (Array.isArray(v) && v.length === 0) return false;
+                        return true;
+                      });
+
+                      if (entries.length === 0) return null;
+
+                      // Separate simple scalars from complex (array/object) fields
+                      const simpleEntries = entries.filter(([, v]) => !Array.isArray(v) && typeof v !== 'object');
+                      const complexEntries = entries.filter(([, v]) => Array.isArray(v) || (typeof v === 'object' && v !== null));
+
+                      return (
+                        <div className="mt-1">
+                          <div className="flex items-center gap-2 mb-3">
+                            <div className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+                              <Users className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                            </div>
+                            <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Lead Information</p>
+                          </div>
+
+                          {/* Simple fields grid */}
+                          {simpleEntries.length > 0 && (
+                            <div className="grid grid-cols-2 gap-2 mb-3">
+                              {simpleEntries.map(([key, value]) => {
+                                const Icon = iconForKey(key);
+                                const label = formatLabel(key);
+                                const rendered = renderValue(value);
+                                if (!rendered) return null;
+                                return (
+                                  <div key={key} className="bg-slate-50 dark:bg-slate-800/60 rounded-lg p-2.5 border border-slate-100 dark:border-slate-700">
+                                    <div className="flex items-center gap-1.5 mb-1">
+                                      <Icon className="w-3 h-3 text-slate-400 dark:text-slate-500 flex-shrink-0" />
+                                      <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate">{label}</p>
+                                    </div>
+                                    <div className="pl-0.5">{rendered}</div>
+                                  </div>
+                                );
+                              })}
                             </div>
                           )}
 
-                          {lead.leadData.group_size && (
-                            <div className="flex items-start gap-2">
-                              <Users className="w-4 h-4 text-slate-500 dark:text-slate-400 mt-0.5 flex-shrink-0" />
-                              <div>
-                                <p className="text-xs text-slate-500 dark:text-slate-400">Group Size</p>
-                                <p className="text-sm font-medium text-slate-800 dark:text-white">{lead.leadData.group_size}</p>
+                          {/* Complex fields (arrays / nested objects) — full width */}
+                          {complexEntries.map(([key, value]) => {
+                            const label = formatLabel(key);
+                            const rendered = renderValue(value);
+                            if (!rendered) return null;
+                            return (
+                              <div key={key} className="mb-2 bg-slate-50 dark:bg-slate-800/60 rounded-lg p-3 border border-slate-100 dark:border-slate-700">
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mb-1.5">{label}</p>
+                                {rendered}
                               </div>
-                            </div>
-                          )}
-
-                          {lead.leadData.dates && (
-                            <div className="flex items-start gap-2">
-                              <Calendar className="w-4 h-4 text-slate-500 dark:text-slate-400 mt-0.5 flex-shrink-0" />
-                              <div>
-                                <p className="text-xs text-slate-500 dark:text-slate-400">Travel Dates</p>
-                                <p className="text-sm font-medium text-slate-800 dark:text-white">{lead.leadData.dates}</p>
-                              </div>
-                            </div>
-                          )}
+                            );
+                          })}
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 ))}
               </div>

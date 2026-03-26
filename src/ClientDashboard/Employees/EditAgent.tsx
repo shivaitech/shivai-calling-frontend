@@ -1786,6 +1786,8 @@ const EditAgent = () => {
         setIsDirty(false);
         // Refresh the agents list in context so view page shows updated data immediately
         await refreshAgents();
+        // Navigate back to view page and signal a refresh
+        navigate(`/agents/${currentAgent.id}`, { state: { refreshed: true } });
       } catch (error) {
         appToast.dismiss(loadingToast);
         appToast.error("Failed to update agent. Please try again.");

@@ -130,9 +130,10 @@
         const widget = window.SHIVAI_WIDGET_CONFIG;
         
         // Map API response fields to component structure
-        if (widget.ai_employee_name) {
-          companyName = widget.ai_employee_name;
-          console.log("🏢 Using ai_employee_name from API widget config:", companyName);
+        // Prefer top-level agent name (_agent_name) over widget.ai_employee_name
+        if (widget._agent_name || widget.ai_employee_name) {
+          companyName = widget._agent_name || widget.ai_employee_name;
+          console.log("🏢 Using agent name from API config:", companyName);
         }
         
         if (widget.ai_employee_description) {
@@ -411,6 +412,10 @@
         // ✅ Extract and set widget configuration from API response
         if (agentRes?.widget) {
           window.SHIVAI_WIDGET_CONFIG = agentRes.widget;
+          // Also store the top-level agent name so it takes priority over ai_employee_name
+          if (agentRes.name) {
+            window.SHIVAI_WIDGET_CONFIG._agent_name = agentRes.name;
+          }
           console.log('📦 Widget configuration set from API:', window.SHIVAI_WIDGET_CONFIG);
           console.log('🎨 Available widget properties:');
           console.log('  - ai_employee_name:', agentRes.widget.ai_employee_name);
@@ -1516,7 +1521,7 @@
       </svg>
       </button>
       <div class="call-info">
-      <div class="call-info-name text-2xl">${callCompanyInfo.agentName}</div>p
+      <div class="call-info-name text-2xl">${callCompanyInfo.agentName}</div>
       <div class="call-info-status" id="shivai-status">
       <span class="status-text ">Online</span>
       </div>
@@ -4927,17 +4932,6 @@
       // Room disconnected
       room.on(LivekitClient.RoomEvent.Disconnected, (reason) => {
         console.log("Disconnected from LiveKit room", reason);
-
-        // Stop connecting sound on disconnect
-        stopConnectingSound();
-
-        if (isConnected) {
-          updateStatus(
-            "❌ Connection lost - Please start new call",
-            "disconnected"
-          );
-          alert("Connection lost. Please start a new call.");
-        }
         stopConversation();
       });
 
@@ -4969,6 +4963,28 @@
             const decoder = new TextDecoder();
             const text = decoder.decode(payload);
             console.log("📝 Raw decoded text:", text);
+
+            // ── EARLIEST POSSIBLE: handle call_ended before ANY other processing ──
+            try {
+              const _quick = JSON.parse(text);
+              if (_quick && _quick.type === "call_ended") {
+                console.log("📵 [EARLY] call_ended received:", _quick.reason);
+                isConnected = false; // prevent alert in Disconnected handler
+                // Show immediate feedback while cleanup runs
+                updateStatus("Ending call...", "disconnected");
+                if (connectBtn) {
+                  connectBtn.disabled = true;
+                  connectBtn.style.opacity = "0.5";
+                }
+                stopConversation().finally(() => {
+                  if (connectBtn) {
+                    connectBtn.disabled = false;
+                    connectBtn.style.opacity = "";
+                  }
+                });
+                return;
+              }
+            } catch (_parseErr) { /* not JSON or no type field, continue normal processing */ }
 
             // SUPER AGGRESSIVE - capture ANY text that might be a transcript
             if (text && text.trim().length > 0) {
@@ -5004,6 +5020,12 @@
               try {
                 const jsonData = JSON.parse(text);
                 console.log("📋 Parsed JSON data:", jsonData);
+
+                // ── PRIORITY: handle call_ended IMMEDIATELY before any other logic ──
+                // call_ended is already handled above (early check), skip here
+                if (jsonData.type === "call_ended") {
+                  return;
+                }
 
                 // Look for ANY text field that might contain transcript
                 const possibleTextFields = [
@@ -5461,9 +5483,13 @@
 
     // Disconnect LiveKit room
     if (room) {
-      await room.disconnect();
+      try {
+        await room.disconnect();
+        console.log("🔴 LiveKit room disconnected");
+      } catch (_e) {
+        console.warn("Room already disconnected:", _e);
+      }
       room = null;
-      console.log("🔴 LiveKit room disconnected");
     }
 
     localAudioTrack = null;

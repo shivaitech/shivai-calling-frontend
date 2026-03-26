@@ -34,7 +34,6 @@ const OrbFallback = lazy(() =>
 );
 
 const Landing = lazy(() => import("./pages/Website/Landing"));
-const Onboarding = lazy(() => import("./pages/Website/Onboarding"));
 const Sidebar = lazy(() => import("./components/Sidebar"));
 const TopBar = lazy(() => import("./components/TopBar"));
 const Overview = lazy(() => import("./ClientDashboard/Dashboard/Overview"));
@@ -69,14 +68,12 @@ function AppContent() {
     location.pathname === "/landing" || location.pathname === "/";
   const isAuthCallback = location.pathname === "/auth/google/callback";
   const isResetPassword = location.pathname.startsWith("/reset-password");
-  const isOnboarding =
-    location.pathname === "/onboarding" || location.pathname === "/onBoarding";
   const isAgentPublicPage = location.pathname.startsWith("/MyAIEmployee");
   const [collapsed, setCollapsed] = useState(false);
 
   return (
     <div className="min-h-screen">
-      {isLandingPage || isAuthCallback || isResetPassword || isOnboarding || isAgentPublicPage ? (
+      {isLandingPage || isAuthCallback || isResetPassword || isAgentPublicPage ? (
         <Suspense fallback={<LoadingFallback />}>
           <Routes>
             <Route
@@ -92,22 +89,6 @@ function AppContent() {
               element={
                 <PublicRoute>
                   <Landing />
-                </PublicRoute>
-              }
-            />
-            <Route
-              path="/onboarding"
-              element={
-                <PublicRoute>
-                  <Onboarding />
-                </PublicRoute>
-              }
-            />
-            <Route
-              path="/onBoarding"
-              element={
-                <PublicRoute>
-                  <Onboarding />
                 </PublicRoute>
               }
             />
@@ -158,7 +139,7 @@ function AppContent() {
                   }`}
                 >
                   <TopBar onMenuClick={() => setSidebarOpen(true)} />
-                  <main className="px-4 sm:px-6 lg:px-6 py-2 lg:py-6 pt-16 lg:pt-[105px] pl-2 min-w-0 max-w-full overflow-hidden">
+                  <main className="px-4 sm:px-6 lg:px-6 py-2 lg:py-6 pt-16 sm:pt-[70px] lg:pt-[105px] pl-2 min-w-0 max-w-full overflow-hidden">
                     <Routes>
                       <Route path="/dashboard" element={<Overview />} />
                       <Route

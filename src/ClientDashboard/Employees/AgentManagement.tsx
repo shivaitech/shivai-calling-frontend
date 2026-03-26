@@ -1820,6 +1820,14 @@ const AgentManagement = () => {
     }
   }, [location.state?.refresh, refreshAgents, navigate, location.pathname]);
 
+  // Auto-open create modal when navigated with openCreate state (e.g. from dashboard)
+  useEffect(() => {
+    if (location.state?.openCreate) {
+      setShowQuickCreateModal(true);
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state?.openCreate, navigate, location.pathname]);
+
   // Listen for agent updates (e.g., name change from widget customization)
   useEffect(() => {
     const handleAgentUpdate = (e: Event) => {
@@ -1907,9 +1915,11 @@ const AgentManagement = () => {
       // Show success toast
       appToast.success("Agent published successfully!", { duration: 3000 });
       setShowPublishConfirm(false);
+      // Notify AgentViewPage (and any other listeners) of the status change
+      window.dispatchEvent(new CustomEvent("agentUpdated", {
+        detail: { agentId: publishedId, updatedFields: { status: 'Published', is_active: true } }
+      }));
       setAgentToPublish(null);
-      // Reload the page so all state reflects the published status
-      setTimeout(() => window.location.reload(), 500);
     } catch (error: any) {
       console.error("❌ Error publishing agent:", error);
       appToast.error(error.message || "Failed to publish agent. Please try again.", { duration: 4000 });
@@ -1961,8 +1971,11 @@ const AgentManagement = () => {
       // Show success toast
       appToast.success("Agent paused successfully!", { duration: 3000 });
       setShowPauseConfirm(false);
+      // Notify AgentViewPage (and any other listeners) of the status change
+      window.dispatchEvent(new CustomEvent("agentUpdated", {
+        detail: { agentId: pausedId, updatedFields: { status: 'Pending', is_active: false } }
+      }));
       setAgentToPause(null);
-      window.location.reload();
     } catch (error: any) {
       console.error("❌ Error pausing agent:", error);
       appToast.error(error.message || "Failed to pause agent. Please try again.", { duration: 4000 });

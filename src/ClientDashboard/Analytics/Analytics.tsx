@@ -54,6 +54,7 @@ const Analytics = () => {
     if (!ip || ip === "Unknown" || ip === "N/A") {
       return {
         city: "Unknown",
+        region: "Unknown",
         country: "Unknown",
       };
     }
@@ -83,9 +84,12 @@ const Analytics = () => {
 
       const data = await response.json();
 
-      // ipapi.co response format
+      // Use region (state) instead of city — state-level geolocation is far
+      // more accurate for IP lookups than city, since ISPs assign IPs based
+      // on their regional hubs, not the user's actual city.
       const result = {
         city: data.city || "Unknown",
+        region: data.region || "Unknown",
         country: data.country_name || "Unknown",
       };
 
@@ -101,6 +105,7 @@ const Analytics = () => {
       // Return a default response with Unknown values instead of failing
       const defaultResponse = {
         city: "Unknown",
+        region: "Unknown",
         country: "Unknown",
       };
 
@@ -904,10 +909,13 @@ const Analytics = () => {
 
                           {/* Location Badge */}
                           {(() => {
-                            // Use location from session data
+                            // Show region (state) + country — more accurate than city for IP geolocation
                             const city = session.location?.city?.toLowerCase() !== 'unknown' ? session.location?.city : '';
+                            const region = session.location?.region?.toLowerCase() !== 'unknown' ? session.location?.region : '';
                             const country = session.location?.country?.toLowerCase() !== 'unknown' ? session.location?.country : '';
-                            const locationLabel = [city, country].filter(Boolean).join(', ');
+                            // Deduplicate: skip region if it's the same as city
+                            const regionPart = region && region !== city ? region : '';
+                            const locationLabel = [city, regionPart, country].filter(Boolean).join(', ');
                             
                             return locationLabel ? (
                               <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900/30 px-3 py-1.5 rounded-lg text-xs">

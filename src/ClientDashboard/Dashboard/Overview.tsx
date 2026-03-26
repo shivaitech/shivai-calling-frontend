@@ -345,7 +345,7 @@ const Overview = () => {
           <div className="block sm:hidden">
             <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
               <button
-                onClick={() => isDeveloper && navigate("/agents/create")}
+onClick={() => isDeveloper && navigate("/agents", { state: { openCreate: true } })}
                 disabled={!isDeveloper}
                 className={`flex-shrink-0 w-48 p-4 text-left rounded-xl transition-all duration-300 border ${
                   isDeveloper
@@ -369,7 +369,7 @@ const Overview = () => {
               </button>
 
               <button
-                onClick={() => isDeveloper && navigate("/monitoring")}
+                onClick={() => isDeveloper && navigate("/analytics")}
                 disabled={!isDeveloper}
                 className={`flex-shrink-0 w-48 p-4 text-left rounded-xl transition-all duration-300 border ${
                   isDeveloper
@@ -453,7 +453,7 @@ const Overview = () => {
           {/* Desktop: Grid layout */}
           <div className="hidden sm:grid grid-cols-2 lg:grid-cols-4 gap-4">
             <button
-              onClick={() => isDeveloper && navigate("/agents/create")}
+              onClick={() => isDeveloper && navigate("/agents", { state: { openCreate: true } })}
               disabled={!isDeveloper}
               className={`p-4 text-left rounded-xl transition-all duration-300 border ${
                 isDeveloper
@@ -478,7 +478,7 @@ const Overview = () => {
             </button>
 
             <button
-              onClick={() => isDeveloper && navigate("/monitoring")}
+              onClick={() => isDeveloper && navigate("/analytics")}
               disabled={!isDeveloper}
               className={`p-4 text-left rounded-xl transition-all duration-300 border ${
                 isDeveloper
