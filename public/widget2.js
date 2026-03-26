@@ -4970,7 +4970,18 @@
               if (_quick && _quick.type === "call_ended") {
                 console.log("📵 [EARLY] call_ended received:", _quick.reason);
                 isConnected = false; // prevent alert in Disconnected handler
-                stopConversation();
+                // Show immediate feedback while cleanup runs
+                updateStatus("Ending call...", "disconnected");
+                if (connectBtn) {
+                  connectBtn.disabled = true;
+                  connectBtn.style.opacity = "0.5";
+                }
+                stopConversation().finally(() => {
+                  if (connectBtn) {
+                    connectBtn.disabled = false;
+                    connectBtn.style.opacity = "";
+                  }
+                });
                 return;
               }
             } catch (_parseErr) { /* not JSON or no type field, continue normal processing */ }
