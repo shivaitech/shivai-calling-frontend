@@ -4969,9 +4969,8 @@
               const _quick = JSON.parse(text);
               if (_quick && _quick.type === "call_ended") {
                 console.log("📵 [EARLY] call_ended received:", _quick.reason);
-                addMessage("assistant", `📵 ${_quick.reason || "Call ended"}`);
                 isConnected = false; // prevent alert in Disconnected handler
-                setTimeout(() => stopConversation(), 1500);
+                stopConversation();
                 return;
               }
             } catch (_parseErr) { /* not JSON or no type field, continue normal processing */ }
