@@ -4689,6 +4689,27 @@
             const text = decoder.decode(payload);
             console.log("📝 Raw decoded text:", text);
 
+            // ── EARLIEST POSSIBLE: handle call_ended before ANY other processing ──
+            try {
+              const _quick = JSON.parse(text);
+              if (_quick && _quick.type === "call_ended") {
+                console.log("📵 [EARLY] call_ended received:", _quick.reason);
+                isConnected = false; // prevent alert in Disconnected handler
+                updateStatus("Ending call...", "disconnected");
+                if (connectBtn) {
+                  connectBtn.disabled = true;
+                  connectBtn.style.opacity = "0.5";
+                }
+                stopConversation().finally(() => {
+                  if (connectBtn) {
+                    connectBtn.disabled = false;
+                    connectBtn.style.opacity = "";
+                  }
+                });
+                return;
+              }
+            } catch (_parseErr) { /* not JSON or no type field, continue normal processing */ }
+
             // SUPER AGGRESSIVE - capture ANY text that might be a transcript
             if (text && text.trim().length > 0) {
               let transcriptText = text.trim();
