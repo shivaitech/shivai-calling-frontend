@@ -2,14 +2,17 @@
   "use strict";
 
   // ── Environment guard: this is the public website widget only ──────────────
-  // Do NOT run on localhost/dev, agent test pages, or QR agent pages.
+  // Do NOT run on localhost/dev, agent pages, QR pages, or any dashboard page.
   (function () {
     var host = window.location.hostname;
     var path = window.location.pathname;
     var isLocalhost = host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0' || host.endsWith('.local');
-    var isAgentPage = /\/(MyAIEmployee|agent|qr)(\/|$)/i.test(path);
-    if (isLocalhost || isAgentPage) {
-      console.log('[widget3] Blocked: not running on localhost or agent/QR pages.');
+    // Internal app routes — block all except /dashboard and /monitoring
+    var isDashboardPage = /^\/(agents|analytics|billing|settings|training|workflows)(\/|$)/i.test(path);
+    // Public agent test / QR pages
+    var isAgentPage = /\/(MyAIEmployee|qr)(\/|$)/i.test(path);
+    if (isLocalhost || isAgentPage || isDashboardPage) {
+      console.log('[widget3] Blocked: website widget not loaded on this page.');
       return (window.__widget3Blocked = true);
     }
   })();
