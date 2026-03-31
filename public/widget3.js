@@ -1,28 +1,43 @@
 ﻿(function () {
   "use strict";
 
-  // Load LiveKit SDK dynamically
+  // ── Environment guard: this is the public website widget only ──────────────
+  // Do NOT run on localhost/dev, agent test pages, or QR agent pages.
+  (function () {
+    var host = window.location.hostname;
+    var path = window.location.pathname;
+    var isLocalhost = host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0' || host.endsWith('.local');
+    var isAgentPage = /\/(MyAIEmployee|agent|qr)(\/|$)/i.test(path);
+    if (isLocalhost || isAgentPage) {
+      console.log('[widget3] Blocked: not running on localhost or agent/QR pages.');
+      return (window.__widget3Blocked = true);
+    }
+  })();
+  if (window.__widget3Blocked) return;
+  // ───────────────────────────────────────────────────────────────────────────
+
+  // ✅ Load LiveKit SDK dynamically
   function loadLiveKitSDK() {
     return new Promise((resolve, reject) => {
       // Check if already loaded
       if (typeof LivekitClient !== "undefined") {
-        console.log("LiveKit already loaded");
+        console.log("✅ LiveKit already loaded");
         resolve();
         return;
       }
 
-      console.log("ðŸ“¦ Loading LiveKit SDK...");
+      console.log("📦 Loading LiveKit SDK...");
 
       // Load livekit-client directly (components-core not needed)
       const clientScript = document.createElement("script");
       clientScript.src =
         "https://unpkg.com/livekit-client@latest/dist/livekit-client.umd.js";
       clientScript.onload = () => {
-        console.log("LiveKit client loaded successfully");
+        console.log("✅ LiveKit client loaded successfully");
         resolve();
       };
       clientScript.onerror = () => {
-        console.error("Failed to load LiveKit client");
+        console.error("❌ Failed to load LiveKit client");
         reject(new Error("Failed to load LiveKit client"));
       };
       document.head.appendChild(clientScript);
@@ -77,7 +92,7 @@
     /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
       navigator.userAgent
     );
-  console.log("ðŸ“± Mobile browser detected:", isMobile);
+  console.log("📱 Mobile browser detected:", isMobile);
   let ringAudio = null;
   let messageBubble = null;
   let connectionTimeout = null;
@@ -89,7 +104,7 @@
   let callTimerStarted = false;
   const AI_RESPONSE_TIMEOUT = 20000; // 20 seconds after connection
 
-  // Enhanced latency tracking using audio events
+  // ✅ Enhanced latency tracking using audio events
   let latencyMetrics = {
     userSpeechStartTime: null,
     userSpeechEndTime: null,
@@ -101,10 +116,10 @@
   };
 
   let liveMessages = [
-    "Call ShivAI!",
-    "Call ShivAI!",
-    "Call ShivAI!",
-    "Call ShivAI!",
+    "📞 Call ShivAI!",
+    "📞 Call ShivAI!",
+    "📞 Call ShivAI!",
+    "📞 Call ShivAI!",
   ];
 
   // Helper function to get company info from API widget config, URL parameters, or defaults
@@ -114,7 +129,7 @@
     let agentName = "AI Employee";
     let companyLogo = ""; // Empty means use default ShivAI logo
     let triggerButtonImage = ""; // Empty means use default phone icon
-    let callToActionText = "Call ShivAI!"; // Default cloud bubble text
+    let callToActionText = "📞 Call ShivAI!"; // Default cloud bubble text
     let themeColors = {
       primaryColor: "#4b5563",
       secondaryColor: "#ffffff", 
@@ -123,9 +138,9 @@
     let configSource = "defaults";
     
     try {
-      // PRIORITY 1: Check for API widget configuration (from AgentWidgetCustomization component)
+      // ✅ PRIORITY 1: Check for API widget configuration (from AgentWidgetCustomization component)
       if (window.SHIVAI_WIDGET_CONFIG && typeof window.SHIVAI_WIDGET_CONFIG === 'object') {
-        console.log("ðŸ“¦ API Widget Config found, using as primary source:", window.SHIVAI_WIDGET_CONFIG);
+        console.log("📦 API Widget Config found, using as primary source:", window.SHIVAI_WIDGET_CONFIG);
         
         const widget = window.SHIVAI_WIDGET_CONFIG;
         
@@ -133,27 +148,27 @@
         // Prefer top-level agent name (_agent_name) over widget.ai_employee_name
         if (widget._agent_name || widget.ai_employee_name) {
           companyName = widget._agent_name || widget.ai_employee_name;
-          console.log("ðŸ¢ Using agent name from API config:", companyName);
+          console.log("🏢 Using agent name from API config:", companyName);
         }
         
         if (widget.ai_employee_description) {
           companyDescription = widget.ai_employee_description;
-          console.log("ðŸ“„ Using ai_employee_description from API widget config:", companyDescription);
+          console.log("📄 Using ai_employee_description from API widget config:", companyDescription);
         }
         
         if (widget.company_logo) {
           companyLogo = widget.company_logo;
-          console.log("ðŸ–¼ï¸ Using company_logo from API widget config (S3 URL)");
+          console.log("🖼️ Using company_logo from API widget config (S3 URL)");
         }
 
         if (widget.trigger_button_image) {
           triggerButtonImage = widget.trigger_button_image;
-          console.log("ðŸ–¼ï¸ Using trigger_button_image from API widget config");
+          console.log("🖼️ Using trigger_button_image from API widget config");
         }
 
         if (widget.button_text) {
           callToActionText = widget.button_text;
-          console.log("ðŸ’¬ Using button_text from API widget config:", callToActionText);
+          console.log("💬 Using button_text from API widget config:", callToActionText);
         }
         
         // Map color fields from API response
@@ -167,47 +182,47 @@
           themeColors.accentColor = widget.gradient_end;
         }
         
-        console.log("ðŸŽ¨ Using theme colors from API widget config:", themeColors);
+        console.log("🎨 Using theme colors from API widget config:", themeColors);
         configSource = "API widget config";
       }
       
-      // PRIORITY 2: Check SHIVAI_CONFIG (legacy component state)
+      // ✅ PRIORITY 2: Check SHIVAI_CONFIG (legacy component state)
       else if (window.SHIVAI_CONFIG && typeof window.SHIVAI_CONFIG === 'object') {
-        console.log("ðŸ“¦ SHIVAI_CONFIG found, using as fallback source");
+        console.log("📦 SHIVAI_CONFIG found, using as fallback source");
         
         const config = window.SHIVAI_CONFIG;
         
         if (config.content) {
           if (config.content.companyName) {
             companyName = config.content.companyName;
-            console.log("ðŸ¢ Using companyName from SHIVAI_CONFIG:", companyName);
+            console.log("🏢 Using companyName from SHIVAI_CONFIG:", companyName);
           }
           if (config.content.companyDescription) {
             companyDescription = config.content.companyDescription;
-            console.log("ðŸ“„ Using companyDescription from SHIVAI_CONFIG:", companyDescription);
+            console.log("📄 Using companyDescription from SHIVAI_CONFIG:", companyDescription);
           }
           if (config.content.companyLogo) {
             companyLogo = config.content.companyLogo;
-            console.log("ðŸ–¼ï¸ Using companyLogo from SHIVAI_CONFIG");
+            console.log("🖼️ Using companyLogo from SHIVAI_CONFIG");
           }
           if (config.content.triggerButtonImage) {
             triggerButtonImage = config.content.triggerButtonImage;
-            console.log("ðŸ–¼ï¸ Using triggerButtonImage from SHIVAI_CONFIG");
+            console.log("🖼️ Using triggerButtonImage from SHIVAI_CONFIG");
           }
           if (config.content.callToActionText) {
             callToActionText = config.content.callToActionText;
-            console.log("ðŸ’¬ Using callToActionText from SHIVAI_CONFIG:", callToActionText);
+            console.log("💬 Using callToActionText from SHIVAI_CONFIG:", callToActionText);
           }
         }
 
         // Also check ShivAI.config for triggerButtonImage / callToActionText
         if (!triggerButtonImage && window.ShivAI && window.ShivAI.config && window.ShivAI.config.triggerButtonImage) {
           triggerButtonImage = window.ShivAI.config.triggerButtonImage;
-          console.log("ðŸ–¼ï¸ Using triggerButtonImage from ShivAI.config");
+          console.log("🖼️ Using triggerButtonImage from ShivAI.config");
         }
         if (window.ShivAI && window.ShivAI.config && window.ShivAI.config.callToActionText) {
           callToActionText = window.ShivAI.config.callToActionText;
-          console.log("ðŸ’¬ Using callToActionText from ShivAI.config:", callToActionText);
+          console.log("💬 Using callToActionText from ShivAI.config:", callToActionText);
         }
         
         if (config.theme) {
@@ -220,15 +235,15 @@
           if (config.theme.accentColor) {
             themeColors.accentColor = config.theme.accentColor;
           }
-          console.log("ðŸŽ¨ Using theme colors from SHIVAI_CONFIG:", themeColors);
+          console.log("🎨 Using theme colors from SHIVAI_CONFIG:", themeColors);
         }
         
         configSource = "SHIVAI_CONFIG";
       }
       
-      // PRIORITY 3: Check URL parameters (legacy fallback)
+      // ✅ PRIORITY 3: Check URL parameters (legacy fallback)
       else {
-        console.log("ðŸ“ No API/component config found, checking URL parameters as fallback");
+        console.log("📝 No API/component config found, checking URL parameters as fallback");
         
         const scriptTags = document.getElementsByTagName('script');
         for (let i = scriptTags.length - 1; i >= 0; i--) {
@@ -243,23 +258,23 @@
               
               if (urlCompanyName) {
                 companyName = decodeURIComponent(urlCompanyName);
-                console.log("ðŸ¢ Using companyName from URL parameter:", companyName);
+                console.log("🏢 Using companyName from URL parameter:", companyName);
               }
               if (urlCompanyDescription) {
                 companyDescription = decodeURIComponent(urlCompanyDescription);
-                console.log("ðŸ“„ Using companyDescription from URL parameter:", companyDescription);
+                console.log("📄 Using companyDescription from URL parameter:", companyDescription);
               }
               if (urlAgentName) {
                 agentName = decodeURIComponent(urlAgentName);
-                console.log("Using agentName from URL parameter:", agentName);
+                console.log("🤖 Using agentName from URL parameter:", agentName);
               }
               if (urlCompanyLogo) {
                 companyLogo = decodeURIComponent(urlCompanyLogo);
-                console.log("ðŸ–¼ï¸ Using companyLogo from URL parameter");
+                console.log("🖼️ Using companyLogo from URL parameter");
               }
               break;
             } catch (urlError) {
-              console.warn("Error parsing script URL:", urlError);
+              console.warn("⚠️ Error parsing script URL:", urlError);
               continue;
             }
           }
@@ -269,7 +284,7 @@
       }
       
     } catch (error) {
-      console.warn("Error getting company info, using defaults:", error);
+      console.warn("⚠️ Error getting company info, using defaults:", error);
       configSource = "defaults";
     }
     
@@ -283,7 +298,7 @@
       theme: themeColors,
       configSource: configSource
     };
-    console.log(`Final company info being used (source: ${configSource}):`, result);
+    console.log(`✅ Final company info being used (source: ${configSource}):`, result);
     return result;
   }
   
@@ -332,19 +347,19 @@
             if (urlAgentId) {
               agentId = urlAgentId;
               foundFromUrl = true;
-              console.log("ðŸŽ¯ Using agentId for status check from URL:", agentId);
+              console.log("🎯 Using agentId for status check from URL:", agentId);
             }
             if (urlUserId) {
               globalTenantId = urlUserId;
-              console.log("ðŸ‘¤ Using userId (tenant_id) from URL:", globalTenantId);
+              console.log("👤 Using userId (tenant_id) from URL:", globalTenantId);
             }
             if (urlBypass === 'true') {
               bypassDomainCheck = true;
-              console.log("Domain check bypass enabled - testing/preview mode");
+              console.log("✅ Domain check bypass enabled - testing/preview mode");
             }
             if (foundFromUrl) break;
           } catch (urlErr) {
-            console.warn("Could not parse script URL:", urlErr);
+            console.warn("⚠️ Could not parse script URL:", urlErr);
           }
         }
       }
@@ -352,12 +367,12 @@
       // If not found in URL, try SHIVAI_CONFIG
       if (!foundFromUrl && window.SHIVAI_CONFIG && window.SHIVAI_CONFIG.agentId) {
         agentId = window.SHIVAI_CONFIG.agentId;
-        console.log("ðŸŽ¯ Using agentId from SHIVAI_CONFIG for status check:", agentId);
+        console.log("🎯 Using agentId from SHIVAI_CONFIG for status check:", agentId);
       }
       // Also try userId from SHIVAI_CONFIG if not already set from URL
       if (!globalTenantId && window.SHIVAI_CONFIG && window.SHIVAI_CONFIG.userId) {
         globalTenantId = window.SHIVAI_CONFIG.userId;
-        console.log("ðŸ‘¤ Using userId (tenant_id) from SHIVAI_CONFIG:", globalTenantId);
+        console.log("👤 Using userId (tenant_id) from SHIVAI_CONFIG:", globalTenantId);
       }
       // Then try to get from script data attributes
       if (!foundFromUrl) {
@@ -365,38 +380,38 @@
         if (scriptElements.length > 0) {
           const lastScript = scriptElements[scriptElements.length - 1];
           agentId = lastScript.getAttribute('data-agent-id');
-          console.log("ðŸŽ¯ Using agentId from script data attribute for status check:", agentId);
+          console.log("🎯 Using agentId from script data attribute for status check:", agentId);
           if (!globalTenantId && lastScript.getAttribute('data-user-id')) {
             globalTenantId = lastScript.getAttribute('data-user-id');
-            console.log("ðŸ‘¤ Using userId from script data-user-id:", globalTenantId);
+            console.log("👤 Using userId from script data-user-id:", globalTenantId);
           }
         }
         else if (document.currentScript && document.currentScript.getAttribute('data-agent-id')) {
           agentId = document.currentScript.getAttribute('data-agent-id');
-          console.log("ðŸŽ¯ Using agentId from current script for status check:", agentId);
+          console.log("🎯 Using agentId from current script for status check:", agentId);
           if (!globalTenantId && document.currentScript.getAttribute('data-user-id')) {
             globalTenantId = document.currentScript.getAttribute('data-user-id');
-            console.log("ðŸ‘¤ Using userId from current script data-user-id:", globalTenantId);
+            console.log("👤 Using userId from current script data-user-id:", globalTenantId);
           }
         }
       }
       
-      console.log("ðŸ‘¤ Final globalTenantId resolved:", globalTenantId || '(not set)');
+      console.log("👤 Final globalTenantId resolved:", globalTenantId || '(not set)');
       
       // If no agentId found, set status to inactive
       if (!agentId) {
-        console.warn('No agentId found in script URL or configuration');
+        console.warn('⚠️ No agentId found in script URL or configuration');
         agentStatus.active = false;
         agentStatus.message = 'Agent ID not configured. Please check your widget installation.';
         return;
       }
       
-      console.log('ðŸ” Checking agent status for ID:', agentId);
+      console.log('🔍 Checking agent status for ID:', agentId);
       const response = await fetch(`https://nodejs.service.callshivai.com/api/v1/agent-configs/${agentId}`);
       
       if (response.ok) {
         const data = await response.json();
-        console.log('Agent status response:', data);
+        console.log('✅ Agent status response:', data);
         let agentRes = data?.data?.agent
         agentStatus.active = agentRes?.is_active !== false; // Default to true if not specified
         agentStatus.message = agentRes?.is_active === false 
@@ -405,22 +420,22 @@
         
         // Store agent's configured language for widget default
         agentLanguage = agentRes?.language || null;
-        console.log('ðŸŒ Agent language from config:', agentLanguage);
+        console.log('🌐 Agent language from config:', agentLanguage);
         
-        console.log('ðŸ“Š Agent status set to:', agentStatus);
+        console.log('📊 Agent status set to:', agentStatus);
         
-        // Extract and set widget configuration from API response
+        // ✅ Extract and set widget configuration from API response
         if (agentRes?.widget) {
           window.SHIVAI_WIDGET_CONFIG = agentRes.widget;
           // Also store the top-level agent name so it takes priority over ai_employee_name
           if (agentRes.name) {
             window.SHIVAI_WIDGET_CONFIG._agent_name = agentRes.name;
           }
-          console.log('ðŸ“¦ Widget configuration set from API:', window.SHIVAI_WIDGET_CONFIG);
-          console.log('ðŸŽ¨ Available widget properties:');
+          console.log('📦 Widget configuration set from API:', window.SHIVAI_WIDGET_CONFIG);
+          console.log('🎨 Available widget properties:');
           console.log('  - ai_employee_name:', agentRes.widget.ai_employee_name);
           console.log('  - ai_employee_description:', agentRes.widget.ai_employee_description);
-          console.log('  - company_logo:', agentRes.widget.company_logo ? 'Present (S3 URL)' : 'Not set');
+          console.log('  - company_logo:', agentRes.widget.company_logo ? '✅ Present (S3 URL)' : '❌ Not set');
           console.log('  - primary_color:', agentRes.widget.primary_color);
           console.log('  - gradient_start:', agentRes.widget.gradient_start);
           console.log('  - gradient_end:', agentRes.widget.gradient_end);
@@ -430,13 +445,13 @@
           // Note: Widget UI will be created after this function completes in initWidget()
           // refreshWidgetContent() will be called there after createWidgetUI()
 
-          // Domain restriction check
+          // ✅ Domain restriction check
           const widgetVisibility = agentRes.widget.visibility || 'public';
           const allowedDomains = agentRes.widget.allowed_domains || [];
           
           // Skip domain check if bypass is enabled (for preview/testing/QR pages)
           if (bypassDomainCheck) {
-            console.log('Domain check skipped - bypass mode enabled');
+            console.log('✅ Domain check skipped - bypass mode enabled');
           } else if (widgetVisibility === 'private' && allowedDomains.length > 0) {
             const currentOrigin = window.location.origin.toLowerCase();
             const currentHost = window.location.hostname.toLowerCase();
@@ -451,24 +466,24 @@
                      d.replace(/^https?:\/\//, '') === currentHost;
             });
             if (!isAllowed) {
-              console.warn('ðŸš« ShivAI Widget: this domain is not authorised to load this widget. Aborting.');
+              console.warn('🚫 ShivAI Widget: this domain is not authorised to load this widget. Aborting.');
               agentStatus.active = false;
               agentStatus.blocked = true;
               agentStatus.message = 'Widget not available on this domain.';
-              return; // Abort â€” do not render widget
+              return; // Abort — do not render widget
             }
-            console.log('Domain authorisation passed for:', currentHost);
+            console.log('✅ Domain authorisation passed for:', currentHost);
           }
         } else {
-          console.log('â„¹ï¸ No widget configuration found in agent response - getCompanyInfo() will use URL parameters or defaults');
+          console.log('ℹ️ No widget configuration found in agent response - getCompanyInfo() will use URL parameters or defaults');
         }
       } else {
-        console.warn('Could not fetch agent status, defaulting to inactive');
+        console.warn('⚠️ Could not fetch agent status, defaulting to inactive');
         agentStatus.active = false;
         agentStatus.message = 'Unable to verify agent status. Please try again later.';
       }
     } catch (error) {
-      console.error('Error checking agent status:', error);
+      console.error('❌ Error checking agent status:', error);
       // Default to inactive on error
       agentStatus.active = false;
       agentStatus.message = 'Service temporarily unavailable. Please try again later.';
@@ -479,18 +494,18 @@
   async function requestMicrophonePermission(retryCount = 0) {
     const MAX_RETRIES = 3;
     
-    console.log(`Requesting microphone permission (attempt ${retryCount + 1}/${MAX_RETRIES + 1})...`);
+    console.log(`🎤 Requesting microphone permission (attempt ${retryCount + 1}/${MAX_RETRIES + 1})...`);
     
     // Check if we're in secure context
     if (!window.isSecureContext) {
-      console.error("Not in secure context - HTTPS required");
+      console.error("❌ Not in secure context - HTTPS required");
       alert("Microphone access requires HTTPS. Please access this page using HTTPS.");
       return false;
     }
     
     // Check API availability
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      console.error("MediaDevices API not available");
+      console.error("❌ MediaDevices API not available");
       alert("Microphone API is not available in your browser. Please use Chrome, Firefox, Safari, or Edge.");
       return false;
     }
@@ -517,8 +532,8 @@
         }
       });
       
-      console.log("Microphone permission granted!");
-      console.log("ðŸ“ Stream tracks:", stream.getTracks().length);
+      console.log("✅ Microphone permission granted!");
+      console.log("📍 Stream tracks:", stream.getTracks().length);
       
       // Stop the test stream immediately
       stream.getTracks().forEach(track => track.stop());
@@ -526,7 +541,7 @@
       return true;
       
     } catch (error) {
-      console.error(`Microphone permission attempt ${retryCount + 1} failed:`, error);
+      console.error(`❌ Microphone permission attempt ${retryCount + 1} failed:`, error);
       
       // Handle different error types
       if (error.name === "NotAllowedError") {
@@ -545,7 +560,7 @@
             await new Promise(resolve => setTimeout(resolve, 500));
             return await requestMicrophonePermission(retryCount + 1);
           } else {
-            console.log("User cancelled microphone permission retry");
+            console.log("❌ User cancelled microphone permission retry");
             return false;
           }
         } else {
@@ -581,54 +596,54 @@
     }
     // Re-add styles with updated theme
     addWidgetStyles();
-    console.log("ðŸŽ¨ Widget theme refreshed with new colors");
+    console.log("🎨 Widget theme refreshed with new colors");
   }
 
   // Function to refresh widget content with updated company info
   function refreshWidgetContent() {
     if (!widgetContainer) {
-      console.log("ðŸ“ Widget not created yet, content will be updated on creation");
+      console.log("📝 Widget not created yet, content will be updated on creation");
       return;
     }
 
-    console.log("ðŸ”„ Refreshing widget content with latest company info...");
+    console.log("🔄 Refreshing widget content with latest company info...");
     const companyInfo = getCompanyInfo();
-    console.log("ðŸ¢ Using refreshed company info:", companyInfo);
+    console.log("🏢 Using refreshed company info:", companyInfo);
 
     const widgetTitle = document.querySelector('.widget-title');
     if (widgetTitle) {
       widgetTitle.textContent = companyInfo.name;
-      console.log("Updated landing view widget title to:", companyInfo.name);
+      console.log("✅ Updated landing view widget title to:", companyInfo.name);
     }
 
     const widgetSubtitle = document.querySelector('.widget-subtitle');
     if (widgetSubtitle) {
       widgetSubtitle.textContent = companyInfo.description;
-      console.log("Updated landing view description to:", companyInfo.description);
+      console.log("✅ Updated landing view description to:", companyInfo.description);
     }
 
     const widgetAvatar = document.querySelector('.widget-avatar');
     if (widgetAvatar && companyInfo.logo) {
       widgetAvatar.innerHTML = `<img src="${companyInfo.logo}" alt="${companyInfo.name} Logo" style="width: 100%; height: 100%; object-fit: cover; border-radius: 12px;">`;
-      console.log("Updated landing view logo to:", companyInfo.logo);
+      console.log("✅ Updated landing view logo to:", companyInfo.logo);
     }
 
     const callInfoName = document.querySelector('.call-info-name');
     if (callInfoName) {
       callInfoName.textContent = companyInfo.name;
-      console.log("Updated call view agent name to:", companyInfo.name);
+      console.log("✅ Updated call view agent name to:", companyInfo.name);
     }
     
     const callAvatar = document.querySelector('.call-avatar');
     if (callAvatar && companyInfo.logo) {
       callAvatar.innerHTML = `<img src="${companyInfo.logo}" alt="${companyInfo.name} Logo" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">`;
-      console.log("Updated call view avatar");
+      console.log("✅ Updated call view avatar");
     }
 
     updateLandingViewBasedOnStatus();
     refreshWidgetTheme();
     
-    console.log("Widget content refresh completed");
+    console.log("✅ Widget content refresh completed");
   }
 
   // Expose refresh function globally for theme updates
@@ -643,7 +658,7 @@
 
     // If domain is not authorised, do not render anything
     if (agentStatus.blocked) {
-      console.warn('ðŸš« ShivAI Widget: rendering aborted â€” domain not authorised.');
+      console.warn('🚫 ShivAI Widget: rendering aborted — domain not authorised.');
       return;
     }
     
@@ -668,7 +683,7 @@
           soundContext
             .resume()
             .then(() => {
-              console.log("Sound context resumed");
+              console.log("🔊 Sound context resumed");
             })
             .catch((err) => {
               console.warn("Failed to resume sound context:", err);
@@ -677,7 +692,7 @@
             audioContext
               .resume()
               .then(() => {
-                console.log("Voice audio context resumed");
+                console.log("🎤 Voice audio context resumed");
               })
               .catch((err) => {
                 console.warn("Failed to resume voice audio context:", err);
@@ -746,30 +761,30 @@
       ringAudio.play().catch((error) => {
         console.warn("Could not play connecting sound:", error);
       });
-      console.log("Playing connecting sound (ring1.mp3)");
+      console.log("🔊 Playing connecting sound (ring1.mp3)");
     } catch (error) {
       console.warn("Error playing connecting sound:", error);
     }
   }
 
   function stopConnectingSound() {
-    console.log("ðŸ”‡ Stopping connecting sound...");
+    console.log("🔇 Stopping connecting sound...");
 
     if (ringAudio) {
       try {
         ringAudio.pause();
         ringAudio.currentTime = 0;
         ringAudio.loop = false;
-        console.log("Ring audio stopped");
+        console.log("✅ Ring audio stopped");
       } catch (error) {
-        console.warn("Error stopping ring audio:", error);
+        console.warn("⚠️ Error stopping ring audio:", error);
       }
     }
 
     if (connectingSoundInterval) {
       clearInterval(connectingSoundInterval);
       connectingSoundInterval = null;
-      console.log("Connecting sound interval cleared");
+      console.log("✅ Connecting sound interval cleared");
     }
   }
 
@@ -840,11 +855,11 @@
         });
         if (response.ok) {
           const data = await response.json();
-          console.log("ðŸŒ [IP] Retrieved via ipapi.co:", data.ip);
+          console.log("🌐 [IP] Retrieved via ipapi.co:", data.ip);
           return data.ip;
         }
       } catch (e) {
-        console.warn("ðŸŒ [IP] ipapi.co failed:", e.message);
+        console.warn("🌐 [IP] ipapi.co failed:", e.message);
       }
       try {
         const response = await fetch("https://api.ipify.org?format=json", {
@@ -852,11 +867,11 @@
         });
         if (response.ok) {
           const data = await response.json();
-          console.log("ðŸŒ [IP] Retrieved via ipify:", data.ip);
+          console.log("🌐 [IP] Retrieved via ipify:", data.ip);
           return data.ip;
         }
       } catch (e) {
-        console.warn("ðŸŒ [IP] ipify failed:", e.message);
+        console.warn("🌐 [IP] ipify failed:", e.message);
       }
       try {
         const response = await fetch("https://ipinfo.io/json", {
@@ -864,15 +879,15 @@
         });
         if (response.ok) {
           const data = await response.json();
-          console.log("ðŸŒ [IP] Retrieved via ipinfo.io:", data.ip);
+          console.log("🌐 [IP] Retrieved via ipinfo.io:", data.ip);
           return data.ip;
         }
       } catch (e) {
-        console.warn("ðŸŒ [IP] ipinfo.io failed:", e.message);
+        console.warn("🌐 [IP] ipinfo.io failed:", e.message);
       }
       return null;
     } catch (error) {
-      console.error("ðŸŒ [IP] All IP detection methods failed:", error);
+      console.error("🌐 [IP] All IP detection methods failed:", error);
       return null;
     }
   }
@@ -897,7 +912,7 @@
     oscillator.stop(soundContext.currentTime + duration);
   }
 
-  // LiveKit: Track when user stops speaking (using audio level monitoring)
+  // ✅ LiveKit: Track when user stops speaking (using audio level monitoring)
   function monitorLocalAudioLevel(track) {
     const audioContext = new (window.AudioContext ||
       window.webkitAudioContext)();
@@ -957,7 +972,7 @@
       const audioLevel = Math.max(rms, speechAverage * 0.8);
 
       console.log(
-        `Audio Level: ${audioLevel.toFixed(2)} (threshold: ${SPEECH_THRESHOLD})`
+        `🎤 Audio Level: ${audioLevel.toFixed(2)} (threshold: ${SPEECH_THRESHOLD})`
       );
 
       if (audioLevel > SPEECH_THRESHOLD) {
@@ -965,8 +980,8 @@
         if (!latencyMetrics.isSpeaking) {
           latencyMetrics.isSpeaking = true;
           latencyMetrics.userSpeechStartTime = performance.now();
-          console.log("ðŸ‘¤ User started speaking");
-          updateStatus("Listening...", "listening");
+          console.log("👤 User started speaking");
+          updateStatus("🎤 Listening...", "listening");
         }
         silenceStart = null;
       } else {
@@ -978,8 +993,8 @@
             // User stopped speaking
             latencyMetrics.isSpeaking = false;
             latencyMetrics.userSpeechEndTime = performance.now();
-            console.log("ðŸ‘¤ User stopped speaking");
-            updateStatus("Processing...", "speaking");
+            console.log("👤 User stopped speaking");
+            updateStatus("🤔 Processing...", "speaking");
             silenceStart = null;
           }
         }
@@ -991,7 +1006,7 @@
     checkAudioLevel();
   }
 
-  // LiveKit: Track when agent starts responding
+  // ✅ LiveKit: Track when agent starts responding
   function monitorRemoteAudioLevel(track) {
     const audioContext = new (window.AudioContext ||
       window.webkitAudioContext)();
@@ -1016,7 +1031,7 @@
       if (aiResponseTimeout && !hasReceivedFirstAIResponse) {
         clearTimeout(aiResponseTimeout);
         aiResponseTimeout = null;
-        console.log("AI response received - timeout cleared");
+        console.log("✅ AI response received - timeout cleared");
       }
       if (!isConnected) return;
 
@@ -1050,7 +1065,7 @@
       const audioLevel = peak * 0.7 + aiVoiceAverage * 0.3;
 
       console.log(
-        `AI Audio Level: ${audioLevel.toFixed(2)} (threshold: ${SPEECH_THRESHOLD}, peak: ${peak})`
+        `🤖 AI Audio Level: ${audioLevel.toFixed(2)} (threshold: ${SPEECH_THRESHOLD}, peak: ${peak})`
       );
 
       if (audioLevel > SPEECH_THRESHOLD && !latencyMetrics.isAgentSpeaking) {
@@ -1073,7 +1088,7 @@
           hideConnectingState();
 
           // Update status to show AI is now ready
-          updateStatus("Connected — Speak now", "connected");
+          updateStatus("✅ Connected - Speak now!", "connected");
 
           // Unmute microphone immediately - no delay needed
           if (isConnected && room) {
@@ -1103,26 +1118,26 @@
                 if (audioTracks.length > 0) {
                   localAudioTrack = audioTracks[0].track;
                   monitorLocalAudioLevel(localAudioTrack);
-                  console.log("Microphone monitoring started immediately");
+                  console.log("🎤 Microphone monitoring started immediately");
                 }
 
                 console.log(
-                  "Microphone enabled immediately - ready for conversation"
+                  "🎤 Microphone enabled immediately - ready for conversation"
                 );
-                updateStatus("You can speak now!", "connected");
+                updateStatus("🎤 You can speak now!", "connected");
               } catch (error) {
-                console.error("Error enabling microphone:", error);
+                console.error("❌ Error enabling microphone:", error);
               }
             })();
           }
 
           console.log(
-            "ðŸŽ‰ First AI response - timer started, connecting sound stopped, mic will unmute in 3s"
+            "🎉 First AI response - timer started, connecting sound stopped, mic will unmute in 3s"
           );
         }
 
         // Always update status when AI starts speaking
-        updateStatus("AI Speaking...", "speaking");
+        updateStatus("🤖 AI Speaking...", "speaking");
 
         if (latencyMetrics.userSpeechEndTime) {
           latencyMetrics.agentResponseStartTime = performance.now();
@@ -1135,7 +1150,7 @@
             latencyMetrics.measurements.shift();
           }
 
-          console.log(`âš¡ Response latency: ${Math.round(latency)}ms`);
+          console.log(`⚡ Response latency: ${Math.round(latency)}ms`);
 
           latencyMetrics.userSpeechEndTime = null;
         }
@@ -1150,12 +1165,12 @@
         setTimeout(() => {
           aiJustFinished = false;
           console.log(
-            "User input detection re-enabled after AI buffer period"
+            "✅ User input detection re-enabled after AI buffer period"
           );
         }, 500); // 500ms buffer to prevent feedback
 
-        updateStatus("Connected - Speak naturally", "connected");
-        console.log("AI stopped speaking - buffer period started");
+        updateStatus("🟢 Connected - Speak naturally!", "connected");
+        console.log("🤖 AI stopped speaking - buffer period started");
       }
 
       requestAnimationFrame(checkAudioLevel);
@@ -1420,25 +1435,15 @@
     const triggerCompanyInfo = getCompanyInfo();
     if (triggerCompanyInfo.triggerButtonImage) {
       triggerBtn.classList.add("shivai-trigger--image");
-      triggerBtn.innerHTML = `
-        <img class="shivai-trigger-avatar" src="${triggerCompanyInfo.triggerButtonImage}" alt="${triggerCompanyInfo.agentName}" />
-        <span class="trigger-icon trigger-down-icon">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-        </span>
-      `;
+      triggerBtn.innerHTML = `<img class="shivai-trigger-avatar" src="${triggerCompanyInfo.triggerButtonImage}" alt="${triggerCompanyInfo.agentName}" />`;
     } else {
       triggerBtn.innerHTML = `
-        <span class="trigger-icon trigger-phone-icon">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
-          </svg>
-        </span>
-        <span class="trigger-icon trigger-down-icon">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-        </span>
-      `;
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+      </svg>
+    `;
     }
-    triggerBtn.setAttribute("aria-label", "Open ShivAI Employee");
+    triggerBtn.setAttribute("aria-label", "Open ShivAI Assistant");
     widgetContainer = document.createElement("div");
     widgetContainer.className = "shivai-widget";
     landingView = document.createElement("div");
@@ -1446,56 +1451,54 @@
     
     // Get company info for dynamic content
     const companyInfo = getCompanyInfo();
-    console.log("ðŸ¢ Using company info:", companyInfo);
+    console.log("🏢 Using company info:", companyInfo);
     
     landingView.innerHTML = `
       <div class="widget-header">
-        <div class="header-orbs">
-          <div class="orb orb-1"></div>
-          <div class="orb orb-2"></div>
-          <div class="orb orb-3"></div>
-        </div>
-        <div class="header-top-row">
-          <div class="header-brand">
+        <div class="header-content">
+          <button class="widget-close" aria-label="Close widget">×</button>
+          <div class="header-info">
             <div class="widget-avatar">
-              ${companyInfo.logo
-                ? `<img src="${companyInfo.logo}" alt="${companyInfo.name}" />`
-                : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 1500" style="fill:white;">
-                    <path d="m404.66,608.33c-9.95-7.3-50.21-35.08-105.88-29.33-26.64,2.75-47.74,12.25-62.31,21.06-14.39,8.7-26.96,20.35-35.39,34.9-12.13,20.93-15.94,45.25-9.6,67.8,4.02,14.28,11.39,25.29,18.63,33.3,6.91,7.65,15.23,13.89,24.25,18.89,25.77,14.32,51.54,28.63,77.31,42.95,11.98,7.56,18.69,20.94,17.17,34.34-.11,1.01-.27,1.98-.47,2.93-2.85,13.83-15.4,23.46-29.5,24.28-8.62.5-18.56.28-29.41-1.45-34.59-5.51-58.34-23.08-69.39-32.54-13.35,21.1-26.71,42.2-40.06,63.3,13.96,9.75,32.81,20.78,56.52,29.33,42.03,15.17,79.38,15.38,102.3,13.59,7.85-.92,45.14-6.13,72.25-39.35,1.28-1.57,2.49-3.15,3.65-4.73,27.87-38.33,23.14-92-9.89-125.97-.3-.31-.6-.62-.91-.93-17.09-17.27-35.69-27.61-51.02-33.85-19.44-7.9-38.05-17.71-55.07-29.99-.78-.56-1.56-1.12-2.33-1.68-9.66-6.97-12.29-20.21-6.03-30.34h0c7.3-11.68,22.31-17.66,37.92-15.02,8.22-.53,21.33-.36,36.48,4.29,15.34,4.71,26.38,12.07,32.91,17.17,9.3-20.98,18.6-41.97,27.9-62.95Z"/>
-                    <path d="m630.61,740.85c-3.86-4.46-8.41-8.89-13.76-13.05-17.19-13.34-35.56-18.29-49.77-19.92-15.45-1.76-31.19.76-45.13,7.63-.08.04-.16.08-.25.12-13.14,6.52-22.41,14.79-28.33,21.1v-169.18h-72.25v358.41h72.25v-130.44c9.49-21.4,30.88-33.36,50.51-29.8,3.55.64,6.78,1.75,9.71,3.15,14.12,6.76,22.48,21.69,22.48,37.35v119.75h73.68v-132.05c0-19.38-6.46-38.41-19.14-53.06Z"/>
-                    <rect x="662.56" y="712.06" width="74.4" height="213.9"/>
-                    <path d="m953.03,825.14c-13.76,33.61-27.52,67.21-41.28,100.82h84.42l25.75-67.96c-8.94-6.55-20.41-13.83-34.43-20.38-12.7-5.93-24.48-9.84-34.47-12.48Z"/>
-                    <circle cx="1270.13" cy="623.35" r="45.07"/>
-                    <circle cx="699.76" cy="623.35" r="45.07"/>
-                    <path d="m954.09,822.73l95.6-235.02h71.13l94.46,235.02c-13.9-.54-54.29-3.99-86.12-34.9-26-25.25-33.27-56.18-36.12-68.31-.48-2.06-.75-3.53-1.31-6.44-4.83-25.25-5.11-43.74-5.38-76.6-.22-27.23-.29-45.31-.45-45.31-.19,0-.33,26.01-1.25,51.3-.44,12.07-.99,22.81-.99,22.81-.31,5.8-.54,8.99-.78,14.32-.97,21.54-.88,21.8-1.44,25.22-2.48,15.29-13.28,66.99-58.46,96.77-27.62,18.21-55.44,20.82-68.92,21.15Z"/>
-                    <path d="m1215.73,825.86c-6.37.43-13.66,1.49-21.51,3.68-22.94,6.41-38.73,19.17-47.51,27.69,7.45,22.45,14.9,44.91,22.35,67.36h137.14v-101.86l-72.84,3.12.57,47.8-18.21-47.8Z"/>
-                    <polygon points="1233.94 716.32 1306.21 716.32 1306.21 825.14 1233.94 822.21 1233.94 716.32"/>
-                    <path d="m872.77,821c22.25.49,44.49.98,66.74,1.47,18.21-35.7,36.41-71.4,54.62-107.1l-80.12-3.31-48.65,116.61h-5.72l-51.51-116.61h-72.25v27.9l98.72,186h52.22c17.12-33.61,34.25-67.21,51.37-100.82-21.81-1.38-43.62-2.76-65.43-4.14Z"/>
-                  </svg>`
-              }
+            ${companyInfo.logo ? 
+              `<img src="${companyInfo.logo}" alt="${companyInfo.name} Logo" style="width: 100%; height: 100%; object-fit: cover; border-radius: 12px;">` :
+              `<svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 1500">
+      <defs>
+        <style>
+          .cls-1 {
+            stroke-width: 0px;
+          }
+        </style>
+      </defs>
+      <path class="cls-1" d="m404.66,608.33c-9.95-7.3-50.21-35.08-105.88-29.33-26.64,2.75-47.74,12.25-62.31,21.06-14.39,8.7-26.96,20.35-35.39,34.9-12.13,20.93-15.94,45.25-9.6,67.8,4.02,14.28,11.39,25.29,18.63,33.3,6.91,7.65,15.23,13.89,24.25,18.89,25.77,14.32,51.54,28.63,77.31,42.95,11.98,7.56,18.69,20.94,17.17,34.34-.11,1.01-.27,1.98-.47,2.93-2.85,13.83-15.4,23.46-29.5,24.28-8.62.5-18.56.28-29.41-1.45-34.59-5.51-58.34-23.08-69.39-32.54-13.35,21.1-26.71,42.2-40.06,63.3,13.96,9.75,32.81,20.78,56.52,29.33,42.03,15.17,79.38,15.38,102.3,13.59,7.85-.92,45.14-6.13,72.25-39.35,1.28-1.57,2.49-3.15,3.65-4.73,27.87-38.33,23.14-92-9.89-125.97-.3-.31-.6-.62-.91-.93-17.09-17.27-35.69-27.61-51.02-33.85-19.44-7.9-38.05-17.71-55.07-29.99-.78-.56-1.56-1.12-2.33-1.68-9.66-6.97-12.29-20.21-6.03-30.34h0c7.3-11.68,22.31-17.66,37.92-15.02,8.22-.53,21.33-.36,36.48,4.29,15.34,4.71,26.38,12.07,32.91,17.17,9.3-20.98,18.6-41.97,27.9-62.95Z"/>
+      <path class="cls-1" d="m630.61,740.85c-3.86-4.46-8.41-8.89-13.76-13.05-17.19-13.34-35.56-18.29-49.77-19.92-15.45-1.76-31.19.76-45.13,7.63-.08.04-.16.08-.25.12-13.14,6.52-22.41,14.79-28.33,21.1v-169.18h-72.25v358.41h72.25v-130.44c9.49-21.4,30.88-33.36,50.51-29.8,3.55.64,6.78,1.75,9.71,3.15,14.12,6.76,22.48,21.69,22.48,37.35v119.75h73.68v-132.05c0-19.38-6.46-38.41-19.14-53.06Z"/>
+      <rect class="cls-1" x="662.56" y="712.06" width="74.4" height="213.9"/>
+      <path class="cls-1" d="m953.03,825.14c-13.76,33.61-27.52,67.21-41.28,100.82h84.42l25.75-67.96c-8.94-6.55-20.41-13.83-34.43-20.38-12.7-5.93-24.48-9.84-34.47-12.48Z"/>
+      <circle class="cls-1" cx="1270.13" cy="623.35" r="45.07"/>
+      <circle class="cls-1" cx="699.76" cy="623.35" r="45.07"/>
+      <path class="cls-1" d="m954.09,822.73l95.6-235.02h71.13l94.46,235.02c-13.9-.54-54.29-3.99-86.12-34.9-26-25.25-33.27-56.18-36.12-68.31-.48-2.06-.75-3.53-1.31-6.44-4.83-25.25-5.11-43.74-5.38-76.6-.22-27.23-.29-45.31-.45-45.31-.19,0-.33,26.01-1.25,51.3-.44,12.07-.99,22.81-.99,22.81-.31,5.8-.54,8.99-.78,14.32-.97,21.54-.88,21.8-1.44,25.22-2.48,15.29-13.28,66.99-58.46,96.77-27.62,18.21-55.44,20.82-68.92,21.15Z"/>
+      <path class="cls-1" d="m1215.73,825.86c-6.37.43-13.66,1.49-21.51,3.68-22.94,6.41-38.73,19.17-47.51,27.69,7.45,22.45,14.9,44.91,22.35,67.36h137.14v-101.86l-72.84,3.12.57,47.8-18.21-47.8Z"/>
+      <polygon class="cls-1" points="1233.94 716.32 1306.21 716.32 1306.21 825.14 1233.94 822.21 1233.94 716.32"/>
+      <path class="cls-1" d="m872.77,821c22.25.49,44.49.98,66.74,1.47,18.21-35.7,36.41-71.4,54.62-107.1l-80.12-3.31-48.65,116.61h-5.72l-51.51-116.61h-72.25v27.9l98.72,186h52.22c17.12-33.61,34.25-67.21,51.37-100.82-21.81-1.38-43.62-2.76-65.43-4.14Z"/>
+    </svg>`
+            }
             </div>
-            <div class="header-brand-text">
+            <div class="header-text">
               <div class="widget-title">${companyInfo.name}</div>
-              <div class="header-online-badge">
-                <div class="header-online-dot"></div>
-                Online now
-              </div>
+              <div class="widget-subtitle">${companyInfo.description}.</div>
             </div>
           </div>
-          <button class="widget-close" aria-label="Close widget"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
-        <div class="header-greeting">Hello, I'm your AI Employee</div>
-        <div class="header-main-title">${companyInfo.description}</div>
       </div>
       <div class="widget-body">
         <div class="language-section-landing">
-          <label class="language-label-landing">Language</label>
-          <select id="shivai-language-landing" class="language-select-styled-landing"></select>
+          <label class="language-label-landing">Select your preferred language:</label>
+          <select id="shivai-language-landing" class="language-select-styled-landing">
+          </select>
         </div>
         <div id="landing-action-area">
           <!-- This will be populated based on agent status -->
         </div>
-        <div class="privacy-text">By using this service you agree to our <span class="privacy-link">T&amp;C</span></div>
+        <div class="privacy-text">By using this service you agree to our <span class="privacy-link">T&C</span></div>
       </div>
       <div class="widget-footer" style="padding: 0; margin: 0; background-color: #f9fafb;">
          <div class="footer-text" style="display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 13px; color: #6b7280; flex-wrap: nowrap; line-height: 1;">
@@ -1522,7 +1525,7 @@
     
     // Get company info for dynamic content
     const callCompanyInfo = getCompanyInfo();
-    console.log(" Using company info for call view:", callCompanyInfo);
+    console.log("📞 Using company info for call view:", callCompanyInfo);
     
     callView.innerHTML = `
     <div class="call-visualizer" id="call-visualizer">
@@ -1538,7 +1541,7 @@
       <span class="status-text ">Online</span>
       </div>
       </div>
-      <button class="widget-close" aria-label="Close widget"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      <button class="widget-close" aria-label="Close widget">×</button>
       </div>
       <div class="call-body">
       <div class="language-section">
@@ -1570,11 +1573,11 @@
             </svg>
           </div>
         </div>
-        <div class="connecting-text">Connecting to AI Employee...</div>
+        <div class="connecting-text">Connecting to AI Assistant...</div>
       </div>
       <!-- Empty State (shown when connected but no messages) -->
       <div class="empty-state">
-      <div class="empty-state-icon"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+      <div class="empty-state-icon">👋</div>
       <div class="empty-state-text">Start a conversation to see transcripts here</div>
       </div>
       </div>
@@ -1727,21 +1730,13 @@
     if (!actionArea) return;
     
     if (agentStatus.active) {
-      // Agent is active - show Start Call card
+      // Agent is active - show Start Call button
       actionArea.innerHTML = `
-        <button class="start-call-btn" id="start-call-btn">
-          <div class="card-icon-wrap">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
-            </svg>
-          </div>
-          <div class="card-content-wrap">
-            <div class="card-main-text">Start a voice call</div>
-            <div class="card-sub-text">Talk to our AI Employee instantly</div>
-          </div>
-          <div class="card-arrow-wrap">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-          </div>
+        <button class="start-call-btn mx-auto mb-4" id="start-call-btn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+          </svg>
+          Start Call
         </button>
       `;
       
@@ -1768,9 +1763,20 @@
     } else {
       // Show inactive/maintenance message
       actionArea.innerHTML = `
-        <div class="agent-inactive-message">
-          <div style="font-size: 14px; font-weight: 600; color: #991b1b; margin-bottom: 5px;">AI Employee is currently offline</div>
-          <div style="font-size: 12px; color: #6b7280; line-height: 1.5;">We're getting ready and will be back shortly to assist you.</div>
+        <div class="agent-inactive-message" style="
+          background: #f3f4f6;
+          border: 1px solid #fecaca;
+          border-radius: 8px;
+          padding: 12px 16px;
+          margin: 12px 0;
+          text-align: center;
+        ">
+          <div style="font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 4px;">
+            Our AI Employee is currently offline.
+          </div>
+          <div style="font-size: 13px; color: #6b7280; line-height: 1.4;">
+            We're getting things ready and will be back shortly to assist you.
+          </div>
         </div>
       `;
       
@@ -1852,7 +1858,7 @@
       defaultLang = hasMulti ? 'multilingual' : String(langArray[0]).toLowerCase();
     }
 
-    console.log(`ðŸŒ [widget2.js] Default language: ${defaultLang}`);
+    console.log(`🌐 [widget2.js] Default language: ${defaultLang}`);
 
     if (defaultLang) {
       if (languageSelect) languageSelect.value = defaultLang;
@@ -1863,7 +1869,7 @@
 
   // Functions to show/hide message interface based on connection state
   function showMessageInterface() {
-    console.log("ðŸ” Attempting to show message interface...");
+    console.log("🔍 Attempting to show message interface...");
 
     // Try multiple ways to find the message interface
     const container =
@@ -1871,7 +1877,7 @@
       document.querySelector(".message-input-container");
 
     if (container) {
-      console.log("ðŸ“ Container found, removing hidden class");
+      console.log("📝 Container found, removing hidden class");
       container.classList.remove("hidden");
 
       // Clear any inline styles that might be hiding it
@@ -1891,14 +1897,14 @@
         sendBtn.style.setProperty('visibility', 'hidden', 'important');
       }
 
-      console.log("ðŸ“ Message interface shown - classes:", container.className);
+      console.log("📝 Message interface shown - classes:", container.className);
     } else {
-      console.warn("Message input container not found when showing");
+      console.warn("⚠️ Message input container not found when showing");
     }
   }
 
   function hideMessageInterface() {
-    console.log("ðŸ” Attempting to hide message interface...");
+    console.log("🔍 Attempting to hide message interface...");
 
     // Try multiple ways to find the message interface
     const container =
@@ -1906,7 +1912,7 @@
       document.querySelector(".message-input-container");
 
     if (container) {
-      console.log("ðŸ“ Container found, adding hidden class");
+      console.log("📝 Container found, adding hidden class");
       container.classList.add("hidden");
 
       // Also force with inline style as backup
@@ -1915,11 +1921,11 @@
       container.style.opacity = "0";
 
       console.log(
-        "ðŸ“ Message interface hidden - classes:",
+        "📝 Message interface hidden - classes:",
         container.className
       );
     } else {
-      console.warn("Message input container not found when hiding");
+      console.warn("⚠️ Message input container not found when hiding");
     }
 
     // Also hide by ID as additional backup
@@ -1928,7 +1934,7 @@
     );
     if (containerById) {
       containerById.style.display = "none";
-      console.log("ðŸ“ Backup hiding by attribute selector applied");
+      console.log("📝 Backup hiding by attribute selector applied");
     }
   }
 
@@ -2081,537 +2087,1350 @@
     };
     
     const styles = `
-      /* =============================================
-         TRIGGER BUTTON
-      ============================================= */
       .shivai-trigger {
-        position: fixed; bottom: 24px; right: 24px;
-        width: 62px; height: 62px; border-radius: 50%;
-        border: none; cursor: pointer; outline: none;
-        display: flex; align-items: center; justify-content: center;
-        z-index: 2147483647; color: #ffffff;
-        transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.3s ease;
-        background: linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%);
-        box-shadow: 0 8px 32px rgba(0,0,0,0.28), 0 2px 8px rgba(0,0,0,0.15);
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      border: none;
+      cursor: move;
+      outline: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2147483647;
+      color: #ffffff;
+      font-size: 24px;
+      transition: all 0.3s ease;
+      background: linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25), 0 2px 8px rgba(0, 0, 0, 0.15);
       }
-      .shivai-trigger:hover { transform: scale(1.08); box-shadow: 0 12px 40px rgba(0,0,0,0.34); }
-      .shivai-trigger:active { transform: scale(0.93); }
-      .shivai-trigger.dragging { transform: scale(1.06); opacity: 0.82; transition: none !important; }
-
-      /* Dual icon morph */
-      .trigger-icon {
-        display: flex; align-items: center; justify-content: center;
-        position: absolute;
-        transition: opacity 0.22s ease, transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+      .shivai-trigger:hover {
+      transform: scale(1.1);
+      background: linear-gradient(135deg, ${theme.accentColor} 0%, ${theme.primaryColor} 100%);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35), 0 4px 12px rgba(0, 0, 0, 0.25);
       }
-      .trigger-phone-icon { opacity: 1; transform: scale(1) rotate(0deg); }
-      .trigger-down-icon  { opacity: 0; transform: scale(0.4) rotate(-90deg); }
-      .shivai-trigger.open .trigger-phone-icon { opacity: 0; transform: scale(0.4) rotate(90deg); }
-      .shivai-trigger.open .trigger-down-icon  { opacity: 1; transform: scale(1) rotate(0deg); }
-
-      .shivai-trigger--image { padding: 0; overflow: hidden; }
-      .shivai-trigger--image .shivai-trigger-avatar {
-        position: absolute; width: 100%; height: 100%;
-        border-radius: 50%; object-fit: cover; display: block;
-        transition: opacity 0.22s ease, transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+      .shivai-trigger:active {
+      transform: scale(0.95);
+      background: linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.accentColor} 50%, ${theme.primaryColor} 100%);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), inset 0 2px 4px rgba(0, 0, 0, 0.25);
       }
-      .shivai-trigger--image.open .shivai-trigger-avatar { opacity: 0; transform: scale(0.6); }
-      .shivai-trigger--image .trigger-down-icon {
-        position: absolute;
-        background: linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%);
-        width: 100%; height: 100%; border-radius: 50%;
-        display: flex; align-items: center; justify-content: center;
+      .shivai-trigger.dragging {
+      transform: scale(1.05);
+      opacity: 0.8;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3) !important;
+      transition: none !important;
       }
-      .shivai-trigger-avatar { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; clip-path: circle(50%); }
-
-      /* Neon pulse rings */
-      .shivai-neon-pulse { overflow: visible; contain: layout; }
-      .shivai-neon-pulse::before, .shivai-neon-pulse::after {
-        content: ""; position: absolute; top: 50%; left: 50%;
-        width: 100%; height: 100%;
-        transform: translate(-50%,-50%) scale(1);
-        border: 2px solid rgba(107,114,128,0.5); border-radius: 50%;
-        animation: neonPulseOut 2.2s ease-out infinite;
-        opacity: 0; pointer-events: none; will-change: transform,opacity;
+      .shivai-trigger--image {
+      padding: 0;
       }
-      .shivai-neon-pulse::after { animation-delay: 1.1s; }
+      .shivai-trigger-avatar {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+      flex-shrink: 0;
+      display: block;
+      clip-path: circle(50%);
+      }
+      .shivai-neon-pulse {
+      overflow: visible;
+      contain: layout;
+      }
+      .shivai-neon-pulse::before,
+      .shivai-neon-pulse::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 100%;
+      height: 100%;
+      transform: translate(-50%, -50%) scale(1);
+      border: 2px solid rgba(107, 114, 128, 0.6);
+      border-radius: 50%;
+      animation: neonPulseOut 2s ease-out infinite;
+      opacity: 0;
+      pointer-events: none;
+      will-change: transform, opacity;
+      }
+      .shivai-neon-pulse::after {
+      animation-delay: 1s;
+      }
       @keyframes neonPulseOut {
-        0%   { transform: translate(-50%,-50%) scale(1);    opacity: 1; }
-        100% { transform: translate(-50%,-50%) scale(1.6);  opacity: 0; }
+      0% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1;
       }
-
-      /* Bubble animations */
+      100% {
+        transform: translate(-50%, -50%) scale(1.5);
+        opacity: 0;
+      }
+      }
       @keyframes bubbleSlideIn {
-        0%   { opacity: 0; transform: translateY(12px) scale(0.85); }
-        60%  { opacity: 0.9; transform: translateY(-2px) scale(1.03); }
-        100% { opacity: 1; transform: translateY(0) scale(1); }
+      0% {
+        opacity: 0;
+        transform: translateY(15px) scale(0.7);
+      }
+      60% {
+        opacity: 0.8;
+        transform: translateY(-2px) scale(1.05);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
       }
       @keyframes bubbleSlideOut {
-        0%   { opacity: 1; transform: translateY(0) scale(1); }
-        100% { opacity: 0; transform: translateY(8px) scale(0.85); }
+      0% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
       }
-      @keyframes typingCursor { 0%,50% { opacity: 1; } 51%,100% { opacity: 0; } }
-      .shivai-message-bubble { cursor: pointer; }
-
-      /* =============================================
-         WIDGET CONTAINER
-      ============================================= */
+      100% {
+        opacity: 0;
+        transform: translateY(10px) scale(0.8);
+      }
+      }
+      @keyframes typingCursor {
+      0%, 50% { opacity: 1; }
+      51%, 100% { opacity: 0; }
+      }
+      @keyframes shine {
+      0% {
+        left: -100%;
+      }
+      100% {
+        left: 100%;
+      }
+      }
+      .start-call-btn {
+      position: relative;
+      overflow: hidden;
+      }
+      .start-call-btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.4),
+        transparent
+      );
+      animation: shine 2s infinite;
+      }
+      .start-call-btn:hover::before {
+      animation: shine 1s infinite;
+      }
+      .shivai-message-bubble {
+      cursor: pointer;
+      }
+      @media (max-width: 768px) {
+      .shivai-trigger {
+        width: 56px;
+        height: 56px;
+        font-size: 22px;
+        bottom: 16px;
+        right: 16px;
+      }
+      .shivai-trigger--image {
+        padding: 0;
+      }
+      .shivai-trigger-avatar {
+        width: 100%;
+        height: 100%;
+        clip-path: circle(50%);
+      }
+      .shivai-message-bubble {
+        font-size: 13px;
+        padding: 6px 10px;
+        max-width: 200px;
+      }
+      }
+      @media (max-width: 420px) {
+      .shivai-trigger {
+        width: 52px;
+        height: 52px;
+        bottom: 12px;
+        right: 12px;
+      }
+      .shivai-trigger--image {
+        padding: 0;
+      }
+      .shivai-trigger-avatar {
+        width: 100%;
+        height: 100%;
+        clip-path: circle(50%);
+      }
+      .shivai-message-bubble {
+        font-size: 12px;
+        padding: 6px 8px;
+        max-width: 180px;
+      }
+      }
       .shivai-widget {
-        position: fixed; bottom: 96px; right: 24px;
-        width: 400px; max-width: 400px; max-height: 630px;
-        background: #ffffff; border-radius: 20px;
-        box-shadow: 0 24px 64px rgba(0,0,0,0.18), 0 8px 24px rgba(0,0,0,0.10);
-        z-index: 10000; display: none; flex-direction: column; overflow: hidden;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-        border: 1px solid rgba(0,0,0,0.06);
+      position: fixed;
+      bottom: 60px;
+      right: 20px;
+      width: 380px;
+      max-width: 380px;
+      max-height: 550px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
+      z-index: 10000;
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      border: 1px solid #e5e7eb;
       }
       .shivai-widget.active {
-        display: flex;
-        animation: widgetSpringUp 0.42s cubic-bezier(0.34,1.56,0.64,1);
+      display: flex;
+      animation: slideUpWidget 0.3s ease-out;
       }
-      @keyframes widgetSpringUp {
-        from { opacity: 0; transform: translateY(28px) scale(0.94); }
-        to   { opacity: 1; transform: translateY(0) scale(1); }
+      @keyframes slideUpWidget {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
       }
-
-      /* =============================================
-         LANDING VIEW â€“ DARK GRADIENT HEADER
-      ============================================= */
-      .landing-view { display: flex; flex-direction: column; width: 100%; }
-
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      }
+      .landing-view {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      background: white;
+      }
       .landing-view .widget-header {
-        position: relative; padding: 22px 20px 28px;
-        background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0e2d50 100%);
-        overflow: hidden; flex-shrink: 0;
+      position: relative;
+      text-align: left;
+      padding: 16px 14px 2px;
+      border-bottom: 1px solid #f3f4f6;
       }
-
-      /* Animated mesh orbs */
-      .header-orbs { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
-      .orb {
-        position: absolute; border-radius: 50%;
-        filter: blur(42px); opacity: 0.32;
+      .header-content {
+      position: relative;
+      width: 100%;
       }
-      .orb-1 { width: 170px; height: 170px; background: #6366f1; top: -65px; right: -35px; animation: orbFloat1 8s ease-in-out infinite; }
-      .orb-2 { width: 130px; height: 130px; background: #0ea5e9; bottom: -35px; left: -25px; animation: orbFloat2 10s ease-in-out infinite reverse; }
-      .orb-3 { width: 90px;  height: 90px;  background: #a855f7; top: 25px; left: 42%; animation: orbFloat3 7s ease-in-out infinite 1.5s; }
-      @keyframes orbFloat1 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-10px,12px) scale(1.06); } }
-      @keyframes orbFloat2 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(8px,-8px) scale(1.09); } }
-      @keyframes orbFloat3 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-6px,10px) scale(0.94); } }
-
-      /* Header top row: brand + close */
-      .header-top-row {
-        display: flex; align-items: center; justify-content: space-between;
-        margin-bottom: 18px; position: relative; z-index: 1;
+      .header-info {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 12px;
       }
-      .header-brand { display: flex; align-items: center; gap: 10px; }
+      .header-text {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      }
       .landing-view .widget-avatar {
-        width: 40px; height: 40px; flex-shrink: 0; border-radius: 11px;
-        background: rgba(255,255,255,0.14); backdrop-filter: blur(8px);
-        border: 1px solid rgba(255,255,255,0.22);
-        display: flex; align-items: center; justify-content: center;
-        color: white; padding: 6px; overflow: hidden;
+      width: 42px;
+      height: 42px;
+      flex-shrink: 0;
+      border-radius: 50%;
+      background: transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #111827;
+      border: 1.5px solid #e5e7eb;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+      padding: 5px;
       }
-      .landing-view .widget-avatar svg { width: 100%; height: 100%; fill: white; }
-      .landing-view .widget-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
-
-      .header-brand-text { display: flex; flex-direction: column; gap: 3px; }
+      .landing-view .widget-avatar svg {
+      width: 100%;
+      height: 100%;
+      }
       .landing-view .widget-title {
-        font-weight: 700; font-size: 14px; color: #ffffff;
-        margin: 0; letter-spacing: -0.01em; line-height: 1.2;
+      font-weight: 600;
+      font-size: 14px;
+      color: #111827;
+      margin: 0;
+      letter-spacing: -0.01em;
+      line-height: 1.3;
       }
-      .header-online-badge {
-        display: flex; align-items: center; gap: 5px;
-        font-size: 11px; color: rgba(255,255,255,0.6); font-weight: 500;
+      .landing-view .widget-subtitle {
+      font-size: 11px;
+      color: #6b7280;
+      margin: 0;
+      font-weight: 400;
+      line-height: 1.4;
       }
-      .header-online-dot {
-        width: 7px; height: 7px; border-radius: 50%; background: #22c55e;
-        box-shadow: 0 0 7px rgba(34,197,94,0.7);
-        animation: onlinePulse 2s ease-in-out infinite;
-      }
-      @keyframes onlinePulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.65; transform: scale(1.2); } }
-
-      /* Close button (shared) */
-      .widget-close {
-        background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18);
-        color: rgba(255,255,255,0.85); cursor: pointer;
-        width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
-        border-radius: 50%; transition: all 0.2s ease; line-height: 1;
-        flex-shrink: 0; backdrop-filter: blur(8px); position: relative;
-      }
-      .widget-close:hover { background: rgba(255,255,255,0.22); color: white; }
-
-      /* Big greeting text */
-      .header-greeting {
-        font-size: 13px; color: rgba(255,255,255,0.55); font-weight: 400;
-        position: relative; z-index: 1; margin-bottom: 5px;
-      }
-      .header-main-title {
-        font-size: 13px; font-weight: 400; color: rgba(255,255,255,0.70);
-        line-height: 1.5; letter-spacing: 0.01em; position: relative; z-index: 1;
-      }
-
-      /* =============================================
-         WIDGET BODY (white area)
-      ============================================= */
-      .widget-body {
-        padding: 16px; flex: 1; display: flex; flex-direction: column;
-        gap: 10px; overflow-y: auto; background: #f8fafc;
-      }
-
-      /* Language section */
-      .language-section-landing { display: flex; flex-direction: column; gap: 5px; margin-bottom: 2px; }
-      .language-label-landing {
-        font-size: 10px; font-weight: 600; color: #94a3b8;
-        letter-spacing: 0.6px; text-transform: uppercase; margin: 0;
-      }
-      .language-select-styled-landing {
-        padding: 9px 36px 9px 12px; border-radius: 10px; border: 1.5px solid #e2e8f0;
-        background: white; font-size: 13px; color: #0f172a; cursor: pointer;
-        transition: all 0.2s ease;
-        background-image: url("data:image/svg+xml,%3Csvg width='12' height='12' viewBox='0 0 12 12' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2.5 4.5L6 8L9.5 4.5' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-        background-repeat: no-repeat; background-position: right 12px center;
-        appearance: none; -webkit-appearance: none; -moz-appearance: none;
-        font-weight: 500; box-shadow: 0 1px 4px rgba(0,0,0,0.04);
-      }
-      .language-select-styled-landing:focus {
-        outline: none; border-color: ${theme.accentColor};
-        box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
-      }
-      .language-select-styled-landing:hover { border-color: #cbd5e1; background-color: #f9fafb; }
-
-      /* START CALL CARD BUTTON */
       .start-call-btn {
-        width: 100%; padding: 0; border: 1.5px solid #e2e8f0; border-radius: 14px;
-        background: white; cursor: pointer; display: flex; align-items: stretch; gap: 0;
-        transition: all 0.25s cubic-bezier(0.34,1.56,0.64,1);
-        box-shadow: 0 2px 8px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.05);
-        overflow: hidden; text-align: left; position: relative; margin-bottom: 4px;
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid transparent;
+      border-radius: 24px;
+      font-size: 14px;
+      background: linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%);
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      margin-bottom: 10px;
       }
       .start-call-btn:hover {
-        border-color: ${theme.accentColor};
-        box-shadow: 0 8px 28px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06);
-        transform: translateY(-2px);
+      background: linear-gradient(135deg, ${theme.accentColor} 0%, ${theme.primaryColor} 100%);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
       }
-      .start-call-btn:active { transform: translateY(0); box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-      .start-call-btn::before {
-        content: ''; position: absolute; top: 0; left: -100%;
-        width: 100%; height: 100%;
-        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent);
-        animation: cardShine 2.8s infinite;
+      .start-call-btn:active {
+      transform: translateY(0);
       }
-      @keyframes cardShine { 0%,40% { left: -100%; } 60%,100% { left: 110%; } }
-      .card-icon-wrap {
-        width: 54px; flex-shrink: 0;
-        background: linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%);
-        display: flex; align-items: center; justify-content: center; color: white;
+      .privacy-text {
+      font-size: 10px;
+      color: #9ca3af;
+      text-align: center;
+      margin: 0;
+      line-height: 1.1;
       }
-      .card-content-wrap { flex: 1; padding: 14px 10px; }
-      .card-main-text { font-size: 14px; font-weight: 600; color: #0f172a; margin: 0 0 3px; line-height: 1.3; }
-      .card-sub-text { font-size: 12px; color: #64748b; margin: 0; line-height: 1.4; }
-      .card-arrow-wrap {
-        padding: 0 14px; color: #cbd5e1; flex-shrink: 0;
-        display: flex; align-items: center; justify-content: center;
-        transition: color 0.2s, transform 0.2s;
+      .privacy-link {
+      color: #2563eb;
+      cursor: pointer;
+      text-decoration: underline;
       }
-      .start-call-btn:hover .card-arrow-wrap { color: ${theme.accentColor}; transform: translateX(2px); }
-
-      /* Privacy text */
-      .privacy-text { font-size: 10px; color: #94a3b8; text-align: center; margin: 0; line-height: 1.5; }
-      .privacy-link { color: ${theme.accentColor}; cursor: pointer; text-decoration: underline; }
-
-      /* Agent inactive */
-      .agent-inactive-message {
-        background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px;
-        padding: 14px 16px; margin: 4px 0; text-align: center;
+      .widget-footer {
+      text-align: center;
+      border-top: 1px solid #f3f4f6;
       }
-
-      /* =============================================
-         WIDGET FOOTER
-      ============================================= */
-      .widget-footer { text-align: center; border-top: 1px solid #f1f5f9; background: #f8fafc; padding: 0 !important; margin: 0 !important; }
-      .footer-text { display: flex; align-items: center; justify-content: center; gap: 3px; font-size: 12px; color: #94a3b8; padding: 5px 0; flex-wrap: nowrap; line-height: 1; }
-      .footer-text span { color: #94a3b8; font-weight: 500; }
-      .footer-logo .cls-1 { fill: currentColor; stroke-width: 0px; }
-      .footer-logo-link { display: inline-flex; align-items: center; text-decoration: none; transition: opacity 0.2s; cursor: pointer; }
-      .footer-logo-link:hover { opacity: 0.7; }
+      .footer-text {
+      font-size: 12px;
+      color: #6b7280;
+      text-align: center;
+      }
+      .footer-text span {
+      color: #6b7280;
+      font-weight: 500;
+      }
+      .footer-text a {
+      color: #3b82f6;
+      text-decoration: none;
+      font-weight: 600;
+      }
+      .footer-text a:hover {
+      color: #2563eb;
+      }
+      .footer-logo .cls-1 {
+      fill: currentColor;
+      stroke-width: 0px;
+      }
+      .footer-logo-link:hover .footer-logo {
+      transform: scale(1.1);
+      }
+       .footer-logo-link {
+          padding: 0px;
+          position: relative;
+          left: -2px;
+          top: 0.5px;
+        }
       @media (max-width: 768px) {
-        .footer-text { font-size: 13px; gap: 4px; }
-        .footer-logo { height: 42px !important; width: 42px !important; }
+        .footer-text {
+          font-size: 14px;
+          gap: 4px;
+        }
+        .footer-logo {
+          height: 44px !important;
+          width: 44px !important;
+        }
+        .footer-text span {
+          font-size: 14px;
+        }
+       .footer-logo-link {
+          padding: 0px;
+          position: relative;
+          left: -2px;
+          top: 0.5px;
+        }
       }
       @media (max-width: 480px) {
-        .footer-text { font-size: 11px; padding: 0 4px; }
-        .footer-logo { height: 38px !important; width: 38px !important; }
-        .footer-logo-link { position: relative; left: -2px; }
+        .footer-text {
+          font-size: 12px;
+          gap: 3px;
+          padding: 0 4px;
+        }
+        .footer-logo {
+          height: 40px !important;
+          width: 40px !important;
+          position: relative;
+          top: -2px;
+        }
+        .footer-text span {
+          font-size: 11px;
+        }
+        .footer-logo-link {
+          padding: 0px;
+          position: relative;
+          left: -2px;
+        }
       }
-
-      /* =============================================
-         CALL VIEW
-      ============================================= */
-      .call-view { display: flex; flex-direction: column; width: 100%; }
-
-      /* Dark gradient call header */
+      .call-view {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      max-height: 600px;
+      }
       .call-header {
-        display: flex; align-items: center; padding: 14px 16px;
-        background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0e2d50 100%);
-        gap: 10px; position: relative; flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      padding: 10px 12px;
+      background: #ffffff;
+      border-bottom: 1px solid #e5e7eb;
+      gap: 10px;
       }
       .back-btn {
-        background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.18);
-        color: rgba(255,255,255,0.85); cursor: pointer; padding: 6px;
-        width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
-        border-radius: 50%; transition: all 0.2s ease; flex-shrink: 0; backdrop-filter: blur(8px);
+      background: transparent;
+      border: none;
+      color: #6b7280;
+      cursor: pointer;
+      padding: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+      flex-shrink: 0;
       }
-      .back-btn:hover { background: rgba(255,255,255,0.22); color: white; }
-      .call-info { flex: 1; min-width: 0; }
+      .back-btn:hover {
+      background: #f3f4f6;
+      color: #111827;
+      }
+      .call-info {
+      flex: 1;
+      min-width: 0;
+      }
       .call-info-name {
-        font-size: 15px; font-weight: 700; color: #ffffff; margin-bottom: 2px; line-height: 1.2;
+      font-size: 14px;
+      font-weight: 600;
+      color: #111827;
+      margin-bottom: 2px;
+      line-height: 1.2;
       }
       .call-info-status {
-        font-size: 11px; display: flex; align-items: center; gap: 4px;
-        font-weight: 500; color: rgba(255,255,255,0.5);
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      font-weight: 500;
+      color: #10b981;
       }
-      .call-info-status .status-text { font-size: 11px; line-height: 1; }
-      .call-info-status.connecting   { color: #fbbf24; }
-      .call-info-status.connected    { color: #60a5fa; }
-      .call-info-status.listening    { color: #34d399; }
-      .call-info-status.speaking     { color: #f472b6; }
-      .call-info-status.disconnected { color: #f87171; }
-      .call-view .widget-close { position: static; margin: 0; }
-
-      /* Call body */
-      .call-body { padding: 12px; flex: 1; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; background: #f8fafc; }
-
-      /* Language select in call view */
-      .language-section { display: flex; flex-direction: column; gap: 4px; margin-bottom: 4px; }
-      .language-label { font-size: 10px; font-weight: 600; color: #94a3b8; letter-spacing: 0.5px; text-transform: uppercase; margin: 0; }
+      .call-info-status .status-text {
+      font-size: 11px;
+      line-height: 1;
+      }
+      .call-info-status.connecting {
+      color: #d97706;
+      }
+      .call-info-status.connected {
+      color: #2563eb;
+      }
+      .call-info-status.listening {
+      color: #059669;
+      }
+      .call-info-status.speaking {
+      color: #db2777;
+      }
+      .call-info-status.disconnected {
+      color: #dc2626;
+      }
+      .call-view .widget-close {
+      position: static;
+      margin: 0;
+      }
+      .call-body {
+      padding: 10px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow-y: auto;
+      background: #ffffff;
+      }
+      .language-section {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 6px;
+      }
+      .language-label {
+      font-size: 11px;
+      font-weight: 400;
+      color: #000;
+      letter-spacing: 0.5px;
+      margin: 0;
+      }
       .language-select-styled {
-        padding: 6px 32px 6px 10px !important; border-radius: 8px; border: 1.5px solid #e2e8f0;
-        background: white; font-size: 12px !important; color: #0f172a; cursor: pointer;
+      padding: 6px 10px !important;
+      border-radius: 6px;
+      border: 1px solid #d1d5db;
+      background: white;
+      font-size: 12px !important;
+      color: #111827;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background-image: url("data:image/svg+xml,%3Csvg width='12' height='12' viewBox='0 0 12 12' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2.5 4.5L6 8L9.5 4.5' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      padding-right: 32px;
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      }
+      .language-select-styled:hover {
+      border-color: #9ca3af;
+      background-color: #f9fafb;
+      }
+      .language-select-styled:focus {
+      outline: none;
+      border-color: #6b7280;
+      box-shadow: 0 0 0 3px rgba(107, 114, 128, 0.1);
+      background-color: white;
+      }
+      .language-section-landing {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 16px;
+      padding: 0;
+      }
+      .language-label-landing {
+      font-size: 12px;
+      font-weight: 500;
+      color: #374151;
+      letter-spacing: 0.3px;
+      margin: 0;
+      text-align: left;
+      }
+      .language-select-styled-landing {
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 1.5px solid #d1d5db;
+      background: white;
+      font-size: 14px;
+      color: #111827;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      background-image: url("data:image/svg+xml,%3Csvg width='12' height='12' viewBox='0 0 12 12' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2.5 4.5L6 8L9.5 4.5' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 36px;
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      font-weight: 500;
+      }
+      .language-select-styled-landing:hover {
+      border-color: #3b82f6;
+      background-color: #f9fafb;
+      }
+      .language-select-styled-landing:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+      background-color: white;
+      }
+      
+      .form-group {
+        margin-bottom: 16px;
+      }
+      
+      .agent-input-styled {
+        width: 100%;
+        padding: 10px 14px;
+        border-radius: 8px;
+        border: 1.5px solid #d1d5db;
+        background: white;
+        font-size: 14px;
+        color: #111827;
         transition: all 0.2s ease;
-        background-image: url("data:image/svg+xml,%3Csvg width='12' height='12' viewBox='0 0 12 12' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2.5 4.5L6 8L9.5 4.5' stroke='%236b7280' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-        background-repeat: no-repeat; background-position: right 10px center;
-        appearance: none; -webkit-appearance: none; -moz-appearance: none;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        font-weight: 500;
       }
-      .language-select-styled:focus { outline: none; border-color: ${theme.accentColor}; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
-      .language-select-styled:hover { border-color: #cbd5e1; }
-
-      /* =============================================
-         MESSAGES CONTAINER
-      ============================================= */
-      .messages-container {
-        flex: 1; overflow-y: auto; border-radius: 12px; padding: 10px;
-        max-height: 200px; min-height: 120px;
-        background: white; border: 1.5px solid #e2e8f0;
-        box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+      
+      .agent-input-styled:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
       }
-      .messages-container::-webkit-scrollbar { width: 4px; }
-      .messages-container::-webkit-scrollbar-track { background: transparent; }
-      .messages-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
-      .messages-container::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-
-      /* Connecting animation */
-      .connecting-state { text-align: center; padding: 30px 20px; }
-      .connecting-animation { display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 16px; }
-      .call-icon-wrapper, .ai-icon-wrapper {
-        width: 44px; height: 44px; border-radius: 50%;
-        display: flex; align-items: center; justify-content: center;
-        background: #f1f5f9; border: 1.5px solid #e2e8f0;
+      
+      .agent-input-styled::placeholder {
+        color: #6b7280;
+        font-weight: 400;
       }
-      .call-icon-wrapper { animation: pulse-call 2s ease-in-out infinite; }
-      .ai-icon-wrapper   { animation: pulse-ai  2s ease-in-out infinite 0.3s; }
-      .call-icon, .ai-icon { stroke: #64748b; }
-      @keyframes pulse-call { 0%,100% { transform: scale(1); } 50% { transform: scale(1.1); } }
-      @keyframes pulse-ai   { 0%,100% { transform: scale(1); } 50% { transform: scale(1.1); } }
-      .connecting-dots { display: flex; gap: 5px; align-items: center; }
-      .connecting-dots .dot {
-        width: 7px; height: 7px; border-radius: 50%; background: #94a3b8;
-        animation: dot-bounce 1.4s ease-in-out infinite;
+      
+      .audio-controls-section {
+        margin-bottom: 20px;
+        padding: 12px;
+        background: #f8fafc;
+        border-radius: 8px;
+        border: 1px solid #e2e8f0;
       }
-      .connecting-dots .dot:nth-child(1) { animation-delay: 0s;   }
-      .connecting-dots .dot:nth-child(2) { animation-delay: 0.2s; }
-      .connecting-dots .dot:nth-child(3) { animation-delay: 0.4s; }
-      @keyframes dot-bounce { 0%,60%,100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-8px); opacity: 1; } }
-      .connecting-text { font-size: 13px; font-weight: 500; color: #64748b; }
-
-      /* Empty state */
-      .empty-state { text-align: center; padding: 20px 10px; }
-      .empty-state-icon { font-size: 32px; margin-bottom: 6px; opacity: 0.85; }
-      .empty-state-text { font-size: 13px; color: #94a3b8; line-height: 1.4; }
-
-      /* Messages */
-      .message { margin-bottom: 8px; padding: 8px 12px; border-radius: 12px; max-width: 86%; font-size: 13px; line-height: 1.5; word-wrap: break-word; }
-      .message.user {
-        background: linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%);
-        margin-left: auto; color: white; border-bottom-right-radius: 4px;
+      
+      .checkbox-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 10px;
       }
-      .message.assistant {
-        background: #f1f5f9; margin-right: auto; color: #0f172a;
-        border: 1px solid #e2e8f0; border-bottom-left-radius: 4px;
+      
+      .checkbox-group:last-child {
+        margin-bottom: 0;
       }
-      .message-label { font-size: 10px; font-weight: 600; margin-bottom: 3px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
-      .message-text { font-size: 13px; line-height: 1.5; }
-
-      /* Controls bar */
-      .controls { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 4px; }
-
-      /* Call timer */
-      .call-timer {
-        font-size: 13px; font-weight: 600; color: #0f172a;
-        font-variant-numeric: tabular-nums; letter-spacing: 0.5px;
-        margin-right: auto; background: white;
-        padding: 7px 14px; border-radius: 20px; border: 1.5px solid #e2e8f0;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.04); position: relative; overflow: hidden;
+      
+      .checkbox-group input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        margin: 0;
+        cursor: pointer;
+        accent-color: #3b82f6;
       }
-      .call-timer::before {
-        content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
-        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent);
-        animation: timerShimmer 2.2s infinite;
+      
+      .checkbox-group label {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 500;
+        color: #4b5563;
+        cursor: pointer;
+        line-height: 1.4;
       }
-      @keyframes timerShimmer { 0% { left: -100%; } 100% { left: 110%; } }
-
-      /* Control buttons */
-      .control-btn-icon {
-        width: 46px; height: 46px; padding: 0; border: none; border-radius: 50%;
-        cursor: pointer; transition: all 0.25s cubic-bezier(0.34,1.56,0.64,1);
-        display: flex; align-items: center; justify-content: center;
-        flex-shrink: 0; overflow: hidden;
+      
+      .latency-monitor {
+        margin-top: 15px;
+        padding: 12px;
+        background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+        border-radius: 8px;
+        border: 1px solid #cbd5e1;
+        font-size: 11px;
       }
-      .control-btn-icon.connect {
-        background: linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%);
-        color: white; box-shadow: 0 4px 14px rgba(0,0,0,0.15);
-        animation: connectPulse 2.5s ease-in-out infinite;
+      
+      .latency-header {
+        font-size: 13px;
+        font-weight: 600;
+        color: #1e293b;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
       }
-      @keyframes connectPulse {
-        0%,100% { box-shadow: 0 4px 14px rgba(0,0,0,0.15), 0 0 0 0 rgba(107,114,128,0.4); }
-        50%      { box-shadow: 0 4px 14px rgba(0,0,0,0.15), 0 0 0 7px rgba(107,114,128,0); }
+      
+      .latency-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+        margin-bottom: 10px;
       }
-      .control-btn-icon.connect:hover { transform: scale(1.1); box-shadow: 0 6px 20px rgba(0,0,0,0.18); animation: none; }
-      .control-btn-icon.connect:active { transform: scale(0.93); }
-      .control-btn-icon.connect.connected {
-        background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
-        animation: none; box-shadow: 0 4px 14px rgba(220,38,38,0.35);
+      
+      .latency-metric {
+        background: white;
+        padding: 8px;
+        border-radius: 6px;
+        border: 1px solid #e2e8f0;
+        text-align: center;
       }
-      .control-btn-icon.connect.connected:hover { background: linear-gradient(135deg,#b91c1c,#dc2626); transform: scale(1.1); }
-      .control-btn-icon.mute { background: white; color: #10b981; border: 1.5px solid #d1fae5; box-shadow: 0 2px 6px rgba(16,185,129,0.1); }
-      .control-btn-icon.mute:hover { background: #d1fae5; transform: scale(1.08); }
-      .control-btn-icon.mute.muted { background: #fee2e2; color: #dc2626; border-color: #fecaca; }
-      .control-btn-icon.mute.muted:hover { background: #fecaca; }
-      .control-btn-icon.clear { background: white; color: #64748b; border: 1.5px solid #e2e8f0; }
-      .control-btn-icon.clear:hover { background: #f1f5f9; transform: scale(1.08); }
-
-      /* Status badges */
-      .status { padding: 8px 12px; border-radius: 8px; text-align: center; font-size: 12px; font-weight: 500; border: 1px solid transparent; }
-      .status.connecting  { background: #fef3c7; color: #92400e; border-color: #fde68a; }
-      .status.connected   { background: #dbeafe; color: #1e40af; border-color: #bfdbfe; }
-      .status.listening   { background: #d1fae5; color: #065f46; border-color: #a7f3d0; }
-      .status.speaking    { background: #fce7f3; color: #9f1239; border-color: #fbcfe8; }
-      .status.disconnected{ background: #fee2e2; color: #991b1b; border-color: #fecaca; }
-
-      /* Audio visualizer */
+      
+      .latency-label {
+        font-size: 9px;
+        font-weight: 600;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 2px;
+      }
+      
+      .latency-value {
+        font-size: 14px;
+        font-weight: 700;
+        color: #1e293b;
+      }
+      
+      .latency-value.good {
+        color: #059669;
+      }
+      
+      .latency-value.medium {
+        color: #d97706;
+      }
+      
+      .latency-value.bad {
+        color: #dc2626;
+      }
+      
+      .latency-chart {
+        background: white;
+        padding: 8px;
+        border-radius: 6px;
+        height: 50px;
+        position: relative;
+        overflow: hidden;
+        margin-bottom: 8px;
+        border: 1px solid #e2e8f0;
+      }
+      
+      .latency-bar {
+        position: absolute;
+        bottom: 0;
+        width: 2px;
+        background: #3b82f6;
+        transition: height 0.3s ease;
+        border-radius: 1px 1px 0 0;
+      }
+      
+      .latency-stats {
+        font-size: 9px;
+        color: #64748b;
+        text-align: center;
+        line-height: 1.3;
+      }
+      
+      .call-controls-row {
+      display: flex;
+      align-items: stretch;
+      gap: 8px;
+      padding: 0;
+      margin-bottom: 12px;
+      }
       .audio-visualizer-enhanced {
-        flex: 0 0 auto; display: flex; justify-content: center; align-items: center;
-        gap: 3px; height: auto; background: white; border-radius: 10px; padding: 8px 10px;
-        border: 1.5px solid #e2e8f0; box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+      flex: 0 0 auto;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 3px;
+      height: auto;
+      background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+      border-radius: 8px;
+      padding: 8px 10px;
+      border: 1px solid #e5e7eb;
       }
       .audio-visualizer-enhanced .visualizer-bar {
-        width: 3px; height: 16px;
+      width: 3px;
+      height: 16px;
+      background: linear-gradient(180deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%);
+      border-radius: 2px;
+      transition: all 0.15s ease;
+      }
+      .audio-visualizer-enhanced .visualizer-bar.active {
+      animation: visualizerPulseEnhanced 0.8s ease-in-out infinite;
+      }
+      .audio-visualizer-enhanced .visualizer-bar:nth-child(1) {
+      animation-delay: 0s;
+      }
+      .audio-visualizer-enhanced .visualizer-bar:nth-child(2) {
+      animation-delay: 0.1s;
+      }
+      .audio-visualizer-enhanced .visualizer-bar:nth-child(3) {
+      animation-delay: 0.2s;
+      }
+      .audio-visualizer-enhanced .visualizer-bar:nth-child(4) {
+      animation-delay: 0.3s;
+      }
+      .audio-visualizer-enhanced .visualizer-bar:nth-child(5) {
+      animation-delay: 0.4s;
+      }
+      @keyframes visualizerPulseEnhanced {
+      0%, 100% {
+        height: 16px;
+        opacity: 0.7;
         background: linear-gradient(180deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%);
-        border-radius: 2px; transition: all 0.15s ease;
       }
-      .audio-visualizer-enhanced .visualizer-bar.active { animation: visualizerPulseEnhanced 0.8s ease-in-out infinite; }
-      .audio-visualizer-enhanced .visualizer-bar:nth-child(1) { animation-delay: 0s;   }
-      .audio-visualizer-enhanced .visualizer-bar:nth-child(2) { animation-delay: 0.1s; }
-      .audio-visualizer-enhanced .visualizer-bar:nth-child(3) { animation-delay: 0.2s; }
-      .audio-visualizer-enhanced .visualizer-bar:nth-child(4) { animation-delay: 0.3s; }
-      .audio-visualizer-enhanced .visualizer-bar:nth-child(5) { animation-delay: 0.4s; }
-      @keyframes visualizerPulseEnhanced { 0%,100% { height: 16px; opacity: 0.7; } 50% { height: 26px; opacity: 1; } }
-      .audio-visualizer { display: flex; justify-content: center; align-items: center; gap: 4px; height: 40px; background: #f8fafc; border-radius: 8px; padding: 10px; }
-      .visualizer-bar { width: 4px; height: 20px; background: linear-gradient(180deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%); border-radius: 2px; transition: height 0.15s ease; }
-      .visualizer-bar.active { animation: visualizerPulse 0.8s ease-in-out infinite; }
-      @keyframes visualizerPulse { 0%,100% { height: 20px; opacity: 0.8; } 50% { height: 30px; opacity: 1; } }
-
-      /* =============================================
-         MESSAGE INPUT
-      ============================================= */
-      .message-input-container {
-        display: flex !important; align-items: center !important;
-        gap: 10px !important; padding: 2px 4px !important;
+      50% {
+        height: 24px;
+        opacity: 1;
+        background: linear-gradient(180deg, ${theme.accentColor} 0%, ${theme.primaryColor} 100%);
       }
-      .input-field-container {
-        flex: 1 !important; position: relative !important; display: flex !important;
-        align-items: center !important; background: white !important; border-radius: 10px !important;
-        border: 1.5px solid #e2e8f0 !important; padding: 7px 12px !important;
-        min-height: 36px !important; max-height: 120px !important; height: 36px !important;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.04) !important;
-        transition: border-color 0.2s, box-shadow 0.2s !important;
       }
-      .input-field-container:focus-within {
-        border-color: ${theme.accentColor} !important;
-        box-shadow: 0 0 0 3px rgba(37,99,235,0.1) !important;
+      .widget-header {
+      position: relative;
+      text-align: center;
+      padding: 20px 16px 24px;
+      background: #ffffff;
+      border-bottom: 1px solid #f3f4f6;
       }
-      .message-input {
-        flex: 1 !important; border: none !important; outline: none !important;
-        background: transparent !important; font-size: 13px !important;
-        line-height: 20px !important; color: #0f172a !important; font-family: inherit !important; padding: 0 !important;
+      .widget-avatar {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 12px;
+      border-radius: 50%;
+      background: transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #111827;
+      border: 2px solid #e5e7eb;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
       }
-      .message-input::placeholder { color: #94a3b8 !important; font-size: 13px !important; font-style: normal !important; }
-      .attach-btn {
-        color: #94a3b8 !important; cursor: not-allowed !important; background: transparent !important;
-        border: none !important; display: flex !important; align-items: center !important;
-        justify-content: center !important; padding: 0 !important; opacity: 0.45 !important; margin-right: 6px !important;
+      .widget-title {
+      font-weight: 600;
+      font-size: 18px;
+      color: #111827;
+      margin: 0 0 4px 0;
+      letter-spacing: -0.01em;
       }
-      .send-btn {
-        background: transparent !important; border: none !important; color: #64748b !important;
-        cursor: pointer !important; display: flex !important; align-items: center !important;
-        justify-content: center !important; min-width: 28px !important; height: 28px !important;
-        flex-shrink: 0 !important; transition: color 0.2s !important;
+      .widget-subtitle {
+      font-size: 13px;
+      color: #6b7280;
+      margin: 0;
+      font-weight: 400;
       }
-      .send-btn:hover { color: ${theme.accentColor} !important; }
-      .send-btn:disabled { color: #cbd5e1 !important; cursor: not-allowed !important; }
-      .send-btn svg { width: 15px; height: 15px; }
-
-      /* Attachment menu */
-      .attachment-menu { animation: slideUpFade 0.2s ease-out; }
-      @keyframes slideUpFade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-      .attachment-option:hover { background: #f8fafc !important; }
-
-      /* Latency monitor */
-      .latency-monitor { margin-top: 12px; padding: 10px; background: linear-gradient(135deg,#f1f5f9 0%,#e2e8f0 100%); border-radius: 8px; border: 1px solid #cbd5e1; font-size: 11px; }
-      .latency-header { font-size: 13px; font-weight: 600; color: #1e293b; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
-      .latency-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-bottom: 8px; }
-      .latency-metric { background: white; padding: 7px; border-radius: 6px; border: 1px solid #e2e8f0; text-align: center; }
-      .latency-label { font-size: 9px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 2px; }
-      .latency-value { font-size: 14px; font-weight: 700; color: #1e293b; }
-      .latency-value.good { color: #059669; }
-      .latency-value.medium { color: #d97706; }
-      .latency-value.bad { color: #dc2626; }
-      .latency-chart { background: white; padding: 8px; border-radius: 6px; height: 46px; position: relative; overflow: hidden; margin-bottom: 6px; border: 1px solid #e2e8f0; }
-      .latency-bar { position: absolute; bottom: 0; width: 2px; background: #3b82f6; transition: height 0.3s ease; border-radius: 1px 1px 0 0; }
-      .latency-stats { font-size: 9px; color: #64748b; text-align: center; line-height: 1.3; }
-
-      /* Misc */
-      .call-controls-row { display: flex; align-items: stretch; gap: 8px; padding: 0; margin-bottom: 10px; }
-      .dragging { opacity: 0.8; transform: scale(1.04); z-index: 999999 !important; transition: none !important; }
-      .shivai-widget.dragging { transition: none !important; }
-      .widget-header:hover, .call-header:hover { cursor: move; }
-      .widget-header .widget-close:hover, .call-header .widget-close:hover,
-      .call-header .back-btn:hover { cursor: pointer; }
-      .shivai-message-bubble { cursor: pointer; }
-
-      /* =============================================
-         RESPONSIVE
-      ============================================= */
+      .widget-close {
+      position: absolute;
+      top: -10px;
+      right: -8px;
+      background: transparent;
+      border: none;
+      color: #9ca3af;
+      font-size: 24px;
+      cursor: pointer;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      transition: all 0.2s ease;
+      font-weight: 300;
+      line-height: 1;
+      }
+      .widget-close:hover {
+      background: #f3f4f6;
+      color: #374151;
+      }
+      .widget-body {
+      padding: 20px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      overflow-y: auto;
+      background: #ffffff;
+      }
+      .language-selector {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      }
+      .language-selector label {
+      font-size: 12px;
+      font-weight: 500;
+      color: #374151;
+      }
+      .language-selector select {
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid #d1d5db;
+      background: white;
+      font-size: 13px;
+      color: #111827;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      }
+      .language-selector select:focus {
+      outline: none;
+      border-color: #6b7280;
+      box-shadow: 0 0 0 3px rgba(107, 114, 128, 0.1);
+      }
+      .status {
+      padding: 10px 12px;
+      border-radius: 8px;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 500;
+      border: 1px solid transparent;
+      }
+      .status.connecting {
+      background: #fef3c7;
+      color: #92400e;
+      border-color: #fde68a;
+      }
+      .status.connected {
+      background: #dbeafe;
+      color: #1e40af;
+      border-color: #bfdbfe;
+      }
+      .status.listening {
+      background: #d1fae5;
+      color: #065f46;
+      border-color: #a7f3d0;
+      }
+      .status.speaking {
+      background: #fce7f3;
+      color: #9f1239;
+      border-color: #fbcfe8;
+      }
+      .status.disconnected {
+      background: #fee2e2;
+      color: #991b1b;
+      border-color: #fecaca;
+      }
+      .audio-visualizer {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 4px;
+      height: 40px;
+      background: #f9fafb;
+      border-radius: 8px;
+      padding: 10px;
+      }
+      .visualizer-bar {
+      width: 4px;
+      height: 20px;
+      background: linear-gradient(180deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%);
+      border-radius: 2px;
+      transition: height 0.15s ease;
+      }
+      .visualizer-bar.active {
+      animation: visualizerPulse 0.8s ease-in-out infinite;
+      }
+      @keyframes visualizerPulse {
+      0%, 100% {
+        height: 20px;
+        opacity: 0.8;
+      }
+      50% {
+        height: 30px;
+        opacity: 1;
+      }
+      }
+      .messages-container {
+      flex: 1;
+      overflow-y: auto;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 8px;
+      max-height: 180px;
+      background: #f9fafb;
+      min-height: 120px;
+      }
+      .messages-container::-webkit-scrollbar {
+      width: 4px;
+      }
+      .messages-container::-webkit-scrollbar-track {
+      background: #f3f4f6;
+      border-radius: 2px;
+      }
+      .messages-container::-webkit-scrollbar-thumb {
+      background: #d1d5db;
+      border-radius: 2px;
+      }
+      .messages-container::-webkit-scrollbar-thumb:hover {
+      background: #9ca3af;
+      }
+      /* Connecting Animation */
+      .connecting-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: #6b7280;
+      }
+      
+      .connecting-animation {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      margin-bottom: 20px;
+      }
+      
+      .call-icon-wrapper,
+      .ai-icon-wrapper {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      background: transparent;
+      }
+      
+      .call-icon-wrapper {
+      animation: pulse-call 2s ease-in-out infinite;
+      }
+      
+      .ai-icon-wrapper {
+      animation: pulse-ai 2s ease-in-out infinite 0.3s;
+      }
+      
+      .call-icon,
+      .ai-icon {
+      stroke: #4b5563;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+      }
+      
+      @keyframes pulse-call {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+      }
+      
+      @keyframes pulse-ai {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+      }
+      
+      .connecting-dots {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      }
+      
+      .connecting-dots .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #6b7280;
+      animation: dot-bounce 1.4s ease-in-out infinite;
+      }
+      
+      .connecting-dots .dot:nth-child(1) { animation-delay: 0s; }
+      .connecting-dots .dot:nth-child(2) { animation-delay: 0.2s; }
+      .connecting-dots .dot:nth-child(3) { animation-delay: 0.4s; }
+      
+      @keyframes dot-bounce {
+      0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+      30% { transform: translateY(-10px); opacity: 1; }
+      }
+      
+      .connecting-text {
+      font-size: 14px;
+      font-weight: 500;
+      color: #6b7280;
+      }
+      .empty-state {
+      text-align: center;
+      padding: 20px 10px;
+      color: #6b7280;
+      }
+      .empty-state-icon {
+      font-size: 36px;
+      margin-bottom: 6px;
+      opacity: 0.9;
+      }
+      .empty-state-text {
+      font-size: 13px;
+      color: #9ca3af;
+      line-height: 1.4;
+      }
+      .message {
+      margin-bottom: 10px;
+      padding: 8px 12px;
+      border-radius: 10px;
+      max-width: 85%;
+      font-size: 13px;
+      line-height: 1.4;
+      word-wrap: break-word;
+      }
+      .message.user {
+      background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+      margin-left: auto;
+      color: #1e40af;
+      border: 1px solid #bfdbfe;
+      }
+      .message.assistant {
+      background: #f3f4f6;
+      margin-right: auto;
+      color: #111827;
+      border: 1px solid #e5e7eb;
+      }
+      border-bottom-right-radius: 4px;
+      }
+      .message.assistant {
+      background: #f3f4f6;
+      margin-right: auto;
+      color: #111827;
+      border: 1px solid #e5e7eb;
+      }
+      .message-label {
+      font-size: 11px;
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      }
+      .message-text {
+      font-size: 14px;
+      line-height: 1.5;
+      color: inherit;
+      }
+      .controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 2px;
+      }
+      .call-timer {
+      font-size: 14px;
+      font-weight: 600;
+      color: #1f2937;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.5px;
+      margin-right: auto;
+      background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+      padding: 8px 14px;
+      border-radius: 20px;
+      border: 1px solid #e5e7eb;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+      position: relative;
+      overflow: hidden;
+      }
+      .call-timer::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+      animation: timerShimmer 2s infinite;
+      }
+      @keyframes timerShimmer {
+      0% {
+        left: -100%;
+      }
+      100% {
+        left: 100%;
+      }
+      }
+      .control-btn-icon {
+      width: 44px;
+      height: 44px;
+      padding: 0;
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+      flex-shrink: 0;
+      }
+      .control-btn-icon.connect {
+      background: linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%);
+      color: white;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      animation: connectPulse 2s ease-in-out infinite;
+      }
+      @keyframes connectPulse {
+      0%, 100% {
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1), 0 0 0 0 rgba(107, 114, 128, 0.4);
+      }
+      50% {
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1), 0 0 0 6px rgba(107, 114, 128, 0);
+      }
+      }
+      .control-btn-icon.connect:hover {
+      background: linear-gradient(135deg, ${theme.accentColor} 0%, ${theme.primaryColor} 100%);
+      transform: scale(1.05);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      }
+      .control-btn-icon.connect:active {
+      transform: scale(0.95);
+      }
+      .control-btn-icon.connect.connected {
+      background: linear-gradient(135deg, #dc2626 0%, #ef4444 50%, #dc2626 100%);
+      animation: none;
+      z-index: 1;
+      }
+      .control-btn-icon.connect.connected:hover {
+      background: linear-gradient(135deg, #b91c1c 0%, #dc2626 50%, #b91c1c 100%);
+      transform: scale(1.05);
+      }
+      .control-btn-icon.clear {
+      background: #f3f4f6;
+      color: #6b7280;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+      }
+      .control-btn-icon.clear:hover {
+      background: #e5e7eb;
+      color: #374151;
+      transform: scale(1.05);
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+      }
+      .control-btn-icon.clear:active {
+      transform: scale(0.95);
+      }
+      .control-btn-icon.mute {
+      background: #f3f4f6;
+      color: #10b981;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+      }
+      .control-btn-icon.mute:hover {
+      background: #d1fae5;
+      color: #059669;
+      transform: scale(1.05);
+      box-shadow: 0 4px 10px rgba(16, 185, 129, 0.2);
+      }
+      .control-btn-icon.mute:active {
+      transform: scale(0.95);
+      }
+      .control-btn-icon.mute.muted {
+      background: #fee2e2;
+      color: #dc2626;
+      }
+      .control-btn-icon.mute.muted:hover {
+      background: #fecaca;
+      color: #b91c1c;
+      box-shadow: 0 4px 10px rgba(220, 38, 38, 0.2);
+      }
       @media (max-width: 768px) {
-        .shivai-trigger { width: 56px; height: 56px; bottom: 18px; right: 18px; }
-        .shivai-widget { width: calc(100vw - 32px); right: 16px; bottom: 4%; max-height: 540px; border-radius: 18px; }
+      .shivai-widget {
+        width: calc(100vw - 40px);
+        right: 20px;
+        bottom: 4%;
+        max-height: 500px;
+      }
       }
       @media (max-width: 480px) {
-        .shivai-trigger { width: 52px; height: 52px; bottom: 14px; right: 14px; }
-        .shivai-widget { width: calc(100vw - 24px); right: 12px; bottom: 3%; border-radius: 16px; max-height: 520px; }
-        .landing-view .widget-header { padding: 18px 16px 24px; }
-        .header-main-title { font-size: 13px; }
-        .widget-body { padding: 12px; }
+      .shivai-widget {
+        width: calc(100vw - 24px);
+        right: 12px;
+        bottom: 3%;
+        // max-height: 450px;
+      }
+      .widget-header {
+        padding: 16px 12px 20px;
+      }
+      .widget-body {
+        padding: 16px;
+      }
+      .control-btn {
+        padding: 12px 14px;
+        font-size: 13px;
+      }
+      .dragging {
+        opacity: 0.8;
+        transform: scale(1.05);
+        z-index: 999999 !important;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3) !important;
+        transition: none !important;
+      }
+      .shivai-widget.dragging {
+        transition: none !important;
+      }
+      .widget-header:hover,
+      .call-header:hover {
+        cursor: move;
+      }
+      .widget-header .widget-close:hover,
+      .widget-header .start-call-btn:hover,
+      .widget-header .language-select-styled-landing:hover,
+      .widget-header .language-section-landing:hover,
+      .call-header .widget-close:hover,
+      .call-header .back-btn:hover {
+        cursor: pointer;
+      }
+      
+      /* Simplified WhatsApp-style Message Input Interface Styles */
+      .shivai-widget .message-input-container {
+        display: flex !important;
+        align-items: center !important;
+        gap: 12px !important;
+        padding: 8px 16px !important;
+      }
+      
+      /* Override to hide message interface when not connected */
+      .shivai-widget .message-input-container.hidden,
+      .shivai-widget.message-input-container.hidden {
+        display: none !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+      }
+      
+      .shivai-widget .attach-btn:hover {
+        background: #008069 !important;
+        transform: scale(1.05) !important;
+      }
+
+      .shivai-widget .send-btn:hover {
+        background: #008069 !important;
+        transform: scale(1.05) !important;
+      }
+
+      .shivai-widget .input-field-container:focus-within {
+        border-color: #00a884 !important;
+        box-shadow: 0 0 0 2px rgba(0, 168, 132, 0.1) !important;
+      }
+      
+      .shivai-widget .message-input {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+      }
+      
+      .shivai-widget .message-input::placeholder {
+        color: #8696a0 !important;
+        font-size: 12px !important;
+      }
+
+      .shivai-widget .attachment-menu {
+        animation: slideUpFade 0.2s ease-out !important;
+      }
+
+      @keyframes slideUpFade {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .shivai-widget .attachment-option:hover {
+        background: #f5f6f6 !important;
+      }
+      
+      .shivai-widget .message-input:focus {
+        background: #ffffff;
+        transform: translateY(-1px);
+      }
+      
+      .shivai-widget .message-input::placeholder {
+        color: #9ca3af;
+        font-style: italic;
+      }
+      
+      .shivai-widget .send-btn {
+        padding: 8px !important;
+        border: none !important;
+        background: transparent !important;
+        color: #666 !important;
+        cursor: pointer !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        min-width: 32px !important;
+        height: 32px !important;
+        flex-shrink: 0 !important;
+        transition: color 0.2s ease !important;
+      }
+      
+      .shivai-widget .send-btn:hover {
+        color: #333 !important;
+      }
+      
+      .shivai-widget .send-btn:active {
+        color: #000 !important;
+      }
+      
+      .shivai-widget .send-btn:disabled {
+        color: #ccc !important;
+        cursor: not-allowed !important;
+      }
+      
+      .shivai-widget .send-btn svg {
+        width: 16px;
+        height: 16px;
       }
     `;
     const styleSheet = document.createElement("style");
@@ -2783,7 +3602,7 @@
             <div style="margin-right: 12px; font-size: 24px;">${fileIcon}</div>
             <div style="flex: 1;">
               <div style="font-weight: 500; color: #111b21; font-size: 14px;">${file.name}</div>
-              <div style="font-size: 12px; color: #8696a0;">${(file.size / 1024).toFixed(1)} KB â€¢ ${file.type || "Unknown type"}</div>
+              <div style="font-size: 12px; color: #8696a0;">${(file.size / 1024).toFixed(1)} KB • ${file.type || "Unknown type"}</div>
             </div>
           </div>
         `;
@@ -2801,17 +3620,17 @@
 
   // Get appropriate icon for file type
   function getFileIcon(fileType) {
-    if (fileType.includes("pdf")) return "ðŸ“„";
-    if (fileType.includes("word") || fileType.includes("document")) return "ðŸ“";
-    if (fileType.includes("text")) return "ðŸ“ƒ";
+    if (fileType.includes("pdf")) return "📄";
+    if (fileType.includes("word") || fileType.includes("document")) return "📝";
+    if (fileType.includes("text")) return "📃";
     if (fileType.includes("spreadsheet") || fileType.includes("excel"))
-      return "ðŸ“Š";
+      return "📊";
     if (fileType.includes("presentation") || fileType.includes("powerpoint"))
-      return "ðŸ“½ï¸";
-    if (fileType.includes("video")) return "ðŸŽ¥";
-    if (fileType.includes("audio")) return "ðŸŽµ";
-    if (fileType.includes("zip") || fileType.includes("rar")) return "ðŸ—œï¸";
-    return "ðŸ“Ž";
+      return "📽️";
+    if (fileType.includes("video")) return "🎥";
+    if (fileType.includes("audio")) return "🎵";
+    if (fileType.includes("zip") || fileType.includes("rar")) return "🗜️";
+    return "📎";
   }
 
   function switchToCallView() {
@@ -2838,8 +3657,7 @@
     widgetContainer.classList.add("active");
     isWidgetOpen = true;
     if (triggerBtn) {
-      triggerBtn.classList.add("open");
-      setTimeout(() => { if (triggerBtn) triggerBtn.style.display = "none"; }, 200);
+      triggerBtn.style.display = "none";
     }
     hideBubble();
     if (messageInterval) {
@@ -2853,15 +3671,15 @@
     });
   }
   function closeWidget() {
-    console.log("ðŸ”´ Widget closing - checking call state");
+    console.log("🔴 Widget closing - checking call state");
 
     // Disconnect LiveKit room if connected
     if (room) {
-      console.log("ðŸ”´ Disconnecting LiveKit room on widget close");
+      console.log("🔴 Disconnecting LiveKit room on widget close");
       room
         .disconnect()
         .then(() => {
-          console.log("ðŸ”´ LiveKit room disconnected successfully");
+          console.log("🔴 LiveKit room disconnected successfully");
         })
         .catch((err) => {
           console.warn("Error disconnecting LiveKit room:", err);
@@ -2869,7 +3687,7 @@
       room = null;
     }
 
-    console.log("ðŸ”´ Performing complete cleanup on widget close");
+    console.log("🔴 Performing complete cleanup on widget close");
     isConnected = false;
     isConnecting = false;
     hasReceivedFirstAIResponse = false;
@@ -2879,7 +3697,7 @@
     clearLoadingStatus();
     stopCallTimer();
     if (ws) {
-      console.log("ðŸ”Œ Closing WebSocket on widget close");
+      console.log("🔌 Closing WebSocket on widget close");
       ws.close();
       ws = null;
     }
@@ -2887,7 +3705,7 @@
     teardownPlaybackProcessor();
     if (mediaStream) {
       console.log(
-        "Stopping microphone and revoking permissions on widget close"
+        "🎤 Stopping microphone and revoking permissions on widget close"
       );
       mediaStream.getTracks().forEach((track) => {
         console.log(
@@ -2897,7 +3715,7 @@
         track.enabled = false;
       });
       mediaStream = null;
-      console.log("Microphone permissions revoked successfully");
+      console.log("🎤 Microphone permissions revoked successfully");
     }
     if (audioContext) {
       try {
@@ -2910,7 +3728,7 @@
       audioContext = null;
     }
     if (messagesDiv) {
-      console.log("ðŸ“ Transcripts cleared completely");
+      console.log("📝 Transcripts cleared completely");
     }
     currentUserTranscript = "";
     currentAssistantTranscript = "";
@@ -2949,18 +3767,17 @@
           window.currentCallId = null;
         });
     }
-    console.log("ðŸ”´ Complete cleanup finished on widget close");
+    console.log("🔴 Complete cleanup finished on widget close");
     widgetContainer.classList.remove("active");
     isWidgetOpen = false;
     if (triggerBtn) {
-      triggerBtn.classList.remove("open");
       triggerBtn.style.display = "flex";
     }
     switchToLandingView();
     if (!messageInterval) {
       startLiveMessages();
     }
-    console.log("Widget closed successfully");
+    console.log("✅ Widget closed successfully");
   }
   async function handleConnectClick(e) {
     if (e) {
@@ -2970,7 +3787,7 @@
 
     // Prevent multiple rapid clicks
     if (isDisconnecting) {
-      console.log("ðŸš« Disconnect already in progress - ignoring click");
+      console.log("🚫 Disconnect already in progress - ignoring click");
       return;
     }
 
@@ -2986,13 +3803,13 @@
           source.start();
         }
       } catch (e) {
-        console.warn("ðŸŽ [iOS] Audio unlock failed:", e);
+        console.warn("🍎 [iOS] Audio unlock failed:", e);
       }
     }
 
     // Handle disconnect for any connected or connecting state
     if (isConnecting || isConnected) {
-      console.log("ðŸ”´ Disconnect requested - current state:", {
+      console.log("🔴 Disconnect requested - current state:", {
         isConnecting,
         isConnected,
       });
@@ -3033,7 +3850,7 @@
 
       // Close WebSocket if exists
       if (ws) {
-        console.log("ðŸ”Œ Closing WebSocket immediately");
+        console.log("🔌 Closing WebSocket immediately");
         try {
           ws.close();
         } catch (err) {
@@ -3066,7 +3883,7 @@
         room
           .disconnect()
           .then(() => {
-            console.log("ðŸšª LiveKit room disconnected");
+            console.log("🚪 LiveKit room disconnected");
             room = null;
           })
           .catch((err) => {
@@ -3084,14 +3901,14 @@
       setTimeout(() => {
         isDisconnecting = false;
         connectBtn.disabled = false;
-        console.log("Immediate disconnect completed");
+        console.log("✅ Immediate disconnect completed");
       }, 100); // Reduced from 500ms to 100ms for faster reconnection
 
       return;
     }
     // Start new connection only if not currently connected or connecting
     if (!isConnecting && !isConnected && !isDisconnecting) {
-      console.log("ðŸ”µ Starting new connection");
+      console.log("🔵 Starting new connection");
       isConnecting = true;
       connectBtn.disabled = true;
       playSound("ring");
@@ -3106,7 +3923,7 @@
 
         // Check if connection was cancelled during startConversation
         if (!isConnecting) {
-          console.log("Connection was cancelled during startup");
+          console.log("⚠️ Connection was cancelled during startup");
           return;
         }
 
@@ -3150,7 +3967,7 @@
         connectBtn.disabled = false; // Ensure button is enabled for reconnection
         
         updateStatus(
-          "Failed to connect - Click to retry",
+          "❌ Failed to connect - Click to retry",
           "disconnected"
         );
         
@@ -3208,7 +4025,7 @@
     }
 
     updateMuteButton();
-    console.log(`Microphone ${isMuted ? "muted" : "unmuted"} by user`);
+    console.log(`🎤 Microphone ${isMuted ? "muted" : "unmuted"} by user`);
   }
   function updateStatus(status, className) {
     const statusText = statusDiv.querySelector(".status-text");
@@ -3254,10 +4071,10 @@
     connectBtn.title = "End Call";
     callTimerInterval = setInterval(updateCallTimer, 1000);
     updateCallTimer();
-    console.log("â±ï¸ Call timer started");
+    console.log("⏱️ Call timer started");
 
     // Microphone is always enabled
-    console.log("Microphone is enabled and ready for conversation");
+    console.log("🎤 Microphone is enabled and ready for conversation");
   }
   function stopCallTimer() {
     if (callTimerInterval) {
@@ -3294,7 +4111,7 @@
     // Hide message interface during connection
     hideMessageInterface();
     
-    console.log("ðŸ”„ Showing connecting animation");
+    console.log("🔄 Showing connecting animation");
   }
   
   function hideConnectingState() {
@@ -3314,7 +4131,7 @@
     // Show message interface now that connection is stable
     showMessageInterface();
     
-    console.log("Hiding connecting animation");
+    console.log("✅ Hiding connecting animation");
   }
   
   async function showProgressiveConnectionStates() {
@@ -3351,7 +4168,7 @@
         sound: false,
       },
       {
-        text: "Connection established! ðŸŽ‰",
+        text: "Connection established! 🎉",
         desc: "AI is warming up, ready in moments...",
         delay: 600,
         sound: false,
@@ -3371,7 +4188,7 @@
     }
   }
   function addMessage(role, text) {
-    console.log("ðŸ” addMessage called:", {
+    console.log("🔍 addMessage called:", {
       role,
       text,
       caller: new Error().stack.split("\n")[2],
@@ -3379,7 +4196,7 @@
 
     // CRITICAL: Prevent duplicate messages
     if (!text || text.trim().length === 0) {
-      console.log("ðŸš« Skipping empty message");
+      console.log("🚫 Skipping empty message");
       return null;
     }
 
@@ -3391,7 +4208,7 @@
       const msgRole = msgEl.classList.contains('user') ? 'user' : 'assistant';
       const msgTime = msgEl.dataset.timestamp ? parseInt(msgEl.dataset.timestamp) : 0;
       if (msgRole === role && msgText === text.trim() && (now - msgTime) < 2000) {
-        console.log("ðŸš« Skipping duplicate message:", text.substring(0, 50));
+        console.log("🚫 Skipping duplicate message:", text.substring(0, 50));
         return msgEl;
       }
     }
@@ -3412,7 +4229,7 @@
       firstResponseReceived = true;
       if (!callTimerStarted) {
         callTimerStarted = true;
-        updateStatus("Connected — Speak now", "connected");
+        updateStatus("✅ Connected - Speak now!", "connected");
         stopConnectingSound();
         clearLoadingStatus();
         hideConnectingState();
@@ -3471,7 +4288,7 @@
 
     if (message && room && isConnected) {
       try {
-        console.log("ðŸ“¤ Sending chat message:", message);
+        console.log("📤 Sending chat message:", message);
 
         // Use proper LiveKit sendText method like test-client
         if (typeof room.localParticipant.sendText === "function") {
@@ -3482,12 +4299,12 @@
             })
             .then((info) => {
               console.log(
-                "Chat sent with sendText, stream ID:",
+                "✅ Chat sent with sendText, stream ID:",
                 info.streamId
               );
             })
             .catch((error) => {
-              console.error("sendText failed:", error);
+              console.error("❌ sendText failed:", error);
               // Fallback to publishData if sendText fails
               fallbackSendChat(message);
             });
@@ -3505,12 +4322,12 @@
         // Clear input
         messageInput.value = "";
 
-        console.log("ðŸ’¬ Message sent:", message);
+        console.log("💬 Message sent:", message);
       } catch (error) {
-        console.error("Error sending message:", error);
+        console.error("❌ Error sending message:", error);
       }
     } else if (!isConnected) {
-      console.warn("Cannot send message: not connected to room");
+      console.warn("⚠️ Cannot send message: not connected to room");
     }
   }
 
@@ -3531,9 +4348,9 @@
         destinationIdentities: [], // send to all participants
       });
 
-      console.log("Chat sent with publishData");
+      console.log("✅ Chat sent with publishData");
     } catch (error) {
-      console.error("publishData fallback failed:", error);
+      console.error("❌ publishData fallback failed:", error);
     }
   }
 
@@ -3549,21 +4366,21 @@
 
       // Check if connection was cancelled before starting
       if (!isConnecting) {
-        console.log("Connection cancelled before start");
+        console.log("❌ Connection cancelled before start");
         return;
       }
 
-      // CRITICAL: Check permission state FIRST - never auto-request
-      console.log("ðŸ” Checking microphone permission state...");
-      console.log("ðŸ“ Browser:", navigator.userAgent);
-      console.log("ðŸ“ Secure context:", window.isSecureContext);
-      console.log("ðŸ“ MediaDevices available:", !!navigator.mediaDevices);
+      // ✅ CRITICAL: Check permission state FIRST - never auto-request
+      console.log("🔍 Checking microphone permission state...");
+      console.log("📍 Browser:", navigator.userAgent);
+      console.log("📍 Secure context:", window.isSecureContext);
+      console.log("📍 MediaDevices available:", !!navigator.mediaDevices);
 
       // Check if we're in a secure context (HTTPS)
       if (!window.isSecureContext) {
-        console.error("Not in secure context - HTTPS required for microphone access");
-        updateStatus("HTTPS required", "disconnected");
-        alert("ðŸ”’ Microphone access requires HTTPS.\n\nPlease access this page using a secure HTTPS connection.");
+        console.error("❌ Not in secure context - HTTPS required for microphone access");
+        updateStatus("❌ HTTPS required", "disconnected");
+        alert("🔒 Microphone access requires HTTPS.\n\nPlease access this page using a secure HTTPS connection.");
         isConnecting = false;
         connectBtn.disabled = false;
         return;
@@ -3571,42 +4388,42 @@
 
       // Check if mediaDevices API is available
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        console.error("MediaDevices API not available");
-        updateStatus("Browser not supported", "disconnected");
-        alert("Microphone API not available.\n\nPlease use a modern browser (Chrome, Firefox, Safari, Edge).");
+        console.error("❌ MediaDevices API not available");
+        updateStatus("❌ Browser not supported", "disconnected");
+        alert("❌ Microphone API not available.\n\nPlease use a modern browser (Chrome, Firefox, Safari, Edge).");
         isConnecting = false;
         connectBtn.disabled = false;
         return;
       }
 
-      // CRITICAL: Check permission state - STOP if denied
+      // ✅ CRITICAL: Check permission state - STOP if denied
       let permissionState = "prompt";
       try {
         const permissionStatus = await navigator.permissions.query({ name: "microphone" });
         permissionState = permissionStatus.state;
-        console.log("ðŸ“ Microphone permission state:", permissionState);
+        console.log("📍 Microphone permission state:", permissionState);
 
         if (!isConnecting) {
-          console.log("Connection cancelled during permission check");
+          console.log("❌ Connection cancelled during permission check");
           return;
         }
 
         if (permissionState === "denied") {
-          console.error("Microphone permission DENIED - stopping");
-          updateStatus("Microphone blocked", "disconnected");
+          console.error("❌ Microphone permission DENIED - stopping");
+          updateStatus("❌ Microphone blocked", "disconnected");
           alert(
-            "Microphone Access Blocked\n\n" +
+            "🎤 Microphone Access Blocked\n\n" +
             "To enable microphone:\n\n" +
             "Chrome/Edge:\n" +
-            "1. Click the ðŸ”’ lock icon in the address bar\n" +
+            "1. Click the 🔒 lock icon in the address bar\n" +
             "2. Find 'Microphone' and select 'Allow'\n" +
             "3. Refresh the page\n\n" +
             "Firefox:\n" +
-            "1. Click the ðŸ”’ icon in the address bar\n" +
+            "1. Click the 🔒 icon in the address bar\n" +
             "2. Click the arrow next to 'Blocked Temporarily'\n" +
             "3. Select 'Allow'\n\n" +
             "Safari:\n" +
-            "1. Go to Safari â†’ Settings â†’ Websites â†’ Microphone\n" +
+            "1. Go to Safari → Settings → Websites → Microphone\n" +
             "2. Find this website and select 'Allow'\n" +
             "3. Refresh the page"
           );
@@ -3617,21 +4434,21 @@
           return;
         }
       } catch (permError) {
-        console.warn("Could not query permission state:", permError);
+        console.warn("⚠️ Could not query permission state:", permError);
         // Continue - some browsers don't support permissions API
       }
 
-      // Show status - requesting permission
-      updateStatus("Requesting microphone...", "connecting");
+      // ✅ Show status - requesting permission
+      updateStatus("🎤 Requesting microphone...", "connecting");
 
       if (!isConnecting) {
-        console.log("Connection cancelled before requesting microphone");
+        console.log("❌ Connection cancelled before requesting microphone");
         return;
       }
 
-      // CRITICAL: ONE explicit request, ONCE, on user action
+      // ✅ CRITICAL: ONE explicit request, ONCE, on user action
       try {
-        console.log("Requesting getUserMedia (user clicked button)...");
+        console.log("🎤 Requesting getUserMedia (user clicked button)...");
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: {
             echoCancellation: true,
@@ -3643,36 +4460,36 @@
           },
         });
 
-        console.log("Microphone permission GRANTED");
-        updateStatus("Microphone enabled", "connecting");
+        console.log("✅ Microphone permission GRANTED");
+        updateStatus("✅ Microphone enabled", "connecting");
 
         // Stop the test stream immediately - LiveKit will create its own
         stream.getTracks().forEach((track) => track.stop());
 
       } catch (micError) {
-        console.error("Microphone request failed:", micError);
-        updateStatus("Microphone denied", "disconnected");
+        console.error("❌ Microphone request failed:", micError);
+        updateStatus("❌ Microphone denied", "disconnected");
 
         if (micError.name === "NotAllowedError") {
           alert(
-            "Microphone Access Denied\n\n" +
+            "🎤 Microphone Access Denied\n\n" +
             "You clicked 'Block' or 'Deny'.\n\n" +
             "To fix:\n" +
-            "1. Click the ðŸ”’ lock icon in your browser's address bar\n" +
+            "1. Click the 🔒 lock icon in your browser's address bar\n" +
             "2. Find 'Microphone' permission\n" +
             "3. Change it to 'Allow'\n" +
             "4. Refresh the page and try again"
           );
         } else if (micError.name === "NotFoundError") {
           alert(
-            "No Microphone Found\n\n" +
+            "❌ No Microphone Found\n\n" +
             "Please:\n" +
             "1. Connect a microphone to your device\n" +
             "2. Check your system sound settings\n" +
             "3. Try again"
           );
         } else {
-          alert(`Microphone Error\n\n${micError.message}\n\nPlease check your browser settings.`);
+          alert(`❌ Microphone Error\n\n${micError.message}\n\nPlease check your browser settings.`);
         }
 
         isConnecting = false;
@@ -3684,7 +4501,7 @@
 
       // Check if connection was cancelled after microphone permission
       if (!isConnecting) {
-        console.log("Connection cancelled after microphone permission");
+        console.log("❌ Connection cancelled after microphone permission");
         return;
       }
 
@@ -3696,16 +4513,16 @@
 
       // Check if connection was cancelled before setting timeout
       if (!isConnecting) {
-        console.log("Connection cancelled before setting timeout");
+        console.log("❌ Connection cancelled before setting timeout");
         return;
       }
 
       // Set connection timeout
       connectionTimeout = setTimeout(() => {
         if (!isConnected) {
-          console.error("Connection timeout - AI server not responding");
+          console.error("❌ Connection timeout - AI server not responding");
           updateStatus(
-            "Connection timeout - Please try again",
+            "⚠️ Connection timeout - Please try again",
             "disconnected"
           );
           alert("Connection timeout. Please start a new call.");
@@ -3757,23 +4574,23 @@
 
       // Check LiveKit support - load if not available
       if (typeof LivekitClient === "undefined") {
-        console.log("ðŸ“¦ LiveKit not loaded, loading now...");
+        console.log("📦 LiveKit not loaded, loading now...");
         updateStatus("Loading LiveKit...", "connecting");
         
         try {
           await loadLiveKitSDK();
-          console.log("LiveKit loaded successfully");
+          console.log("✅ LiveKit loaded successfully");
         } catch (error) {
-          console.error("Failed to load LiveKit SDK:", error);
-          updateStatus("Failed to load audio library", "disconnected");
+          console.error("❌ Failed to load LiveKit SDK:", error);
+          updateStatus("❌ Failed to load audio library", "disconnected");
           alert("Failed to load audio library. Please refresh the page and try again.");
           throw new Error("LiveKit failed to load");
         }
         
         // Check again after loading
         if (typeof LivekitClient === "undefined") {
-          console.error("LiveKit still not available after loading");
-          updateStatus("Audio library not available", "disconnected");
+          console.error("❌ LiveKit still not available after loading");
+          updateStatus("❌ Audio library not available", "disconnected");
           alert("Audio library could not be loaded. Please refresh the page.");
           throw new Error("LiveKit not available");
         }
@@ -3783,7 +4600,7 @@
 
       // Check if connection was cancelled before token request
       if (!isConnecting) {
-        console.log("Connection cancelled before token request");
+        console.log("❌ Connection cancelled before token request");
         return;
       }
 
@@ -3796,11 +4613,11 @@
       // Start with globally resolved tenant ID (set at init time in checkAgentStatusOnLoad)
       let userId = globalTenantId || null;
       if (userId) {
-        console.log("ðŸ‘¤ Using globalTenantId for tenant_id:", userId);
+        console.log("👤 Using globalTenantId for tenant_id:", userId);
       }
       
-      console.log("ðŸ” Debug: window.SHIVAI_CONFIG:", window.SHIVAI_CONFIG);
-      console.log("ðŸ” Debug: document.currentScript:", document.currentScript);
+      console.log("🔍 Debug: window.SHIVAI_CONFIG:", window.SHIVAI_CONFIG);
+      console.log("🔍 Debug: document.currentScript:", document.currentScript);
       
       // First try to get from URL parameters of the widget script
       const scriptTags = document.getElementsByTagName('script');
@@ -3815,11 +4632,11 @@
           if (urlAgentId) {
             agentId = urlAgentId;
             foundFromUrl = true;
-            console.log("ðŸŽ¯ Using agentId from URL parameter:", agentId);
+            console.log("🎯 Using agentId from URL parameter:", agentId);
           }
           if (urlUserId) {
             userId = urlUserId; // URL always wins over globalTenantId
-            console.log("ðŸ‘¤ Using userId from URL parameter:", userId);
+            console.log("👤 Using userId from URL parameter:", userId);
           }
           if (foundFromUrl) break;
         }
@@ -3827,44 +4644,44 @@
       
       if (!foundFromUrl && window.SHIVAI_CONFIG && window.SHIVAI_CONFIG.agentId) {
         agentId = window.SHIVAI_CONFIG.agentId;
-        console.log("ðŸŽ¯ Using agentId from SHIVAI_CONFIG:", agentId);
+        console.log("🎯 Using agentId from SHIVAI_CONFIG:", agentId);
       }
       // Get userId from SHIVAI_CONFIG if not already from URL
       if (!userId && window.SHIVAI_CONFIG && window.SHIVAI_CONFIG.userId) {
         userId = window.SHIVAI_CONFIG.userId;
-        console.log("ðŸ‘¤ Using userId from SHIVAI_CONFIG:", userId);
+        console.log("👤 Using userId from SHIVAI_CONFIG:", userId);
       }
       if (!foundFromUrl) {
-        console.log("ðŸ” SHIVAI_CONFIG not found, checking script attributes...");
+        console.log("🔍 SHIVAI_CONFIG not found, checking script attributes...");
         const scriptElements = document.querySelectorAll('script[data-agent-id]');
-        console.log("ðŸ” Found script elements with data-agent-id:", scriptElements);
+        console.log("🔍 Found script elements with data-agent-id:", scriptElements);
         
         if (scriptElements.length > 0) {
           const lastScript = scriptElements[scriptElements.length - 1];
           agentId = lastScript.getAttribute('data-agent-id');
-          console.log("ðŸŽ¯ Using agentId from script data attribute:", agentId);
+          console.log("🎯 Using agentId from script data attribute:", agentId);
           // Also try to get userId from the same script
           if (!userId && lastScript.getAttribute('data-user-id')) {
             userId = lastScript.getAttribute('data-user-id');
-            console.log("ðŸ‘¤ Using userId from script data attribute:", userId);
+            console.log("👤 Using userId from script data attribute:", userId);
           }
         }
         else if (document.currentScript && document.currentScript.getAttribute('data-agent-id')) {
           agentId = document.currentScript.getAttribute('data-agent-id');
-          console.log("ðŸŽ¯ Using agentId from current script:", agentId);
+          console.log("🎯 Using agentId from current script:", agentId);
           if (!userId && document.currentScript.getAttribute('data-user-id')) {
             userId = document.currentScript.getAttribute('data-user-id');
-            console.log("ðŸ‘¤ Using userId from current script:", userId);
+            console.log("👤 Using userId from current script:", userId);
           }
         }
         else {
-          console.warn("No agentId found, using default:", agentId);
+          console.warn("⚠️ No agentId found, using default:", agentId);
         }
       }
 
       // Validate userId
       if (!userId) {
-        console.warn("No userId found, tenant_id will not be sent");
+        console.warn("⚠️ No userId found, tenant_id will not be sent");
       }
 
       const response = await fetch(
@@ -3891,14 +4708,14 @@
       const data = await response.json();
       window.currentCallId = roomName;
       if (!isConnecting) {
-        console.log("Connection cancelled after token received");
+        console.log("❌ Connection cancelled after token received");
         return;
       }
 
       if (window.pendingAudioElement) {
         window.pendingAudioElement
           .play()
-          .catch((err) => console.warn("Still cannot play audio:", err));
+          .catch((err) => console.warn("⚠️ Still cannot play audio:", err));
         window.pendingAudioElement = null;
       }
 
@@ -3939,7 +4756,7 @@
               try {
                 audioElement.setSinkId("default");
               } catch (err) {
-                console.warn("Could not set audio sink:", err);
+                console.warn("⚠️ Could not set audio sink:", err);
               }
             }
 
@@ -3951,7 +4768,7 @@
 
             audioElement.play().catch((error) => {
               console.warn(
-                "Audio autoplay blocked, will try on user interaction:",
+                "⚠️ Audio autoplay blocked, will try on user interaction:",
                 error
               );
               window.pendingAudioElement = audioElement;
@@ -3960,7 +4777,7 @@
             remoteAudioTrack = track;
             monitorRemoteAudioLevel(track);
             console.log(
-              "Agent audio track received with feedback prevention"
+              "🔊 Agent audio track received with feedback prevention"
             );
           }
         }
@@ -3969,7 +4786,7 @@
       room.on(
         LivekitClient.RoomEvent.ParticipantMetadataChanged,
         (metadata, participant) => {
-          console.log("ðŸ“‹ Participant metadata changed:", {
+          console.log("📋 Participant metadata changed:", {
             metadata,
             participant: participant?.identity,
           });
@@ -3979,7 +4796,7 @@
               if (data.transcript || data.text) {
                 addMessage("assistant", data.transcript || data.text);
                 console.log(
-                  "Transcript from participant metadata:",
+                  "✅ Transcript from participant metadata:",
                   data.transcript || data.text
                 );
               }
@@ -3991,14 +4808,14 @@
       );
 
       room.on(LivekitClient.RoomEvent.RoomMetadataChanged, (metadata) => {
-        console.log("ðŸ  Room metadata changed:", metadata);
+        console.log("🏠 Room metadata changed:", metadata);
         if (metadata) {
           try {
             const data = JSON.parse(metadata);
             if (data.transcript || data.text) {
               addMessage("assistant", data.transcript || data.text);
               console.log(
-                "Transcript from room metadata:",
+                "✅ Transcript from room metadata:",
                 data.transcript || data.text
               );
             }
@@ -4009,7 +4826,7 @@
       });
 
       room.on(LivekitClient.RoomEvent.Connected, async () => {
-        console.log("Connected to LiveKit room");
+        console.log("✅ Connected to LiveKit room");
         isConnected = true;
         retryCount = 0; // Reset retry count on successful connection
 
@@ -4020,11 +4837,11 @@
           connectionTimeout = null;
         }
 
-        updateStatus("AI is Initializing...", "connected");
+        updateStatus("🤖 AI is Initializing...", "connected");
 
         languageSelect.disabled = true;
 
-        // Enable microphone with enhanced feedback prevention
+        // 🎤 Enable microphone with enhanced feedback prevention
         try {
           await room.localParticipant.setMicrophoneEnabled(true, {
             // Enhanced feedback prevention
@@ -4044,20 +4861,20 @@
             facingMode: "user",
           });
           isMuted = false;
-          console.log("Microphone enabled with optimized settings");
+          console.log("🎤 Microphone enabled with optimized settings");
         } catch (micError) {
           console.warn(
-            "Failed to enable microphone with full config, trying basic:",
+            "⚠️ Failed to enable microphone with full config, trying basic:",
             micError
           );
           try {
             // Fallback to basic microphone enabling
             await room.localParticipant.setMicrophoneEnabled(true);
             isMuted = false;
-            console.log("Microphone enabled (basic mode)");
+            console.log("🎤 Microphone enabled (basic mode)");
           } catch (basicError) {
             console.error(
-              "Failed to enable microphone completely:",
+              "❌ Failed to enable microphone completely:",
               basicError
             );
             alert(
@@ -4078,29 +4895,29 @@
               .resume()
               .then(() => {
                 console.log(
-                  "Audio context resumed for better audio quality"
+                  "🔊 Audio context resumed for better audio quality"
                 );
               })
               .catch((err) =>
-                console.warn("Could not resume audio context:", err)
+                console.warn("⚠️ Could not resume audio context:", err)
               );
           }
         }
 
         // Simplified flow - microphone stays enabled
         console.log(
-          "Connection established - microphone ready for conversation"
+          "✅ Connection established - microphone ready for conversation"
         );
 
-        // Keep microphone ENABLED at all times
+        // 🎤 Keep microphone ENABLED at all times
         console.log(
-          "Microphone will remain enabled throughout the conversation"
+          "🎤 Microphone will remain enabled throughout the conversation"
         );
 
         // Mobile compatibility - microphone is already enabled
         if (isMobile) {
           console.log(
-            "ðŸ“± Mobile device detected - microphone already enabled and ready"
+            "📱 Mobile device detected - microphone already enabled and ready"
           );
         }
 
@@ -4111,11 +4928,11 @@
           localAudioTrack = audioTracks[0].track;
           monitorLocalAudioLevel(localAudioTrack);
           console.log(
-            "Audio track found and monitoring started immediately"
+            "🎤 Audio track found and monitoring started immediately"
           );
         }
 
-        console.log("Microphone enabled and ready for conversation");
+        console.log("🎤 Microphone enabled and ready for conversation");
       });
 
       // Room disconnected
@@ -4126,10 +4943,10 @@
 
       // Connection state change
       room.on(LivekitClient.RoomEvent.ConnectionStateChanged, (state) => {
-        console.log("ðŸ”— Connection state:", state);
+        console.log("🔗 Connection state:", state);
         if (state === LivekitClient.ConnectionState.Disconnected) {
           updateStatus(
-            "Disconnected - Please start new call",
+            "❌ Disconnected - Please start new call",
             "disconnected"
           );
           stopConversation();
@@ -4140,7 +4957,7 @@
       room.on(
         LivekitClient.RoomEvent.DataReceived,
         (payload, participant, kind, topic) => {
-          console.log("ðŸ“¨ DataReceived EVENT FIRED:", {
+          console.log("📨 DataReceived EVENT FIRED:", {
             payloadLength: payload.length,
             participant: participant?.identity,
             kind,
@@ -4151,13 +4968,13 @@
           try {
             const decoder = new TextDecoder();
             const text = decoder.decode(payload);
-            console.log("ðŸ“ Raw decoded text:", text);
+            console.log("📝 Raw decoded text:", text);
 
-            // â”€â”€ EARLIEST POSSIBLE: handle call_ended before ANY other processing â”€â”€
+            // ── EARLIEST POSSIBLE: handle call_ended before ANY other processing ──
             try {
               const _quick = JSON.parse(text);
               if (_quick && _quick.type === "call_ended") {
-                console.log("ðŸ“µ [EARLY] call_ended received:", _quick.reason);
+                console.log("📵 [EARLY] call_ended received:", _quick.reason);
                 isConnected = false; // prevent alert in Disconnected handler
                 // Show immediate feedback while cleanup runs
                 updateStatus("Ending call...", "disconnected");
@@ -4199,18 +5016,18 @@
               );
 
               if (shouldSkip) {
-                console.log("ðŸš« Skipping obvious technical message:", text);
+                console.log("🚫 Skipping obvious technical message:", text);
                 return;
               }
 
-              console.log("ðŸŽ¯ Processing potential transcript:", text);
+              console.log("🎯 Processing potential transcript:", text);
 
               // Try to parse as JSON first
               try {
                 const jsonData = JSON.parse(text);
-                console.log("ðŸ“‹ Parsed JSON data:", jsonData);
+                console.log("📋 Parsed JSON data:", jsonData);
 
-                // â”€â”€ PRIORITY: handle call_ended IMMEDIATELY before any other logic â”€â”€
+                // ── PRIORITY: handle call_ended IMMEDIATELY before any other logic ──
                 // call_ended is already handled above (early check), skip here
                 if (jsonData.type === "call_ended") {
                   return;
@@ -4241,7 +5058,7 @@
                     transcriptText = jsonData[field].trim();
                     shouldAddToChat = true;
                     console.log(
-                      `Found text in field '${field}':`,
+                      `✅ Found text in field '${field}':`,
                       transcriptText
                     );
                     break;
@@ -4266,20 +5083,20 @@
 
                 // Handle status messages for loading states (don't add to chat)
                 if (jsonData.type === "status") {
-                  console.log("ðŸ“Š Status message:", jsonData.text);
+                  console.log("📊 Status message:", jsonData.text);
                   if (jsonData.text) {
                     updateStatus(jsonData.text, "connecting");
                     
                     // Check if knowledge base is ready
                     if (jsonData.text.toLowerCase().includes("ready")) {
-                      console.log("Knowledge base is ready");
+                      console.log("✅ Knowledge base is ready");
                       knowledgeBaseReady = true;
                       
                       // Start call timer if first response received from AI
                       if (firstResponseReceived && !callTimerStarted) {
-                        console.log("â±ï¸ Starting call timer (knowledge base ready + first response received)");
+                        console.log("⏱️ Starting call timer (knowledge base ready + first response received)");
                         callTimerStarted = true;
-                        updateStatus("Connected — Speak now", "connected");
+                        updateStatus("✅ Connected - Speak now!", "connected");
                         stopConnectingSound();
                         clearLoadingStatus();
                         hideConnectingState();
@@ -4292,7 +5109,7 @@
 
                 // Handle metrics messages for performance tracking (don't add to chat)
                 if (jsonData.type === "metrics" && jsonData.data) {
-                  console.log("ðŸ“Š Latency metrics received:", jsonData.data);
+                  console.log("📊 Latency metrics received:", jsonData.data);
                   if (jsonData.data.filler !== undefined) latencyMetrics.filler = jsonData.data.filler;
                   if (jsonData.data.qdrant !== undefined) latencyMetrics.qdrant = jsonData.data.qdrant;
                   if (jsonData.data.llm_ttft !== undefined) latencyMetrics.llm_ttft = jsonData.data.llm_ttft;
@@ -4313,19 +5130,19 @@
                       }
                     } else {
                       console.log(
-                        "ðŸš« Skipping user chat message (already shown from sendMessage)"
+                        "🚫 Skipping user chat message (already shown from sendMessage)"
                       );
                     }
                   } else if (jsonData.role === "assistant") {
                     addMessage("assistant", jsonData.text);
                     // Track first assistant response
                     if (!firstResponseReceived) {
-                      console.log("First AI response received (legacy transcript)");
+                      console.log("✅ First AI response received (legacy transcript)");
                       firstResponseReceived = true;
-                      // Always clear loading state when AI first responds â€” no knowledgeBaseReady gate
+                      // Always clear loading state when AI first responds — no knowledgeBaseReady gate
                       if (!callTimerStarted) {
                         callTimerStarted = true;
-                        updateStatus("Connected — Speak now", "connected");
+                        updateStatus("✅ Connected - Speak now!", "connected");
                         stopConnectingSound();
                         clearLoadingStatus();
                         hideConnectingState();
@@ -4333,7 +5150,7 @@
                       }
                     }
                   }
-                  console.log("Processed legacy format transcript");
+                  console.log("✅ Processed legacy format transcript");
                   return;
                 }
 
@@ -4346,18 +5163,18 @@
                     (isUser && jsonData.source !== "typed")
                   ) {
                     addMessage(senderRole, transcriptText);
-                    console.log("Added JSON transcript:", {
+                    console.log("✅ Added JSON transcript:", {
                       role: senderRole,
                       text: transcriptText.substring(0, 50) + "...",
                     });
                     // Track first AI response
                     if (!isUser && !firstResponseReceived) {
-                      console.log("First AI response received");
+                      console.log("✅ First AI response received");
                       firstResponseReceived = true;
-                      // Always clear loading state when AI first responds â€” no knowledgeBaseReady gate
+                      // Always clear loading state when AI first responds — no knowledgeBaseReady gate
                       if (!callTimerStarted) {
                         callTimerStarted = true;
-                        updateStatus("Connected — Speak now", "connected");
+                        updateStatus("✅ Connected - Speak now!", "connected");
                         stopConnectingSound();
                         clearLoadingStatus();
                         hideConnectingState();
@@ -4368,7 +5185,7 @@
                 }
               } catch (e) {
                 // Not JSON, treat as plain text
-                console.log("ðŸ“„ Not JSON, treating as plain text");
+                console.log("📄 Not JSON, treating as plain text");
 
                 // If it's reasonable length text (not just noise), add it
                 if (text.length >= 2 && text.length <= 1000) {
@@ -4380,7 +5197,7 @@
 
                   // Add all transcripts (both user voice and assistant)
                   addMessage(senderRole, transcriptText);
-                  console.log("Added plain text transcript:", {
+                  console.log("✅ Added plain text transcript:", {
                     role: senderRole,
                     text: transcriptText.substring(0, 50) + "...",
                   });
@@ -4388,7 +5205,7 @@
               }
             }
           } catch (error) {
-            console.error("Error processing DataReceived:", error);
+            console.error("❌ Error processing DataReceived:", error);
           }
         }
       );
@@ -4396,13 +5213,13 @@
       // CRITICAL: Register text stream handlers BEFORE connecting (exactly like test-client)
       try {
         if (typeof room.registerTextStreamHandler === "function") {
-          console.log("ðŸ“ Registering text stream handlers...");
+          console.log("📝 Registering text stream handlers...");
 
           room.registerTextStreamHandler(
             "lk.transcription",
             async (reader, participantInfo) => {
               console.log(
-                "ðŸŽ¯ Transcription stream from:",
+                "🎯 Transcription stream from:",
                 participantInfo.identity
               );
               try {
@@ -4444,7 +5261,7 @@
                     text.trim() === lastSentMessage.trim()
                   ) {
                     console.log(
-                      "ðŸš« Skipping duplicate user message from transcription:",
+                      "🚫 Skipping duplicate user message from transcription:",
                       text
                     );
                     return;
@@ -4462,7 +5279,7 @@
                       lastUserMessage.textContent.trim() === text.trim()
                     ) {
                       console.log(
-                        "ðŸš« Skipping duplicate - same message already exists in UI:",
+                        "🚫 Skipping duplicate - same message already exists in UI:",
                         text
                       );
                       return;
@@ -4471,7 +5288,7 @@
 
                   // Add transcriptions
                   addMessage(senderName, text);
-                  console.log("Transcription added:", {
+                  console.log("✅ Transcription added:", {
                     sender: senderName,
                     text,
                     isFinal,
@@ -4479,11 +5296,11 @@
 
                   // Clear loading/connecting state on first AI transcription
                   if (!isUser && !firstResponseReceived) {
-                    console.log("First AI transcription received via lk.transcription stream");
+                    console.log("✅ First AI transcription received via lk.transcription stream");
                     firstResponseReceived = true;
                     if (!callTimerStarted) {
                       callTimerStarted = true;
-                      updateStatus("Connected — Speak now", "connected");
+                      updateStatus("✅ Connected - Speak now!", "connected");
                       stopConnectingSound();
                       clearLoadingStatus();
                       hideConnectingState();
@@ -4493,7 +5310,7 @@
                 }
               } catch (error) {
                 console.error(
-                  "Error processing transcription stream:",
+                  "❌ Error processing transcription stream:",
                   error
                 );
               }
@@ -4504,27 +5321,27 @@
           room.registerTextStreamHandler(
             "lk.chat",
             async (reader, participantInfo) => {
-              console.log("ðŸ’¬ Chat stream from:", participantInfo.identity);
+              console.log("💬 Chat stream from:", participantInfo.identity);
               try {
                 const text = await reader.readAll();
                 const isUser =
                   participantInfo.identity === room.localParticipant?.identity;
 
                 if (!isUser && text && text.trim()) {
-                  console.log("ðŸ’¬ AI Chat response received:", text);
+                  console.log("💬 AI Chat response received:", text);
                   addMessage("assistant", text, { source: "chat" });
-                  console.log("ðŸ’¬ Chat message added:", {
+                  console.log("💬 Chat message added:", {
                     sender: participantInfo.identity,
                     text,
                   });
 
                   // Clear loading/connecting state on first AI chat message
                   if (!firstResponseReceived) {
-                    console.log("First AI response received via lk.chat stream");
+                    console.log("✅ First AI response received via lk.chat stream");
                     firstResponseReceived = true;
                     if (!callTimerStarted) {
                       callTimerStarted = true;
-                      updateStatus("Connected — Speak now", "connected");
+                      updateStatus("✅ Connected - Speak now!", "connected");
                       stopConnectingSound();
                       clearLoadingStatus();
                       hideConnectingState();
@@ -4533,34 +5350,34 @@
                   }
                 }
               } catch (error) {
-                console.error("Error processing chat stream:", error);
+                console.error("❌ Error processing chat stream:", error);
               }
             }
           );
 
-          console.log("Text stream handlers registered successfully");
+          console.log("✅ Text stream handlers registered successfully");
         } else {
           console.warn(
-            "registerTextStreamHandler not available, using fallback DataReceived"
+            "⚠️ registerTextStreamHandler not available, using fallback DataReceived"
           );
         }
       } catch (error) {
-        console.error("Error registering text stream handlers:", error);
+        console.error("❌ Error registering text stream handlers:", error);
       }
 
       // Connect to room
       // Final check before connecting to room
       if (!isConnecting) {
-        console.log("Connection cancelled before room connection");
+        console.log("❌ Connection cancelled before room connection");
         return;
       }
 
       await room.connect(data.url, data.token);
-      console.log("ðŸ”— Room connected successfully");
+      console.log("🔗 Room connected successfully");
 
       // Check if connection was cancelled during room connection
       if (!isConnecting) {
-        console.log("Connection cancelled during room connection");
+        console.log("❌ Connection cancelled during room connection");
         if (room) {
           room.disconnect();
           room = null;
@@ -4575,12 +5392,12 @@
       if (audioTracks.length > 0) {
         localAudioTrack = audioTracks[0].track;
         monitorLocalAudioLevel(localAudioTrack);
-        console.log("Microphone monitoring started");
+        console.log("🎤 Microphone monitoring started");
       }
 
-      console.log("Microphone enabled with LiveKit");
+      console.log("🎤 Microphone enabled with LiveKit");
     } catch (error) {
-      console.error("Connection Error:", error);
+      console.error("❌ Connection Error:", error);
       clearLoadingStatus();
 
       // Clear timeouts
@@ -4600,8 +5417,8 @@
         errorMsg = "Network error";
       }
 
-      updateStatus(`${errorMsg} - Click to retry`, "disconnected");
-      console.error("Connection terminated due to error:", error);
+      updateStatus(`❌ ${errorMsg} - Click to retry`, "disconnected");
+      console.error("❌ Connection terminated due to error:", error);
       
       // Reset all connection flags
       isConnected = false;
@@ -4620,7 +5437,7 @@
     }
   }
   async function stopConversation() {
-    console.log("ðŸ›‘ stopConversation() called");
+    console.log("🛑 stopConversation() called");
 
     // Stop connecting sound immediately
     stopConnectingSound();
@@ -4651,7 +5468,7 @@
 
     // Close WebSocket if exists
     if (ws) {
-      console.log("ðŸ”Œ Closing WebSocket in stopConversation");
+      console.log("🔌 Closing WebSocket in stopConversation");
       try {
         ws.close();
       } catch (err) {
@@ -4674,7 +5491,7 @@
     if (room) {
       try {
         await room.disconnect();
-        console.log("ðŸ”´ LiveKit room disconnected");
+        console.log("🔴 LiveKit room disconnected");
       } catch (_e) {
         console.warn("Room already disconnected:", _e);
       }
@@ -4704,7 +5521,7 @@
     // Remove any attached audio elements
     document.querySelectorAll("audio").forEach((el) => el.remove());
 
-    console.log("Conversation stopped - LiveKit cleanup complete");
+    console.log("✅ Conversation stopped - LiveKit cleanup complete");
   }
 
   // Remove unused WebSocket audio streaming function
@@ -4728,9 +5545,9 @@
     }
     assistantSpeaking = isSpeaking;
     if (isSpeaking) {
-      updateStatus("Speaking...", "speaking");
+      updateStatus("🔊 Speaking...", "speaking");
     } else if (!preserveStatus) {
-      updateStatus("Connected - Speak naturally", "connected");
+      updateStatus("🟢 Connected - Speak naturally!", "connected");
     }
   }
   function setupPlaybackProcessor() {
@@ -4876,13 +5693,13 @@
     document.addEventListener("DOMContentLoaded", () => {
       loadLiveKitSDK()
         .then(() => {
-          console.log("ðŸš€ Initializing widget with LiveKit support");
+          console.log("🚀 Initializing widget with LiveKit support");
           initWidget();
         })
         .catch((error) => {
-          console.error("Failed to load LiveKit SDK:", error);
+          console.error("❌ Failed to load LiveKit SDK:", error);
           console.log(
-            "Initializing widget anyway (LiveKit features may not work)"
+            "⚠️ Initializing widget anyway (LiveKit features may not work)"
           );
           initWidget();
         });
@@ -4890,13 +5707,13 @@
   } else {
     loadLiveKitSDK()
       .then(() => {
-        console.log("ðŸš€ Initializing widget with LiveKit support");
+        console.log("🚀 Initializing widget with LiveKit support");
         initWidget();
       })
       .catch((error) => {
-        console.error("Failed to load LiveKit SDK:", error);
+        console.error("❌ Failed to load LiveKit SDK:", error);
         console.log(
-          "Initializing widget anyway (LiveKit features may not work)"
+          "⚠️ Initializing widget anyway (LiveKit features may not work)"
         );
         initWidget();
       });
