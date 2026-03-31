@@ -1,18 +1,15 @@
 ﻿(function () {
   "use strict";
 
-  // ── Environment guard: this is the public website widget only ──────────────
-  // Do NOT run on localhost/dev, agent pages, QR pages, or any dashboard page.
+  // ── Environment guard: website widget only — runs on public website pages ──
   (function () {
     var host = window.location.hostname;
     var path = window.location.pathname;
     var isLocalhost = host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0' || host.endsWith('.local');
-    // Internal app routes — block all except /dashboard and /monitoring
-    var isDashboardPage = /^\/(agents|analytics|billing|settings|training|workflows)(\/|$)/i.test(path);
-    // Public agent test / QR pages
-    var isAgentPage = /\/(MyAIEmployee|qr)(\/|$)/i.test(path);
-    if (isLocalhost || isAgentPage || isDashboardPage) {
-      console.log('[widget3] Blocked: website widget not loaded on this page.');
+    // Only allow on public website pages — block everything else
+    var isWebsitePage = /^\/(landing|ai-calling-app|voice-assistant)?(\/)?$/i.test(path);
+    if (isLocalhost || !isWebsitePage) {
+      console.log('[widget3] Blocked: website widget only runs on public website pages.');
       return (window.__widget3Blocked = true);
     }
   })();
