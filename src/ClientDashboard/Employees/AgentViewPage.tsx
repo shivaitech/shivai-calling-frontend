@@ -516,8 +516,7 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
         </div>
       </GlassCard>
 
-      {/* Performance Overview - Mobile Slider */}
-      <div className="sm:hidden">
+      {/* <div className="hidden">
         <div className="flex gap-2 overflow-x-auto pb-2 px-0.5 snap-x snap-mandatory scrollbar-hide -mx-0.5">
           {[
             {
@@ -586,7 +585,6 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
         </div>
       </div>
 
-      {/* Tablet & Desktop Grid View */}
       <div className="hidden sm:grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3">
         {[
           {
@@ -650,7 +648,7 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
             </div>
           </GlassCard>
         ))}
-      </div>
+      </div> */}
 
       {/* Widget Customization Section */}
       <div className="mt-3 sm:mt-4 lg:mt-6">
@@ -821,9 +819,6 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
           className="fixed inset-0 bg-black/20 z-[60] flex items-center justify-center p-3 sm:p-4 -top-8"
           onTouchMove={(e) =>
             e.target === e.currentTarget && e.preventDefault()
-          }
-          onClick={(e) =>
-            e.target === e.currentTarget && setShowTestChat(false)
           }
         >
           <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl w-full max-w-2xl h-[80vh] max-h-[600px] relative flex flex-col shadow-xl border border-white/20 dark:border-slate-700/50">

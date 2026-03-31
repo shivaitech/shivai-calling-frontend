@@ -3159,15 +3159,6 @@
     if (muteBtn) {
       muteBtn.addEventListener("click", handleMuteClick);
     }
-    document.addEventListener("click", (e) => {
-      if (
-        isWidgetOpen &&
-        !widgetContainer.contains(e.target) &&
-        !triggerBtn.contains(e.target)
-      ) {
-        closeWidget();
-      }
-    });
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && isWidgetOpen) {
         closeWidget();

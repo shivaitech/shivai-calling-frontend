@@ -6043,7 +6043,6 @@ const AgentManagement = () => {
               <div
                 className="absolute inset-0 bg-black/60"
                 onTouchMove={(e) => e.preventDefault()}
-                onClick={() => setShowTemplateDetails(false)}
               />
 
               {/* Modal */}

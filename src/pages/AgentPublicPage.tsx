@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState, useRef } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { Orb, oceanDepthsPreset } from "react-ai-orb";
 import bgNew from "../resources/AiImages/bg22.webp";
 import { isKunalPrakashClient } from "../lib/utils";
+import AgentPublicPageNLP from "./AgentPublicPageNLP";
 
 interface AgentInfo {
   name: string;
@@ -42,7 +43,16 @@ export default function AgentPublicPage() {
   // Check if this is the Kunal Prakash client with custom UI
   const isKunalClient = isKunalPrakashClient(userEmail || undefined);
 
-  const badgePhrases = [
+  // TradeFx client: agent named "Kiol"
+  const isTradeFxClient = (agentInfo?.name || "") === "Kiol";
+
+  const badgePhrases = isTradeFxClient ? [
+    "Ask about accounts, spreads & leverage",
+    "500:1 Max Leverage · $100 Min Deposit",
+    "Available 24/7 · Instant answers",
+    "Forex · Metals · Indices · Crypto",
+    "Trained on New TradeFx · Ready now",
+  ] : [
     "Not pre-recorded · This is live",
     "Understands your customers instantly",
     "Handles calls while you focus on growth",
@@ -180,6 +190,12 @@ export default function AgentPublicPage() {
         <div className="relative z-20 text-center pb-6" />
       </div>
     );
+  }
+
+  // TradeFx client: Kiol agent — use dedicated NLP page
+  if (isTradeFxClient) {
+    return <AgentPublicPageNLP />;
+
   }
 
   return (

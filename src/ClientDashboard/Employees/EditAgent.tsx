@@ -354,8 +354,9 @@ function updateVoiceInstructionsSection(prompt: string, newContent: string): str
 
   // ── Strategy 2: header-based line replacement (first call / AI-generated) ──
   // Find the Voice Instructions header line, then replace until the next section.
+  // #{0,3} matches headers with 0-3 leading # chars (plain text or markdown ##/###).
   const lines = prompt.split('\n');
-  const hIdx = lines.findIndex(l => /^##?\s*voice instructions\s*$/i.test(l.trim()));
+  const hIdx = lines.findIndex(l => /^#{0,3}\s*voice instructions\s*$/i.test(l.trim()));
   if (hIdx !== -1) {
     // Walk forward: section ends when we hit a blank line followed immediately
     // by a non-blank line starting with an uppercase letter or '#'.
@@ -378,7 +379,7 @@ function updateVoiceInstructionsSection(prompt: string, newContent: string): str
   }
 
   // ── Strategy 3: inject after Identity section ───────────────────────────────
-  const iIdx = lines.findIndex(l => /^##?\s*identity\s*$/i.test(l.trim()));
+  const iIdx = lines.findIndex(l => /^#{0,3}\s*identity\s*$/i.test(l.trim()));
   if (iIdx !== -1) {
     let eIdx = iIdx + 1;
     while (eIdx < lines.length - 1) {
@@ -454,6 +455,7 @@ const EditAgent = () => {
   const baselineTemplateFieldsRef = useRef<{ businessProcess: string; industry: string; subIndustry: string; voiceStyle: string } | null>(null);
   // Tracks the original company name loaded from the API to detect user changes
   const originalCompanyNameRef = useRef<string>('');
+  const originalAgentNameRef = useRef<string>('');
 
   // Tab state (like Training page)
   const [activeTab, setActiveTab] = useState<string>('identity');
@@ -496,9 +498,11 @@ const EditAgent = () => {
       formData.businessProcess !== baseline.businessProcess ||
       formData.industry !== baseline.industry ||
       formData.subIndustry !== baseline.subIndustry ||
-      formData.voiceStyle !== baseline.voiceStyle;
+      formData.voiceStyle !== baseline.voiceStyle ||
+      (originalCompanyNameRef.current !== '' && formData.companyName !== originalCompanyNameRef.current) ||
+      (originalAgentNameRef.current !== '' && formData.name !== originalAgentNameRef.current);
     setTemplateRegenNeeded(changed);
-  }, [formData.businessProcess, formData.industry, formData.subIndustry, formData.voiceStyle, templateData]);
+  }, [formData.businessProcess, formData.industry, formData.subIndustry, formData.voiceStyle, formData.companyName, formData.name, templateData]);
 
   // When the user explicitly changes Voice Style, patch the Voice Instructions
   // section of the system prompt with the new static content.
@@ -664,6 +668,7 @@ const EditAgent = () => {
         // Prefill form with all API data (mapping API values to form values)
         const loadedCompanyName = (agentData as any).company_name || "";
         originalCompanyNameRef.current = loadedCompanyName;
+        originalAgentNameRef.current = agentData.name || "";
         setFormData({
           name: agentData.name || "",
           companyName: loadedCompanyName,
@@ -1889,8 +1894,9 @@ const EditAgent = () => {
         voiceStyle: formData.voiceStyle,
       };
       setTemplateRegenNeeded(false);
-      // Update company name baseline so the amber warning banner is dismissed
+      // Update company name and agent name baselines so the amber warning banners are dismissed
       originalCompanyNameRef.current = formData.companyName;
+      originalAgentNameRef.current = formData.name;
 
       appToast.dismiss(regenToast);
       appToast.success('Template regenerated! Review the changes and save when ready.');
@@ -2093,41 +2099,6 @@ const EditAgent = () => {
                     <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-1.5">
                       The company this agent represents
                     </p>
-                    {formData.companyName !== originalCompanyNameRef.current && originalCompanyNameRef.current !== '' && (
-                      <div className="mt-2 flex flex-col gap-2 rounded-lg border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/20 px-3 py-2.5">
-                        <div className="flex items-start gap-2">
-                          <svg className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-                          </svg>
-                          <p className="text-[11px] sm:text-xs text-amber-700 dark:text-amber-400 leading-snug">
-                            Company name changed — the System Prompt and Knowledge Base may still reference the old name. Regenerate the template or update the references manually in the System Prompt and Knowledge Base.
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={handleRegenerateTemplate}
-                          disabled={isRegeneratingTemplate}
-                          className="self-start flex items-center gap-1.5 rounded-md bg-amber-500 hover:bg-amber-600 disabled:opacity-60 disabled:cursor-not-allowed px-3 py-1.5 text-[11px] sm:text-xs font-semibold text-white transition-colors"
-                        >
-                          {isRegeneratingTemplate ? (
-                            <>
-                              <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                              </svg>
-                              Regenerating…
-                            </>
-                          ) : (
-                            <>
-                              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-                              </svg>
-                              Regenerate Template
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    )}
                   </div>
 
                   {/* Agent Name */}
