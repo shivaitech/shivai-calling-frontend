@@ -3776,6 +3776,12 @@
       return;
     }
 
+    // iOS/mobile requires HTMLAudio autoplay within synchronous user-gesture context
+    if (!isConnecting && !isConnected) {
+      if (isMobile) ringAudio = null; // force fresh Audio object each call on mobile
+      playConnectingSound();
+    }
+
     if (isIOS()) {
       try {
         if (soundContext && soundContext.state === "suspended") {
@@ -3832,6 +3838,7 @@
       // Clear UI state
       clearLoadingStatus();
       stopCallTimer();
+      hideConnectingState();
 
       // Close WebSocket if exists
       if (ws) {
@@ -3896,7 +3903,6 @@
       console.log("🔵 Starting new connection");
       isConnecting = true;
       connectBtn.disabled = true;
-      playSound("ring");
 
       try {
         connectBtn.innerHTML =

@@ -3791,6 +3791,14 @@
       return;
     }
 
+    // ── Ring sound: play synchronously BEFORE any await. ─────────────────────
+    // iOS/mobile only permits HTMLAudio autoplay within synchronous user-gesture
+    // context. Any await (including soundContext.resume below) breaks the chain.
+    if (!isConnecting && !isConnected) {
+      if (isMobile) ringAudio = null; // force fresh Audio object each call on mobile
+      playConnectingSound();
+    }
+
     if (isIOS()) {
       try {
         if (soundContext && soundContext.state === "suspended") {
@@ -3847,6 +3855,7 @@
       // Clear UI state
       clearLoadingStatus();
       stopCallTimer();
+      hideConnectingState();
 
       // Close WebSocket if exists
       if (ws) {
@@ -3911,7 +3920,7 @@
       console.log("🔵 Starting new connection");
       isConnecting = true;
       connectBtn.disabled = true;
-      playSound("ring");
+      // (ring already started synchronously above, before iOS await)
 
       try {
         connectBtn.innerHTML =

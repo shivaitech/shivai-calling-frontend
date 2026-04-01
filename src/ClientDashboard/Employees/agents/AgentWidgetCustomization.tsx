@@ -1036,11 +1036,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                                     }}
                                     onError={(e) => {
                                       console.error("❌ Logo image failed to render:", e.currentTarget.src);
-                                      console.error("❌ Error details:", e);
-                                      // Clear the preview if image fails to load
-                                      setLogoPreview("");
                                     }}
-                                    crossOrigin="anonymous"
                                   />
                                 </label>
                                 {/* Remove Button - Top Left */}
