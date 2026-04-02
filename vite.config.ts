@@ -1,9 +1,25 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
+import fs from "fs";
+import path from "path";
+
+// Writes dist/version.json after every build.
+// The client polls this file to detect new deployments and auto-reloads.
+function versionFilePlugin(): Plugin {
+  return {
+    name: "version-file",
+    closeBundle() {
+      const version = { buildTime: Date.now() };
+      const outDir = path.resolve(__dirname, "dist");
+      if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
+      fs.writeFileSync(path.join(outDir, "version.json"), JSON.stringify(version));
+    },
+  };
+}
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), versionFilePlugin()],
   optimizeDeps: {
     include: ["lucide-react"],
   },

@@ -1,4 +1,4 @@
-import { useState, Suspense, lazy } from "react";
+import { useState, useEffect, useRef, Suspense, lazy } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -207,7 +207,55 @@ function AppContent() {
   );
 }
 
+// Checks /version.json only when the user returns to the tab after being away.
+// Never interrupts an active session — no polling interval.
+// Covers both "opened after a day" (long absence) and silent new deployments.
+function useVersionCheck() {
+  const initialBuildTime = useRef<number | null>(null);
+  const lastActiveTime = useRef<number>(Date.now());
+
+  useEffect(() => {
+    // Fetch and compare version — reloads only if a new deploy is detected
+    const checkVersion = async () => {
+      try {
+        const res = await fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' });
+        if (!res.ok) return;
+        const data: { buildTime: number } = await res.json();
+        if (initialBuildTime.current === null) {
+          // Store the build time seen on first load
+          initialBuildTime.current = data.buildTime;
+        } else if (data.buildTime !== initialBuildTime.current) {
+          // New deployment detected — reload to get fresh chunks
+          window.location.reload();
+        }
+      } catch {
+        // Network offline — ignore silently
+      }
+    };
+
+    // Record the build time on first load (no reload here)
+    checkVersion();
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        const hiddenFor = Date.now() - lastActiveTime.current;
+        // Only check if the user was away for at least 5 minutes
+        if (hiddenFor > 5 * 60 * 1000) {
+          checkVersion();
+        }
+      } else {
+        // Tab going hidden — record time
+        lastActiveTime.current = Date.now();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, []);
+}
+
 function App() {
+  useVersionCheck();
   return (
     <AuthProvider>
       {" "}

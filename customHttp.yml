@@ -1,0 +1,16 @@
+customHeaders:
+  # Hashed assets — cache forever (filenames change on every build so cache-bust is automatic)
+  - pattern: '/assets/**'
+    headers:
+      - key: Cache-Control
+        value: 'public, max-age=31536000, immutable'
+  # Everything else (index.html, SPA routes, public files) — never cache
+  # This prevents blank screen after deployment caused by browsers serving stale index.html
+  - pattern: '**'
+    headers:
+      - key: Cache-Control
+        value: 'no-cache, no-store, must-revalidate'
+      - key: Pragma
+        value: 'no-cache'
+      - key: Expires
+        value: '0'

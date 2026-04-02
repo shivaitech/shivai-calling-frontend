@@ -1,0 +1,32 @@
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - npm ci
+    build:
+      commands:
+        - npm run build
+  artifacts:
+    baseDirectory: dist
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - node_modules/**/*
+  # SPA routing: serve index.html for all paths that don't match a file
+  customHeaders:
+    # Cache all hashed assets forever (content-addressed, safe to cache 1 year)
+    - pattern: '/assets/**'
+      headers:
+        - key: Cache-Control
+          value: 'public, max-age=31536000, immutable'
+    # Never cache index.html or any HTML/SPA route — stale HTML = blank screen after deploy
+    - pattern: '**'
+      headers:
+        - key: Cache-Control
+          value: 'no-cache, no-store, must-revalidate'
+        - key: Pragma
+          value: 'no-cache'
+        - key: Expires
+          value: '0'
