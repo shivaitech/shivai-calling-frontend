@@ -1577,15 +1577,11 @@
         <div class="input-field-container" style="flex: 1 !important; position: relative !important; display: flex !important; align-items: center !important; background: white !important; border-radius: 8px !important; border: 1px solid #e1e5ea !important; padding: 8px 16px !important; min-height: 30px  !important; max-height: 120px !important; height:36px !important;  ">
            <div>
 
-        <button id="shivai-attach-btn" class="attach-btn" title="Coming soon..." style="  color: #ccc !important; cursor: not-allowed !important; margin-right: 12px !important; background: transparent !important; border: none !important; display: flex !important; align-items: center !important; justify-content: center !important; padding: 0 !important; opacity: 0.5 !important;" disabled>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <button id="shivai-attach-btn" class="attach-btn" title="Attach document (.pdf, .docx, .doc, .txt, .md, .csv)" style="color: #00a884 !important; cursor: pointer !important; margin-right: 12px !important; background: transparent !important; border: none !important; display: flex !important; align-items: center !important; justify-content: center !important; padding: 4px !important; opacity: 1 !important; border-radius: 50% !important; transition: background 0.2s !important;" onmouseover="this.style.background='rgba(0,168,132,0.1)'" onmouseout="this.style.background='transparent'">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
           </svg>
         </button>
-        
-        <!-- Hidden file inputs -->
-        <input type="file" id="shivai-file-input" accept="image/*,video/*,.pdf,.doc,.docx,.txt" style="display: none !important;" multiple>
-        <input type="file" id="shivai-image-input" accept="image/*" style="display: none !important;" multiple>
         
         </div>
 
@@ -1649,6 +1645,8 @@
       </button>
       </div>
       </div>
+      <!-- File inputs outside hidden container so they always work -->
+      <input type="file" id="shivai-file-input" accept=".pdf,.docx,.doc,.txt,.md,.csv" style="display: none !important;" multiple>
        <div class="widget-footer" style="padding: 0; margin: 0; background-color: #f9fafb;">
       <div class="footer-text" style="display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 13px; color: #6b7280; flex-wrap: nowrap; line-height: 1;">
           <span>Powered by</span>
@@ -3145,6 +3143,73 @@
       line-height: 1.5;
       color: inherit;
       }
+      /* ── Document / File card (WhatsApp-style) ── */
+      .doc-card {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 10px 12px;
+      max-width: 260px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      text-decoration: none;
+      }
+      .doc-card:hover { background: #f8fafc; }
+      .doc-icon-wrap {
+      flex-shrink: 0;
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      }
+      .doc-icon-wrap.pdf  { background: #fee2e2; }
+      .doc-icon-wrap.word { background: #dbeafe; }
+      .doc-icon-wrap.xls  { background: #dcfce7; }
+      .doc-icon-wrap.ppt  { background: #fef3c7; }
+      .doc-icon-wrap.txt  { background: #f3f4f6; }
+      .doc-icon-wrap.zip  { background: #ede9fe; }
+      .doc-icon-wrap.file { background: #f3f4f6; }
+      .doc-meta { flex: 1; min-width: 0; }
+      .doc-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: #1e293b;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 160px;
+      }
+      .doc-size {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 1px;
+      }
+      .doc-dl-btn {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.15s;
+      }
+      .doc-dl-btn:hover { background: #dbeafe; }
+      .doc-dl-btn svg { width: 14px; height: 14px; stroke: #2563eb; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+      .doc-caption {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 5px;
+      line-height: 1.4;
+      }
       .controls {
       display: flex;
       align-items: center;
@@ -3417,6 +3482,158 @@
         width: 16px;
         height: 16px;
       }
+
+      /* File upload preview styles */
+      .shivai-widget .message-file {
+        margin-top: 2px;
+      }
+
+      /* Strip wrapper blue bubble for file messages — card handles its own appearance */
+      .shivai-widget .message.user.message-has-file {
+        background: none !important;
+        border: none !important;
+        padding: 2px 0 !important;
+        box-shadow: none !important;
+      }
+
+      /* WhatsApp-style sent document card */
+      .shivai-widget .wa-doc-card {
+        background: #d9fdd3;
+        border-radius: 8px;
+        padding: 10px 10px 6px 10px;
+        max-width: 262px;
+        min-width: 180px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.14);
+      }
+
+      .shivai-widget .wa-doc-card .wa-doc-footer {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 3px;
+        margin-top: 5px;
+      }
+
+      /* Upload spinner animation */
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+
+      /* === WhatsApp-style File Send Preview === */
+      .shivai-widget .shivai-file-send-preview {
+        position: absolute;
+        inset: 0;
+        z-index: 2000;
+        display: flex;
+        flex-direction: column;
+        background: #111b21;
+        border-radius: 16px;
+        overflow: hidden;
+        animation: fspSlideUp 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      @keyframes fspSlideUp {
+        from { transform: translateY(100%); opacity: 0; }
+        to   { transform: translateY(0);    opacity: 1; }
+      }
+      .shivai-widget .shivai-fsp-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        background: #202c33;
+        color: #e9edef;
+        font-size: 15px;
+        font-weight: 600;
+        flex-shrink: 0;
+      }
+      .shivai-widget .shivai-fsp-close {
+        background: none;
+        border: none;
+        color: #aebac1;
+        cursor: pointer;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: background 0.15s;
+        padding: 0;
+      }
+      .shivai-widget .shivai-fsp-close:hover { background: rgba(255,255,255,0.1); }
+      .shivai-widget .shivai-fsp-body {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: #111b21;
+        padding: 28px 20px 16px;
+        gap: 14px;
+        overflow-y: auto;
+      }
+      .shivai-widget .shivai-fsp-icon-wrap {
+        width: 88px;
+        height: 88px;
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #202c33;
+        border: 1px solid #2a3942;
+        flex-shrink: 0;
+      }
+      .shivai-widget .shivai-fsp-filename {
+        color: #e9edef;
+        font-size: 14px;
+        font-weight: 600;
+        text-align: center;
+        word-break: break-all;
+        max-width: 260px;
+        line-height: 1.4;
+      }
+      .shivai-widget .shivai-fsp-meta {
+        color: #8696a0;
+        font-size: 12px;
+        text-align: center;
+      }
+      .shivai-widget .shivai-fsp-footer {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px 12px;
+        background: #202c33;
+        flex-shrink: 0;
+      }
+      .shivai-widget .shivai-fsp-caption {
+        flex: 1;
+        background: #2a3942;
+        border: none;
+        border-radius: 8px;
+        padding: 10px 14px;
+        color: #e9edef;
+        font-size: 14px;
+        outline: none;
+        min-width: 0;
+        font-family: inherit;
+      }
+      .shivai-widget .shivai-fsp-caption::placeholder { color: #8696a0; }
+      .shivai-widget .shivai-fsp-send-btn {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: #00a884;
+        border: none;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        transition: background 0.15s, transform 0.1s;
+      }
+      .shivai-widget .shivai-fsp-send-btn:hover  { background: #02b09b; transform: scale(1.06); }
+      .shivai-widget .shivai-fsp-send-btn:active { transform: scale(0.95); }
     `;
     const styleSheet = document.createElement("style");
     styleSheet.id = "shivai-widget-styles";
@@ -3498,109 +3715,310 @@
         }
       });
 
-      // Attachment button functionality
-      if (attachBtn && attachmentMenu) {
+      // Attachment button — directly open file picker
+      if (attachBtn && fileInput) {
         attachBtn.addEventListener("click", (e) => {
           e.stopPropagation();
-          const isVisible = attachmentMenu.style.display === "block";
-          attachmentMenu.style.display = isVisible ? "none" : "block";
+          fileInput.click();
         });
 
-        // Close attachment menu when clicking outside
-        document.addEventListener("click", (e) => {
-          if (
-            !attachBtn.contains(e.target) &&
-            !attachmentMenu.contains(e.target)
-          ) {
-            attachmentMenu.style.display = "none";
-          }
+        fileInput.addEventListener("change", (e) => {
+          const files = Array.from(e.target.files);
+          if (files.length > 0) handleFileUpload(files, "document");
         });
-
-        // Attachment options
-        const attachImage = document.getElementById("shivai-attach-image");
-        const attachDocument = document.getElementById(
-          "shivai-attach-document"
-        );
-
-        if (attachImage && imageInput) {
-          attachImage.addEventListener("click", () => {
-            imageInput.click();
-            attachmentMenu.style.display = "none";
-          });
-        }
-
-        if (attachDocument && fileInput) {
-          attachDocument.addEventListener("click", () => {
-            fileInput.click();
-            attachmentMenu.style.display = "none";
-          });
-        }
-
-        // File input handlers
-        if (fileInput) {
-          fileInput.addEventListener("change", (e) => {
-            const files = Array.from(e.target.files);
-            handleFileUpload(files, "document");
-          });
-        }
-
-        if (imageInput) {
-          imageInput.addEventListener("change", (e) => {
-            const files = Array.from(e.target.files);
-            handleFileUpload(files, "image");
-          });
-        }
       }
     }
   }
 
-  // Handle file uploads (images and documents)
-  function handleFileUpload(files, type) {
+  // File upload validation constants
+  const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
+  const MAX_TEXT_LENGTH = 100000; // 100k characters
+  const SUPPORTED_EXT = ['.pdf', '.docx', '.doc', '.txt', '.md', '.csv'];
+
+  // Handle file uploads — validates then shows WhatsApp-style send preview
+  async function handleFileUpload(files, type) {
     if (!files || files.length === 0) return;
+    const file = Array.from(files)[0];
 
-    files.forEach((file) => {
-      const maxSize = 10 * 1024 * 1024; // 10MB limit
+    const isImageOrVideo = file.type.startsWith('image/') || file.type.startsWith('video/');
+    if (isImageOrVideo) {
+      addMessage("system", "Image and video uploads are currently disabled. Please upload documents (.pdf, .docx, .doc, .txt, .md, .csv) only.");
+      return;
+    }
 
-      if (file.size > maxSize) {
-        alert(`File "${file.name}" is too large. Maximum size is 10MB.`);
-        return;
-      }
+    if (file.size > MAX_FILE_SIZE) {
+      addMessage("system", `File "${file.name}" is too large. Maximum size is 25MB.`);
+      return;
+    }
 
-      // Create preview for images
-      if (type === "image" && file.type.startsWith("image/")) {
-        const reader = new FileReader();
-        reader.onload = function (e) {
-          const imagePreview = `
-            <div style="margin: 8px 0; max-width: 200px;">
-              <img src="${e.target.result}" alt="${file.name}" style="max-width: 100%; height: auto; border-radius: 8px; cursor: pointer;" onclick="window.open('${e.target.result}', '_blank')">
-              <p style="font-size: 12px; color: #8696a0; margin: 4px 0;">${file.name} (${(file.size / 1024).toFixed(1)} KB)</p>
-            </div>
-          `;
-          addMessage("user", imagePreview, "image");
-        };
-        reader.readAsDataURL(file);
-      } else {
-        // Handle documents and other files
-        const fileIcon = getFileIcon(file.type);
-        const fileMessage = `
-          <div style="display: flex; align-items: center; padding: 12px; border: 1px solid #e1e5ea; border-radius: 8px; background: #f8f9fa; margin: 8px 0; max-width: 300px;">
-            <div style="margin-right: 12px; font-size: 24px;">${fileIcon}</div>
-            <div style="flex: 1;">
-              <div style="font-weight: 500; color: #111b21; font-size: 14px;">${file.name}</div>
-              <div style="font-size: 12px; color: #8696a0;">${(file.size / 1024).toFixed(1)} KB • ${file.type || "Unknown type"}</div>
-            </div>
-          </div>
-        `;
-        addMessage("user", fileMessage, "document");
-      }
+    const fileExt = '.' + file.name.toLowerCase().split('.').pop();
+    if (!SUPPORTED_EXT.includes(fileExt)) {
+      addMessage("system", `File type "${fileExt}" is not supported. Please upload: ${SUPPORTED_EXT.join(', ')}`);
+      return;
+    }
+
+    showFileSendPreview(file);
+  }
+
+  // WhatsApp-style send preview panel
+  function showFileSendPreview(file) {
+    const existing = document.getElementById('shivai-file-send-preview');
+    if (existing) existing.remove();
+
+    const fileColor = getFileColor(file.type);
+
+    const preview = document.createElement('div');
+    preview.id = 'shivai-file-send-preview';
+    preview.className = 'shivai-file-send-preview';
+    preview.innerHTML = `
+      <div class="shivai-fsp-header">
+        <button class="shivai-fsp-close" id="shivai-fsp-close-btn">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+        <span>Send Document</span>
+        <div style="width:32px"></div>
+      </div>
+      <div class="shivai-fsp-body">
+        <div class="shivai-fsp-icon-wrap">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="${fileColor.iconText}" stroke-width="1.5">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="16" y1="13" x2="8" y2="13"></line>
+            <line x1="16" y1="17" x2="8" y2="17"></line>
+          </svg>
+        </div>
+        <div class="shivai-fsp-filename">${file.name}</div>
+        <div class="shivai-fsp-meta">${formatFileSize(file.size)} &bull; ${getFileTypeName(file.type)}</div>
+      </div>
+      <div class="shivai-fsp-footer">
+        <input type="text" class="shivai-fsp-caption" id="shivai-fsp-caption" placeholder="Add a caption..." autocomplete="off" />
+        <button class="shivai-fsp-send-btn" id="shivai-fsp-send-btn" title="Send">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
+      </div>
+    `;
+
+    widgetContainer.appendChild(preview);
+
+    document.getElementById('shivai-fsp-close-btn').addEventListener('click', () => {
+      preview.remove();
+      const fi = document.getElementById('shivai-file-input');
+      if (fi) fi.value = '';
     });
 
-    // Clear the file input
-    if (type === "image") {
-      document.getElementById("shivai-image-input").value = "";
-    } else {
-      document.getElementById("shivai-file-input").value = "";
+    const doSend = () => {
+      const caption = document.getElementById('shivai-fsp-caption')?.value?.trim() || '';
+      preview.remove();
+      doSendFile(file, caption);
+    };
+
+    document.getElementById('shivai-fsp-send-btn').addEventListener('click', doSend);
+    document.getElementById('shivai-fsp-caption').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); doSend(); }
+    });
+  }
+
+  // Perform the actual file upload — adds a WhatsApp-style doc card to the chat transcript
+  async function doSendFile(file, caption) {
+    try {
+      const fileColor = getFileColor(file.type);
+      const filePreviewId = `file-preview-${Date.now()}`;
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+      const captionHtml = caption
+        ? `<div style="font-size:13px;color:#111b21;margin:6px 0 2px;word-break:break-word;">${caption}</div>`
+        : '';
+      const fileMessage = `
+        <div id="${filePreviewId}" class="wa-doc-card">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="width:42px;height:42px;border-radius:6px;background:${fileColor.icon};border:1px solid ${fileColor.iconBorder};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${fileColor.iconText}" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+              </svg>
+            </div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:13px;font-weight:600;color:#111b21;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:185px;">${file.name}</div>
+              <div class="upload-status" style="font-size:11.5px;color:#667781;margin-top:2px;display:flex;align-items:center;gap:4px;">
+                <span class="upload-spinner" style="display:inline-block;width:10px;height:10px;border:2px solid rgba(0,168,132,0.3);border-top-color:#00a884;border-radius:50%;animation:spin 0.7s linear infinite;flex-shrink:0;"></span>
+                Sending...
+              </div>
+            </div>
+          </div>
+          ${captionHtml}
+          <div class="wa-doc-footer">
+            <span style="font-size:11px;color:#667781;">${timeStr}</span>
+            <span class="wa-send-tick" style="display:flex;align-items:center;color:#8696a0;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"></circle><polyline points="12 7 12 12 15.5 14"></polyline></svg>
+            </span>
+          </div>
+        </div>`;
+
+      addMessage("user", fileMessage, { isFile: true });
+      await new Promise(resolve => setTimeout(resolve, 50));
+      const success = await sendFileToAI(file, filePreviewId);
+      const previewEl = document.getElementById(filePreviewId);
+      if (previewEl) {
+        const statusEl = previewEl.querySelector('.upload-status');
+        const tickEl = previewEl.querySelector('.wa-send-tick');
+        if (statusEl) {
+          statusEl.innerHTML = success
+            ? `${formatFileSize(file.size)} \u2022 ${getFileTypeName(file.type)}`
+            : `<span style="color:#ef4444;">\u2717 Failed to send</span>`;
+          if (success) statusEl.style.gap = '0';
+        }
+        if (tickEl) {
+          tickEl.innerHTML = success
+            ? `<svg width="16" height="11" viewBox="0 0 16 11" fill="none"><path d="M11 1L4.5 8L1 4.5" stroke="#53bdeb" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 1L8.5 8L7 6.5" stroke="#53bdeb" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+            : `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>`;
+        }
+      }
+    } catch (error) {
+      console.error("Error sending file:", error);
+      addMessage("system", `Failed to upload: ${file.name}`);
     }
+    const fileInput = document.getElementById("shivai-file-input");
+    const imageInput = document.getElementById("shivai-image-input");
+    if (fileInput) fileInput.value = "";
+    if (imageInput) imageInput.value = "";
+  }
+
+  // Send file to AI via LiveKit data channel with chunking (LiveKit limit: 64KB)
+  async function sendFileToAI(file, previewId) {
+    if (!room || !isConnected) {
+      console.warn("Cannot send file - not connected to room");
+      addMessage("system", "Please start a call first to send files.");
+      return false;
+    }
+
+    const CHUNK_SIZE = 45000; // 45KB per chunk (safe limit for base64 + JSON)
+    const encoder = new TextEncoder();
+
+    try {
+      const fileBuffer = await file.arrayBuffer();
+      const fileId = Date.now().toString();
+      const totalChunks = Math.ceil(fileBuffer.byteLength / CHUNK_SIZE);
+
+      console.log(`Sending file in ${totalChunks} chunks: ${file.name} (${formatFileSize(file.size)})`);
+
+      // 1. Send file_start
+      await room.localParticipant.publishData(
+        encoder.encode(JSON.stringify({
+          type: 'file_start',
+          fileId: fileId,
+          filename: file.name,
+          totalChunks: totalChunks,
+          totalSize: fileBuffer.byteLength
+        })),
+        { reliable: true }
+      );
+
+      // 2. Send chunks
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * CHUNK_SIZE;
+        const end = Math.min(start + CHUNK_SIZE, fileBuffer.byteLength);
+        const chunk = fileBuffer.slice(start, end);
+        const base64Chunk = btoa(String.fromCharCode(...new Uint8Array(chunk)));
+
+        await room.localParticipant.publishData(
+          encoder.encode(JSON.stringify({
+            type: 'file_chunk',
+            fileId: fileId,
+            chunkIndex: i,
+            data: base64Chunk
+          })),
+          { reliable: true }
+        );
+
+        const progress = Math.round(((i + 1) / totalChunks) * 100);
+        updateUploadProgress(previewId, progress, i + 1, totalChunks);
+
+        // Small delay to avoid overwhelming the data channel
+        await new Promise(r => setTimeout(r, 30));
+      }
+
+      // 3. Send file_end
+      await room.localParticipant.publishData(
+        encoder.encode(JSON.stringify({
+          type: 'file_end',
+          fileId: fileId
+        })),
+        { reliable: true }
+      );
+
+      console.log(`File upload complete: ${file.name}`);
+      return true;
+
+    } catch (error) {
+      console.error("Error sending file to AI:", error);
+      addMessage("system", `Failed to send file: ${error.message}`);
+      return false;
+    }
+  }
+
+  // Update upload progress in the UI
+  function updateUploadProgress(previewId, progress, currentChunk, totalChunks) {
+    if (!previewId) return;
+    const previewEl = document.getElementById(previewId);
+    if (previewEl) {
+      const statusEl = previewEl.querySelector('.upload-status');
+      if (statusEl) {
+        statusEl.innerHTML = `
+          <span class="upload-spinner" style="display: inline-block; width: 12px; height: 12px; border: 2px solid #e5e7eb; border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.6s linear infinite; margin-right: 4px;"></span>
+          Uploading... ${progress}% (${currentChunk}/${totalChunks})
+        `;
+      }
+    }
+  }
+
+  // Get file color scheme based on type
+  function getFileColor(fileType) {
+    if (fileType.includes("pdf")) {
+      return { bg: "#ffffff", icon: "#ffffff", iconBorder: "#e5e7eb", iconText: "#ef4444" };
+    }
+    if (fileType.includes("word") || fileType.includes("document")) {
+      return { bg: "#ffffff", icon: "#ffffff", iconBorder: "#e5e7eb", iconText: "#3b82f6" };
+    }
+    if (fileType.includes("spreadsheet") || fileType.includes("excel") || fileType.includes("csv")) {
+      return { bg: "#ffffff", icon: "#ffffff", iconBorder: "#e5e7eb", iconText: "#22c55e" };
+    }
+    if (fileType.includes("presentation") || fileType.includes("powerpoint")) {
+      return { bg: "#ffffff", icon: "#ffffff", iconBorder: "#e5e7eb", iconText: "#f59e0b" };
+    }
+    if (fileType.includes("zip") || fileType.includes("rar") || fileType.includes("archive")) {
+      return { bg: "#ffffff", icon: "#ffffff", iconBorder: "#e5e7eb", iconText: "#8b5cf6" };
+    }
+    return { bg: "#ffffff", icon: "#ffffff", iconBorder: "#e5e7eb", iconText: "#6b7280" };
+  }
+
+  // Format file size
+  function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+  }
+
+  // Get human-readable file type name
+  function getFileTypeName(fileType) {
+    if (fileType.includes("pdf")) return "PDF";
+    if (fileType.includes("word") || fileType.includes("document")) return "Word";
+    if (fileType.includes("spreadsheet") || fileType.includes("excel")) return "Excel";
+    if (fileType.includes("csv")) return "CSV";
+    if (fileType.includes("presentation") || fileType.includes("powerpoint")) return "PowerPoint";
+    if (fileType.includes("text")) return "Text";
+    if (fileType.includes("json")) return "JSON";
+    if (fileType.includes("xml")) return "XML";
+    if (fileType.includes("zip")) return "ZIP";
+    if (fileType.includes("rar")) return "RAR";
+    return "File";
   }
 
   // Get appropriate icon for file type
@@ -4178,7 +4596,90 @@
       }
     }
   }
-  function addMessage(role, text) {
+
+// Converts AI responses (HTML or plain text with URLs) into clean formatted content.
+  // Returns an HTML string, or null to fall back to textContent.
+  function renderMessageText(text) {
+    const noComments = text.replace(/<!--[\s\S]*?-->/g, '').trim();
+
+    const esc = function(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+    function docIc(name) {
+      const n = (name || '').toLowerCase();
+      if (n.match(/\.pdf$/))          return { cls: 'pdf',  emoji: '\uD83D\uDCD5' };
+      if (n.match(/\.docx?$/))        return { cls: 'word', emoji: '\uD83D\uDCD8' };
+      if (n.match(/\.xlsx?$|\.csv$/)) return { cls: 'xls',  emoji: '\uD83D\uDCD7' };
+      if (n.match(/\.pptx?$/))        return { cls: 'ppt',  emoji: '\uD83D\uDCD9' };
+      if (n.match(/\.(txt|md)$/))     return { cls: 'txt',  emoji: '\uD83D\uDCC4' };
+      if (n.match(/\.(zip|rar)$/))    return { cls: 'zip',  emoji: '\uD83D\uDDDC\uFE0F' };
+      return { cls: 'file', emoji: '\uD83D\uDCCE' };
+    }
+    function makeDocCard(url) {
+      const ic = docIc(url);
+      const displayName = decodeURIComponent(url.split('/').pop().split('?')[0]);
+      return '<a class="doc-card" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">'
+        + '<div class="doc-icon-wrap ' + ic.cls + '">' + ic.emoji + '</div>'
+        + '<div class="doc-meta"><div class="doc-name" title="' + esc(displayName) + '">' + esc(displayName) + '</div>'
+        + '<div class="doc-size">Tap to open</div></div>'
+        + '<span class="doc-dl-btn" title="Open">'
+        + '<svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>'
+        + '</span></a>';
+    }
+
+    // ── Case 1: plain text containing a URL ──────────────────────────────────
+    if (!/<[a-z][\s\S]*?>/i.test(noComments)) {
+      const urlRe = /https?:\/\/[^\s<>"']+/gi;
+      if (!urlRe.test(noComments)) return null; // truly plain text, no special rendering needed
+      urlRe.lastIndex = 0;
+      let html = '';
+      let lastIdx = 0;
+      let m;
+      while ((m = urlRe.exec(noComments)) !== null) {
+        // Text before URL (strip trailing colon/space used as label separator)
+        const before = noComments.slice(lastIdx, m.index).replace(/[:\s]+$/, '').trim();
+        if (before) html += '<span style="display:block;margin-bottom:6px;">' + esc(before) + '</span>';
+        const url = m[0].replace(/[.,;:!?)]+$/, ''); // strip trailing punctuation
+        html += makeDocCard(url);
+        lastIdx = m.index + url.length;
+      }
+      const after = noComments.slice(lastIdx).trim();
+      if (after) html += '<div style="font-size:13px;color:#374151;margin-top:4px;">' + esc(after) + '</div>';
+      return html || null;
+    }
+
+    // ── Case 2: HTML-wrapped content (e.g. <div>filename</div>) ─────────────
+    const tmp = document.createElement('div');
+    tmp.innerHTML = noComments;
+    const lines = [];
+    tmp.childNodes.forEach(function(node) {
+      const t = (node.textContent || '').trim();
+      if (t) lines.push(t);
+    });
+    if (lines.length === 0) return null;
+    const fileExts = /\.(pdf|doc|docx|txt|csv|xlsx|xls|ppt|pptx|png|jpg|jpeg|gif|mp4|mp3|zip)$/i;
+    let html = '<span>' + esc(lines[0]) + '</span>';
+    if (lines.length > 1) {
+      html += '<div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">';
+      for (let i = 1; i < lines.length; i++) {
+        const item = lines[i];
+        if (/^https?:\/\//i.test(item) || fileExts.test(item)) {
+          const isUrl = /^https?:\/\//i.test(item);
+          if (isUrl) {
+            html += makeDocCard(item);
+          } else {
+            const ic = docIc(item);
+            html += '<div class="doc-card"><div class="doc-icon-wrap ' + ic.cls + '">' + ic.emoji + '</div>'
+              + '<div class="doc-meta"><div class="doc-name" title="' + esc(item) + '">' + esc(item) + '</div></div></div>';
+          }
+        } else {
+          html += '<div style="font-size:13px;color:#374151;">' + esc(item) + '</div>';
+        }
+      }
+      html += '</div>';
+    }
+    return html;
+  }
+
+  function addMessage(role, text, options = {}) {
     console.log("🔍 addMessage called:", {
       role,
       text,
@@ -4233,16 +4734,29 @@
       emptyState.style.display = "none";
     }
     const messageDiv = document.createElement("div");
-    messageDiv.className = `message ${role}`;
+    messageDiv.className = options.isFile ? `message ${role} message-has-file` : `message ${role}`;
     messageDiv.dataset.timestamp = Date.now().toString();
     const labelDiv = document.createElement("div");
     labelDiv.className = "message-label";
     labelDiv.textContent = role === "user" ? "You" : "AI Employee";
-    const textDiv = document.createElement("div");
-    textDiv.className = "message-text";
-    textDiv.textContent = text;
-    messageDiv.appendChild(labelDiv);
-    messageDiv.appendChild(textDiv);
+    if (options.isFile) {
+      const fileDiv = document.createElement("div");
+      fileDiv.className = "message-file";
+      fileDiv.innerHTML = text;
+      messageDiv.appendChild(labelDiv);
+      messageDiv.appendChild(fileDiv);
+    } else {
+      const textDiv = document.createElement("div");
+      textDiv.className = "message-text";
+      const rendered = renderMessageText(text);
+      if (rendered !== null) {
+        textDiv.innerHTML = rendered;
+      } else {
+        textDiv.textContent = text;
+      }
+      messageDiv.appendChild(labelDiv);
+      messageDiv.appendChild(textDiv);
+    }
     messagesDiv.appendChild(messageDiv);
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
     if (clearBtn) {
@@ -4253,8 +4767,85 @@
   function updateMessage(messageDiv, text) {
     const textDiv = messageDiv.querySelector(".message-text");
     if (textDiv) {
-      textDiv.textContent = text;
+      const rendered = renderMessageText(text);
+      if (rendered !== null) {
+        textDiv.innerHTML = rendered;
+      } else {
+        textDiv.textContent = text;
+      }
     }
+  }
+
+  // ── WhatsApp-style document card from AI ────────────────────────────────
+  function addDocumentMessage(docData) {
+    // docData: { url, name, size, mime_type, caption }
+    if (!docData || !docData.url) return;
+
+    const name     = docData.name     || 'Document';
+    const url      = docData.url;
+    const caption  = docData.caption  || '';
+    const sizeRaw  = docData.size;
+    const mime     = (docData.mime_type || '').toLowerCase();
+
+    // Human-readable size
+    let sizeLabel = '';
+    if (sizeRaw) {
+      const kb = Math.round(sizeRaw / 1024);
+      sizeLabel = kb >= 1024 ? (kb / 1024).toFixed(1) + ' MB' : kb + ' KB';
+    }
+
+    // Icon + colour category
+    let iconEmoji = '📄', colorClass = 'file';
+    if      (mime.includes('pdf'))                          { iconEmoji = '📕'; colorClass = 'pdf';  }
+    else if (mime.includes('word') || name.match(/\.docx?$/i)) { iconEmoji = '📘'; colorClass = 'word'; }
+    else if (mime.includes('sheet') || name.match(/\.xlsx?$/i))  { iconEmoji = '📗'; colorClass = 'xls';  }
+    else if (mime.includes('presentation') || name.match(/\.pptx?$/i)) { iconEmoji = '📙'; colorClass = 'ppt'; }
+    else if (mime.includes('text') || name.match(/\.(txt|md)$/i))  { iconEmoji = '📄'; colorClass = 'txt';  }
+    else if (mime.includes('zip') || mime.includes('rar'))           { iconEmoji = '🗜️'; colorClass = 'zip';  }
+
+    // Build card HTML
+    const card = document.createElement('div');
+    card.className = 'message assistant';
+    card.dataset.timestamp = Date.now().toString();
+
+    const label        = document.createElement('div');
+    label.className    = 'message-label';
+    label.textContent  = 'AI Employee';
+
+    const link = document.createElement('a');
+    link.className  = 'doc-card';
+    link.href       = url;
+    link.target     = '_blank';
+    link.rel        = 'noopener noreferrer';
+    link.title      = 'Click to open';
+    link.innerHTML  = `
+      <div class="doc-icon-wrap ${colorClass}">${iconEmoji}</div>
+      <div class="doc-meta">
+        <div class="doc-name" title="${name}">${name}</div>
+        ${sizeLabel ? `<div class="doc-size">${sizeLabel}</div>` : ''}
+      </div>
+      <button class="doc-dl-btn" title="Download" onclick="event.stopPropagation();event.preventDefault();var a=document.createElement('a');a.href='${url}';a.download='${name}';a.target='_blank';document.body.appendChild(a);a.click();document.body.removeChild(a);">
+        <svg viewBox="0 0 24 24"><path d="M12 5v10M7 15l5 5 5-5"/><path d="M5 19h14"/></svg>
+      </button>`;
+
+    card.appendChild(label);
+    card.appendChild(link);
+
+    if (caption) {
+      const cap = document.createElement('div');
+      cap.className   = 'doc-caption';
+      cap.textContent = caption;
+      card.appendChild(cap);
+    }
+
+    if (messagesDiv) {
+      const emptyState = messagesDiv.querySelector('.empty-state');
+      if (emptyState) emptyState.style.display = 'none';
+      messagesDiv.appendChild(card);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+    if (clearBtn) clearBtn.style.display = 'flex';
+    console.log('📎 Document card added:', name, url);
   }
   function animateVisualizer(active) {
     if (!visualizerBars) return;
@@ -5021,6 +5612,19 @@
                 // ── PRIORITY: handle call_ended IMMEDIATELY before any other logic ──
                 // call_ended is already handled above (early check), skip here
                 if (jsonData.type === "call_ended") {
+                  return;
+                }
+
+                // ── Document / file shared by AI ────────────────────────────
+                if (jsonData.type === "document_share" || jsonData.type === "file_share") {
+                  console.log("📎 AI shared a document:", jsonData);
+                  addDocumentMessage({
+                    url:       jsonData.url       || jsonData.file_url  || jsonData.download_url,
+                    name:      jsonData.name      || jsonData.file_name || jsonData.filename || "Document",
+                    size:      jsonData.size      || jsonData.file_size || null,
+                    mime_type: jsonData.mime_type || jsonData.content_type || jsonData.type_hint || "",
+                    caption:   jsonData.caption   || jsonData.description || "",
+                  });
                   return;
                 }
 
