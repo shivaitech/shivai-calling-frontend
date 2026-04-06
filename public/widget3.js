@@ -3767,7 +3767,7 @@
       return;
     }
 
-    showFileSendPreview(file);
+    doSendFile(file, '');
   }
 
   // WhatsApp-style send preview panel
