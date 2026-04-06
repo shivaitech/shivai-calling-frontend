@@ -40,6 +40,7 @@ interface AuthContextType {
   logout: () => void;
   clearError: () => void;
   getGoogleAuthUrl: () => Promise<string>;
+  updateUser: (updates: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -258,6 +259,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     localStorage.removeItem("pending_auth_user");
   };
 
+  const updateUser = (updates: Partial<User>) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const updated = { ...prev, ...updates };
+      localStorage.setItem("auth_user", JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   const getGoogleAuthUrl = async (): Promise<string> => {
     try {
       setError(null);
@@ -285,6 +295,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     clearError,
     getGoogleAuthUrl,
     checkUserEmailPass,
+    updateUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

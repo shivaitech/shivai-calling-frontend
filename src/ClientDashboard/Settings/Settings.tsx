@@ -25,7 +25,7 @@ import {
 
 const Settings = () => {
   const { isDark, toggleTheme } = useTheme();
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
   const [showApiKey, setShowApiKey] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -181,6 +181,7 @@ const Settings = () => {
         timezone: profile.timezone,
         language: profile.language
       });
+      updateUser({ fullName: profile.name, company: profile.company });
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (error) {

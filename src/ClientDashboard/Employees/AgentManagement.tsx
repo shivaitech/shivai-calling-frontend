@@ -3302,16 +3302,14 @@ const AgentManagement = () => {
                       </span>
                       <span className="text-slate-800 dark:text-white truncate ml-2 text-right">
                         {agent.voice}
+                        {(agent as any).multilingual_voice && (
+                          <span className="ml-1.5 text-xs text-purple-600 dark:text-purple-400 font-medium">
+                            · Multilingual: {(agent as any).multilingual_voice}
+                          </span>
+                        )}
                       </span>
                     </div>
-                    <div className="flex items-center justify-start text-xs sm:text-sm">
-                      <span className="text-slate-600 dark:text-slate-400">
-                        Created:
-                      </span>
-                      <span className="text-slate-800 dark:text-white ml-2">
-                        {new Date(agent.createdAt).toLocaleDateString()}
-                      </span>
-                    </div>
+
                   </div>
 
                   {/* Primary Actions - Properly Aligned */}

@@ -22,7 +22,9 @@ import {
   Monitor,
   Tablet,
   Globe,
+  Trash2,
 } from "lucide-react";
+import appToast from "../../components/AppToast";
 
 const Analytics = () => {
   const { user } = useAuth();
@@ -44,6 +46,9 @@ const Analytics = () => {
   const [agentLoadPage, setAgentLoadPage] = useState(1);
   const [isLoadingMoreAgents, setIsLoadingMoreAgents] = useState(false);
   const [showAgentDropdown, setShowAgentDropdown] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const ipLocationCacheRef = useRef<any>({});
   const pageSize = 10;
   const agentPageSize = 10;
@@ -365,6 +370,32 @@ const Analytics = () => {
     });
   };
 
+  const handleDeleteSessionClick = (sessionId: string) => {
+    setSessionToDelete(sessionId);
+    setShowDeleteConfirm(true);
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteConfirm(false);
+    setSessionToDelete(null);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!sessionToDelete) return;
+    setIsDeleting(true);
+    try {
+      await agentAPI.deleteSession(sessionToDelete);
+      appToast.success("Session deleted successfully!");
+      setShowDeleteConfirm(false);
+      setSessionToDelete(null);
+      fetchSessionHistory(selectedEmployee, currentPage);
+    } catch (error: any) {
+      appToast.error(error?.response?.data?.message || "Failed to delete session");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const handleResetFilters = () => {
     setSearchTerm("");
     setSearchQuery("");
@@ -396,10 +427,10 @@ const Analytics = () => {
           ) / sessionHistory.length
         : 0;
 
-    // Calculate performance score based on average duration (higher duration = better engagement)
+    // Calculate performance score: 90–99 range based on engagement duration
     const performanceScore =
       avgDuration > 0
-        ? Math.min(100, Math.round((avgDuration / 300) * 100))
+        ? Math.min(99, Math.max(90, Math.round(90 + (avgDuration / 300) * 9)))
         : 0;
 
     return {
@@ -886,15 +917,24 @@ const Analytics = () => {
                               </span>
                             </div>
                           </div>
-                          <button
-                            onClick={() => setSelectedSession(session)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg transition-all duration-200 text-xs font-medium"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline">
-                              View Details
-                            </span>
-                          </button>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => setSelectedSession(session)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg transition-all duration-200 text-xs font-medium"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">
+                                View Details
+                              </span>
+                            </button>
+                            <button
+                              onClick={() => handleDeleteSessionClick(session.session_id || session.id || session.call_id)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-red-50 dark:hover:bg-red-900/20 text-slate-600 dark:text-slate-300 hover:text-red-600 dark:hover:text-red-400 rounded-lg transition-all duration-200 text-xs font-medium"
+                              title="Delete session"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
 
                         {/* Device and Location Info */}
@@ -1000,6 +1040,51 @@ const Analytics = () => {
           session={selectedSession}
           onClose={() => setSelectedSession(null)}
         />
+      )}
+
+      {/* Delete Session Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-xl border border-slate-200 dark:border-slate-700">
+            <div className="p-6">
+              <div className="flex items-center justify-center w-12 h-12 bg-red-100 dark:bg-red-900/20 rounded-full mx-auto mb-4">
+                <Trash2 className="w-6 h-6 text-red-600 dark:text-red-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-slate-800 dark:text-white text-center mb-2">
+                Delete Session?
+              </h3>
+              <p className="text-sm text-slate-600 dark:text-slate-400 text-center mb-6">
+                Are you sure you want to delete this session? This action cannot be undone and all associated data will be permanently removed.
+              </p>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleDeleteCancel}
+                  disabled={isDeleting}
+                  className="flex-1 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteConfirm}
+                  disabled={isDeleting}
+                  className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isDeleting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                      <span>Deleting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      <span>Delete</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

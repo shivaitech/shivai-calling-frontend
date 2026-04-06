@@ -539,6 +539,24 @@ class AgentAPI {
     }
   }
 
+  async deleteSession(sessionId: string): Promise<any> {
+    try {
+      const response: AxiosResponse<{
+        success: boolean;
+        message?: string;
+      }> = await apiClient.delete(`/agent-sessions/${sessionId}`);
+
+      if (response.data.success) {
+        return response.data;
+      }
+
+      throw new Error(response.data.message || "Failed to delete session");
+    } catch (error: any) {
+      console.error("Error deleting session:", error);
+      throw error;
+    }
+  }
+
   // Get call summary for an agent
   async getCallSummary(agentId: string): Promise<any> {
     try {

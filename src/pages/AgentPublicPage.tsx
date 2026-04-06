@@ -43,8 +43,8 @@ export default function AgentPublicPage() {
   // Check if this is the Kunal Prakash client with custom UI
   const isKunalClient = isKunalPrakashClient(userEmail || undefined);
 
-  // TradeFx client: agent named "Lakshmi"
-  const isTradeFxClient = (agentInfo?.name || "") === "Lakshmi";
+  // TradeFx client: agent named "Saanvi"
+  const isTradeFxClient = (agentInfo?.name || "") === "Saanvi";
 
   const badgePhrases = isTradeFxClient ? [
     "Ask about accounts, spreads & leverage",
@@ -192,7 +192,7 @@ export default function AgentPublicPage() {
     );
   }
 
-  // TradeFx client: Lakshmi agent — use dedicated NLP page
+  // TradeFx client: Saanvi agent — use dedicated NLP page
   if (isTradeFxClient) {
     return <AgentPublicPageNLP />;
 
