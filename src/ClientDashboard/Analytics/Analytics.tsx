@@ -129,7 +129,7 @@ const Analytics = () => {
   });
 
   // Check if current user is developer
-  const isDeveloper = isDeveloperUser(user?.email);
+  const isDeveloper = true; // Open to all users
 
   // Get real agents from API
   const employees = isDeveloper ? agentsList : [];

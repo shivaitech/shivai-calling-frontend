@@ -30,7 +30,7 @@ const Monitoring = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   
   // Check if current user is developer
-  const isDeveloper = isDeveloperUser(user?.email);
+  const isDeveloper = true; // Open to all users
 
   const stats = isDeveloper ? [
     {

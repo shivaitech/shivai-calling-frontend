@@ -255,7 +255,7 @@ const AgentManagement = () => {
   const { user } = useAuth();
 
   // Check if current user is developer
-  const isDeveloper = isDeveloperUser(user?.email);
+  const isDeveloper = true; // Open to all users
 
   const isTrain = location.pathname.includes("/train");
   const isView = id && !isTrain;
@@ -1233,14 +1233,8 @@ const AgentManagement = () => {
       }
     }
 
-    // If no template selected, navigate to CreateAgent page to let user create manually
+    // If no template selected, just keep modal open - user must pick a template
     if (!quickCreateData.selectedTemplate) {
-      handleQuickCreateClose();
-      navigate(`/agents/create`, {
-        state: {
-          quickCreateData: quickCreateData,
-        },
-      });
       return;
     }
 
@@ -3302,7 +3296,7 @@ const AgentManagement = () => {
                       </span>
                       <span className="text-slate-800 dark:text-white truncate ml-2 text-right">
                         {agent.voice}
-                        {(agent as any).multilingual_voice && (
+                        {(agent as any).multilingual_voice && Array.isArray((agent as any).language) && (agent as any).language.includes("multilingual") && (
                           <span className="ml-1.5 text-xs text-purple-600 dark:text-purple-400 font-medium">
                             · Multilingual: {(agent as any).multilingual_voice}
                           </span>
@@ -4255,14 +4249,23 @@ const AgentManagement = () => {
                               ⭐ Enterprise
                             </span>
                           </div>
+                          {!(['demo@callshivai.com', 'atharkatheri@gmail.com'].includes((user?.email || '').toLowerCase())) && (
+                            <p className="text-[11px] text-slate-400 dark:text-slate-500 mb-2">
+                              Contact support to enable Multilingual Mode for your account.
+                            </p>
+                          )}
                           <div className={`rounded-xl border-2 transition-all overflow-hidden ${
-                            quickCreateData.languages.includes("multilingual")
+                            !(['demo@callshivai.com', 'atharkatheri@gmail.com'].includes((user?.email || '').toLowerCase()))
+                              ? "opacity-50 cursor-not-allowed"
+                              : quickCreateData.languages.includes("multilingual")
                               ? "border-purple-500"
                               : "border-slate-200 dark:border-slate-700"
                           }`}>
                             <button
                               type="button"
+                              disabled={!(['demo@callshivai.com', 'atharkatheri@gmail.com'].includes((user?.email || '').toLowerCase()))}
                               onClick={() => {
+                                if (!(['demo@callshivai.com', 'atharkatheri@gmail.com'].includes((user?.email || '').toLowerCase()))) return;
                                 const isOn = quickCreateData.languages.includes("multilingual");
                                 setQuickCreateData((prev) => ({
                                   ...prev,

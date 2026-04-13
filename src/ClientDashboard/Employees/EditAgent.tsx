@@ -252,12 +252,15 @@ function getDisplayFilename(_fileUrl: string, index: number): string {
  */
 function detectNameInTemplate(firstMessage?: string): string | null {
   if (!firstMessage) return null;
+  // Match one or more capitalized words (handles multi-word names like "Gyan Setu")
+  // Stops at lowercase words (e.g. "from", "at", "with") so we don't over-capture
+  const nameGroup = '([A-Z][a-zA-Z]+(?:\\s+[A-Z][a-zA-Z]+)*)';
   const patterns = [
-    /\bI'(?:m|ve) ([A-Z][a-zA-Z]+)\b/,
-    /\bI am ([A-Z][a-zA-Z]+)\b/,
-    /\bThis is ([A-Z][a-zA-Z]+)\b/,
-    /\bMy name is ([A-Z][a-zA-Z]+)\b/i,
-    /\bYou(?:'re| are) speaking (?:with|to) ([A-Z][a-zA-Z]+)\b/i,
+    new RegExp(`\\bI'(?:m|ve) ${nameGroup}\\b`),
+    new RegExp(`\\bI am ${nameGroup}\\b`),
+    new RegExp(`\\bThis is ${nameGroup}\\b`),
+    new RegExp(`\\bMy name is ${nameGroup}\\b`, 'i'),
+    new RegExp(`\\bYou(?:'re| are) speaking (?:with|to) ${nameGroup}\\b`, 'i'),
   ];
   for (const p of patterns) {
     const m = firstMessage.match(p);
@@ -310,6 +313,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import appToast from '../../components/AppToast';
 import { ArrowLeft, Save, X, Bot, Globe, Settings, Sparkles, Info, Upload, Link, Share2, FileText, File, Image, Plus, BookOpen, Volume2, Play, Square, Pencil, Check, Loader2, Eye, Code2, Search, ChevronUp, ChevronDown, Trash2, RefreshCw } from 'lucide-react';
 import { useAgent } from '../../contexts/AgentContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { agentAPI } from '../../services/agentAPI';
 import { aiTemplateService } from '../../services/aiTemplateService';
 import GlassCard from '../../components/GlassCard';
@@ -336,6 +340,38 @@ const VOICE_STYLE_SP_MAP: Record<string, string> = {
   enthusiastic:  'Bring high energy and genuine excitement to every interaction. Use expressive, positive language and let your enthusiasm be contagious. Celebrate wins with the caller and maintain an optimistic, can-do attitude throughout.',
 };
 
+/**
+ * Removes duplicate "Voice Instructions" sections from a system prompt,
+ * keeping only the first occurrence (header + body).
+ */
+function deduplicateVoiceInstructionSections(prompt: string): string {
+  if (!prompt) return prompt;
+  const headerRe = /^#{0,3}\s*voice instructions\s*:?\s*$/i;
+  const lines = prompt.split('\n');
+  const headerPositions = lines
+    .map((l, i) => (headerRe.test(l.trim()) ? i : -1))
+    .filter(i => i !== -1);
+  if (headerPositions.length <= 1) return prompt;
+
+  // Remove all but the first header+body in reverse order to keep indices stable
+  const result = [...lines];
+  for (let h = headerPositions.length - 1; h >= 1; h--) {
+    const start = headerPositions[h];
+    let end = start + 1;
+    while (end < result.length) {
+      if (
+        result[end].trim() === '' &&
+        end + 1 < result.length &&
+        result[end + 1].trim() !== '' &&
+        /^[A-Z#]/.test(result[end + 1].trim())
+      ) { end++; break; }
+      end++;
+    }
+    result.splice(start, end - start);
+  }
+  return result.join('\n').replace(/\n{3,}/g, '\n\n');
+}
+
 /** Replaces the Voice Instructions section in a system prompt with newContent.
  *  Uses content-match first (fast, duplicate-free for all subsequent calls),
  *  then falls back to line-by-line header detection for the very first call.
@@ -344,11 +380,12 @@ function updateVoiceInstructionsSection(prompt: string, newContent: string): str
   if (!prompt) return prompt;
 
   // ── Strategy 1: content-match replacement ──────────────────────────────────
-  // After the first update we always have one of our known strings in the prompt,
-  // so this branch handles every subsequent call without any duplication risk.
+  // Replace ALL occurrences of any known voice content, then deduplicate headers.
   for (const known of Object.values(VOICE_STYLE_SP_MAP)) {
     if (prompt.includes(known)) {
-      return prompt.replace(known, newContent);
+      const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const replaced = prompt.replace(new RegExp(escape(known), 'g'), newContent);
+      return deduplicateVoiceInstructionSections(replaced);
     }
   }
 
@@ -401,6 +438,11 @@ function updateVoiceInstructionsSection(prompt: string, newContent: string): str
   }
 
   // ── Fallback: prepend ───────────────────────────────────────────────────────
+  // Guard: if any Voice Instructions header already exists in an unrecognised
+  // format, don't create a second one — just return the prompt unchanged.
+  if (lines.some(l => /voice instructions/i.test(l.trim()))) {
+    return prompt;
+  }
   return `Voice Instructions\n${newContent}\n\n${prompt}`;
 }
 
@@ -423,6 +465,9 @@ const EditAgent = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { currentAgent, setCurrentAgent, refreshAgents } = useAgent();
+  const { user } = useAuth();
+  const MULTILINGUAL_ALLOWED_EMAILS = ['demo@callshivai.com', 'atharkatheri@gmail.com'];
+  const canUseMultilingual = MULTILINGUAL_ALLOWED_EMAILS.includes((user?.email || '').toLowerCase());
 
   const [formData, setFormData] = useState({
     name: "",
@@ -682,8 +727,8 @@ const EditAgent = () => {
           voiceSpeed: (agentData as any).voice_speed !== undefined ? (agentData as any).voice_speed : 1.0,
           voiceStyle: (agentData as any).voice_style ||
             detectVoiceStyleFromInstruction((agentData as any).voice_config?.voice_instruction),
-          // Use custom_instructions from API response
-          customInstructions: agentData.custom_instructions || "",
+          // Use custom_instructions from API response (deduplicate Voice Instructions in case of legacy doubled data)
+          customInstructions: deduplicateVoiceInstructionSections(agentData.custom_instructions || ""),
           guardrailsLevel: mapGuardrailsLevel(agentData.guardrails_level),
           responseStyle: mapResponseStyle(agentData.response_style),
           maxResponseLength: mapMaxResponseLength(agentData.max_response_length),
@@ -1854,13 +1899,14 @@ const EditAgent = () => {
       const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const forceAgentName = (text: string | undefined): string => {
         if (!text) return text || '';
-        // Replace any single capitalised word that follows "I'm" / "I am" / "is" patterns
-        // so whatever placeholder the AI picked gets swapped for the real name.
+        // Match one or more consecutive capitalised words so multi-word names like
+        // "Gyan Setuu" are captured atomically — prevents "I'm Gyan" → "I'm Gyan Setuu Setuu".
+        const nameGroup = '([A-Z][a-zA-Z]+(?:\\s+[A-Z][a-zA-Z]+)*)';
         return text
-          .replace(/\bI'm ([A-Z][a-z]+)\b/g, `I'm ${agentName}`)
-          .replace(/\bI am ([A-Z][a-z]+)\b/g, `I am ${agentName}`)
-          .replace(/\bThis is ([A-Z][a-z]+)\b/g, `This is ${agentName}`)
-          .replace(/\bYou are ([A-Z][a-z]+)\b/g, `You are ${agentName}`)
+          .replace(new RegExp(`\\bI'm ${nameGroup}\\b`, 'g'), `I'm ${agentName}`)
+          .replace(new RegExp(`\\bI am ${nameGroup}\\b`, 'g'), `I am ${agentName}`)
+          .replace(new RegExp(`\\bThis is ${nameGroup}\\b`, 'g'), `This is ${agentName}`)
+          .replace(new RegExp(`\\bYou are ${nameGroup}\\b`, 'g'), `You are ${agentName}`)
           // Also replace whatever name was previously tracked
           .replace(new RegExp(`\\b${escape(prevNameRef.current)}\\b`, 'gi'), agentName);
       };
@@ -3027,12 +3073,19 @@ const EditAgent = () => {
                         ⭐ Enterprise
                       </span>
                     </div>
+                    {!canUseMultilingual && (
+                      <p className="text-[11px] text-slate-400 dark:text-slate-500 mb-2">
+                        Contact support to enable Multilingual Mode for your account.
+                      </p>
+                    )}
                     <div className={`rounded-xl border-2 transition-all overflow-hidden ${
-                      isMultilingualMode ? "border-purple-500" : "border-slate-200 dark:border-slate-700"
+                      !canUseMultilingual ? "opacity-50 cursor-not-allowed" : isMultilingualMode ? "border-purple-500" : "border-slate-200 dark:border-slate-700"
                     }`}>
                       <button
                         type="button"
+                        disabled={!canUseMultilingual}
                         onClick={() => {
+                          if (!canUseMultilingual) return;
                           const isOn = isMultilingualMode;
                           setFormData((prev) => {
                             const newLangs = isOn

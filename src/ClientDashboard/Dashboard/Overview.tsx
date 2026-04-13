@@ -20,7 +20,7 @@ const Overview = () => {
   const { user } = useAuth();
   const navigate = useNavigate(); 
   const [welcomeMessage, setWelcomeMessage] = useState("");
-  const isDeveloper = isDeveloperUser(user?.email);
+  const isDeveloper = true; // Open to all users
 
   useEffect(() => {
     if (user) {
@@ -230,7 +230,7 @@ const Overview = () => {
                   </p>
                   {isDeveloper && (
                     <button
-                      onClick={() => navigate("/agents/create")}
+                      onClick={() => navigate("/agents", { state: { openCreate: true } })}
                       className="mt-2 sm:mt-3 common-button-bg rounded-lg"
                     >
                       Create Your First Agent

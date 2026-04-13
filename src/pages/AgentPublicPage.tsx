@@ -43,8 +43,10 @@ export default function AgentPublicPage() {
   // Check if this is the Kunal Prakash client with custom UI
   const isKunalClient = isKunalPrakashClient(userEmail || undefined);
 
-  // TradeFx client: agent named "Saanvi"
-  const isTradeFxClient = (agentInfo?.name || "") === "Saanvi";
+  // TradeFx client: agent named "Saanvi" OR logged-in as tradefx account
+  const isTradeFxClient =
+    (agentInfo?.name || "") === "Saanvi" ||
+    (userEmail || "").toLowerCase() === "tradefxservicesofficial@gmail.com";
 
   const badgePhrases = isTradeFxClient ? [
     "Ask about accounts, spreads & leverage",
