@@ -1164,254 +1164,296 @@
     checkAudioLevel();
   }
 
+  // ─── Shared drag helpers ────────────────────────────────────────────────────
+  // Uses the Pointer Events API + setPointerCapture so drag events are never
+  // lost to React synthetic events, jQuery handlers, iframes or scroll
+  // interceptors in Next.js / WordPress / Webflow etc.
+  //
+  // Key improvements over the old mouse/touch approach:
+  //  • setPointerCapture  – element keeps receiving events even when pointer
+  //    leaves it or enters a child frame
+  //  • Distance threshold – avoids accidental drag on simple clicks/taps
+  //  • Coordinates captured immediately at pointerdown (no setTimeout race)
+  //  • user-select:none on body prevents text-selection fighting the drag
+  //  • clientWidth/Height excludes scrollbar width (no edge-jump)
+  //  • Bubble repositioned safely within viewport during trigger drag
+  // ────────────────────────────────────────────────────────────────────────────
+
   function makeDraggable(element) {
+    const DRAG_THRESHOLD = 8;
     let isDragging = false;
+    let activePointerId = null;
     let startX, startY, initialX, initialY;
-    let dragTimeout;
-    element.style.cursor = "move";
-    element.addEventListener("mousedown", startDrag);
-    element.addEventListener("touchstart", startDrag, { passive: false });
+
+    element.style.cursor = "grab";
+    element.style.touchAction = "none";
+    element.addEventListener("pointerdown", startDrag);
+
     function startDrag(e) {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
       e.preventDefault();
-      if (dragTimeout) {
-        clearTimeout(dragTimeout);
-      }
-      dragTimeout = setTimeout(() => {
+      element.setPointerCapture(e.pointerId);
+      activePointerId = e.pointerId;
+      startX = e.clientX;
+      startY = e.clientY;
+      isDragging = false;
+      const rect = element.getBoundingClientRect();
+      initialX = rect.left;
+      initialY = rect.top;
+      element.addEventListener("pointermove", drag);
+      element.addEventListener("pointerup", stopDrag);
+      element.addEventListener("pointercancel", stopDrag);
+    }
+
+    function drag(e) {
+      if (e.pointerId !== activePointerId) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      if (!isDragging) {
+        if (Math.sqrt(dx * dx + dy * dy) < DRAG_THRESHOLD) return;
         isDragging = true;
         element.style.transition = "none";
-        if (e.type === "mousedown") {
-          startX = e.clientX;
-          startY = e.clientY;
-        } else {
-          startX = e.touches[0].clientX;
-          startY = e.touches[0].clientY;
-        }
-        const rect = element.getBoundingClientRect();
-        initialX = rect.left;
-        initialY = rect.top;
-        document.addEventListener("mousemove", drag);
-        document.addEventListener("mouseup", stopDrag);
-        document.addEventListener("touchmove", drag, { passive: false });
-        document.addEventListener("touchend", stopDrag);
         element.classList.add("dragging");
-      }, 100);
-    }
-    function drag(e) {
-      if (!isDragging) return;
-      e.preventDefault();
-      let currentX, currentY;
-      if (e.type === "mousemove") {
-        currentX = e.clientX;
-        currentY = e.clientY;
-      } else {
-        currentX = e.touches[0].clientX;
-        currentY = e.touches[0].clientY;
+        document.body.style.userSelect = "none";
+        document.body.style.webkitUserSelect = "none";
       }
-      const deltaX = currentX - startX;
-      const deltaY = currentY - startY;
-      let newX = initialX + deltaX;
-      let newY = initialY + deltaY;
-      const elementRect = element.getBoundingClientRect();
-      const maxX = window.innerWidth - elementRect.width;
-      const maxY = window.innerHeight - elementRect.height;
-      newX = Math.max(0, Math.min(newX, maxX));
-      newY = Math.max(0, Math.min(newY, maxY));
+      e.preventDefault();
+      const vw = document.documentElement.clientWidth;
+      const vh = document.documentElement.clientHeight;
+      const rect = element.getBoundingClientRect();
+      const margin = 4;
+      const newX = Math.max(margin, Math.min(initialX + dx, vw - rect.width - margin));
+      const newY = Math.max(margin, Math.min(initialY + dy, vh - rect.height - margin));
       element.style.position = "fixed";
       element.style.left = newX + "px";
       element.style.top = newY + "px";
       element.style.bottom = "auto";
       element.style.right = "auto";
     }
+
     function stopDrag(e) {
-      if (dragTimeout) {
-        clearTimeout(dragTimeout);
-        dragTimeout = null;
-      }
+      if (e.pointerId !== activePointerId) return;
+      element.removeEventListener("pointermove", drag);
+      element.removeEventListener("pointerup", stopDrag);
+      element.removeEventListener("pointercancel", stopDrag);
       if (isDragging) {
         isDragging = false;
         element.style.transition = "";
         element.classList.remove("dragging");
+        document.body.style.userSelect = "";
+        document.body.style.webkitUserSelect = "";
+        element.style.cursor = "grab";
       }
-      document.removeEventListener("mousemove", drag);
-      document.removeEventListener("mouseup", stopDrag);
-      document.removeEventListener("touchmove", drag);
-      document.removeEventListener("touchend", stopDrag);
+      activePointerId = null;
     }
   }
   function makeWidgetDraggable(widgetElement) {
+    const DRAG_THRESHOLD = 8;
     let isDragging = false;
+    let activePointerId = null;
     let startX, startY, initialX, initialY;
-    let dragTimeout;
+    let activeHeader = null;
+
     const headers = widgetElement.querySelectorAll(
       ".widget-header, .call-header"
     );
     headers.forEach((header) => {
-      header.style.cursor = "move";
-      header.addEventListener("mousedown", startDrag);
-      header.addEventListener("touchstart", startDrag, { passive: false });
+      header.style.cursor = "grab";
+      header.style.touchAction = "none";
+      header.addEventListener("pointerdown", startDrag);
     });
+
     function startDrag(e) {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
       if (
-        e.target.classList.contains("widget-close") ||
-        e.target.closest(".widget-close") ||
-        e.target.classList.contains("start-call-btn") ||
-        e.target.closest(".start-call-btn") ||
-        e.target.classList.contains("back-btn") ||
-        e.target.closest(".back-btn") ||
-        e.target.classList.contains("language-select-styled-landing") ||
-        e.target.closest(".language-section-landing") ||
-        e.target.classList.contains("privacy-link") ||
+        e.target.closest(
+          ".widget-close, .start-call-btn, .back-btn, " +
+          ".language-section-landing, .privacy-link"
+        ) ||
         e.target.tagName === "SELECT" ||
         e.target.tagName === "OPTION"
-      ) {
-        return;
-      }
+      ) return;
+
       e.preventDefault();
-      if (dragTimeout) {
-        clearTimeout(dragTimeout);
-      }
-      dragTimeout = setTimeout(() => {
+      activeHeader = e.currentTarget;
+      activeHeader.setPointerCapture(e.pointerId);
+      activePointerId = e.pointerId;
+      startX = e.clientX;
+      startY = e.clientY;
+      isDragging = false;
+      const rect = widgetElement.getBoundingClientRect();
+      initialX = rect.left;
+      initialY = rect.top;
+      activeHeader.addEventListener("pointermove", drag);
+      activeHeader.addEventListener("pointerup", stopDrag);
+      activeHeader.addEventListener("pointercancel", stopDrag);
+    }
+
+    function drag(e) {
+      if (e.pointerId !== activePointerId) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      if (!isDragging) {
+        if (Math.sqrt(dx * dx + dy * dy) < DRAG_THRESHOLD) return;
         isDragging = true;
         widgetElement.style.transition = "none";
-        if (e.type === "mousedown") {
-          startX = e.clientX;
-          startY = e.clientY;
-        } else {
-          startX = e.touches[0].clientX;
-          startY = e.touches[0].clientY;
-        }
-        const rect = widgetElement.getBoundingClientRect();
-        initialX = rect.left;
-        initialY = rect.top;
-        document.addEventListener("mousemove", drag);
-        document.addEventListener("mouseup", stopDrag);
-        document.addEventListener("touchmove", drag, { passive: false });
-        document.addEventListener("touchend", stopDrag);
         widgetElement.classList.add("dragging");
-      }, 100);
-    }
-    function drag(e) {
-      if (!isDragging) return;
-      e.preventDefault();
-      let currentX, currentY;
-      if (e.type === "mousemove") {
-        currentX = e.clientX;
-        currentY = e.clientY;
-      } else {
-        currentX = e.touches[0].clientX;
-        currentY = e.touches[0].clientY;
+        document.body.style.userSelect = "none";
+        document.body.style.webkitUserSelect = "none";
+        if (activeHeader) activeHeader.style.cursor = "grabbing";
       }
-      const deltaX = currentX - startX;
-      const deltaY = currentY - startY;
-      let newX = initialX + deltaX;
-      let newY = initialY + deltaY;
-      const elementRect = widgetElement.getBoundingClientRect();
-      const maxX = window.innerWidth - elementRect.width;
-      const maxY = window.innerHeight - elementRect.height;
-      newX = Math.max(0, Math.min(newX, maxX));
-      newY = Math.max(0, Math.min(newY, maxY));
+      e.preventDefault();
+      const vw = document.documentElement.clientWidth;
+      const vh = document.documentElement.clientHeight;
+      const rect = widgetElement.getBoundingClientRect();
+      const margin = 4;
+      const newX = Math.max(margin, Math.min(initialX + dx, vw - rect.width - margin));
+      const newY = Math.max(margin, Math.min(initialY + dy, vh - rect.height - margin));
       widgetElement.style.position = "fixed";
       widgetElement.style.left = newX + "px";
       widgetElement.style.top = newY + "px";
       widgetElement.style.bottom = "auto";
       widgetElement.style.right = "auto";
     }
+
     function stopDrag(e) {
-      if (dragTimeout) {
-        clearTimeout(dragTimeout);
-        dragTimeout = null;
+      if (e.pointerId !== activePointerId) return;
+      if (activeHeader) {
+        activeHeader.removeEventListener("pointermove", drag);
+        activeHeader.removeEventListener("pointerup", stopDrag);
+        activeHeader.removeEventListener("pointercancel", stopDrag);
       }
       if (isDragging) {
         isDragging = false;
         widgetElement.style.transition = "";
         widgetElement.classList.remove("dragging");
+        document.body.style.userSelect = "";
+        document.body.style.webkitUserSelect = "";
+        if (activeHeader) activeHeader.style.cursor = "grab";
       }
-      document.removeEventListener("mousemove", drag);
-      document.removeEventListener("mouseup", stopDrag);
-      document.removeEventListener("touchmove", drag);
-      document.removeEventListener("touchend", stopDrag);
+      activePointerId = null;
+      activeHeader = null;
     }
   }
   function makeTriggerBtnDraggable(btnElement) {
+    const DRAG_THRESHOLD = 8;
     let isDragging = false;
+    let activePointerId = null;
     let startX, startY, initialX, initialY;
-    let dragTimeout;
-    btnElement.addEventListener("mousedown", startDrag);
-    btnElement.addEventListener("touchstart", startDrag, { passive: false });
+
+    btnElement.style.touchAction = "none";
+    btnElement.addEventListener("pointerdown", startDrag);
+
     function startDrag(e) {
-      if (dragTimeout) {
-        clearTimeout(dragTimeout);
-      }
-      dragTimeout = setTimeout(() => {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      e.preventDefault();
+      btnElement.setPointerCapture(e.pointerId);
+      activePointerId = e.pointerId;
+      startX = e.clientX;
+      startY = e.clientY;
+      isDragging = false;
+      const rect = btnElement.getBoundingClientRect();
+      initialX = rect.left;
+      initialY = rect.top;
+      btnElement.addEventListener("pointermove", drag);
+      btnElement.addEventListener("pointerup", stopDrag);
+      btnElement.addEventListener("pointercancel", stopDrag);
+    }
+
+    function drag(e) {
+      if (e.pointerId !== activePointerId) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      if (!isDragging) {
+        if (Math.sqrt(dx * dx + dy * dy) < DRAG_THRESHOLD) return;
         isDragging = true;
         btnElement.style.transition = "none";
-        if (e.type === "mousedown") {
-          startX = e.clientX;
-          startY = e.clientY;
-        } else {
-          startX = e.touches[0].clientX;
-          startY = e.touches[0].clientY;
-        }
-        const rect = btnElement.getBoundingClientRect();
-        initialX = rect.left;
-        initialY = rect.top;
-        document.addEventListener("mousemove", drag);
-        document.addEventListener("mouseup", stopDrag);
-        document.addEventListener("touchmove", drag, { passive: false });
-        document.addEventListener("touchend", stopDrag);
         btnElement.classList.add("dragging");
-      }, 100);
-    }
-    function drag(e) {
-      if (!isDragging) return;
-      e.preventDefault();
-      let currentX, currentY;
-      if (e.type === "mousemove") {
-        currentX = e.clientX;
-        currentY = e.clientY;
-      } else {
-        currentX = e.touches[0].clientX;
-        currentY = e.touches[0].clientY;
+        document.body.style.userSelect = "none";
+        document.body.style.webkitUserSelect = "none";
       }
-      const deltaX = currentX - startX;
-      const deltaY = currentY - startY;
-      let newX = initialX + deltaX;
-      let newY = initialY + deltaY;
-      const elementRect = btnElement.getBoundingClientRect();
-      const maxX = window.innerWidth - elementRect.width;
-      const maxY = window.innerHeight - elementRect.height;
-      newX = Math.max(0, Math.min(newX, maxX));
-      newY = Math.max(0, Math.min(newY, maxY));
+      e.preventDefault();
+      const vw = document.documentElement.clientWidth;
+      const vh = document.documentElement.clientHeight;
+      const btnRect = btnElement.getBoundingClientRect();
+      const margin = 4;
+      const newX = Math.max(margin, Math.min(initialX + dx, vw - btnRect.width - margin));
+      const newY = Math.max(margin, Math.min(initialY + dy, vh - btnRect.height - margin));
       btnElement.style.position = "fixed";
       btnElement.style.left = newX + "px";
       btnElement.style.top = newY + "px";
       btnElement.style.bottom = "auto";
       btnElement.style.right = "auto";
       if (messageBubble) {
-        const bubbleOffset = 70;
-        messageBubble.style.left = newX - messageBubble.offsetWidth - 10 + "px";
-        messageBubble.style.top =
-          newY + elementRect.height / 2 - messageBubble.offsetHeight / 2 + "px";
+        const bw = messageBubble.offsetWidth || 200;
+        const bh = messageBubble.offsetHeight || 40;
+        const btnH = btnRect.height;
+        const btnW = btnRect.width;
+        let bubbleX = newX - bw - 10;
+        if (bubbleX < margin) bubbleX = newX + btnW + 10;
+        let bubbleY = newY + btnH / 2 - bh / 2;
+        bubbleY = Math.max(margin, Math.min(bubbleY, vh - bh - margin));
+        messageBubble.style.position = "fixed";
+        messageBubble.style.left = bubbleX + "px";
+        messageBubble.style.top = bubbleY + "px";
         messageBubble.style.bottom = "auto";
         messageBubble.style.right = "auto";
       }
     }
+
     function stopDrag(e) {
-      if (dragTimeout) {
-        clearTimeout(dragTimeout);
-        dragTimeout = null;
-      }
+      if (e.pointerId !== activePointerId) return;
+      btnElement.removeEventListener("pointermove", drag);
+      btnElement.removeEventListener("pointerup", stopDrag);
+      btnElement.removeEventListener("pointercancel", stopDrag);
       if (isDragging) {
         isDragging = false;
         btnElement.style.transition = "";
         btnElement.classList.remove("dragging");
+        document.body.style.userSelect = "";
+        document.body.style.webkitUserSelect = "";
       }
-      document.removeEventListener("mousemove", drag);
-      document.removeEventListener("mouseup", stopDrag);
-      document.removeEventListener("touchmove", drag);
-      document.removeEventListener("touchend", stopDrag);
+      activePointerId = null;
     }
   }
+  // Position the widget panel adjacent to the trigger button, wherever it was dragged.
+  function positionWidgetNearTrigger() {
+    if (!triggerBtn || !widgetContainer) return;
+    const btnRect = triggerBtn.getBoundingClientRect();
+    if (btnRect.width === 0 && btnRect.height === 0) return;
+
+    const vw = document.documentElement.clientWidth;
+    const vh = document.documentElement.clientHeight;
+    const margin = 10;
+    const widgetWidth = Math.min(380, vw - 2 * margin);
+    // Maximum height the widget is ever allowed to be — always fits in viewport
+    const maxWidgetHeight = Math.min(550, vh - 2 * margin);
+
+    // Horizontal: center over trigger, clamped to viewport edges
+    let left = btnRect.left + btnRect.width / 2 - widgetWidth / 2;
+    left = Math.max(margin, Math.min(left, vw - widgetWidth - margin));
+
+    const spaceAbove = btnRect.top - margin;
+    const spaceBelow = vh - btnRect.bottom - margin;
+
+    widgetContainer.style.position = "fixed";
+    widgetContainer.style.left = left + "px";
+    widgetContainer.style.right = "auto";
+    // maxHeight is fixed — never clamped to available space (avoids clipping)
+    widgetContainer.style.maxHeight = maxWidgetHeight + "px";
+
+    if (spaceAbove >= maxWidgetHeight || spaceAbove >= spaceBelow) {
+      // Open ABOVE: use 'bottom' so the widget bottom edge is always flush
+      // just above the trigger top — no gap regardless of actual widget height.
+      widgetContainer.style.bottom = (vh - btnRect.top + margin) + "px";
+      widgetContainer.style.top = "auto";
+    } else {
+      // Open BELOW: use 'top' so the widget top is flush below the trigger bottom.
+      widgetContainer.style.top = (btnRect.bottom + margin) + "px";
+      widgetContainer.style.bottom = "auto";
+    }
+  }
+
   function createWidgetUI() {
     triggerBtn = document.createElement("button");
     triggerBtn.className = "shivai-trigger shivai-neon-pulse";
@@ -2078,7 +2120,8 @@
       height: 60px;
       border-radius: 50%;
       border: none;
-      cursor: move;
+      cursor: grab;
+      touch-action: none;
       outline: none;
       display: flex;
       align-items: center;
@@ -2090,20 +2133,21 @@
       background: linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%);
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25), 0 2px 8px rgba(0, 0, 0, 0.15);
       }
-      .shivai-trigger:hover {
+      .shivai-trigger:hover:not(.dragging) {
       transform: scale(1.1);
       background: linear-gradient(135deg, ${theme.accentColor} 0%, ${theme.primaryColor} 100%);
       box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35), 0 4px 12px rgba(0, 0, 0, 0.25);
       }
-      .shivai-trigger:active {
+      .shivai-trigger:active:not(.dragging) {
       transform: scale(0.95);
       background: linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.accentColor} 50%, ${theme.primaryColor} 100%);
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), inset 0 2px 4px rgba(0, 0, 0, 0.25);
       }
       .shivai-trigger.dragging {
-      transform: scale(1.05);
-      opacity: 0.8;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3) !important;
+      cursor: grabbing !important;
+      transform: none;
+      opacity: 0.9;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35) !important;
       transition: none !important;
       }
       .shivai-trigger--image {
@@ -3359,18 +3403,29 @@
         font-size: 13px;
       }
       .dragging {
-        opacity: 0.8;
-        transform: scale(1.05);
+        opacity: 0.9;
+        cursor: grabbing !important;
+        user-select: none !important;
+        -webkit-user-select: none !important;
         z-index: 999999 !important;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3) !important;
+        box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35) !important;
         transition: none !important;
       }
       .shivai-widget.dragging {
         transition: none !important;
       }
+      .widget-header,
+      .call-header {
+        cursor: grab;
+        touch-action: none;
+      }
       .widget-header:hover,
       .call-header:hover {
-        cursor: move;
+        cursor: grab;
+      }
+      .widget-header.dragging-active,
+      .call-header.dragging-active {
+        cursor: grabbing !important;
       }
       .widget-header .widget-close:hover,
       .widget-header .start-call-btn:hover,
@@ -4057,6 +4112,7 @@
     }
   }
   function openWidget() {
+    positionWidgetNearTrigger();
     widgetContainer.classList.add("active");
     isWidgetOpen = true;
     if (triggerBtn) {

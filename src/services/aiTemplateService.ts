@@ -1026,6 +1026,154 @@ Return a JSON object with: name, description, icon, features (array), systemProm
       throw error;
     }
   }
+
+  /**
+   * Restructure raw extracted KB content into a clean, structured format
+   * optimised for RAG / Page Index retrieval.
+   *
+   * Because the generate API has a token limit we chunk the input into
+   * segments of ~12 000 chars, restructure each one separately, then
+   * concatenate the results.
+   */
+  async restructureKnowledgeBase(rawContent: string): Promise<string> {
+    if (!rawContent || rawContent.trim().length < 50) return rawContent;
+
+    const MAX_CHUNK = 12000; // chars per API call
+    const chunks: string[] = [];
+
+    // Split on document separators first, then further chunk if needed
+    const docParts = rawContent.split(/\n-{3,}\s*Next Document\s*-{3,}\n/i);
+    for (const part of docParts) {
+      const trimmed = part.trim();
+      if (!trimmed) continue;
+      if (trimmed.length <= MAX_CHUNK) {
+        chunks.push(trimmed);
+      } else {
+        // Break on paragraph boundaries
+        const paragraphs = trimmed.split(/\n{2,}/);
+        let current = '';
+        for (const p of paragraphs) {
+          if ((current + '\n\n' + p).length > MAX_CHUNK && current) {
+            chunks.push(current.trim());
+            current = p;
+          } else {
+            current = current ? current + '\n\n' + p : p;
+          }
+        }
+        if (current.trim()) chunks.push(current.trim());
+      }
+    }
+
+    console.log(`🧹 Restructuring KB: ${chunks.length} chunk(s), total ${rawContent.length} chars`);
+
+    const structuredParts = await Promise.all(
+      chunks.map(async (chunk, idx) => {
+        try {
+          const prompt = `You are an expert Knowledge Base Structuring AI.
+
+Your task is to transform messy, unstructured, irregular, or poorly formatted documents into a clean, structured, AI-optimized knowledge base suitable for Retrieval-Augmented Generation (RAG) systems such as Page Index AI.
+
+ABSOLUTE PRIORITY — ZERO INFORMATION LOSS:
+1. DO NOT remove, skip, summarize, condense, or lose ANY information — not even a single detail.
+2. The restructured output MUST be AT LEAST as long as the original input. If the original is 500 words, your output must be >= 500 words.
+3. Every fact, name, number, date, address, phone number, email, URL, price, specification, policy detail, and description MUST appear in the output.
+4. When in doubt, KEEP the information. Never decide something is "unimportant."
+5. If a section has 20 bullet points, the output must have all 20 bullet points.
+
+CLEANING RULES (what you CAN change):
+1. Fix broken words, OCR errors, encoding artifacts, and spacing issues.
+2. Remove noise: stray emojis, inconsistent symbols, duplicate blank lines, formatting artifacts.
+3. Normalize inconsistent formatting (mixed bullet styles, random capitalization).
+4. Fix broken sentences that were split across lines by bad extraction.
+5. Merge fragmented paragraphs that clearly belong together.
+
+STRUCTURE RULES:
+1. Convert headings into QUESTION-BASED format wherever possible.
+   Example: "Mission" → "What is the mission of the organization?"
+
+2. Each section must follow this format:
+
+## [Clear Question-Based Heading]
+
+[Full, detailed explanation — include ALL original details, do not compress]
+
+### Key Details:
+- Bullet point 1 (preserve full detail)
+- Bullet point 2
+- ... (include ALL points from original)
+
+(Add sub-sections as needed to organize — never to reduce:)
+### Additional Information:
+### Timeline:
+### Steps:
+### Subjects:
+### Career Opportunities:
+### Contact Details:
+### Pricing / Fees:
+### Requirements:
+
+3. Keep ALL details in each section — do NOT compress "3–6 lines." Use as many lines as needed.
+4. Break long paragraphs into smaller logical chunks, but preserve ALL content within them.
+5. Convert all lists into clean bullet points — include every single item.
+6. Ensure consistent formatting across the entire document.
+7. Each section must be self-contained and understandable independently.
+
+CONTENT HANDLING:
+- Preserve names, numbers, dates, contacts, addresses, and prices EXACTLY as they appear.
+- Keep ALL faculty/staff names, roles, and details.
+- Maintain ALL academic, administrative, facility, product, service, and policy details.
+- Keep ALL items in lists, tables, and enumerations — do not truncate.
+- If source has a table, convert to a well-formatted markdown table preserving ALL rows and columns.
+
+LANGUAGE RULES:
+- Output in clean, professional English.
+- If original contains mixed or broken language, normalize to clear English.
+- Keep proper nouns, brand names, and technical terms unchanged.
+
+FINAL OUTPUT REQUIREMENTS:
+- Output ONLY the restructured knowledge base.
+- Do NOT include explanations, notes, or commentary about what you did.
+- Do NOT mention the transformation process.
+- Use clean markdown formatting.
+- The output MUST contain ALL the information from the input — this is non-negotiable.
+
+GOAL:
+The final output must be highly readable, semantically clear, well-sectioned, and optimized for AI retrieval and question-answering — while preserving 100% of the original information. Longer and complete is ALWAYS better than shorter and clean.
+
+--- RAW CONTENT TO RESTRUCTURE ---
+${chunk}`;
+
+          const response = await promptClient.post<PromptGenerationResponse>(
+            PROMPT_GENERATION_API,
+            { prompt, max_tokens: 16000, temperature: 0.3 },
+          );
+
+          const result = this.extractGeneratedText(response.data);
+          if (result && result.trim().length > 50) {
+            const trimmedResult = result.trim();
+            // Safety check: only reject if output lost more than 75% — raw PDFs have lots of noise,
+            // so properly cleaned content can legitimately be 40-50% shorter
+            if (trimmedResult.length < chunk.length * 0.25) {
+              console.warn(`⚠️ KB chunk ${idx + 1} shrank drastically (${chunk.length} → ${trimmedResult.length} chars, ${Math.round(trimmedResult.length/chunk.length*100)}%), keeping original to prevent data loss`);
+              return chunk;
+            }
+            console.log(`✅ KB chunk ${idx + 1}/${chunks.length} restructured (${chunk.length} → ${trimmedResult.length} chars)`);
+            return trimmedResult;
+          }
+          // If generation failed or too short, return original chunk
+          console.warn(`⚠️ KB chunk ${idx + 1} restructuring returned insufficient content, keeping original`);
+          return chunk;
+        } catch (err) {
+          console.error(`❌ KB chunk ${idx + 1} restructuring failed:`, err);
+          return chunk; // fallback to raw content — never lose data
+        }
+      }),
+    );
+
+    const final = structuredParts.join('\n\n---\n\n');
+    console.log(`✅ KB restructuring complete: ${rawContent.length} → ${final.length} chars`);
+    return final;
+  }
 }
 
 export const aiTemplateService = new AITemplateService();

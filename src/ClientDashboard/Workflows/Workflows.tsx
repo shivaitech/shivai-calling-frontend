@@ -1,8 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import GlassCard from '../../components/GlassCard';
 import { useAgent } from '../../contexts/AgentContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { isDeveloperUser } from '../../lib/utils';
+import { isDeveloperUser, formatAgentLanguages } from '../../lib/utils';
+import { agentAPI } from '../../services/agentAPI';
 import { 
   Plus, 
   Play, 
@@ -27,7 +28,21 @@ import {
   Eye,
   Link,
   Database,
-  Move
+  Move,
+  FileText,
+  Image as ImageIcon,
+  ExternalLink,
+  Hash,
+  Search,
+  Upload,
+  BookOpen,
+  FileImage,
+  AtSign,
+  File,
+  ChevronDown,
+  ChevronRight,
+  Check,
+  UploadCloud
 } from 'lucide-react';
 
 interface WorkflowNode {
@@ -56,10 +71,25 @@ interface Workflow {
   createdAt: Date;
 }
 
+type DocType = 'pdf' | 'image' | 'docx' | 'txt' | 'website' | 'social';
+
+interface DocumentSet {
+  id: string;
+  agentIds: string[];
+  name: string;
+  keywords: string[];
+  description: string;
+  type: DocType;
+  sourceUrl?: string;
+  fileName?: string;
+  fileSize?: number;
+  createdAt: Date;
+}
+
 const Workflows = () => {
   const { agents } = useAgent();
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'canvas' | 'workflows' | 'runs'>('canvas');
+  const [activeTab, setActiveTab] = useState<'canvas' | 'workflows' | 'runs' | 'documents'>('canvas');
   const [selectedAgent, setSelectedAgent] = useState('');
   const [workflowName, setWorkflowName] = useState('');
   const [nodes, setNodes] = useState<WorkflowNode[]>([]);
@@ -77,9 +107,56 @@ const Workflows = () => {
   const [isDraggingNode, setIsDraggingNode] = useState(false);
   const [dragStartPos, setDragStartPos] = useState<{ x: number; y: number } | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+
+  // ── AI Documents state ──
+  const [docApiAgents, setDocApiAgents] = useState<any[]>([]);
+  const [isLoadingDocAgents, setIsLoadingDocAgents] = useState(false);
+  const [docSelectedAgents, setDocSelectedAgents] = useState<string[]>([]); // multi-agent assignment
+  const [documents, setDocuments] = useState<DocumentSet[]>([]);
+  const [docView, setDocView] = useState<'list' | 'create-doc'>('list');
+  const [editingDoc, setEditingDoc] = useState<DocumentSet | null>(null);
+  const [docSearch, setDocSearch] = useState('');
+  const [docKeywordInput, setDocKeywordInput] = useState('');
+  const [newDoc, setNewDoc] = useState<{
+    name: string;
+    type: DocType;
+    sourceUrl: string;
+    fileName: string;
+    keywords: string[];
+    description: string;
+    agentIds: string[];
+  }>({
+    name: '',
+    type: 'website',
+    sourceUrl: '',
+    fileName: '',
+    keywords: [],
+    description: '',
+    agentIds: [],
+  });
   
   // Check if current user is developer
   const isDeveloper = isDeveloperUser(user?.email);
+
+  // Fetch all agents from API for the Documents tab (same API as AgentManagement)
+  const fetchDocAgents = useCallback(async () => {
+    setIsLoadingDocAgents(true);
+    try {
+      const result = await agentAPI.getAgentsWithFilters({ sort: 'newest', page: 1, limit: 100 });
+      setDocApiAgents(result.agents);
+    } catch {
+      // Fallback to context agents
+      setDocApiAgents(agents);
+    } finally {
+      setIsLoadingDocAgents(false);
+    }
+  }, [agents]);
+
+  useEffect(() => {
+    if (activeTab === 'documents') {
+      fetchDocAgents();
+    }
+  }, [activeTab, fetchDocAgents]);
 
   // Cleanup function for drag operations
   const cleanupDragState = () => {
@@ -323,7 +400,8 @@ const Workflows = () => {
   const tabs = [
     { id: 'canvas' as const, label: 'Canvas Builder', icon: Zap },
     { id: 'workflows' as const, label: 'My Workflows', icon: Settings },
-    { id: 'runs' as const, label: 'Execution Log', icon: Play }
+    { id: 'runs' as const, label: 'Execution Log', icon: Play },
+    { id: 'documents' as const, label: 'AI Documents', icon: BookOpen },
   ];
 
   const handleDragStart = (e: React.DragEvent, item: any, type: 'trigger' | 'action' | 'condition') => {
@@ -673,6 +751,117 @@ const Workflows = () => {
         : w
     ));
   };
+
+  // ── AI Documents handlers ──
+  const DOC_TYPE_META: Record<DocType, { label: string; icon: React.ElementType; color: string; isUrl: boolean }> = {
+    pdf:     { label: 'PDF Document',      icon: FileText,   color: 'text-red-500',    isUrl: false },
+    image:   { label: 'Image',             icon: FileImage,  color: 'text-purple-500', isUrl: false },
+    docx:    { label: 'Word Document',     icon: File,       color: 'text-blue-500',   isUrl: false },
+    txt:     { label: 'Text File',         icon: FileText,   color: 'text-slate-500',  isUrl: false },
+    website: { label: 'Website Link',      icon: Globe,      color: 'text-green-500',  isUrl: true  },
+    social:  { label: 'Social Media Link', icon: AtSign,     color: 'text-pink-500',   isUrl: true  },
+  };
+
+  const DOC_TYPE_ACCEPT: Record<string, string> = {
+    pdf: '.pdf',
+    image: '.png,.jpg,.jpeg,.gif,.webp,.svg',
+    docx: '.doc,.docx',
+    txt: '.txt,.csv,.md',
+  };
+
+  const handleDocFileUpload = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const file = files[0];
+    setNewDoc(prev => ({ ...prev, fileName: file.name }));
+  };
+
+  const resetDocForm = () => {
+    setNewDoc({ name: '', type: 'website', sourceUrl: '', fileName: '', keywords: [], description: '', agentIds: [] });
+    setDocKeywordInput('');
+    setEditingDoc(null);
+    setDocSelectedAgents([]);
+  };
+
+  const openAddDoc = () => {
+    resetDocForm();
+    setDocView('create-doc');
+  };
+
+  const openEditDoc = (doc: DocumentSet) => {
+    setEditingDoc(doc);
+    setDocSelectedAgents(doc.agentIds);
+    setNewDoc({
+      name: doc.name,
+      type: doc.type,
+      sourceUrl: doc.sourceUrl || '',
+      fileName: doc.fileName || '',
+      keywords: [...doc.keywords],
+      description: doc.description,
+      agentIds: [...doc.agentIds],
+    });
+    setDocKeywordInput('');
+    setDocView('create-doc');
+  };
+
+  const handleAddKeyword = () => {
+    const kw = docKeywordInput.trim().replace(/,/g, '');
+    if (kw && !newDoc.keywords.includes(kw)) {
+      setNewDoc(prev => ({ ...prev, keywords: [...prev.keywords, kw] }));
+    }
+    setDocKeywordInput('');
+  };
+
+  const handleKeywordInputKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      handleAddKeyword();
+    }
+    if (e.key === 'Backspace' && !docKeywordInput && newDoc.keywords.length > 0) {
+      setNewDoc(prev => ({ ...prev, keywords: prev.keywords.slice(0, -1) }));
+    }
+  };
+
+  const handleSaveDoc = () => {
+    if (!newDoc.name.trim() || docSelectedAgents.length === 0) return;
+    const isUrl = DOC_TYPE_META[newDoc.type].isUrl;
+    if (isUrl && !newDoc.sourceUrl.trim()) return;
+    if (!isUrl && !newDoc.fileName.trim()) return;
+
+    const docPayload: DocumentSet = {
+      id: editingDoc?.id || `doc-${Date.now()}`,
+      agentIds: docSelectedAgents,
+      name: newDoc.name.trim(),
+      keywords: newDoc.keywords,
+      description: newDoc.description.trim(),
+      type: newDoc.type,
+      sourceUrl: isUrl ? newDoc.sourceUrl.trim() : undefined,
+      fileName: !isUrl ? newDoc.fileName.trim() : undefined,
+      createdAt: editingDoc?.createdAt || new Date(),
+    };
+
+    if (editingDoc) {
+      setDocuments(prev => prev.map(d => d.id === editingDoc.id ? docPayload : d));
+    } else {
+      setDocuments(prev => [...prev, docPayload]);
+    }
+    setDocView('list');
+    resetDocForm();
+  };
+
+  const handleDeleteDoc = (docId: string) => {
+    if (confirm('Delete this document set?')) {
+      setDocuments(prev => prev.filter(d => d.id !== docId));
+    }
+  };
+
+  const filteredDocs = documents.filter(d => {
+    const q = docSearch.toLowerCase();
+    const matchSearch = !q ||
+      d.name.toLowerCase().includes(q) ||
+      d.description.toLowerCase().includes(q) ||
+      d.keywords.some(k => k.toLowerCase().includes(q));
+    return matchSearch;
+  });
 
   return (
     <div className="space-y-4 sm:space-y-6 w-full ">
@@ -1821,6 +2010,464 @@ const Workflows = () => {
             </div>
           </div>
         </GlassCard>
+      )}
+
+      {/* ── AI Documents Tab ── */}
+      {activeTab === 'documents' && (
+        <div className="space-y-4 sm:space-y-6">
+
+          {/* ── VIEW 1: Document Library ── */}
+          {docView === 'list' && (
+            <>
+              {/* Header */}
+              <GlassCard>
+                <div className="p-4 sm:p-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                        <BookOpen className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg sm:text-xl font-semibold text-slate-800 dark:text-white">AI Document Library</h3>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                          Manage documents your AI employees use to answer queries accurately.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={openAddDoc}
+                      className="flex items-center justify-center gap-2 common-button-bg px-4 py-2.5 rounded-xl whitespace-nowrap self-start sm:self-auto"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Create Document
+                    </button>
+                  </div>
+                </div>
+              </GlassCard>
+
+              {/* Search + stats */}
+              <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+                <div className="relative max-w-sm flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Search documents, keywords..."
+                    value={docSearch}
+                    onChange={e => setDocSearch(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm common-bg-icons"
+                  />
+                </div>
+                <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+                  <span className="common-bg-icons px-3 py-1.5 rounded-lg font-medium">
+                    {documents.length} document{documents.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+              </div>
+
+              {/* Documents list */}
+              {filteredDocs.length > 0 ? (
+                <div className="space-y-3">
+                  {filteredDocs.map(doc => {
+                    const meta = DOC_TYPE_META[doc.type];
+                    const DocIcon = meta.icon;
+                    const linkedAgents = docApiAgents.filter((a: any) => doc.agentIds.includes(a.id));
+                    return (
+                      <GlassCard key={doc.id}>
+                        <div className="p-4 sm:p-5">
+                          <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+                            {/* Icon + name */}
+                            <div className="flex items-start gap-3 flex-1 min-w-0">
+                              <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <DocIcon className={`w-5 h-5 ${meta.color}`} />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex flex-wrap items-center gap-2 mb-1">
+                                  <h4 className="font-semibold text-slate-800 dark:text-white text-sm">{doc.name}</h4>
+                                  <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 ${meta.color}`}>
+                                    <DocIcon className="w-3 h-3" />
+                                    {meta.label}
+                                  </span>
+                                </div>
+
+                                {/* Source */}
+                                {(doc.sourceUrl || doc.fileName) && (
+                                  <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mb-2">
+                                    {doc.sourceUrl ? (
+                                      <><ExternalLink className="w-3 h-3 flex-shrink-0" />
+                                      <a href={doc.sourceUrl} target="_blank" rel="noopener noreferrer" className="truncate hover:text-blue-500 transition-colors max-w-[260px]">
+                                        {doc.sourceUrl}
+                                      </a></>
+                                    ) : (
+                                      <><Upload className="w-3 h-3 flex-shrink-0" /><span className="truncate">{doc.fileName}</span></>
+                                    )}
+                                  </div>
+                                )}
+
+                                {/* Linked agents */}
+                                {linkedAgents.length > 0 && (
+                                  <div className="flex flex-wrap items-center gap-1.5 mb-2">
+                                    <Bot className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                                    {linkedAgents.map((agent: any) => (
+                                      <span key={agent.id} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300">
+                                        {agent.name}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {/* Description */}
+                                {doc.description && (
+                                  <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed mb-2">{doc.description}</p>
+                                )}
+
+                                {/* Keywords */}
+                                {doc.keywords.length > 0 && (
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {doc.keywords.map(kw => (
+                                      <span key={kw} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300">
+                                        <Hash className="w-2.5 h-2.5" />{kw}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex sm:flex-col gap-2 sm:gap-1.5 self-start">
+                              <button
+                                onClick={() => openEditDoc(doc)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium common-bg-icons text-slate-600 dark:text-slate-300 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                                <span>Edit</span>
+                              </button>
+                              <button
+                                onClick={() => handleDeleteDoc(doc.id)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium common-bg-icons text-slate-600 dark:text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Delete</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </GlassCard>
+                    );
+                  })}
+                </div>
+              ) : (
+                <GlassCard>
+                  <div className="p-8 sm:p-14 text-center">
+                    <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30 flex items-center justify-center mx-auto mb-4">
+                      <BookOpen className="w-7 h-7 text-blue-500" />
+                    </div>
+                    <h3 className="text-base font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                      {docSearch ? 'No matching documents' : 'No documents yet'}
+                    </h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 max-w-xs mx-auto mb-5">
+                      {docSearch ? 'Try a different search term.' : 'Create your first document and link it to your AI employees.'}
+                    </p>
+                    {!docSearch && (
+                      <button onClick={openAddDoc} className="common-button-bg inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm">
+                        <Plus className="w-4 h-4" />
+                        Create Your First Document
+                      </button>
+                    )}
+                  </div>
+                </GlassCard>
+              )}
+            </>
+          )}
+
+          {/* ── VIEW 2: Create / Edit document page ── */}
+          {docView === 'create-doc' && (() => {
+            const isUrl = DOC_TYPE_META[newDoc.type].isUrl;
+            const isValid = newDoc.name.trim() && docSelectedAgents.length > 0 && (isUrl ? newDoc.sourceUrl.trim() : newDoc.fileName.trim());
+            return (
+              <div className="space-y-4 sm:space-y-5">
+                {/* Breadcrumb */}
+                <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 flex-wrap">
+                  <button onClick={() => { setDocView('list'); resetDocForm(); setDocSearch(''); }} className="flex items-center gap-1 hover:text-blue-500 transition-colors">
+                    <BookOpen className="w-4 h-4" /><span>AI Documents</span>
+                  </button>
+                  <span>/</span>
+                  <span className="text-slate-800 dark:text-white font-medium">{editingDoc ? 'Edit Document' : 'New Document'}</span>
+                </div>
+
+                <GlassCard>
+                  <div className="p-4 sm:p-6">
+                    {/* Page header */}
+                    <div className="flex items-center gap-3 mb-6">
+                      <button
+                        onClick={() => { setDocView('list'); resetDocForm(); }}
+                        className="p-2 rounded-xl common-bg-icons hover:text-blue-500 transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                      </button>
+                      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                        <BookOpen className="w-4 h-4 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
+                          {editingDoc ? 'Edit Document' : 'New Document'}
+                        </h3>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                          {editingDoc ? 'Update this document\'s details' : 'Create a document and link it to your AI employees'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-8">
+                      {/* Left Column */}
+                      <div className="space-y-5">
+                      {/* Multi-agent assignment */}
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                          Link to AI Employees <span className="text-red-500">*</span>
+                        </label>
+                        <p className="text-xs text-slate-400 mb-2">Select one or more AI employees that will use this document.</p>
+                        {docApiAgents.length > 0 ? (
+                          <div className="common-bg-icons rounded-xl p-3 max-h-[180px] overflow-y-auto space-y-1.5">
+                            {docApiAgents.map((agent: any) => {
+                              const isSelected = docSelectedAgents.includes(agent.id);
+                              return (
+                                <button
+                                  key={agent.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setDocSelectedAgents(prev =>
+                                      isSelected ? prev.filter(id => id !== agent.id) : [...prev, agent.id]
+                                    );
+                                  }}
+                                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all ${
+                                    isSelected
+                                      ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800'
+                                      : 'hover:bg-slate-100 dark:hover:bg-slate-700/50 border border-transparent'
+                                  }`}
+                                >
+                                  <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                                    isSelected
+                                      ? 'bg-blue-500 border-blue-500'
+                                      : 'border-slate-300 dark:border-slate-600'
+                                  }`}>
+                                    {isSelected && <Check className="w-3 h-3 text-white" />}
+                                  </div>
+                                  <Bot className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                                  <span className={`text-sm truncate ${isSelected ? 'text-blue-700 dark:text-blue-300 font-medium' : 'text-slate-700 dark:text-slate-300'}`}>
+                                    {agent.name}
+                                  </span>
+                                  {(agent.status === 'Published' || agent.is_active) && (
+                                    <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 dark:bg-green-900/20 text-green-600 dark:text-green-400 flex-shrink-0">Live</span>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3" /> Create an AI employee first.
+                          </p>
+                        )}
+                        {docSelectedAgents.length > 0 && (
+                          <p className="text-xs text-blue-500 mt-1.5">{docSelectedAgents.length} employee{docSelectedAgents.length !== 1 ? 's' : ''} selected</p>
+                        )}
+                      </div>
+
+                      {/* Document name */}
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                          Document Name <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={newDoc.name}
+                          onChange={e => setNewDoc(prev => ({ ...prev, name: e.target.value }))}
+                          placeholder="e.g., Product Brochure 2025"
+                          className="w-full px-4 py-3 rounded-xl text-sm common-bg-icons"
+                        />
+                      </div>
+
+                      {/* Keywords */}
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                          Keywords
+                        </label>
+                        <p className="text-xs text-slate-400 mb-2">Press Enter or comma to add a keyword.</p>
+                        <div
+                          className="common-bg-icons rounded-xl px-3 py-2.5 min-h-[50px] flex flex-wrap gap-1.5 items-center cursor-text"
+                          onClick={() => document.getElementById('kw-input-page')?.focus()}
+                        >
+                          {newDoc.keywords.map(kw => (
+                            <span key={kw} className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+                              <Hash className="w-2.5 h-2.5" />
+                              {kw}
+                              <button
+                                type="button"
+                                onClick={e => { e.stopPropagation(); setNewDoc(prev => ({ ...prev, keywords: prev.keywords.filter(k => k !== kw) })); }}
+                                className="ml-0.5 rounded-full p-0.5 hover:bg-red-100 dark:hover:bg-red-900/20 hover:text-red-500 transition-colors"
+                              >
+                                <X className="w-2.5 h-2.5" />
+                              </button>
+                            </span>
+                          ))}
+                          <input
+                            id="kw-input-page"
+                            type="text"
+                            value={docKeywordInput}
+                            onChange={e => setDocKeywordInput(e.target.value)}
+                            onKeyDown={handleKeywordInputKey}
+                            onBlur={handleAddKeyword}
+                            placeholder={newDoc.keywords.length === 0 ? 'Add keywords...' : ''}
+                            className="flex-1 min-w-[80px] bg-transparent outline-none text-sm text-slate-700 dark:text-slate-300 placeholder:text-slate-400"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Description */}
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                          Description
+                        </label>
+                        <textarea
+                          value={newDoc.description}
+                          onChange={e => setNewDoc(prev => ({ ...prev, description: e.target.value }))}
+                          placeholder="Describe what this document contains..."
+                          rows={3}
+                          className="w-full px-4 py-3 rounded-xl text-sm common-bg-icons resize-none"
+                        />
+                      </div>
+
+                      </div>
+
+                      {/* Right Column */}
+                      <div className="space-y-5">
+                      {/* Document type */}
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                          Document Type <span className="text-red-500">*</span>
+                        </label>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {(Object.entries(DOC_TYPE_META) as [DocType, typeof DOC_TYPE_META[DocType]][]).map(([type, meta]) => {
+                            const IconComp = meta.icon;
+                            const isSelected = newDoc.type === type;
+                            return (
+                              <button
+                                key={type}
+                                type="button"
+                                onClick={() => setNewDoc(prev => ({ ...prev, type, sourceUrl: '', fileName: '' }))}
+                                className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-medium border transition-all text-left ${
+                                  isSelected
+                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                                    : 'border-slate-200 dark:border-slate-700 common-bg-icons text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600'
+                                }`}
+                              >
+                                <IconComp className={`w-4 h-4 flex-shrink-0 ${isSelected ? 'text-blue-500' : meta.color}`} />
+                                <span className="truncate">{meta.label}</span>
+                                {isSelected && <Check className="w-3 h-3 ml-auto flex-shrink-0 text-blue-500" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Source */}
+                      {isUrl ? (
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                            {newDoc.type === 'social' ? 'Social Media URL' : 'Website URL'} <span className="text-red-500">*</span>
+                          </label>
+                          <div className="relative">
+                            <ExternalLink className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                            <input
+                              type="url"
+                              value={newDoc.sourceUrl}
+                              onChange={e => setNewDoc(prev => ({ ...prev, sourceUrl: e.target.value }))}
+                              placeholder={newDoc.type === 'social' ? 'https://instagram.com/yourpage' : 'https://example.com'}
+                              className="w-full pl-9 pr-4 py-3 rounded-xl text-sm common-bg-icons"
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                            Upload File <span className="text-red-500">*</span>
+                          </label>
+                          {newDoc.fileName ? (
+                            <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl">
+                              <div className={`p-2 rounded-lg bg-white dark:bg-slate-700 ${DOC_TYPE_META[newDoc.type].color}`}>
+                                {(() => { const Icon = DOC_TYPE_META[newDoc.type].icon; return <Icon className="w-5 h-5" />; })()}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-slate-700 dark:text-slate-300 truncate">{newDoc.fileName}</p>
+                                <p className="text-xs text-slate-400">{DOC_TYPE_META[newDoc.type].label}</p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setNewDoc(prev => ({ ...prev, fileName: '' }))}
+                                className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div
+                              className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-6 text-center hover:border-blue-400 dark:hover:border-blue-500 transition-colors cursor-pointer bg-slate-50/50 dark:bg-slate-800/50"
+                              onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add('border-blue-400', 'bg-blue-50/30', 'dark:bg-blue-900/10'); }}
+                              onDragLeave={e => { e.preventDefault(); e.currentTarget.classList.remove('border-blue-400', 'bg-blue-50/30', 'dark:bg-blue-900/10'); }}
+                              onDrop={e => { e.preventDefault(); e.currentTarget.classList.remove('border-blue-400', 'bg-blue-50/30', 'dark:bg-blue-900/10'); handleDocFileUpload(e.dataTransfer.files); }}
+                              onClick={() => document.getElementById('doc-file-upload')?.click()}
+                            >
+                              <input
+                                id="doc-file-upload"
+                                type="file"
+                                className="hidden"
+                                accept={DOC_TYPE_ACCEPT[newDoc.type] || '*'}
+                                onChange={e => handleDocFileUpload(e.target.files)}
+                              />
+                              <UploadCloud className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                              <p className="text-sm text-slate-600 dark:text-slate-400">
+                                <span className="text-blue-500 font-medium">Click to upload</span> or drag and drop
+                              </p>
+                              <p className="text-xs text-slate-400 mt-1">
+                                {newDoc.type === 'pdf' && 'PDF files only (max 10MB)'}
+                                {newDoc.type === 'image' && 'PNG, JPG, GIF, WebP, SVG (max 10MB)'}
+                                {newDoc.type === 'docx' && 'DOC, DOCX files (max 10MB)'}
+                                {newDoc.type === 'txt' && 'TXT, CSV, MD files (max 10MB)'}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      </div>
+                    </div>
+
+                      {/* Actions */}
+                      <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-slate-200 dark:border-slate-700 mt-2">
+                        <button
+                          type="button"
+                          onClick={() => { setDocView('list'); resetDocForm(); }}
+                          className="flex-1 py-3 rounded-xl text-sm font-medium common-button-bg2"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSaveDoc}
+                          disabled={!isValid}
+                          className="flex-1 py-3 rounded-xl text-sm font-medium common-button-bg disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                          <Check className="w-4 h-4" />
+                          {editingDoc ? 'Update Document' : 'Save Document'}
+                        </button>
+                      </div>
+                  </div>
+                </GlassCard>
+              </div>
+            );
+          })()}
+        </div>
       )}
 
       {/* Create Custom Trigger Modal */}
