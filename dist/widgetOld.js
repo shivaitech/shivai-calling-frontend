@@ -53,6 +53,7 @@
     return isAllowed;
   }
 
+
   // Exit early if domain is not allowed
   if (!isAllowedDomain()) {
     return;
@@ -76,7 +77,7 @@
   }
 
   function unloadWidget() {
-    // Disconnect any active calls
+    
     if (room) {
       try {
         room.disconnect();

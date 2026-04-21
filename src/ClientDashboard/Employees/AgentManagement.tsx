@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import appToast from "../../components/AppToast";
 import { extractTextWithUnstructured } from "../../services/unstructuredService";
 import {
@@ -71,6 +73,7 @@ import {
   PauseCircle,
   QrCode,
   Minimize2,
+  Code2,
 } from "lucide-react";
 
 const AGENTS_PER_PAGE = 6;
@@ -370,6 +373,7 @@ const AgentManagement = () => {
   });
   const [isUploadingFiles, setIsUploadingFiles] = useState(false);
   const [isExtractingContent, setIsExtractingContent] = useState(false);
+  const [kbEditPreviewMode, setKbEditPreviewMode] = useState<'edit' | 'preview'>('edit');
   const [isTestingVoice, setIsTestingVoice] = useState(false);
   const [isLoadingVoicePreview, setIsLoadingVoicePreview] = useState(false);
   const voicePreviewAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -1114,22 +1118,38 @@ const AgentManagement = () => {
       const extractedTexts = await Promise.all(extractionPromises);
       
       // Combine all extracted texts
-      const newExtractedContent = extractedTexts
+      const rawExtractedContent = extractedTexts
         .filter(text => text.trim().length > 0)
         .join('\n\n--- Next Document ---\n\n');
       
-      if (newExtractedContent) {
+      // Upload files to the API (run in parallel with restructuring)
+      const uploadPromise = agentAPI.uploadKnowledgeBase(files);
+
+      // Restructure the extracted content for RAG optimization
+      let structuredContent = rawExtractedContent;
+      if (rawExtractedContent.trim().length > 0) {
+        console.log('🧹 Restructuring KB content for RAG optimization...');
+        try {
+          structuredContent = await aiTemplateService.restructureKnowledgeBase(rawExtractedContent);
+          console.log('✅ KB restructured successfully:', structuredContent.substring(0, 200) + '...');
+        } catch (err) {
+          console.warn('⚠️ KB restructuring failed, using raw extracted content:', err);
+          structuredContent = rawExtractedContent;
+        }
+      }
+
+      if (structuredContent) {
         setQuickCreateData((prev) => ({
           ...prev,
           extractedFileContent: prev.extractedFileContent 
-            ? `${prev.extractedFileContent}\n\n--- Next Document ---\n\n${newExtractedContent}`
-            : newExtractedContent,
+            ? `${prev.extractedFileContent}\n\n---\n\n${structuredContent}`
+            : structuredContent,
         }));
-        console.log('✅ Text extracted from files:', newExtractedContent.substring(0, 200) + '...');
+        console.log('✅ Structured KB stored, length:', structuredContent.length);
       }
 
-      // Upload files to the API
-      const response = await agentAPI.uploadKnowledgeBase(files);
+      // Await upload result
+      const response = await uploadPromise;
       console.log("📤 Knowledge base upload response:", response);
 
       // Extract URLs from response.data.files array
@@ -5412,6 +5432,78 @@ const AgentManagement = () => {
                           </div>
                         )}
                       </div>
+
+                      {/* Processed Knowledge Base Preview/Editor */}
+                      {(quickCreateData.extractedFileContent || isExtractingContent) && (
+                        <div className="space-y-2 sm:space-y-3">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                              <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                              Processed Knowledge Base
+                              {quickCreateData.extractedFileContent && (
+                                <span className="text-[10px] sm:text-xs text-slate-400 font-normal">
+                                  ({quickCreateData.extractedFileContent.length.toLocaleString()} chars)
+                                </span>
+                              )}
+                            </label>
+                            {quickCreateData.extractedFileContent && !isExtractingContent && (
+                              <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5">
+                                <button
+                                  onClick={() => setKbEditPreviewMode('edit')}
+                                  className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] sm:text-xs font-medium transition-colors ${
+                                    kbEditPreviewMode === 'edit'
+                                      ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm'
+                                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                                  }`}
+                                >
+                                  <Code2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => setKbEditPreviewMode('preview')}
+                                  className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] sm:text-xs font-medium transition-colors ${
+                                    kbEditPreviewMode === 'preview'
+                                      ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm'
+                                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                                  }`}
+                                >
+                                  <Eye className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                                  Preview
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                          {isExtractingContent ? (
+                            <div className="flex items-center justify-center gap-2 p-6 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl">
+                              <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                              <span className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+                                Processing and structuring knowledge base...
+                              </span>
+                            </div>
+                          ) : kbEditPreviewMode === 'edit' ? (
+                            <textarea
+                              value={quickCreateData.extractedFileContent}
+                              onChange={(e) =>
+                                setQuickCreateData((prev) => ({
+                                  ...prev,
+                                  extractedFileContent: e.target.value,
+                                }))
+                              }
+                              className="w-full min-h-[220px] max-h-[400px] px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white font-mono text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all resize-y"
+                              placeholder="Processed knowledge base content will appear here..."
+                            />
+                          ) : (
+                            <div className="w-full min-h-[220px] max-h-[400px] overflow-y-auto px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl">
+                              <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:text-slate-800 dark:prose-headings:text-slate-200 prose-p:text-slate-600 dark:prose-p:text-slate-400 prose-strong:text-slate-700 dark:prose-strong:text-slate-300 prose-code:text-blue-600 dark:prose-code:text-blue-400 prose-li:text-slate-600 dark:prose-li:text-slate-400">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                  {quickCreateData.extractedFileContent}
+                                </ReactMarkdown>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {/* Website URLs Section */}
                       <div className="space-y-2 sm:space-y-3">
