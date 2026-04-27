@@ -1,24 +1,26 @@
 import React, { useEffect, useState } from "react";
-import { WebsiteRenderer } from "../ClientDashboard/WebsiteBuilder/WebsiteBuilder";
-import { WebsiteContent, TemplateId } from "../services/websiteBuilderAPI";
 
-interface PreviewData {
-  templateId: TemplateId;
-  content: WebsiteContent;
-  primaryColor: string;
-  secondaryColor: string;
-  name: string;
+const AI_STUDIO_KEY = "ai_studio_websites";
+
+interface SavedSite {
+  id: string;
+  businessName: string;
+  html: string;
 }
 
 const WebsitePreview: React.FC = () => {
-  const [data, setData] = useState<PreviewData | null>(null);
+  const [html, setHtml] = useState<string | null>(null);
   const [error, setError] = useState(false);
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem("website_preview");
-      if (!raw) { setError(true); return; }
-      setData(JSON.parse(raw));
+      // Support legacy ?id= param to load a specific saved site
+      const params = new URLSearchParams(window.location.search);
+      const id = params.get("id");
+      const sites: SavedSite[] = JSON.parse(localStorage.getItem(AI_STUDIO_KEY) ?? "[]");
+      const site = id ? sites.find((s) => s.id === id) : sites[0];
+      if (!site?.html) { setError(true); return; }
+      setHtml(site.html);
     } catch {
       setError(true);
     }
@@ -36,7 +38,7 @@ const WebsitePreview: React.FC = () => {
     );
   }
 
-  if (!data) {
+  if (!html) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f8fafc" }}>
         <div style={{ width: 32, height: 32, border: "3px solid #6366f1", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
@@ -46,12 +48,11 @@ const WebsitePreview: React.FC = () => {
   }
 
   return (
-    <WebsiteRenderer
-      templateId={data.templateId}
-      content={data.content}
-      primaryColor={data.primaryColor}
-      secondaryColor={data.secondaryColor}
-      agentName={data.name}
+    <iframe
+      srcDoc={html}
+      title="Website Preview"
+      style={{ width: "100%", height: "100vh", border: "none", display: "block" }}
+      sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
     />
   );
 };
