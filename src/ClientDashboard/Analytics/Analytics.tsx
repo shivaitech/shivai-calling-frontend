@@ -50,8 +50,8 @@ const Analytics = () => {
   const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const ipLocationCacheRef = useRef<any>({});
-  const pageSize = 10;
-  const agentPageSize = 10;
+  const pageSize = 20;
+  const agentPageSize = 20;
 
   // Function to resolve IP to location
   const resolveIPLocation = async (ip: string) => {

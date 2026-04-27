@@ -42,6 +42,8 @@ const CreateAgent = lazy(() => import("./ClientDashboard/Employees/CreateAgent")
 const EditAgent = lazy(() => import("./ClientDashboard/Employees/EditAgent"));
 const Training = lazy(() => import("./ClientDashboard/Training/Training"));
 const Workflows = lazy(() => import("./ClientDashboard/Workflows/Workflows"));
+const WebsiteBuilder = lazy(() => import("./ClientDashboard/WebsiteBuilder/WebsiteBuilder"));
+const WebsitePreview = lazy(() => import("./pages/WebsitePreview"));
 const Analytics = lazy(() => import("./ClientDashboard/Analytics/Analytics"));
 const Monitoring = lazy(() => import("./ClientDashboard/Monitoring/Monitoring"));
 const Billing = lazy(() => import("./ClientDashboard/Billing/Billing"));
@@ -69,11 +71,12 @@ function AppContent() {
   const isAuthCallback = location.pathname === "/auth/google/callback";
   const isResetPassword = location.pathname.startsWith("/reset-password");
   const isAgentPublicPage = location.pathname.startsWith("/MyAIEmployee");
+  const isWebsitePreview = location.pathname.startsWith("/website-preview");
   const [collapsed, setCollapsed] = useState(false);
 
   return (
     <div className="min-h-screen">
-      {isLandingPage || isAuthCallback || isResetPassword || isAgentPublicPage ? (
+      {isLandingPage || isAuthCallback || isResetPassword || isAgentPublicPage || isWebsitePreview ? (
         <Suspense fallback={<LoadingFallback />}>
           <Routes>
             <Route
@@ -104,6 +107,9 @@ function AppContent() {
 
             {/* Public agent test page - no auth required */}
             <Route path="/MyAIEmployee/:agentId" element={<AgentPublicPage />} />
+
+            {/* Website preview - no auth required, opens in new tab */}
+            <Route path="/website-preview" element={<WebsitePreview />} />
 
             {/* Catch all other public routes and redirect to landing */}
             <Route path="*" element={<Navigate to="/landing" replace />} />
@@ -158,6 +164,7 @@ function AppContent() {
                       <Route path="/agents/:id/train" element={<Training />} />
                       <Route path="/training" element={<Training />} />
                       <Route path="/workflows" element={<Workflows />} />
+                      <Route path="/websites" element={<WebsiteBuilder />} />
                       <Route path="/analytics" element={<Analytics />} />
                       <Route path="/monitoring" element={<Monitoring />} />
                       <Route path="/billing" element={<Billing />} />

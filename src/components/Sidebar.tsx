@@ -19,6 +19,7 @@ import {
   ChevronLeft,
   History,
   ChevronRight,
+  Globe,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -44,6 +45,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed }) => {
     { path: "/agents", icon: Bot, label: "AI Employees" },
     { path: "/training", icon: Brain, label: "Training" },
     { path: "/workflows", icon: Workflow, label: "Workflows" },
+    { path: "/websites", icon: Globe, label: "Website Builder" },
     { path: "/analytics", icon: History, label: "Analytics & Call History" },
     { path: "/monitoring", icon: BarChart3, label: "Monitoring & Reports" },
     { path: "/billing", icon: CreditCard, label: "Billing" },
