@@ -44,7 +44,8 @@ apiClient.interceptors.response.use(
 
 // Separate client for voice API (fixed base URL)
 const voiceApiClient = axios.create({
-  baseURL: "https://voice.callshivai.com",
+  // baseURL: "https://voice.callshivai.com",
+  baseURL: "https://staging.voice.callshivai.com",
   timeout: 120000,
   headers: {
     "Content-Type": "application/json",
