@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useCallback, useMemo } from "react";
+﻿import React, { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import {
   Sparkles, Globe, Download, RefreshCw, ChevronLeft,
   ChevronRight, Check, Monitor, Smartphone, Layers,
@@ -367,7 +367,7 @@ const ConnectAgentModal: React.FC<{
       display: "flex", alignItems: "center", justifyContent: "center",
     }} onClick={onClose}>
       <div
-        style={{ background: "#fff", borderRadius: 20, padding: 32, width: 440, boxShadow: "0 24px 60px rgba(0,0,0,.2)" }}
+        style={{ background: "#fff", borderRadius: 20, padding: 32, width: "min(440px, 92vw)", boxShadow: "0 24px 60px rgba(0,0,0,.2)" }}
         onClick={(e) => e.stopPropagation()}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
@@ -435,6 +435,14 @@ export default function WebsiteBuilder() {
   const [activeSectionPanel, setActiveSectionPanel] = useState<SectionType | null>(null);
   const [connectAgentFor, setConnectAgentFor] = useState<SavedWebsite | null>(null);
   const [editingSite, setEditingSite] = useState<SavedWebsite | null>(null);
+
+  // Mobile detection
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 768);
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
 
   // Saved websites list
   const [websites, setWebsites] = useState<SavedWebsite[]>(() => loadWebsites());
@@ -663,7 +671,7 @@ export default function WebsiteBuilder() {
         {connectAgentModal}
         <div style={{ minHeight: "100vh", background: "#f8fafc", fontFamily: "Inter, -apple-system, sans-serif" }}>
           {/* Header */}
-          <div style={{ background: "#fff", borderBottom: "1px solid #e5e7eb", padding: "0 32px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ background: "#fff", borderBottom: "1px solid #e5e7eb", padding: isMobile ? "12px 16px" : "0 32px", minHeight: 64, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <div style={{ width: 36, height: 36, borderRadius: 10, background: "linear-gradient(135deg, #6366f1, #8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Sparkles size={18} color="#fff" />
@@ -690,7 +698,7 @@ export default function WebsiteBuilder() {
             )}
           </div>
 
-          <div style={{ maxWidth: 1200, margin: "0 auto", padding: "36px 24px" }}>
+          <div style={{ maxWidth: 1200, margin: "0 auto", padding: isMobile ? "20px 16px" : "36px 24px" }}>
             {websites.length === 0 ? (
               // Empty state
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 400, gap: 24, textAlign: "center" }}>
@@ -718,7 +726,7 @@ export default function WebsiteBuilder() {
             ) : (
               <>
                 {/* Stats row */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 16, marginBottom: 32 }}>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: 16, marginBottom: 32 }}>
                   {[
                     { label: "Total Websites", value: websites.length, icon: <Globe size={18} />, color: "#6366f1" },
                     { label: "Published",       value: websites.filter(w => w.status === "published").length, icon: <CheckCircle2 size={18} />, color: "#10b981" },
@@ -831,9 +839,9 @@ export default function WebsiteBuilder() {
       <div style={{ display: "flex", flexDirection: "column", height: "100vh", background: "#f1f5f9", fontFamily: "Inter, sans-serif" }}>
         {/* Top bar */}
         <div style={{
-          height: 56, background: "#0f172a", display: "flex", alignItems: "center",
-          padding: "0 16px", gap: 8, flexShrink: 0, borderBottom: "1px solid #1e293b",
-          flexWrap: "nowrap", overflow: "hidden",
+          height: isMobile ? "auto" : 56, background: "#0f172a", display: "flex", alignItems: "center",
+          padding: isMobile ? "8px 12px" : "0 16px", gap: 8, flexShrink: 0, borderBottom: "1px solid #1e293b",
+          flexWrap: isMobile ? "wrap" : "nowrap", overflowX: isMobile ? "visible" : "hidden",
         }}>
           <button onClick={() => setView("dashboard")} style={{
             display: "flex", alignItems: "center", gap: 5, background: "none", border: "none",
@@ -920,11 +928,11 @@ export default function WebsiteBuilder() {
             padding: 24, background: "#e2e8f0",
           }}>
             <div style={{
-              width: previewMode === "desktop" ? "100%" : 390,
-              maxWidth: previewMode === "desktop" ? 1440 : 390,
-              minHeight: 800, background: "#fff", borderRadius: 12,
-              overflow: "hidden", boxShadow: "0 8px 40px rgba(0,0,0,.15)",
-              border: "1px solid #cbd5e1",
+              width: (isMobile || previewMode === "mobile") ? "100%" : "100%",
+              maxWidth: previewMode === "desktop" ? 1440 : isMobile ? "100%" : 390,
+              minHeight: 800, background: "#fff", borderRadius: isMobile ? 0 : 12,
+              overflow: "hidden", boxShadow: isMobile ? "none" : "0 8px 40px rgba(0,0,0,.15)",
+              border: isMobile ? "none" : "1px solid #cbd5e1",
             }}>
               <iframe
                 ref={iframeRef}
@@ -1016,7 +1024,7 @@ export default function WebsiteBuilder() {
   return (
     <div style={{ minHeight: "100vh", background: "#f8fafc", fontFamily: "Inter, -apple-system, sans-serif" }}>
       {/* Header */}
-      <div style={{ background: "#fff", borderBottom: "1px solid #e5e7eb", padding: "0 32px", height: 60, display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ background: "#fff", borderBottom: "1px solid #e5e7eb", padding: isMobile ? "12px 16px" : "0 32px", height: 60, display: "flex", alignItems: "center", gap: 12 }}>
         <button onClick={() => setView("dashboard")} style={{
           display: "flex", alignItems: "center", gap: 5, background: "none", border: "none",
           color: "#9ca3af", cursor: "pointer", fontSize: 13, fontWeight: 600, padding: "6px 8px",
@@ -1035,11 +1043,11 @@ export default function WebsiteBuilder() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "40px 24px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 28, alignItems: "start" }}>
+      <div style={{ maxWidth: 1100, margin: "0 auto", padding: isMobile ? "24px 16px" : "40px 24px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "220px 1fr", gap: 28, alignItems: "start" }}>
           {/* Steps sidebar */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <div style={{ background: "#fff", borderRadius: 16, padding: 24, border: "1px solid #e5e7eb", boxShadow: "0 2px 8px rgba(0,0,0,.04)", display: "flex", flexDirection: "column", gap: 18 }}>
+          <div style={{ display: "flex", flexDirection: isMobile ? "row" : "column", gap: 8, overflowX: isMobile ? "auto" : "visible" }}>
+            <div style={{ background: "#fff", borderRadius: 16, padding: isMobile ? "14px 16px" : 24, border: "1px solid #e5e7eb", boxShadow: "0 2px 8px rgba(0,0,0,.04)", display: "flex", flexDirection: isMobile ? "row" : "column", gap: 18, flexShrink: 0 }}>
               <StepBadge step={1} current={step} label="Business Info" />
               <StepBadge step={2} current={step} label="Visual Style" />
               <StepBadge step={3} current={step} label="Contact & Generate" />
@@ -1064,7 +1072,7 @@ export default function WebsiteBuilder() {
           </div>
 
           {/* Main form card */}
-          <div style={{ background: "#fff", borderRadius: 16, padding: 36, border: "1px solid #e5e7eb", boxShadow: "0 2px 8px rgba(0,0,0,.04)" }}>
+          <div style={{ background: "#fff", borderRadius: 16, padding: isMobile ? "20px 16px" : 36, border: "1px solid #e5e7eb", boxShadow: "0 2px 8px rgba(0,0,0,.04)" }}>
 
             {/* STEP 1 */}
             {step === 1 && (
@@ -1082,7 +1090,7 @@ export default function WebsiteBuilder() {
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     <label style={{ fontSize: 12, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.5px" }}>Industry *</label>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, maxHeight: 320, overflowY: "auto" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(3, 1fr)", gap: 8, maxHeight: 320, overflowY: "auto" }}>
                       {INDUSTRIES.map((ind) => (
                         <button key={ind.id} onClick={() => handleIndustryChange(ind.id)} style={{
                           padding: "10px 8px", cursor: "pointer", textAlign: "left",
@@ -1132,7 +1140,7 @@ export default function WebsiteBuilder() {
                 <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     <label style={{ fontSize: 12, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.5px" }}>Theme Style</label>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(5, 1fr)", gap: 10 }}>
                       {THEMES.map((theme) => (
                         <button key={theme.id} onClick={() => setField("themeStyle", theme.id)} style={{
                           padding: "12px 8px", cursor: "pointer", textAlign: "center",
@@ -1150,7 +1158,7 @@ export default function WebsiteBuilder() {
                       ))}
                     </div>
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16 }}>
                     <ColorInput label="Primary Color" value={form.primaryColor} onChange={(v) => setField("primaryColor", v)} />
                     <ColorInput label="Accent Color"  value={form.accentColor}  onChange={(v) => setField("accentColor", v)} />
                   </div>

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   ChevronLeft, Save, CheckCheck, Plus, Trash2,
   Palette, Sparkles, Zap, MessageSquare, DollarSign,
@@ -212,6 +212,15 @@ export const EditWebsite: React.FC<Props> = ({ site, onSaved, onBack }) => {
   const [activeSection, setActiveSection] = useState<SectionKey>("brand");
   const [saving, setSaving] = useState(false);
   const [savedOk, setSavedOk] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Mobile detection
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 768);
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -276,7 +285,7 @@ export const EditWebsite: React.FC<Props> = ({ site, onSaved, onBack }) => {
       <TextField label="Business Name" value={d.businessName} onChange={(v) => setTopField("businessName", v)} />
       <TextField label="Tagline" value={d.tagline} onChange={(v) => setTopField("tagline", v)} placeholder="Your catchy tagline..." />
       <TextareaField label="Description" value={d.description} onChange={(v) => setTopField("description", v)} rows={4} placeholder="What your business does..." />
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
         <ColorField label="Primary Color" value={d.primaryColor} onChange={(v) => setTopField("primaryColor", v)} />
         <ColorField label="Accent Color" value={d.accentColor} onChange={(v) => setTopField("accentColor", v)} />
       </div>
@@ -547,34 +556,52 @@ export const EditWebsite: React.FC<Props> = ({ site, onSaved, onBack }) => {
     }}>
       {/* ── Top bar ──────────────────────────────────────────────────────── */}
       <div style={{
-        height: 56, background: "#0f172a", display: "flex", alignItems: "center",
-        padding: "0 20px", gap: 10, flexShrink: 0, borderBottom: "1px solid #1e293b",
+        minHeight: 56, background: "#0f172a", display: "flex", alignItems: "center",
+        padding: isMobile ? "10px 12px" : "0 20px", gap: 8, flexShrink: 0, borderBottom: "1px solid #1e293b",
+        flexWrap: isMobile ? "wrap" : "nowrap",
       }}>
         <button onClick={onBack} style={{
           display: "flex", alignItems: "center", gap: 5, background: "none", border: "none",
-          color: "#94a3b8", cursor: "pointer", fontSize: 13, fontWeight: 600, padding: "6px 8px",
+          color: "#94a3b8", cursor: "pointer", fontSize: 13, fontWeight: 600, padding: "6px 8px", flexShrink: 0,
         }}>
-          <ChevronLeft size={16} /> Websites
+          <ChevronLeft size={16} /> {!isMobile && "Websites"}
         </button>
-        <div style={{ width: 1, height: 24, background: "#334155" }} />
-        <span style={{
-          fontSize: 13, fontWeight: 700, color: "#f1f5f9",
-          maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-        }}>
-          Editing: {d.businessName}
-        </span>
+        <div style={{ width: 1, height: 24, background: "#334155", flexShrink: 0 }} />
+        {/* On mobile: show section selector dropdown instead of sidebar */}
+        {isMobile ? (
+          <select
+            value={activeSection}
+            onChange={(e) => setActiveSection(e.target.value as SectionKey)}
+            style={{
+              flex: 1, background: "#1e293b", color: "#f1f5f9", border: "1px solid #334155",
+              borderRadius: 8, padding: "7px 10px", fontSize: 13, fontWeight: 600, outline: "none",
+              cursor: "pointer",
+            }}
+          >
+            {visibleSections.map((s) => (
+              <option key={s.key} value={s.key}>{s.label}</option>
+            ))}
+          </select>
+        ) : (
+          <span style={{
+            fontSize: 13, fontWeight: 700, color: "#f1f5f9",
+            maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}>
+            Editing: {d.businessName}
+          </span>
+        )}
         <div style={{ flex: 1 }} />
         <button onClick={handleSave} disabled={saving} style={{
-          display: "flex", alignItems: "center", gap: 7, padding: "8px 18px",
+          display: "flex", alignItems: "center", gap: 7, padding: isMobile ? "8px 14px" : "8px 18px",
           background: savedOk ? "#059669" : "#10b981", border: "none", borderRadius: 8,
           color: "#fff", cursor: saving ? "wait" : "pointer", fontSize: 13, fontWeight: 700,
-          transition: "background .3s", opacity: saving ? 0.8 : 1,
+          transition: "background .3s", opacity: saving ? 0.8 : 1, flexShrink: 0,
         }}>
           {savedOk
-            ? <><CheckCheck size={14} /> Saved!</>
+            ? <><CheckCheck size={14} /> {!isMobile && "Saved!"}</>
             : saving
               ? <>Saving...</>
-              : <><Save size={14} /> Save & Preview</>
+              : <><Save size={14} /> {isMobile ? "Save" : "Save & Preview"}</>
           }
         </button>
       </div>
@@ -582,44 +609,46 @@ export const EditWebsite: React.FC<Props> = ({ site, onSaved, onBack }) => {
       {/* ── Body ─────────────────────────────────────────────────────────── */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
 
-        {/* Left section nav */}
-        <div style={{
-          width: 220, background: "#fff", borderRight: "1px solid #e5e7eb",
-          overflowY: "auto", flexShrink: 0, padding: "12px 10px",
-        }}>
+        {/* Left section nav — hidden on mobile (using dropdown in top bar instead) */}
+        {!isMobile && (
           <div style={{
-            fontSize: 10, fontWeight: 700, color: "#9ca3af",
-            textTransform: "uppercase", letterSpacing: "0.6px", padding: "4px 8px 10px",
+            width: 220, background: "#fff", borderRight: "1px solid #e5e7eb",
+            overflowY: "auto", flexShrink: 0, padding: "12px 10px",
           }}>
-            Content Sections
+            <div style={{
+              fontSize: 10, fontWeight: 700, color: "#9ca3af",
+              textTransform: "uppercase", letterSpacing: "0.6px", padding: "4px 8px 10px",
+            }}>
+              Content Sections
+            </div>
+            {visibleSections.map((s) => {
+              const isActive = s.key === activeSection;
+              return (
+                <button
+                  key={s.key}
+                  onClick={() => setActiveSection(s.key)}
+                  style={{
+                    width: "100%", display: "flex", alignItems: "center", gap: 10,
+                    padding: "9px 12px", border: "none", borderRadius: 8, cursor: "pointer",
+                    background: isActive ? "#f0f4ff" : "none",
+                    color: isActive ? "#4f46e5" : "#374151",
+                    fontSize: 13, fontWeight: isActive ? 700 : 500,
+                    textAlign: "left", marginBottom: 2,
+                    borderLeft: `3px solid ${isActive ? "#6366f1" : "transparent"}`,
+                  }}
+                >
+                  <span style={{ color: isActive ? "#6366f1" : "#9ca3af", flexShrink: 0 }}>
+                    {s.icon}
+                  </span>
+                  {s.label}
+                </button>
+              );
+            })}
           </div>
-          {visibleSections.map((s) => {
-            const isActive = s.key === activeSection;
-            return (
-              <button
-                key={s.key}
-                onClick={() => setActiveSection(s.key)}
-                style={{
-                  width: "100%", display: "flex", alignItems: "center", gap: 10,
-                  padding: "9px 12px", border: "none", borderRadius: 8, cursor: "pointer",
-                  background: isActive ? "#f0f4ff" : "none",
-                  color: isActive ? "#4f46e5" : "#374151",
-                  fontSize: 13, fontWeight: isActive ? 700 : 500,
-                  textAlign: "left", marginBottom: 2,
-                  borderLeft: `3px solid ${isActive ? "#6366f1" : "transparent"}`,
-                }}
-              >
-                <span style={{ color: isActive ? "#6366f1" : "#9ca3af", flexShrink: 0 }}>
-                  {s.icon}
-                </span>
-                {s.label}
-              </button>
-            );
-          })}
-        </div>
+        )}
 
         {/* Main content area */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "28px 36px", maxWidth: 860 }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: isMobile ? "16px 16px" : "28px 36px", maxWidth: isMobile ? "100%" : 860 }}>
 
           {/* Section header */}
           <div style={{ marginBottom: 24, paddingBottom: 18, borderBottom: "1px solid #e5e7eb" }}>
@@ -628,16 +657,19 @@ export const EditWebsite: React.FC<Props> = ({ site, onSaved, onBack }) => {
                 width: 36, height: 36, borderRadius: 9,
                 background: "linear-gradient(135deg, #f0f4ff, #e0e7ff)",
                 display: "flex", alignItems: "center", justifyContent: "center", color: "#6366f1",
+                flexShrink: 0,
               }}>
                 {activeDef?.icon}
               </div>
-              <h2 style={{ fontSize: 18, fontWeight: 800, color: "#0f172a", margin: 0 }}>
+              <h2 style={{ fontSize: isMobile ? 16 : 18, fontWeight: 800, color: "#0f172a", margin: 0 }}>
                 {activeDef?.label}
               </h2>
             </div>
-            <p style={{ fontSize: 12, color: "#9ca3af", margin: "4px 0 0 46px" }}>
-              Changes apply when you click <strong>Save &amp; Preview</strong>.
-            </p>
+            {!isMobile && (
+              <p style={{ fontSize: 12, color: "#9ca3af", margin: "4px 0 0 46px" }}>
+                Changes apply when you click <strong>Save &amp; Preview</strong>.
+              </p>
+            )}
           </div>
 
           {/* Fields */}
@@ -648,7 +680,8 @@ export const EditWebsite: React.FC<Props> = ({ site, onSaved, onBack }) => {
             <button onClick={handleSave} disabled={saving} style={{
               display: "flex", alignItems: "center", gap: 7, padding: "11px 28px",
               background: savedOk ? "#059669" : "#10b981", border: "none", borderRadius: 10,
-              color: "#fff", cursor: "pointer", fontSize: 14, fontWeight: 700,
+              color: "#fff", cursor: "pointer", fontSize: 14, fontWeight: 700, width: isMobile ? "100%" : "auto",
+              justifyContent: isMobile ? "center" : "flex-start",
             }}>
               {savedOk
                 ? <><CheckCheck size={15} /> Saved & Previewed!</>

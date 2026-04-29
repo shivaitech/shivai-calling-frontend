@@ -1487,12 +1487,13 @@
     const triggerCompanyInfo = getCompanyInfo();
     if (triggerCompanyInfo.triggerButtonImage) {
       triggerBtn.classList.add("shivai-trigger--image");
-      triggerBtn.innerHTML = `<img class="shivai-trigger-avatar" src="${triggerCompanyInfo.triggerButtonImage}" alt="${triggerCompanyInfo.agentName}" />`;
+      triggerBtn.innerHTML = `<img class="shivai-trigger-avatar" src="${triggerCompanyInfo.triggerButtonImage}" alt="${triggerCompanyInfo.agentName}" /><span class="shivai-trigger-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="white" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg></span>`;
     } else {
       triggerBtn.innerHTML = `
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
       </svg>
+      <span class="shivai-trigger-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="white" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg></span>
     `;
     }
     triggerBtn.setAttribute("aria-label", "Open ShivAI Assistant");
@@ -2119,6 +2120,7 @@
       }
     }, 60);
   }
+  
   function hideBubble() {
     if (messageBubble) {
       messageBubble.style.animation = "bubbleSlideOut 0.3s ease-in forwards";
@@ -2128,6 +2130,7 @@
       }, 300);
     }
   }
+
   function addWidgetStyles() {
     // Get theme colors from company info
     const companyInfo = getCompanyInfo();
@@ -2142,8 +2145,8 @@
       position: fixed;
       bottom: 20px;
       right: 20px;
-      width: 60px;
-      height: 60px;
+      width: 72px;
+      height: 72px;
       border-radius: 50%;
       border: none;
       cursor: grab;
@@ -2154,7 +2157,7 @@
       justify-content: center;
       z-index: 2147483647;
       color: #ffffff;
-      font-size: 24px;
+      font-size: 27px;
       transition: all 0.3s ease;
       background: linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%);
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25), 0 2px 8px rgba(0, 0, 0, 0.15);
@@ -2187,6 +2190,45 @@
       flex-shrink: 0;
       display: block;
       clip-path: circle(50%);
+      }
+      .shivai-trigger-badge {
+      position: absolute;
+      top: -4px;
+      right: -4px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: #ef4444;
+      border: 2px solid #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      animation: badgePop 0.4s cubic-bezier(0.34,1.56,0.64,1) 0.6s both;
+      }
+      @keyframes badgePop {
+      0% { transform: scale(0); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+      }
+      /* Shake-zoom attention animation: fires at 4s, repeats every 9s */
+      .shivai-trigger.shivai-neon-pulse {
+      animation: triggerAttention 9s ease-in-out 4s infinite;
+      }
+      .shivai-trigger.shivai-neon-pulse.dragging,
+      .shivai-trigger.shivai-neon-pulse:hover,
+      .shivai-trigger.shivai-neon-pulse.shivai-trigger--seen {
+      animation: none;
+      }
+      @keyframes triggerAttention {
+      0%   { transform: scale(1) rotate(0deg); }
+      4%   { transform: scale(1.18) rotate(-8deg); }
+      8%   { transform: scale(1.18) rotate(8deg); }
+      12%  { transform: scale(1.18) rotate(-6deg); }
+      16%  { transform: scale(1.18) rotate(6deg); }
+      20%  { transform: scale(1.18) rotate(-4deg); }
+      24%  { transform: scale(1.1) rotate(0deg); }
+      30%  { transform: scale(1) rotate(0deg); }
+      100% { transform: scale(1) rotate(0deg); }
       }
       .shivai-neon-pulse {
       overflow: visible;
@@ -2331,7 +2373,7 @@
       right: 20px;
       width: 380px;
       max-width: 380px;
-      max-height: 550px;
+      max-height: 660px;
       background: white;
       border-radius: 12px;
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08);
@@ -2404,14 +2446,14 @@
       }
       .landing-view .widget-title {
       font-weight: 600;
-      font-size: 14px;
+      font-size: 15px;
       color: #111827;
       margin: 0;
       letter-spacing: -0.01em;
       line-height: 1.3;
       }
       .landing-view .widget-subtitle {
-      font-size: 11px;
+      font-size: 12px;
       color: #6b7280;
       margin: 0;
       font-weight: 400;
@@ -2419,10 +2461,10 @@
       }
       .start-call-btn {
       width: 100%;
-      padding: 10px 12px;
+      padding: 11px 14px;
       border: 1px solid transparent;
       border-radius: 24px;
-      font-size: 14px;
+      font-size: 15px;
       background: linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%);
       color: white;
       font-weight: 600;
@@ -4138,6 +4180,8 @@
     isWidgetOpen = true;
     if (triggerBtn) {
       triggerBtn.style.display = "none";
+      // Stop attention animation once user has interacted
+      triggerBtn.classList.add("shivai-trigger--seen");
     }
     hideBubble();
     if (messageInterval) {

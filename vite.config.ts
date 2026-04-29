@@ -25,6 +25,15 @@ export default defineConfig({
   },
   server: {
     port: 5174,
+    // Proxy /api/* to a local Vercel dev server for local development.
+    // Run `npx vercel dev` in a separate terminal (recommended), or start
+    // your own edge function server on port 3000.
+    proxy: {
+      "/api": {
+        target: "http://localhost:3000",
+        changeOrigin: true,
+      },
+    },
   },
   build: {
     minify: "terser",

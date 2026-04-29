@@ -12,8 +12,6 @@ import type {
 
 const GEMINI_MODEL =
   (import.meta.env.VITE_GEMINI_MODEL as string) || "gemini-2.5-pro";
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string;
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 // ── Input form shape ──────────────────────────────────────────────────────────
 
@@ -230,10 +228,11 @@ Make every single piece of content feel like it was written by a professional co
 }
 
 async function callGemini(prompt: string): Promise<Record<string, unknown>> {
-  const response = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
+  const response = await fetch("/api/gemini", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
+      model: GEMINI_MODEL,
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: 0.85,
@@ -245,7 +244,7 @@ async function callGemini(prompt: string): Promise<Record<string, unknown>> {
 
   if (!response.ok) {
     const err = await response.text();
-    throw new Error(`Gemini API error ${response.status}: ${err}`);
+    throw new Error(`Gemini proxy error ${response.status}: ${err}`);
   }
 
   const json = await response.json();

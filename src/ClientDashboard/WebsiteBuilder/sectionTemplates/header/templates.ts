@@ -14,7 +14,7 @@ const navLinks = (d: WebsiteTemplateData, color = "#fff") =>
     .join("");
 
 const ctaBtn = (d: WebsiteTemplateData, bg: string, color = "#fff") =>
-  `<a href="${d.ctaLink}" style="background:${bg};color:${color};padding:10px 24px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px;transition:opacity .2s" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">${d.ctaText}</a>`;
+  `<a href="${d.ctaLink}" class="header-cta-desktop" style="background:${bg};color:${color};padding:10px 24px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px;transition:opacity .2s" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">${d.ctaText}</a>`;
 
 export const headerTemplates: SectionTemplate[] = [
 
@@ -172,7 +172,7 @@ export const headerTemplates: SectionTemplate[] = [
     <nav style="display:flex;align-items:center;gap:36px">
       ${d.navItems.map((n) => `<a href="${n.href}" style="color:#5c4d3c;text-decoration:none;font-size:14px;letter-spacing:1.5px;text-transform:uppercase;font-weight:500">${n.label}</a>`).join("")}
     </nav>
-    <a href="${d.ctaLink}" style="background:transparent;border:1.5px solid ${d.primaryColor};color:${d.primaryColor};padding:10px 24px;border-radius:2px;text-decoration:none;font-size:13px;letter-spacing:1px;text-transform:uppercase;font-weight:600">${d.ctaText}</a>
+    <a href="${d.ctaLink}" class="header-cta-desktop" style="background:transparent;border:1.5px solid ${d.primaryColor};color:${d.primaryColor};padding:10px 24px;border-radius:2px;text-decoration:none;font-size:13px;letter-spacing:1px;text-transform:uppercase;font-weight:600">${d.ctaText}</a>
   </div>
 </header>`,
   },
