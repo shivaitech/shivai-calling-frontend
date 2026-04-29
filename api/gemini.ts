@@ -1,5 +1,5 @@
 export const config = {
-  runtime: "edge",
+  maxDuration: 60, // seconds — serverless Node.js runtime (supports up to 300s on Pro)
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
