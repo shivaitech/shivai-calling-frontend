@@ -12,7 +12,7 @@ import type {
 
 const GEMINI_MODEL =
   (import.meta.env.VITE_GEMINI_MODEL as string) || "gemini-2.5-pro";
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string;
+// TODO: replace direct Gemini calls with backend API once endpoint is available
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 // ── Input form shape ──────────────────────────────────────────────────────────
@@ -230,7 +230,7 @@ Make every single piece of content feel like it was written by a professional co
 }
 
 async function callGemini(prompt: string): Promise<Record<string, unknown>> {
-  const response = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
+  const response = await fetch(`${GEMINI_URL}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

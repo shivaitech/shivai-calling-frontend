@@ -64,7 +64,7 @@ const RESPONSE_SCHEMA = {
   required: ["siteName", "tagline", "hero", "about", "features", "stats", "contact", "suggestedTemplate", "customHtml"],
 };
 
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string;
+// TODO: replace direct Gemini calls with backend API once endpoint is available
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -435,7 +435,7 @@ async function generateStudioHtml(formData: WebsiteFormData, referenceAnalysis: 
   const prompt = buildStudioHtmlPrompt(formData, referenceAnalysis, aiImageUrls, matchedTemplates);
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${STUDIO_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${STUDIO_MODEL}:generateContent`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -583,7 +583,8 @@ function buildFallbackContent(businessName: string, industry = "Business Service
 export async function generateWebsiteContent(
   formData: WebsiteFormData
 ): Promise<WebsiteContent> {
-  if (!GEMINI_API_KEY) throw new Error("Gemini API key not configured.");
+  // TODO: wire to backend API
+  throw new Error("Website generation is temporarily unavailable. Please try again later.");
 
   const matchedTemplates = matchOpenSourceTemplateRefs({
     industry: formData.industry,
@@ -600,7 +601,7 @@ export async function generateWebsiteContent(
   const aiImageUrls = buildAiGeneratedImageUrls(imageQuery);
   const prompt = buildPrompt(formData, referenceAnalysis, aiImageUrls, matchedTemplates);
 
-  const response = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
+  const response = await fetch(`${GEMINI_URL}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
