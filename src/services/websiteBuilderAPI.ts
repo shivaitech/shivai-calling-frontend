@@ -2,6 +2,8 @@ import { matchOpenSourceTemplateRefs } from "./openSourceTemplateCatalog";
 
 const GEMINI_MODEL = (import.meta.env.VITE_GEMINI_MODEL as string) || "gemini-2.5-pro";
 const STUDIO_MODEL = (import.meta.env.VITE_GEMINI_STUDIO_MODEL as string) || GEMINI_MODEL;
+const GEMINI_URL =
+  `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 // Response schema for native JSON output (no markdown wrapping, fewer tokens)
 const RESPONSE_SCHEMA = {
@@ -61,6 +63,8 @@ const RESPONSE_SCHEMA = {
   },
   required: ["siteName", "tagline", "hero", "about", "features", "stats", "contact", "suggestedTemplate", "customHtml"],
 };
+
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -430,28 +434,30 @@ function tryParseStructuredResponse(text: string): WebsiteContent | null {
 async function generateStudioHtml(formData: WebsiteFormData, referenceAnalysis: string, aiImageUrls: string[], matchedTemplates: Array<{ name: string; previewUrl: string }>): Promise<string> {
   const prompt = buildStudioHtmlPrompt(formData, referenceAnalysis, aiImageUrls, matchedTemplates);
 
-  const response = await fetch("/api/gemini", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: STUDIO_MODEL,
-      contents: [{
-        parts: [
-          { text: prompt },
-          ...formData.referenceImages.map((img) => ({
-            inlineData: {
-              mimeType: img.mimeType,
-              data: img.data,
-            },
-          })),
-        ],
-      }],
-      generationConfig: {
-        temperature: 0.95,
-        topP: 0.95,
-      },
-    }),
-  });
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${STUDIO_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: prompt },
+            ...formData.referenceImages.map((img) => ({
+              inlineData: {
+                mimeType: img.mimeType,
+                data: img.data,
+              },
+            })),
+          ],
+        }],
+        generationConfig: {
+          temperature: 0.95,
+          topP: 0.95,
+        },
+      }),
+    }
+  );
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({}));
@@ -577,6 +583,8 @@ function buildFallbackContent(businessName: string, industry = "Business Service
 export async function generateWebsiteContent(
   formData: WebsiteFormData
 ): Promise<WebsiteContent> {
+  if (!GEMINI_API_KEY) throw new Error("Gemini API key not configured.");
+
   const matchedTemplates = matchOpenSourceTemplateRefs({
     industry: formData.industry,
     description: formData.description,
@@ -592,11 +600,10 @@ export async function generateWebsiteContent(
   const aiImageUrls = buildAiGeneratedImageUrls(imageQuery);
   const prompt = buildPrompt(formData, referenceAnalysis, aiImageUrls, matchedTemplates);
 
-  const response = await fetch("/api/gemini", {
+  const response = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: GEMINI_MODEL,
       contents: [{
         parts: [
           { text: prompt },
@@ -621,7 +628,7 @@ export async function generateWebsiteContent(
     const err = await response.json().catch(() => ({}));
     throw new Error(
       (err as any)?.error?.message ||
-        `Gemini proxy error (${response.status})`
+        `Gemini API error (${response.status})`
     );
   }
 

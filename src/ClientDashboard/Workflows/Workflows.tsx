@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
+import { useLocation } from 'react-router-dom';
 import GlassCard from '../../components/GlassCard';
 import { useAgent } from '../../contexts/AgentContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { isDeveloperUser, formatAgentLanguages } from '../../lib/utils';
-import { agentAPI } from '../../services/agentAPI';
+import { isDeveloperUser } from '../../lib/utils';
 import { workflowAPI } from '../../services/workflowAPI';
 import { 
   Plus, 
@@ -31,7 +32,7 @@ import {
   Database,
   Move,
   FileText,
-  Image as ImageIcon,
+  // Image as ImageIcon (unused)
   ExternalLink,
   Hash,
   Search,
@@ -40,11 +41,11 @@ import {
   FileImage,
   AtSign,
   File,
-  ChevronDown,
-  ChevronRight,
   Check,
-  UploadCloud
+  UploadCloud,
+  Loader2
 } from 'lucide-react';
+import type { WorkflowDocument } from '../../services/workflowAPI';
 
 interface WorkflowNode {
   id: string;
@@ -72,26 +73,20 @@ interface Workflow {
   createdAt: Date;
 }
 
-type DocType = 'pdf' | 'image' | 'docx' | 'txt' | 'website' | 'social';
-
-interface DocumentSet {
-  id: string;
-  agentIds: string[];
-  name: string;
-  keywords: string[];
-  description: string;
-  type: DocType;
-  sourceUrl?: string;
-  fileName?: string;
-  fileSize?: number;
-  rawText?: string;
-  createdAt: Date;
-}
+type DocType = 'pdf' | 'image' | 'docx' | 'txt' | 'website' | 'social' | 'custom-link';
 
 const Workflows = () => {
   const { agents } = useAgent();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'canvas' | 'workflows' | 'runs' | 'documents'>('canvas');
+  const location = useLocation();
+
+  // Open documents tab when navigated here with state { tab: 'documents' }
+  useEffect(() => {
+    if ((location.state as any)?.tab === 'documents') {
+      setActiveTab('documents');
+    }
+  }, [location.state]);
   const [selectedAgent, setSelectedAgent] = useState('');
   const [workflowName, setWorkflowName] = useState('');
   const [nodes, setNodes] = useState<WorkflowNode[]>([]);
@@ -111,20 +106,23 @@ const Workflows = () => {
   const canvasRef = useRef<HTMLDivElement>(null);
 
   // ── AI Documents state ──
-  const [docApiAgents, setDocApiAgents] = useState<any[]>([]);
-  const [isLoadingDocAgents, setIsLoadingDocAgents] = useState(false);
-  const [docSelectedAgents, setDocSelectedAgents] = useState<string[]>([]); // multi-agent assignment
-  const [documents, setDocuments] = useState<DocumentSet[]>([]);
+  const [isLoadingDocAgents, setIsLoadingDocAgents] = useState(false); // kept for future use
+  void isLoadingDocAgents; void setIsLoadingDocAgents;
+  const [documents, setDocuments] = useState<WorkflowDocument[]>([]);
+  const [isLoadingDocs, setIsLoadingDocs] = useState(false);
   const [docView, setDocView] = useState<'list' | 'create-doc'>('list');
-  const [editingDoc, setEditingDoc] = useState<DocumentSet | null>(null);
+  const [editingDoc, setEditingDoc] = useState<WorkflowDocument | null>(null);
   const [docSearch, setDocSearch] = useState('');
   const [docKeywordInput, setDocKeywordInput] = useState('');
   const [isSavingDoc, setIsSavingDoc] = useState(false);
   const [docSaveError, setDocSaveError] = useState<string | null>(null);
+  const [docToDelete, setDocToDelete] = useState<string | null>(null);
+  const [isDeletingDoc, setIsDeletingDoc] = useState(false);
   const [newDoc, setNewDoc] = useState<{
     name: string;
     type: DocType;
     sourceUrl: string;
+    linkCategory: string;
     fileName: string;
     fileObject: File | null;
     rawText: string;
@@ -133,8 +131,9 @@ const Workflows = () => {
     agentIds: string[];
   }>({
     name: '',
-    type: 'website',
+    type: 'custom-link',
     sourceUrl: '',
+    linkCategory: '',
     fileName: '',
     fileObject: null,
     rawText: '',
@@ -146,25 +145,24 @@ const Workflows = () => {
   // Check if current user is developer
   const isDeveloper = isDeveloperUser(user?.email);
 
-  // Fetch all agents from API for the Documents tab (same API as AgentManagement)
-  const fetchDocAgents = useCallback(async () => {
-    setIsLoadingDocAgents(true);
+  // Fetch agents and initial document list when Documents tab is opened
+  const fetchDocuments = useCallback(async (search?: string) => {
+    setIsLoadingDocs(true);
     try {
-      const result = await agentAPI.getAgentsWithFilters({ sort: 'newest', page: 1, limit: 100 });
-      setDocApiAgents(result.agents);
+      const result = await workflowAPI.listDocuments(search ? { search } : undefined);
+      setDocuments(result.data?.documents ?? []);
     } catch {
-      // Fallback to context agents
-      setDocApiAgents(agents);
+      // keep existing list on error
     } finally {
-      setIsLoadingDocAgents(false);
+      setIsLoadingDocs(false);
     }
-  }, [agents]);
+  }, []);
 
   useEffect(() => {
     if (activeTab === 'documents') {
-      fetchDocAgents();
+      fetchDocuments();
     }
-  }, [activeTab, fetchDocAgents]);
+  }, [activeTab, fetchDocuments]);
 
   // Cleanup function for drag operations
   const cleanupDragState = () => {
@@ -408,8 +406,8 @@ const Workflows = () => {
   const tabs = [
     { id: 'canvas' as const, label: 'Canvas Builder', icon: Zap },
     { id: 'workflows' as const, label: 'My Workflows', icon: Settings },
-    { id: 'runs' as const, label: 'Execution Log', icon: Play },
     { id: 'documents' as const, label: 'AI Documents', icon: BookOpen },
+    { id: 'runs' as const, label: 'Execution Log', icon: Play },
   ];
 
   const handleDragStart = (e: React.DragEvent, item: any, type: 'trigger' | 'action' | 'condition') => {
@@ -762,12 +760,25 @@ const Workflows = () => {
 
   // ── AI Documents handlers ──
   const DOC_TYPE_META: Record<DocType, { label: string; icon: React.ElementType; color: string; isUrl: boolean }> = {
-    pdf:     { label: 'PDF Document',      icon: FileText,   color: 'text-red-500',    isUrl: false },
-    image:   { label: 'Image',             icon: FileImage,  color: 'text-purple-500', isUrl: false },
-    docx:    { label: 'Word Document',     icon: File,       color: 'text-blue-500',   isUrl: false },
-    txt:     { label: 'Text File',         icon: FileText,   color: 'text-slate-500',  isUrl: false },
-    website: { label: 'Website Link',      icon: Globe,      color: 'text-green-500',  isUrl: true  },
-    social:  { label: 'Social Media Link', icon: AtSign,     color: 'text-pink-500',   isUrl: true  },
+    pdf:          { label: 'PDF Document',      icon: FileText,   color: 'text-red-500',    isUrl: false },
+    image:        { label: 'Image',             icon: FileImage,  color: 'text-purple-500', isUrl: false },
+    docx:         { label: 'Word Document',     icon: File,       color: 'text-blue-500',   isUrl: false },
+    txt:          { label: 'Text File',         icon: FileText,   color: 'text-slate-500',  isUrl: false },
+    website:      { label: 'Website Link',      icon: Globe,      color: 'text-green-500',  isUrl: true  },
+    social:       { label: 'Social Media Link', icon: AtSign,     color: 'text-pink-500',   isUrl: true  },
+    'custom-link':{ label: 'Custom Link',       icon: Link,       color: 'text-orange-500', isUrl: true  },
+  };
+
+  const getDocTypeMeta = (documentType: string) => {
+    const key = documentType?.toLowerCase();
+    if (key === 'pdf document' || key === 'pdf') return DOC_TYPE_META['pdf'];
+    if (key === 'word document' || key === 'docx') return DOC_TYPE_META['docx'];
+    if (key === 'image') return DOC_TYPE_META['image'];
+    if (key === 'text file' || key === 'text' || key === 'txt') return DOC_TYPE_META['txt'];
+    if (key === 'website link' || key === 'website') return DOC_TYPE_META['website'];
+    if (key === 'social media link' || key === 'social') return DOC_TYPE_META['social'];
+    if (key === 'custom link' || key === 'custom-link') return DOC_TYPE_META['custom-link'];
+    return DOC_TYPE_META['website'];
   };
 
   const DOC_TYPE_ACCEPT: Record<string, string> = {
@@ -784,10 +795,9 @@ const Workflows = () => {
   };
 
   const resetDocForm = () => {
-    setNewDoc({ name: '', type: 'website', sourceUrl: '', fileName: '', fileObject: null, rawText: '', keywords: [], description: '', agentIds: [] });
+    setNewDoc({ name: '', type: 'custom-link', sourceUrl: '', linkCategory: '', fileName: '', fileObject: null, rawText: '', keywords: [], description: '', agentIds: [] });
     setDocKeywordInput('');
     setEditingDoc(null);
-    setDocSelectedAgents([]);
     setDocSaveError(null);
   };
 
@@ -796,19 +806,29 @@ const Workflows = () => {
     setDocView('create-doc');
   };
 
-  const openEditDoc = (doc: DocumentSet) => {
+  const openEditDoc = (doc: WorkflowDocument) => {
     setEditingDoc(doc);
-    setDocSelectedAgents(doc.agentIds);
+    // Determine UI DocType from API document_type string
+    const typeKey = (doc.document_type?.toLowerCase() ?? 'website');
+    const uiType: DocType =
+      typeKey === 'pdf document' || typeKey === 'pdf' ? 'pdf' :
+      typeKey === 'word document' || typeKey === 'docx' ? 'docx' :
+      typeKey === 'text file' || typeKey === 'text' || typeKey === 'txt' ? 'txt' :
+      typeKey === 'website link' || typeKey === 'website' ? 'website' :
+      typeKey === 'social media link' || typeKey === 'social' ? 'social' :
+      typeKey === 'custom link' || typeKey === 'custom-link' ? 'custom-link' :
+      'custom-link';
     setNewDoc({
-      name: doc.name,
-      type: doc.type,
-      sourceUrl: doc.sourceUrl || '',
-      fileName: doc.fileName || '',
+      name: doc.document_name,
+      type: uiType,
+      sourceUrl: doc.website_url || '',
+      linkCategory: '',
+      fileName: doc.name || '',
       fileObject: null,
-      rawText: doc.rawText || '',
-      keywords: [...doc.keywords],
-      description: doc.description,
-      agentIds: [...doc.agentIds],
+      rawText: '',
+      keywords: doc.keywords ?? [],
+      description: doc.description || '',
+      agentIds: [],
     });
     setDocKeywordInput('');
     setDocSaveError(null);
@@ -834,68 +854,70 @@ const Workflows = () => {
   };
 
   // Map internal DocType to the API's documentType string
-  const DOC_TYPE_API_MAP: Record<DocType, string> = {
-    pdf: 'pdf',
-    image: 'image',
-    docx: 'docx',
-    txt: 'text',
-    website: 'website',
-    social: 'social',
+  const DOC_TYPE_API_LABEL: Record<DocType, string> = {
+    pdf:          'PDF Document',
+    image:        'Image',
+    docx:         'Word Document',
+    txt:          'Text File',
+    website:      'Website Link',
+    social:       'Social Media Link',
+    'custom-link':'Custom Link',
   };
 
   const handleSaveDoc = async () => {
-    if (!newDoc.name.trim() || docSelectedAgents.length === 0) return;
+    if (!newDoc.name.trim()) return;
     const isUrl = DOC_TYPE_META[newDoc.type].isUrl;
     const isTxt = newDoc.type === 'txt';
 
-    // Validation per API rules
+    // Validation
     if (isUrl && !newDoc.sourceUrl.trim()) return;
     if (!isUrl && !isTxt && !newDoc.fileObject) return;
     if (isTxt && !newDoc.rawText.trim() && !newDoc.fileObject) return;
-    if (isTxt && newDoc.rawText.trim() && newDoc.fileObject) return; // both not allowed
 
     setIsSavingDoc(true);
     setDocSaveError(null);
 
     try {
-      const primaryAgentId = docSelectedAgents[0];
-
-      const data = await workflowAPI.createDocument({
-        agentId: primaryAgentId,
-        agentIds: docSelectedAgents,
-        documentName: newDoc.name.trim(),
-        documentType: DOC_TYPE_API_MAP[newDoc.type],
-        description: newDoc.description.trim() || undefined,
-        keywords: newDoc.keywords.length > 0 ? newDoc.keywords : undefined,
-        websiteUrl: newDoc.type === 'website' ? newDoc.sourceUrl.trim() : undefined,
-        socialUrl: newDoc.type === 'social' ? newDoc.sourceUrl.trim() : undefined,
-        rawText: isTxt && newDoc.rawText.trim() ? newDoc.rawText.trim() : undefined,
-        file: !isUrl && newDoc.fileObject ? newDoc.fileObject : undefined,
-      });
-
-      const returnedDocs: any[] = Array.isArray(data.documents)
-        ? data.documents
-        : (data as any).document
-        ? [(data as any).document]
-        : [];
-
-      const newDocSet: DocumentSet = {
-        id: returnedDocs[0]?.id || returnedDocs[0]?._id || `doc-${Date.now()}`,
-        agentIds: data.linked_agent_ids || docSelectedAgents,
-        name: newDoc.name.trim(),
-        keywords: newDoc.keywords,
-        description: newDoc.description.trim(),
-        type: newDoc.type,
-        sourceUrl: isUrl ? newDoc.sourceUrl.trim() : undefined,
-        fileName: newDoc.fileObject ? newDoc.fileObject.name : (newDoc.fileName || undefined),
-        rawText: isTxt && newDoc.rawText.trim() ? newDoc.rawText.trim() : undefined,
-        createdAt: editingDoc?.createdAt || new Date(),
-      };
+      const documentType = DOC_TYPE_API_LABEL[newDoc.type];
 
       if (editingDoc) {
-        setDocuments(prev => prev.map(d => d.id === editingDoc.id ? newDocSet : d));
+        // ── UPDATE existing document (API 5) ──
+        const updatedRes = await workflowAPI.updateDocument(editingDoc.id, {
+          documentName: newDoc.name.trim(),
+          documentType,
+          websiteUrl: isUrl ? newDoc.sourceUrl.trim() : undefined,
+          keywords: newDoc.keywords.length > 0 ? newDoc.keywords : undefined,
+          description: newDoc.description.trim() || undefined,
+        });
+        const updatedDoc = updatedRes.data?.document;
+        if (updatedDoc) {
+          setDocuments(prev => prev.map(d => d.id === editingDoc.id ? updatedDoc : d));
+        }
       } else {
-        setDocuments(prev => [...prev, newDocSet]);
+        // ── CREATE new document (API 2) ──
+        if (isUrl) {
+          // Link creation
+          const res = await workflowAPI.createDocument({
+            documentName: newDoc.name.trim(),
+            documentType,
+            websiteUrl: newDoc.sourceUrl.trim(),
+            keywords: newDoc.keywords.length > 0 ? newDoc.keywords : undefined,
+            description: newDoc.description.trim() || undefined,
+          });
+          const created = res.data?.document;
+          if (created) setDocuments(prev => [...prev, created]);
+        } else {
+          // File upload (single file)
+          const res = await workflowAPI.createDocument({
+            file: newDoc.fileObject!,
+            documentName: newDoc.name.trim(),
+            documentType,
+            keywords: newDoc.keywords.length > 0 ? newDoc.keywords : undefined,
+            description: newDoc.description.trim() || undefined,
+          });
+          const created = res.data?.document;
+          if (created) setDocuments(prev => [...prev, created]);
+        }
       }
 
       setDocView('list');
@@ -908,18 +930,30 @@ const Workflows = () => {
   };
 
   const handleDeleteDoc = (docId: string) => {
-    if (confirm('Delete this document set?')) {
-      setDocuments(prev => prev.filter(d => d.id !== docId));
+    setDocToDelete(docId);
+  };
+
+  const confirmDeleteDoc = async () => {
+    if (!docToDelete) return;
+    setIsDeletingDoc(true);
+    try {
+      await workflowAPI.deleteDocument(docToDelete);
+      setDocuments(prev => prev.filter(d => d.id !== docToDelete));
+      setDocToDelete(null);
+    } catch {
+      // toast is shown by API layer; keep modal open so user can retry
+    } finally {
+      setIsDeletingDoc(false);
     }
   };
 
+  // Client-side filter (server search available via fetchDocuments)
   const filteredDocs = documents.filter(d => {
     const q = docSearch.toLowerCase();
-    const matchSearch = !q ||
-      d.name.toLowerCase().includes(q) ||
-      d.description.toLowerCase().includes(q) ||
-      d.keywords.some(k => k.toLowerCase().includes(q));
-    return matchSearch;
+    return !q ||
+      d.document_name.toLowerCase().includes(q) ||
+      (d.description ?? '').toLowerCase().includes(q) ||
+      (d.keywords ?? []).some(k => k.toLowerCase().includes(q));
   });
 
   return (
@@ -1219,7 +1253,7 @@ const Workflows = () => {
                         handleTouchMove(e);
                       }
                     }}
-                    onTouchEnd={(e) => {
+                    onTouchEnd={(_e) => {
                       if (!isDraggingNode) {
                         handleTouchEnd();
                       }
@@ -2124,12 +2158,18 @@ const Workflows = () => {
               </div>
 
               {/* Documents list */}
-              {filteredDocs.length > 0 ? (
+              {isLoadingDocs ? (
+                <GlassCard>
+                  <div className="p-8 flex items-center justify-center gap-3 text-slate-500 dark:text-slate-400">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span className="text-sm">Loading documents...</span>
+                  </div>
+                </GlassCard>
+              ) : filteredDocs.length > 0 ? (
                 <div className="space-y-3">
                   {filteredDocs.map(doc => {
-                    const meta = DOC_TYPE_META[doc.type];
+                    const meta = getDocTypeMeta(doc.document_type);
                     const DocIcon = meta.icon;
-                    const linkedAgents = docApiAgents.filter((a: any) => doc.agentIds.includes(a.id));
                     return (
                       <GlassCard key={doc.id}>
                         <div className="p-4 sm:p-5">
@@ -2141,36 +2181,29 @@ const Workflows = () => {
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex flex-wrap items-center gap-2 mb-1">
-                                  <h4 className="font-semibold text-slate-800 dark:text-white text-sm">{doc.name}</h4>
+                                  <h4 className="font-semibold text-slate-800 dark:text-white text-sm">{doc.document_name}</h4>
                                   <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 ${meta.color}`}>
                                     <DocIcon className="w-3 h-3" />
-                                    {meta.label}
+                                    {doc.document_type}
                                   </span>
                                 </div>
 
                                 {/* Source */}
-                                {(doc.sourceUrl || doc.fileName) && (
+                                {(doc.website_url || doc.s3_url || doc.name) && (
                                   <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mb-2">
-                                    {doc.sourceUrl ? (
+                                    {doc.website_url ? (
                                       <><ExternalLink className="w-3 h-3 flex-shrink-0" />
-                                      <a href={doc.sourceUrl} target="_blank" rel="noopener noreferrer" className="truncate hover:text-blue-500 transition-colors max-w-[260px]">
-                                        {doc.sourceUrl}
+                                      <a href={doc.website_url} target="_blank" rel="noopener noreferrer" className="truncate hover:text-blue-500 transition-colors max-w-[260px]">
+                                        {doc.website_url}
+                                      </a></>
+                                    ) : doc.s3_url ? (
+                                      <><ExternalLink className="w-3 h-3 flex-shrink-0" />
+                                      <a href={doc.s3_url} target="_blank" rel="noopener noreferrer" className="truncate hover:text-blue-500 transition-colors max-w-[260px]">
+                                        {doc.name || 'View file'}
                                       </a></>
                                     ) : (
-                                      <><Upload className="w-3 h-3 flex-shrink-0" /><span className="truncate">{doc.fileName}</span></>
+                                      <><Upload className="w-3 h-3 flex-shrink-0" /><span className="truncate">{doc.name}</span></>
                                     )}
-                                  </div>
-                                )}
-
-                                {/* Linked agents */}
-                                {linkedAgents.length > 0 && (
-                                  <div className="flex flex-wrap items-center gap-1.5 mb-2">
-                                    <Bot className="w-3 h-3 text-slate-400 flex-shrink-0" />
-                                    {linkedAgents.map((agent: any) => (
-                                      <span key={agent.id} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300">
-                                        {agent.name}
-                                      </span>
-                                    ))}
                                   </div>
                                 )}
 
@@ -2180,7 +2213,7 @@ const Workflows = () => {
                                 )}
 
                                 {/* Keywords */}
-                                {doc.keywords.length > 0 && (
+                                {doc.keywords && doc.keywords.length > 0 && (
                                   <div className="flex flex-wrap gap-1.5">
                                     {doc.keywords.map(kw => (
                                       <span key={kw} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300">
@@ -2249,7 +2282,8 @@ const Workflows = () => {
               ? (newDoc.rawText.trim() !== '' && !newDoc.fileObject) ||
                 (newDoc.fileObject !== null && !newDoc.rawText.trim())
               : newDoc.fileObject !== null;
-            const isValid = newDoc.name.trim() && docSelectedAgents.length > 0 && hasSource;
+            // Agents are optional — document can be saved unassigned
+            const isValid = newDoc.name.trim().length >= 2 && hasSource;
             return (
               <div className="space-y-4 sm:space-y-5">
                 {/* Breadcrumb */}
@@ -2287,59 +2321,6 @@ const Workflows = () => {
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-8">
                       {/* Left Column */}
                       <div className="space-y-5">
-                      {/* Multi-agent assignment */}
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                          Link to AI Employees <span className="text-red-500">*</span>
-                        </label>
-                        <p className="text-xs text-slate-400 mb-2">Select one or more AI employees that will use this document.</p>
-                        {docApiAgents.length > 0 ? (
-                          <div className="common-bg-icons rounded-xl p-3 max-h-[180px] overflow-y-auto space-y-1.5">
-                            {docApiAgents.map((agent: any) => {
-                              const isSelected = docSelectedAgents.includes(agent.id);
-                              return (
-                                <button
-                                  key={agent.id}
-                                  type="button"
-                                  onClick={() => {
-                                    setDocSelectedAgents(prev =>
-                                      isSelected ? prev.filter(id => id !== agent.id) : [...prev, agent.id]
-                                    );
-                                  }}
-                                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all ${
-                                    isSelected
-                                      ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800'
-                                      : 'hover:bg-slate-100 dark:hover:bg-slate-700/50 border border-transparent'
-                                  }`}
-                                >
-                                  <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
-                                    isSelected
-                                      ? 'bg-blue-500 border-blue-500'
-                                      : 'border-slate-300 dark:border-slate-600'
-                                  }`}>
-                                    {isSelected && <Check className="w-3 h-3 text-white" />}
-                                  </div>
-                                  <Bot className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                                  <span className={`text-sm truncate ${isSelected ? 'text-blue-700 dark:text-blue-300 font-medium' : 'text-slate-700 dark:text-slate-300'}`}>
-                                    {agent.name}
-                                  </span>
-                                  {(agent.status === 'Published' || agent.is_active) && (
-                                    <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 dark:bg-green-900/20 text-green-600 dark:text-green-400 flex-shrink-0">Live</span>
-                                  )}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                            <AlertCircle className="w-3 h-3" /> Create an AI employee first.
-                          </p>
-                        )}
-                        {docSelectedAgents.length > 0 && (
-                          <p className="text-xs text-blue-500 mt-1.5">{docSelectedAgents.length} employee{docSelectedAgents.length !== 1 ? 's' : ''} selected</p>
-                        )}
-                      </div>
-
                       {/* Document name */}
                       <div>
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
@@ -2421,7 +2402,7 @@ const Workflows = () => {
                               <button
                                 key={type}
                                 type="button"
-                                onClick={() => setNewDoc(prev => ({ ...prev, type, sourceUrl: '', fileName: '' }))}
+                                onClick={() => setNewDoc(prev => ({ ...prev, type, sourceUrl: '', linkCategory: '', fileName: '' }))}
                                 className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-medium border transition-all text-left ${
                                   isSelected
                                     ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
@@ -2439,18 +2420,39 @@ const Workflows = () => {
 
                       {/* Source */}
                       {isUrl ? (
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                            {newDoc.type === 'social' ? 'Social Media URL' : 'Website URL'} <span className="text-red-500">*</span>
-                          </label>
-                          <div className="relative">
-                            <ExternalLink className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                              {newDoc.type === 'social' ? 'Social Media URL' : newDoc.type === 'custom-link' ? 'Custom URL' : 'Website URL'} <span className="text-red-500">*</span>
+                            </label>
+                            <div className="relative">
+                              <ExternalLink className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                              <input
+                                type="url"
+                                value={newDoc.sourceUrl}
+                                onChange={e => setNewDoc(prev => ({ ...prev, sourceUrl: e.target.value }))}
+                                placeholder={
+                                  newDoc.type === 'social' ? 'https://instagram.com/yourpage' :
+                                  newDoc.type === 'custom-link' ? 'https://platform.example.com/pay' :
+                                  'https://example.com'
+                                }
+                                className="w-full pl-9 pr-4 py-3 rounded-xl text-sm common-bg-icons"
+                              />
+                            </div>
+                          </div>
+                          {/* Link Category — shown for custom-link and other link types */}
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                              Link Category
+                              <span className="ml-1 text-xs text-slate-400 font-normal">(e.g. "stripe payment checkout")</span>
+                            </label>
                             <input
-                              type="url"
-                              value={newDoc.sourceUrl}
-                              onChange={e => setNewDoc(prev => ({ ...prev, sourceUrl: e.target.value }))}
-                              placeholder={newDoc.type === 'social' ? 'https://instagram.com/yourpage' : 'https://example.com'}
-                              className="w-full pl-9 pr-4 py-3 rounded-xl text-sm common-bg-icons"
+                              type="text"
+                              value={newDoc.linkCategory}
+                              onChange={e => setNewDoc(prev => ({ ...prev, linkCategory: e.target.value }))}
+                              placeholder="Describe what this link is used for..."
+                              maxLength={120}
+                              className="w-full px-4 py-3 rounded-xl text-sm common-bg-icons"
                             />
                           </div>
                         </div>
@@ -2671,6 +2673,52 @@ const Workflows = () => {
         </div>
       )}
       
+      {/* Doc Delete Confirmation Modal */}
+      {docToDelete && createPortal(
+        <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-xl border border-slate-200 dark:border-slate-700">
+            <div className="p-6">
+              <div className="flex items-center justify-center w-12 h-12 bg-red-100 dark:bg-red-900/20 rounded-full mx-auto mb-4">
+                <Trash2 className="w-6 h-6 text-red-600 dark:text-red-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-slate-800 dark:text-white text-center mb-2">
+                Delete Document?
+              </h3>
+              <p className="text-sm text-slate-600 dark:text-slate-400 text-center mb-6">
+                Are you sure you want to delete this document? This action cannot be undone.
+              </p>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setDocToDelete(null)}
+                  disabled={isDeletingDoc}
+                  className="flex-1 px-4 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeleteDoc}
+                  disabled={isDeletingDoc}
+                  className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl transition-all duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isDeletingDoc ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                      <span>Deleting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      <span>Delete</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
     </div>
   );
 };

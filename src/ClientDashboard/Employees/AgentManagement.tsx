@@ -3358,22 +3358,64 @@ const AgentManagement = () => {
                     </div>
                   </div>
 
-                  {/* Agent Details - Compact for Mobile */}
-                  <div className="space-y-2 mb-4 sm:mb-5">
-                    <div className="flex items-center justify-start text-xs sm:text-sm">
-                      <span className="text-slate-600 dark:text-slate-400">
-                        Voice:
-                      </span>
-                      <span className="text-slate-800 dark:text-white truncate ml-2 text-right">
+                  {/* Agent Details */}
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 mb-4 sm:mb-5 text-xs sm:text-sm">
+                    {/* Voice */}
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-0.5">Voice</span>
+                      <span className="text-slate-800 dark:text-white font-medium truncate">
                         {agent.voice}
                         {(agent as any).multilingual_voice && Array.isArray((agent as any).language) && (agent as any).language.includes("multilingual") && (
-                          <span className="ml-1.5 text-xs text-purple-600 dark:text-purple-400 font-medium">
-                            · Multilingual: {(agent as any).multilingual_voice}
-                          </span>
+                          <span className="ml-1 text-[10px] text-purple-600 dark:text-purple-400">·ML</span>
                         )}
                       </span>
                     </div>
 
+                    {/* Gender */}
+                    {(agent as any).gender && (
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-0.5">Gender</span>
+                        <span className="text-slate-800 dark:text-white font-medium capitalize truncate">
+                          {(agent as any).gender}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Business Process */}
+                    {(agent as any).business_process && (
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-0.5">Process</span>
+                        <span className="text-slate-800 dark:text-white font-medium capitalize truncate">
+                          {String((agent as any).business_process).replace(/_/g, ' ')}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Industry */}
+                    {(agent as any).industry && (
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-0.5">Industry</span>
+                        <span className="text-slate-800 dark:text-white font-medium capitalize truncate">
+                          {(agent as any).industry}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Created date */}
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-0.5">Created</span>
+                      <span className="text-slate-800 dark:text-white font-medium truncate">
+                        {new Date(agent.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </span>
+                    </div>
+
+                    {/* Company — always show */}
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-0.5">Company</span>
+                      <span className="text-slate-800 dark:text-white font-medium truncate">
+                        {(agent as any).company_name || user?.company || '—'}
+                      </span>
+                    </div>
                   </div>
 
                   {/* Primary Actions - Properly Aligned */}

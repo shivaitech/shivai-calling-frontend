@@ -22,7 +22,7 @@ import {
   MessageSquare,
   Users,
   Clock,
-  CheckCircle,
+  // CheckCircle unused
   Lightbulb,
   Download,
   Zap,
@@ -38,7 +38,16 @@ import {
   Trash2,
   Languages,
   Volume2,
+  BookOpen,
+  FileText,
+  Plus,
+  Check,
+  Loader2,
+  Search,
+  ExternalLink,
 } from "lucide-react";
+import { workflowAPI } from "../../services/workflowAPI";
+import type { WorkflowDocument, AgentDocumentFile } from "../../services/workflowAPI";
 
 interface AgentViewPageProps {
   currentAgent: Agent;
@@ -162,6 +171,16 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
   const location = useLocation();
   const [agentData, setAgentData] = useState<any>(null);
 
+  // ── AI Documents state ────────────────────────────────────────────────────
+  const [agentDocs, setAgentDocs] = useState<AgentDocumentFile[]>([]);
+  const [docsLoading, setDocsLoading] = useState(false);
+  const [showDocPicker, setShowDocPicker] = useState(false);
+  const [allDocs, setAllDocs] = useState<WorkflowDocument[]>([]);
+  const [allDocsLoading, setAllDocsLoading] = useState(false);
+  const [docPickerSelected, setDocPickerSelected] = useState<string[]>([]);
+  const [docPickerSearch, setDocPickerSearch] = useState('');
+  const [docPickerSaving, setDocPickerSaving] = useState(false);
+
   // Fetch agent config data using same API as Edit page
   useEffect(() => {
     if (!id) return;
@@ -212,16 +231,79 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
     return () => window.removeEventListener("agentUpdated", handleAgentUpdate);
   }, [id]);
 
+  // Fetch documents assigned to this agent
+  const fetchAgentDocs = async () => {
+    if (!id) return;
+    setDocsLoading(true);
+    try {
+      const res = await workflowAPI.getAgentDocuments(id);
+      setAgentDocs(res.data.document?.files ?? []);
+    } catch {
+      setAgentDocs([]);
+    } finally {
+      setDocsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAgentDocs();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  const openDocPicker = async () => {
+    // Pre-select docs already assigned to this agent (by their library document_id)
+    setDocPickerSelected(agentDocs.map(d => d.document_id));
+    setDocPickerSearch('');
+    setShowDocPicker(true);
+    setAllDocsLoading(true);
+    try {
+      const res = await workflowAPI.listDocuments();
+      setAllDocs(res.data.documents);
+    } catch {
+      setAllDocs([]);
+    } finally {
+      setAllDocsLoading(false);
+    }
+  };
+
+  const unlinkDoc = async (documentId: string) => {
+    if (!id) return;
+    try {
+      await workflowAPI.removeDocumentFromAgent(id, documentId);
+      await fetchAgentDocs();
+      appToast.success('Document unlinked');
+    } catch {
+      appToast.error('Failed to unlink document');
+    }
+  };
+
+  const handleSaveDocs = async () => {
+    if (!id) return;
+    setDocPickerSaving(true);
+    try {
+      const newlySelected = docPickerSelected.filter(
+        docId => !agentDocs.some(d => d.document_id === docId)
+      );
+      if (newlySelected.length > 0) {
+        await workflowAPI.assignDocumentsToAgent(id, { documentIds: newlySelected });
+      }
+      await fetchAgentDocs();
+      setShowDocPicker(false);
+      appToast.success('Documents updated');
+    } catch {
+      appToast.error('Failed to save documents');
+    } finally {
+      setDocPickerSaving(false);
+    }
+  };
+
+  const filteredPickerDocs = allDocs.filter(doc =>
+    doc.document_name.toLowerCase().includes(docPickerSearch.toLowerCase()) ||
+    doc.document_type.toLowerCase().includes(docPickerSearch.toLowerCase())
+  );
+
   // Use fetched agent data if available, otherwise use prop
   const agent = agentData || currentAgent;
-
-  // Provide default stats if not available
-  const stats = agent?.stats || {
-    conversations: 0,
-    successRate: 0,
-    avgResponseTime: 0,
-    activeUsers: 0,
-  };
 
   const isActive =
     agent?.status === "Published" || (agent as any)?.is_active;
@@ -650,6 +732,225 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
           </GlassCard>
         ))}
       </div> */}
+
+      {/* ── AI Documents Section ─────────────────────────────────────────── */}
+      <GlassCard>
+        <div className="p-4 sm:p-5 lg:p-6">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-4 sm:mb-5">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-blue-50 dark:bg-blue-900/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                <BookOpen className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-slate-800 dark:text-white leading-tight">AI Documents</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Shared by AI when users ask for PDFs, links, images & more</p>
+              </div>
+            </div>
+            <button
+              onClick={openDocPicker}
+              className="flex items-center justify-center w-8 h-8 rounded-xl flex-shrink-0 bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+              title="Add document"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Document list */}
+          {docsLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
+            </div>
+          ) : agentDocs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+              <div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center mb-3">
+                <BookOpen className="w-6 h-6 text-slate-400" />
+              </div>
+              <p className="text-sm font-medium text-slate-600 dark:text-slate-400">No documents linked yet</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 text-center max-w-[220px]">
+                Add documents from your AI document library to give this agent reference knowledge
+              </p>
+              <button
+                onClick={openDocPicker}
+                className="mt-4 flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium common-button-bg text-white"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add Document
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {agentDocs.map(doc => {
+                const isLink = !!doc.website_url;
+                return (
+                  <div
+                    key={doc.id}
+                    className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700"
+                  >
+                    <div className="w-9 h-9 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                      {isLink
+                        ? <ExternalLink className="w-4 h-4 text-blue-500" />
+                        : <FileText className="w-4 h-4 text-blue-500" />
+                      }
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-slate-800 dark:text-white truncate">{doc.document_name}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{doc.document_type}</p>
+                    </div>
+                    <button
+                      onClick={() => unlinkDoc(doc.document_id)}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex-shrink-0"
+                      title="Unlink document"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </GlassCard>
+
+      {/* Doc Picker Modal */}
+      {showDocPicker && (
+        <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg shadow-xl border border-slate-200 dark:border-slate-700 flex flex-col max-h-[85vh]">
+            {/* Modal header */}
+            <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-blue-50 dark:bg-blue-900/20 rounded-xl flex items-center justify-center">
+                  <BookOpen className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-slate-800 dark:text-white">Add Documents</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Select documents to link to this agent</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowDocPicker(false)}
+                className="w-8 h-8 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+              >
+                <X className="w-4 h-4 text-slate-400" />
+              </button>
+            </div>
+
+            {/* Search */}
+            <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                <input
+                  type="text"
+                  value={docPickerSearch}
+                  onChange={e => setDocPickerSearch(e.target.value)}
+                  placeholder="Search documents..."
+                  className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 focus:outline-none focus:border-blue-400"
+                />
+              </div>
+            </div>
+
+            {/* Document list */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-2 min-h-0">
+              {allDocsLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
+                </div>
+              ) : allDocs.length === 0 ? (
+                <div className="text-center py-10">
+                  <BookOpen className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                  <p className="text-sm text-slate-500 dark:text-slate-400">No documents in library</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 mb-4">Create documents in the AI Documents section first</p>
+                  <button
+                    onClick={() => { setShowDocPicker(false); navigate('/workflows', { state: { tab: 'documents' } }); }}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Add First Document
+                  </button>
+                </div>
+              ) : filteredPickerDocs.length === 0 ? (
+                <p className="text-sm text-center text-slate-400 py-8">No results for &ldquo;{docPickerSearch}&rdquo;</p>
+              ) : (
+                filteredPickerDocs.map(doc => {
+                  const isSelected = docPickerSelected.includes(doc.id);
+                  const isLink = doc.source_type === 'link';
+                  const alreadyLinked = agentDocs.some(d => d.document_id === doc.id);
+                  return (
+                    <button
+                      key={doc.id}
+                      type="button"
+                      onClick={() =>
+                        setDocPickerSelected(prev =>
+                          isSelected ? prev.filter(i => i !== doc.id) : [...prev, doc.id]
+                        )
+                      }
+                      className={`w-full flex items-center gap-3 p-3 rounded-xl text-left border transition-all ${
+                        isSelected
+                          ? 'border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20'
+                          : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 bg-slate-50 dark:bg-slate-800/50'
+                      }`}
+                    >
+                      {/* Checkbox */}
+                      <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                        isSelected ? 'bg-blue-500 border-blue-500' : 'border-slate-300 dark:border-slate-600'
+                      }`}>
+                        {isSelected && <Check className="w-3 h-3 text-white" />}
+                      </div>
+                      {/* Icon */}
+                      <div className="w-9 h-9 bg-blue-100 dark:bg-blue-900/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                        {isLink
+                          ? <ExternalLink className="w-4 h-4 text-blue-500" />
+                          : <FileText className="w-4 h-4 text-blue-500" />
+                        }
+                      </div>
+                      {/* Info */}
+                      <div className="min-w-0 flex-1">
+                        <p className={`text-sm font-medium truncate ${isSelected ? 'text-blue-700 dark:text-blue-300' : 'text-slate-800 dark:text-white'}`}>
+                          {doc.document_name}
+                        </p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{doc.document_type}</p>
+                      </div>
+                      {/* Badge */}
+                      {alreadyLinked && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/20 text-green-600 dark:text-green-400 flex-shrink-0 whitespace-nowrap">
+                          Linked
+                        </span>
+                      )}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3 flex-shrink-0">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {docPickerSelected.length} document{docPickerSelected.length !== 1 ? 's' : ''} selected
+              </p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowDocPicker(false)}
+                  disabled={docPickerSaving}
+                  className="px-4 py-2 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveDocs}
+                  disabled={docPickerSaving || docPickerSelected.length === 0}
+                  className="px-4 py-2 rounded-xl text-sm font-medium common-button-bg text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {docPickerSaving ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /><span>Saving...</span></>
+                  ) : (
+                    <span>Save Changes</span>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Widget Customization Section */}
       <div className="mt-3 sm:mt-4 lg:mt-6">

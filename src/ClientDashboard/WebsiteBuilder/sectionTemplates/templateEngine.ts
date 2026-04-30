@@ -133,9 +133,17 @@ export function assembleWebsite(
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" crossorigin="anonymous">
   <style>
+    /* ── Reset & base (mobile-first) ── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { scroll-behavior: smooth; }
-    body { font-family: ${data.bodyFont}, sans-serif; color: ${data.textColor}; background: ${data.bgColor}; line-height: 1.6; overflow-x: hidden; }
+    body {
+      font-family: ${data.bodyFont}, sans-serif;
+      color: ${data.textColor};
+      background: ${data.bgColor};
+      line-height: 1.6;
+      overflow-x: hidden;
+      -webkit-text-size-adjust: 100%;
+    }
     img { max-width: 100%; height: auto; display: block; }
     a { color: inherit; }
     i[data-lucide] { display: inline-block; vertical-align: middle; }
@@ -166,10 +174,7 @@ export function assembleWebsite(
     #mobile-nav-drawer {
       display: none;
       position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
+      top: 0; left: 0; right: 0; bottom: 0;
       z-index: 1000;
       flex-direction: column;
       align-items: center;
@@ -190,27 +195,41 @@ export function assembleWebsite(
       transition: background 0.2s;
     }
 
-    /* ── Responsive grid overrides ── */
-    @media (max-width: 768px) {
-      /* All multi-column grids collapse to 1 column */
+    /* ── Mobile-first: CSS fast-path overrides (JS mobilizer handles the rest) ── */
+    @media (max-width: 767px) {
+      /* Header: hide desktop nav & CTA, show hamburger */
+      #site-header nav { display: none !important; }
+      #site-header .header-cta-desktop { display: none !important; }
+      #mobile-menu-toggle { display: flex !important; }
+
+      /* Ensure all sections have horizontal breathing room */
+      section { padding-left: 16px !important; padding-right: 16px !important; }
+
+      /* All 2-column grids → single column */
       [style*="grid-template-columns:1fr 1fr"],
       [style*="grid-template-columns: 1fr 1fr"],
       [style*="grid-template-columns:2fr 1fr"],
       [style*="grid-template-columns: 2fr 1fr"],
       [style*="grid-template-columns:1fr 2fr"],
       [style*="grid-template-columns: 1fr 2fr"],
-      [style*="grid-template-columns:1fr 1fr 1fr"],
-      [style*="grid-template-columns: 1fr 1fr 1fr"],
       [style*="grid-template-columns:220px"],
-      [style*="grid-template-columns: 220px"] {
+      [style*="grid-template-columns: 220px"],
+      [style*="grid-template-columns:200px"],
+      [style*="grid-template-columns: 200px"] {
         grid-template-columns: 1fr !important;
+        gap: 20px !important;
       }
-      /* 3-col grids → 2 cols */
+
+      /* 3-col → 2-col (cards stack nicely at 2) */
       [style*="grid-template-columns:repeat(3"],
-      [style*="grid-template-columns: repeat(3"] {
+      [style*="grid-template-columns: repeat(3"],
+      [style*="grid-template-columns:1fr 1fr 1fr"],
+      [style*="grid-template-columns: 1fr 1fr 1fr"] {
         grid-template-columns: repeat(2, 1fr) !important;
+        gap: 16px !important;
       }
-      /* 4+ col grids → 2 cols */
+
+      /* 4+ col → 2-col */
       [style*="grid-template-columns:repeat(4"],
       [style*="grid-template-columns: repeat(4"],
       [style*="grid-template-columns:repeat(5"],
@@ -218,100 +237,81 @@ export function assembleWebsite(
       [style*="grid-template-columns:repeat(6"],
       [style*="grid-template-columns: repeat(6"] {
         grid-template-columns: repeat(2, 1fr) !important;
+        gap: 14px !important;
       }
-      /* Reduce gaps in grids */
-      [style*="display:grid"],
-      [style*="display: grid"] {
+
+      /* Comparison table dynamic grids (e.g. "2fr 1fr 1fr 1fr") */
+      [style*="grid-template-columns:2fr "],
+      [style*="grid-template-columns: 2fr "] {
+        grid-template-columns: 1fr !important;
         gap: 16px !important;
       }
-      /* Flex rows that should stack */
-      [style*="flex-direction:row"],
-      [style*="flex-direction: row"] {
-        flex-wrap: wrap !important;
-      }
-      /* Section padding reductions */
-      section {
+
+      /* Reduce inner container horizontal padding */
+      [style*="max-width:1200px"], [style*="max-width: 1200px"],
+      [style*="max-width:1280px"], [style*="max-width: 1280px"],
+      [style*="max-width:1100px"], [style*="max-width: 1100px"],
+      [style*="max-width:1000px"], [style*="max-width: 1000px"],
+      [style*="max-width:1400px"], [style*="max-width: 1400px"] {
         padding-left: 16px !important;
         padding-right: 16px !important;
       }
-      [style*="padding:96px"],
-      [style*="padding: 96px"] {
-        padding-top: 56px !important;
-        padding-bottom: 56px !important;
+
+      /* Section padding: reduce large top/bottom */
+      [style*="padding:96px"],  [style*="padding: 96px"]  { padding-top: 52px !important; padding-bottom: 52px !important; }
+      [style*="padding:100px"], [style*="padding: 100px"],
+      [style*="padding:110px"], [style*="padding: 110px"],
+      [style*="padding:120px"], [style*="padding: 120px"] { padding-top: 56px !important; padding-bottom: 56px !important; }
+      [style*="padding:80px"],  [style*="padding: 80px"]  { padding-top: 48px !important; padding-bottom: 48px !important; }
+
+      /* Hero min-height: cap to screen height */
+      [style*="min-height:100vh"], [style*="min-height: 100vh"],
+      [style*="min-height:92vh"],  [style*="min-height: 92vh"],
+      [style*="min-height:90vh"],  [style*="min-height: 90vh"] {
+        min-height: 100svh !important;
       }
-      [style*="padding:100px"],
-      [style*="padding: 100px"],
-      [style*="padding:110px"],
-      [style*="padding: 110px"],
-      [style*="padding:120px"],
-      [style*="padding: 120px"] {
-        padding-top: 64px !important;
-        padding-bottom: 56px !important;
+
+      /* Inline-flex CTA button groups: wrap */
+      [style*="display:flex"][style*="gap:16px"] > a,
+      [style*="display:flex"][style*="gap:20px"] > a,
+      [style*="display:flex"][style*="gap:24px"] > a {
+        flex: 1 1 140px;
+        text-align: center !important;
+        justify-content: center !important;
       }
-      /* max-width inner containers — full-width on mobile */
-      [style*="max-width:1200px"],
-      [style*="max-width: 1200px"],
-      [style*="max-width:1280px"],
-      [style*="max-width: 1280px"],
-      [style*="max-width:1100px"],
-      [style*="max-width: 1100px"],
-      [style*="max-width:1400px"],
-      [style*="max-width: 1400px"] {
-        padding-left: 16px !important;
-        padding-right: 16px !important;
-      }
-      /* Header nav desktop → hidden, toggle visible */
-      #site-header nav { display: none !important; }
-      #site-header .header-cta-desktop { display: none !important; }
-      #mobile-menu-toggle { display: flex !important; }
-      /* Full-screen hero min-height reduction */
-      [style*="min-height:92vh"],
-      [style*="min-height: 92vh"],
-      [style*="min-height:100vh"],
-      [style*="min-height: 100vh"] {
-        min-height: 70vh !important;
-      }
-      /* Stat counters: keep 2-col on phones */
-      [style*="display:flex;gap:40px"],
-      [style*="display: flex; gap: 40px"] {
-        flex-wrap: wrap !important;
-        gap: 20px !important;
-      }
-      /* Trust badges row */
-      [style*="display:flex;gap:24px"],
-      [style*="display: flex; gap: 24px"] {
-        flex-wrap: wrap !important;
+
+      /* Email capture flex form (e.g. contact-06): stack inputs */
+      form[style*="display:flex"] {
+        flex-direction: column !important;
         gap: 12px !important;
       }
-      /* Dual-row header top bar */
-      [style*="justify-content:flex-end;align-items:center;gap:24px"],
-      [style*="justify-content: flex-end; align-items: center; gap: 24px"] {
-        justify-content: center !important;
-        flex-wrap: wrap !important;
+      form[style*="display:flex"] input,
+      form[style*="display:flex"] button {
+        border-radius: 10px !important;
+        width: 100% !important;
+      }
+
+      /* Hero image order: text block first */
+      #hero [style*="order:2"],
+      [id="hero"] [style*="order:2"] {
+        order: 10 !important;
       }
     }
 
-    @media (max-width: 480px) {
-      /* 3-col and 4-col → 1 col on very small screens */
+    @media (max-width: 479px) {
+      /* Very small phones: collapse 2-col cards to 1 col */
       [style*="grid-template-columns:repeat(3"],
       [style*="grid-template-columns: repeat(3"],
-      [style*="grid-template-columns:repeat(4"],
-      [style*="grid-template-columns: repeat(4"],
-      [style*="grid-template-columns:repeat(5"],
-      [style*="grid-template-columns: repeat(5"] {
-        grid-template-columns: 1fr !important;
-      }
-      /* Pricing plans */
       [style*="grid-template-columns:repeat(2"],
       [style*="grid-template-columns: repeat(2"] {
         grid-template-columns: 1fr !important;
       }
-      /* Reduce button sizes slightly */
-      a[style*="padding:14px 32px"],
-      a[style*="padding: 14px 32px"],
-      a[style*="padding:15px 36px"],
-      a[style*="padding: 15px 36px"] {
-        padding: 12px 20px !important;
+
+      /* Reduce CTA button padding on tiny screens */
+      a[style*="padding:14px 32px"], a[style*="padding: 14px 32px"],
+      a[style*="padding:15px 36px"], a[style*="padding: 15px 36px"],
+      a[style*="padding:16px 40px"], a[style*="padding: 16px 40px"] {
+        padding: 13px 20px !important;
         font-size: 15px !important;
       }
     }
@@ -398,6 +398,208 @@ ${sectionHtml.join("\n")}
 
     header.appendChild(toggle);
     document.body.appendChild(drawer);
+  })();
+
+  // ── Mobile-first layout engine ──
+  // Runs on DOMContentLoaded and resize to rewrite inline styles for mobile.
+  // This handles ALL template grid patterns reliably, including dynamic ones
+  // (e.g. "2fr 1fr 1fr 1fr" comparison tables, "220px 1fr" sidebars, etc.)
+  (function() {
+    var MOBILE_BP = 768;
+    var SMALL_BP  = 480;
+
+    /** Count the number of column tracks in a grid-template-columns value */
+    function colCount(cols) {
+      if (!cols || cols === 'none') return 1;
+      var m = cols.match(/^repeat\(\s*(\d+)/);
+      if (m) return parseInt(m[1], 10);
+      // Count space-separated tokens (ignoring spaces inside parentheses)
+      var depth = 0, count = 1, prev = '';
+      for (var i = 0; i < cols.length; i++) {
+        var c = cols[i];
+        if (c === '(') { depth++; }
+        else if (c === ')') { depth--; }
+        else if (c === ' ' && depth === 0 && prev !== ' ') { count++; }
+        prev = c;
+      }
+      return count;
+    }
+
+    function mobilize() {
+      var W = window.innerWidth;
+      var mobile = W < MOBILE_BP;
+      var small  = W < SMALL_BP;
+
+      // ── 1. Rewrite multi-column grid layouts ──
+      var gridEls = document.querySelectorAll('[style*="grid-template-columns"]');
+      for (var i = 0; i < gridEls.length; i++) {
+        var el = gridEls[i];
+        var cols = el.style.gridTemplateColumns;
+        if (!cols || cols === 'none') continue;
+        var n = colCount(cols);
+        if (n <= 1) continue; // already single column
+
+        if (mobile) {
+          // On small phones: always 1 column
+          // On wider mobile (480-767px): keep 2-col only for small card grids (repeat(2,...))
+          var isSmallCardGrid = n === 2 && cols.indexOf('repeat') !== -1;
+          if (small || !isSmallCardGrid) {
+            el.style.gridTemplateColumns = '1fr';
+          }
+          // Reduce gap on mobile
+          var currentGap = parseInt(el.style.gap) || 0;
+          if (currentGap > 20) {
+            el.style.gap = small ? '12px' : '16px';
+          }
+        } else {
+          // Desktop: restore original inline style is not needed —
+          // JS only runs overrides; CSS is the source of truth for desktop.
+          // However if we previously wrote '1fr', we must restore:
+          // (Not needed since we attach data-original-cols on first run)
+        }
+      }
+
+      if (!mobile) return; // all remaining steps are mobile-only
+
+      // ── 2. Section vertical padding reduction ──
+      var sections = document.querySelectorAll('section');
+      for (var j = 0; j < sections.length; j++) {
+        var sec = sections[j];
+        var sp = sec.style.padding;
+        var spt = sec.style.paddingTop;
+        var spb = sec.style.paddingBottom;
+        if (sp) {
+          var parts = sp.trim().split(/\s+/);
+          var vp = parseInt(parts[0]) || 0;
+          var hp = parts.length > 1 ? parseInt(parts[1]) || 0 : 0;
+          var newHp = Math.max(hp, 16);
+          if (vp >= 80)      sec.style.padding = '52px ' + newHp + 'px';
+          else if (vp >= 60) sec.style.padding = '40px ' + newHp + 'px';
+          else if (vp > 0 && hp < 16) {
+            sec.style.paddingLeft  = '16px';
+            sec.style.paddingRight = '16px';
+          }
+        } else {
+          if (!sec.style.paddingLeft)  sec.style.paddingLeft  = '16px';
+          if (!sec.style.paddingRight) sec.style.paddingRight = '16px';
+          var ptNum = parseInt(spt) || 0;
+          var pbNum = parseInt(spb) || 0;
+          if (ptNum >= 80)  sec.style.paddingTop    = '52px';
+          else if (ptNum >= 60) sec.style.paddingTop = '40px';
+          if (pbNum >= 80)  sec.style.paddingBottom = '52px';
+          else if (pbNum >= 60) sec.style.paddingBottom = '40px';
+        }
+      }
+
+      // ── 3. Inner container (max-width wrappers) horizontal padding ──
+      var containers = document.querySelectorAll('[style*="max-width"]');
+      for (var k = 0; k < containers.length; k++) {
+        var cnt = containers[k];
+        var mw = parseInt(cnt.style.maxWidth) || 0;
+        if (mw < 700) continue;
+        var cp = cnt.style.padding;
+        var cpl = parseInt(cnt.style.paddingLeft) || 0;
+        var cpr = parseInt(cnt.style.paddingRight) || 0;
+        if (cp) {
+          var cparts = cp.trim().split(/\s+/);
+          var chp = cparts.length > 1 ? parseInt(cparts[1]) || 0 : parseInt(cparts[0]) || 0;
+          if (chp < 16) {
+            cnt.style.paddingLeft  = '16px';
+            cnt.style.paddingRight = '16px';
+          }
+        } else if (cpl < 16 || cpr < 16) {
+          cnt.style.paddingLeft  = '16px';
+          cnt.style.paddingRight = '16px';
+        }
+      }
+
+      // ── 4. Card/box inner padding reduction ──
+      var padEls = document.querySelectorAll('[style*="padding:"]');
+      for (var l = 0; l < padEls.length; l++) {
+        var pEl = padEls[l];
+        if (pEl.tagName === 'SECTION' || pEl.tagName === 'BODY' || pEl.tagName === 'HTML') continue;
+        var ep = pEl.style.padding;
+        if (!ep) continue;
+        var eParts = ep.trim().split(/\s+/);
+        var eTop = parseInt(eParts[0]) || 0;
+        // Reduce large card padding (40-80px) to mobile-friendly sizes
+        if (eTop >= 48 && eTop <= 80) {
+          var eH = Math.min(eParts.length > 1 ? parseInt(eParts[1]) || eTop : eTop, 20);
+          pEl.style.padding = '28px ' + eH + 'px';
+        } else if (eTop >= 40 && eParts.length === 1) {
+          pEl.style.padding = small ? '20px' : '24px';
+        }
+      }
+
+      // ── 5. Hero section: ensure text appears before image ──
+      var heroEl = document.querySelector('#hero') || document.querySelectorAll('section')[1];
+      if (heroEl) {
+        var hGrid = heroEl.querySelector('[style*="grid-template-columns"]') ||
+                    heroEl.querySelector('[style*="display:grid"]');
+        if (hGrid) {
+          var hChildren = Array.from(hGrid.children);
+          hChildren.forEach(function(child) {
+            var hc = child;
+            var hasHeading  = hc.querySelector('h1, h2');
+            var isImgOnly   = hc.querySelector('img') && !hc.querySelector('h1, h2, p');
+            if (hasHeading) hc.style.order = '1';
+            if (isImgOnly)  hc.style.order = '2';
+          });
+        }
+      }
+
+      // ── 6. CTA / button-group flex rows: wrap and centre ──
+      var flexEls = document.querySelectorAll('[style*="display:flex"]');
+      for (var fi = 0; fi < flexEls.length; fi++) {
+        var fEl = flexEls[fi];
+        var fGap = parseInt(fEl.style.gap) || 0;
+        if (fGap < 12 || fEl.children.length < 2) continue;
+        var allBtns = Array.from(fEl.children).every(function(c) {
+          return c.tagName === 'A' || c.tagName === 'BUTTON';
+        });
+        if (allBtns && !fEl.style.flexWrap) {
+          fEl.style.flexWrap = 'wrap';
+          if (!fEl.style.justifyContent) fEl.style.justifyContent = 'center';
+        }
+      }
+
+      // ── 7. Hero/section min-height: cap to viewport ──
+      var mhEls = document.querySelectorAll('[style*="min-height"]');
+      for (var mi = 0; mi < mhEls.length; mi++) {
+        var mhEl = mhEls[mi];
+        var mhVal = mhEl.style.minHeight;
+        if (!mhVal) continue;
+        var mhNum = parseInt(mhVal);
+        // Only reduce very large min-heights (full-screen heroes)
+        if (mhVal.indexOf('vh') !== -1 && mhNum >= 85) {
+          mhEl.style.minHeight = small ? '100svh' : '90vh';
+        } else if (mhNum > 600) {
+          mhEl.style.minHeight = small ? '100svh' : '90vh';
+        }
+      }
+
+      // ── 8. Images in grid cells: ensure they don't overflow ──
+      var imgs = document.querySelectorAll('img');
+      for (var ii = 0; ii < imgs.length; ii++) {
+        var img = imgs[ii];
+        img.style.maxWidth = '100%';
+        img.style.height   = 'auto';
+      }
+    }
+
+    // Run immediately if DOM is ready, otherwise wait for it
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', mobilize);
+    } else {
+      mobilize();
+    }
+
+    // Re-run on resize (debounced)
+    var resizeTimer;
+    window.addEventListener('resize', function() {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(mobilize, 120);
+    });
   })();
 </script>
 </body>

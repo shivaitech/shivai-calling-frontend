@@ -968,21 +968,14 @@ const Analytics = () => {
                           })()}
                         </div>
 
-                        {/* Status Badge */}
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="px-2.5 py-1 bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400 rounded-full text-xs font-medium border border-green-200 dark:border-green-800">
-                            {session.status || "Completed"}
-                          </span>
-                        </div>
-
                         {/* Details Grid */}
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                           <div className="bg-slate-50 dark:bg-slate-900/30 p-2.5 rounded-lg">
                             <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">
-                              Duration
+                              Date
                             </p>
                             <p className="text-sm text-slate-800 dark:text-white font-semibold">
-                              {formatDuration(session.duration_seconds)}
+                              {formatDate(session.start_time)}
                             </p>
                           </div>
                           <div className="bg-slate-50 dark:bg-slate-900/30 p-2.5 rounded-lg">
@@ -995,10 +988,10 @@ const Analytics = () => {
                           </div>
                           <div className="bg-slate-50 dark:bg-slate-900/30 p-2.5 rounded-lg">
                             <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">
-                              Date
+                              Duration
                             </p>
                             <p className="text-sm text-slate-800 dark:text-white font-semibold">
-                              {formatDate(session.start_time)}
+                              {formatDuration(session.duration_seconds)}
                             </p>
                           </div>
                           <div className="bg-slate-50 dark:bg-slate-900/30 p-2.5 rounded-lg">
