@@ -5,8 +5,9 @@ import { useParams, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Orb, oceanDepthsPreset } from "react-ai-orb";
 import bgNew from "../resources/AiImages/bg22.webp";
-import { isKunalPrakashClient } from "../lib/utils";
+import { isKunalPrakashClient, isNagarNigamMoradabadClient } from "../lib/utils";
 import AgentPublicPageNLP from "./AgentPublicPageNLP";
+import NagarNigamMoradabad from "./agentTestPages/NagarNigamMoradabad";
 
 interface AgentInfo {
   name: string;
@@ -14,6 +15,7 @@ interface AgentInfo {
   industry?: string;
   language?: string;
   business_process?: string;
+  company_name?: string;
 }
 
 export default function AgentPublicPage() {
@@ -47,6 +49,9 @@ export default function AgentPublicPage() {
   const isTradeFxClient =
     (agentInfo?.name || "") === "Saanvi" ||
     (userEmail || "").toLowerCase() === "tradefxservicesofficial@gmail.com";
+
+  // Nagar Nigam Moradabad client — matches by email, agent name, or company name
+  const isNagarNigamClient = isNagarNigamMoradabadClient(userEmail || undefined, agentInfo?.name, agentInfo?.company_name);
 
   const badgePhrases = isTradeFxClient ? [
     "Ask about accounts, spreads & leverage",
@@ -197,7 +202,11 @@ export default function AgentPublicPage() {
   // TradeFx client: Saanvi agent — use dedicated NLP page
   if (isTradeFxClient) {
     return <AgentPublicPageNLP />;
+  }
 
+  // Nagar Nigam Moradabad client — use dedicated civic page
+  if (isNagarNigamClient) {
+    return <NagarNigamMoradabad />;
   }
 
   return (

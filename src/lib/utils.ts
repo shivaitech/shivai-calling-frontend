@@ -45,3 +45,17 @@ export function isDeveloperUser(userEmail?: string): boolean {
 export function isKunalPrakashClient(userEmail?: string): boolean {
   return userEmail === "kunalprakashjha@gmail.com";
 }
+
+// Check if this is the Nagar Nigam Moradabad client
+// Matches by email, agent name, or company name containing "nagar nigam" / "moradabad"
+export function isNagarNigamMoradabadClient(userEmail?: string, agentName?: string, companyName?: string): boolean {
+  const check = (s?: string) => (
+    (s || "").toLowerCase().includes("nagar nigam") ||
+    (s || "").toLowerCase().includes("nagarnigam") ||
+    (s || "").toLowerCase().includes("moradabad")
+  );
+  const emailMatch =
+    check(userEmail) ||
+    userEmail?.toLowerCase() === "nagarnigammoradabad@gmail.com";
+  return !!(emailMatch || check(agentName) || check(companyName));
+}
