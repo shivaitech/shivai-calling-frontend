@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import GlassCard from '../../components/GlassCard';
 import { useAgent } from '../../contexts/AgentContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -43,7 +43,8 @@ import {
   File,
   Check,
   UploadCloud,
-  Loader2
+  Loader2,
+  ArrowLeft
 } from 'lucide-react';
 import type { WorkflowDocument } from '../../services/workflowAPI';
 
@@ -78,13 +79,22 @@ type DocType = 'pdf' | 'image' | 'docx' | 'txt' | 'website' | 'social' | 'custom
 const Workflows = () => {
   const { agents } = useAgent();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'canvas' | 'workflows' | 'runs' | 'documents'>('canvas');
   const location = useLocation();
 
   // Open documents tab when navigated here with state { tab: 'documents' }
+  const [fromAgent, setFromAgent] = useState<{ id: string; name: string } | null>(null);
   useEffect(() => {
-    if ((location.state as any)?.tab === 'documents') {
+    const state = location.state as any;
+    if (state?.tab === 'documents') {
       setActiveTab('documents');
+      if (state?.createDoc) {
+        setDocView('create-doc');
+      }
+      if (state?.fromAgentId) {
+        setFromAgent({ id: state.fromAgentId, name: state.fromAgentName || 'Agent' });
+      }
     }
   }, [location.state]);
   const [selectedAgent, setSelectedAgent] = useState('');
@@ -2121,6 +2131,17 @@ const Workflows = () => {
                         <BookOpen className="w-5 h-5 text-white" />
                       </div>
                       <div>
+                        <div className="flex items-center gap-2">
+                          {fromAgent && (
+                            <button
+                              onClick={() => navigate(`/agents/${fromAgent.id}`)}
+                              className="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors mb-0.5"
+                            >
+                              <ArrowLeft className="w-3 h-3" />
+                              Back to {fromAgent.name}
+                            </button>
+                          )}
+                        </div>
                         <h3 className="text-lg sm:text-xl font-semibold text-slate-800 dark:text-white">AI Document Library</h3>
                         <p className="text-sm text-slate-500 dark:text-slate-400">
                           Manage documents your AI employees use to answer queries accurately.
@@ -2340,34 +2361,44 @@ const Workflows = () => {
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                           Keywords
                         </label>
-                        <p className="text-xs text-slate-400 mb-2">Press Enter or comma to add a keyword.</p>
-                        <div
-                          className="common-bg-icons rounded-xl px-3 py-2.5 min-h-[50px] flex flex-wrap gap-1.5 items-center cursor-text"
-                          onClick={() => document.getElementById('kw-input-page')?.focus()}
-                        >
-                          {newDoc.keywords.map(kw => (
-                            <span key={kw} className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
-                              <Hash className="w-2.5 h-2.5" />
-                              {kw}
-                              <button
-                                type="button"
-                                onClick={e => { e.stopPropagation(); setNewDoc(prev => ({ ...prev, keywords: prev.keywords.filter(k => k !== kw) })); }}
-                                className="ml-0.5 rounded-full p-0.5 hover:bg-red-100 dark:hover:bg-red-900/20 hover:text-red-500 transition-colors"
-                              >
-                                <X className="w-2.5 h-2.5" />
-                              </button>
-                            </span>
-                          ))}
+                        <p className="text-xs text-slate-400 mb-2">Type a keyword and click <span className="font-medium text-blue-500">+ Add</span> (or press Enter) to add it.</p>
+                        {/* Tag chips */}
+                        {newDoc.keywords.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mb-2">
+                            {newDoc.keywords.map(kw => (
+                              <span key={kw} className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+                                <Hash className="w-2.5 h-2.5" />
+                                {kw}
+                                <button
+                                  type="button"
+                                  onClick={e => { e.stopPropagation(); setNewDoc(prev => ({ ...prev, keywords: prev.keywords.filter(k => k !== kw) })); }}
+                                  className="ml-0.5 rounded-full p-0.5 hover:bg-red-100 dark:hover:bg-red-900/20 hover:text-red-500 transition-colors"
+                                >
+                                  <X className="w-2.5 h-2.5" />
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {/* Input + Add button row */}
+                        <div className="flex gap-2 items-center">
                           <input
                             id="kw-input-page"
                             type="text"
                             value={docKeywordInput}
                             onChange={e => setDocKeywordInput(e.target.value)}
                             onKeyDown={handleKeywordInputKey}
-                            onBlur={handleAddKeyword}
-                            placeholder={newDoc.keywords.length === 0 ? 'Add keywords...' : ''}
-                            className="flex-1 min-w-[80px] bg-transparent outline-none text-sm text-slate-700 dark:text-slate-300 placeholder:text-slate-400"
+                            placeholder="e.g. pricing, refund policy..."
+                            className="flex-1 px-3 py-2 rounded-xl text-sm common-bg-icons outline-none text-slate-700 dark:text-slate-300 placeholder:text-slate-400"
                           />
+                          <button
+                            type="button"
+                            onClick={handleAddKeyword}
+                            disabled={!docKeywordInput.trim()}
+                            className="px-3 py-2 rounded-xl text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                          >
+                            + Add
+                          </button>
                         </div>
                       </div>
 

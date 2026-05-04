@@ -1,24 +1,27 @@
 (function () {
   "use strict";
+  const _wlog = () => {};
+  // Debug logger — always active, prefixed so easy to filter in DevTools
+  const _dbg = (...a) => console.log("[ShivAI]", ...a);
 
   // ✅ Load LiveKit SDK dynamically
   function loadLiveKitSDK() {
     return new Promise((resolve, reject) => {
       // Check if already loaded
       if (typeof LivekitClient !== "undefined") {
-        console.log("✅ LiveKit already loaded");
+        _wlog("✅ LiveKit already loaded");
         resolve();
         return;
       }
 
-      console.log("📦 Loading LiveKit SDK...");
+      _wlog("📦 Loading LiveKit SDK...");
 
       // Load livekit-client directly (components-core not needed)
       const clientScript = document.createElement("script");
       clientScript.src =
         "https://unpkg.com/livekit-client@latest/dist/livekit-client.umd.js";
       clientScript.onload = () => {
-        console.log("✅ LiveKit client loaded successfully");
+        _wlog("✅ LiveKit client loaded successfully");
         resolve();
       };
       clientScript.onerror = () => {
@@ -77,7 +80,7 @@
     /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
       navigator.userAgent
     );
-  console.log("📱 Mobile browser detected:", isMobile);
+  _wlog("📱 Mobile browser detected:", isMobile);
   let ringAudio = null;
   let messageBubble = null;
   let connectionTimeout = null;
@@ -125,7 +128,7 @@
     try {
       // ✅ PRIORITY 1: Check for API widget configuration (from AgentWidgetCustomization component)
       if (window.SHIVAI_WIDGET_CONFIG && typeof window.SHIVAI_WIDGET_CONFIG === 'object') {
-        console.log("📦 API Widget Config found, using as primary source:", window.SHIVAI_WIDGET_CONFIG);
+        _wlog("📦 API Widget Config found, using as primary source:", window.SHIVAI_WIDGET_CONFIG);
         
         const widget = window.SHIVAI_WIDGET_CONFIG;
         
@@ -133,27 +136,27 @@
         // Prefer top-level agent name (_agent_name) over widget.ai_employee_name
         if (widget._agent_name || widget.ai_employee_name) {
           companyName = widget._agent_name || widget.ai_employee_name;
-          console.log("🏢 Using agent name from API config:", companyName);
+          _wlog("🏢 Using agent name from API config:", companyName);
         }
         
         if (widget.ai_employee_description) {
           companyDescription = widget.ai_employee_description;
-          console.log("📄 Using ai_employee_description from API widget config:", companyDescription);
+          _wlog("📄 Using ai_employee_description from API widget config:", companyDescription);
         }
         
         if (widget.company_logo) {
           companyLogo = widget.company_logo;
-          console.log("🖼️ Using company_logo from API widget config (S3 URL)");
+          _wlog("🖼️ Using company_logo from API widget config (S3 URL)");
         }
 
         if (widget.trigger_button_image) {
           triggerButtonImage = widget.trigger_button_image;
-          console.log("🖼️ Using trigger_button_image from API widget config");
+          _wlog("🖼️ Using trigger_button_image from API widget config");
         }
 
         if (widget.button_text) {
           callToActionText = widget.button_text;
-          console.log("💬 Using button_text from API widget config:", callToActionText);
+          _wlog("💬 Using button_text from API widget config:", callToActionText);
         }
         
         // Map color fields from API response
@@ -167,47 +170,47 @@
           themeColors.accentColor = widget.gradient_end;
         }
         
-        console.log("🎨 Using theme colors from API widget config:", themeColors);
+        _wlog("🎨 Using theme colors from API widget config:", themeColors);
         configSource = "API widget config";
       }
       
       // ✅ PRIORITY 2: Check SHIVAI_CONFIG (legacy component state)
       else if (window.SHIVAI_CONFIG && typeof window.SHIVAI_CONFIG === 'object') {
-        console.log("📦 SHIVAI_CONFIG found, using as fallback source");
+        _wlog("📦 SHIVAI_CONFIG found, using as fallback source");
         
         const config = window.SHIVAI_CONFIG;
         
         if (config.content) {
           if (config.content.companyName) {
             companyName = config.content.companyName;
-            console.log("🏢 Using companyName from SHIVAI_CONFIG:", companyName);
+            _wlog("🏢 Using companyName from SHIVAI_CONFIG:", companyName);
           }
           if (config.content.companyDescription) {
             companyDescription = config.content.companyDescription;
-            console.log("📄 Using companyDescription from SHIVAI_CONFIG:", companyDescription);
+            _wlog("📄 Using companyDescription from SHIVAI_CONFIG:", companyDescription);
           }
           if (config.content.companyLogo) {
             companyLogo = config.content.companyLogo;
-            console.log("🖼️ Using companyLogo from SHIVAI_CONFIG");
+            _wlog("🖼️ Using companyLogo from SHIVAI_CONFIG");
           }
           if (config.content.triggerButtonImage) {
             triggerButtonImage = config.content.triggerButtonImage;
-            console.log("🖼️ Using triggerButtonImage from SHIVAI_CONFIG");
+            _wlog("🖼️ Using triggerButtonImage from SHIVAI_CONFIG");
           }
           if (config.content.callToActionText) {
             callToActionText = config.content.callToActionText;
-            console.log("💬 Using callToActionText from SHIVAI_CONFIG:", callToActionText);
+            _wlog("💬 Using callToActionText from SHIVAI_CONFIG:", callToActionText);
           }
         }
 
         // Also check ShivAI.config for triggerButtonImage / callToActionText
         if (!triggerButtonImage && window.ShivAI && window.ShivAI.config && window.ShivAI.config.triggerButtonImage) {
           triggerButtonImage = window.ShivAI.config.triggerButtonImage;
-          console.log("🖼️ Using triggerButtonImage from ShivAI.config");
+          _wlog("🖼️ Using triggerButtonImage from ShivAI.config");
         }
         if (window.ShivAI && window.ShivAI.config && window.ShivAI.config.callToActionText) {
           callToActionText = window.ShivAI.config.callToActionText;
-          console.log("💬 Using callToActionText from ShivAI.config:", callToActionText);
+          _wlog("💬 Using callToActionText from ShivAI.config:", callToActionText);
         }
         
         if (config.theme) {
@@ -220,7 +223,7 @@
           if (config.theme.accentColor) {
             themeColors.accentColor = config.theme.accentColor;
           }
-          console.log("🎨 Using theme colors from SHIVAI_CONFIG:", themeColors);
+          _wlog("🎨 Using theme colors from SHIVAI_CONFIG:", themeColors);
         }
         
         configSource = "SHIVAI_CONFIG";
@@ -228,7 +231,7 @@
       
       // ✅ PRIORITY 3: Check URL parameters (legacy fallback)
       else {
-        console.log("📝 No API/component config found, checking URL parameters as fallback");
+        _wlog("📝 No API/component config found, checking URL parameters as fallback");
         
         const scriptTags = document.getElementsByTagName('script');
         for (let i = scriptTags.length - 1; i >= 0; i--) {
@@ -243,19 +246,19 @@
               
               if (urlCompanyName) {
                 companyName = decodeURIComponent(urlCompanyName);
-                console.log("🏢 Using companyName from URL parameter:", companyName);
+                _wlog("🏢 Using companyName from URL parameter:", companyName);
               }
               if (urlCompanyDescription) {
                 companyDescription = decodeURIComponent(urlCompanyDescription);
-                console.log("📄 Using companyDescription from URL parameter:", companyDescription);
+                _wlog("📄 Using companyDescription from URL parameter:", companyDescription);
               }
               if (urlAgentName) {
                 agentName = decodeURIComponent(urlAgentName);
-                console.log("🤖 Using agentName from URL parameter:", agentName);
+                _wlog("🤖 Using agentName from URL parameter:", agentName);
               }
               if (urlCompanyLogo) {
                 companyLogo = decodeURIComponent(urlCompanyLogo);
-                console.log("🖼️ Using companyLogo from URL parameter");
+                _wlog("🖼️ Using companyLogo from URL parameter");
               }
               break;
             } catch (urlError) {
@@ -283,7 +286,7 @@
       theme: themeColors,
       configSource: configSource
     };
-    console.log(`✅ Final company info being used (source: ${configSource}):`, result);
+    _wlog(`✅ Final company info being used (source: ${configSource}):`, result);
     return result;
   }
   
@@ -332,15 +335,15 @@
             if (urlAgentId) {
               agentId = urlAgentId;
               foundFromUrl = true;
-              console.log("🎯 Using agentId for status check from URL:", agentId);
+              _wlog("🎯 Using agentId for status check from URL:", agentId);
             }
             if (urlUserId) {
               globalTenantId = urlUserId;
-              console.log("👤 Using userId (tenant_id) from URL:", globalTenantId);
+              _wlog("👤 Using userId (tenant_id) from URL:", globalTenantId);
             }
             if (urlBypass === 'true') {
               bypassDomainCheck = true;
-              console.log("✅ Domain check bypass enabled - testing/preview mode");
+              _wlog("✅ Domain check bypass enabled - testing/preview mode");
             }
             if (foundFromUrl) break;
           } catch (urlErr) {
@@ -352,12 +355,12 @@
       // If not found in URL, try SHIVAI_CONFIG
       if (!foundFromUrl && window.SHIVAI_CONFIG && window.SHIVAI_CONFIG.agentId) {
         agentId = window.SHIVAI_CONFIG.agentId;
-        console.log("🎯 Using agentId from SHIVAI_CONFIG for status check:", agentId);
+        _wlog("🎯 Using agentId from SHIVAI_CONFIG for status check:", agentId);
       }
       // Also try userId from SHIVAI_CONFIG if not already set from URL
       if (!globalTenantId && window.SHIVAI_CONFIG && window.SHIVAI_CONFIG.userId) {
         globalTenantId = window.SHIVAI_CONFIG.userId;
-        console.log("👤 Using userId (tenant_id) from SHIVAI_CONFIG:", globalTenantId);
+        _wlog("👤 Using userId (tenant_id) from SHIVAI_CONFIG:", globalTenantId);
       }
       // Then try to get from script data attributes
       if (!foundFromUrl) {
@@ -365,23 +368,23 @@
         if (scriptElements.length > 0) {
           const lastScript = scriptElements[scriptElements.length - 1];
           agentId = lastScript.getAttribute('data-agent-id');
-          console.log("🎯 Using agentId from script data attribute for status check:", agentId);
+          _wlog("🎯 Using agentId from script data attribute for status check:", agentId);
           if (!globalTenantId && lastScript.getAttribute('data-user-id')) {
             globalTenantId = lastScript.getAttribute('data-user-id');
-            console.log("👤 Using userId from script data-user-id:", globalTenantId);
+            _wlog("👤 Using userId from script data-user-id:", globalTenantId);
           }
         }
         else if (document.currentScript && document.currentScript.getAttribute('data-agent-id')) {
           agentId = document.currentScript.getAttribute('data-agent-id');
-          console.log("🎯 Using agentId from current script for status check:", agentId);
+          _wlog("🎯 Using agentId from current script for status check:", agentId);
           if (!globalTenantId && document.currentScript.getAttribute('data-user-id')) {
             globalTenantId = document.currentScript.getAttribute('data-user-id');
-            console.log("👤 Using userId from current script data-user-id:", globalTenantId);
+            _wlog("👤 Using userId from current script data-user-id:", globalTenantId);
           }
         }
       }
       
-      console.log("👤 Final globalTenantId resolved:", globalTenantId || '(not set)');
+      _wlog("👤 Final globalTenantId resolved:", globalTenantId || '(not set)');
       
       // If no agentId found, set status to inactive
       if (!agentId) {
@@ -391,12 +394,12 @@
         return;
       }
       
-      console.log('🔍 Checking agent status for ID:', agentId);
+      _wlog('🔍 Checking agent status for ID:', agentId);
       const response = await fetch(`https://nodejs.service.callshivai.com/api/v1/agent-configs/${agentId}`);
       
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ Agent status response:', data);
+        _wlog('✅ Agent status response:', data);
         let agentRes = data?.data?.agent
         agentStatus.active = agentRes?.is_active !== false; // Default to true if not specified
         agentStatus.message = agentRes?.is_active === false 
@@ -405,9 +408,9 @@
         
         // Store agent's configured language for widget default
         agentLanguage = agentRes?.language || null;
-        console.log('🌐 Agent language from config:', agentLanguage);
+        _wlog('🌐 Agent language from config:', agentLanguage);
         
-        console.log('📊 Agent status set to:', agentStatus);
+        _wlog('📊 Agent status set to:', agentStatus);
         
         // ✅ Extract and set widget configuration from API response
         if (agentRes?.widget) {
@@ -416,16 +419,16 @@
           if (agentRes.name) {
             window.SHIVAI_WIDGET_CONFIG._agent_name = agentRes.name;
           }
-          console.log('📦 Widget configuration set from API:', window.SHIVAI_WIDGET_CONFIG);
-          console.log('🎨 Available widget properties:');
-          console.log('  - ai_employee_name:', agentRes.widget.ai_employee_name);
-          console.log('  - ai_employee_description:', agentRes.widget.ai_employee_description);
-          console.log('  - company_logo:', agentRes.widget.company_logo ? '✅ Present (S3 URL)' : '❌ Not set');
-          console.log('  - primary_color:', agentRes.widget.primary_color);
-          console.log('  - gradient_start:', agentRes.widget.gradient_start);
-          console.log('  - gradient_end:', agentRes.widget.gradient_end);
-          console.log('  - text_color:', agentRes.widget.text_color);
-          console.log('  - position:', agentRes.widget.position);
+          _wlog('📦 Widget configuration set from API:', window.SHIVAI_WIDGET_CONFIG);
+          _wlog('🎨 Available widget properties:');
+          _wlog('  - ai_employee_name:', agentRes.widget.ai_employee_name);
+          _wlog('  - ai_employee_description:', agentRes.widget.ai_employee_description);
+          _wlog('  - company_logo:', agentRes.widget.company_logo ? '✅ Present (S3 URL)' : '❌ Not set');
+          _wlog('  - primary_color:', agentRes.widget.primary_color);
+          _wlog('  - gradient_start:', agentRes.widget.gradient_start);
+          _wlog('  - gradient_end:', agentRes.widget.gradient_end);
+          _wlog('  - text_color:', agentRes.widget.text_color);
+          _wlog('  - position:', agentRes.widget.position);
           
           // Note: Widget UI will be created after this function completes in initWidget()
           // refreshWidgetContent() will be called there after createWidgetUI()
@@ -436,7 +439,7 @@
           
           // Skip domain check if bypass is enabled (for preview/testing/QR pages)
           if (bypassDomainCheck) {
-            console.log('✅ Domain check skipped - bypass mode enabled');
+            _wlog('✅ Domain check skipped - bypass mode enabled');
           } else if (widgetVisibility === 'private' && allowedDomains.length > 0) {
             const currentOrigin = window.location.origin.toLowerCase();
             const currentHost = window.location.hostname.toLowerCase();
@@ -457,10 +460,10 @@
               agentStatus.message = 'Widget not available on this domain.';
               return; // Abort — do not render widget
             }
-            console.log('✅ Domain authorisation passed for:', currentHost);
+            _wlog('✅ Domain authorisation passed for:', currentHost);
           }
         } else {
-          console.log('ℹ️ No widget configuration found in agent response - getCompanyInfo() will use URL parameters or defaults');
+          _wlog('ℹ️ No widget configuration found in agent response - getCompanyInfo() will use URL parameters or defaults');
         }
       } else {
         console.warn('⚠️ Could not fetch agent status, defaulting to inactive');
@@ -479,7 +482,7 @@
   async function requestMicrophonePermission(retryCount = 0) {
     const MAX_RETRIES = 3;
     
-    console.log(`🎤 Requesting microphone permission (attempt ${retryCount + 1}/${MAX_RETRIES + 1})...`);
+    _wlog(`🎤 Requesting microphone permission (attempt ${retryCount + 1}/${MAX_RETRIES + 1})...`);
     
     // Check if we're in secure context
     if (!window.isSecureContext) {
@@ -517,8 +520,8 @@
         }
       });
       
-      console.log("✅ Microphone permission granted!");
-      console.log("📍 Stream tracks:", stream.getTracks().length);
+      _wlog("✅ Microphone permission granted!");
+      _wlog("📍 Stream tracks:", stream.getTracks().length);
       
       // Stop the test stream immediately
       stream.getTracks().forEach(track => track.stop());
@@ -545,7 +548,7 @@
             await new Promise(resolve => setTimeout(resolve, 500));
             return await requestMicrophonePermission(retryCount + 1);
           } else {
-            console.log("❌ User cancelled microphone permission retry");
+            _wlog("❌ User cancelled microphone permission retry");
             return false;
           }
         } else {
@@ -581,54 +584,54 @@
     }
     // Re-add styles with updated theme
     addWidgetStyles();
-    console.log("🎨 Widget theme refreshed with new colors");
+    _wlog("🎨 Widget theme refreshed with new colors");
   }
 
   // Function to refresh widget content with updated company info
   function refreshWidgetContent() {
     if (!widgetContainer) {
-      console.log("📝 Widget not created yet, content will be updated on creation");
+      _wlog("📝 Widget not created yet, content will be updated on creation");
       return;
     }
 
-    console.log("🔄 Refreshing widget content with latest company info...");
+    _wlog("🔄 Refreshing widget content with latest company info...");
     const companyInfo = getCompanyInfo();
-    console.log("🏢 Using refreshed company info:", companyInfo);
+    _wlog("🏢 Using refreshed company info:", companyInfo);
 
     const widgetTitle = document.querySelector('.widget-title');
     if (widgetTitle) {
       widgetTitle.textContent = companyInfo.name;
-      console.log("✅ Updated landing view widget title to:", companyInfo.name);
+      _wlog("✅ Updated landing view widget title to:", companyInfo.name);
     }
 
     const widgetSubtitle = document.querySelector('.widget-subtitle');
     if (widgetSubtitle) {
       widgetSubtitle.textContent = companyInfo.description;
-      console.log("✅ Updated landing view description to:", companyInfo.description);
+      _wlog("✅ Updated landing view description to:", companyInfo.description);
     }
 
     const widgetAvatar = document.querySelector('.widget-avatar');
     if (widgetAvatar && companyInfo.logo) {
       widgetAvatar.innerHTML = `<img src="${companyInfo.logo}" alt="${companyInfo.name} Logo" style="width: 100%; height: 100%; object-fit: cover; border-radius: 12px;">`;
-      console.log("✅ Updated landing view logo to:", companyInfo.logo);
+      _wlog("✅ Updated landing view logo to:", companyInfo.logo);
     }
 
     const callInfoName = document.querySelector('.call-info-name');
     if (callInfoName) {
       callInfoName.textContent = companyInfo.name;
-      console.log("✅ Updated call view agent name to:", companyInfo.name);
+      _wlog("✅ Updated call view agent name to:", companyInfo.name);
     }
     
     const callAvatar = document.querySelector('.call-avatar');
     if (callAvatar && companyInfo.logo) {
       callAvatar.innerHTML = `<img src="${companyInfo.logo}" alt="${companyInfo.name} Logo" style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;">`;
-      console.log("✅ Updated call view avatar");
+      _wlog("✅ Updated call view avatar");
     }
 
     updateLandingViewBasedOnStatus();
     refreshWidgetTheme();
     
-    console.log("✅ Widget content refresh completed");
+    _wlog("✅ Widget content refresh completed");
   }
 
   // Expose refresh function globally for theme updates
@@ -668,7 +671,7 @@
           soundContext
             .resume()
             .then(() => {
-              console.log("🔊 Sound context resumed");
+              _wlog("🔊 Sound context resumed");
             })
             .catch((err) => {
               console.warn("Failed to resume sound context:", err);
@@ -677,7 +680,7 @@
             audioContext
               .resume()
               .then(() => {
-                console.log("🎤 Voice audio context resumed");
+                _wlog("🎤 Voice audio context resumed");
               })
               .catch((err) => {
                 console.warn("Failed to resume voice audio context:", err);
@@ -746,21 +749,21 @@
       ringAudio.play().catch((error) => {
         console.warn("Could not play connecting sound:", error);
       });
-      console.log("🔊 Playing connecting sound (ring1.mp3)");
+      _wlog("🔊 Playing connecting sound (ring1.mp3)");
     } catch (error) {
       console.warn("Error playing connecting sound:", error);
     }
   }
 
   function stopConnectingSound() {
-    console.log("🔇 Stopping connecting sound...");
+    _wlog("🔇 Stopping connecting sound...");
 
     if (ringAudio) {
       try {
         ringAudio.pause();
         ringAudio.currentTime = 0;
         ringAudio.loop = false;
-        console.log("✅ Ring audio stopped");
+        _wlog("✅ Ring audio stopped");
       } catch (error) {
         console.warn("⚠️ Error stopping ring audio:", error);
       }
@@ -769,7 +772,7 @@
     if (connectingSoundInterval) {
       clearInterval(connectingSoundInterval);
       connectingSoundInterval = null;
-      console.log("✅ Connecting sound interval cleared");
+      _wlog("✅ Connecting sound interval cleared");
     }
   }
 
@@ -840,7 +843,7 @@
         });
         if (response.ok) {
           const data = await response.json();
-          console.log("🌐 [IP] Retrieved via ipapi.co:", data.ip);
+          _wlog("🌐 [IP] Retrieved via ipapi.co:", data.ip);
           return data.ip;
         }
       } catch (e) {
@@ -852,7 +855,7 @@
         });
         if (response.ok) {
           const data = await response.json();
-          console.log("🌐 [IP] Retrieved via ipify:", data.ip);
+          _wlog("🌐 [IP] Retrieved via ipify:", data.ip);
           return data.ip;
         }
       } catch (e) {
@@ -864,7 +867,7 @@
         });
         if (response.ok) {
           const data = await response.json();
-          console.log("🌐 [IP] Retrieved via ipinfo.io:", data.ip);
+          _wlog("🌐 [IP] Retrieved via ipinfo.io:", data.ip);
           return data.ip;
         }
       } catch (e) {
@@ -956,16 +959,12 @@
       // Use the higher of RMS or speech-focused average
       const audioLevel = Math.max(rms, speechAverage * 0.8);
 
-      console.log(
-        `🎤 Audio Level: ${audioLevel.toFixed(2)} (threshold: ${SPEECH_THRESHOLD})`
-      );
-
       if (audioLevel > SPEECH_THRESHOLD) {
         // User is speaking
         if (!latencyMetrics.isSpeaking) {
           latencyMetrics.isSpeaking = true;
           latencyMetrics.userSpeechStartTime = performance.now();
-          console.log("👤 User started speaking");
+          _wlog("👤 User started speaking");
           updateStatus("🎤 Listening...", "listening");
         }
         silenceStart = null;
@@ -978,7 +977,7 @@
             // User stopped speaking
             latencyMetrics.isSpeaking = false;
             latencyMetrics.userSpeechEndTime = performance.now();
-            console.log("👤 User stopped speaking");
+            _wlog("👤 User stopped speaking");
             updateStatus("🤔 Processing...", "speaking");
             silenceStart = null;
           }
@@ -1016,7 +1015,7 @@
       if (aiResponseTimeout && !hasReceivedFirstAIResponse) {
         clearTimeout(aiResponseTimeout);
         aiResponseTimeout = null;
-        console.log("✅ AI response received - timeout cleared");
+        _wlog("✅ AI response received - timeout cleared");
       }
       if (!isConnected) return;
 
@@ -1048,10 +1047,6 @@
 
       // Use weighted combination favoring peak levels
       const audioLevel = peak * 0.7 + aiVoiceAverage * 0.3;
-
-      console.log(
-        `🤖 AI Audio Level: ${audioLevel.toFixed(2)} (threshold: ${SPEECH_THRESHOLD}, peak: ${peak})`
-      );
 
       if (audioLevel > SPEECH_THRESHOLD && !latencyMetrics.isAgentSpeaking) {
         // Agent started responding
@@ -1103,10 +1098,10 @@
                 if (audioTracks.length > 0) {
                   localAudioTrack = audioTracks[0].track;
                   monitorLocalAudioLevel(localAudioTrack);
-                  console.log("🎤 Microphone monitoring started immediately");
+                  _wlog("🎤 Microphone monitoring started immediately");
                 }
 
-                console.log(
+                _wlog(
                   "🎤 Microphone enabled immediately - ready for conversation"
                 );
                 updateStatus("🎤 You can speak now!", "connected");
@@ -1116,7 +1111,7 @@
             })();
           }
 
-          console.log(
+          _wlog(
             "🎉 First AI response - timer started, connecting sound stopped, mic will unmute in 3s"
           );
         }
@@ -1135,7 +1130,7 @@
             latencyMetrics.measurements.shift();
           }
 
-          console.log(`⚡ Response latency: ${Math.round(latency)}ms`);
+          _wlog(`⚡ Response latency: ${Math.round(latency)}ms`);
 
           latencyMetrics.userSpeechEndTime = null;
         }
@@ -1149,13 +1144,13 @@
         // Clear the flag after a delay to allow user input
         setTimeout(() => {
           aiJustFinished = false;
-          console.log(
+          _wlog(
             "✅ User input detection re-enabled after AI buffer period"
           );
         }, 500); // 500ms buffer to prevent feedback
 
         updateStatus("🟢 Connected - Speak naturally!", "connected");
-        console.log("🤖 AI stopped speaking - buffer period started");
+        _wlog("🤖 AI stopped speaking - buffer period started");
       }
 
       requestAnimationFrame(checkAudioLevel);
@@ -1478,7 +1473,7 @@
     
     // Get company info for dynamic content
     const companyInfo = getCompanyInfo();
-    console.log("🏢 Using company info:", companyInfo);
+    _wlog("🏢 Using company info:", companyInfo);
     
     landingView.innerHTML = `
       <div class="widget-header">
@@ -1552,7 +1547,7 @@
     
     // Get company info for dynamic content
     const callCompanyInfo = getCompanyInfo();
-    console.log("📞 Using company info for call view:", callCompanyInfo);
+    _wlog("📞 Using company info for call view:", callCompanyInfo);
     
     callView.innerHTML = `
     <div class="call-visualizer" id="call-visualizer">
@@ -1883,7 +1878,7 @@
       defaultLang = hasMulti ? 'multilingual' : String(langArray[0]).toLowerCase();
     }
 
-    console.log(`🌐 [widget2.js] Default language: ${defaultLang}`);
+    _wlog(`🌐 [widget2.js] Default language: ${defaultLang}`);
 
     if (defaultLang) {
       if (languageSelect) languageSelect.value = defaultLang;
@@ -1894,7 +1889,7 @@
 
   // Functions to show/hide message interface based on connection state
   function showMessageInterface() {
-    console.log("🔍 Attempting to show message interface...");
+    _wlog("🔍 Attempting to show message interface...");
 
     // Try multiple ways to find the message interface
     const container =
@@ -1902,7 +1897,7 @@
       document.querySelector(".message-input-container");
 
     if (container) {
-      console.log("📝 Container found, removing hidden class");
+      _wlog("📝 Container found, removing hidden class");
       container.classList.remove("hidden");
 
       // Clear any inline styles that might be hiding it
@@ -1922,14 +1917,14 @@
         sendBtn.style.setProperty('visibility', 'hidden', 'important');
       }
 
-      console.log("📝 Message interface shown - classes:", container.className);
+      _wlog("📝 Message interface shown - classes:", container.className);
     } else {
       console.warn("⚠️ Message input container not found when showing");
     }
   }
 
   function hideMessageInterface() {
-    console.log("🔍 Attempting to hide message interface...");
+    _wlog("🔍 Attempting to hide message interface...");
 
     // Try multiple ways to find the message interface
     const container =
@@ -1937,7 +1932,7 @@
       document.querySelector(".message-input-container");
 
     if (container) {
-      console.log("📝 Container found, adding hidden class");
+      _wlog("📝 Container found, adding hidden class");
       container.classList.add("hidden");
 
       // Also force with inline style as backup
@@ -1945,7 +1940,7 @@
       container.style.visibility = "hidden";
       container.style.opacity = "0";
 
-      console.log(
+      _wlog(
         "📝 Message interface hidden - classes:",
         container.className
       );
@@ -1959,7 +1954,7 @@
     );
     if (containerById) {
       containerById.style.display = "none";
-      console.log("📝 Backup hiding by attribute selector applied");
+      _wlog("📝 Backup hiding by attribute selector applied");
     }
   }
 
@@ -3216,8 +3211,11 @@
       .doc-icon-wrap.xls  { background: #dcfce7; }
       .doc-icon-wrap.ppt  { background: #fef3c7; }
       .doc-icon-wrap.txt  { background: #f3f4f6; }
-      .doc-icon-wrap.zip  { background: #ede9fe; }
-      .doc-icon-wrap.file { background: #f3f4f6; }
+      .doc-icon-wrap.zip    { background: #ede9fe; }
+      .doc-icon-wrap.file   { background: #f3f4f6; }
+      .doc-icon-wrap.link   { background: #dbeafe; }
+      .doc-icon-wrap.social { background: #fce7f3; }
+      .doc-icon-wrap.img    { background: #ede9fe; }
       .doc-meta { flex: 1; min-width: 0; }
       .doc-name {
       font-size: 13px;
@@ -3232,6 +3230,14 @@
       font-size: 11px;
       color: #64748b;
       margin-top: 1px;
+      }
+      .doc-type-label {
+      font-size: 10px;
+      color: #94a3b8;
+      margin-top: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      font-weight: 500;
       }
       .doc-dl-btn {
       flex-shrink: 0;
@@ -3962,7 +3968,7 @@
       const fileId = Date.now().toString();
       const totalChunks = Math.ceil(fileBuffer.byteLength / CHUNK_SIZE);
 
-      console.log(`Sending file in ${totalChunks} chunks: ${file.name} (${formatFileSize(file.size)})`);
+      _wlog(`Sending file in ${totalChunks} chunks: ${file.name} (${formatFileSize(file.size)})`);
 
       // 1. Send file_start
       await room.localParticipant.publishData(
@@ -4009,7 +4015,7 @@
         { reliable: true }
       );
 
-      console.log(`File upload complete: ${file.name}`);
+      _wlog(`File upload complete: ${file.name}`);
       return true;
 
     } catch (error) {
@@ -4130,15 +4136,15 @@
     });
   }
   function closeWidget() {
-    console.log("🔴 Widget closing - checking call state");
+    _wlog("🔴 Widget closing - checking call state");
 
     // Disconnect LiveKit room if connected
     if (room) {
-      console.log("🔴 Disconnecting LiveKit room on widget close");
+      _wlog("🔴 Disconnecting LiveKit room on widget close");
       room
         .disconnect()
         .then(() => {
-          console.log("🔴 LiveKit room disconnected successfully");
+          _wlog("🔴 LiveKit room disconnected successfully");
         })
         .catch((err) => {
           console.warn("Error disconnecting LiveKit room:", err);
@@ -4146,7 +4152,7 @@
       room = null;
     }
 
-    console.log("🔴 Performing complete cleanup on widget close");
+    _wlog("🔴 Performing complete cleanup on widget close");
     isConnected = false;
     isConnecting = false;
     hasReceivedFirstAIResponse = false;
@@ -4155,26 +4161,26 @@
     isMuted = false;
     clearLoadingStatus();
     stopCallTimer();
+    hideConnectingState();
     if (ws) {
-      console.log("🔌 Closing WebSocket on widget close");
       ws.close();
       ws = null;
     }
     stopAllScheduledAudio();
     teardownPlaybackProcessor();
     if (mediaStream) {
-      console.log(
+      _wlog(
         "🎤 Stopping microphone and revoking permissions on widget close"
       );
       mediaStream.getTracks().forEach((track) => {
-        console.log(
+        _wlog(
           `Stopping track: ${track.kind}, state: ${track.readyState}`
         );
         track.stop();
         track.enabled = false;
       });
       mediaStream = null;
-      console.log("🎤 Microphone permissions revoked successfully");
+      _wlog("🎤 Microphone permissions revoked successfully");
     }
     if (audioContext) {
       try {
@@ -4187,7 +4193,7 @@
       audioContext = null;
     }
     if (messagesDiv) {
-      console.log("📝 Transcripts cleared completely");
+      _wlog("📝 Transcripts cleared completely");
     }
     currentUserTranscript = "";
     currentAssistantTranscript = "";
@@ -4226,7 +4232,7 @@
           window.currentCallId = null;
         });
     }
-    console.log("🔴 Complete cleanup finished on widget close");
+    _wlog("🔴 Complete cleanup finished on widget close");
     widgetContainer.classList.remove("active");
     isWidgetOpen = false;
     if (triggerBtn) {
@@ -4236,7 +4242,7 @@
     if (!messageInterval) {
       startLiveMessages();
     }
-    console.log("✅ Widget closed successfully");
+    _wlog("✅ Widget closed successfully");
   }
   async function handleConnectClick(e) {
     if (e) {
@@ -4246,7 +4252,7 @@
 
     // Prevent multiple rapid clicks
     if (isDisconnecting) {
-      console.log("🚫 Disconnect already in progress - ignoring click");
+      _wlog("🚫 Disconnect already in progress - ignoring click");
       return;
     }
 
@@ -4274,7 +4280,7 @@
 
     // Handle disconnect for any connected or connecting state
     if (isConnecting || isConnected) {
-      console.log("🔴 Disconnect requested - current state:", {
+      _wlog("🔴 Disconnect requested - current state:", {
         isConnecting,
         isConnected,
       });
@@ -4316,7 +4322,7 @@
 
       // Close WebSocket if exists
       if (ws) {
-        console.log("🔌 Closing WebSocket immediately");
+        _wlog("🔌 Closing WebSocket immediately");
         try {
           ws.close();
         } catch (err) {
@@ -4349,7 +4355,7 @@
         room
           .disconnect()
           .then(() => {
-            console.log("🚪 LiveKit room disconnected");
+            _wlog("🚪 LiveKit room disconnected");
             room = null;
           })
           .catch((err) => {
@@ -4367,14 +4373,14 @@
       setTimeout(() => {
         isDisconnecting = false;
         connectBtn.disabled = false;
-        console.log("✅ Immediate disconnect completed");
+        _wlog("✅ Immediate disconnect completed");
       }, 100); // Reduced from 500ms to 100ms for faster reconnection
 
       return;
     }
     // Start new connection only if not currently connected or connecting
     if (!isConnecting && !isConnected && !isDisconnecting) {
-      console.log("🔵 Starting new connection");
+      _wlog("🔵 Starting new connection");
       isConnecting = true;
       connectBtn.disabled = true;
 
@@ -4388,7 +4394,7 @@
 
         // Check if connection was cancelled during startConversation
         if (!isConnecting) {
-          console.log("⚠️ Connection was cancelled during startup");
+          _wlog("⚠️ Connection was cancelled during startup");
           return;
         }
 
@@ -4490,7 +4496,7 @@
     }
 
     updateMuteButton();
-    console.log(`🎤 Microphone ${isMuted ? "muted" : "unmuted"} by user`);
+    _wlog(`🎤 Microphone ${isMuted ? "muted" : "unmuted"} by user`);
   }
   function updateStatus(status, className) {
     const statusText = statusDiv.querySelector(".status-text");
@@ -4536,10 +4542,10 @@
     connectBtn.title = "End Call";
     callTimerInterval = setInterval(updateCallTimer, 1000);
     updateCallTimer();
-    console.log("⏱️ Call timer started");
+    _wlog("⏱️ Call timer started");
 
     // Microphone is always enabled
-    console.log("🎤 Microphone is enabled and ready for conversation");
+    _wlog("🎤 Microphone is enabled and ready for conversation");
   }
   function stopCallTimer() {
     if (callTimerInterval) {
@@ -4563,6 +4569,7 @@
     )}:${String(seconds).padStart(2, "0")}`;
   }
   function showConnectingState() {
+    if (!messagesDiv) return;
     const connectingState = messagesDiv.querySelector(".connecting-state");
     const emptyState = messagesDiv.querySelector(".empty-state");
     
@@ -4576,10 +4583,11 @@
     // Hide message interface during connection
     hideMessageInterface();
     
-    console.log("🔄 Showing connecting animation");
+    _wlog("🔄 Showing connecting animation");
   }
   
   function hideConnectingState() {
+    if (!messagesDiv) return;
     const connectingState = messagesDiv.querySelector(".connecting-state");
     const emptyState = messagesDiv.querySelector(".empty-state");
     
@@ -4596,7 +4604,7 @@
     // Show message interface now that connection is stable
     showMessageInterface();
     
-    console.log("✅ Hiding connecting animation");
+    _wlog("✅ Hiding connecting animation");
   }
   
   async function showProgressiveConnectionStates() {
@@ -4682,24 +4690,18 @@
     }
 
     // ── Case 1: plain text containing a URL ──────────────────────────────────
+    // URLs in transcript text are handled by the documents[] array as separate cards.
+    // Here we just strip the URLs and show the surrounding text cleanly.
     if (!/<[a-z][\s\S]*?>/i.test(noComments)) {
       const urlRe = /https?:\/\/[^\s<>"']+/gi;
       if (!urlRe.test(noComments)) return null; // truly plain text, no special rendering needed
-      urlRe.lastIndex = 0;
-      let html = '';
-      let lastIdx = 0;
-      let m;
-      while ((m = urlRe.exec(noComments)) !== null) {
-        // Text before URL (strip trailing colon/space used as label separator)
-        const before = noComments.slice(lastIdx, m.index).replace(/[:\s]+$/, '').trim();
-        if (before) html += '<span style="display:block;margin-bottom:6px;">' + esc(before) + '</span>';
-        const url = m[0].replace(/[.,;:!?)]+$/, ''); // strip trailing punctuation
-        html += makeDocCard(url);
-        lastIdx = m.index + url.length;
-      }
-      const after = noComments.slice(lastIdx).trim();
-      if (after) html += '<div style="font-size:13px;color:#374151;margin-top:4px;">' + esc(after) + '</div>';
-      return html || null;
+      // Strip all URLs, keep only the human-readable text
+      const textOnly = noComments.replace(urlRe, '').replace(/[:\s]+$/, '').trim()
+        .replace(/\n{2,}/g, '\n').trim();
+      if (!textOnly) return null;
+      const lines = textOnly.split('\n').map(function(l) { return l.trim(); }).filter(Boolean);
+      if (lines.length === 1) return '<span>' + esc(lines[0]) + '</span>';
+      return lines.map(function(l) { return '<span style="display:block">' + esc(l) + '</span>'; }).join('');
     }
 
     // ── Case 2: HTML-wrapped content (e.g. <div>filename</div>) ─────────────
@@ -4736,7 +4738,7 @@
   }
 
   function addMessage(role, text, options = {}) {
-    console.log("🔍 addMessage called:", {
+    _wlog("🔍 addMessage called:", {
       role,
       text,
       caller: new Error().stack.split("\n")[2],
@@ -4744,7 +4746,7 @@
 
     // CRITICAL: Prevent duplicate messages
     if (!text || text.trim().length === 0) {
-      console.log("🚫 Skipping empty message");
+      _wlog("🚫 Skipping empty message");
       return null;
     }
 
@@ -4756,7 +4758,7 @@
       const msgRole = msgEl.classList.contains('user') ? 'user' : 'assistant';
       const msgTime = msgEl.dataset.timestamp ? parseInt(msgEl.dataset.timestamp) : 0;
       if (msgRole === role && msgText === text.trim() && (now - msgTime) < 2000) {
-        console.log("🚫 Skipping duplicate message:", text.substring(0, 50));
+        _wlog("🚫 Skipping duplicate message:", text.substring(0, 50));
         return msgEl;
       }
     }
@@ -4834,14 +4836,16 @@
 
   // ── WhatsApp-style document card from AI ────────────────────────────────
   function addDocumentMessage(docData) {
-    // docData: { url, name, size, mime_type, caption }
+    // docData: { url, name, size, mime_type, type, caption }
     if (!docData || !docData.url) return;
 
-    const name     = docData.name     || 'Document';
-    const url      = docData.url;
-    const caption  = docData.caption  || '';
-    const sizeRaw  = docData.size;
-    const mime     = (docData.mime_type || '').toLowerCase();
+    const name      = docData.name     || 'Document';
+    const url       = docData.url;
+    const caption   = docData.caption  || '';
+    const sizeRaw   = docData.size;
+    const mime      = (docData.mime_type || '').toLowerCase();
+    const typeStr   = (docData.type || '').toLowerCase();
+    const typeLabel = docData.type || '';  // original casing for display
 
     // Human-readable size
     let sizeLabel = '';
@@ -4850,39 +4854,56 @@
       sizeLabel = kb >= 1024 ? (kb / 1024).toFixed(1) + ' MB' : kb + ' KB';
     }
 
-    // Icon + colour category
-    let iconEmoji = '📄', colorClass = 'file';
-    if      (mime.includes('pdf'))                          { iconEmoji = '📕'; colorClass = 'pdf';  }
-    else if (mime.includes('word') || name.match(/\.docx?$/i)) { iconEmoji = '📘'; colorClass = 'word'; }
-    else if (mime.includes('sheet') || name.match(/\.xlsx?$/i))  { iconEmoji = '📗'; colorClass = 'xls';  }
+    // Icon + colour — check docData.type first, then mime_type, then filename
+    let iconEmoji = '📄', colorClass = 'file', isLinkType = false;
+    if      (typeStr.includes('pdf'))                           { iconEmoji = '📕'; colorClass = 'pdf';    }
+    else if (typeStr.includes('word'))                          { iconEmoji = '📘'; colorClass = 'word';   }
+    else if (typeStr.includes('image'))                         { iconEmoji = '🖼️'; colorClass = 'img';    }
+    else if (typeStr.includes('text'))                          { iconEmoji = '📄'; colorClass = 'txt';    }
+    else if (typeStr.includes('website'))                       { iconEmoji = '🌐'; colorClass = 'link';   isLinkType = true; }
+    else if (typeStr.includes('social'))                        { iconEmoji = '📱'; colorClass = 'social'; isLinkType = true; }
+    else if (typeStr.includes('link'))                          { iconEmoji = '🔗'; colorClass = 'link';   isLinkType = true; }
+    else if (mime.includes('pdf'))                              { iconEmoji = '📕'; colorClass = 'pdf';    }
+    else if (mime.includes('word') || name.match(/\.docx?$/i)) { iconEmoji = '📘'; colorClass = 'word';   }
+    else if (mime.includes('sheet') || name.match(/\.xlsx?$/i)){ iconEmoji = '📗'; colorClass = 'xls';    }
     else if (mime.includes('presentation') || name.match(/\.pptx?$/i)) { iconEmoji = '📙'; colorClass = 'ppt'; }
-    else if (mime.includes('text') || name.match(/\.(txt|md)$/i))  { iconEmoji = '📄'; colorClass = 'txt';  }
-    else if (mime.includes('zip') || mime.includes('rar'))           { iconEmoji = '🗜️'; colorClass = 'zip';  }
+    else if (mime.includes('text') || name.match(/\.(txt|md)$/i)) { iconEmoji = '📄'; colorClass = 'txt'; }
+    else if (mime.includes('image'))                            { iconEmoji = '🖼️'; colorClass = 'img';    }
+    else if (mime.includes('zip') || mime.includes('rar'))      { iconEmoji = '🗜️'; colorClass = 'zip';    }
+    else if (/^https?:\/\//i.test(url) && !name.match(/\.(pdf|doc|docx|txt|csv|xlsx|xls|ppt|pptx|png|jpg|jpeg|gif)$/i)) {
+      iconEmoji = '🌐'; colorClass = 'link'; isLinkType = true;
+    }
 
-    // Build card HTML
+    // Secondary info: type label takes priority over size
+    const secondaryInfo = typeLabel
+      ? `<div class="doc-type-label">${typeLabel}</div>`
+      : (sizeLabel ? `<div class="doc-size">${sizeLabel}</div>` : '<div class="doc-size">Tap to open</div>');
+
+    // Action button: always open in new tab
+    const actionBtn = '<span class="doc-dl-btn" title="Open"><svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></span>';
+
+    // Build card
     const card = document.createElement('div');
     card.className = 'message assistant';
     card.dataset.timestamp = Date.now().toString();
 
-    const label        = document.createElement('div');
-    label.className    = 'message-label';
-    label.textContent  = 'AI Employee';
+    const label       = document.createElement('div');
+    label.className   = 'message-label';
+    label.textContent = 'AI Employee';
 
     const link = document.createElement('a');
-    link.className  = 'doc-card';
-    link.href       = url;
-    link.target     = '_blank';
-    link.rel        = 'noopener noreferrer';
-    link.title      = 'Click to open';
-    link.innerHTML  = `
+    link.className = 'doc-card';
+    link.href      = url;
+    link.target    = '_blank';
+    link.rel       = 'noopener noreferrer';
+    link.title     = 'Click to open';
+    link.innerHTML = `
       <div class="doc-icon-wrap ${colorClass}">${iconEmoji}</div>
       <div class="doc-meta">
         <div class="doc-name" title="${name}">${name}</div>
-        ${sizeLabel ? `<div class="doc-size">${sizeLabel}</div>` : ''}
+        ${secondaryInfo}
       </div>
-      <button class="doc-dl-btn" title="Download" onclick="event.stopPropagation();event.preventDefault();var a=document.createElement('a');a.href='${url}';a.download='${name}';a.target='_blank';document.body.appendChild(a);a.click();document.body.removeChild(a);">
-        <svg viewBox="0 0 24 24"><path d="M12 5v10M7 15l5 5 5-5"/><path d="M5 19h14"/></svg>
-      </button>`;
+      ${actionBtn}`;
 
     card.appendChild(label);
     card.appendChild(link);
@@ -4901,7 +4922,7 @@
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
     if (clearBtn) clearBtn.style.display = 'flex';
-    console.log('📎 Document card added:', name, url);
+    _wlog('📎 Document card added:', name, typeLabel, url);
   }
   function animateVisualizer(active) {
     if (!visualizerBars) return;
@@ -4926,17 +4947,17 @@
 
     if (message && room && isConnected) {
       try {
-        console.log("📤 Sending chat message:", message);
+        _wlog("📤 Sending chat message:", message);
 
         // Use proper LiveKit sendText method like test-client
         if (typeof room.localParticipant.sendText === "function") {
-          console.log("Using sendText method with lk.chat topic");
+          _wlog("Using sendText method with lk.chat topic");
           room.localParticipant
             .sendText(message, {
               topic: "lk.chat",
             })
             .then((info) => {
-              console.log(
+              _wlog(
                 "✅ Chat sent with sendText, stream ID:",
                 info.streamId
               );
@@ -4947,7 +4968,7 @@
               fallbackSendChat(message);
             });
         } else {
-          console.log("sendText not available, using fallback publishData");
+          _wlog("sendText not available, using fallback publishData");
           fallbackSendChat(message);
         }
 
@@ -4960,7 +4981,7 @@
         // Clear input
         messageInput.value = "";
 
-        console.log("💬 Message sent:", message);
+        _wlog("💬 Message sent:", message);
       } catch (error) {
         console.error("❌ Error sending message:", error);
       }
@@ -4971,7 +4992,7 @@
 
   function fallbackSendChat(text) {
     try {
-      console.log("Using fallback publishData method");
+      _wlog("Using fallback publishData method");
       const chatMessage = {
         type: "chat",
         text,
@@ -4986,7 +5007,7 @@
         destinationIdentities: [], // send to all participants
       });
 
-      console.log("✅ Chat sent with publishData");
+      _wlog("✅ Chat sent with publishData");
     } catch (error) {
       console.error("❌ publishData fallback failed:", error);
     }
@@ -5004,15 +5025,15 @@
 
       // Check if connection was cancelled before starting
       if (!isConnecting) {
-        console.log("❌ Connection cancelled before start");
+        _wlog("❌ Connection cancelled before start");
         return;
       }
 
       // ✅ CRITICAL: Check permission state FIRST - never auto-request
-      console.log("🔍 Checking microphone permission state...");
-      console.log("📍 Browser:", navigator.userAgent);
-      console.log("📍 Secure context:", window.isSecureContext);
-      console.log("📍 MediaDevices available:", !!navigator.mediaDevices);
+      _wlog("🔍 Checking microphone permission state...");
+      _wlog("📍 Browser:", navigator.userAgent);
+      _wlog("📍 Secure context:", window.isSecureContext);
+      _wlog("📍 MediaDevices available:", !!navigator.mediaDevices);
 
       // Check if we're in a secure context (HTTPS)
       if (!window.isSecureContext) {
@@ -5039,10 +5060,10 @@
       try {
         const permissionStatus = await navigator.permissions.query({ name: "microphone" });
         permissionState = permissionStatus.state;
-        console.log("📍 Microphone permission state:", permissionState);
+        _wlog("📍 Microphone permission state:", permissionState);
 
         if (!isConnecting) {
-          console.log("❌ Connection cancelled during permission check");
+          _wlog("❌ Connection cancelled during permission check");
           return;
         }
 
@@ -5080,13 +5101,13 @@
       updateStatus("🎤 Requesting microphone...", "connecting");
 
       if (!isConnecting) {
-        console.log("❌ Connection cancelled before requesting microphone");
+        _wlog("❌ Connection cancelled before requesting microphone");
         return;
       }
 
       // ✅ CRITICAL: ONE explicit request, ONCE, on user action
       try {
-        console.log("🎤 Requesting getUserMedia (user clicked button)...");
+        _wlog("🎤 Requesting getUserMedia (user clicked button)...");
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: {
             echoCancellation: true,
@@ -5098,7 +5119,7 @@
           },
         });
 
-        console.log("✅ Microphone permission GRANTED");
+        _wlog("✅ Microphone permission GRANTED");
         updateStatus("✅ Microphone enabled", "connecting");
 
         // Stop the test stream immediately - LiveKit will create its own
@@ -5139,7 +5160,7 @@
 
       // Check if connection was cancelled after microphone permission
       if (!isConnecting) {
-        console.log("❌ Connection cancelled after microphone permission");
+        _wlog("❌ Connection cancelled after microphone permission");
         return;
       }
 
@@ -5151,7 +5172,7 @@
 
       // Check if connection was cancelled before setting timeout
       if (!isConnecting) {
-        console.log("❌ Connection cancelled before setting timeout");
+        _wlog("❌ Connection cancelled before setting timeout");
         return;
       }
 
@@ -5212,12 +5233,12 @@
 
       // Check LiveKit support - load if not available
       if (typeof LivekitClient === "undefined") {
-        console.log("📦 LiveKit not loaded, loading now...");
+        _wlog("📦 LiveKit not loaded, loading now...");
         updateStatus("Loading LiveKit...", "connecting");
         
         try {
           await loadLiveKitSDK();
-          console.log("✅ LiveKit loaded successfully");
+          _wlog("✅ LiveKit loaded successfully");
         } catch (error) {
           console.error("❌ Failed to load LiveKit SDK:", error);
           updateStatus("❌ Failed to load audio library", "disconnected");
@@ -5238,7 +5259,7 @@
 
       // Check if connection was cancelled before token request
       if (!isConnecting) {
-        console.log("❌ Connection cancelled before token request");
+        _wlog("❌ Connection cancelled before token request");
         return;
       }
 
@@ -5251,11 +5272,11 @@
       // Start with globally resolved tenant ID (set at init time in checkAgentStatusOnLoad)
       let userId = globalTenantId || null;
       if (userId) {
-        console.log("👤 Using globalTenantId for tenant_id:", userId);
+        _wlog("👤 Using globalTenantId for tenant_id:", userId);
       }
       
-      console.log("🔍 Debug: window.SHIVAI_CONFIG:", window.SHIVAI_CONFIG);
-      console.log("🔍 Debug: document.currentScript:", document.currentScript);
+      _wlog("🔍 Debug: window.SHIVAI_CONFIG:", window.SHIVAI_CONFIG);
+      _wlog("🔍 Debug: document.currentScript:", document.currentScript);
       
       // First try to get from URL parameters of the widget script
       const scriptTags = document.getElementsByTagName('script');
@@ -5270,11 +5291,11 @@
           if (urlAgentId) {
             agentId = urlAgentId;
             foundFromUrl = true;
-            console.log("🎯 Using agentId from URL parameter:", agentId);
+            _wlog("🎯 Using agentId from URL parameter:", agentId);
           }
           if (urlUserId) {
             userId = urlUserId; // URL always wins over globalTenantId
-            console.log("👤 Using userId from URL parameter:", userId);
+            _wlog("👤 Using userId from URL parameter:", userId);
           }
           if (foundFromUrl) break;
         }
@@ -5282,34 +5303,34 @@
       
       if (!foundFromUrl && window.SHIVAI_CONFIG && window.SHIVAI_CONFIG.agentId) {
         agentId = window.SHIVAI_CONFIG.agentId;
-        console.log("🎯 Using agentId from SHIVAI_CONFIG:", agentId);
+        _wlog("🎯 Using agentId from SHIVAI_CONFIG:", agentId);
       }
       // Get userId from SHIVAI_CONFIG if not already from URL
       if (!userId && window.SHIVAI_CONFIG && window.SHIVAI_CONFIG.userId) {
         userId = window.SHIVAI_CONFIG.userId;
-        console.log("👤 Using userId from SHIVAI_CONFIG:", userId);
+        _wlog("👤 Using userId from SHIVAI_CONFIG:", userId);
       }
       if (!foundFromUrl) {
-        console.log("🔍 SHIVAI_CONFIG not found, checking script attributes...");
+        _wlog("🔍 SHIVAI_CONFIG not found, checking script attributes...");
         const scriptElements = document.querySelectorAll('script[data-agent-id]');
-        console.log("🔍 Found script elements with data-agent-id:", scriptElements);
+        _wlog("🔍 Found script elements with data-agent-id:", scriptElements);
         
         if (scriptElements.length > 0) {
           const lastScript = scriptElements[scriptElements.length - 1];
           agentId = lastScript.getAttribute('data-agent-id');
-          console.log("🎯 Using agentId from script data attribute:", agentId);
+          _wlog("🎯 Using agentId from script data attribute:", agentId);
           // Also try to get userId from the same script
           if (!userId && lastScript.getAttribute('data-user-id')) {
             userId = lastScript.getAttribute('data-user-id');
-            console.log("👤 Using userId from script data attribute:", userId);
+            _wlog("👤 Using userId from script data attribute:", userId);
           }
         }
         else if (document.currentScript && document.currentScript.getAttribute('data-agent-id')) {
           agentId = document.currentScript.getAttribute('data-agent-id');
-          console.log("🎯 Using agentId from current script:", agentId);
+          _wlog("🎯 Using agentId from current script:", agentId);
           if (!userId && document.currentScript.getAttribute('data-user-id')) {
             userId = document.currentScript.getAttribute('data-user-id');
-            console.log("👤 Using userId from current script:", userId);
+            _wlog("👤 Using userId from current script:", userId);
           }
         }
         else {
@@ -5323,7 +5344,7 @@
       }
 
       const response = await fetch(
-        "https://staging.voice.callshivai.com/token",
+        "https://voice.callshivai.com/token",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -5346,7 +5367,7 @@
       const data = await response.json();
       window.currentCallId = roomName;
       if (!isConnecting) {
-        console.log("❌ Connection cancelled after token received");
+        _wlog("❌ Connection cancelled after token received");
         return;
       }
 
@@ -5414,7 +5435,7 @@
 
             remoteAudioTrack = track;
             monitorRemoteAudioLevel(track);
-            console.log(
+            _wlog(
               "🔊 Agent audio track received with feedback prevention"
             );
           }
@@ -5424,7 +5445,7 @@
       room.on(
         LivekitClient.RoomEvent.ParticipantMetadataChanged,
         (metadata, participant) => {
-          console.log("📋 Participant metadata changed:", {
+          _wlog("📋 Participant metadata changed:", {
             metadata,
             participant: participant?.identity,
           });
@@ -5433,38 +5454,38 @@
               const data = JSON.parse(metadata);
               if (data.transcript || data.text) {
                 addMessage("assistant", data.transcript || data.text);
-                console.log(
+                _wlog(
                   "✅ Transcript from participant metadata:",
                   data.transcript || data.text
                 );
               }
             } catch (e) {
-              console.log("Metadata not JSON:", metadata);
+              _wlog("Metadata not JSON:", metadata);
             }
           }
         }
       );
 
       room.on(LivekitClient.RoomEvent.RoomMetadataChanged, (metadata) => {
-        console.log("🏠 Room metadata changed:", metadata);
+        _wlog("🏠 Room metadata changed:", metadata);
         if (metadata) {
           try {
             const data = JSON.parse(metadata);
             if (data.transcript || data.text) {
               addMessage("assistant", data.transcript || data.text);
-              console.log(
+              _wlog(
                 "✅ Transcript from room metadata:",
                 data.transcript || data.text
               );
             }
           } catch (e) {
-            console.log("Room metadata not JSON:", metadata);
+            _wlog("Room metadata not JSON:", metadata);
           }
         }
       });
 
       room.on(LivekitClient.RoomEvent.Connected, async () => {
-        console.log("✅ Connected to LiveKit room");
+        _wlog("✅ Connected to LiveKit room");
         isConnected = true;
         retryCount = 0; // Reset retry count on successful connection
 
@@ -5499,7 +5520,7 @@
             facingMode: "user",
           });
           isMuted = false;
-          console.log("🎤 Microphone enabled with optimized settings");
+          _wlog("🎤 Microphone enabled with optimized settings");
         } catch (micError) {
           console.warn(
             "⚠️ Failed to enable microphone with full config, trying basic:",
@@ -5509,7 +5530,7 @@
             // Fallback to basic microphone enabling
             await room.localParticipant.setMicrophoneEnabled(true);
             isMuted = false;
-            console.log("🎤 Microphone enabled (basic mode)");
+            _wlog("🎤 Microphone enabled (basic mode)");
           } catch (basicError) {
             console.error(
               "❌ Failed to enable microphone completely:",
@@ -5532,7 +5553,7 @@
             audioCtx
               .resume()
               .then(() => {
-                console.log(
+                _wlog(
                   "🔊 Audio context resumed for better audio quality"
                 );
               })
@@ -5543,18 +5564,18 @@
         }
 
         // Simplified flow - microphone stays enabled
-        console.log(
+        _wlog(
           "✅ Connection established - microphone ready for conversation"
         );
 
         // 🎤 Keep microphone ENABLED at all times
-        console.log(
+        _wlog(
           "🎤 Microphone will remain enabled throughout the conversation"
         );
 
         // Mobile compatibility - microphone is already enabled
         if (isMobile) {
-          console.log(
+          _wlog(
             "📱 Mobile device detected - microphone already enabled and ready"
           );
         }
@@ -5565,23 +5586,23 @@
         if (audioTracks.length > 0) {
           localAudioTrack = audioTracks[0].track;
           monitorLocalAudioLevel(localAudioTrack);
-          console.log(
+          _wlog(
             "🎤 Audio track found and monitoring started immediately"
           );
         }
 
-        console.log("🎤 Microphone enabled and ready for conversation");
+        _wlog("🎤 Microphone enabled and ready for conversation");
       });
 
       // Room disconnected
       room.on(LivekitClient.RoomEvent.Disconnected, (reason) => {
-        console.log("Disconnected from LiveKit room", reason);
+        _wlog("Disconnected from LiveKit room", reason);
         stopConversation();
       });
 
       // Connection state change
       room.on(LivekitClient.RoomEvent.ConnectionStateChanged, (state) => {
-        console.log("🔗 Connection state:", state);
+        _wlog("🔗 Connection state:", state);
         if (state === LivekitClient.ConnectionState.Disconnected) {
           updateStatus(
             "❌ Disconnected - Please start new call",
@@ -5595,7 +5616,7 @@
       room.on(
         LivekitClient.RoomEvent.DataReceived,
         (payload, participant, kind, topic) => {
-          console.log("📨 DataReceived EVENT FIRED:", {
+          _dbg("📨 DataReceived:", {
             payloadLength: payload.length,
             participant: participant?.identity,
             kind,
@@ -5606,13 +5627,13 @@
           try {
             const decoder = new TextDecoder();
             const text = decoder.decode(payload);
-            console.log("📝 Raw decoded text:", text);
+            _dbg("📝 Raw:", text);
 
             // ── EARLIEST POSSIBLE: handle call_ended before ANY other processing ──
             try {
               const _quick = JSON.parse(text);
               if (_quick && _quick.type === "call_ended") {
-                console.log("📵 [EARLY] call_ended received:", _quick.reason);
+                _wlog("📵 [EARLY] call_ended received:", _quick.reason);
                 isConnected = false; // prevent alert in Disconnected handler
                 // Show immediate feedback while cleanup runs
                 updateStatus("Ending call...", "disconnected");
@@ -5654,16 +5675,16 @@
               );
 
               if (shouldSkip) {
-                console.log("🚫 Skipping obvious technical message:", text);
+                _wlog("🚫 Skipping obvious technical message:", text);
                 return;
               }
 
-              console.log("🎯 Processing potential transcript:", text);
+              _dbg("🎯 Processing:", text);
 
               // Try to parse as JSON first
               try {
                 const jsonData = JSON.parse(text);
-                console.log("📋 Parsed JSON data:", jsonData);
+                _dbg("📋 Parsed JSON:", jsonData);
 
                 // ── PRIORITY: handle call_ended IMMEDIATELY before any other logic ──
                 // call_ended is already handled above (early check), skip here
@@ -5673,15 +5694,37 @@
 
                 // ── Document / file shared by AI ────────────────────────────
                 if (jsonData.type === "document_share" || jsonData.type === "file_share") {
-                  console.log("📎 AI shared a document:", jsonData);
+                  _wlog("📎 AI shared a document:", jsonData);
                   addDocumentMessage({
                     url:       jsonData.url       || jsonData.file_url  || jsonData.download_url,
                     name:      jsonData.name      || jsonData.file_name || jsonData.filename || "Document",
                     size:      jsonData.size      || jsonData.file_size || null,
                     mime_type: jsonData.mime_type || jsonData.content_type || jsonData.type_hint || "",
+                    type:      jsonData.doc_type  || "",
                     caption:   jsonData.caption   || jsonData.description || "",
                   });
                   return;
+                }
+
+                // ── Documents array inside transcription ─────────────────────
+                if (Array.isArray(jsonData.documents) && jsonData.documents.length > 0) {
+                  _dbg("📎 Documents array in transcript:", jsonData.documents.length, "item(s)");
+                  // Delay so the AI text bubble renders first
+                  setTimeout(function() {
+                    jsonData.documents.forEach(function(doc) {
+                      if (doc.url) {
+                        addDocumentMessage({
+                          url:       doc.url,
+                          name:      doc.name      || 'Document',
+                          size:      doc.size      || null,
+                          mime_type: doc.mime_type || '',
+                          type:      doc.type      || '',
+                          caption:   doc.description || doc.caption || '',
+                        });
+                      }
+                    });
+                  }, 150);
+                  // Do NOT return — let the transcript text also render as a chat bubble
                 }
 
                 // Look for ANY text field that might contain transcript
@@ -5708,10 +5751,7 @@
                   ) {
                     transcriptText = jsonData[field].trim();
                     shouldAddToChat = true;
-                    console.log(
-                      `✅ Found text in field '${field}':`,
-                      transcriptText
-                    );
+                    _dbg(`✅ Found text in field '${field}':`, transcriptText);
                     break;
                   }
                 }
@@ -5734,18 +5774,18 @@
 
                 // Handle status messages for loading states (don't add to chat)
                 if (jsonData.type === "status") {
-                  console.log("📊 Status message:", jsonData.text);
+                  _wlog("📊 Status message:", jsonData.text);
                   if (jsonData.text) {
                     updateStatus(jsonData.text, "connecting");
                     
                     // Check if knowledge base is ready
                     if (jsonData.text.toLowerCase().includes("ready")) {
-                      console.log("✅ Knowledge base is ready");
+                      _wlog("✅ Knowledge base is ready");
                       knowledgeBaseReady = true;
                       
                       // Start call timer if first response received from AI
                       if (firstResponseReceived && !callTimerStarted) {
-                        console.log("⏱️ Starting call timer (knowledge base ready + first response received)");
+                        _wlog("⏱️ Starting call timer (knowledge base ready + first response received)");
                         callTimerStarted = true;
                         updateStatus("✅ Connected - Speak now!", "connected");
                         stopConnectingSound();
@@ -5760,7 +5800,7 @@
 
                 // Handle metrics messages for performance tracking (don't add to chat)
                 if (jsonData.type === "metrics" && jsonData.data) {
-                  console.log("📊 Latency metrics received:", jsonData.data);
+                  _wlog("📊 Latency metrics received:", jsonData.data);
                   if (jsonData.data.filler !== undefined) latencyMetrics.filler = jsonData.data.filler;
                   if (jsonData.data.qdrant !== undefined) latencyMetrics.qdrant = jsonData.data.qdrant;
                   if (jsonData.data.llm_ttft !== undefined) latencyMetrics.llm_ttft = jsonData.data.llm_ttft;
@@ -5780,7 +5820,7 @@
                         updateMessage(lastUserMessageDiv, jsonData.text);
                       }
                     } else {
-                      console.log(
+                      _wlog(
                         "🚫 Skipping user chat message (already shown from sendMessage)"
                       );
                     }
@@ -5788,7 +5828,7 @@
                     addMessage("assistant", jsonData.text);
                     // Track first assistant response
                     if (!firstResponseReceived) {
-                      console.log("✅ First AI response received (legacy transcript)");
+                      _dbg("✅ First AI response (legacy transcript):", jsonData.text.substring(0,80));
                       firstResponseReceived = true;
                       // Always clear loading state when AI first responds — no knowledgeBaseReady gate
                       if (!callTimerStarted) {
@@ -5801,7 +5841,7 @@
                       }
                     }
                   }
-                  console.log("✅ Processed legacy format transcript");
+                  _wlog("✅ Processed legacy format transcript");
                   return;
                 }
 
@@ -5814,13 +5854,10 @@
                     (isUser && jsonData.source !== "typed")
                   ) {
                     addMessage(senderRole, transcriptText);
-                    console.log("✅ Added JSON transcript:", {
-                      role: senderRole,
-                      text: transcriptText.substring(0, 50) + "...",
-                    });
+                    _dbg("✅ Transcript added:", senderRole, "|", transcriptText.substring(0, 100));
                     // Track first AI response
                     if (!isUser && !firstResponseReceived) {
-                      console.log("✅ First AI response received");
+                      _dbg("✅ First AI response received:", transcriptText.substring(0,80));
                       firstResponseReceived = true;
                       // Always clear loading state when AI first responds — no knowledgeBaseReady gate
                       if (!callTimerStarted) {
@@ -5836,7 +5873,7 @@
                 }
               } catch (e) {
                 // Not JSON, treat as plain text
-                console.log("📄 Not JSON, treating as plain text");
+                _dbg("📄 Plain text received:", text);
 
                 // If it's reasonable length text (not just noise), add it
                 if (text.length >= 2 && text.length <= 1000) {
@@ -5848,10 +5885,7 @@
 
                   // Add all transcripts (both user voice and assistant)
                   addMessage(senderRole, transcriptText);
-                  console.log("✅ Added plain text transcript:", {
-                    role: senderRole,
-                    text: transcriptText.substring(0, 50) + "...",
-                  });
+                  _dbg("✅ Plain text transcript:", senderRole, "|", transcriptText.substring(0, 100));
                 }
               }
             }
@@ -5864,18 +5898,18 @@
       // CRITICAL: Register text stream handlers BEFORE connecting (exactly like test-client)
       try {
         if (typeof room.registerTextStreamHandler === "function") {
-          console.log("📝 Registering text stream handlers...");
+          _wlog("📝 Registering text stream handlers...");
 
           room.registerTextStreamHandler(
             "lk.transcription",
             async (reader, participantInfo) => {
-              console.log(
+              _wlog(
                 "🎯 Transcription stream from:",
                 participantInfo.identity
               );
               try {
                 const info = reader.info;
-                console.log("Stream info:", {
+                _wlog("Stream info:", {
                   topic: info.topic,
                   id: info.id,
                   timestamp: info.timestamp,
@@ -5890,7 +5924,7 @@
                   info.attributes?.["lk.transcribed_track_id"];
                 const segmentId = info.attributes?.["lk.segment_id"];
 
-                console.log("Transcription attributes:", {
+                _wlog("Transcription attributes:", {
                   isFinal,
                   transcribedTrackId,
                   segmentId,
@@ -5911,7 +5945,7 @@
                     lastSentMessage &&
                     text.trim() === lastSentMessage.trim()
                   ) {
-                    console.log(
+                    _wlog(
                       "🚫 Skipping duplicate user message from transcription:",
                       text
                     );
@@ -5929,7 +5963,7 @@
                       lastUserMessage &&
                       lastUserMessage.textContent.trim() === text.trim()
                     ) {
-                      console.log(
+                      _wlog(
                         "🚫 Skipping duplicate - same message already exists in UI:",
                         text
                       );
@@ -5939,7 +5973,7 @@
 
                   // Add transcriptions
                   addMessage(senderName, text);
-                  console.log("✅ Transcription added:", {
+                  _wlog("✅ Transcription added:", {
                     sender: senderName,
                     text,
                     isFinal,
@@ -5947,7 +5981,7 @@
 
                   // Clear loading/connecting state on first AI transcription
                   if (!isUser && !firstResponseReceived) {
-                    console.log("✅ First AI transcription received via lk.transcription stream");
+                    _wlog("✅ First AI transcription received via lk.transcription stream");
                     firstResponseReceived = true;
                     if (!callTimerStarted) {
                       callTimerStarted = true;
@@ -5972,23 +6006,23 @@
           room.registerTextStreamHandler(
             "lk.chat",
             async (reader, participantInfo) => {
-              console.log("💬 Chat stream from:", participantInfo.identity);
+              _wlog("💬 Chat stream from:", participantInfo.identity);
               try {
                 const text = await reader.readAll();
                 const isUser =
                   participantInfo.identity === room.localParticipant?.identity;
 
                 if (!isUser && text && text.trim()) {
-                  console.log("💬 AI Chat response received:", text);
+                  _wlog("💬 AI Chat response received:", text);
                   addMessage("assistant", text, { source: "chat" });
-                  console.log("💬 Chat message added:", {
+                  _wlog("💬 Chat message added:", {
                     sender: participantInfo.identity,
                     text,
                   });
 
                   // Clear loading/connecting state on first AI chat message
                   if (!firstResponseReceived) {
-                    console.log("✅ First AI response received via lk.chat stream");
+                    _wlog("✅ First AI response received via lk.chat stream");
                     firstResponseReceived = true;
                     if (!callTimerStarted) {
                       callTimerStarted = true;
@@ -6006,7 +6040,7 @@
             }
           );
 
-          console.log("✅ Text stream handlers registered successfully");
+          _wlog("✅ Text stream handlers registered successfully");
         } else {
           console.warn(
             "⚠️ registerTextStreamHandler not available, using fallback DataReceived"
@@ -6019,16 +6053,16 @@
       // Connect to room
       // Final check before connecting to room
       if (!isConnecting) {
-        console.log("❌ Connection cancelled before room connection");
+        _wlog("❌ Connection cancelled before room connection");
         return;
       }
 
       await room.connect(data.url, data.token);
-      console.log("🔗 Room connected successfully");
+      _wlog("🔗 Room connected successfully");
 
       // Check if connection was cancelled during room connection
       if (!isConnecting) {
-        console.log("❌ Connection cancelled during room connection");
+        _wlog("❌ Connection cancelled during room connection");
         if (room) {
           room.disconnect();
           room = null;
@@ -6043,10 +6077,10 @@
       if (audioTracks.length > 0) {
         localAudioTrack = audioTracks[0].track;
         monitorLocalAudioLevel(localAudioTrack);
-        console.log("🎤 Microphone monitoring started");
+        _wlog("🎤 Microphone monitoring started");
       }
 
-      console.log("🎤 Microphone enabled with LiveKit");
+      _wlog("🎤 Microphone enabled with LiveKit");
     } catch (error) {
       console.error("❌ Connection Error:", error);
       clearLoadingStatus();
@@ -6088,21 +6122,35 @@
     }
   }
   async function stopConversation() {
-    console.log("🛑 stopConversation() called");
+    _wlog("🛑 stopConversation() called");
 
     // Stop connecting sound immediately
     stopConnectingSound();
 
     isConnected = false;
     isConnecting = false;
+    isDisconnecting = false; // Always reset so reconnection is possible
     hasReceivedFirstAIResponse = false;
     firstResponseReceived = false;
     shouldAutoUnmute = false;
     isMuted = false;
     aiJustFinished = false;
 
+    // Re-enable connect button so user can retry
+    if (connectBtn) {
+      connectBtn.disabled = false;
+      connectBtn.classList.remove("connected");
+      connectBtn.innerHTML =
+        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>';
+      connectBtn.title = "Start Call";
+    }
+    if (languageSelect) {
+      languageSelect.disabled = false;
+    }
+
     // Hide message interface when disconnected
     hideMessageInterface();
+    hideConnectingState();
 
     stopCallTimer();
     clearLoadingStatus();
@@ -6119,7 +6167,7 @@
 
     // Close WebSocket if exists
     if (ws) {
-      console.log("🔌 Closing WebSocket in stopConversation");
+      _wlog("🔌 Closing WebSocket in stopConversation");
       try {
         ws.close();
       } catch (err) {
@@ -6142,7 +6190,7 @@
     if (room) {
       try {
         await room.disconnect();
-        console.log("🔴 LiveKit room disconnected");
+        _wlog("🔴 LiveKit room disconnected");
       } catch (_e) {
         console.warn("Room already disconnected:", _e);
       }
@@ -6172,13 +6220,13 @@
     // Remove any attached audio elements
     document.querySelectorAll("audio").forEach((el) => el.remove());
 
-    console.log("✅ Conversation stopped - LiveKit cleanup complete");
+    _wlog("✅ Conversation stopped - LiveKit cleanup complete");
   }
 
   // Remove unused WebSocket audio streaming function
   function startAudioStreaming() {
     // This function is no longer needed with LiveKit
-    console.log("startAudioStreaming called but not needed with LiveKit");
+    _wlog("startAudioStreaming called but not needed with LiveKit");
   }
 
   function base64ToArrayBuffer(base64) {
@@ -6344,12 +6392,12 @@
     document.addEventListener("DOMContentLoaded", () => {
       loadLiveKitSDK()
         .then(() => {
-          console.log("🚀 Initializing widget with LiveKit support");
+          _wlog("🚀 Initializing widget with LiveKit support");
           initWidget();
         })
         .catch((error) => {
           console.error("❌ Failed to load LiveKit SDK:", error);
-          console.log(
+          _wlog(
             "⚠️ Initializing widget anyway (LiveKit features may not work)"
           );
           initWidget();
@@ -6358,12 +6406,12 @@
   } else {
     loadLiveKitSDK()
       .then(() => {
-        console.log("🚀 Initializing widget with LiveKit support");
+        _wlog("🚀 Initializing widget with LiveKit support");
         initWidget();
       })
       .catch((error) => {
         console.error("❌ Failed to load LiveKit SDK:", error);
-        console.log(
+        _wlog(
           "⚠️ Initializing widget anyway (LiveKit features may not work)"
         );
         initWidget();

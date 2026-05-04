@@ -3,6 +3,18 @@ import { Smartphone, Monitor, Save, RefreshCw, Settings2, ChevronLeft, ChevronRi
 import appToast from "../../../components/AppToast";
 import Slider from "react-slick";
 import GlassCard from "../../../components/GlassCard";
+
+// Slick arrow wrappers — prevent currentSlide/slideCount from leaking to DOM
+const SlickPrevArrow = ({ currentSlide: _c, slideCount: _s, ...props }: any) => (
+  <button {...props} className="slick-arrow slick-prev" aria-label="Previous">
+    <ChevronLeft className="w-4 h-4" />
+  </button>
+);
+const SlickNextArrow = ({ currentSlide: _c, slideCount: _s, ...props }: any) => (
+  <button {...props} className="slick-arrow slick-next" aria-label="Next">
+    <ChevronRight className="w-4 h-4" />
+  </button>
+);
 import { agentAPI } from "../../../services/agentAPI";
 import { useAuth } from "../../../contexts/AuthContext";
 
@@ -1066,7 +1078,6 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                               </>
                             ) : (
                               <>
-                                {console.log("📋 Rendering upload placeholder - no logo preview")}
                                 <label
                                   htmlFor="logo-upload"
                                   className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
@@ -1339,16 +1350,8 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                             slidesToShow={4}
                             slidesToScroll={1}
                             arrows={true}
-                            prevArrow={
-                              <button className="slick-arrow slick-prev" aria-label="Previous">
-                                <ChevronLeft className="w-4 h-4" />
-                              </button>
-                            }
-                            nextArrow={
-                              <button className="slick-arrow slick-next" aria-label="Next">
-                                <ChevronRight className="w-4 h-4" />
-                              </button>
-                            }
+                            prevArrow={<SlickPrevArrow />}
+                            nextArrow={<SlickNextArrow />}
                             responsive={[
                               {
                                 breakpoint: 1024,
@@ -1620,7 +1623,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
     </script>
     
     <!-- Load the actual widget.js -->
-    <script src="/widget.js?agentId=${agentId}&userId=${user?.id || ''}&bypass=true&companyName=${encodeURIComponent(
+    <script src="/widget2.js?agentId=${agentId}&userId=${user?.id || ''}&bypass=true&companyName=${encodeURIComponent(
                         widgetConfig.content.companyName
                       )}&companyDescription=${encodeURIComponent(
                         widgetConfig.content.companyDescription
@@ -1631,7 +1634,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
 </html>`}
                       className="w-full h-full border-0"
                       title="Widget Preview"
-                      sandbox="allow-scripts allow-same-origin"
+                      sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
                     />
                   </div>
                 </div>

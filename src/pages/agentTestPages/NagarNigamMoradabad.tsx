@@ -2,15 +2,11 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { Orb, oceanDepthsPreset } from "react-ai-orb";
 
-import nagar1 from "./NagarImages/nagar.png";
 import nagar2 from "./NagarImages/nagar2.png";
-import nagar3 from "./NagarImages/nagar3.png";
-import nagar4 from "./NagarImages/nagar4.png";
-
-const BG_IMAGES = [nagar1, nagar2, nagar3, nagar4];
+import nagarMob from "./NagarImages/nagarMob.png";
 
 const AI_FEATURES = [
   { icon: "🕐", title: "24/7 उपलब्ध",    titleEn: "Always Available",  desc: "कार्यालय बंद हो या खुला — AI कभी नहीं सोता।" },
@@ -19,13 +15,6 @@ const AI_FEATURES = [
   { icon: "📄", title: "प्रमाण पत्र",     titleEn: "Certificates",      desc: "जन्म-मृत्यु प्रमाण पत्र मार्गदर्शन।" },
   { icon: "🏗️", title: "भवन अनुज्ञा",    titleEn: "Building Permit",   desc: "नक्शा पास हेतु दस्तावेज़ व प्रक्रिया।" },
   { icon: "🌐", title: "हिंदी + English", titleEn: "Bilingual Support", desc: "हिंदी या अंग्रेजी — जैसे चाहें बात करें।" },
-];
-
-const CITY_STATS = [
-  { value: "8.87 लाख", label: "नागरिक" },
-  { value: "70",       label: "वार्ड" },
-  { value: "75 km²",   label: "क्षेत्रफल" },
-  { value: "24/7",     label: "AI सहायक" },
 ];
 
 const BADGE_PHRASES = [
@@ -44,12 +33,7 @@ export default function NagarNigamMoradabad() {
   const agentFetchRef = useRef<string | null>(null);
   const [agentInfo, setAgentInfo] = useState<{ name: string } | null>(null);
 
-  // Background carousel
-  const [bgIndex, setBgIndex] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => setBgIndex((i) => (i + 1) % BG_IMAGES.length), 5000);
-    return () => clearInterval(t);
-  }, []);
+  // Background carousel removed — static image
 
   // Typewriter badge
   const [phraseIndex, setPhraseIndex] = useState(0);
@@ -90,34 +74,35 @@ export default function NagarNigamMoradabad() {
       className="w-full h-screen overflow-hidden relative flex flex-col"
       style={{ fontFamily: "'Noto Sans Devanagari','Poppins',sans-serif" }}
     >
-      {/* ── Background image carousel ── */}
+      {/* ── Background image — nagarMob on mobile, nagar2 on sm+ ── */}
       <div className="absolute inset-0 z-0">
-        <AnimatePresence>
-          <motion.img
-            key={bgIndex}
-            src={BG_IMAGES[bgIndex]}
-            alt=""
-            aria-hidden="true"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 1.5, ease: "easeInOut" }}
-            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
-          />
-        </AnimatePresence>
+        {/* Mobile */}
+        <img
+          src={nagarMob}
+          alt=""
+          aria-hidden="true"
+          className="block sm:hidden"
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "center" }}
+        />
+        {/* Desktop */}
+        <img
+          src={nagar2}
+          alt=""
+          aria-hidden="true"
+          className="hidden sm:block"
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: "left center" }}
+        />
       </div>
 
-      {/* ── Dark overlay — enough to read text, light enough to see images ── */}
-      <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 1, background: "rgba(4,9,20,0.58)" }} />
-      {/* Bottom-up gradient so lower cards stay readable */}
-      <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 1, background: "linear-gradient(to top,rgba(4,9,20,0.80) 0%,transparent 55%)" }} />
+      <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 1, background: "rgba(4,9,20,0.35)" }} />
+      <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 1, background: "linear-gradient(to top,rgba(4,9,20,0.60) 0%,transparent 55%)" }} />
       <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 1, background: "radial-gradient(ellipse at 50% 0%,rgba(249,115,22,0.10) 0%,transparent 55%)" }} />
 
       {/* Tricolour stripe */}
       <div className="absolute top-0 left-0 right-0 h-[3px] z-30 pointer-events-none" style={{ background: "linear-gradient(90deg,#f97316 33%,#ffffff 33% 66%,#16a34a 66%)" }} aria-hidden="true" />
 
       {/* ── Top bar ── */}
-      <div className="relative z-20 flex items-center justify-between px-4 sm:px-8 py-2.5 shrink-0 border-b" style={{ borderColor: "rgba(249,115,22,0.15)" }}>
+      <div className="relative z-20 flex items-center justify-between px-4 sm:px-8 py-2.5 shrink-0 border-b" style={{ borderColor: "rgba(249,115,22,0.25)", background: "rgba(4,9,20,0.72)", backdropFilter: "blur(14px)" }}>
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-full overflow-hidden shrink-0 flex items-center justify-center bg-white" style={{ boxShadow: "0 0 14px rgba(249,115,22,0.5)" }}>
             <img
@@ -138,17 +123,17 @@ export default function NagarNigamMoradabad() {
             <span className="nnm-fallback text-white font-black text-[10px] hidden items-center justify-center w-full h-full">NNM</span>
           </div>
           <div className="flex flex-col leading-none gap-0.5">
-            <span className="font-black text-sm tracking-tight" style={{ background: "linear-gradient(90deg,#fdba74,#fcd34d,#fb923c)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+            <span className="font-black text-base tracking-tight" style={{ background: "linear-gradient(90deg,#fdba74,#fcd34d,#fb923c)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
               नगर निगम मोरादाबाद
             </span>
-            <span className="text-[9px] tracking-widest uppercase" style={{ color: "rgba(255,255,255,0.32)" }}>
+            <span className="text-xs tracking-widest uppercase" style={{ color: "rgba(255,255,255,0.75)" }}>
               Nagar Nigam Moradabad · UP
             </span>
           </div>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
-          <span className="text-[10px] font-semibold tracking-widest uppercase" style={{ color: "rgba(255,255,255,0.45)" }}>AI Live</span>
+          <span className="text-xs font-semibold tracking-widest uppercase" style={{ color: "rgba(255,255,255,0.9)" }}>AI Live</span>
         </div>
       </div>
 
@@ -178,16 +163,16 @@ export default function NagarNigamMoradabad() {
             transition={{ duration: 0.8, delay: 0.2 }}
             className="flex flex-col gap-1.5 max-w-xs sm:max-w-md"
           >
-            <p className="text-[9px] sm:text-[10px] font-semibold tracking-[0.3em] uppercase" style={{ color: "rgba(255,255,255,0.38)" }}>
+            <p className="text-xs sm:text-sm font-semibold tracking-[0.3em] uppercase" style={{ color: "rgba(255,255,255,0.55)" }}>
               उत्तर प्रदेश सरकार · Govt. of UP
             </p>
-            <p className="text-xs sm:text-sm font-semibold tracking-wide" style={{ color: "rgba(253,186,116,0.9)" }}>
+            <p className="text-sm sm:text-base font-semibold tracking-wide" style={{ color: "rgba(253,186,116,0.9)" }}>
               आपका AI सेवक · Your AI Employee
             </p>
-            <h1 className="font-black leading-none text-3xl sm:text-5xl md:text-6xl" style={{ background: "linear-gradient(180deg,#fff7ed 0%,#fb923c 50%,#ea580c 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", filter: "drop-shadow(0 0 32px rgba(249,115,22,0.5))" }}>
+            <h1 className="font-black leading-none text-4xl sm:text-6xl md:text-7xl" style={{ background: "linear-gradient(180deg,#fff7ed 0%,#fb923c 50%,#ea580c 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", filter: "drop-shadow(0 0 32px rgba(249,115,22,0.5))" }}>
               {agentName}
             </h1>
-            <p className="text-xs sm:text-base font-semibold" style={{ color: "rgba(255,255,255,0.75)" }}>
+            <p className="text-sm sm:text-lg font-semibold" style={{ color: "rgba(255,255,255,0.75)" }}>
               शिकायत करें। जानकारी पाएं।{" "}
               <span style={{ background: "linear-gradient(90deg,#fb923c,#fcd34d)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
                 तुरंत समाधान।
@@ -195,9 +180,9 @@ export default function NagarNigamMoradabad() {
             </p>
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full w-fit" style={{ border: "1px solid rgba(249,115,22,0.25)", background: "rgba(0,0,0,0.35)", backdropFilter: "blur(8px)" }}>
               <span className="w-1.5 h-1.5 shrink-0 bg-emerald-400 rounded-full animate-pulse" />
-              <span className="text-[10px] sm:text-xs font-semibold tracking-wide" style={{ color: "rgba(253,186,116,0.85)" }}>{displayText}</span>
+              <span className="text-xs sm:text-sm font-semibold tracking-wide" style={{ color: "rgba(253,186,116,0.85)" }}>{displayText}</span>
             </div>
-            <p className="text-[9px] sm:text-[10px]" style={{ color: "rgba(255,255,255,0.28)" }}>
+            <p className="text-xs sm:text-sm" style={{ color: "rgba(255,255,255,0.45)" }}>
               👇 नीचे दाएं चैट बटन पर क्लिक करें
             </p>
           </motion.div>
@@ -213,16 +198,16 @@ export default function NagarNigamMoradabad() {
         >
           <div className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-lg" style={{ background: "rgba(249,115,22,0.18)" }}>🤖</div>
           <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-            <p className="text-[10px] sm:text-xs font-bold" style={{ color: "rgba(253,186,116,1)" }}>
+            <p className="text-sm sm:text-base font-bold" style={{ color: "rgba(253,186,116,1)" }}>
               AI आपकी कैसे मदद करता है?
             </p>
-            <p className="text-[9px] sm:text-[10px] leading-snug" style={{ color: "rgba(255,255,255,0.62)" }}>
+            <p className="text-xs sm:text-sm leading-snug" style={{ color: "rgba(255,255,255,0.75)" }}>
               बस माइक बटन दबाएं और बोलें — कर भुगतान, शिकायत, प्रमाण पत्र, नक्शा पास — सब कुछ हिंदी में, 24 घंटे।
             </p>
           </div>
           <div className="shrink-0 hidden sm:flex flex-col items-end gap-1">
-            <span className="text-[9px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "rgba(34,197,94,0.18)", color: "rgba(134,239,172,1)", border: "1px solid rgba(34,197,94,0.3)" }}>✓ हिंदी</span>
-            <span className="text-[9px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "rgba(34,197,94,0.18)", color: "rgba(134,239,172,1)", border: "1px solid rgba(34,197,94,0.3)" }}>✓ English</span>
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "rgba(34,197,94,0.18)", color: "rgba(134,239,172,1)", border: "1px solid rgba(34,197,94,0.3)" }}>✓ हिंदी</span>
+            <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "rgba(34,197,94,0.18)", color: "rgba(134,239,172,1)", border: "1px solid rgba(34,197,94,0.3)" }}>✓ English</span>
           </div>
         </motion.div>
 
@@ -242,9 +227,9 @@ export default function NagarNigamMoradabad() {
               className="rounded-lg p-2 sm:p-3 flex flex-col gap-1"
               style={{ background: "rgba(0,0,0,0.50)", border: "1px solid rgba(255,255,255,0.08)", backdropFilter: "blur(10px)" }}
             >
-              <span className="text-base sm:text-lg leading-none">{f.icon}</span>
-              <p className="font-bold text-[9px] sm:text-xs leading-tight" style={{ color: "rgba(253,186,116,0.92)" }}>{f.title}</p>
-              <p className="text-[8px] sm:text-[9px] leading-snug hidden sm:block" style={{ color: "rgba(255,255,255,0.42)" }}>{f.desc}</p>
+              <span className="text-lg sm:text-xl leading-none">{f.icon}</span>
+              <p className="font-bold text-xs sm:text-sm leading-tight" style={{ color: "rgba(253,186,116,0.92)" }}>{f.title}</p>
+              <p className="text-[10px] sm:text-xs leading-snug hidden sm:block" style={{ color: "rgba(255,255,255,0.65)" }}>{f.desc}</p>
             </motion.div>
           ))}
         </motion.div>
@@ -252,7 +237,7 @@ export default function NagarNigamMoradabad() {
 
       {/* ── Bottom bar ── */}
       <div className="relative z-20 text-center py-2 shrink-0 border-t" style={{ borderColor: "rgba(249,115,22,0.08)" }}>
-        <p className="text-[8px] tracking-wider" style={{ color: "rgba(255,255,255,0.18)" }}>
+        <p className="text-[10px] tracking-wider" style={{ color: "rgba(255,255,255,0.35)" }}>
           Powered by Callshivai.com AI · नगर निगम मोरादाबाद · पीतलनगरी 🏺
         </p>
       </div>

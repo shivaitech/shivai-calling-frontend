@@ -861,7 +861,7 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
                   <p className="text-sm text-slate-500 dark:text-slate-400">No documents in library</p>
                   <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 mb-4">Create documents in the AI Documents section first</p>
                   <button
-                    onClick={() => { setShowDocPicker(false); navigate('/workflows', { state: { tab: 'documents' } }); }}
+                    onClick={() => { setShowDocPicker(false); navigate('/workflows', { state: { tab: 'documents', fromAgentId: id, fromAgentName: agent?.name } }); }}
                     className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition-colors"
                   >
                     <Plus className="w-3.5 h-3.5" />
@@ -923,22 +923,33 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3 flex-shrink-0">
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                {docPickerSelected.length} document{docPickerSelected.length !== 1 ? 's' : ''} selected
-              </p>
-              <div className="flex items-center gap-2">
+            <div className="p-3 sm:p-4 border-t border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 flex-shrink-0">
+              {/* Left: count + new doc link */}
+              <div className="flex items-center gap-3">
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {docPickerSelected.length} document{docPickerSelected.length !== 1 ? 's' : ''} selected
+                </p>
+                <button
+                  onClick={() => { setShowDocPicker(false); navigate('/workflows', { state: { tab: 'documents', createDoc: true, fromAgentId: id, fromAgentName: agent?.name } }); }}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline whitespace-nowrap"
+                >
+                  <Plus className="w-3 h-3" />
+                  New Document
+                </button>
+              </div>
+              {/* Right: actions */}
+              <div className="flex items-center gap-2 w-full sm:w-auto">
                 <button
                   onClick={() => setShowDocPicker(false)}
                   disabled={docPickerSaving}
-                  className="px-4 py-2 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+                  className="flex-1 sm:flex-none px-4 py-2 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50 text-center"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSaveDocs}
                   disabled={docPickerSaving || docPickerSelected.length === 0}
-                  className="px-4 py-2 rounded-xl text-sm font-medium common-button-bg text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="flex-1 sm:flex-none px-4 py-2 rounded-xl text-sm font-medium common-button-bg text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {docPickerSaving ? (
                     <><Loader2 className="w-4 h-4 animate-spin" /><span>Saving...</span></>
