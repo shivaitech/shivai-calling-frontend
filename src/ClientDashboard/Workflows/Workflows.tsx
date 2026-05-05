@@ -135,6 +135,7 @@ const Workflows = () => {
     linkCategory: string;
     fileName: string;
     fileObject: File | null;
+    s3Url: string;
     rawText: string;
     keywords: string[];
     description: string;
@@ -146,6 +147,7 @@ const Workflows = () => {
     linkCategory: '',
     fileName: '',
     fileObject: null,
+    s3Url: '',
     rawText: '',
     keywords: [],
     description: '',
@@ -805,7 +807,7 @@ const Workflows = () => {
   };
 
   const resetDocForm = () => {
-    setNewDoc({ name: '', type: 'custom-link', sourceUrl: '', linkCategory: '', fileName: '', fileObject: null, rawText: '', keywords: [], description: '', agentIds: [] });
+    setNewDoc({ name: '', type: 'custom-link', sourceUrl: '', linkCategory: '', fileName: '', fileObject: null, s3Url: '', rawText: '', keywords: [], description: '', agentIds: [] });
     setDocKeywordInput('');
     setEditingDoc(null);
     setDocSaveError(null);
@@ -822,6 +824,7 @@ const Workflows = () => {
     const typeKey = (doc.document_type?.toLowerCase() ?? 'website');
     const uiType: DocType =
       typeKey === 'pdf document' || typeKey === 'pdf' ? 'pdf' :
+      typeKey === 'image' ? 'image' :
       typeKey === 'word document' || typeKey === 'docx' ? 'docx' :
       typeKey === 'text file' || typeKey === 'text' || typeKey === 'txt' ? 'txt' :
       typeKey === 'website link' || typeKey === 'website' ? 'website' :
@@ -835,6 +838,7 @@ const Workflows = () => {
       linkCategory: '',
       fileName: doc.name || '',
       fileObject: null,
+      s3Url: doc.s3_url || '',
       rawText: '',
       keywords: doc.keywords ?? [],
       description: doc.description || '',
@@ -879,10 +883,10 @@ const Workflows = () => {
     const isUrl = DOC_TYPE_META[newDoc.type].isUrl;
     const isTxt = newDoc.type === 'txt';
 
-    // Validation
+    // Validation — file is only required when creating, not when editing
     if (isUrl && !newDoc.sourceUrl.trim()) return;
-    if (!isUrl && !isTxt && !newDoc.fileObject) return;
-    if (isTxt && !newDoc.rawText.trim() && !newDoc.fileObject) return;
+    if (!editingDoc && !isUrl && !isTxt && !newDoc.fileObject) return;
+    if (!editingDoc && isTxt && !newDoc.rawText.trim() && !newDoc.fileObject) return;
 
     setIsSavingDoc(true);
     setDocSaveError(null);
@@ -2426,7 +2430,7 @@ const Workflows = () => {
                           Document Type <span className="text-red-500">*</span>
                         </label>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                          {(Object.entries(DOC_TYPE_META) as [DocType, typeof DOC_TYPE_META[DocType]][]).map(([type, meta]) => {
+                          {(Object.entries(DOC_TYPE_META) as [DocType, typeof DOC_TYPE_META[DocType]][]).filter(([type]) => type !== 'txt').map(([type, meta]) => {
                             const IconComp = meta.icon;
                             const isSelected = newDoc.type === type;
                             return (
@@ -2540,7 +2544,7 @@ const Workflows = () => {
                       ) : (
                         <div>
                           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                            Upload File <span className="text-red-500">*</span>
+                            Upload File {!editingDoc && <span className="text-red-500">*</span>}
                           </label>
                           {newDoc.fileName ? (
                             <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl">
@@ -2549,12 +2553,24 @@ const Workflows = () => {
                               </div>
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm font-medium text-slate-700 dark:text-slate-300 truncate">{newDoc.fileName}</p>
-                                <p className="text-xs text-slate-400">{DOC_TYPE_META[newDoc.type].label}</p>
+                                <p className="text-xs text-slate-400">{DOC_TYPE_META[newDoc.type].label}{editingDoc && !newDoc.fileObject ? ' · Current file' : ''}</p>
                               </div>
+                              {newDoc.s3Url && !newDoc.fileObject && (
+                                <a
+                                  href={newDoc.s3Url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-1.5 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                                  title="Open current file"
+                                >
+                                  <ExternalLink className="w-4 h-4" />
+                                </a>
+                              )}
                               <button
                                 type="button"
-                                onClick={() => setNewDoc(prev => ({ ...prev, fileName: '', fileObject: null }))}
+                                onClick={() => setNewDoc(prev => ({ ...prev, fileName: '', fileObject: null, s3Url: '' }))}
                                 className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                title={editingDoc ? 'Replace file' : 'Remove file'}
                               >
                                 <X className="w-4 h-4" />
                               </button>

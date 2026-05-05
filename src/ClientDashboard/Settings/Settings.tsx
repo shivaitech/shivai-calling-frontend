@@ -10,7 +10,6 @@ import {
   Globe, 
   Key, 
   Users, 
-  Webhook,
   Save,
   Eye,
   EyeOff,
@@ -20,7 +19,15 @@ import {
   Plus,
   ChevronDown,
   Loader2,
-  Check
+  Check,
+  Link2,
+  Unlink,
+  ChevronRight,
+  Phone,
+  MessageSquare,
+  Mail,
+  Zap,
+  X
 } from 'lucide-react';
 
 const Settings = () => {
@@ -100,7 +107,7 @@ const Settings = () => {
     { id: 'security', label: 'Security', icon: Shield },
     { id: 'api', label: 'API Keys', icon: Key },
     { id: 'team', label: 'Team', icon: Users },
-    { id: 'integrations', label: 'Integrations', icon: Webhook }
+    { id: 'accounts', label: 'Accounts', icon: Link2 },
   ];
 
   const timezones = [
@@ -192,6 +199,142 @@ const Settings = () => {
   };
 
   const handleSaveNotifications = () => {
+  };
+
+  // ── Accounts (connected accounts) state ────────────────────────────────────
+  type AccountId = 'google' | 'twilio' | 'whatsapp' | 'slack' | 'meta' | 'zapier';
+  type AccountState = {
+    connected: boolean;
+    expanded: boolean;
+    fields: Record<string, string>;
+  };
+
+  const ACCOUNT_DEFS: {
+    id: AccountId;
+    name: string;
+    description: string;
+    color: string;
+    bg: string;
+    icon: React.ReactNode;
+    fields: { key: string; label: string; placeholder: string; type?: string }[];
+  }[] = [
+    {
+      id: 'google',
+      name: 'Google',
+      description: 'Google Calendar, Gmail & Meet integration',
+      color: 'text-red-500',
+      bg: 'bg-red-50 dark:bg-red-900/20',
+      icon: (
+        <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none">
+          <path d="M21.35 11.1H12v2.8h5.35C16.83 16.3 14.67 17.6 12 17.6a5.6 5.6 0 1 1 3.55-9.95l2-2A9 9 0 1 0 21 12c0-.31-.02-.62-.05-.9z" fill="#EA4335"/>
+          <path d="M3.15 7.35 5.6 9.2A5.6 5.6 0 0 1 12 6.4a5.57 5.57 0 0 1 3.55 1.25l2-2A9 9 0 0 0 3.15 7.35z" fill="#FBBC05"/>
+          <path d="M12 21a9 9 0 0 0 6.06-2.35l-2.8-2.17A5.6 5.6 0 0 1 6.34 13H3.07A9 9 0 0 0 12 21z" fill="#34A853"/>
+          <path d="M21.35 11.1H12v2.8h5.35c-.5 1.4-1.5 2.5-2.8 3.25l2.8 2.17C19.67 17.5 21.5 15 21.5 12c0-.31-.05-.61-.15-.9z" fill="#4285F4"/>
+        </svg>
+      ),
+      fields: [
+        { key: 'clientId', label: 'Client ID', placeholder: 'Google OAuth Client ID' },
+        { key: 'clientSecret', label: 'Client Secret', placeholder: 'Google OAuth Client Secret', type: 'password' },
+      ],
+    },
+    {
+      id: 'twilio',
+      name: 'Twilio',
+      description: 'Voice calls & SMS via Twilio',
+      color: 'text-red-600',
+      bg: 'bg-red-50 dark:bg-red-900/20',
+      icon: <Phone className="w-5 h-5 text-red-500" />,
+      fields: [
+        { key: 'accountSid', label: 'Account SID', placeholder: 'ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' },
+        { key: 'authToken', label: 'Auth Token', placeholder: 'Your Twilio Auth Token', type: 'password' },
+        { key: 'phoneNumber', label: 'Phone Number', placeholder: '+1234567890' },
+      ],
+    },
+    {
+      id: 'whatsapp',
+      name: 'WhatsApp',
+      description: 'WhatsApp Business API messaging',
+      color: 'text-green-600',
+      bg: 'bg-green-50 dark:bg-green-900/20',
+      icon: (
+        <svg viewBox="0 0 24 24" className="w-5 h-5" fill="#25D366">
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+          <path d="M12 0C5.373 0 0 5.373 0 12c0 2.127.558 4.122 1.532 5.854L0 24l6.335-1.502A11.94 11.94 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.846 0-3.587-.5-5.088-1.375L3 21.5l.906-3.787A9.96 9.96 0 0 1 2 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/>
+        </svg>
+      ),
+      fields: [
+        { key: 'phoneNumberId', label: 'Phone Number ID', placeholder: 'WhatsApp Phone Number ID' },
+        { key: 'accessToken', label: 'Access Token', placeholder: 'Meta Business Access Token', type: 'password' },
+        { key: 'verifyToken', label: 'Webhook Verify Token', placeholder: 'Your custom verify token' },
+      ],
+    },
+    {
+      id: 'slack',
+      name: 'Slack',
+      description: 'Team notifications & bot messages',
+      color: 'text-purple-600',
+      bg: 'bg-purple-50 dark:bg-purple-900/20',
+      icon: (
+        <svg viewBox="0 0 24 24" className="w-5 h-5">
+          <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z" fill="#E01E5A"/>
+        </svg>
+      ),
+      fields: [
+        { key: 'botToken', label: 'Bot Token', placeholder: 'xoxb-your-bot-token', type: 'password' },
+        { key: 'webhookUrl', label: 'Incoming Webhook URL', placeholder: 'https://hooks.slack.com/services/...' },
+      ],
+    },
+    {
+      id: 'meta',
+      name: 'Meta / Facebook',
+      description: 'Facebook Messenger & Instagram DMs',
+      color: 'text-blue-600',
+      bg: 'bg-blue-50 dark:bg-blue-900/20',
+      icon: (
+        <svg viewBox="0 0 24 24" className="w-5 h-5" fill="#1877F2">
+          <path d="M24 12.073C24 5.404 18.627 0 12 0S0 5.404 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047v-2.66c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.514c-1.491 0-1.956.93-1.956 1.886v2.265h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/>
+        </svg>
+      ),
+      fields: [
+        { key: 'appId', label: 'App ID', placeholder: 'Meta App ID' },
+        { key: 'appSecret', label: 'App Secret', placeholder: 'Meta App Secret', type: 'password' },
+        { key: 'pageAccessToken', label: 'Page Access Token', placeholder: 'Long-lived page access token', type: 'password' },
+      ],
+    },
+    {
+      id: 'zapier',
+      name: 'Zapier',
+      description: 'Automate workflows with 5000+ apps',
+      color: 'text-orange-500',
+      bg: 'bg-orange-50 dark:bg-orange-900/20',
+      icon: <Zap className="w-5 h-5 text-orange-500" />,
+      fields: [
+        { key: 'webhookUrl', label: 'Zapier Webhook URL', placeholder: 'https://hooks.zapier.com/hooks/catch/...' },
+      ],
+    },
+  ];
+
+  const [accountStates, setAccountStates] = useState<Record<AccountId, AccountState>>(() =>
+    Object.fromEntries(
+      ACCOUNT_DEFS.map(a => [a.id, { connected: false, expanded: false, fields: Object.fromEntries(a.fields.map(f => [f.key, ''])) }])
+    ) as Record<AccountId, AccountState>
+  );
+
+  const toggleAccountExpanded = (id: AccountId) => {
+    setAccountStates(prev => ({ ...prev, [id]: { ...prev[id], expanded: !prev[id].expanded } }));
+  };
+
+  const setAccountField = (id: AccountId, key: string, value: string) => {
+    setAccountStates(prev => ({ ...prev, [id]: { ...prev[id], fields: { ...prev[id].fields, [key]: value } } }));
+  };
+
+  const connectAccount = (id: AccountId) => {
+    setAccountStates(prev => ({ ...prev, [id]: { ...prev[id], connected: true, expanded: false } }));
+  };
+
+  const disconnectAccount = (id: AccountId) => {
+    const emptyFields = Object.fromEntries(ACCOUNT_DEFS.find(a => a.id === id)!.fields.map(f => [f.key, '']));
+    setAccountStates(prev => ({ ...prev, [id]: { connected: false, expanded: false, fields: emptyFields } }));
   };
 
   const copyApiKey = (key: string) => {
@@ -648,83 +791,84 @@ const Settings = () => {
             </div>
           )}
 
-          {activeTab === 'integrations' && (
-            <div className="space-y-6">
-              <h3 className="text-lg font-semibold text-slate-800 dark:text-white">
-                Integrations
-              </h3>
+          {activeTab === 'accounts' && (
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-800 dark:text-white">Connected Accounts</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Connect third-party services to power your AI agents.</p>
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-4 common-bg-icons rounded-xl">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 common-bg-icons rounded-lg flex items-center justify-center">
-                        <Webhook className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                {ACCOUNT_DEFS.map(def => {
+                  const state = accountStates[def.id];
+                  const allFilled = def.fields.every(f => state.fields[f.key]?.trim());
+                  return (
+                    <div key={def.id} className="common-bg-icons rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                      {/* Header row */}
+                      <div className="flex items-center gap-3 p-4">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${def.bg}`}>
+                          {def.icon}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-slate-800 dark:text-white text-sm">{def.name}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{def.description}</p>
+                        </div>
+                        {state.connected ? (
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className="flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded-full">
+                              <Check className="w-3 h-3" /> Connected
+                            </span>
+                            <button
+                              onClick={() => disconnectAccount(def.id)}
+                              title="Disconnect"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                            >
+                              <Unlink className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => toggleAccountExpanded(def.id)}
+                            className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors flex-shrink-0"
+                          >
+                            {state.expanded ? <X className="w-3 h-3" /> : <Link2 className="w-3 h-3" />}
+                            {state.expanded ? 'Cancel' : 'Connect'}
+                          </button>
+                        )}
                       </div>
-                      <div>
-                        <h4 className="font-medium text-slate-800 dark:text-white">WhatsApp</h4>
-                        <p className="text-sm text-slate-600 dark:text-slate-400">Send messages via WhatsApp</p>
-                      </div>
-                    </div>
-                    <button className="common-button-bg text-sm">
-                      Connected
-                    </button>
-                  </div>
-                </div>
 
-                <div className="p-4 common-bg-icons rounded-xl">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 common-bg-icons rounded-lg flex items-center justify-center">
-                        <Webhook className="w-5 h-5 text-slate-600 dark:text-slate-400" />
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-slate-800 dark:text-white">Slack</h4>
-                        <p className="text-sm text-slate-600 dark:text-slate-400">Team notifications</p>
-                      </div>
+                      {/* Expandable credential form */}
+                      {state.expanded && !state.connected && (
+                        <div className="border-t border-slate-200 dark:border-slate-700 p-4 space-y-3 bg-slate-50/60 dark:bg-slate-800/40">
+                          {def.fields.map(field => (
+                            <div key={field.key}>
+                              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">{field.label}</label>
+                              <input
+                                type={field.type || 'text'}
+                                value={state.fields[field.key]}
+                                onChange={e => setAccountField(def.id, field.key, e.target.value)}
+                                placeholder={field.placeholder}
+                                className="w-full px-3 py-2 rounded-lg text-sm common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-blue-500/40 text-slate-800 dark:text-white placeholder:text-slate-400"
+                              />
+                            </div>
+                          ))}
+                          <button
+                            onClick={() => connectAccount(def.id)}
+                            disabled={!allFilled}
+                            className="w-full mt-1 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                          >
+                            <Link2 className="w-3.5 h-3.5" /> Connect {def.name}
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    <button className="common-button-bg2 text-sm">
-                      Connect
-                    </button>
-                  </div>
-                </div>
-
-                <div className="p-4 common-bg-icons rounded-xl">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 common-bg-icons rounded-lg flex items-center justify-center">
-                        <Webhook className="w-5 h-5 text-slate-600 dark:text-slate-400" />
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-slate-800 dark:text-white">Zapier</h4>
-                        <p className="text-sm text-slate-600 dark:text-slate-400">Workflow automation</p>
-                      </div>
-                    </div>
-                    <button className="common-button-bg2 text-sm">
-                      Connect
-                    </button>
-                  </div>
-                </div>
-
-                <div className="p-4 common-bg-icons rounded-xl">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 common-bg-icons rounded-lg flex items-center justify-center">
-                        <Webhook className="w-5 h-5 text-slate-600 dark:text-slate-400" />
-                      </div>
-                      <div>
-                        <h4 className="font-medium text-slate-800 dark:text-white">Google Calendar</h4>
-                        <p className="text-sm text-slate-600 dark:text-slate-400">Schedule meetings</p>
-                      </div>
-                    </div>
-                    <button className="common-button-bg2 text-sm">
-                      Connect
-                    </button>
-                  </div>
-                </div>
+                  );
+                })}
               </div>
             </div>
           )}
+
+
         </div>
       </GlassCard>
     </div>

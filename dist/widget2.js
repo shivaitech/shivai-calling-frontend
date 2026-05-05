@@ -5651,13 +5651,11 @@
               }
             } catch (_parseErr) { /* not JSON or no type field, continue normal processing */ }
 
-            // SUPER AGGRESSIVE - capture ANY text that might be a transcript
             if (text && text.trim().length > 0) {
               let transcriptText = text.trim();
               let shouldAddToChat = false;
               let participantName = participant?.identity || "Agent";
 
-              // Skip ONLY very obvious technical messages
               const skipPatterns = [
                 "subscribed",
                 "connected",

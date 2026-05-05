@@ -672,8 +672,8 @@ class AgentAPI {
     };
   }> {
     try {
-      const response = await apiClient.get(`/agents/${agentId}/presigned-url`, {
-        params: { filename },
+      const response = await apiClient.post(`/agents/${agentId}/presigned-url`, {
+        filename,
       });
       return response.data;
     } catch (error: any) {
