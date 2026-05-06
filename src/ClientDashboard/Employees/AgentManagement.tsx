@@ -375,6 +375,14 @@ const AgentManagement = () => {
   const [fileQualityErrors, setFileQualityErrors] = useState<{ fileName: string; issues: string[] }[]>([]);
   const [isTestingVoice, setIsTestingVoice] = useState(false);
   const [isLoadingVoicePreview, setIsLoadingVoicePreview] = useState(false);
+
+  // KB re-upload modal (shown when knowledge_base_status === 'failed')
+  const [kbFailedAgent, setKbFailedAgent] = useState<any | null>(null);
+  const [kbReuploadFiles, setKbReuploadFiles] = useState<File[]>([]);
+  const [kbReuploadUrls, setKbReuploadUrls] = useState<string[]>([]);
+  const [kbReuploadWebsiteUrls, setKbReuploadWebsiteUrls] = useState<string[]>(['']);
+  const [kbReuploadSocialUrls, setKbReuploadSocialUrls] = useState<string[]>(['']);
+  const [isKbReuploading, setIsKbReuploading] = useState(false);
   const voicePreviewAudioRef = useRef<HTMLAudioElement | null>(null);
   const [countryDropdownOpen, setCountryDropdownOpen] = useState(false);
   const [countrySearch, setCountrySearch] = useState("");
@@ -1234,6 +1242,55 @@ const AgentManagement = () => {
       uploadedFiles: prev.uploadedFiles.filter((_, i) => i !== index),
       uploadedFileUrls: prev.uploadedFileUrls.filter((_, i) => i !== index),
     }));
+  };
+
+  // ── KB Re-upload (for failed KB status) ────────────────────────────────────
+  const handleKbReuploadFiles = async (files: FileList | File[] | null) => {
+    if (!files || (files as any).length === 0) return;
+    const validFiles = Array.from(files as any).filter((f: any) => f.size <= 25 * 1024 * 1024) as File[];
+    if (validFiles.length === 0) { appToast.error('Files must be under 25 MB.'); return; }
+    setIsKbReuploading(true);
+    try {
+      const response = await agentAPI.uploadKnowledgeBase(validFiles);
+      const urls = response.data?.files?.map((f: any) => f.url) || [];
+      setKbReuploadFiles((prev) => [...prev, ...validFiles]);
+      setKbReuploadUrls((prev) => [...prev, ...urls]);
+      appToast.success(`${validFiles.length} file(s) uploaded.`);
+    } catch {
+      appToast.error('Upload failed. Please try again.');
+    } finally {
+      setIsKbReuploading(false);
+    }
+  };
+
+  const handleKbReuploadSubmit = async () => {
+    if (!kbFailedAgent) return;
+    const validWebsiteUrls = kbReuploadWebsiteUrls.filter(u => u.trim());
+    const validSocialUrls = kbReuploadSocialUrls.filter(u => u.trim());
+    if (kbReuploadUrls.length === 0 && validWebsiteUrls.length === 0 && validSocialUrls.length === 0) {
+      appToast.error('Please add at least one file or URL.');
+      return;
+    }
+    setIsKbReuploading(true);
+    try {
+      const updatePayload: any = {};
+      if (kbReuploadUrls.length > 0) updatePayload.knowledge_base_file_urls = kbReuploadUrls;
+      if (validWebsiteUrls.length > 0) updatePayload.website_urls = validWebsiteUrls;
+      if (validSocialUrls.length > 0) updatePayload.social_media_urls = validSocialUrls;
+      await agentAPI.updateAgent(kbFailedAgent.id, updatePayload);
+      appToast.success('Knowledge base re-submitted! Training will start shortly.');
+      setKbFailedAgent(null);
+      setKbReuploadFiles([]);
+      setKbReuploadUrls([]);
+      setKbReuploadWebsiteUrls(['']);
+      setKbReuploadSocialUrls(['']);
+      refreshAgents();
+      setAgentListRefreshToken((t) => t + 1);
+    } catch {
+      appToast.error('Failed to submit. Please try again.');
+    } finally {
+      setIsKbReuploading(false);
+    }
   };
 
   const handleAddWebsiteUrl = () => {
@@ -3418,6 +3475,30 @@ const AgentManagement = () => {
                     </div>
                   </div>
 
+                  {/* KB Failed Alert Banner */}
+                  {(agent as any).knowledge_base_status === 'failed' && (
+                    <button
+                      onClick={() => {
+                        setKbFailedAgent(agent);
+                        setKbReuploadFiles([]);
+                        setKbReuploadUrls([]);
+                        setKbReuploadWebsiteUrls(['']);
+                        setKbReuploadSocialUrls(['']);
+                      }}
+                      className="w-full mb-3 flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-left group hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                    >
+                      <span className="flex-shrink-0 relative">
+                        <AlertTriangle className="w-4 h-4 text-red-500 animate-pulse" />
+                        <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-red-700 dark:text-red-400">Knowledge Base Training Failed</p>
+                        <p className="text-[11px] text-red-500 dark:text-red-500 truncate">Click to re-upload and retry</p>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-red-400 flex-shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+                  )}
+
                   {/* Primary Actions - Properly Aligned */}
                   <div className="flex items-center gap-2 mb-3">
                         <button
@@ -3438,11 +3519,17 @@ const AgentManagement = () => {
 
                         <button
                           onClick={() =>
-                            navigate(`/agents/${agent.id}/train`, {
-                              state: { from: "list" },
-                            })
+                            (agent as any).knowledge_base_status === 'failed'
+                              ? undefined
+                              : navigate(`/agents/${agent.id}/train`, { state: { from: "list" } })
                           }
-                          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-all duration-200 text-sm font-medium active:scale-[0.98]"
+                          disabled={(agent as any).knowledge_base_status === 'failed'}
+                          title={(agent as any).knowledge_base_status === 'failed' ? 'KB training failed — re-upload required' : 'Train'}
+                          className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg transition-all duration-200 text-sm font-medium ${
+                            (agent as any).knowledge_base_status === 'failed'
+                              ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed opacity-60'
+                              : 'bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 active:scale-[0.98]'
+                          }`}
                         >
                           <Zap className="w-4 h-4" />
                           Train
@@ -3594,6 +3681,196 @@ const AgentManagement = () => {
             agent={currentAgent}
             onClose={() => setShowQRModal(false)}
           />
+        )}
+
+        {/* KB Failed Re-upload Modal */}
+        {kbFailedAgent && createPortal(
+          <div className="fixed inset-0 bg-black/60 z-[80] flex items-center justify-center p-4" onClick={() => setKbFailedAgent(null)}>
+            <div
+              className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg shadow-2xl border border-slate-200 dark:border-slate-700 flex flex-col max-h-[90vh]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+                <div className="w-10 h-10 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-center">
+                  <FileText className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-slate-800 dark:text-white text-base">Re-train Knowledge Base</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                    Agent: <span className="font-medium text-slate-700 dark:text-slate-300">{(kbFailedAgent as any).name}</span>
+                  </p>
+                </div>
+                <button onClick={() => setKbFailedAgent(null)} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Scrollable Body */}
+              <div className="overflow-y-auto flex-1 p-5 space-y-4 [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none' }}>
+
+                {/* Error callout */}
+                <div className="flex gap-2.5 p-3 rounded-xl bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/20">
+                  <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5 animate-pulse" />
+                  <div>
+                    <p className="text-xs font-semibold text-red-700 dark:text-red-400">Last training attempt failed</p>
+                    <p className="text-xs text-red-600/80 dark:text-red-500/80 mt-0.5">
+                      {(kbFailedAgent as any).knowledge_base_error || 'The knowledge base could not be processed. Please re-upload your files and try again.'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Intro */}
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Upload your documents, FAQs, or website links. Your AI will learn from these to give accurate, company-specific answers.
+                </p>
+
+                {/* File Upload */}
+                <div className="space-y-3">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                    <Upload className="w-4 h-4" />
+                    Upload Files
+                    {kbReuploadFiles.length === 0 && !kbReuploadWebsiteUrls.some(u => u.trim()) && (
+                      <span className="text-red-500 text-xs">(required — at least one file or URL)</span>
+                    )}
+                  </label>
+
+                  {/* Drop zone */}
+                  <div
+                    className={`border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-5 text-center hover:border-blue-400 dark:hover:border-blue-500 transition-colors cursor-pointer bg-slate-50/50 dark:bg-slate-800/50 ${isKbReuploading ? 'opacity-50 pointer-events-none' : ''}`}
+                    onClick={() => !isKbReuploading && document.getElementById('kb-reupload-input')?.click()}
+                    onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add('border-blue-400', 'bg-blue-50/50'); }}
+                    onDragLeave={(e) => { e.currentTarget.classList.remove('border-blue-400', 'bg-blue-50/50'); }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.currentTarget.classList.remove('border-blue-400', 'bg-blue-50/50');
+                      if (!isKbReuploading) handleKbReuploadFiles(e.dataTransfer.files);
+                    }}
+                  >
+                    <input
+                      id="kb-reupload-input"
+                      type="file"
+                      multiple
+                      accept=".pdf,.doc,.docx,.txt,.csv,.xlsx,.xls"
+                      className="hidden"
+                      onChange={(e) => { handleKbReuploadFiles(e.target.files); e.target.value = ''; }}
+                    />
+                    <div className="flex flex-col items-center gap-2">
+                      {isKbReuploading ? (
+                        <><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /><p className="text-sm text-slate-500">Uploading files…</p></>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-3 text-slate-400">
+                            <FileText className="w-7 h-7" /><File className="w-7 h-7" />
+                          </div>
+                          <p className="text-sm text-slate-600 dark:text-slate-400"><span className="text-blue-500 font-medium">Click to upload</span> or drag and drop</p>
+                          <p className="text-xs text-slate-400">PDF, DOC, DOCX, TXT, CSV, Excel (max 25 MB each)</p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Uploaded files list */}
+                  {kbReuploadFiles.length > 0 && (
+                    <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                      {kbReuploadFiles.map((file, i) => (
+                        <div key={i} className="flex items-center gap-2 p-2 bg-slate-100 dark:bg-slate-800 rounded-lg">
+                          {file.type.includes('pdf') ? <FileText className="w-4 h-4 text-red-500 flex-shrink-0" /> : <File className="w-4 h-4 text-blue-500 flex-shrink-0" />}
+                          <span className="flex-1 text-xs text-slate-700 dark:text-slate-300 truncate">{file.name}</span>
+                          <span className="text-[10px] text-slate-400 hidden sm:inline">{(file.size / 1024 / 1024).toFixed(2)} MB</span>
+                          {kbReuploadUrls[i] && <span className="text-[10px] text-green-500">✓</span>}
+                          <button onClick={() => { setKbReuploadFiles(p => p.filter((_, j) => j !== i)); setKbReuploadUrls(p => p.filter((_, j) => j !== i)); }} className="p-0.5 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors">
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Website URLs */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                    <Link className="w-4 h-4" />
+                    Website URLs
+                  </label>
+                  {kbReuploadWebsiteUrls.map((url, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <input
+                        type="url"
+                        value={url}
+                        onChange={(e) => setKbReuploadWebsiteUrls(p => p.map((u, j) => j === i ? e.target.value : u))}
+                        placeholder="https://yourcompany.com"
+                        className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition-all"
+                      />
+                      {kbReuploadWebsiteUrls.length > 1 && (
+                        <button onClick={() => setKbReuploadWebsiteUrls(p => p.filter((_, j) => j !== i))} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"><X className="w-4 h-4" /></button>
+                      )}
+                    </div>
+                  ))}
+                  <button onClick={() => setKbReuploadWebsiteUrls(p => [...p, ''])} className="w-full py-2 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl text-slate-500 dark:text-slate-400 hover:border-blue-400 hover:text-blue-500 transition-colors flex items-center justify-center gap-2 text-sm">
+                    <Plus className="w-4 h-4" />Add another URL
+                  </button>
+                </div>
+
+                {/* Social Media URLs */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                    <Share2 className="w-4 h-4" />
+                    Social Media Links
+                  </label>
+                  {kbReuploadSocialUrls.map((url, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <input
+                        type="url"
+                        value={url}
+                        onChange={(e) => setKbReuploadSocialUrls(p => p.map((u, j) => j === i ? e.target.value : u))}
+                        placeholder="https://facebook.com/yourpage or https://x.com/yourhandle"
+                        className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition-all"
+                      />
+                      {kbReuploadSocialUrls.length > 1 && (
+                        <button onClick={() => setKbReuploadSocialUrls(p => p.filter((_, j) => j !== i))} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"><X className="w-4 h-4" /></button>
+                      )}
+                    </div>
+                  ))}
+                  <button onClick={() => setKbReuploadSocialUrls(p => [...p, ''])} className="w-full py-2 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl text-slate-500 dark:text-slate-400 hover:border-blue-400 hover:text-blue-500 transition-colors flex items-center justify-center gap-2 text-sm">
+                    <Plus className="w-4 h-4" />Add social media link
+                  </button>
+                </div>
+
+                {/* Summary */}
+                {(kbReuploadFiles.length > 0 || kbReuploadWebsiteUrls.some(u => u.trim()) || kbReuploadSocialUrls.some(u => u.trim())) && (
+                  <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
+                    <p className="text-xs text-blue-600 dark:text-blue-400">
+                      📚 {kbReuploadFiles.length} file(s), {kbReuploadWebsiteUrls.filter(u => u.trim()).length} URL(s), and {kbReuploadSocialUrls.filter(u => u.trim()).length} social media link(s) will be added to knowledge base
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="flex gap-2 px-5 py-4 border-t border-slate-200 dark:border-slate-700 flex-shrink-0">
+                <button
+                  onClick={() => setKbFailedAgent(null)}
+                  className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleKbReuploadSubmit}
+                  disabled={isKbReuploading || (kbReuploadUrls.length === 0 && !kbReuploadWebsiteUrls.some(u => u.trim()) && !kbReuploadSocialUrls.some(u => u.trim()))}
+                  className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                >
+                  {isKbReuploading ? (
+                    <><div className="w-3.5 h-3.5 border-2 border-white/50 border-t-white rounded-full animate-spin" />Submitting…</>
+                  ) : (
+                    <><Zap className="w-3.5 h-3.5" />Retry Training</>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
         )}
 
         {/* Delete Confirmation Modal */}

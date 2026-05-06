@@ -1491,13 +1491,12 @@ const EditAgent = () => {
       if (!id) return;
       setLoadingKbIndex(index);
       try {
-        // Step 1: GET presigned-url → receive presignedUrl (PUT) + fileUrl (read)
-        const filename = fileUrl.split('/').pop() || 'knowledge.txt';
-        const result = await agentAPI.getPresignedUrl(id, filename);
-        const { fileUrl: freshFileUrl } = result.data;
+        // Step 1: GET presigned-url → receive presignedUrl (PUT) + downloadUrl (GET read)
+        const result = await agentAPI.getPresignedUrl(id);
+        const { downloadUrl } = result.data;
 
-        // Step 2: Fetch document text from fileUrl
-        const res = await fetch(freshFileUrl);
+        // Step 2: Fetch document text from downloadUrl (GET-signed)
+        const res = await fetch(downloadUrl);
         if (!res.ok) throw new Error(`Failed to fetch file: ${res.status}`);
         const text = await res.text();
         // Cache original JSON structure so edits can be saved back in node-tree format
@@ -1524,8 +1523,7 @@ const EditAgent = () => {
     setSavingKbIndex(index);
     try {
       // Re-fetch presigned URL in case the cached one expired (valid only 15 min)
-      const filename = fileUrl.split('/').pop() || 'knowledge.txt';
-      const result = await agentAPI.getPresignedUrl(id, filename);
+      const result = await agentAPI.getPresignedUrl(id);
       const presignedUrl = result.data.presignedUrl;
 
       // If original was KB JSON format, reconstruct node-tree so AI can process it

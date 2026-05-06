@@ -662,19 +662,17 @@ class AgentAPI {
   }
 
   // Generate Presigned URL for knowledge base file editing
-  async getPresignedUrl(agentId: string, filename: string): Promise<{
+  async getPresignedUrl(agentId: string): Promise<{
     success: boolean;
     statusCode: number;
     message: string;
     data: {
       presignedUrl: string;
-      fileUrl: string;
+      downloadUrl: string;
     };
   }> {
     try {
-      const response = await apiClient.post(`/agents/${agentId}/presigned-url`, {
-        filename,
-      });
+      const response = await apiClient.get(`/agents/${agentId}/presigned-url`);
       return response.data;
     } catch (error: any) {
       console.error("Error getting presigned URL:", error);
