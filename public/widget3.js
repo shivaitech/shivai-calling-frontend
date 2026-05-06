@@ -1502,7 +1502,7 @@
     landingView.innerHTML = `
       <div class="widget-header">
         <div class="header-content">
-          <button class="widget-close" aria-label="Close widget">�</button>
+          <button class="widget-close" aria-label="Close widget">×</button>
           <div class="header-info">
             <div class="widget-avatar">
             ${companyInfo.logo ? 
@@ -1587,7 +1587,7 @@
       <span class="status-text ">Online</span>
       </div>
       </div>
-      <button class="widget-close" aria-label="Close widget">�</button>
+      <button class="widget-close" aria-label="Close widget">×</button>
       </div>
       <div class="call-body">
       <div class="language-section">

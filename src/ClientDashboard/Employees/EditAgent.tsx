@@ -50,9 +50,9 @@ function processKbContent(raw: string): string {
   if (!raw) return '';
 
   // ── Step 0: Detect KB JSON format ─────────────────────────────────────────
-  // The backend stores KB files as JSON:
-  // { "doc_name": "...", "structure": [{ "title": "...", "text": "..." }, ...] }
-  // Parse it and reconstruct as readable plain text before any other processing.
+  // Handles two shapes from the backend:
+  //   Flat:   { doc_name, doc_description, structure: [{ title, text, node_id }] }
+  //   Nested: { doc_name, doc_description, structure: [{ title, node_id, nodes: [{ title, text, summary, node_id }] }] }
   try {
     const parsed = JSON.parse(raw.trim());
     if (parsed && Array.isArray(parsed.structure)) {
@@ -65,14 +65,34 @@ function processKbContent(raw: string): string {
       }
 
       for (const node of parsed.structure) {
-        const nodeText: string = (node.text ?? '').trim();
-        if (!nodeText) continue;
-        if (node.title && node.title !== 'Prefaces') {
-          sections.push(`## ${String(node.title).trim()}`);
+        // ── Nested node: has a `nodes` array (actual text lives in children) ──
+        if (Array.isArray(node.nodes) && node.nodes.length > 0) {
+          if (node.title) {
+            sections.push(`## ${String(node.title).trim()}`);
+            sections.push('');
+          }
+          for (const child of node.nodes) {
+            const childText: string = (child.text ?? child.summary ?? '').trim();
+            if (child.title) {
+              sections.push(`### ${String(child.title).trim()}`);
+              sections.push('');
+            }
+            if (childText) {
+              sections.push(childText);
+              sections.push('');
+            }
+          }
+        } else {
+          // ── Flat node: text lives directly on the node ──
+          const nodeText: string = (node.text ?? '').trim();
+          if (!nodeText) continue;
+          if (node.title && node.title !== 'Prefaces') {
+            sections.push(`## ${String(node.title).trim()}`);
+            sections.push('');
+          }
+          sections.push(nodeText);
           sections.push('');
         }
-        sections.push(nodeText);
-        sections.push('');
       }
 
       raw = sections.join('\n');
@@ -272,7 +292,10 @@ function detectNameInTemplate(firstMessage?: string): string | null {
 /**
  * Converts user-edited markdown text back into the KB JSON node-tree format
  * that the AI backend expects.  Preserves doc_name and doc_description from
- * the original JSON; splits the body by ## headings to rebuild structure[].
+ * the original JSON; splits the body by ## / ### headings to rebuild structure[].
+ *
+ * If the original JSON used nested structure (nodes array), the saved result
+ * uses a flat structure[] so the AI backend can re-process it cleanly.
  */
 function reconstructKbJson(originalJson: any, editedText: string): string {
   const doc_name = originalJson.doc_name || '';
@@ -287,14 +310,14 @@ function reconstructKbJson(originalJson: any, editedText: string): string {
   }
   const body = lines.slice(startIdx).join('\n');
 
-  // Split at every "## Heading" line
-  // parts = [preface_text, heading1, text1, heading2, text2, ...]
-  const parts = body.split(/^## (.+)$/m);
+  // Split at every "## Heading" or "### Heading" line
+  // This flattens both nested (###) and flat (##) edits into a single structure[]
+  const parts = body.split(/^#{2,3} (.+)$/m);
   const structure: any[] = [];
   let nodeCounter = 0;
   const makeId = () => String(nodeCounter++).padStart(4, '0');
 
-  // Text before the first ## heading → Prefaces node
+  // Text before the first heading → Prefaces node
   if (parts[0].trim()) {
     structure.push({ title: 'Prefaces', node_id: makeId(), text: parts[0].trim() });
   }
