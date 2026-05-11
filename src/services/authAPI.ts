@@ -409,4 +409,14 @@ export const authAPI = {
       .post('/onboarding/upload-files', formData, config)
       .then((res) => res.data);
   },
+
+  // Gmail OAuth: navigate the browser directly to the backend endpoint so the
+  // server's 302 redirect to Google is followed natively (Axios XHR cannot
+  // follow cross-origin redirects — it hits a CORS error).
+  connectGmail: (): void => {
+    const tokens = localStorage.getItem('auth_tokens');
+    const accessToken = tokens ? JSON.parse(tokens).accessToken : '';
+    const url = `${API_BASE_URL}/gmail-auth/connect?token=${encodeURIComponent(accessToken)}`;
+    window.location.href = url;
+  },
 };

@@ -38,6 +38,8 @@ const Settings = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [gmailConnecting, setGmailConnecting] = useState(false);
+  const [gmailSuccessMsg, setGmailSuccessMsg] = useState(false);
 
   const [profile, setProfile] = useState({
     name: '',
@@ -134,6 +136,30 @@ const Settings = () => {
 
   const roles = ['Admin', 'Editor', 'Viewer'];
 
+  // Detect hash fragment and set active tab
+  useEffect(() => {
+    const hash = window.location.hash.slice(1); // Remove the #
+    if (hash && ['profile', 'notifications', 'security', 'api', 'team', 'accounts'].includes(hash)) {
+      setActiveTab(hash);
+    }
+  }, []);
+
+  // Detect ?gmail=connected redirect from Google OAuth callback
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('gmail') === 'connected') {
+      setActiveTab('accounts');
+      setAccountStates(prev => ({ ...prev, google: { ...prev.google, connected: true, expanded: false } }));
+      setGmailSuccessMsg(true);
+      // Clean the query param from the URL without reloading
+      const clean = new URL(window.location.href);
+      clean.searchParams.delete('gmail');
+      window.history.replaceState({}, '', clean.toString());
+      const timer = setTimeout(() => setGmailSuccessMsg(false), 6000);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
   // Fetch profile data on mount
   useEffect(() => {
     const fetchProfile = async () => {
@@ -216,14 +242,17 @@ const Settings = () => {
     color: string;
     bg: string;
     icon: React.ReactNode;
+    isOAuth?: boolean;
+    comingSoon?: boolean;
     fields: { key: string; label: string; placeholder: string; type?: string }[];
   }[] = [
     {
       id: 'google',
       name: 'Google',
-      description: 'Google Calendar, Gmail & Meet integration',
+      description: 'Gmail — send emails from your AI agents',
       color: 'text-red-500',
       bg: 'bg-red-50 dark:bg-red-900/20',
+      isOAuth: true,
       icon: (
         <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none">
           <path d="M21.35 11.1H12v2.8h5.35C16.83 16.3 14.67 17.6 12 17.6a5.6 5.6 0 1 1 3.55-9.95l2-2A9 9 0 1 0 21 12c0-.31-.02-.62-.05-.9z" fill="#EA4335"/>
@@ -232,10 +261,7 @@ const Settings = () => {
           <path d="M21.35 11.1H12v2.8h5.35c-.5 1.4-1.5 2.5-2.8 3.25l2.8 2.17C19.67 17.5 21.5 15 21.5 12c0-.31-.05-.61-.15-.9z" fill="#4285F4"/>
         </svg>
       ),
-      fields: [
-        { key: 'clientId', label: 'Client ID', placeholder: 'Google OAuth Client ID' },
-        { key: 'clientSecret', label: 'Client Secret', placeholder: 'Google OAuth Client Secret', type: 'password' },
-      ],
+      fields: [],
     },
     {
       id: 'twilio',
@@ -254,6 +280,7 @@ const Settings = () => {
       id: 'whatsapp',
       name: 'WhatsApp',
       description: 'WhatsApp Business API messaging',
+      comingSoon: true,
       color: 'text-green-600',
       bg: 'bg-green-50 dark:bg-green-900/20',
       icon: (
@@ -272,6 +299,7 @@ const Settings = () => {
       id: 'slack',
       name: 'Slack',
       description: 'Team notifications & bot messages',
+      comingSoon: true,
       color: 'text-purple-600',
       bg: 'bg-purple-50 dark:bg-purple-900/20',
       icon: (
@@ -288,6 +316,7 @@ const Settings = () => {
       id: 'meta',
       name: 'Meta / Facebook',
       description: 'Facebook Messenger & Instagram DMs',
+      comingSoon: true,
       color: 'text-blue-600',
       bg: 'bg-blue-50 dark:bg-blue-900/20',
       icon: (
@@ -305,6 +334,7 @@ const Settings = () => {
       id: 'zapier',
       name: 'Zapier',
       description: 'Automate workflows with 5000+ apps',
+      comingSoon: true,
       color: 'text-orange-500',
       bg: 'bg-orange-50 dark:bg-orange-900/20',
       icon: <Zap className="w-5 h-5 text-orange-500" />,
@@ -330,6 +360,11 @@ const Settings = () => {
 
   const connectAccount = (id: AccountId) => {
     setAccountStates(prev => ({ ...prev, [id]: { ...prev[id], connected: true, expanded: false } }));
+  };
+
+  const handleConnectGmail = () => {
+    setGmailConnecting(true);
+    authAPI.connectGmail(); // navigates away; no async needed
   };
 
   const disconnectAccount = (id: AccountId) => {
@@ -793,6 +828,15 @@ const Settings = () => {
 
           {activeTab === 'accounts' && (
             <div className="space-y-4">
+              {gmailSuccessMsg && (
+                <div className="flex items-center gap-3 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
+                  <Check className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0" />
+                  <p className="text-sm text-green-700 dark:text-green-300 font-medium flex-1">Gmail connected successfully! Your AI agents can now send emails.</p>
+                  <button onClick={() => setGmailSuccessMsg(false)} className="text-green-500 hover:text-green-700 transition-colors">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
               <div>
                 <h3 className="text-lg font-semibold text-slate-800 dark:text-white">Connected Accounts</h3>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Connect third-party services to power your AI agents.</p>
@@ -826,6 +870,19 @@ const Settings = () => {
                               <Unlink className="w-4 h-4" />
                             </button>
                           </div>
+                        ) : def.comingSoon ? (
+                          <span className="text-xs font-medium px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed flex-shrink-0">
+                            Coming Soon
+                          </span>
+                        ) : def.isOAuth ? (
+                          <button
+                            onClick={handleConnectGmail}
+                            disabled={gmailConnecting}
+                            className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+                          >
+                            {gmailConnecting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Link2 className="w-3 h-3" />}
+                            {gmailConnecting ? 'Connecting...' : 'Connect Gmail'}
+                          </button>
                         ) : (
                           <button
                             onClick={() => toggleAccountExpanded(def.id)}

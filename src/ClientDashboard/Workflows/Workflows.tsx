@@ -47,6 +47,7 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import type { WorkflowDocument } from '../../services/workflowAPI';
+import CallSetup from './CallSetup';
 
 interface WorkflowNode {
   id: string;
@@ -77,11 +78,19 @@ interface Workflow {
 type DocType = 'pdf' | 'image' | 'docx' | 'txt' | 'website' | 'social' | 'custom-link';
 
 const Workflows = () => {
-  const { agents } = useAgent();
+  const { agents, isLoading: agentsLoading } = useAgent();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'canvas' | 'workflows' | 'runs' | 'documents'>('canvas');
+  const [activeTab, setActiveTab] = useState<'canvas' | 'workflows' | 'runs' | 'documents' | 'callsetup'>('canvas');
   const location = useLocation();
+
+  // Detect hash fragment and set active tab — re-runs on every hash change
+  useEffect(() => {
+    const hash = location.hash.slice(1);
+    if (hash && ['canvas', 'workflows', 'runs', 'documents', 'callsetup'].includes(hash)) {
+      setActiveTab(hash as 'canvas' | 'workflows' | 'runs' | 'documents' | 'callsetup');
+    }
+  }, [location.hash]);
 
   // Open documents tab when navigated here with state { tab: 'documents' }
   const [fromAgent, setFromAgent] = useState<{ id: string; name: string } | null>(null);
@@ -373,53 +382,14 @@ const Workflows = () => {
     }
   ];
 
-  const [workflows, setWorkflows] = useState<Workflow[]>(isDeveloper ? [
-    {
-      id: '1',
-      name: 'Booking Confirmation Flow',
-      agentId: '1',
-      agentName: 'Customer Support Bot',
-      nodes: [
-        {
-          id: 'trigger-1',
-          type: 'trigger',
-          data: predefinedTriggers[0],
-          position: { x: 100, y: 150 }
-        },
-        {
-          id: 'action-1',
-          type: 'action',
-          data: actions[0],
-          position: { x: 400, y: 150 }
-        }
-      ],
-      connections: [
-        { id: 'conn-1', from: 'trigger-1', to: 'action-1' }
-      ],
-      status: 'Active',
-      runs: 47,
-      lastRun: '2 min ago',
-      createdAt: new Date('2024-01-15')
-    },
-    {
-      id: '2',
-      name: 'Lead Follow-up',
-      agentId: '2',
-      agentName: 'Sales Assistant',
-      nodes: [],
-      connections: [],
-      status: 'Draft',
-      runs: 0,
-      lastRun: 'Never',
-      createdAt: new Date('2024-01-20')
-    }
-  ] : []);
+  const [workflows, setWorkflows] = useState<Workflow[]>([]);
 
   const tabs = [
     { id: 'canvas' as const, label: 'Canvas Builder', icon: Zap },
     { id: 'workflows' as const, label: 'My Workflows', icon: Settings },
     { id: 'documents' as const, label: 'AI Documents', icon: BookOpen },
     { id: 'runs' as const, label: 'Execution Log', icon: Play },
+    { id: 'callsetup' as const, label: 'Call Setup', icon: Phone },
   ];
 
   const handleDragStart = (e: React.DragEvent, item: any, type: 'trigger' | 'action' | 'condition') => {
@@ -1036,26 +1006,33 @@ const Workflows = () => {
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
                     Assign to Agent <span className="text-red-500">*</span>
                   </label>
-                  <select
-                    value={selectedAgent}
-                    onChange={(e) => setSelectedAgent(e.target.value)}
-                    disabled={!isDeveloper}
-                    className={`w-full px-4 py-3 rounded-xl text-sm sm:text-base touch-manipulation ${
-                      isDeveloper 
-                        ? 'common-bg-icons'
-                        : 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400 cursor-not-allowed'
-                    }`}
-                    style={{ zIndex: 50 }}
-                    required
-                  >
-                    <option value="">Select an agent...</option>
-                    {agents.map((agent) => (
-                      <option key={agent.id} value={agent.id}>
-                        {agent.name} ({agent.status})
-                      </option>
-                    ))}
-                  </select>
-                  {!selectedAgent && (
+                  {agentsLoading ? (
+                    <div className="common-bg-icons w-full px-4 py-3 rounded-xl text-sm flex items-center gap-2 text-slate-400 dark:text-slate-500">
+                      <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+                      <span>Loading agents…</span>
+                    </div>
+                  ) : (
+                    <select
+                      value={selectedAgent}
+                      onChange={(e) => setSelectedAgent(e.target.value)}
+                      disabled={!isDeveloper}
+                      className={`w-full px-4 py-3 rounded-xl text-sm sm:text-base touch-manipulation ${
+                        isDeveloper
+                          ? 'common-bg-icons'
+                          : 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400 cursor-not-allowed'
+                      }`}
+                      style={{ zIndex: 50 }}
+                      required
+                    >
+                      <option value="">Select an agent...</option>
+                      {agents.map((agent) => (
+                        <option key={agent.id} value={agent.id}>
+                          {agent.name} ({agent.status})
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {!agentsLoading && !selectedAgent && (
                     <p className="text-xs text-red-500 mt-2">Agent selection is required</p>
                   )}
                 </div>
@@ -2654,6 +2631,9 @@ const Workflows = () => {
           })()}
         </div>
       )}
+
+      {/* ── Call Setup Tab ── */}
+      {activeTab === 'callsetup' && <CallSetup />}
 
       {/* Create Custom Trigger Modal */}
       {isCreatingTrigger && (

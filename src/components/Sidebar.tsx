@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import Logo from "../resources/images/ShivaiLogo.svg";
 import { useAuth } from "../contexts/AuthContext";
@@ -20,6 +20,12 @@ import {
   History,
   ChevronRight,
   Globe,
+  ChevronDown,
+  Grid,
+  FileText,
+  Link2,
+  Key,
+  Phone,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -28,23 +34,70 @@ interface SidebarProps {
   setCollapsed: (collapsed: boolean) => void;
 }
 
+interface NavItem {
+  path: string;
+  icon: React.ElementType;
+  label: string;
+  children?: NavItem[];
+}
+
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed }) => {
   const { user, logout } = useAuth();
+  const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
 
   const toggleCollapse = () => {
     setIsCollapsed(!isCollapsed);
+  };
+
+  const toggleExpanded = (path: string) => {
+    setExpandedItems(prev => ({ ...prev, [path]: !prev[path] }));
+  };
+
+  const expandItem = (path: string) => {
+    setExpandedItems(prev => ({ ...prev, [path]: true }));
+  };
+
+  // Auto-expand parent when navigating to a child route
+  useEffect(() => {
+    if (location.pathname === '/workflows') {
+      expandItem('/workflows');
+    }
+    if (location.pathname === '/settings') {
+      expandItem('/settings');
+    }
+  }, [location.pathname]);
+
+  // Returns true when the hash link is the currently active child
+  const isHashActive = (path: string) => {
+    const idx = path.indexOf('#');
+    if (idx === -1) return false;
+    return (
+      location.pathname === path.slice(0, idx) &&
+      location.hash === '#' + path.slice(idx + 1)
+    );
   };
 
   useEffect(() => {
     setCollapsed(isCollapsed);
   }, [isCollapsed, setCollapsed]);
 
-  const navItems = [
+  const navItems: NavItem[] = [
     { path: "/dashboard", icon: Home, label: "Dashboard" },
     { path: "/agents", icon: Bot, label: "AI Employees" },
     { path: "/training", icon: Brain, label: "Training" },
-    { path: "/workflows", icon: Workflow, label: "Workflows" },
+    {
+      path: "/workflows",
+      icon: Workflow,
+      label: "Workflows",
+      children: [
+        { path: "/workflows#canvas", icon: Grid, label: "Canvas Builder" },
+        { path: "/workflows#workflows", icon: Workflow, label: "My Workflows" },
+        { path: "/workflows#documents", icon: FileText, label: "AI Docs" },
+        { path: "/workflows#callsetup", icon: Phone, label: "Call Setup" },
+      ],
+    },
     { path: "/websites", icon: Globe, label: "Website Builder" },
     { path: "/analytics", icon: History, label: "Analytics & Call History" },
     { path: "/monitoring", icon: BarChart3, label: "Monitoring & Reports" },
@@ -170,33 +223,86 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed }) => {
       >
         <nav className="space-y-2">
           {navItems.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              onClick={() => onClose()}
-              title={isCollapsed ? item.label : undefined}
-              className={({ isActive }) =>
-                `flex items-center ${
-                  isCollapsed ? "justify-center px-2 py-3" : "gap-3 px-4 py-3"
-                } rounded-lg transition-all duration-200 group relative ${
-                  isActive
-                    ? "font-medium common-bg-icons"
-                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white"
-                }`
-              }
-            >
-              <item.icon className="w-5 h-5 flex-shrink-0" />
-              <motion.span
-                animate={{
-                  opacity: isCollapsed ? 0 : 1,
-                  width: isCollapsed ? 0 : "auto",
-                }}
-                transition={{ duration: 0.2 }}
-                className="text-sm whitespace-nowrap overflow-hidden"
-              >
-                {item.label}
-              </motion.span>
-            </NavLink>
+            <div key={item.path}>
+              {/* Parent Item */}
+              <div className="flex items-center">
+                <NavLink
+                  to={item.path}
+                  onClick={() => {
+                    if (item.children) {
+                      // Navigate + always open the dropdown
+                      expandItem(item.path);
+                    } else {
+                      onClose();
+                    }
+                  }}
+                  title={isCollapsed ? item.label : undefined}
+                  className={({ isActive }) =>
+                    `flex-1 flex items-center ${
+                      isCollapsed ? "justify-center px-2 py-3" : "gap-3 px-4 py-3"
+                    } rounded-lg transition-all duration-200 group relative ${
+                      isActive
+                        ? "font-medium common-bg-icons"
+                        : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white"
+                    }`
+                  }
+                >
+                  <item.icon className="w-5 h-5 flex-shrink-0" />
+                  <motion.span
+                    animate={{
+                      opacity: isCollapsed ? 0 : 1,
+                      width: isCollapsed ? 0 : "auto",
+                    }}
+                    transition={{ duration: 0.2 }}
+                    className="text-sm whitespace-nowrap overflow-hidden"
+                  >
+                    {item.label}
+                  </motion.span>
+                </NavLink>
+                {/* Expand/Collapse Toggle — chevron only */}
+                {item.children && !isCollapsed && (
+                  <button
+                    onClick={() => toggleExpanded(item.path)}
+                    className="px-2 py-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                  >
+                    <ChevronDown
+                      className={`w-4 h-4 transition-transform duration-200 ${
+                        expandedItems[item.path] ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+                )}
+              </div>
+
+              {/* Child Items */}
+              {item.children && expandedItems[item.path] && !isCollapsed && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-1 mt-1 ml-2 border-l border-slate-200 dark:border-slate-700 pl-3"
+                >
+                  {item.children.map((child) => (
+                    <NavLink
+                      key={child.path}
+                      to={child.path}
+                      onClick={() => onClose()}
+                      className={() =>
+                        `flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
+                          isHashActive(child.path)
+                            ? "font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20"
+                            : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white"
+                        }`
+                      }
+                    >
+                      <child.icon className="w-4 h-4 flex-shrink-0" />
+                      <span className="whitespace-nowrap overflow-hidden">{child.label}</span>
+                    </NavLink>
+                  ))}
+                </motion.div>
+              )}
+            </div>
           ))}
         </nav>
 
@@ -206,32 +312,80 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed }) => {
             isCollapsed ? "mt-4 pt-4" : "mt-6 pt-6"
           } border-t border-slate-200 dark:border-slate-700`}
         >
-          <NavLink
-            to="/settings"
-            onClick={() => onClose()}
-            title={isCollapsed ? "Settings" : undefined}
-            className={({ isActive }) =>
-              `flex items-center ${
-                isCollapsed ? "justify-center px-2 py-3" : "gap-3 px-4 py-3"
-              } rounded-lg transition-all duration-200 group ${
-                isActive
-                  ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
-                  : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white"
-              }`
-            }
-          >
-            <Settings className="w-5 h-5 flex-shrink-0" />
-            <motion.span
-              animate={{
-                opacity: isCollapsed ? 0 : 1,
-                width: isCollapsed ? 0 : "auto",
-              }}
-              transition={{ duration: 0.2 }}
-              className="text-sm whitespace-nowrap overflow-hidden"
+          <div className="flex items-center">
+            <NavLink
+              to="/settings"
+              onClick={() => expandItem('/settings')}
+              title={isCollapsed ? "Settings" : undefined}
+              className={({ isActive }) =>
+                `flex-1 flex items-center ${
+                  isCollapsed ? "justify-center px-2 py-3" : "gap-3 px-4 py-3"
+                } rounded-lg transition-all duration-200 group ${
+                  isActive
+                    ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
+                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white"
+                }`
+              }
             >
-              Settings
-            </motion.span>
-          </NavLink>
+              <Settings className="w-5 h-5 flex-shrink-0" />
+              <motion.span
+                animate={{
+                  opacity: isCollapsed ? 0 : 1,
+                  width: isCollapsed ? 0 : "auto",
+                }}
+                transition={{ duration: 0.2 }}
+                className="text-sm whitespace-nowrap overflow-hidden"
+              >
+                Settings
+              </motion.span>
+            </NavLink>
+            {!isCollapsed && (
+              <button
+                onClick={() => toggleExpanded('/settings')}
+                className="px-2 py-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+              >
+                <ChevronDown
+                  className={`w-4 h-4 transition-transform ${
+                    expandedItems['/settings'] ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+            )}
+          </div>
+
+          {/* Settings Submenu */}
+          {expandedItems['/settings'] && !isCollapsed && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="space-y-1 mt-1 ml-2 border-l border-slate-200 dark:border-slate-700 pl-3"
+            >
+              {[
+                { path: "/settings#profile",  icon: User,  label: "Profile"            },
+                { path: "/settings#security", icon: Globe, label: "Security"            },
+                { path: "/settings#accounts", icon: Link2, label: "Connected Accounts"  },
+                { path: "/settings#api",      icon: Key,   label: "API Keys"            },
+              ].map((child) => (
+                <NavLink
+                  key={child.path}
+                  to={child.path}
+                  onClick={() => onClose()}
+                  className={() =>
+                    `flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
+                      isHashActive(child.path)
+                        ? "font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20"
+                        : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white"
+                    }`
+                  }
+                >
+                  <child.icon className="w-4 h-4 flex-shrink-0" />
+                  <span className="whitespace-nowrap overflow-hidden">{child.label}</span>
+                </NavLink>
+              ))}
+            </motion.div>
+          )}
         </div>
       </div>
 
