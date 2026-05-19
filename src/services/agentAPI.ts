@@ -25,16 +25,36 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
-// Response interceptor to handle token expiration
+// Response interceptor — try token refresh before logging out
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
-    // Check if error is 401 (Unauthorized) - token expired or invalid
-    if (error.response?.status === 401) {
-      // Clear auth tokens from localStorage
-      localStorage.removeItem("auth_tokens");
+  async (error) => {
+    const originalRequest = error.config;
 
-      // Redirect to landing page
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+
+      try {
+        const stored = localStorage.getItem("auth_tokens");
+        if (stored) {
+          const { refreshToken } = JSON.parse(stored);
+          const res = await axios.post(
+            `${API_BASE_URL}/auth/refresh-token`,
+            { refreshToken },
+            { headers: { "Content-Type": "application/json" } }
+          );
+          const newTokens = res.data?.data?.tokens ?? res.data?.tokens;
+          if (newTokens) {
+            localStorage.setItem("auth_tokens", JSON.stringify(newTokens));
+            originalRequest.headers.Authorization = `Bearer ${newTokens.accessToken}`;
+            return apiClient(originalRequest);
+          }
+        }
+      } catch {
+        // refresh failed — clear and redirect
+      }
+
+      localStorage.removeItem("auth_tokens");
       window.location.href = "/landing";
     }
 
@@ -42,10 +62,10 @@ apiClient.interceptors.response.use(
   }
 );
 
-// Separate client for voice API (fixed base URL)
+// Separate client for voice API — env-aware
+const _isStaging = import.meta.env.VITE_API_BASE_URL?.includes('staging');
 const voiceApiClient = axios.create({
-  // baseURL: "https://voice.callshivai.com",
-  baseURL: "https://staging.voice.callshivai.com",
+  baseURL: _isStaging ? 'https://staging.voice.callshivai.com' : 'https://voice.callshivai.com',
   timeout: 120000,
   headers: {
     "Content-Type": "application/json",
@@ -69,11 +89,36 @@ voiceApiClient.interceptors.request.use((config) => {
 
 voiceApiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
+  async (error) => {
+    const originalRequest = error.config;
+
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+
+      try {
+        const stored = localStorage.getItem("auth_tokens");
+        if (stored) {
+          const { refreshToken } = JSON.parse(stored);
+          const res = await axios.post(
+            `${API_BASE_URL}/auth/refresh-token`,
+            { refreshToken },
+            { headers: { "Content-Type": "application/json" } }
+          );
+          const newTokens = res.data?.data?.tokens ?? res.data?.tokens;
+          if (newTokens) {
+            localStorage.setItem("auth_tokens", JSON.stringify(newTokens));
+            originalRequest.headers.Authorization = `Bearer ${newTokens.accessToken}`;
+            return voiceApiClient(originalRequest);
+          }
+        }
+      } catch {
+        // refresh failed — clear and redirect
+      }
+
       localStorage.removeItem("auth_tokens");
       window.location.href = "/landing";
     }
+
     return Promise.reject(error);
   }
 );
@@ -393,7 +438,7 @@ class AgentAPI {
         success: boolean;
         data: ApiAgent;
         message?: string;
-      }> = await apiClient.post("/agents/create-agent", agentData);
+      }> = await apiClient.post("/agents/create-agent", agentData, { timeout: 0 });
 
       if (response.data.success && response.data.data) {
         return {
@@ -633,7 +678,7 @@ class AgentAPI {
         success: boolean;
         data: any;
         message?: string;
-      }> = await voiceApiClient.post("/agents/create-agent", agentData);
+      }> = await voiceApiClient.post("/agents/create-agent", agentData, { timeout: 0 });
 
       if (response.data.success && response.data.data) {
         return response.data.data;

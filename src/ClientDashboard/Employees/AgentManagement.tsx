@@ -1657,7 +1657,9 @@ const AgentManagement = () => {
       localStorage.setItem('kb_progress_agentId', agentId);
       localStorage.setItem('kb_progress_agentName', agentName);
 
-      const wsUrl = `wss://voice.callshivai.com/ws/kb-progress/${agentId}`;
+      const isStaging = import.meta.env.VITE_API_BASE_URL?.includes('staging');
+      const voiceHost = isStaging ? 'staging.voice.callshivai.com' : 'voice.callshivai.com';
+      const wsUrl = `wss://${voiceHost}/ws/kb-progress/${agentId}`;
       console.log('🔌 Connecting to KB progress WS:', wsUrl);
 
       if (kbWsRef.current) {
