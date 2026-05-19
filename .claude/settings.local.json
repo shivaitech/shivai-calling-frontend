@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(copy public\\\\widget3.js dist\\\\widget3.js)"
+    ]
+  }
+}
