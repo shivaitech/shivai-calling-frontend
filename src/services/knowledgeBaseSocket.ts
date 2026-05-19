@@ -1,5 +1,8 @@
 // v2.1 - Global callback approach (no ID matching)
-const SOCKET_URL = 'https://nodejs.service.callshivai.com';
+const isStaging = import.meta.env.VITE_API_BASE_URL?.includes('staging');
+const SOCKET_URL = isStaging
+  ? 'https://staging.nodejs.callshivai.com'
+  : 'https://nodejs.service.callshivai.com';
 
 interface KnowledgeBaseProgress {
   agentId: string;

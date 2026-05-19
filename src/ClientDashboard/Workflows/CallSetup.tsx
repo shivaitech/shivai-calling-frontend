@@ -127,6 +127,39 @@ const TIMEZONES = [
   'Australia/Sydney', 'Pacific/Auckland',
 ];
 
+const COUNTRY_CODES = [
+  { id: 'IN',  code: '+91',  flag: '🇮🇳', name: 'India'           },
+  { id: 'US',  code: '+1',   flag: '🇺🇸', name: 'United States'   },
+  { id: 'CA',  code: '+1',   flag: '🇨🇦', name: 'Canada'          },
+  { id: 'GB',  code: '+44',  flag: '🇬🇧', name: 'United Kingdom'  },
+  { id: 'AU',  code: '+61',  flag: '🇦🇺', name: 'Australia'       },
+  { id: 'AE',  code: '+971', flag: '🇦🇪', name: 'UAE'             },
+  { id: 'SA',  code: '+966', flag: '🇸🇦', name: 'Saudi Arabia'    },
+  { id: 'SG',  code: '+65',  flag: '🇸🇬', name: 'Singapore'       },
+  { id: 'MY',  code: '+60',  flag: '🇲🇾', name: 'Malaysia'        },
+  { id: 'PH',  code: '+63',  flag: '🇵🇭', name: 'Philippines'     },
+  { id: 'PK',  code: '+92',  flag: '🇵🇰', name: 'Pakistan'        },
+  { id: 'BD',  code: '+880', flag: '🇧🇩', name: 'Bangladesh'      },
+  { id: 'LK',  code: '+94',  flag: '🇱🇰', name: 'Sri Lanka'       },
+  { id: 'NP',  code: '+977', flag: '🇳🇵', name: 'Nepal'           },
+  { id: 'DE',  code: '+49',  flag: '🇩🇪', name: 'Germany'         },
+  { id: 'FR',  code: '+33',  flag: '🇫🇷', name: 'France'          },
+  { id: 'IT',  code: '+39',  flag: '🇮🇹', name: 'Italy'           },
+  { id: 'ES',  code: '+34',  flag: '🇪🇸', name: 'Spain'           },
+  { id: 'NL',  code: '+31',  flag: '🇳🇱', name: 'Netherlands'     },
+  { id: 'JP',  code: '+81',  flag: '🇯🇵', name: 'Japan'           },
+  { id: 'KR',  code: '+82',  flag: '🇰🇷', name: 'South Korea'     },
+  { id: 'CN',  code: '+86',  flag: '🇨🇳', name: 'China'           },
+  { id: 'BR',  code: '+55',  flag: '🇧🇷', name: 'Brazil'          },
+  { id: 'MX',  code: '+52',  flag: '🇲🇽', name: 'Mexico'          },
+  { id: 'ZA',  code: '+27',  flag: '🇿🇦', name: 'South Africa'    },
+  { id: 'NG',  code: '+234', flag: '🇳🇬', name: 'Nigeria'         },
+  { id: 'KE',  code: '+254', flag: '🇰🇪', name: 'Kenya'           },
+  { id: 'EG',  code: '+20',  flag: '🇪🇬', name: 'Egypt'           },
+  { id: 'TR',  code: '+90',  flag: '🇹🇷', name: 'Turkey'          },
+  { id: 'RU',  code: '+7',   flag: '🇷🇺', name: 'Russia'          },
+];
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const statusBadge = (status: OutboundCampaign['status']) => {
@@ -203,6 +236,8 @@ const CallSetup: React.FC = () => {
   const [bulkInput, setBulkInput] = useState('');
   const [contactMode, setContactMode] = useState<'single' | 'bulk'>('single');
   const [singleContact, setSingleContact] = useState({ phone: '', name: '' });
+  const [selectedCountryId, setSelectedCountryId] = useState('IN');
+  const selectedCountry = COUNTRY_CODES.find((c) => c.id === selectedCountryId) ?? COUNTRY_CODES[0];
   const [campaignContacts, setCampaignContacts] = useState<ContactEntry[]>([]);
   const [campaignScheduleMode, setCampaignScheduleMode] = useState<'now' | 'schedule'>('now');
   const [isSavingCampaign, setIsSavingCampaign] = useState(false);
@@ -239,10 +274,13 @@ const CallSetup: React.FC = () => {
   // ─── Outbound handlers ────────────────────────────────────────────────────
 
   const handleAddSingleContact = () => {
-    if (!singleContact.phone.trim()) return;
+    const raw = singleContact.phone.trim();
+    if (!raw) return;
+    const stripped = raw.startsWith('+') ? raw.slice(1) : raw;
+    const fullPhone = `${selectedCountry.code}${stripped}`;
     setCampaignContacts((prev) => [
       ...prev,
-      { id: `c_${Date.now()}`, phone: singleContact.phone.trim(), name: singleContact.name.trim() },
+      { id: `c_${Date.now()}`, phone: fullPhone, name: singleContact.name.trim() },
     ]);
     setSingleContact({ phone: '', name: '' });
   };
@@ -907,16 +945,32 @@ const CallSetup: React.FC = () => {
                       </div>
 
                       {contactMode === 'single' ? (
-                        <div className="flex gap-3 items-end">
-                          <div className="flex-1">
+                        <div className="flex flex-col sm:flex-row gap-3 items-end">
+                          <div className="flex-1 w-full">
                             <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1.5">Phone Number</label>
-                            <input type="tel" value={singleContact.phone}
-                              onChange={(e) => setSingleContact((p) => ({ ...p, phone: e.target.value }))}
-                              placeholder="+1 (555) 000-0000"
-                              onKeyDown={(e) => e.key === 'Enter' && handleAddSingleContact()}
-                              className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm" />
+                            <div className="flex common-bg-icons rounded-xl overflow-hidden">
+                              <select
+                                value={selectedCountryId}
+                                onChange={(e) => setSelectedCountryId(e.target.value)}
+                                className="bg-transparent pl-3 pr-1 py-2.5 text-sm border-r border-slate-200 dark:border-slate-700 focus:outline-none text-slate-700 dark:text-slate-300 cursor-pointer flex-shrink-0"
+                              >
+                                {COUNTRY_CODES.map((c) => (
+                                  <option key={c.id} value={c.id}>
+                                    {c.flag} {c.code} ({c.name})
+                                  </option>
+                                ))}
+                              </select>
+                              <input
+                                type="tel"
+                                value={singleContact.phone}
+                                onChange={(e) => setSingleContact((p) => ({ ...p, phone: e.target.value }))}
+                                placeholder="Phone number"
+                                onKeyDown={(e) => e.key === 'Enter' && handleAddSingleContact()}
+                                className="flex-1 bg-transparent px-3 py-2.5 text-sm focus:outline-none text-slate-800 dark:text-white placeholder-slate-400 min-w-0"
+                              />
+                            </div>
                           </div>
-                          <div className="flex-1">
+                          <div className="flex-1 w-full">
                             <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1.5">Name (optional)</label>
                             <input type="text" value={singleContact.name}
                               onChange={(e) => setSingleContact((p) => ({ ...p, name: e.target.value }))}

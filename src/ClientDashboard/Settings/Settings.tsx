@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import GlassCard from '../../components/GlassCard';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -33,6 +34,8 @@ import {
 const Settings = () => {
   const { isDark, toggleTheme } = useTheme();
   const { user, updateUser } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState('profile');
   const [showApiKey, setShowApiKey] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -40,6 +43,12 @@ const Settings = () => {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [gmailConnecting, setGmailConnecting] = useState(false);
   const [gmailSuccessMsg, setGmailSuccessMsg] = useState(false);
+  const [sheetsConnecting, setSheetsConnecting] = useState(false);
+  const [sheetsSuccessMsg, setSheetsSuccessMsg] = useState(false);
+  const [sheetsList, setSheetsList] = useState<{ id: string; name: string }[]>([]);
+  const [selectedSheetId, setSelectedSheetId] = useState('');
+  const [sheetsFetching, setSheetsFetching] = useState(false);
+  const [sheetsSaving, setSheetsSaving] = useState(false);
 
   const [profile, setProfile] = useState({
     name: '',
@@ -138,25 +147,63 @@ const Settings = () => {
 
   // Detect hash fragment and set active tab
   useEffect(() => {
-    const hash = window.location.hash.slice(1); // Remove the #
+    const hash = location.hash.slice(1);
     if (hash && ['profile', 'notifications', 'security', 'api', 'team', 'accounts'].includes(hash)) {
       setActiveTab(hash);
     }
+  }, [location.hash]);
+
+  // Restore persisted OAuth connections on mount
+  useEffect(() => {
+    authAPI.getOAuthStatus()
+      .then(statuses => {
+        const googleActive = statuses.some(s => s.provider === 'google' && s.status === 'active');
+        if (googleActive) {
+          setAccountStates(prev => ({
+            ...prev,
+            google: { ...prev.google, connected: true },
+            googleSheets: { ...prev.googleSheets, connected: true },
+          }));
+          setSheetsFetching(true);
+          authAPI.fetchGoogleSheets()
+            .then(sheets => setSheetsList(sheets))
+            .catch(() => {})
+            .finally(() => setSheetsFetching(false));
+        }
+      })
+      .catch(() => {});
   }, []);
 
-  // Detect ?gmail=connected redirect from Google OAuth callback
+  // Detect ?oauth=connected redirect from Google OAuth callback
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('gmail') === 'connected') {
+    if (params.get('oauth') === 'connected') {
       setActiveTab('accounts');
-      setAccountStates(prev => ({ ...prev, google: { ...prev.google, connected: true, expanded: false } }));
-      setGmailSuccessMsg(true);
-      // Clean the query param from the URL without reloading
       const clean = new URL(window.location.href);
-      clean.searchParams.delete('gmail');
+      clean.searchParams.delete('oauth');
       window.history.replaceState({}, '', clean.toString());
-      const timer = setTimeout(() => setGmailSuccessMsg(false), 6000);
-      return () => clearTimeout(timer);
+
+      authAPI.getOAuthStatus()
+        .then(statuses => {
+          const googleActive = statuses.some(s => s.provider === 'google' && s.status === 'active');
+          if (googleActive) {
+            setAccountStates(prev => ({
+              ...prev,
+              google: { ...prev.google, connected: true, expanded: false },
+              googleSheets: { ...prev.googleSheets, connected: true, expanded: false },
+            }));
+            setGmailSuccessMsg(true);
+            setSheetsSuccessMsg(true);
+            setTimeout(() => setGmailSuccessMsg(false), 6000);
+            setTimeout(() => setSheetsSuccessMsg(false), 6000);
+            setSheetsFetching(true);
+            authAPI.fetchGoogleSheets()
+              .then(sheets => setSheetsList(sheets))
+              .catch(() => {})
+              .finally(() => setSheetsFetching(false));
+          }
+        })
+        .catch(() => {});
     }
   }, []);
 
@@ -228,7 +275,7 @@ const Settings = () => {
   };
 
   // ── Accounts (connected accounts) state ────────────────────────────────────
-  type AccountId = 'google' | 'twilio' | 'whatsapp' | 'slack' | 'meta' | 'zapier';
+  type AccountId = 'google' | 'googleSheets' | 'twilio' | 'whatsapp' | 'slack' | 'meta' | 'zapier';
   type AccountState = {
     connected: boolean;
     expanded: boolean;
@@ -259,6 +306,23 @@ const Settings = () => {
           <path d="M3.15 7.35 5.6 9.2A5.6 5.6 0 0 1 12 6.4a5.57 5.57 0 0 1 3.55 1.25l2-2A9 9 0 0 0 3.15 7.35z" fill="#FBBC05"/>
           <path d="M12 21a9 9 0 0 0 6.06-2.35l-2.8-2.17A5.6 5.6 0 0 1 6.34 13H3.07A9 9 0 0 0 12 21z" fill="#34A853"/>
           <path d="M21.35 11.1H12v2.8h5.35c-.5 1.4-1.5 2.5-2.8 3.25l2.8 2.17C19.67 17.5 21.5 15 21.5 12c0-.31-.05-.61-.15-.9z" fill="#4285F4"/>
+        </svg>
+      ),
+      fields: [],
+    },
+    {
+      id: 'googleSheets',
+      name: 'Google Sheets',
+      description: 'Log call data and contacts to a spreadsheet',
+      color: 'text-green-600',
+      bg: 'bg-green-50 dark:bg-green-900/20',
+      isOAuth: true,
+      icon: (
+        <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none">
+          <rect x="3" y="3" width="18" height="18" rx="2" fill="#0F9D58"/>
+          <rect x="7" y="7" width="4" height="10" rx="0.5" fill="white" fillOpacity="0.9"/>
+          <rect x="13" y="7" width="4" height="10" rx="0.5" fill="white" fillOpacity="0.9"/>
+          <rect x="7" y="11" width="10" height="1.5" fill="#0F9D58"/>
         </svg>
       ),
       fields: [],
@@ -365,6 +429,25 @@ const Settings = () => {
   const handleConnectGmail = () => {
     setGmailConnecting(true);
     authAPI.connectGmail(); // navigates away; no async needed
+  };
+
+  const handleConnectGoogleSheets = () => {
+    setSheetsConnecting(true);
+    authAPI.connectGoogleSheets(); // navigates away; no async needed
+  };
+
+  const handleSaveSheet = async (sheetId: string) => {
+    const sheet = sheetsList.find(s => s.id === sheetId);
+    if (!sheet) return;
+    setSheetsSaving(true);
+    try {
+      await authAPI.saveSelectedSheet(sheet.id, sheet.name);
+      setSelectedSheetId(sheetId);
+    } catch {
+      // silently ignore
+    } finally {
+      setSheetsSaving(false);
+    }
   };
 
   const disconnectAccount = (id: AccountId) => {
@@ -837,6 +920,15 @@ const Settings = () => {
                   </button>
                 </div>
               )}
+              {sheetsSuccessMsg && (
+                <div className="flex items-center gap-3 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
+                  <Check className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0" />
+                  <p className="text-sm text-green-700 dark:text-green-300 font-medium flex-1">Google Sheets connected! Select a spreadsheet below to receive call data.</p>
+                  <button onClick={() => setSheetsSuccessMsg(false)} className="text-green-500 hover:text-green-700 transition-colors">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
               <div>
                 <h3 className="text-lg font-semibold text-slate-800 dark:text-white">Connected Accounts</h3>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Connect third-party services to power your AI agents.</p>
@@ -876,12 +968,12 @@ const Settings = () => {
                           </span>
                         ) : def.isOAuth ? (
                           <button
-                            onClick={handleConnectGmail}
-                            disabled={gmailConnecting}
+                            onClick={def.id === 'googleSheets' ? handleConnectGoogleSheets : handleConnectGmail}
+                            disabled={def.id === 'googleSheets' ? sheetsConnecting : gmailConnecting}
                             className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors flex-shrink-0"
                           >
-                            {gmailConnecting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Link2 className="w-3 h-3" />}
-                            {gmailConnecting ? 'Connecting...' : 'Connect Gmail'}
+                            {(def.id === 'googleSheets' ? sheetsConnecting : gmailConnecting) ? <Loader2 className="w-3 h-3 animate-spin" /> : <Link2 className="w-3 h-3" />}
+                            {(def.id === 'googleSheets' ? sheetsConnecting : gmailConnecting) ? 'Connecting...' : `Connect ${def.name}`}
                           </button>
                         ) : (
                           <button
@@ -893,6 +985,18 @@ const Settings = () => {
                           </button>
                         )}
                       </div>
+
+                      {/* Google Sheets — Manage Account button */}
+                      {def.id === 'googleSheets' && state.connected && (
+                        <div className="border-t border-slate-200 dark:border-slate-700 px-4 py-3 bg-slate-50/60 dark:bg-slate-800/40">
+                          <button
+                            onClick={() => navigate('/google-sheets')}
+                            className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                          >
+                            Manage Account
+                          </button>
+                        </div>
+                      )}
 
                       {/* Expandable credential form */}
                       {state.expanded && !state.connected && (

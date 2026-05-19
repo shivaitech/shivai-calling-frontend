@@ -410,13 +410,38 @@ export const authAPI = {
       .then((res) => res.data);
   },
 
-  // Gmail OAuth: navigate the browser directly to the backend endpoint so the
-  // server's 302 redirect to Google is followed natively (Axios XHR cannot
-  // follow cross-origin redirects — it hits a CORS error).
+  // ── Unified OAuth (new backend) ─────────────────────────────────────────────
+  // Navigate directly so the server's 302 redirect to Google is followed
+  // natively (Axios XHR cannot follow cross-origin redirects).
+
   connectGmail: (): void => {
     const tokens = localStorage.getItem('auth_tokens');
     const accessToken = tokens ? JSON.parse(tokens).accessToken : '';
-    const url = `${API_BASE_URL}/gmail-auth/connect?token=${encodeURIComponent(accessToken)}`;
-    window.location.href = url;
+    window.location.href = `${API_BASE_URL}/oauth/connect/google?token=${encodeURIComponent(accessToken)}`;
   },
+
+  connectGoogleSheets: (): void => {
+    const tokens = localStorage.getItem('auth_tokens');
+    const accessToken = tokens ? JSON.parse(tokens).accessToken : '';
+    window.location.href = `${API_BASE_URL}/oauth/connect/google?token=${encodeURIComponent(accessToken)}`;
+  },
+
+  // GET /oauth/status — returns all connected providers for the current user
+  getOAuthStatus: (): Promise<{ provider: string; email?: string; status: string }[]> =>
+    apiClient.get('/oauth/status').then(res => res.data?.data ?? res.data ?? []),
+
+  // Fetch list of user's Google Sheets after OAuth
+  fetchGoogleSheets: (): Promise<{ id: string; name: string }[]> =>
+    apiClient
+      .get('/integrations/service/google_sheets/discover')
+      .then(res => {
+        const sheets: any[] = res.data?.data?.sheets ?? res.data?.sheets ?? [];
+        return sheets.map(s => ({ id: s.sheet_id, name: s.sheet_name }));
+      }),
+
+  // Save the selected sheet for the user
+  saveSelectedSheet: (sheetId: string, sheetName: string): Promise<any> =>
+    apiClient
+      .post('/oauth/sheets/select', { sheetId, sheetName })
+      .then(res => res.data),
 };
