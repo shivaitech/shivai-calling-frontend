@@ -117,10 +117,10 @@
   };
 
   let liveMessages = [
-    "?? Call ShivAI!",
-    "?? Call ShivAI!",
-    "?? Call ShivAI!",
-    "?? Call ShivAI!",
+    "📞 Call ShivAI!",
+    "📞 Call ShivAI!",
+    "📞 Call ShivAI!",
+    "📞 Call ShivAI!",
   ];
 
   // Helper function to get company info from API widget config, URL parameters, or defaults
@@ -130,7 +130,7 @@
     let agentName = "AI Employee";
     let companyLogo = ""; // Empty means use default ShivAI logo
     let triggerButtonImage = ""; // Empty means use default phone icon
-    let callToActionText = "?? Call ShivAI!"; // Default cloud bubble text
+    let callToActionText = "📞 Call ShivAI!"; // Default cloud bubble text
     let themeColors = {
       primaryColor: "#4b5563",
       secondaryColor: "#ffffff", 
@@ -415,8 +415,8 @@
         _wlog('? Agent status response:', data);
         let agentRes = data?.data?.agent
         agentStatus.active = agentRes?.is_active !== false; // Default to true if not specified
-        agentStatus.message = agentRes?.is_active === false 
-          ? 'AI Employee is currently under maintenance. Please check back later.' 
+        agentStatus.message = agentRes?.is_active === false
+          ? 'AI Employee is currently under maintenance. Please check back later.'
           : '';
         
         // Store agent's configured language for widget default
@@ -978,7 +978,7 @@
           latencyMetrics.isSpeaking = true;
           latencyMetrics.userSpeechStartTime = performance.now();
           _wlog("?? User started speaking");
-          updateStatus("?? Listening...", "listening");
+          updateStatus("🎤 Listening...", "listening");
         }
         silenceStart = null;
       } else {
@@ -991,7 +991,7 @@
             latencyMetrics.isSpeaking = false;
             latencyMetrics.userSpeechEndTime = performance.now();
             _wlog("?? User stopped speaking");
-            updateStatus("?? Processing...", "speaking");
+            updateStatus("💭 Processing...", "speaking");
             silenceStart = null;
           }
         }
@@ -1081,7 +1081,7 @@
           hideConnectingState();
 
           // Update status to show AI is now ready
-          updateStatus("? Connected - Speak now!", "connected");
+          updateStatus("✅ Connected - Speak now!", "connected");
 
           // Unmute microphone immediately - no delay needed
           if (isConnected && room) {
@@ -1117,7 +1117,7 @@
                 _wlog(
                   "?? Microphone enabled immediately - ready for conversation"
                 );
-                updateStatus("?? You can speak now!", "connected");
+                updateStatus("✅ You can speak now!", "connected");
               } catch (error) {
                 console.error("? Error enabling microphone:", error);
               }
@@ -1130,7 +1130,7 @@
         }
 
         // Always update status when AI starts speaking
-        updateStatus("?? AI Speaking...", "speaking");
+        updateStatus("🔊 AI Speaking...", "speaking");
 
         if (latencyMetrics.userSpeechEndTime) {
           latencyMetrics.agentResponseStartTime = performance.now();
@@ -1162,7 +1162,7 @@
           );
         }, 500); // 500ms buffer to prevent feedback
 
-        updateStatus("?? Connected - Speak naturally!", "connected");
+        updateStatus("✅ Connected - Speak naturally!", "connected");
         _wlog("?? AI stopped speaking - buffer period started");
       }
 
@@ -1502,7 +1502,7 @@
     landingView.innerHTML = `
       <div class="widget-header">
         <div class="header-content">
-          <button class="widget-close" aria-label="Close widget">�</button>
+          <button class="widget-close" aria-label="Close widget">×</button>
           <div class="header-info">
             <div class="widget-avatar">
             ${companyInfo.logo ? 
@@ -1587,7 +1587,7 @@
       <span class="status-text ">Online</span>
       </div>
       </div>
-      <button class="widget-close" aria-label="Close widget">�</button>
+      <button class="widget-close" aria-label="Close widget">×</button>
       </div>
       <div class="call-body">
       <div class="language-section">
@@ -1623,7 +1623,7 @@
       </div>
       <!-- Empty State (shown when connected but no messages) -->
       <div class="empty-state">
-      <div class="empty-state-icon">??</div>
+      <div class="empty-state-icon">💬</div>
       <div class="empty-state-text">Start a conversation to see transcripts here</div>
       </div>
       </div>
@@ -4150,17 +4150,17 @@
 
   // Get appropriate icon for file type
   function getFileIcon(fileType) {
-    if (fileType.includes("pdf")) return "??";
-    if (fileType.includes("word") || fileType.includes("document")) return "??";
-    if (fileType.includes("text")) return "??";
+    if (fileType.includes("pdf")) return "📄";
+    if (fileType.includes("word") || fileType.includes("document")) return "📝";
+    if (fileType.includes("text")) return "📋";
     if (fileType.includes("spreadsheet") || fileType.includes("excel"))
-      return "??";
+      return "📈";
     if (fileType.includes("presentation") || fileType.includes("powerpoint"))
-      return "???";
-    if (fileType.includes("video")) return "??";
-    if (fileType.includes("audio")) return "??";
-    if (fileType.includes("zip") || fileType.includes("rar")) return "???";
-    return "??";
+      return "📊";
+    if (fileType.includes("video")) return "🎬";
+    if (fileType.includes("audio")) return "🎵";
+    if (fileType.includes("zip") || fileType.includes("rar")) return "📦";
+    return "📁";
   }
 
   function switchToCallView() {
@@ -4511,7 +4511,7 @@
         connectBtn.disabled = false; // Ensure button is enabled for reconnection
         
         updateStatus(
-          "? Failed to connect - Click to retry",
+          "❌ Failed to connect - Click to retry",
           "disconnected"
         );
         
@@ -4714,7 +4714,7 @@
         sound: false,
       },
       {
-        text: "Connection established! ??",
+        text: "Connection established! ✅",
         desc: "AI is warming up, ready in moments...",
         delay: 600,
         sound: false,
@@ -4936,7 +4936,7 @@
       firstResponseReceived = true;
       if (!callTimerStarted) {
         callTimerStarted = true;
-        updateStatus("? Connected - Speak now!", "connected");
+        updateStatus("✅ Connected - Speak now!", "connected");
         stopConnectingSound();
         clearLoadingStatus();
         hideConnectingState();
@@ -5104,8 +5104,8 @@
       // Check if we're in a secure context (HTTPS)
       if (!window.isSecureContext) {
         console.error("? Not in secure context - HTTPS required for microphone access");
-        updateStatus("? HTTPS required", "disconnected");
-        alert("?? Microphone access requires HTTPS.\n\nPlease access this page using a secure HTTPS connection.");
+        updateStatus("🔒 HTTPS required", "disconnected");
+        alert("🔒 Microphone access requires HTTPS.\n\nPlease access this page using a secure HTTPS connection.");
         isConnecting = false;
         connectBtn.disabled = false;
         return;
@@ -5114,8 +5114,8 @@
       // Check if mediaDevices API is available
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         console.error("? MediaDevices API not available");
-        updateStatus("? Browser not supported", "disconnected");
-        alert("? Microphone API not available.\n\nPlease use a modern browser (Chrome, Firefox, Safari, Edge).");
+        updateStatus("❌ Browser not supported", "disconnected");
+        alert("❌ Microphone API not available.\n\nPlease use a modern browser (Chrome, Firefox, Safari, Edge).");
         isConnecting = false;
         connectBtn.disabled = false;
         return;
@@ -5135,16 +5135,16 @@
 
         if (permissionState === "denied") {
           console.error("? Microphone permission DENIED - stopping");
-          updateStatus("? Microphone blocked", "disconnected");
+          updateStatus("🚫 Microphone blocked", "disconnected");
           alert(
-            "?? Microphone Access Blocked\n\n" +
+            "🚫 Microphone Access Blocked\n\n" +
             "To enable microphone:\n\n" +
             "Chrome/Edge:\n" +
-            "1. Click the ?? lock icon in the address bar\n" +
+            "1. Click the 🔒 lock icon in the address bar\n" +
             "2. Find 'Microphone' and select 'Allow'\n" +
             "3. Refresh the page\n\n" +
             "Firefox:\n" +
-            "1. Click the ?? icon in the address bar\n" +
+            "1. Click the 🔒 icon in the address bar\n" +
             "2. Click the arrow next to 'Blocked Temporarily'\n" +
             "3. Select 'Allow'\n\n" +
             "Safari:\n" +
@@ -5164,7 +5164,7 @@
       }
 
       // ? Show status - requesting permission
-      updateStatus("?? Requesting microphone...", "connecting");
+      updateStatus("🎤 Requesting microphone...", "connecting");
 
       if (!isConnecting) {
         _wlog("? Connection cancelled before requesting microphone");
@@ -5186,28 +5186,28 @@
         });
 
         _wlog("? Microphone permission GRANTED");
-        updateStatus("? Microphone enabled", "connecting");
+        updateStatus("✅ Microphone enabled", "connecting");
 
         // Stop the test stream immediately - LiveKit will create its own
         stream.getTracks().forEach((track) => track.stop());
 
       } catch (micError) {
         console.error("? Microphone request failed:", micError);
-        updateStatus("? Microphone denied", "disconnected");
+        updateStatus("❌ Microphone denied", "disconnected");
 
         if (micError.name === "NotAllowedError") {
           alert(
-            "?? Microphone Access Denied\n\n" +
+            "🚫 Microphone Access Denied\n\n" +
             "You clicked 'Block' or 'Deny'.\n\n" +
             "To fix:\n" +
-            "1. Click the ?? lock icon in your browser's address bar\n" +
+            "1. Click the 🔒 lock icon in your browser's address bar\n" +
             "2. Find 'Microphone' permission\n" +
             "3. Change it to 'Allow'\n" +
             "4. Refresh the page and try again"
           );
         } else if (micError.name === "NotFoundError") {
           alert(
-            "? No Microphone Found\n\n" +
+            "❌ No Microphone Found\n\n" +
             "Please:\n" +
             "1. Connect a microphone to your device\n" +
             "2. Check your system sound settings\n" +
@@ -5247,7 +5247,7 @@
         if (!isConnected) {
           console.error("? Connection timeout - AI server not responding");
           updateStatus(
-            "?? Connection timeout - Please try again",
+            "⏱️ Connection timeout - Please try again",
             "disconnected"
           );
           alert("Connection timeout. Please start a new call.");
@@ -5307,7 +5307,7 @@
           _wlog("? LiveKit loaded successfully");
         } catch (error) {
           console.error("? Failed to load LiveKit SDK:", error);
-          updateStatus("? Failed to load audio library", "disconnected");
+          updateStatus("❌ Failed to load audio library", "disconnected");
           alert("Failed to load audio library. Please refresh the page and try again.");
           throw new Error("LiveKit failed to load");
         }
@@ -5315,7 +5315,7 @@
         // Check again after loading
         if (typeof LivekitClient === "undefined") {
           console.error("? LiveKit still not available after loading");
-          updateStatus("? Audio library not available", "disconnected");
+          updateStatus("❌ Audio library not available", "disconnected");
           alert("Audio library could not be loaded. Please refresh the page.");
           throw new Error("LiveKit not available");
         }
@@ -5562,7 +5562,7 @@
           connectionTimeout = null;
         }
 
-        updateStatus("?? AI is Initializing...", "connected");
+        updateStatus("🤖 AI is Initializing...", "connected");
 
         languageSelect.disabled = true;
 
@@ -5671,7 +5671,7 @@
         _wlog("?? Connection state:", state);
         if (state === LivekitClient.ConnectionState.Disconnected) {
           updateStatus(
-            "? Disconnected - Please start new call",
+            "❌ Disconnected - Please start new call",
             "disconnected"
           );
           stopConversation();
@@ -5855,7 +5855,7 @@
                       if (firstResponseReceived && !callTimerStarted) {
                         _wlog("?? Starting call timer (knowledge base ready + first response received)");
                         callTimerStarted = true;
-                        updateStatus("? Connected - Speak now!", "connected");
+                        updateStatus("✅ Connected - Speak now!", "connected");
                         stopConnectingSound();
                         clearLoadingStatus();
                         hideConnectingState();
@@ -5901,7 +5901,7 @@
                       // Always clear loading state when AI first responds � no knowledgeBaseReady gate
                       if (!callTimerStarted) {
                         callTimerStarted = true;
-                        updateStatus("? Connected - Speak now!", "connected");
+                        updateStatus("✅ Connected - Speak now!", "connected");
                         stopConnectingSound();
                         clearLoadingStatus();
                         hideConnectingState();
@@ -5933,7 +5933,7 @@
                       // Always clear loading state when AI first responds � no knowledgeBaseReady gate
                       if (!callTimerStarted) {
                         callTimerStarted = true;
-                        updateStatus("? Connected - Speak now!", "connected");
+                        updateStatus("✅ Connected - Speak now!", "connected");
                         stopConnectingSound();
                         clearLoadingStatus();
                         hideConnectingState();
@@ -6059,7 +6059,7 @@
                     firstResponseReceived = true;
                     if (!callTimerStarted) {
                       callTimerStarted = true;
-                      updateStatus("? Connected - Speak now!", "connected");
+                      updateStatus("✅ Connected - Speak now!", "connected");
                       stopConnectingSound();
                       clearLoadingStatus();
                       hideConnectingState();
@@ -6100,7 +6100,7 @@
                     firstResponseReceived = true;
                     if (!callTimerStarted) {
                       callTimerStarted = true;
-                      updateStatus("? Connected - Speak now!", "connected");
+                      updateStatus("✅ Connected - Speak now!", "connected");
                       stopConnectingSound();
                       clearLoadingStatus();
                       hideConnectingState();
@@ -6176,7 +6176,7 @@
         errorMsg = "Network error";
       }
 
-      updateStatus(`? ${errorMsg} - Click to retry`, "disconnected");
+      updateStatus(`⚠️ ${errorMsg} - Click to retry`, "disconnected");
       console.error("? Connection terminated due to error:", error);
       
       // Reset all connection flags
@@ -6318,9 +6318,9 @@
     }
     assistantSpeaking = isSpeaking;
     if (isSpeaking) {
-      updateStatus("?? Speaking...", "speaking");
+      updateStatus("🔊 Speaking...", "speaking");
     } else if (!preserveStatus) {
-      updateStatus("?? Connected - Speak naturally!", "connected");
+      updateStatus("✅ Connected - Speak naturally!", "connected");
     }
   }
   function setupPlaybackProcessor() {

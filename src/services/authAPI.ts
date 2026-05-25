@@ -427,8 +427,14 @@ export const authAPI = {
   },
 
   // GET /oauth/status — returns all connected providers for the current user
-  getOAuthStatus: (): Promise<{ provider: string; email?: string; status: string }[]> =>
+  getOAuthStatus: (): Promise<{ provider: string; email?: string; status: string; credential_id?: string }[]> =>
     apiClient.get('/oauth/status').then(res => res.data?.data ?? res.data ?? []),
+
+  // GET /integrations — list all integrations (optionally filter by service)
+  getIntegrations: (serviceName?: string): Promise<any[]> =>
+    apiClient
+      .get('/integrations', { params: serviceName ? { service_name: serviceName } : undefined })
+      .then(res => res.data?.data ?? res.data ?? []),
 
   // Fetch list of user's Google Sheets after OAuth
   fetchGoogleSheets: (): Promise<{ id: string; name: string }[]> =>
@@ -444,4 +450,51 @@ export const authAPI = {
     apiClient
       .post('/oauth/sheets/select', { sheetId, sheetName })
       .then(res => res.data),
+
+  // PUT /integrations/:id — update an existing integration
+  updateIntegration: (integrationId: string, payload: {
+    agent_id?: string;
+    label?: string;
+    config?: {
+      google_sheets?: {
+        sheet_id?: string;
+        sheet_name?: string;
+        tab_name?: string;
+      };
+    };
+  }): Promise<any> =>
+    apiClient.put(`/integrations/${integrationId}`, payload).then(res => res.data),
+
+  // POST /integrations — link an existing sheet to an agent
+  createIntegration: (payload: {
+    agent_id: string;
+    service_name: string;
+    label: string;
+    credential_id: string;
+    config: {
+      google_sheets: {
+        sheet_id: string;
+        sheet_name: string;
+        tab_name?: string;
+      };
+    };
+  }): Promise<any> =>
+    apiClient.post('/integrations', payload).then(res => res.data),
+
+  // Create a new Google Sheet linked to an agent
+  createGoogleSheet: (payload: {
+    agent_id: string;
+    title: string;
+    tab_name?: string;
+    columns?: string[];
+    credential_id?: string;
+  }): Promise<{
+    sheet_id: string;
+    sheet_name: string;
+    web_view_link: string;
+    columns: string[];
+  }> =>
+    apiClient
+      .post('/integrations/sheets/create', payload)
+      .then(res => res.data?.data ?? res.data),
 };

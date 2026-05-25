@@ -45,8 +45,10 @@ import {
   Loader2,
   Search,
   ExternalLink,
+  ChevronDown,
 } from "lucide-react";
 import { workflowAPI } from "../../services/workflowAPI";
+import { authAPI } from "../../services/authAPI";
 import type { WorkflowDocument, AgentDocumentFile } from "../../services/workflowAPI";
 
 interface AgentViewPageProps {
@@ -170,6 +172,26 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
   const { id } = useParams();
   const location = useLocation();
   const [agentData, setAgentData] = useState<any>(null);
+
+  // ── Section collapse state ────────────────────────────────────────────────
+  const [workflowOpen, setWorkflowOpen] = useState(false);
+  const [docsOpen, setDocsOpen] = useState(false);
+
+  // ── Google Sheet integration state ───────────────────────────────────────
+  const [sheetIntegration, setSheetIntegration] = useState<any>(null);
+  const [sheetLoading, setSheetLoading] = useState(false);
+
+  useEffect(() => {
+    if (!id) return;
+    setSheetLoading(true);
+    authAPI.getIntegrations('google_sheets')
+      .then(data => {
+        const found = data.find((i: any) => i.agent_id === id || i.agentId === id);
+        setSheetIntegration(found ?? null);
+      })
+      .catch(() => {})
+      .finally(() => setSheetLoading(false));
+  }, [id]);
 
   // ── AI Documents state ────────────────────────────────────────────────────
   const [agentDocs, setAgentDocs] = useState<AgentDocumentFile[]>([]);
@@ -599,6 +621,86 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
         </div>
       </GlassCard>
 
+      {/* ── Workflow Section ─────────────────────────────────────────────────── */}
+      <GlassCard>
+        <div className="p-4 sm:p-5 lg:p-6">
+          <button
+            onClick={() => setWorkflowOpen(o => !o)}
+            className="flex items-center justify-between w-full gap-3 group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl flex items-center justify-center flex-shrink-0">
+                <Zap className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+              </div>
+              <div className="text-left">
+                <h3 className="text-base font-semibold text-slate-800 dark:text-white leading-tight">Workflow</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Connected data sources and integrations</p>
+              </div>
+            </div>
+            <ChevronDown className={`w-4 h-4 text-slate-400 flex-shrink-0 transition-transform duration-200 ${workflowOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {workflowOpen && (
+          <div className="mt-4">
+          {sheetLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
+            </div>
+          ) : sheetIntegration ? (
+            <div className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
+              <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center flex-shrink-0">
+                <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none">
+                  <rect x="3" y="3" width="18" height="18" rx="2" fill="#0F9D58" />
+                  <rect x="7" y="7" width="4" height="10" rx="0.5" fill="white" fillOpacity="0.9" />
+                  <rect x="13" y="7" width="4" height="10" rx="0.5" fill="white" fillOpacity="0.9" />
+                  <rect x="7" y="11" width="10" height="1.5" fill="#0F9D58" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">
+                  {sheetIntegration.label ?? sheetIntegration.config?.google_sheets?.sheet_name ?? 'Google Sheet'}
+                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Google Sheets</p>
+              </div>
+              <button
+                onClick={() => {
+                  const sheetId = sheetIntegration.config?.google_sheets?.sheet_id;
+                  const name = sheetIntegration.label ?? sheetIntegration.config?.google_sheets?.sheet_name ?? '';
+                  if (sheetId) navigate(`/google-sheets/${sheetId}/view?name=${encodeURIComponent(name)}`);
+                }}
+                className="common-button-bg2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium flex-shrink-0"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                View
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-8 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center">
+                <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none">
+                  <rect x="3" y="3" width="18" height="18" rx="2" fill="#0F9D58" opacity="0.4" />
+                  <rect x="7" y="7" width="4" height="10" rx="0.5" fill="white" fillOpacity="0.7" />
+                  <rect x="13" y="7" width="4" height="10" rx="0.5" fill="white" fillOpacity="0.7" />
+                  <rect x="7" y="11" width="10" height="1.5" fill="#0F9D58" opacity="0.4" />
+                </svg>
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-medium text-slate-600 dark:text-slate-400">No sheet connected</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Connect a Google Sheet to capture call data automatically</p>
+              </div>
+              <button
+                onClick={() => navigate('/google-sheets')}
+                className="common-button-bg flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium"
+              >
+                <Plus className="w-3.5 h-3.5" /> Connect Google Sheet
+              </button>
+            </div>
+          )}
+          </div>
+          )}
+        </div>
+      </GlassCard>
+
       {/* <div className="hidden">
         <div className="flex gap-2 overflow-x-auto pb-2 px-0.5 snap-x snap-mandatory scrollbar-hide -mx-0.5">
           {[
@@ -737,26 +839,36 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
       <GlassCard>
         <div className="p-4 sm:p-5 lg:p-6">
           {/* Header */}
-          <div className="flex items-center justify-between mb-4 sm:mb-5">
+          <button
+            onClick={() => setDocsOpen(o => !o)}
+            className="flex items-center justify-between w-full gap-3 group"
+          >
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 bg-blue-50 dark:bg-blue-900/20 rounded-xl flex items-center justify-center flex-shrink-0">
                 <BookOpen className="w-4 h-4 text-blue-600 dark:text-blue-400" />
               </div>
-              <div>
+              <div className="text-left">
                 <h3 className="text-base font-semibold text-slate-800 dark:text-white leading-tight">AI Documents</h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Shared by AI when users ask for PDFs, links, images & more</p>
               </div>
             </div>
-            <button
-              onClick={openDocPicker}
-              className="flex items-center justify-center w-8 h-8 rounded-xl flex-shrink-0 bg-blue-600 hover:bg-blue-700 text-white transition-colors"
-              title="Add document"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-          </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {docsOpen && (
+                <span
+                  onClick={e => { e.stopPropagation(); openDocPicker(); }}
+                  className="flex items-center justify-center w-8 h-8 rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+                  title="Add document"
+                >
+                  <Plus className="w-4 h-4" />
+                </span>
+              )}
+              <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${docsOpen ? 'rotate-180' : ''}`} />
+            </div>
+          </button>
 
           {/* Document list */}
+          {docsOpen && (
+          <div className="mt-4 sm:mt-5">
           {docsLoading ? (
             <div className="flex items-center justify-center py-10">
               <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
@@ -808,6 +920,8 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
                 );
               })}
             </div>
+          )}
+          </div>
           )}
         </div>
       </GlassCard>

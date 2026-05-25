@@ -24,6 +24,7 @@
         _wlog("✅ LiveKit client loaded successfully");
         resolve();
       };
+      
       clientScript.onerror = () => {
         console.error("❌ Failed to load LiveKit client");
         reject(new Error("Failed to load LiveKit client"));
@@ -1422,12 +1423,21 @@
     if (btnRect.width === 0 && btnRect.height === 0) return;
 
     const vw = document.documentElement.clientWidth;
-    const vh = document.documentElement.clientHeight;
+    const vh = window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight;
+    // Read safe-area-inset-bottom via a temporary sentinel element
+    let safeBottom = 0;
+    try {
+      const sab = document.createElement('div');
+      sab.style.cssText = 'position:fixed;bottom:0;left:0;width:1px;height:env(safe-area-inset-bottom,0px);pointer-events:none;opacity:0;';
+      document.body.appendChild(sab);
+      safeBottom = sab.getBoundingClientRect().height || 0;
+      document.body.removeChild(sab);
+    } catch (e) {}
     const margin = 10;
     const widgetWidth = Math.min(380, vw - 2 * margin);
     // Maximum height the widget is ever allowed to be — call view gets more room
     const isCallView = currentView === "call";
-    const maxWidgetHeight = Math.min(isCallView ? 720 : 550, vh - 2 * margin);
+    const maxWidgetHeight = Math.min(isCallView ? 720 : 550, vh - 2 * margin - safeBottom);
 
     // Horizontal: center over trigger, clamped to viewport edges
     let left = btnRect.left + btnRect.width / 2 - widgetWidth / 2;
@@ -2349,7 +2359,7 @@
       /* ── Trigger Button (glass pill capsule) ── */
       .shivai-trigger {
         position: fixed;
-        bottom: 24px;
+        bottom: calc(24px + env(safe-area-inset-bottom));
         right: 24px;
         display: flex;
         align-items: center;
@@ -2532,11 +2542,11 @@
       /* ── Widget Container (glass like trigger) ── */
       .shivai-widget {
       position: fixed;
-      bottom: 92px;
+      bottom: calc(92px + env(safe-area-inset-bottom));
       right: 24px;
       width: 360px;
       max-width: 360px;
-      max-height: 620px;
+      max-height: min(620px, calc(100dvh - 120px - env(safe-area-inset-bottom)));
       background: rgba(225, 230, 238, 0.62);
       border-radius: 22px;
       border: 1px solid rgba(255,255,255,0.55);
@@ -4023,15 +4033,15 @@
 
       /* ── Responsive ── */
       @media (max-width: 768px) {
-      .shivai-trigger { bottom:18px; right:18px; }
+      .shivai-trigger { bottom:calc(18px + env(safe-area-inset-bottom)); right:18px; }
       .shivai-message-bubble { font-size:12px; padding:8px 12px; max-width:200px; }
-      .shivai-widget { width:calc(100vw - 32px); right:16px; bottom:96px; }
+      .shivai-widget { width:calc(100vw - 32px); right:16px; bottom:calc(96px + env(safe-area-inset-bottom)); max-height:min(620px, calc(100dvh - 120px - env(safe-area-inset-bottom))); }
       }
       @media (max-width: 480px) {
-      .shivai-widget { width:calc(100vw - 24px); right:12px; bottom:90px; }
+      .shivai-widget { width:calc(100vw - 24px); right:12px; bottom:calc(90px + env(safe-area-inset-bottom)); max-height:min(580px, calc(100dvh - 110px - env(safe-area-inset-bottom))); }
       .widget-header  { padding:16px 16px 14px; }
       .widget-body    { padding:14px 16px; }
-      .shivai-trigger { bottom:14px; right:14px; }
+      .shivai-trigger { bottom:calc(14px + env(safe-area-inset-bottom)); right:14px; }
       .shivai-message-bubble { font-size:12px; padding:7px 11px; max-width:175px; }
       .call-view .input-field-container { background: #ffffff !important; }
       .dragging {

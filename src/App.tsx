@@ -49,6 +49,7 @@ const Monitoring = lazy(() => import("./ClientDashboard/Monitoring/Monitoring"))
 const Billing = lazy(() => import("./ClientDashboard/Billing/Billing"));
 const Settings = lazy(() => import("./ClientDashboard/Settings/Settings"));
 const GoogleSheetsManager = lazy(() => import("./ClientDashboard/GoogleSheets/GoogleSheetsManager"));
+const GoogleSheetView = lazy(() => import("./ClientDashboard/GoogleSheets/GoogleSheetView"));
 const ResetPassword = lazy(() => import("./components/ResetPassword"));
 const AgentPublicPage = lazy(() => import("./pages/AgentPublicPage"));
 
@@ -171,6 +172,7 @@ function AppContent() {
                       <Route path="/billing" element={<Billing />} />
                       <Route path="/settings" element={<Settings />} />
                       <Route path="/google-sheets" element={<GoogleSheetsManager />} />
+                      <Route path="/google-sheets/:id/view" element={<GoogleSheetView />} />
 
                       {/* Default route for authenticated users */}
                       <Route path="/" element={<Navigate to="/dashboard" replace />} />

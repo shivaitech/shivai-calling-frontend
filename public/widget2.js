@@ -401,9 +401,10 @@
         const data = await response.json();
         _wlog('✅ Agent status response:', data);
         let agentRes = data?.data?.agent
-        agentStatus.active = agentRes?.is_active !== false; // Default to true if not specified
-        agentStatus.message = agentRes?.is_active === false 
-          ? 'AI Employee is currently under maintenance. Please check back later.' 
+        // In bypass/test mode treat agent as always active regardless of publish status
+        agentStatus.active = bypassDomainCheck || agentRes?.is_active !== false;
+        agentStatus.message = !bypassDomainCheck && agentRes?.is_active === false
+          ? 'AI Employee is currently under maintenance. Please check back later.'
           : '';
         
         // Store agent's configured language for widget default
