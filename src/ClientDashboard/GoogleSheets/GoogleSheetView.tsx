@@ -35,6 +35,10 @@ const GoogleSheetView = () => {
   // so Google has time to initialize it in edit mode.
   const [warming, setWarming] = useState(isNew);
 
+  // Existing assignment (fetched on mount)
+  const [existingIntegrationId, setExistingIntegrationId] = useState('');
+  const [assignedAgentName, setAssignedAgentName] = useState('');
+
   // Assign modal state
   const [assignOpen, setAssignOpen] = useState(false);
   const [agents, setAgents] = useState<ApiAgent[]>([]);
@@ -49,6 +53,26 @@ const GoogleSheetView = () => {
     setIframeLoaded(false);
   }, [id]);
 
+  // Fetch existing assignment on mount so the button reflects current state
+  useEffect(() => {
+    if (!id) return;
+    Promise.all([
+      authAPI.getIntegrations('google_sheets').catch(() => []),
+      agentAPI.getAgents().catch(() => []),
+    ]).then(([integrations, agentList]) => {
+      const existing = integrations.find((i: any) =>
+        i.config?.google_sheets?.sheet_id === id || i.sheet_id === id
+      );
+      if (existing) {
+        setExistingIntegrationId(existing._id ?? existing.id ?? '');
+        const agentId = existing.agent_id ?? existing.agentId ?? '';
+        const agent = (agentList as ApiAgent[]).find(a => a.id === agentId);
+        setAssignedAgentName(agent?.name ?? '');
+        setSelectedAgentId(agentId);
+      }
+    });
+  }, [id]);
+
   useEffect(() => {
     if (!isNew) return;
     const timer = setTimeout(() => setWarming(false), 3000);
@@ -57,25 +81,17 @@ const GoogleSheetView = () => {
 
   const openAssignModal = async () => {
     setAssignOpen(true);
-    setSelectedAgentId('');
     setAssignSuccess(false);
     setAssignError('');
     try {
-      const [agentData, oauthStatus, integrations] = await Promise.all([
+      const [agentData, oauthStatus] = await Promise.all([
         agentAPI.getAgents(),
         authAPI.getOAuthStatus(),
-        authAPI.getIntegrations('google_sheets').catch(() => []),
       ]);
       setAgents(agentData);
-      const googleCred = oauthStatus.find(s =>
-        s.provider === 'google' || s.provider === 'google_sheets' || s.provider?.includes('google')
-      );
+      const googleCred = oauthStatus.find(s => s.provider?.includes('google'));
       setCredentialId(googleCred?.credential_id ?? '');
-      // Pre-select agent already linked to this sheet
-      const existing = integrations.find((i: any) =>
-        i.config?.google_sheets?.sheet_id === id || i.sheet_id === id
-      );
-      if (existing) setSelectedAgentId(existing.agent_id ?? existing.agentId ?? '');
+      // selectedAgentId is already set from mount-time fetch; keep it
     } catch {
       // ignore
     }
@@ -86,24 +102,30 @@ const GoogleSheetView = () => {
     setAssigning(true);
     setAssignError('');
     try {
-      await authAPI.createIntegration({
-        agent_id: selectedAgentId,
-        service_name: 'google_sheets',
-        label: sheetName,
-        credential_id: credentialId,
-        config: {
-          google_sheets: {
-            sheet_id: id,
-            sheet_name: sheetName,
-
+      if (existingIntegrationId) {
+        await authAPI.updateIntegration(existingIntegrationId, { agent_id: selectedAgentId });
+      } else {
+        await authAPI.createIntegration({
+          agent_id: selectedAgentId,
+          service_name: 'google_sheets',
+          label: sheetName,
+          credential_id: credentialId,
+          config: {
+            google_sheets: {
+              sheet_id: id,
+              sheet_name: sheetName,
+              tab_name: 'Sheet1',
+            },
           },
-        },
-      });
+        });
+      }
+      // Update local state so button reflects new assignment immediately
+      const saved = agents.find(a => a.id === selectedAgentId);
+      setAssignedAgentName(saved?.name ?? '');
       setAssignSuccess(true);
       setTimeout(() => {
         setAssignOpen(false);
         setAssignSuccess(false);
-        setSelectedAgentId('');
       }, 1500);
     } catch (err: any) {
       setAssignError(err?.response?.data?.message ?? 'Failed to assign. Please try again.');
@@ -164,13 +186,22 @@ const GoogleSheetView = () => {
             <span className="hidden sm:inline">Open in Google</span>
           </a>
 
-          {/* Assign AI */}
+          {/* Assign / Update AI */}
           <button
             onClick={openAssignModal}
             className="common-button-bg flex items-center gap-1.5 !px-3 !py-2 rounded-xl text-xs font-medium flex-shrink-0"
           >
-            <Users className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Assign AI</span>
+            {assignedAgentName ? (
+              <>
+                <span className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />
+                <span className="hidden sm:inline truncate max-w-[100px]">{assignedAgentName}</span>
+              </>
+            ) : (
+              <>
+                <Users className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Assign AI</span>
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -209,7 +240,7 @@ const GoogleSheetView = () => {
                   <SheetIcon />
                 </div>
                 <div className="min-w-0">
-                  <h2 className="text-sm font-semibold text-slate-800 dark:text-white">Assign AI</h2>
+                  <h2 className="text-sm font-semibold text-slate-800 dark:text-white">{existingIntegrationId ? 'Update Assignment' : 'Assign AI'}</h2>
                   <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{sheetName}</p>
                 </div>
               </div>
@@ -262,7 +293,7 @@ const GoogleSheetView = () => {
                   <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</>
                 ) : assignSuccess ? (
                   <><Check className="w-4 h-4" /> Assigned!</>
-                ) : 'Assign'}
+                ) : existingIntegrationId ? 'Update' : 'Assign'}
               </button>
             </div>
           </div>

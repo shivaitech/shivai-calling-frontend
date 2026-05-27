@@ -3,6 +3,14 @@ import axios, { AxiosResponse } from "axios";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 
+export interface SheetColumn {
+  header: string;
+  field: string;
+  required: boolean;
+  ask_as?: string;
+  prefix?: string;
+}
+
 interface LoginRequest {
   email: string;
   password: string;
@@ -470,12 +478,13 @@ export const authAPI = {
     agent_id: string;
     service_name: string;
     label: string;
-    credential_id: string;
+    credential_id?: string;
     config: {
       google_sheets: {
         sheet_id: string;
         sheet_name: string;
         tab_name?: string;
+        columns?: SheetColumn[];
       };
     };
   }): Promise<any> =>
@@ -486,13 +495,13 @@ export const authAPI = {
     agent_id: string;
     title: string;
     tab_name?: string;
-    columns?: string[];
+    columns?: SheetColumn[];
     credential_id?: string;
   }): Promise<{
     sheet_id: string;
     sheet_name: string;
     web_view_link: string;
-    columns: string[];
+    columns: SheetColumn[];
   }> =>
     apiClient
       .post('/integrations/sheets/create', payload)

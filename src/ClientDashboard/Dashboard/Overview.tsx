@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 
 const Overview = () => {
-  const { agents } = useAgent();
+  const { agents, isLoading } = useAgent();
   const { user } = useAuth();
   const navigate = useNavigate(); 
   const [welcomeMessage, setWelcomeMessage] = useState("");
@@ -124,30 +124,104 @@ const Overview = () => {
   return (
     <div className="space-y-4 sm:space-y-6 w-full max-w-full overflow-hidden">
       <div className="stats-section">
+        {/* Mobile stats */}
         <div className="block sm:hidden">
-          <Slider
-            dots={true}
-            infinite={false}
-            speed={300}
-            slidesToShow={2.2}
-            slidesToScroll={1}
-            swipeToSlide={true}
-            touchThreshold={10}
-            arrows={false}
-            className="mobile-stats-slider"
-            customPaging={() => (
-              <div className="w-2 h-2 bg-gray-300 rounded-full hover:bg-gray-600 transition-colors duration-200"></div>
-            )}
-            dotsClass="slick-dots !bottom-[-20px] !flex !justify-center !gap-2"
-          >
-            {stats?.map((stat, index) => (
-              <div key={index} className="px-1">
-                <GlassCard hover>
-                  <div className="p-3 min-h-[110px]">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className={`p-1.5 rounded-lg common-bg-icons`}>
+          {isLoading ? (
+            <div className="flex gap-2 overflow-x-hidden px-1">
+              {[0, 1, 2, 3].map(i => (
+                <div key={i} className="flex-shrink-0 w-[45%] animate-pulse">
+                  <GlassCard>
+                    <div className="p-3 min-h-[110px]">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="w-7 h-7 rounded-lg bg-slate-200 dark:bg-slate-700" />
+                        <div className="w-4 h-3 rounded bg-slate-200 dark:bg-slate-700" />
+                      </div>
+                      <div className="w-10 h-5 rounded bg-slate-200 dark:bg-slate-700 mb-2" />
+                      <div className="w-20 h-3 rounded bg-slate-200 dark:bg-slate-700 mb-1.5" />
+                      <div className="w-16 h-2.5 rounded bg-slate-200 dark:bg-slate-700" />
+                    </div>
+                  </GlassCard>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <Slider
+              dots={true}
+              infinite={false}
+              speed={300}
+              slidesToShow={2.2}
+              slidesToScroll={1}
+              swipeToSlide={true}
+              touchThreshold={10}
+              arrows={false}
+              className="mobile-stats-slider"
+              customPaging={() => (
+                <div className="w-2 h-2 bg-gray-300 rounded-full hover:bg-gray-600 transition-colors duration-200"></div>
+              )}
+              dotsClass="slick-dots !bottom-[-20px] !flex !justify-center !gap-2"
+            >
+              {stats?.map((stat, index) => (
+                <div key={index} className="px-1">
+                  <GlassCard hover>
+                    <div className="p-3 min-h-[110px]">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className={`p-1.5 rounded-lg common-bg-icons`}>
+                          <stat.icon
+                            className={`w-4 h-4 ${
+                              stat.color === "blue"
+                                ? "text-blue-600 dark:text-blue-400"
+                                : stat.color === "green"
+                                ? "text-green-600 dark:text-green-400"
+                                : stat.color === "emerald"
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : "text-purple-600 dark:text-purple-400"
+                            }`}
+                          />
+                        </div>
+                        <TrendingUp className="w-2.5 h-2.5 text-green-500" />
+                      </div>
+                      <div>
+                        <p className="text-base font-bold text-slate-800 dark:text-white mb-1">
+                          {stat.value}
+                        </p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400 mb-1 leading-tight">
+                          {stat.title}
+                        </p>
+                        <p className="text-xs text-green-600 dark:text-green-400 leading-tight">
+                          {stat.change}
+                        </p>
+                      </div>
+                    </div>
+                  </GlassCard>
+                </div>
+              ))}
+            </Slider>
+          )}
+        </div>
+
+        {/* Desktop stats */}
+        <div className="hidden sm:grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
+          {isLoading
+            ? [0, 1, 2, 3].map(i => (
+                <GlassCard key={i}>
+                  <div className="p-3 sm:p-6 animate-pulse">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="w-10 sm:w-12 h-10 sm:h-12 rounded-xl bg-slate-200 dark:bg-slate-700" />
+                      <div className="w-5 h-4 rounded bg-slate-200 dark:bg-slate-700" />
+                    </div>
+                    <div className="w-16 h-7 rounded bg-slate-200 dark:bg-slate-700 mb-2" />
+                    <div className="w-24 h-3.5 rounded bg-slate-200 dark:bg-slate-700 mb-2" />
+                    <div className="w-20 h-3 rounded bg-slate-200 dark:bg-slate-700" />
+                  </div>
+                </GlassCard>
+              ))
+            : stats.map((stat, index) => (
+                <GlassCard key={index} hover>
+                  <div className="p-3 sm:p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className={`p-2 sm:p-3 rounded-xl common-bg-icons`}>
                         <stat.icon
-                          className={`w-4 h-4 ${
+                          className={`w-4 sm:w-6 h-4 sm:h-6 ${
                             stat.color === "blue"
                               ? "text-blue-600 dark:text-blue-400"
                               : stat.color === "green"
@@ -158,60 +232,22 @@ const Overview = () => {
                           }`}
                         />
                       </div>
-                      <TrendingUp className="w-2.5 h-2.5 text-green-500" />
+                      <TrendingUp className="w-3 sm:w-4 h-3 sm:h-4 text-green-500" />
                     </div>
                     <div>
-                      <p className="text-base font-bold text-slate-800 dark:text-white mb-1">
+                      <p className="text-lg sm:text-2xl font-bold text-slate-800 dark:text-white mb-1">
                         {stat.value}
                       </p>
-                      <p className="text-xs text-slate-600 dark:text-slate-400 mb-1 leading-tight">
+                      <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mb-1">
                         {stat.title}
                       </p>
-                      <p className="text-xs text-green-600 dark:text-green-400 leading-tight">
+                      <p className="text-xs sm:text-xs text-green-600 dark:text-green-400">
                         {stat.change}
                       </p>
                     </div>
                   </div>
                 </GlassCard>
-              </div>
-            ))}
-          </Slider>
-        </div>
-
-        <div className="hidden sm:grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
-          {stats.map((stat, index) => (
-            <GlassCard key={index} hover>
-              <div className="p-3 sm:p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className={`p-2 sm:p-3 rounded-xl common-bg-icons`}>
-                    <stat.icon
-                      className={`w-4 sm:w-6 h-4 sm:h-6 ${
-                        stat.color === "blue"
-                          ? "text-blue-600 dark:text-blue-400"
-                          : stat.color === "green"
-                          ? "text-green-600 dark:text-green-400"
-                          : stat.color === "emerald"
-                          ? "text-emerald-600 dark:text-emerald-400"
-                          : "text-purple-600 dark:text-purple-400"
-                      }`}
-                    />
-                  </div>
-                  <TrendingUp className="w-3 sm:w-4 h-3 sm:h-4 text-green-500" />
-                </div>
-                <div>
-                  <p className="text-lg sm:text-2xl font-bold text-slate-800 dark:text-white mb-1">
-                    {stat.value}
-                  </p>
-                  <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 mb-1">
-                    {stat.title}
-                  </p>
-                  <p className="text-xs sm:text-xs text-green-600 dark:text-green-400">
-                    {stat.change}
-                  </p>
-                </div>
-              </div>
-            </GlassCard>
-          ))}
+              ))}
         </div>
       </div>
 
@@ -222,7 +258,23 @@ const Overview = () => {
               Active Agents
             </h3>
             <div className="space-y-3 sm:space-y-4">
-              {!isDeveloper || agents.length === 0 ? (
+              {isLoading ? (
+                [0, 1, 2, 3].map(i => (
+                  <div key={i} className="flex items-center justify-between px-3 py-3 border border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-700/30 rounded-xl animate-pulse">
+                    <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                      <div className="w-7 sm:w-10 h-7 sm:h-10 rounded-xl bg-slate-200 dark:bg-slate-700 flex-shrink-0" />
+                      <div className="flex-1 min-w-0 space-y-2">
+                        <div className="h-3.5 w-32 bg-slate-200 dark:bg-slate-700 rounded-full" />
+                        <div className="h-2.5 w-24 bg-slate-200 dark:bg-slate-700 rounded-full" />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <div className="h-5 w-16 rounded-full bg-slate-200 dark:bg-slate-700" />
+                      <div className="h-4 w-4 rounded bg-slate-200 dark:bg-slate-700" />
+                    </div>
+                  </div>
+                ))
+              ) : !isDeveloper || agents.length === 0 ? (
                 <div className="text-center py-6 sm:py-8">
                   <Bot className="w-8 h-8 sm:w-12 sm:h-12 text-slate-400 mx-auto mb-2 sm:mb-3" />
                   <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400">
@@ -276,7 +328,7 @@ const Overview = () => {
                     </div>
                   ))
               )}
-              {agents.length > 4 && isDeveloper && (
+              {!isLoading && agents.length > 4 && isDeveloper && (
                 <div className="text-center mt-2 sm:mt-3">
                   <button
                     onClick={() => navigate("/agents")}
@@ -296,7 +348,17 @@ const Overview = () => {
               Recent Activity
             </h3>
             <div className="space-y-3 sm:space-y-4 max-h-80 sm:max-h-none overflow-y-auto">
-              {recentActivity.length === 0 ? (
+              {isLoading ? (
+                [0, 1, 2, 3, 4].map(i => (
+                  <div key={i} className="flex items-start gap-2 sm:gap-3 animate-pulse">
+                    <div className="w-2 h-2 rounded-full mt-2 flex-shrink-0 bg-slate-200 dark:bg-slate-700" />
+                    <div className="flex-1 min-w-0 space-y-2">
+                      <div className={`h-3 rounded bg-slate-200 dark:bg-slate-700 ${i % 2 === 0 ? 'w-3/4' : 'w-5/6'}`} />
+                      <div className="h-2.5 w-16 rounded bg-slate-200 dark:bg-slate-700" />
+                    </div>
+                  </div>
+                ))
+              ) : recentActivity.length === 0 ? (
                 <div className="text-center py-6 sm:py-8">
                   <Activity className="w-8 h-8 sm:w-12 sm:h-12 text-slate-400 mx-auto mb-2 sm:mb-3" />
                   <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400">

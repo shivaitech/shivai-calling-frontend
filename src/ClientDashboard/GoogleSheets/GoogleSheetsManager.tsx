@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { authAPI } from '../../services/authAPI';
+import { authAPI, SheetColumn } from '../../services/authAPI';
 import { agentAPI, ApiAgent } from '../../services/agentAPI';
 import GlassCard from '../../components/GlassCard';
 import {
@@ -33,7 +33,7 @@ interface Template {
   description: string;
   icon: React.ReactNode;
   tab_name: string;
-  columns: string[];
+  columns: SheetColumn[];
 }
 
 const TEMPLATES: Template[] = [
@@ -43,7 +43,15 @@ const TEMPLATES: Template[] = [
     description: 'Track all AI agent call activity',
     icon: <Phone className="w-4 h-4" />,
     tab_name: 'Call Logs',
-    columns: ['Date', 'Time', 'Caller Name', 'Phone', 'Duration', 'Outcome', 'Notes'],
+    columns: [
+      { header: 'Date', field: 'date', required: false },
+      { header: 'Time', field: 'time', required: false },
+      { header: 'Caller Name', field: 'caller_name', required: true, ask_as: "What is the caller's name?" },
+      { header: 'Phone', field: 'phone', required: false },
+      { header: 'Duration', field: 'duration', required: false },
+      { header: 'Outcome', field: 'outcome', required: false, ask_as: 'What was the call outcome?' },
+      { header: 'Notes', field: 'notes', required: false },
+    ],
   },
   {
     id: 'leads',
@@ -51,7 +59,15 @@ const TEMPLATES: Template[] = [
     description: 'Capture and manage sales leads',
     icon: <Target className="w-4 h-4" />,
     tab_name: 'Leads',
-    columns: ['Name', 'Phone', 'Email', 'Company', 'Source', 'Stage', 'Follow Up Date'],
+    columns: [
+      { header: 'Name', field: 'name', required: true, ask_as: "What is the lead's name?" },
+      { header: 'Phone', field: 'phone', required: true, ask_as: 'What is their phone number?' },
+      { header: 'Email', field: 'email', required: false },
+      { header: 'Company', field: 'company', required: false, ask_as: 'What company are they from?' },
+      { header: 'Source', field: 'source', required: false },
+      { header: 'Stage', field: 'stage', required: false },
+      { header: 'Follow Up Date', field: 'follow_up_date', required: false },
+    ],
   },
   {
     id: 'support',
@@ -59,7 +75,15 @@ const TEMPLATES: Template[] = [
     description: 'Log support requests and resolutions',
     icon: <HeadphonesIcon className="w-4 h-4" />,
     tab_name: 'Support',
-    columns: ['Name', 'Phone', 'Email', 'Issue', 'Priority', 'Status', 'Agent Notes'],
+    columns: [
+      { header: 'Name', field: 'name', required: true, ask_as: "What is the customer's name?" },
+      { header: 'Phone', field: 'phone', required: false },
+      { header: 'Email', field: 'email', required: false },
+      { header: 'Issue', field: 'issue', required: true, ask_as: 'What is the issue?' },
+      { header: 'Priority', field: 'priority', required: false },
+      { header: 'Status', field: 'status', required: false },
+      { header: 'Agent Notes', field: 'agent_notes', required: false },
+    ],
   },
   {
     id: 'tickets',
@@ -67,7 +91,15 @@ const TEMPLATES: Template[] = [
     description: 'Manage support tickets end-to-end',
     icon: <TicketIcon className="w-4 h-4" />,
     tab_name: 'Tickets',
-    columns: ['Ticket ID', 'Customer', 'Email', 'Issue', 'Priority', 'Status', 'Resolved Date'],
+    columns: [
+      { header: 'Ticket ID', field: 'ticket_id', required: false },
+      { header: 'Customer', field: 'customer', required: true, ask_as: "What is the customer's name?" },
+      { header: 'Email', field: 'email', required: false },
+      { header: 'Issue', field: 'issue', required: true, ask_as: 'What is the issue?' },
+      { header: 'Priority', field: 'priority', required: false },
+      { header: 'Status', field: 'status', required: false },
+      { header: 'Resolved Date', field: 'resolved_date', required: false },
+    ],
   },
   {
     id: 'inventory',
@@ -75,7 +107,15 @@ const TEMPLATES: Template[] = [
     description: 'Track products, stock and pricing',
     icon: <Package className="w-4 h-4" />,
     tab_name: 'Inventory',
-    columns: ['Product Name', 'SKU', 'Category', 'Stock', 'Price', 'Reorder Level', 'Supplier'],
+    columns: [
+      { header: 'Product Name', field: 'product_name', required: true, ask_as: 'What is the product name?' },
+      { header: 'SKU', field: 'sku', required: false },
+      { header: 'Category', field: 'category', required: false },
+      { header: 'Stock', field: 'stock', required: false },
+      { header: 'Price', field: 'price', required: false },
+      { header: 'Reorder Level', field: 'reorder_level', required: false },
+      { header: 'Supplier', field: 'supplier', required: false },
+    ],
   },
   {
     id: 'appointments',
@@ -83,7 +123,15 @@ const TEMPLATES: Template[] = [
     description: 'Schedule and track bookings',
     icon: <CalendarDays className="w-4 h-4" />,
     tab_name: 'Appointments',
-    columns: ['Customer Name', 'Phone', 'Email', 'Date', 'Time', 'Service', 'Status'],
+    columns: [
+      { header: 'Customer Name', field: 'customer_name', required: true, ask_as: "What is the customer's name?" },
+      { header: 'Phone', field: 'phone', required: true, ask_as: 'What is their phone number?' },
+      { header: 'Email', field: 'email', required: false },
+      { header: 'Date', field: 'date', required: true, ask_as: 'What date is the appointment?' },
+      { header: 'Time', field: 'time', required: true, ask_as: 'What time is the appointment?' },
+      { header: 'Service', field: 'service', required: false, ask_as: 'What service is requested?' },
+      { header: 'Status', field: 'status', required: false },
+    ],
   },
 ];
 
@@ -180,6 +228,7 @@ const GoogleSheetsManager = () => {
             google_sheets: {
               sheet_id: assignSheet.id,
               sheet_name: assignSheet.name,
+              tab_name: 'Sheet1',
             },
           },
         });
@@ -423,8 +472,8 @@ const GoogleSheetsManager = () => {
                     <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Columns</p>
                     <div className="flex flex-wrap gap-1.5">
                       {selectedTemplate.columns.map(col => (
-                        <span key={col} className="text-[11px] px-2 py-0.5 rounded-full bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 font-medium">
-                          {col}
+                        <span key={col.field} className="text-[11px] px-2 py-0.5 rounded-full bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 font-medium">
+                          {col.header}
                         </span>
                       ))}
                     </div>
