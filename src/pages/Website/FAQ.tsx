@@ -100,7 +100,7 @@ export const FAQ: React.FC<FAQProps> = ({ setAuthMode, setShowAuthModal }) => {
         backgroundImage: `url('${bgImage}')`,
         backgroundPosition: "center",
       }}
-      className="w-full px-6 lg:px-16 xl:px-24 pt-0 md:pt-16 lg:pt-[100px]"
+      className="w-full px-6 lg:px-16 xl:px-24 pt-0 md:pt-16 lg:pt-0"
     >
       {/* FAQ Section */}
       <div className="px-2 py-8 md:py-0 lg:py-24">
