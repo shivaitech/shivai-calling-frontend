@@ -11,7 +11,7 @@ const TryVoice = lazy(() => import("./TryVoice"));
 const WhatShivaiDo = lazy(() => import("./WhatShivaiDo").then(m => ({ default: m.WhatShivaiDo })));
 const WhatWeWork = lazy(() => import("./WhatWeWork").then(m => ({ default: m.WhatWeWork })));
 const WorkTools = lazy(() => import("./WorkTools").then(m => ({ default: m.WorkTools })));
-const ShivaiSubsPlan = lazy(() => import("./ShivaiSubsPlan").then(m => ({ default: m.ShivaiSubsPlan })));
+const ShivaiSubsPlan = lazy(() => import("./ShivaiSubsPlanV2").then(m => ({ default: m.ShivaiSubsPlanV2 })));
 const FAQ = lazy(() => import("./FAQ").then(m => ({ default: m.FAQ })));
 const Footer = lazy(() => import("./Footer"));
 
@@ -181,7 +181,7 @@ const Landing: React.FC = () => {
         </section>
       </Suspense>
       <Suspense fallback={<SectionSkeleton minHeight="80vh" />}>
-        <section id="pricing" className="py-0 px-6 lg:px-0">
+        <section id="pricing" className="py-0 px-0">
           <ShivaiSubsPlan />
         </section>
       </Suspense>
