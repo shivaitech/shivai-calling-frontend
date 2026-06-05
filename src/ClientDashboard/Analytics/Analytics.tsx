@@ -49,9 +49,28 @@ const Analytics = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [loadingLocations, setLoadingLocations] = useState<Set<string>>(new Set());
   const ipLocationCacheRef = useRef<any>({});
   const pageSize = 20;
   const agentPageSize = 20;
+
+  // Helper: Detect private/reserved IP addresses
+  const isPrivateIP = (ip: string): boolean => {
+    if (!ip) return false;
+    // Private ranges: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8
+    const privateRanges = [
+      /^10\./,
+      /^172\.(1[6-9]|2[0-9]|3[01])\./,
+      /^192\.168\./,
+      /^127\./,
+      /^169\.254\./,  // Link-local
+      /^::1$/,         // IPv6 loopback
+      /^fc00:/,        // IPv6 private
+      /^0\.0\.0\.0$/,  // Invalid
+      /^255\.255\.255\.255$/, // Broadcast
+    ];
+    return privateRanges.some(range => range.test(ip));
+  };
 
   // Function to resolve IP to location
   const resolveIPLocation = async (ip: string) => {
@@ -61,6 +80,19 @@ const Analytics = () => {
         city: "Unknown",
         region: "Unknown",
         country: "Unknown",
+        status: "invalid",
+      };
+    }
+
+    // Check if private IP
+    if (isPrivateIP(ip)) {
+      console.log(`🔒 Private/Reserved IP detected: ${ip}`);
+      return {
+        city: "Private Network",
+        region: "Local",
+        country: "N/A",
+        status: "private",
+        ip: ip,
       };
     }
 
@@ -96,6 +128,8 @@ const Analytics = () => {
         city: data.city || "Unknown",
         region: data.region || "Unknown",
         country: data.country_name || "Unknown",
+        status: "resolved",
+        ip: ip,
       };
 
       console.log(`✅ Resolved location for ${ip}:`, result);
@@ -112,6 +146,8 @@ const Analytics = () => {
         city: "Unknown",
         region: "Unknown",
         country: "Unknown",
+        status: "failed",
+        ip: ip,
       };
 
       // Cache the error response to avoid repeated failed requests
@@ -263,17 +299,29 @@ const Analytics = () => {
       const sessions = response?.sessions || [];
       const pagination = response?.pagination || {};
 
+      // Set loading state for all sessions being resolved
+      const sessionIds = new Set(sessions.map((s: any) => s.id || s.call_id));
+      setLoadingLocations(sessionIds);
+
       // Resolve IP locations for all sessions
       const sessionsWithLocations = await Promise.all(
         sessions.map(async (session: any) => {
           const ip = session?.user_ip || session?.ip;
           if (ip && !session?.location) {
-            const location = await resolveIPLocation(ip);
-            return { ...session, location };
+            try {
+              const location = await resolveIPLocation(ip);
+              return { ...session, location };
+            } catch (err) {
+              console.error(`Failed to resolve location for ${ip}:`, err);
+              return { ...session, location: null };
+            }
           }
           return session;
         })
       );
+
+      // Clear loading state
+      setLoadingLocations(new Set());
 
       setSessionHistory(sessionsWithLocations);
       setTotalPages(pagination.totalPages || 1);
@@ -949,20 +997,68 @@ const Analytics = () => {
 
                           {/* Location Badge */}
                           {(() => {
-                            // Show region (state) + country — more accurate than city for IP geolocation
-                            const city = session.location?.city?.toLowerCase() !== 'unknown' ? session.location?.city : '';
-                            const region = session.location?.region?.toLowerCase() !== 'unknown' ? session.location?.region : '';
-                            const country = session.location?.country?.toLowerCase() !== 'unknown' ? session.location?.country : '';
-                            // Deduplicate: skip region if it's the same as city
-                            const regionPart = region && region !== city ? region : '';
-                            const locationLabel = [city, regionPart, country].filter(Boolean).join(', ');
+                            const locationData = session.location;
+                            const sessionId = session.id || session.call_id;
+                            const isResolvingLocation = loadingLocations.has(sessionId);
+                            const ip = session?.user_ip || session?.ip;
+
+                            // If still resolving, show loading indicator
+                            if (isResolvingLocation) {
+                              return (
+                                <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800/40 px-3 py-1.5 rounded-lg text-xs animate-pulse">
+                                  <div className="w-3.5 h-3.5 rounded-full border-2 border-slate-300 border-t-slate-600 dark:border-slate-600 dark:border-t-slate-300 animate-spin" />
+                                  <span className="font-medium text-slate-600 dark:text-slate-400">Resolving...</span>
+                                </div>
+                              );
+                            }
+
+                            // Always show something if we have an IP
+                            if (ip && !locationData) {
+                              // If no location data yet, it means resolution failed
+                              return (
+                                <div className="flex items-center gap-1.5 bg-amber-50 dark:bg-amber-900/20 px-3 py-1.5 rounded-lg text-xs">
+                                  <MapPin className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                                  <span className="font-medium text-amber-700 dark:text-amber-300">{ip}</span>
+                                </div>
+                              );
+                            }
+
+                            if (!locationData) {
+                              return null;
+                            }
+
+                            const { status, city, region, country } = locationData;
                             
-                            return locationLabel ? (
-                              <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900/30 px-3 py-1.5 rounded-lg text-xs">
-                                <MapPin className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
-                                <span className="font-medium text-slate-700 dark:text-slate-300">
-                                  {locationLabel}
-                                </span>
+                            // Build location label based on status
+                            let displayText = '';
+                            let badgeColor = 'bg-slate-50 dark:bg-slate-900/30 text-slate-700 dark:text-slate-300';
+                            let icon = null;
+
+                            if (status === 'private') {
+                              displayText = `${city} (${ip})`;
+                              badgeColor = 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300';
+                              icon = <Globe className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />;
+                            } else if (status === 'resolved') {
+                              const cityPart = city?.toLowerCase() !== 'unknown' ? city : '';
+                              const regionPart = region && region?.toLowerCase() !== 'unknown' && region !== city ? region : '';
+                              const countryPart = country?.toLowerCase() !== 'unknown' ? country : '';
+                              displayText = [cityPart, regionPart, countryPart].filter(Boolean).join(', ');
+                              badgeColor = 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300';
+                              icon = <MapPin className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />;
+                            } else if (status === 'failed') {
+                              displayText = `Unable to resolve (${ip})`;
+                              badgeColor = 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300';
+                              icon = <XCircle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />;
+                            } else {
+                              displayText = `${city || 'Unknown'} (${ip})`;
+                              badgeColor = 'bg-gray-50 dark:bg-gray-900/20 text-gray-600 dark:text-gray-400';
+                              icon = <MapPin className="w-3.5 h-3.5 text-gray-500 dark:text-gray-500" />;
+                            }
+
+                            return displayText ? (
+                              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs ${badgeColor}`}>
+                                {icon}
+                                <span className="font-medium">{displayText}</span>
                               </div>
                             ) : null;
                           })()}

@@ -147,12 +147,31 @@ export const ShivaiSubsPlanV2 = () => {
     if (!formData.state.trim()) errs.state   = "State is required";
     if (!formData.city.trim())  errs.city    = "City is required";
     setFormErrors(errs);
-    if (!Object.keys(errs).length) setModalStep("success");
+    if (!Object.keys(errs).length) {
+      // Send to WhatsApp with form data
+      openWhatsAppInquiry(formData);
+    }
   };
 
-  const fCountries = countries.filter(c => c.name.toLowerCase().includes(countrySearch.toLowerCase()));
-  const fStates    = states.filter(s => s.name.toLowerCase().includes(stateSearch.toLowerCase()));
-  const fCities    = cities.filter(c => c.name.toLowerCase().includes(citySearch.toLowerCase()));
+  const openWhatsAppInquiry = (data: typeof formData) => {
+    const message = `Hi ShivAI!\n\nI'm interested in your services.\n\n*Details:*\nName: ${data.name}\nEmail: ${data.email}\nCountry: ${data.country}\nState: ${data.state}\nCity: ${data.city}\n\nPlease get in touch with me.`;
+    const encodedMessage = encodeURIComponent(message);
+    const whatsappUrl = `https://wa.me/919211490707?text=${encodedMessage}`;
+    window.open(whatsappUrl, "_blank");
+    setShowModal(false);
+    resetModal();
+  };
+
+  const openWhatsAppDirect = () => {
+    const message = "Hi ShivAI! I'm interested in learning more about your services.";
+    const encodedMessage = encodeURIComponent(message);
+    const whatsappUrl = `https://wa.me/919211490707?text=${encodedMessage}`;
+    window.open(whatsappUrl, "_blank");
+  };
+
+  const fCountries = (Array.isArray(countries) ? countries : []).filter(c => c.name.toLowerCase().includes(countrySearch.toLowerCase()));
+  const fStates    = (Array.isArray(states) ? states : []).filter(s => s.name.toLowerCase().includes(stateSearch.toLowerCase()));
+  const fCities    = (Array.isArray(cities) ? cities : []).filter(c => c.name.toLowerCase().includes(citySearch.toLowerCase()));
 
   const iCls = (err?: string) =>
     `w-full px-4 py-3 rounded-xl text-[14px] border ${err ? "border-red-400" : "border-gray-200"} bg-gray-50 focus:bg-white focus:outline-none focus:border-blue-400 transition-colors text-[#333333] placeholder:text-gray-400`;
@@ -294,10 +313,10 @@ export const ShivaiSubsPlanV2 = () => {
               onClick={() => setShowModal(true)}
               className="bg-blackGradient flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-2.5 rounded-full text-[13px] sm:text-[14px] font-medium text-white hover:opacity-90 active:scale-[0.97] transition-all whitespace-nowrap"
             >
-              Talk to Our Sales Team <ArrowRight className="w-4 h-4" />
+              Book a Demo <ArrowRight className="w-4 h-4" />
             </button>
             <button
-              onClick={() => setShowModal(true)}
+              onClick={openWhatsAppDirect}
               className="flex items-center justify-center gap-2 w-full sm:w-auto px-5 py-2.5 rounded-full text-[13px] sm:text-[14px] font-medium text-[#333333] hover:opacity-90 active:scale-[0.97] transition-all whitespace-nowrap"
               style={{
                 background: "linear-gradient(151deg,#fff -62.65%,#fbfbfe 83.01%)",
@@ -316,10 +335,11 @@ export const ShivaiSubsPlanV2 = () => {
           INQUIRY MODAL
       ═══════════════════════════════════ */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto" onClick={resetModal}>
           <div
-            className="relative w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl bg-white"
+            className="relative w-full max-w-lg rounded-3xl overflow-hidden shadow-2xl bg-white my-auto"
             style={{ boxShadow: "0 25px 50px -12px rgba(0,0,0,0.28)" }}
+            onClick={(e) => e.stopPropagation()}
           >
             <button
               onClick={resetModal}
@@ -368,12 +388,17 @@ export const ShivaiSubsPlanV2 = () => {
                       <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                     </div>
                     {formErrors.country && <p className="text-[11px] text-red-500 mt-1">{formErrors.country}</p>}
-                    {showCDD && fCountries.length > 0 && (
+                    {showCDD && (
                       <ul className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-44 overflow-y-auto">
-                        {fCountries.slice(0, 50).map(c => (
-                          <li key={c.iso2} onClick={() => selectCountry(c)}
-                            className="px-4 py-2.5 hover:bg-blue-50 cursor-pointer text-[13px] text-[#333333]">{c.name}</li>
-                        ))}
+                        {fCountries.length > 0 ? (
+                          fCountries.slice(0, 50).map(c => (
+                            <li key={c.iso2} onClick={() => selectCountry(c)}
+                              className="px-4 py-2.5 hover:bg-blue-50 cursor-pointer text-[13px] text-[#333333]">{c.name}</li>
+                          ))
+                        ) : countrySearch.trim() ? (
+                          <li onClick={() => { setFormData(p => ({ ...p, country: countrySearch, countryCode: "custom" })); setShowCDD(false); }}
+                            className="px-4 py-2.5 hover:bg-blue-50 cursor-pointer text-[13px] font-medium text-blue-600">Use "{countrySearch}" (Custom)</li>
+                        ) : null}
                       </ul>
                     )}
                   </div>
@@ -390,12 +415,17 @@ export const ShivaiSubsPlanV2 = () => {
                       <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                     </div>
                     {formErrors.state && <p className="text-[11px] text-red-500 mt-1">{formErrors.state}</p>}
-                    {showSDD && fStates.length > 0 && (
+                    {showSDD && (
                       <ul className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-44 overflow-y-auto">
-                        {fStates.slice(0, 50).map(s => (
-                          <li key={s.iso2} onClick={() => selectState(s)}
-                            className="px-4 py-2.5 hover:bg-blue-50 cursor-pointer text-[13px] text-[#333333]">{s.name}</li>
-                        ))}
+                        {fStates.length > 0 ? (
+                          fStates.slice(0, 50).map(s => (
+                            <li key={s.iso2} onClick={() => selectState(s)}
+                              className="px-4 py-2.5 hover:bg-blue-50 cursor-pointer text-[13px] text-[#333333]">{s.name}</li>
+                          ))
+                        ) : stateSearch.trim() ? (
+                          <li onClick={() => { setFormData(p => ({ ...p, state: stateSearch, stateCode: "custom" })); setShowSDD(false); }}
+                            className="px-4 py-2.5 hover:bg-blue-50 cursor-pointer text-[13px] font-medium text-blue-600">Use "{stateSearch}" (Custom)</li>
+                        ) : null}
                       </ul>
                     )}
                   </div>
@@ -412,12 +442,17 @@ export const ShivaiSubsPlanV2 = () => {
                       <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                     </div>
                     {formErrors.city && <p className="text-[11px] text-red-500 mt-1">{formErrors.city}</p>}
-                    {showCiDD && fCities.length > 0 && (
+                    {showCiDD && (
                       <ul className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-44 overflow-y-auto">
-                        {fCities.slice(0, 50).map((c, i) => (
-                          <li key={i} onClick={() => selectCity(c)}
-                            className="px-4 py-2.5 hover:bg-blue-50 cursor-pointer text-[13px] text-[#333333]">{c.name}</li>
-                        ))}
+                        {fCities.length > 0 ? (
+                          fCities.slice(0, 50).map((c, i) => (
+                            <li key={i} onClick={() => selectCity(c)}
+                              className="px-4 py-2.5 hover:bg-blue-50 cursor-pointer text-[13px] text-[#333333]">{c.name}</li>
+                          ))
+                        ) : citySearch.trim() ? (
+                          <li onClick={() => { setFormData(p => ({ ...p, city: citySearch })); setShowCiDD(false); }}
+                            className="px-4 py-2.5 hover:bg-blue-50 cursor-pointer text-[13px] font-medium text-blue-600">Use "{citySearch}" (Custom)</li>
+                        ) : null}
                       </ul>
                     )}
                   </div>
