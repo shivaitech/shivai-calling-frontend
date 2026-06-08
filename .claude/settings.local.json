@@ -3,8 +3,7 @@
     "allow": [
       "Bash(npx tsc *)",
       "Bash(grep -r \"Invest Now\\\\|1\\\\.58M\\\\|SHIV\\\\|12 months\\\\|\\\\$0\\\\.01\" \"c:\\\\Users\\\\admin\\\\Desktop\\\\ShivAI\\\\shivai-calling-frontend\\\\public\" --include=\"*.js\" --include=\"*.html\" -l)",
-      "Bash(grep -n \"Invest Now\\\\|Tokens Sold\\\\|SHIV Token\\\\|1\\\\.58M\\\\|1000M\\\\|\\\\$0\\\\.01\\\\|\\\\$500\\\\|12 months\\\\|token-card\" \"c:\\\\Users\\\\admin\\\\Desktop\\\\ShivAI\\\\shivai-calling-frontend\\\\public\\\\widget.js\")",
-      "Bash(node -e \"const fs=require\\('fs'\\); const src=fs.readFileSync\\('public/widget2.js','utf8'\\); const dist=fs.readFileSync\\('dist/widget2.js','utf8'\\); console.log\\('Files match:', src===dist\\); console.log\\('DOC-DEBUG in public:', src.includes\\('ShivAI-DOC-DEBUG'\\)\\); console.log\\('DOC-DEBUG in dist:', dist.includes\\('ShivAI-DOC-DEBUG'\\)\\);\")"
+      "Bash(grep -n \"Invest Now\\\\|Tokens Sold\\\\|SHIV Token\\\\|1\\\\.58M\\\\|1000M\\\\|\\\\$0\\\\.01\\\\|\\\\$500\\\\|12 months\\\\|token-card\" \"c:\\\\Users\\\\admin\\\\Desktop\\\\ShivAI\\\\shivai-calling-frontend\\\\public\\\\widget.js\")"
     ]
   }
 }

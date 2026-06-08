@@ -865,14 +865,13 @@ const Workflows = () => {
       const documentType = DOC_TYPE_API_LABEL[newDoc.type];
 
       if (editingDoc) {
-        // ── UPDATE existing document ──
+        // ── UPDATE existing document (API 5) ──
         const updatedRes = await workflowAPI.updateDocument(editingDoc.id, {
           documentName: newDoc.name.trim(),
           documentType,
           websiteUrl: isUrl ? newDoc.sourceUrl.trim() : undefined,
           keywords: newDoc.keywords.length > 0 ? newDoc.keywords : undefined,
           description: newDoc.description.trim() || undefined,
-          file: (!isUrl && newDoc.fileObject) ? newDoc.fileObject : undefined,
         });
         const updatedDoc = updatedRes.data?.document;
         if (updatedDoc) {
@@ -2285,8 +2284,8 @@ const Workflows = () => {
               ? (newDoc.rawText.trim() !== '' && !newDoc.fileObject) ||
                 (newDoc.fileObject !== null && !newDoc.rawText.trim())
               : newDoc.fileObject !== null;
-            // When editing, existing file/url is already saved — only require source for new docs
-            const isValid = newDoc.name.trim().length >= 2 && (!!editingDoc || hasSource);
+            // Agents are optional — document can be saved unassigned
+            const isValid = newDoc.name.trim().length >= 2 && hasSource;
             return (
               <div className="space-y-4 sm:space-y-5">
                 {/* Breadcrumb */}

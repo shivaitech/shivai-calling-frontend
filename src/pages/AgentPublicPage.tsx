@@ -127,7 +127,6 @@ export default function AgentPublicPage() {
       if (userId) params.set("userId", userId);
       params.set("bypass", "true"); // Bypass domain restrictions for QR/public pages
 
-      params.set("v", Date.now().toString());
       const script = document.createElement("script");
       script.src = `/widget2.js?${params.toString()}`;
       script.async = false;

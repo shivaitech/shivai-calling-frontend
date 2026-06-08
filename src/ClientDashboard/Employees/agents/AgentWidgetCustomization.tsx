@@ -1622,20 +1622,14 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
         }, 100);
     </script>
     
-    <!-- Load the actual widget.js — cache-busted at runtime so latest version always loads -->
-    <script>
-      (function(){
-        var s = document.createElement('script');
-        s.src = '/widget2.js?agentId=${agentId}&userId=${user?.id || ''}&bypass=true&companyName=${encodeURIComponent(
+    <!-- Load the actual widget.js -->
+    <script src="/widget2.js?agentId=${agentId}&userId=${user?.id || ''}&bypass=true&companyName=${encodeURIComponent(
                         widgetConfig.content.companyName
                       )}&companyDescription=${encodeURIComponent(
                         widgetConfig.content.companyDescription
                       )}&agentName=${encodeURIComponent(
                         widgetConfig.content.companyName
-                      )}&v=' + Date.now();
-        document.body.appendChild(s);
-      })();
-    </script>
+                      )}&v=${Date.now()}"></script>
 </body>
 </html>`}
                       className="w-full h-full border-0"
