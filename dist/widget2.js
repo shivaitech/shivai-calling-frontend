@@ -401,11 +401,16 @@
         const data = await response.json();
         _wlog('✅ Agent status response:', data);
         let agentRes = data?.data?.agent
-        // In bypass/test mode treat agent as always active regardless of publish status
-        agentStatus.active = bypassDomainCheck || agentRes?.is_active !== false;
-        agentStatus.message = !bypassDomainCheck && agentRes?.is_active === false
-          ? 'AI Employee is currently under maintenance. Please check back later.'
-          : '';
+        // In bypass mode (preview/customization pages) always show as active
+        if (bypassDomainCheck) {
+          agentStatus.active = true;
+          agentStatus.message = '';
+        } else {
+          agentStatus.active = agentRes?.is_active !== false;
+          agentStatus.message = agentRes?.is_active === false
+            ? 'AI Employee is currently under maintenance. Please check back later.'
+            : '';
+        }
         
         // Store agent's configured language for widget default
         agentLanguage = agentRes?.language || null;
@@ -4835,10 +4840,28 @@
     }
   }
 
+  // ── Resolve a document object from any backend field naming convention ──
+  function resolveDocData(raw) {
+    const url = raw.url || raw.file_url || raw.download_url || raw.link || raw.href || raw.uri || "";
+    _dbg("📎 resolveDocData raw:", JSON.stringify(raw), "→ url:", url);
+    return {
+      url:       url,
+      name:      raw.name      || raw.file_name || raw.filename || raw.title || raw.label || "Document",
+      size:      raw.size      || raw.file_size || null,
+      mime_type: raw.mime_type || raw.content_type || raw.type_hint || "",
+      type:      raw.doc_type  || raw.type || "",
+      caption:   raw.caption   || raw.description || raw.subtitle || "",
+    };
+  }
+
   // ── WhatsApp-style document card from AI ────────────────────────────────
   function addDocumentMessage(docData) {
     // docData: { url, name, size, mime_type, type, caption }
-    if (!docData || !docData.url) return;
+    _dbg("📎 addDocumentMessage called with:", JSON.stringify(docData));
+    if (!docData || !docData.url) {
+      _dbg("📎 addDocumentMessage SKIPPED — no url in:", JSON.stringify(docData));
+      return;
+    }
 
     const name      = docData.name     || 'Document';
     const url       = docData.url;
@@ -5345,7 +5368,7 @@
       }
 
       const response = await fetch(
-        "https://staging.voice.callshivai.com/token",
+        "https://voice.callshivai.com/token",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -5691,36 +5714,138 @@
                   return;
                 }
 
-                // ── Document / file shared by AI ────────────────────────────
-                if (jsonData.type === "document_share" || jsonData.type === "file_share") {
-                  _wlog("📎 AI shared a document:", jsonData);
-                  addDocumentMessage({
-                    url:       jsonData.url       || jsonData.file_url  || jsonData.download_url,
-                    name:      jsonData.name      || jsonData.file_name || jsonData.filename || "Document",
-                    size:      jsonData.size      || jsonData.file_size || null,
-                    mime_type: jsonData.mime_type || jsonData.content_type || jsonData.type_hint || "",
-                    type:      jsonData.doc_type  || "",
-                    caption:   jsonData.caption   || jsonData.description || "",
-                  });
+                // ── New backend: transcription type ─────────────────────────
+                if (jsonData.type === "transcription") {
+                  const role    = jsonData.role === "user" ? "user" : "assistant";
+                  const isFinal = jsonData.is_final === true || jsonData.is_final === "true";
+                  let tText     = (jsonData.text || "").trim();
+
+                  console.log("[ShivAI-DOC-DEBUG] transcription role:", role, "| is_final:", isFinal, "| raw is_final value:", jsonData.is_final, "| text:", tText.substring(0, 120));
+
+                  // Only on final assistant messages: extract embedded URLs into doc cards
+                  const docCards = [];
+                  if (role === "assistant" && isFinal && tText) {
+                    const lines = tText.split(/\n/);
+                    const cleanLines = [];
+                    for (let li = 0; li < lines.length; li++) {
+                      const line = lines[li].trim();
+                      if (!line) continue;
+                      const urlInLine = line.match(/https?:\/\/[^\s"')\]]+/);
+                      if (urlInLine) {
+                        const url = urlInLine[0];
+                        const beforeUrl = line.slice(0, urlInLine.index).replace(/[:\s]+$/, "").trim();
+                        let docName = beforeUrl
+                          || (cleanLines.length > 0 ? cleanLines[cleanLines.length - 1] : "")
+                          || decodeURIComponent(url.split('/').pop().split('?')[0].replace(/_/g, ' '))
+                          || "Document";
+                        if (!beforeUrl && cleanLines.length > 0) cleanLines.pop();
+                        docName = docName.replace(/[:\s]+$/, "").trim();
+                        console.log("[ShivAI-DOC-DEBUG] Extracted doc url:", url, "| name:", docName);
+                        docCards.push({ url, name: docName });
+                        const afterUrl = line.slice(urlInLine.index + url.length).trim();
+                        if (afterUrl) cleanLines.push(afterUrl);
+                      } else {
+                        cleanLines.push(line);
+                      }
+                    }
+                    tText = cleanLines.join("\n").trim();
+                  }
+
+                  // Render assistant message (dedupe: skip if last assistant bubble has same text)
+                  if (tText) {
+                    if (role === "user") {
+                      if (!lastSentMessage || tText !== lastSentMessage.trim()) {
+                        if (!lastUserMessageDiv) {
+                          lastUserMessageDiv = addMessage("user", tText);
+                        } else {
+                          updateMessage(lastUserMessageDiv, tText);
+                          if (isFinal) lastUserMessageDiv = null;
+                        }
+                      }
+                    } else {
+                      // Dedupe: don't add if the last assistant bubble already has this exact text
+                      const lastBubble = messagesDiv && messagesDiv.querySelector(".message.assistant:last-of-type .message-text");
+                      if (!lastBubble || lastBubble.textContent.trim() !== tText) {
+                        addMessage("assistant", tText);
+                      }
+                      if (!firstResponseReceived) {
+                        firstResponseReceived = true;
+                        if (!callTimerStarted) {
+                          callTimerStarted = true;
+                          updateStatus("✅ Connected - Speak now!", "connected");
+                          stopConnectingSound();
+                          clearLoadingStatus();
+                          hideConnectingState();
+                          startCallTimer();
+                        }
+                      }
+                    }
+                  }
+
+                  // Render doc cards after text bubble
+                  console.log("[ShivAI-DOC-DEBUG] docCards.length:", docCards.length, JSON.stringify(docCards));
+                  if (docCards.length > 0) {
+                    setTimeout(function() {
+                      docCards.forEach(function(dc) { addDocumentMessage(resolveDocData(dc)); });
+                    }, 200);
+                  }
+
+                  // Also handle structured documents array
+                  if (Array.isArray(jsonData.documents) && jsonData.documents.length > 0) {
+                    _dbg("📎 Structured documents array:", JSON.stringify(jsonData.documents));
+                    setTimeout(function() {
+                      jsonData.documents.forEach(function(doc) { addDocumentMessage(resolveDocData(doc)); });
+                    }, 200);
+                  }
                   return;
                 }
 
-                // ── Documents array inside transcription ─────────────────────
+                // ── New backend: event type ──────────────────────────────────
+                if (jsonData.type === "event") {
+                  const evtName = jsonData.event || "";
+                  const evtData = jsonData.data || {};
+                  _wlog("🎉 Event received:", evtName, evtData);
+                  if (evtName === "session_started") {
+                    updateStatus(`✅ Session started (${evtData.mode || ""}, ${evtData.language || ""})`, "connected");
+                  } else if (evtName === "agent_ready") {
+                    updateStatus(`🤖 Agent ready (${evtData.gender || ""} voice)`, "connected");
+                  } else if (evtName === "language_changed") {
+                    updateStatus(`🌐 Language: ${evtData.language || ""}`, "connected");
+                  }
+                  return;
+                }
+
+                // ── New backend: link type ────────────────────────────────────
+                if (jsonData.type === "link") {
+                  const linkUrl   = jsonData.url   || "";
+                  const linkTitle = jsonData.title  || jsonData.name || "Link";
+                  if (linkUrl) {
+                    addDocumentMessage({
+                      url:       linkUrl,
+                      name:      linkTitle,
+                      size:      null,
+                      mime_type: "",
+                      type:      "link",
+                      caption:   jsonData.description || jsonData.caption || "",
+                    });
+                  }
+                  return;
+                }
+
+                // ── Document / file shared by AI ────────────────────────────
+                if (jsonData.type === "document_share" || jsonData.type === "file_share") {
+                  _dbg("📎 AI shared a document:", JSON.stringify(jsonData));
+                  addDocumentMessage(resolveDocData(jsonData));
+                  return;
+                }
+
+                // ── Documents array inside any message ───────────────────────
                 if (Array.isArray(jsonData.documents) && jsonData.documents.length > 0) {
-                  _dbg("📎 Documents array in transcript:", jsonData.documents.length, "item(s)");
+                  _dbg("📎 Documents array in message:", jsonData.documents.length, "item(s)", JSON.stringify(jsonData.documents));
                   // Delay so the AI text bubble renders first
                   setTimeout(function() {
                     jsonData.documents.forEach(function(doc) {
-                      if (doc.url) {
-                        addDocumentMessage({
-                          url:       doc.url,
-                          name:      doc.name      || 'Document',
-                          size:      doc.size      || null,
-                          mime_type: doc.mime_type || '',
-                          type:      doc.type      || '',
-                          caption:   doc.description || doc.caption || '',
-                        });
-                      }
+                      addDocumentMessage(resolveDocData(doc));
                     });
                   }, 150);
                   // Do NOT return — let the transcript text also render as a chat bubble
@@ -5938,6 +6063,51 @@
                     room.localParticipant?.identity;
                   const senderName = isUser ? "user" : "assistant";
 
+                  // Try to parse as JSON — backend may send structured data via lk.transcription
+                  let parsedStream = null;
+                  try { parsedStream = JSON.parse(text.trim()); } catch (_) {}
+
+                  if (parsedStream && typeof parsedStream === "object") {
+                    // Structured message — determine real role from payload if present
+                    const streamRole = parsedStream.role === "assistant" ? "assistant"
+                                     : parsedStream.role === "user"      ? "user"
+                                     : senderName;
+
+                    // Render document cards if present
+                    if (Array.isArray(parsedStream.documents) && parsedStream.documents.length > 0) {
+                      _dbg("📎 Documents in lk.transcription stream:", parsedStream.documents.length, JSON.stringify(parsedStream.documents));
+                      setTimeout(function() {
+                        parsedStream.documents.forEach(function(doc) {
+                          addDocumentMessage(resolveDocData(doc));
+                        });
+                      }, 150);
+                    }
+
+                    // Render text bubble if present
+                    const streamText = (parsedStream.text || "").trim();
+                    if (streamText) {
+                      if (streamRole === "user" && lastSentMessage && streamText === lastSentMessage.trim()) {
+                        _wlog("🚫 Skipping duplicate user message from lk.transcription stream");
+                      } else {
+                        addMessage(streamRole, streamText);
+                      }
+                    }
+
+                    if (streamRole === "assistant" && !firstResponseReceived) {
+                      firstResponseReceived = true;
+                      if (!callTimerStarted) {
+                        callTimerStarted = true;
+                        updateStatus("✅ Connected - Speak now!", "connected");
+                        stopConnectingSound();
+                        clearLoadingStatus();
+                        hideConnectingState();
+                        startCallTimer();
+                      }
+                    }
+                    return;
+                  }
+
+                  // Plain text — original behaviour
                   // Prevent duplicate user messages by checking against last sent message
                   if (
                     isUser &&
