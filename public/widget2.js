@@ -5690,6 +5690,70 @@
                   return;
                 }
 
+                // ── New backend: transcription type ─────────────────────────
+                if (jsonData.type === "transcription") {
+                  const role = jsonData.role === "assistant" ? "assistant" : "user";
+                  const tText = (jsonData.text || "").trim();
+                  if (tText) {
+                    if (role === "user") {
+                      if (!lastSentMessage || tText !== lastSentMessage.trim()) {
+                        if (!lastUserMessageDiv) {
+                          lastUserMessageDiv = addMessage("user", tText);
+                        } else {
+                          updateMessage(lastUserMessageDiv, tText);
+                          if (jsonData.is_final) lastUserMessageDiv = null;
+                        }
+                      }
+                    } else {
+                      addMessage("assistant", tText);
+                      if (!firstResponseReceived) {
+                        firstResponseReceived = true;
+                        if (!callTimerStarted) {
+                          callTimerStarted = true;
+                          updateStatus("✅ Connected - Speak now!", "connected");
+                          stopConnectingSound();
+                          clearLoadingStatus();
+                          hideConnectingState();
+                          startCallTimer();
+                        }
+                      }
+                    }
+                  }
+                  return;
+                }
+
+                // ── New backend: event type ──────────────────────────────────
+                if (jsonData.type === "event") {
+                  const evtName = jsonData.event || "";
+                  const evtData = jsonData.data || {};
+                  _wlog("🎉 Event received:", evtName, evtData);
+                  if (evtName === "session_started") {
+                    updateStatus(`✅ Session started (${evtData.mode || ""}, ${evtData.language || ""})`, "connected");
+                  } else if (evtName === "agent_ready") {
+                    updateStatus(`🤖 Agent ready (${evtData.gender || ""} voice)`, "connected");
+                  } else if (evtName === "language_changed") {
+                    updateStatus(`🌐 Language: ${evtData.language || ""}`, "connected");
+                  }
+                  return;
+                }
+
+                // ── New backend: link type ────────────────────────────────────
+                if (jsonData.type === "link") {
+                  const linkUrl   = jsonData.url   || "";
+                  const linkTitle = jsonData.title  || jsonData.name || "Link";
+                  if (linkUrl) {
+                    addDocumentMessage({
+                      url:       linkUrl,
+                      name:      linkTitle,
+                      size:      null,
+                      mime_type: "",
+                      type:      "link",
+                      caption:   jsonData.description || jsonData.caption || "",
+                    });
+                  }
+                  return;
+                }
+
                 // ── Document / file shared by AI ────────────────────────────
                 if (jsonData.type === "document_share" || jsonData.type === "file_share") {
                   _wlog("📎 AI shared a document:", jsonData);
