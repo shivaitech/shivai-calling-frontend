@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(copy public\\\\widget3.js dist\\\\widget3.js)"
+      "Bash(copy public\\\\widget3.js dist\\\\widget3.js)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
     ]
   }
 }
