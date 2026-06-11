@@ -42,8 +42,10 @@ const CreateAgent = lazy(() => import("./ClientDashboard/Employees/CreateAgent")
 const EditAgent = lazy(() => import("./ClientDashboard/Employees/EditAgent"));
 const Training = lazy(() => import("./ClientDashboard/Training/Training"));
 const Workflows = lazy(() => import("./ClientDashboard/Workflows/Workflows"));
-const WebsiteBuilder = lazy(() => import("./ClientDashboard/WebsiteBuilder/WebsiteBuilder"));
+const Marketplace = lazy(() => import("./ClientDashboard/Marketplace/Marketplace"));
+const AppDetail = lazy(() => import("./ClientDashboard/Marketplace/AppDetail"));
 const WebsitePreview = lazy(() => import("./pages/WebsitePreview"));
+const AppWorkspace = lazy(() => import("./pages/AppWorkspace"));
 const Analytics = lazy(() => import("./ClientDashboard/Analytics/Analytics"));
 const Monitoring = lazy(() => import("./ClientDashboard/Monitoring/Monitoring"));
 const Billing = lazy(() => import("./ClientDashboard/Billing/Billing"));
@@ -74,11 +76,13 @@ function AppContent() {
   const isResetPassword = location.pathname.startsWith("/reset-password");
   const isAgentPublicPage = location.pathname.startsWith("/MyAIEmployee");
   const isWebsitePreview = location.pathname.startsWith("/website-preview");
+  // Standalone app workspace — auth-protected but rendered without dashboard chrome.
+  const isAppWorkspace = location.pathname.startsWith("/app/");
   const [collapsed, setCollapsed] = useState(false);
 
   return (
     <div className="min-h-screen">
-      {isLandingPage || isAuthCallback || isResetPassword || isAgentPublicPage || isWebsitePreview ? (
+      {isLandingPage || isAuthCallback || isResetPassword || isAgentPublicPage || isWebsitePreview || isAppWorkspace ? (
         <Suspense fallback={<LoadingFallback />}>
           <Routes>
             <Route
@@ -112,6 +116,16 @@ function AppContent() {
 
             {/* Website preview - no auth required, opens in new tab */}
             <Route path="/website-preview" element={<WebsitePreview />} />
+
+            {/* Standalone app workspace — auth required, opens in new tab, no dashboard chrome */}
+            <Route
+              path="/app/:appId"
+              element={
+                <ProtectedRoute>
+                  <AppWorkspace />
+                </ProtectedRoute>
+              }
+            />
 
             {/* Catch all other public routes and redirect to landing */}
             <Route path="*" element={<Navigate to="/landing" replace />} />
@@ -166,7 +180,10 @@ function AppContent() {
                       <Route path="/agents/:id/train" element={<Training />} />
                       <Route path="/training" element={<Training />} />
                       <Route path="/workflows" element={<Workflows />} />
-                      <Route path="/websites" element={<WebsiteBuilder />} />
+                      <Route path="/marketplace" element={<Marketplace />} />
+                      <Route path="/marketplace/:appId" element={<AppDetail />} />
+                      {/* Website Builder now lives in its standalone workspace — redirect legacy route */}
+                      <Route path="/websites" element={<Navigate to="/app/website-builder" replace />} />
                       <Route path="/analytics" element={<Analytics />} />
                       <Route path="/monitoring" element={<Monitoring />} />
                       <Route path="/billing" element={<Billing />} />

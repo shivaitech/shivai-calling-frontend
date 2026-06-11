@@ -297,6 +297,56 @@
   let widgetContainer = null;
   let landingView = null;
   let callView = null;
+  let widgetInitialized = false; // becomes true after initWidget() runs once
+
+  // ── Route guard ───────────────────────────────────────────────────────────
+  // This widget must only appear on the public landing page, never inside the
+  // ShivAI dashboard/app. We allow only "/" and "/landing" (with optional
+  // trailing slash). On every other route the trigger + panel are hidden.
+  function isLandingRoute() {
+    var p = (window.location.pathname || "/").replace(/\/+$/, "") || "/";
+    return p === "" || p === "/" || p === "/landing";
+  }
+  // Show/hide the widget based on the current route. Initialises lazily the
+  // first time the user lands on an allowed route.
+  function applyRouteVisibility() {
+    var show = isLandingRoute();
+    if (show && !widgetInitialized) {
+      // Lazy first init on the landing page.
+      bootstrapWidget();
+      return;
+    }
+    var display = show ? "" : "none";
+    if (triggerBtn) triggerBtn.style.display = display;
+    if (widgetContainer) {
+      if (!show) {
+        // Leaving landing — fully close/hide the panel and end any call.
+        try { if (typeof stopConversation === "function") stopConversation(); } catch (e) {}
+        widgetContainer.style.display = "none";
+        widgetContainer.classList.remove("open");
+        document.body.classList.remove("shivai-widget-open");
+      } else {
+        // The panel itself stays closed until the user opens the trigger;
+        // we only restore the trigger's visibility here.
+        widgetContainer.style.display = "";
+      }
+    }
+  }
+  // Patch the History API so single-page-app navigations trigger our guard.
+  function hookSpaNavigation() {
+    if (window.__shivaiRouteHooked) return;
+    window.__shivaiRouteHooked = true;
+    var fire = function () {
+      // Defer to let the SPA update location first.
+      setTimeout(applyRouteVisibility, 0);
+    };
+    var _push = history.pushState;
+    history.pushState = function () { var r = _push.apply(this, arguments); fire(); return r; };
+    var _replace = history.replaceState;
+    history.replaceState = function () { var r = _replace.apply(this, arguments); fire(); return r; };
+    window.addEventListener("popstate", fire);
+    window.addEventListener("hashchange", fire);
+  }
   let statusDiv = null;
   let connectBtn = null;
   let messagesDiv = null;
@@ -1255,7 +1305,7 @@
     let activeHeader = null;
 
     const headers = widgetElement.querySelectorAll(
-      ".widget-header, .call-header"
+      ".widget-header, .call-header, .shivai-status-bar"
     );
     headers.forEach((header) => {
       header.style.cursor = "grab";
@@ -1537,7 +1587,7 @@
         </div>
         <select id="shivai-language-landing" class="landing-lang-hidden-select" aria-hidden="true"></select>
         <div id="landing-action-area"></div>
-        <button class="landing-alt-btn">Or, Chat with AI Employee</button>
+        <button class="landing-alt-btn landing-alt-btn-soon" disabled aria-disabled="true">Chat with AI Employee <span class="landing-soon-badge">Coming soon</span></button>
       </div>
       <div class="widget-footer landing-footer">
         <div class="footer-text">
@@ -1637,8 +1687,8 @@
       </div>
       </div>
 
-      <!-- Bottom input bar -->
-      <div class="message-input-container">
+      <!-- Bottom input bar (hidden until the call is live) -->
+      <div class="message-input-container hidden">
         <div class="input-field-container">
           <input type="text" id="shivai-message-input" class="message-input" placeholder="Type your message" />
           <button id="shivai-send-btn" class="send-btn" title="Send Message" style="display: none;">
@@ -2964,6 +3014,32 @@
         transform: translateY(-1px);
       }
       .landing-alt-btn:active { transform: translateY(0); }
+      /* Coming-soon (disabled) state for the chat button */
+      .landing-alt-btn-soon {
+        cursor: not-allowed;
+        opacity: 0.75;
+        color: #6b7280;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+      }
+      .landing-alt-btn-soon:hover {
+        background: rgba(255,255,255,0.7);
+        border-color: rgba(13,17,23,0.12);
+        transform: none;
+      }
+      .landing-soon-badge {
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        color: #2563eb;
+        background: rgba(37,99,235,0.10);
+        border: 1px solid rgba(37,99,235,0.20);
+        padding: 1px 6px;
+        border-radius: 999px;
+        line-height: 1.4;
+      }
       .landing-footer {
         text-align: center;
         background: transparent !important;
@@ -3865,13 +3941,13 @@
       .call-icon-wrapper, .ai-icon-wrapper {
       width: 44px; height: 44px;
       border-radius: 14px;
-      background: rgba(10,132,255,0.1);
-      border: 1px solid rgba(10,132,255,0.2);
+      background: transparent;
+      border: none;
       display: flex; align-items: center; justify-content: center;
       }
       .call-icon-wrapper { animation: pulse-call 2s ease-in-out infinite; }
       .ai-icon-wrapper   { animation: pulse-ai  2s ease-in-out infinite 0.3s; }
-      .call-icon, .ai-icon { stroke: #0a84ff; }
+      .call-icon, .ai-icon { stroke: #0d1117; }
       @keyframes pulse-call { 0%,100%{transform:scale(1)} 50%{transform:scale(1.08)} }
       @keyframes pulse-ai   { 0%,100%{transform:scale(1)} 50%{transform:scale(1.08)} }
       
@@ -3879,7 +3955,7 @@
       .connecting-dots { display: flex; gap: 5px; align-items: center; }
       .connecting-dots .dot {
       width: 6px; height: 6px; border-radius: 50%;
-      background: #0a84ff;
+      background: #0d1117;
       animation: dot-bounce 1.4s ease-in-out infinite;
       }
       .connecting-dots .dot:nth-child(1) { animation-delay: 0s; }
@@ -4054,14 +4130,15 @@
         transition: none !important;
       }
       .shivai-widget.dragging { transition: none !important; }
-      .widget-header, .call-header { cursor: grab; touch-action: none; }
-      .widget-header:hover, .call-header:hover { cursor: grab; }
-      .widget-header.dragging-active, .call-header.dragging-active { cursor: grabbing !important; }
+      .widget-header, .call-header, .shivai-status-bar { cursor: grab; touch-action: none; }
+      .widget-header:hover, .call-header:hover, .shivai-status-bar:hover { cursor: grab; }
+      .widget-header.dragging-active, .call-header.dragging-active, .shivai-status-bar.dragging-active { cursor: grabbing !important; }
       .widget-header .widget-close:hover,
       .widget-header .start-call-btn:hover,
       .widget-header .language-select-styled-landing:hover,
       .call-header .widget-close:hover,
-      .call-header .back-btn:hover { cursor: pointer; }
+      .call-header .back-btn:hover,
+      .shivai-status-bar .widget-close:hover { cursor: pointer; }
 
       /* ── Message input container ── */
       .shivai-widget .message-input-container {
@@ -4948,7 +5025,7 @@
 
       try {
         connectBtn.innerHTML =
-          '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" transform="rotate(135 12 12)"></path></svg>';
+          '<svg width="24" height="24" viewBox="-3 -3 30 30" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" transform="rotate(135 12 12)"></path></svg>';
         connectBtn.classList.add("connected");
         connectBtn.title = "Hang Up";
 
@@ -5068,6 +5145,16 @@
       statusDiv.textContent = status;
     }
     statusDiv.className = `call-info-status ${className}`;
+
+    // The message/attachment input is only usable during an active call.
+    // Hide it for any non-connected state ("Ready to connect", connecting,
+    // disconnected/ended) so it never shows when the call isn't live.
+    const liveStates = ["connected", "listening", "speaking"];
+    if (liveStates.indexOf(className) !== -1) {
+      showMessageInterface();
+    } else {
+      hideMessageInterface();
+    }
   }
   function showLoadingStatus(message) {
     clearLoadingStatus();
@@ -5099,7 +5186,7 @@
       muteBtn.style.display = "flex";
     }
     connectBtn.innerHTML =
-      '<svg width="26" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" transform="rotate(135 12 12)"></path></svg>';
+      '<svg width="24" height="24" viewBox="-3 -3 30 30" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" transform="rotate(135 12 12)"></path></svg>';
     connectBtn.classList.add("connected");
     connectBtn.title = "End Call";
     callTimerInterval = setInterval(updateCallTimer, 1000);
@@ -6951,33 +7038,40 @@
     stopConversation();
   });
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => {
-      loadLiveKitSDK()
-        .then(() => {
-          _wlog("🚀 Initializing widget with LiveKit support");
-          initWidget();
-        })
-        .catch((error) => {
-          console.error("❌ Failed to load LiveKit SDK:", error);
-          _wlog(
-            "⚠️ Initializing widget anyway (LiveKit features may not work)"
-          );
-          initWidget();
-        });
-    });
-  } else {
+  // Loads the LiveKit SDK then builds the widget. Guarded so it runs only once.
+  function bootstrapWidget() {
+    if (widgetInitialized) return;
+    widgetInitialized = true;
     loadLiveKitSDK()
       .then(() => {
         _wlog("🚀 Initializing widget with LiveKit support");
-        initWidget();
+        return initWidget();
       })
       .catch((error) => {
         console.error("❌ Failed to load LiveKit SDK:", error);
-        _wlog(
-          "⚠️ Initializing widget anyway (LiveKit features may not work)"
-        );
-        initWidget();
+        _wlog("⚠️ Initializing widget anyway (LiveKit features may not work)");
+        return initWidget();
+      })
+      .finally(() => {
+        // Re-apply visibility in case the route changed during async init.
+        applyRouteVisibility();
       });
+  }
+
+  // Entry point: only start on the landing page; otherwise stay dormant.
+  // Always hook SPA navigation so a later visit to "/" lazily boots the widget.
+  function startWidget() {
+    hookSpaNavigation();
+    if (isLandingRoute()) {
+      bootstrapWidget();
+    } else {
+      _wlog("⏭️ ShivAI widget suppressed — not on landing route:", window.location.pathname);
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", startWidget);
+  } else {
+    startWidget();
   }
 })(window, document);

@@ -180,7 +180,11 @@ const GoogleSheetsManager = () => {
       agentAPI.getAgents().catch(() => []),
       authAPI.getOAuthStatus().catch(() => []),
     ]).then(([sheetsData, integrationsData, agentsData, oauthStatus]) => {
-      setSheets(sheetsData);
+      // Only show sheets that were created in our panel (have an agent integration)
+      const connectedSheetIds = new Set(
+        (integrationsData as any[]).map((i: any) => i.config?.google_sheets?.sheet_id ?? i.sheet_id).filter(Boolean)
+      );
+      setSheets((sheetsData as Sheet[]).filter(s => connectedSheetIds.has(s.id)));
       setPageIntegrations(integrationsData);
       setPageAgents(agentsData);
       const googleCred = (oauthStatus as any[]).find((s: any) => s.provider?.includes('google'));
@@ -287,9 +291,14 @@ const GoogleSheetsManager = () => {
 
       const result = await authAPI.createGoogleSheet(payload);
 
-      // Add new sheet to list and navigate to view it
+      // Add new sheet and its integration to local state so it passes the "connected" filter
       const newSheet = { id: result.sheet_id, name: result.sheet_name };
       setSheets(prev => [newSheet, ...prev]);
+      setPageIntegrations(prev => [...prev, {
+        _id: `tmp-${Date.now()}`,
+        agent_id: createAgentId,
+        config: { google_sheets: { sheet_id: result.sheet_id, sheet_name: result.sheet_name } },
+      }]);
       setCreateOpen(false);
       navigate(`/google-sheets/${result.sheet_id}/view?name=${encodeURIComponent(result.sheet_name)}&new=true`);
     } catch (err: any) {
@@ -406,7 +415,7 @@ const GoogleSheetsManager = () => {
                       className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium common-button-bg transition-all active:scale-[0.98]"
                     >
                       <Users className="w-3.5 h-3.5 flex-shrink-0" />
-                      {assignment ? 'Update' : 'Assign AI'}
+                      {assignment ? 'Update Agent' : 'Assign AI'}
                     </button>
                   </div>
                 </div>
@@ -520,7 +529,7 @@ const GoogleSheetsManager = () => {
                     onChange={e => setCreateAgentId(e.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl text-sm common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-blue-500/40 text-slate-800 dark:text-white appearance-none pr-8"
                   >
-                    <option value="">Choose an AI Employee…</option>
+                    <option value="" disabled>Choose an AI Employee…</option>
                     {createAgents.map(a => (
                       <option key={a.id} value={a.id}>{a.name}</option>
                     ))}
@@ -583,14 +592,14 @@ const GoogleSheetsManager = () => {
               </button>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Select AI Employee</label>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Select AI Employee <span className="text-red-400">*</span></label>
               <div className="relative">
                 <select
                   value={selectedAgentId}
                   onChange={e => setSelectedAgentId(e.target.value)}
                   className="w-full px-3 py-2.5 rounded-xl text-sm common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-blue-500/40 text-slate-800 dark:text-white appearance-none pr-8"
                 >
-                  <option value="">Choose an AI Employee…</option>
+                  <option value="" disabled>Choose an AI Employee…</option>
                   {agents.map(agent => (
                     <option key={agent.id} value={agent.id}>{agent.name}</option>
                   ))}

@@ -3,6 +3,8 @@ import { NavLink, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import Logo from "../resources/images/ShivaiLogo.svg";
 import { useAuth } from "../contexts/AuthContext";
+import { useInstalledApps } from "../marketplace/useInstalledApps";
+import { APPS, openAppWorkspace } from "../marketplace/apps";
 import {
   Home,
   Brain,
@@ -26,12 +28,35 @@ import {
   Link2,
   Key,
   Phone,
+  Sparkles,
+  Package,
+  ExternalLink,
 } from "lucide-react";
+
+interface AppSection {
+  key: string;
+  label: string;
+  icon: React.ElementType;
+}
+
+interface AppModeConfig {
+  appName: string;
+  sections: AppSection[];
+  activeSection: string;
+  onSelectSection: (key: string) => void;
+}
 
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   setCollapsed: (collapsed: boolean) => void;
+  /**
+   * When set, the sidebar runs in "app workspace" mode: the dashboard nav
+   * (Dashboard…Billing), the My Apps group, and the Settings block are hidden,
+   * and the app's own sections are shown instead. Shell (logo, search, profile)
+   * stays identical.
+   */
+  appMode?: AppModeConfig;
 }
 
 interface NavItem {
@@ -39,13 +64,18 @@ interface NavItem {
   icon: React.ElementType;
   label: string;
   children?: NavItem[];
+  highlight?: boolean; // gives the item a subtle accent treatment
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed }) => {
+const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMode }) => {
   const { user, logout } = useAuth();
   const location = useLocation();
+  const { installedIds } = useInstalledApps();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
+
+  // Installed marketplace apps shown under the "My Apps" group, in catalog order.
+  const installedApps = APPS.filter((a) => installedIds.includes(a.id));
 
   const toggleCollapse = () => {
     setIsCollapsed(!isCollapsed);
@@ -98,7 +128,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed }) => {
         { path: "/workflows#callsetup", icon: Phone, label: "Call Setup" },
       ],
     },
-    { path: "/websites", icon: Globe, label: "Website Builder" },
+    { path: "/marketplace", icon: Sparkles, label: "Feature Marketplace", highlight: true },
     { path: "/analytics", icon: History, label: "Analytics & Call History" },
     { path: "/monitoring", icon: BarChart3, label: "Monitoring & Reports" },
     { path: "/billing", icon: CreditCard, label: "Billing" },
@@ -188,7 +218,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed }) => {
               transition={{ duration: 0.2 }}
               className="text-xs text-slate-500 dark:text-slate-400 mt-2 overflow-hidden"
             >
-              {!isCollapsed && "Client Dashboard"}
+              {!isCollapsed && (appMode ? appMode.appName : "Client Dashboard")}
             </motion.p>
           </motion.div>
         </div>
@@ -222,7 +252,39 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed }) => {
         } overflow-y-auto no-scrollbar`}
       >
         <nav className="space-y-2">
-          {navItems.map((item) => (
+          {/* App workspace mode: show the app's own sections instead of dashboard nav */}
+          {appMode ? (
+            appMode.sections.map((s) => {
+              const active = s.key === appMode.activeSection;
+              return (
+                <button
+                  key={s.key}
+                  onClick={() => {
+                    appMode.onSelectSection(s.key);
+                    onClose();
+                  }}
+                  title={isCollapsed ? s.label : undefined}
+                  className={`w-full flex items-center ${
+                    isCollapsed ? "justify-center px-2 py-3" : "gap-3 px-4 py-3"
+                  } rounded-lg transition-all duration-200 group ${
+                    active
+                      ? "font-medium common-bg-icons"
+                      : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white"
+                  }`}
+                >
+                  <s.icon className="w-5 h-5 flex-shrink-0" />
+                  <motion.span
+                    animate={{ opacity: isCollapsed ? 0 : 1, width: isCollapsed ? 0 : "auto" }}
+                    transition={{ duration: 0.2 }}
+                    className="text-sm whitespace-nowrap overflow-hidden text-left"
+                  >
+                    {s.label}
+                  </motion.span>
+                </button>
+              );
+            })
+          ) : (
+          navItems.map((item) => (
             <div key={item.path}>
               {/* Parent Item */}
               <div className="flex items-center">
@@ -243,11 +305,16 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed }) => {
                     } rounded-lg transition-all duration-200 group relative ${
                       isActive
                         ? "font-medium common-bg-icons"
-                        : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white"
+                        : item.highlight
+                          ? "font-medium text-indigo-700 dark:text-indigo-300 bg-indigo-50/70 dark:bg-indigo-500/10 ring-1 ring-inset ring-indigo-200/70 dark:ring-indigo-500/20 hover:bg-indigo-100/70 dark:hover:bg-indigo-500/20"
+                          : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white"
                     }`
                   }
                 >
-                  <item.icon className="w-5 h-5 flex-shrink-0" />
+                  {item.highlight && !isCollapsed && (
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-r-full bg-indigo-500" />
+                  )}
+                  <item.icon className={`w-5 h-5 flex-shrink-0 ${item.highlight ? "text-indigo-500 dark:text-indigo-400" : ""}`} />
                   <motion.span
                     animate={{
                       opacity: isCollapsed ? 0 : 1,
@@ -258,6 +325,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed }) => {
                   >
                     {item.label}
                   </motion.span>
+                  {item.highlight && !isCollapsed && (
+                    <span className="ml-auto text-[9px] font-bold uppercase tracking-wide text-indigo-600 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-500/20 px-1.5 py-0.5 rounded-full">New</span>
+                  )}
                 </NavLink>
                 {/* Expand/Collapse Toggle — chevron only */}
                 {item.children && !isCollapsed && (
@@ -303,10 +373,56 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed }) => {
                 </motion.div>
               )}
             </div>
-          ))}
+          ))
+          )}
         </nav>
 
-        {/* Additional Settings */}
+        {/* ── My Apps (installed marketplace apps) — hidden in app workspace mode ── */}
+        {!appMode && installedApps.length > 0 && (
+          <div className={`${isCollapsed ? "mt-4 pt-4" : "mt-6 pt-6"} border-t border-slate-200 dark:border-slate-700`}>
+            {!isCollapsed && (
+              <div className="flex items-center gap-2 px-4 mb-2">
+                <Package className="w-3.5 h-3.5 text-slate-400" />
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  My Apps
+                </span>
+              </div>
+            )}
+            <nav className="space-y-1">
+              {installedApps.map((app) => (
+                <button
+                  key={app.id}
+                  onClick={() => {
+                    openAppWorkspace(app.id); // opens in a new tab
+                    onClose();
+                  }}
+                  title={isCollapsed ? `${app.name} (opens in new tab)` : undefined}
+                  className={`w-full flex items-center ${
+                    isCollapsed ? "justify-center px-2 py-3" : "gap-3 px-4 py-2.5"
+                  } rounded-lg transition-all duration-200 group text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white`}
+                >
+                  <app.icon className="w-5 h-5 flex-shrink-0" />
+                  <motion.span
+                    animate={{
+                      opacity: isCollapsed ? 0 : 1,
+                      width: isCollapsed ? 0 : "auto",
+                    }}
+                    transition={{ duration: 0.2 }}
+                    className="text-sm whitespace-nowrap overflow-hidden flex-1 text-left"
+                  >
+                    {app.name}
+                  </motion.span>
+                  {!isCollapsed && (
+                    <ExternalLink className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 group-hover:text-slate-400 dark:group-hover:text-slate-400 flex-shrink-0" />
+                  )}
+                </button>
+              ))}
+            </nav>
+          </div>
+        )}
+
+        {/* Additional Settings — hidden in app workspace mode */}
+        {!appMode && (
         <div
           className={`${
             isCollapsed ? "mt-4 pt-4" : "mt-6 pt-6"
@@ -387,6 +503,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed }) => {
             </motion.div>
           )}
         </div>
+        )}
       </div>
 
       {/* User Profile Section */}

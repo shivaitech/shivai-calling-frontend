@@ -1,8 +1,9 @@
 import React, { useState } from "react";
-import { Bell, ChevronDown, Moon, Sun, Menu, User, User2Icon, UserCheck2Icon } from "lucide-react";
-import { useLocation } from "react-router-dom";
+import { Bell, ChevronDown, Moon, Sun, Menu, User, User2Icon, UserCheck2Icon, ArrowLeft } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useTheme } from "../contexts/ThemeContext";
 import { useAuth } from "../contexts/AuthContext";
+import { getAppById } from "../marketplace/apps";
 
 interface TopBarProps {
   onMenuClick: () => void;
@@ -12,12 +13,28 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
   const { isDark, toggleTheme } = useTheme();
   const { user, logout } = useAuth(); // Get user and logout from context
   const location = useLocation();
+  const navigate = useNavigate();
   const [tenantDropdownOpen, setTenantDropdownOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
+  // Standalone app workspace: /app/:appId — show the app's name
+  const appMatch = location.pathname.match(/^\/app\/([^/]+)/);
+  const workspaceApp = appMatch ? getAppById(appMatch[1]) : undefined;
+
+  // In an app workspace, the page opens in its own tab — close it to return to
+  // the dashboard tab, or navigate there directly if opened standalone.
+  const handleBackToDashboard = () => {
+    if (window.opener && !window.opener.closed) {
+      window.close();
+    } else {
+      navigate("/dashboard");
+    }
+  };
+
   const getCurrentModule = () => {
     const path = location.pathname;
+    if (workspaceApp) return workspaceApp.name;
     if (path === "/dashboard") return "Dashboard";
     if (path === "/analytics") return "Analytics & Call History";
     if (path.includes("/agents")) {
@@ -61,6 +78,18 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
             <Menu className="w-5 h-5 text-slate-600 dark:text-slate-300" />
           </button>
 
+          {/* Back to dashboard — only inside an app workspace */}
+          {workspaceApp && (
+            <button
+              onClick={handleBackToDashboard}
+              className="common-button-bg2 flex items-center gap-1.5 !px-2.5 sm:!px-3 !py-1.5 sm:!py-2 rounded-lg flex-shrink-0"
+              title="Back to Dashboard"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">Dashboard</span>
+            </button>
+          )}
+
           <div className="block sm:hidden">
             <h1 className="text-base font-bold text-slate-800 dark:text-white truncate max-w-[200px]">
               {getCurrentModule()}
@@ -75,6 +104,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
               <p className="hidden lg:block text-sm text-slate-600 dark:text-slate-400 mt-0.5">
                 {(() => {
                   const path = location.pathname;
+                  if (workspaceApp) return workspaceApp.tagline;
                   if (path === "/dashboard") return "Here's what's happening with your AI Employees and Customers.";
                   if (path === "/analytics") return "Track call sessions, performance metrics, and conversation history.";
                   if (path.includes("/agents")) {

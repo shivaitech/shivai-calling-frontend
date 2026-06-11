@@ -284,7 +284,7 @@ const AuthModel: React.FC<AuthModelProps> = ({
                       autoComplete="off"
                     />
                     <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                      {isValidatingEmail ? (
+                      {isValidatingEmail || emailValidation.isChecking ? (
                         <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
                       ) : emailValidation.error && formData.email ? (
                         <XCircle className="w-4 h-4 text-red-500" />
@@ -293,7 +293,9 @@ const AuthModel: React.FC<AuthModelProps> = ({
                       ) : null}
                     </div>
                   </div>
-                  {emailValidation.error && formData.email ? (
+                  {emailValidation.isChecking && formData.email ? (
+                    <p className="mt-1 text-xs text-gray-500">Checking email…</p>
+                  ) : emailValidation.error && formData.email ? (
                     <p className="auth-error">{emailValidation.error}</p>
                   ) : (
                     <p className="mt-1 text-xs text-gray-500">
@@ -331,7 +333,7 @@ const AuthModel: React.FC<AuthModelProps> = ({
                     autoComplete="off"
                   />
                   <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                    {isValidatingEmail ? (
+                    {isValidatingEmail || emailValidation.isChecking ? (
                       <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />
                     ) : emailValidation.error ? (
                       <XCircle className="w-4 h-4 text-red-500" />
@@ -340,9 +342,11 @@ const AuthModel: React.FC<AuthModelProps> = ({
                     ) : null}
                   </div>
                 </div>
-                {emailValidation.error && (
+                {emailValidation.isChecking ? (
+                  <p className="mt-1 text-xs text-gray-500">Checking email…</p>
+                ) : emailValidation.error ? (
                   <p className="auth-error">{emailValidation.error}</p>
-                )}
+                ) : null}
               </div>
             )}
 

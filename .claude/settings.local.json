@@ -4,7 +4,26 @@
       "Bash(npx tsc *)",
       "Bash(grep -r \"Invest Now\\\\|1\\\\.58M\\\\|SHIV\\\\|12 months\\\\|\\\\$0\\\\.01\" \"c:\\\\Users\\\\admin\\\\Desktop\\\\ShivAI\\\\shivai-calling-frontend\\\\public\" --include=\"*.js\" --include=\"*.html\" -l)",
       "Bash(grep -n \"Invest Now\\\\|Tokens Sold\\\\|SHIV Token\\\\|1\\\\.58M\\\\|1000M\\\\|\\\\$0\\\\.01\\\\|\\\\$500\\\\|12 months\\\\|token-card\" \"c:\\\\Users\\\\admin\\\\Desktop\\\\ShivAI\\\\shivai-calling-frontend\\\\public\\\\widget.js\")",
-      "Bash(node -e \"const fs=require\\('fs'\\); const src=fs.readFileSync\\('public/widget2.js','utf8'\\); const dist=fs.readFileSync\\('dist/widget2.js','utf8'\\); console.log\\('Files match:', src===dist\\); console.log\\('DOC-DEBUG in public:', src.includes\\('ShivAI-DOC-DEBUG'\\)\\); console.log\\('DOC-DEBUG in dist:', dist.includes\\('ShivAI-DOC-DEBUG'\\)\\);\")"
+      "Bash(node -e \"const fs=require\\('fs'\\); const src=fs.readFileSync\\('public/widget2.js','utf8'\\); const dist=fs.readFileSync\\('dist/widget2.js','utf8'\\); console.log\\('Files match:', src===dist\\); console.log\\('DOC-DEBUG in public:', src.includes\\('ShivAI-DOC-DEBUG'\\)\\); console.log\\('DOC-DEBUG in dist:', dist.includes\\('ShivAI-DOC-DEBUG'\\)\\);\")",
+      "PowerShell(npx tsc --noEmit 2>&1)",
+      "PowerShell(npx tsc --noEmit; Write-Output \"EXIT_CODE=$LASTEXITCODE\")",
+      "PowerShell(npm run build 2>&1 | Select-Object -Last 25; Write-Output \"EXIT_CODE=$LASTEXITCODE\")",
+      "PowerShell(npx tsc --noEmit; Write-Output \"TSC_EXIT=$LASTEXITCODE\")",
+      "PowerShell(npm run build 2>&1 | Select-Object -Last 6; Write-Output \"BUILD_EXIT=$LASTEXITCODE\")",
+      "PowerShell(npm run build 2>&1 | Select-Object -Last 5; Write-Output \"BUILD_EXIT=$LASTEXITCODE\")",
+      "PowerShell(npm run build 2>&1 | Select-Object -Last 4; Write-Output \"BUILD_EXIT=$LASTEXITCODE\")",
+      "PowerShell(npm run build 2>&1 | Select-Object -Last 3; Write-Output \"BUILD_EXIT=$LASTEXITCODE\")",
+      "PowerShell(Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Select-Object ProcessId, @{N='Cmd';E={$_.CommandLine}} | Format-List)",
+      "Bash(netstat -ano)",
+      "PowerShell(Get-NetTCPConnection -State Listen | Where-Object { $_.OwningProcess -eq 18588 } | Select-Object LocalAddress, LocalPort, OwningProcess)",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri \"http://localhost:5174/src/marketplace/apps.ts\" -UseBasicParsing -TimeoutSec 8; if \\($r.Content -match \"ai-receptionist\"\\) { Write-Output \"SERVING UPDATED: ai-receptionist found\" } else { Write-Output \"STALE: ai-receptionist NOT found in served file\" }; if \\($r.Content -match \"How AI helps\"\\) { Write-Output \"SERVING UPDATED: 'How AI helps' found\" } else { Write-Output \"STALE: 'How AI helps' NOT found\" } } catch { Write-Output \"ERROR: $\\($_.Exception.Message\\)\" })",
+      "PowerShell(npm run build 2>&1 | Select-String -Pattern \"SupportCRM|error|Error|built in\" | Select-Object -First 10; Write-Output \"BUILD_EXIT=$LASTEXITCODE\")",
+      "PowerShell(npx tsc --noEmit 2>&1 | Select-Object -First 40; Write-Output \"TSC_EXIT=$LASTEXITCODE\")",
+      "PowerShell(npm run build 2>&1 | Select-String -Pattern \"SupportCRM|error TS|Error:|built in\" | Select-Object -First 10; Write-Output \"BUILD_EXIT=$LASTEXITCODE\")",
+      "PowerShell(npm run build 2>&1 | Select-String -Pattern \"SupportCRM|error|built in\" | Select-Object -First 5; Write-Output \"BUILD_EXIT=$LASTEXITCODE\")",
+      "PowerShell(npx tsc --noEmit; Write-Output \"TSC=$LASTEXITCODE\"; npm run build 2>&1 | Select-String -Pattern \"SupportCRM|error|built in\" | Select-Object -First 5; Write-Output \"BUILD=$LASTEXITCODE\")",
+      "Bash(node --check public/widget4.js)",
+      "PowerShell(npm run build 2>&1 | Select-String -Pattern \"AuthModel|error|built in\" | Select-Object -First 5; Write-Output \"BUILD_EXIT=$LASTEXITCODE\")"
     ]
   }
 }
