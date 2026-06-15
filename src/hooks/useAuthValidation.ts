@@ -57,7 +57,9 @@ export const useEmailValidation = (
       if (!emailRegex.test(email)) return;
 
       try {
-        setState((prev) => ({ ...prev, isChecking: true }));
+        // Clear any previous error while the API check is in flight so the
+        // user sees a loading state, not a stale "invalid email" message.
+        setState((prev) => ({ ...prev, isChecking: true, error: null }));
 
         if (email.match(/\.(temp|tmp|disposable)\./i)) {
           setState({

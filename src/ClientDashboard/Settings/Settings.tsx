@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import GlassCard from '../../components/GlassCard';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -33,11 +34,22 @@ import {
 const Settings = () => {
   const { isDark, toggleTheme } = useTheme();
   const { user, updateUser } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState('profile');
   const [showApiKey, setShowApiKey] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [accountsLoading, setAccountsLoading] = useState(true);
+  const [gmailConnecting, setGmailConnecting] = useState(false);
+  const [gmailSuccessMsg, setGmailSuccessMsg] = useState(false);
+  const [sheetsConnecting, setSheetsConnecting] = useState(false);
+  const [sheetsSuccessMsg, setSheetsSuccessMsg] = useState(false);
+  const [sheetsList, setSheetsList] = useState<{ id: string; name: string }[]>([]);
+  const [selectedSheetId, setSelectedSheetId] = useState('');
+  const [sheetsFetching, setSheetsFetching] = useState(false);
+  const [sheetsSaving, setSheetsSaving] = useState(false);
 
   const [profile, setProfile] = useState({
     name: '',
@@ -134,6 +146,69 @@ const Settings = () => {
 
   const roles = ['Admin', 'Editor', 'Viewer'];
 
+  // Detect hash fragment and set active tab
+  useEffect(() => {
+    const hash = location.hash.slice(1);
+    if (hash && ['profile', 'notifications', 'security', 'api', 'team', 'accounts'].includes(hash)) {
+      setActiveTab(hash);
+    }
+  }, [location.hash]);
+
+  // Restore persisted OAuth connections on mount
+  useEffect(() => {
+    authAPI.getOAuthStatus()
+      .then(statuses => {
+        const googleActive = statuses.some(s => s.provider === 'google' && s.status === 'active');
+        if (googleActive) {
+          setAccountStates(prev => ({
+            ...prev,
+            google: { ...prev.google, connected: true },
+            googleSheets: { ...prev.googleSheets, connected: true },
+          }));
+          setSheetsFetching(true);
+          authAPI.fetchGoogleSheets()
+            .then(sheets => setSheetsList(sheets))
+            .catch(() => {})
+            .finally(() => setSheetsFetching(false));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setAccountsLoading(false));
+  }, []);
+
+  // Detect ?oauth=connected redirect from Google OAuth callback
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('oauth') === 'connected') {
+      setActiveTab('accounts');
+      const clean = new URL(window.location.href);
+      clean.searchParams.delete('oauth');
+      window.history.replaceState({}, '', clean.toString());
+
+      authAPI.getOAuthStatus()
+        .then(statuses => {
+          const googleActive = statuses.some(s => s.provider === 'google' && s.status === 'active');
+          if (googleActive) {
+            setAccountStates(prev => ({
+              ...prev,
+              google: { ...prev.google, connected: true, expanded: false },
+              googleSheets: { ...prev.googleSheets, connected: true, expanded: false },
+            }));
+            setGmailSuccessMsg(true);
+            setSheetsSuccessMsg(true);
+            setTimeout(() => setGmailSuccessMsg(false), 6000);
+            setTimeout(() => setSheetsSuccessMsg(false), 6000);
+            setSheetsFetching(true);
+            authAPI.fetchGoogleSheets()
+              .then(sheets => setSheetsList(sheets))
+              .catch(() => {})
+              .finally(() => setSheetsFetching(false));
+          }
+        })
+        .catch(() => {});
+    }
+  }, []);
+
   // Fetch profile data on mount
   useEffect(() => {
     const fetchProfile = async () => {
@@ -202,7 +277,7 @@ const Settings = () => {
   };
 
   // ── Accounts (connected accounts) state ────────────────────────────────────
-  type AccountId = 'google' | 'twilio' | 'whatsapp' | 'slack' | 'meta' | 'zapier';
+  type AccountId = 'google' | 'googleSheets' | 'twilio' | 'whatsapp' | 'slack' | 'meta' | 'zapier';
   type AccountState = {
     connected: boolean;
     expanded: boolean;
@@ -216,14 +291,17 @@ const Settings = () => {
     color: string;
     bg: string;
     icon: React.ReactNode;
+    isOAuth?: boolean;
+    comingSoon?: boolean;
     fields: { key: string; label: string; placeholder: string; type?: string }[];
   }[] = [
     {
       id: 'google',
       name: 'Google',
-      description: 'Google Calendar, Gmail & Meet integration',
+      description: 'Gmail — send emails from your AI agents',
       color: 'text-red-500',
-      bg: 'bg-red-50 dark:bg-red-900/20',
+      bg: 'bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700',
+      isOAuth: true,
       icon: (
         <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none">
           <path d="M21.35 11.1H12v2.8h5.35C16.83 16.3 14.67 17.6 12 17.6a5.6 5.6 0 1 1 3.55-9.95l2-2A9 9 0 1 0 21 12c0-.31-.02-.62-.05-.9z" fill="#EA4335"/>
@@ -232,17 +310,31 @@ const Settings = () => {
           <path d="M21.35 11.1H12v2.8h5.35c-.5 1.4-1.5 2.5-2.8 3.25l2.8 2.17C19.67 17.5 21.5 15 21.5 12c0-.31-.05-.61-.15-.9z" fill="#4285F4"/>
         </svg>
       ),
-      fields: [
-        { key: 'clientId', label: 'Client ID', placeholder: 'Google OAuth Client ID' },
-        { key: 'clientSecret', label: 'Client Secret', placeholder: 'Google OAuth Client Secret', type: 'password' },
-      ],
+      fields: [],
+    },
+    {
+      id: 'googleSheets',
+      name: 'Google Sheets',
+      description: 'Log call data and contacts to a spreadsheet',
+      color: 'text-green-600',
+      bg: 'bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700',
+      isOAuth: true,
+      icon: (
+        <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none">
+          <rect x="3" y="3" width="18" height="18" rx="2" fill="#0F9D58"/>
+          <rect x="7" y="7" width="4" height="10" rx="0.5" fill="white" fillOpacity="0.9"/>
+          <rect x="13" y="7" width="4" height="10" rx="0.5" fill="white" fillOpacity="0.9"/>
+          <rect x="7" y="11" width="10" height="1.5" fill="#0F9D58"/>
+        </svg>
+      ),
+      fields: [],
     },
     {
       id: 'twilio',
       name: 'Twilio',
       description: 'Voice calls & SMS via Twilio',
       color: 'text-red-600',
-      bg: 'bg-red-50 dark:bg-red-900/20',
+      bg: 'bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700',
       icon: <Phone className="w-5 h-5 text-red-500" />,
       fields: [
         { key: 'accountSid', label: 'Account SID', placeholder: 'ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' },
@@ -254,8 +346,9 @@ const Settings = () => {
       id: 'whatsapp',
       name: 'WhatsApp',
       description: 'WhatsApp Business API messaging',
+      comingSoon: true,
       color: 'text-green-600',
-      bg: 'bg-green-50 dark:bg-green-900/20',
+      bg: 'bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700',
       icon: (
         <svg viewBox="0 0 24 24" className="w-5 h-5" fill="#25D366">
           <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
@@ -272,8 +365,9 @@ const Settings = () => {
       id: 'slack',
       name: 'Slack',
       description: 'Team notifications & bot messages',
+      comingSoon: true,
       color: 'text-purple-600',
-      bg: 'bg-purple-50 dark:bg-purple-900/20',
+      bg: 'bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700',
       icon: (
         <svg viewBox="0 0 24 24" className="w-5 h-5">
           <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z" fill="#E01E5A"/>
@@ -288,8 +382,9 @@ const Settings = () => {
       id: 'meta',
       name: 'Meta / Facebook',
       description: 'Facebook Messenger & Instagram DMs',
+      comingSoon: true,
       color: 'text-blue-600',
-      bg: 'bg-blue-50 dark:bg-blue-900/20',
+      bg: 'bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700',
       icon: (
         <svg viewBox="0 0 24 24" className="w-5 h-5" fill="#1877F2">
           <path d="M24 12.073C24 5.404 18.627 0 12 0S0 5.404 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047v-2.66c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.514c-1.491 0-1.956.93-1.956 1.886v2.265h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/>
@@ -305,8 +400,9 @@ const Settings = () => {
       id: 'zapier',
       name: 'Zapier',
       description: 'Automate workflows with 5000+ apps',
+      comingSoon: true,
       color: 'text-orange-500',
-      bg: 'bg-orange-50 dark:bg-orange-900/20',
+      bg: 'bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700',
       icon: <Zap className="w-5 h-5 text-orange-500" />,
       fields: [
         { key: 'webhookUrl', label: 'Zapier Webhook URL', placeholder: 'https://hooks.zapier.com/hooks/catch/...' },
@@ -330,6 +426,30 @@ const Settings = () => {
 
   const connectAccount = (id: AccountId) => {
     setAccountStates(prev => ({ ...prev, [id]: { ...prev[id], connected: true, expanded: false } }));
+  };
+
+  const handleConnectGmail = () => {
+    setGmailConnecting(true);
+    authAPI.connectGmail(); // navigates away; no async needed
+  };
+
+  const handleConnectGoogleSheets = () => {
+    setSheetsConnecting(true);
+    authAPI.connectGoogleSheets(); // navigates away; no async needed
+  };
+
+  const handleSaveSheet = async (sheetId: string) => {
+    const sheet = sheetsList.find(s => s.id === sheetId);
+    if (!sheet) return;
+    setSheetsSaving(true);
+    try {
+      await authAPI.saveSelectedSheet(sheet.id, sheet.name);
+      setSelectedSheetId(sheetId);
+    } catch {
+      // silently ignore
+    } finally {
+      setSheetsSaving(false);
+    }
   };
 
   const disconnectAccount = (id: AccountId) => {
@@ -793,49 +913,111 @@ const Settings = () => {
 
           {activeTab === 'accounts' && (
             <div className="space-y-4">
+              {gmailSuccessMsg && (
+                <div className="flex items-center gap-3 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
+                  <Check className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0" />
+                  <p className="text-sm text-green-700 dark:text-green-300 font-medium flex-1">Gmail connected successfully! Your AI agents can now send emails.</p>
+                  <button onClick={() => setGmailSuccessMsg(false)} className="text-green-500 hover:text-green-700 transition-colors">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+              {sheetsSuccessMsg && (
+                <div className="flex items-center gap-3 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
+                  <Check className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0" />
+                  <p className="text-sm text-green-700 dark:text-green-300 font-medium flex-1">Google Sheets connected! Select a spreadsheet below to receive call data.</p>
+                  <button onClick={() => setSheetsSuccessMsg(false)} className="text-green-500 hover:text-green-700 transition-colors">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
               <div>
                 <h3 className="text-lg font-semibold text-slate-800 dark:text-white">Connected Accounts</h3>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Connect third-party services to power your AI agents.</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {ACCOUNT_DEFS.map(def => {
+                {accountsLoading ? (
+                  ACCOUNT_DEFS.map(def => (
+                    <div key={def.id} className="common-bg-icons rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-pulse">
+                      <div className="flex items-center gap-3 px-4 py-3.5">
+                        <div className="w-9 h-9 rounded-xl bg-slate-200 dark:bg-slate-700 flex-shrink-0" />
+                        <div className="flex-1 min-w-0 space-y-2">
+                          <div className="h-3.5 w-24 bg-slate-200 dark:bg-slate-700 rounded-full" />
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="h-2.5 w-40 bg-slate-200 dark:bg-slate-700 rounded-full" />
+                            <div className="h-6 w-20 bg-slate-200 dark:bg-slate-700 rounded-full flex-shrink-0" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : ACCOUNT_DEFS.map(def => {
                   const state = accountStates[def.id];
                   const allFilled = def.fields.every(f => state.fields[f.key]?.trim());
                   return (
                     <div key={def.id} className="common-bg-icons rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
                       {/* Header row */}
-                      <div className="flex items-center gap-3 p-4">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${def.bg}`}>
+                      <div className="flex items-center gap-3 px-4 py-3.5">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${def.bg}`}>
                           {def.icon}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-slate-800 dark:text-white text-sm">{def.name}</p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{def.description}</p>
-                        </div>
-                        {state.connected ? (
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            <span className="flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-2 py-1 rounded-full">
-                              <Check className="w-3 h-3" /> Connected
-                            </span>
-                            <button
-                              onClick={() => disconnectAccount(def.id)}
-                              title="Disconnect"
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                            >
-                              <Unlink className="w-4 h-4" />
-                            </button>
+                          {/* Name row — full width, never wraps */}
+                          <p className="font-semibold text-slate-800 dark:text-white text-sm leading-tight">{def.name}</p>
+                          {/* Description + status on same second row */}
+                          <div className="flex items-center justify-between gap-2 mt-0.5">
+                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{def.description}</p>
+                            {state.connected ? (
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                <span className="flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-0.5 rounded-full whitespace-nowrap">
+                                  <Check className="w-3 h-3" /> Connected
+                                </span>
+                                <button
+                                  onClick={() => disconnectAccount(def.id)}
+                                  title="Disconnect"
+                                  className="p-1 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                >
+                                  <Unlink className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ) : def.comingSoon ? (
+                              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed flex-shrink-0 whitespace-nowrap">
+                                Coming Soon
+                              </span>
+                            ) : def.isOAuth ? (
+                              <button
+                                onClick={def.id === 'googleSheets' ? handleConnectGoogleSheets : handleConnectGmail}
+                                disabled={def.id === 'googleSheets' ? sheetsConnecting : gmailConnecting}
+                                className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-lg common-button-bg disabled:opacity-60 disabled:cursor-not-allowed flex-shrink-0 whitespace-nowrap"
+                              >
+                                {(def.id === 'googleSheets' ? sheetsConnecting : gmailConnecting) ? <Loader2 className="w-3 h-3 animate-spin" /> : <Link2 className="w-3 h-3" />}
+                                {(def.id === 'googleSheets' ? sheetsConnecting : gmailConnecting) ? 'Connecting...' : 'Connect'}
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => toggleAccountExpanded(def.id)}
+                                className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-lg common-button-bg flex-shrink-0 whitespace-nowrap"
+                              >
+                                {state.expanded ? <X className="w-3 h-3" /> : <Link2 className="w-3 h-3" />}
+                                {state.expanded ? 'Cancel' : 'Connect'}
+                              </button>
+                            )}
                           </div>
-                        ) : (
-                          <button
-                            onClick={() => toggleAccountExpanded(def.id)}
-                            className="flex items-center gap-1 text-xs font-medium px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors flex-shrink-0"
-                          >
-                            {state.expanded ? <X className="w-3 h-3" /> : <Link2 className="w-3 h-3" />}
-                            {state.expanded ? 'Cancel' : 'Connect'}
-                          </button>
-                        )}
+                        </div>
                       </div>
+
+                      {/* Google Sheets — Manage Account button */}
+                      {def.id === 'googleSheets' && state.connected && (
+                        <div className="border-t border-slate-200 dark:border-slate-700 px-4 py-3 bg-slate-50/60 dark:bg-slate-800/40">
+                          <button
+                            onClick={() => navigate('/google-sheets')}
+                            className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                          >
+                            Manage Account
+                          </button>
+                        </div>
+                      )}
 
                       {/* Expandable credential form */}
                       {state.expanded && !state.connected && (
@@ -867,6 +1049,7 @@ const Settings = () => {
               </div>
             </div>
           )}
+
 
 
         </div>

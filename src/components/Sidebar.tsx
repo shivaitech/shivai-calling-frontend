@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import Logo from "../resources/images/ShivaiLogo.svg";
 import { useAuth } from "../contexts/AuthContext";
+import { useInstalledApps } from "../marketplace/useInstalledApps";
+import { APPS, openAppWorkspace, getVisibleApps } from "../marketplace/apps";
 import {
   Home,
   Brain,
@@ -20,32 +22,114 @@ import {
   History,
   ChevronRight,
   Globe,
+  ChevronDown,
+  Grid,
+  FileText,
+  Link2,
+  Key,
+  Phone,
+  Sparkles,
+  Package,
+  ExternalLink,
 } from "lucide-react";
+
+interface AppSection {
+  key: string;
+  label: string;
+  icon: React.ElementType;
+}
+
+interface AppModeConfig {
+  appName: string;
+  sections: AppSection[];
+  activeSection: string;
+  onSelectSection: (key: string) => void;
+}
 
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
   setCollapsed: (collapsed: boolean) => void;
+  /**
+   * When set, the sidebar runs in "app workspace" mode: the dashboard nav
+   * (Dashboard…Billing), the My Apps group, and the Settings block are hidden,
+   * and the app's own sections are shown instead. Shell (logo, search, profile)
+   * stays identical.
+   */
+  appMode?: AppModeConfig;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed }) => {
+interface NavItem {
+  path: string;
+  icon: React.ElementType;
+  label: string;
+  children?: NavItem[];
+  highlight?: boolean; // gives the item a subtle accent treatment
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMode }) => {
   const { user, logout } = useAuth();
+  const location = useLocation();
+  const { installedIds } = useInstalledApps();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
+
+  // Installed marketplace apps shown under the "My Apps" group, filtered by visibility.
+  const visibleApps = getVisibleApps(user?.email);
+  const installedApps = visibleApps.filter((a) => installedIds.includes(a.id));
 
   const toggleCollapse = () => {
     setIsCollapsed(!isCollapsed);
+  };
+
+  const toggleExpanded = (path: string) => {
+    setExpandedItems(prev => ({ ...prev, [path]: !prev[path] }));
+  };
+
+  const expandItem = (path: string) => {
+    setExpandedItems(prev => ({ ...prev, [path]: true }));
+  };
+
+  // Auto-expand parent when navigating to a child route
+  useEffect(() => {
+    if (location.pathname === '/workflows') {
+      expandItem('/workflows');
+    }
+    if (location.pathname === '/settings') {
+      expandItem('/settings');
+    }
+  }, [location.pathname]);
+
+  // Returns true when the hash link is the currently active child
+  const isHashActive = (path: string) => {
+    const idx = path.indexOf('#');
+    if (idx === -1) return false;
+    return (
+      location.pathname === path.slice(0, idx) &&
+      location.hash === '#' + path.slice(idx + 1)
+    );
   };
 
   useEffect(() => {
     setCollapsed(isCollapsed);
   }, [isCollapsed, setCollapsed]);
 
-  const navItems = [
+  const navItems: NavItem[] = [
     { path: "/dashboard", icon: Home, label: "Dashboard" },
     { path: "/agents", icon: Bot, label: "AI Employees" },
     { path: "/training", icon: Brain, label: "Training" },
-    { path: "/workflows", icon: Workflow, label: "Workflows" },
-    { path: "/websites", icon: Globe, label: "Website Builder" },
+    {
+      path: "/workflows",
+      icon: Workflow,
+      label: "Workflows",
+      children: [
+        { path: "/workflows#canvas", icon: Grid, label: "Canvas Builder" },
+        { path: "/workflows#workflows", icon: Workflow, label: "My Workflows" },
+        { path: "/workflows#documents", icon: FileText, label: "AI Docs" },
+        { path: "/workflows#callsetup", icon: Phone, label: "Call Setup" },
+      ],
+    },
+    { path: "/marketplace", icon: Sparkles, label: "Feature Marketplace", highlight: true },
     { path: "/analytics", icon: History, label: "Analytics & Call History" },
     { path: "/monitoring", icon: BarChart3, label: "Monitoring & Reports" },
     { path: "/billing", icon: CreditCard, label: "Billing" },
@@ -135,7 +219,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed }) => {
               transition={{ duration: 0.2 }}
               className="text-xs text-slate-500 dark:text-slate-400 mt-2 overflow-hidden"
             >
-              {!isCollapsed && "Client Dashboard"}
+              {!isCollapsed && (appMode ? appMode.appName : "Client Dashboard")}
             </motion.p>
           </motion.div>
         </div>
@@ -169,23 +253,198 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed }) => {
         } overflow-y-auto no-scrollbar`}
       >
         <nav className="space-y-2">
-          {navItems.map((item) => (
+          {/* App workspace mode: show the app's own sections instead of dashboard nav */}
+          {appMode ? (
+            appMode.sections.map((s) => {
+              const active = s.key === appMode.activeSection;
+              return (
+                <button
+                  key={s.key}
+                  onClick={() => {
+                    appMode.onSelectSection(s.key);
+                    onClose();
+                  }}
+                  title={isCollapsed ? s.label : undefined}
+                  className={`w-full flex items-center ${
+                    isCollapsed ? "justify-center px-2 py-3" : "gap-3 px-4 py-3"
+                  } rounded-lg transition-all duration-200 group ${
+                    active
+                      ? "font-medium common-bg-icons"
+                      : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white"
+                  }`}
+                >
+                  <s.icon className="w-5 h-5 flex-shrink-0" />
+                  <motion.span
+                    animate={{ opacity: isCollapsed ? 0 : 1, width: isCollapsed ? 0 : "auto" }}
+                    transition={{ duration: 0.2 }}
+                    className="text-sm whitespace-nowrap overflow-hidden text-left"
+                  >
+                    {s.label}
+                  </motion.span>
+                </button>
+              );
+            })
+          ) : (
+          navItems.map((item) => (
+            <div key={item.path}>
+              {/* Parent Item */}
+              <div className="flex items-center">
+                <NavLink
+                  to={item.path}
+                  onClick={() => {
+                    if (item.children) {
+                      // Navigate + always open the dropdown
+                      expandItem(item.path);
+                    } else {
+                      onClose();
+                    }
+                  }}
+                  title={isCollapsed ? item.label : undefined}
+                  className={({ isActive }) =>
+                    `flex-1 flex items-center ${
+                      isCollapsed ? "justify-center px-2 py-3" : "gap-3 px-4 py-3"
+                    } rounded-lg transition-all duration-200 group relative ${
+                      isActive
+                        ? "font-medium common-bg-icons"
+                        : item.highlight
+                          ? "font-medium text-indigo-700 dark:text-indigo-300 bg-indigo-50/70 dark:bg-indigo-500/10 ring-1 ring-inset ring-indigo-200/70 dark:ring-indigo-500/20 hover:bg-indigo-100/70 dark:hover:bg-indigo-500/20"
+                          : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white"
+                    }`
+                  }
+                >
+                  {item.highlight && !isCollapsed && (
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-r-full bg-indigo-500" />
+                  )}
+                  <item.icon className={`w-5 h-5 flex-shrink-0 ${item.highlight ? "text-indigo-500 dark:text-indigo-400" : ""}`} />
+                  <motion.span
+                    animate={{
+                      opacity: isCollapsed ? 0 : 1,
+                      width: isCollapsed ? 0 : "auto",
+                    }}
+                    transition={{ duration: 0.2 }}
+                    className="text-sm whitespace-nowrap overflow-hidden"
+                  >
+                    {item.label}
+                  </motion.span>
+                  {item.highlight && !isCollapsed && (
+                    <span className="ml-auto text-[9px] font-bold uppercase tracking-wide text-indigo-600 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-500/20 px-1.5 py-0.5 rounded-full">New</span>
+                  )}
+                </NavLink>
+                {/* Expand/Collapse Toggle — chevron only */}
+                {item.children && !isCollapsed && (
+                  <button
+                    onClick={() => toggleExpanded(item.path)}
+                    className="px-2 py-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                  >
+                    <ChevronDown
+                      className={`w-4 h-4 transition-transform duration-200 ${
+                        expandedItems[item.path] ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+                )}
+              </div>
+
+              {/* Child Items */}
+              {item.children && expandedItems[item.path] && !isCollapsed && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-1 mt-1 ml-2 border-l border-slate-200 dark:border-slate-700 pl-3"
+                >
+                  {item.children.map((child) => (
+                    <NavLink
+                      key={child.path}
+                      to={child.path}
+                      onClick={() => onClose()}
+                      className={() =>
+                        `flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
+                          isHashActive(child.path)
+                            ? "font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20"
+                            : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white"
+                        }`
+                      }
+                    >
+                      <child.icon className="w-4 h-4 flex-shrink-0" />
+                      <span className="whitespace-nowrap overflow-hidden">{child.label}</span>
+                    </NavLink>
+                  ))}
+                </motion.div>
+              )}
+            </div>
+          ))
+          )}
+        </nav>
+
+        {/* ── My Apps (installed marketplace apps) — hidden in app workspace mode ── */}
+        {!appMode && installedApps.length > 0 && (
+          <div className={`${isCollapsed ? "mt-4 pt-4" : "mt-6 pt-6"} border-t border-slate-200 dark:border-slate-700`}>
+            {!isCollapsed && (
+              <div className="flex items-center gap-2 px-4 mb-2">
+                <Package className="w-3.5 h-3.5 text-slate-400" />
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  My Apps
+                </span>
+              </div>
+            )}
+            <nav className="space-y-1">
+              {installedApps.map((app) => (
+                <button
+                  key={app.id}
+                  onClick={() => {
+                    openAppWorkspace(app.id); // opens in a new tab
+                    onClose();
+                  }}
+                  title={isCollapsed ? `${app.name} (opens in new tab)` : undefined}
+                  className={`w-full flex items-center ${
+                    isCollapsed ? "justify-center px-2 py-3" : "gap-3 px-4 py-2.5"
+                  } rounded-lg transition-all duration-200 group text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white`}
+                >
+                  <app.icon className="w-5 h-5 flex-shrink-0" />
+                  <motion.span
+                    animate={{
+                      opacity: isCollapsed ? 0 : 1,
+                      width: isCollapsed ? 0 : "auto",
+                    }}
+                    transition={{ duration: 0.2 }}
+                    className="text-sm whitespace-nowrap overflow-hidden flex-1 text-left"
+                  >
+                    {app.name}
+                  </motion.span>
+                  {!isCollapsed && (
+                    <ExternalLink className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 group-hover:text-slate-400 dark:group-hover:text-slate-400 flex-shrink-0" />
+                  )}
+                </button>
+              ))}
+            </nav>
+          </div>
+        )}
+
+        {/* Additional Settings — hidden in app workspace mode */}
+        {!appMode && (
+        <div
+          className={`${
+            isCollapsed ? "mt-4 pt-4" : "mt-6 pt-6"
+          } border-t border-slate-200 dark:border-slate-700`}
+        >
+          <div className="flex items-center">
             <NavLink
-              key={item.path}
-              to={item.path}
-              onClick={() => onClose()}
-              title={isCollapsed ? item.label : undefined}
+              to="/settings"
+              onClick={() => expandItem('/settings')}
+              title={isCollapsed ? "Settings" : undefined}
               className={({ isActive }) =>
-                `flex items-center ${
+                `flex-1 flex items-center ${
                   isCollapsed ? "justify-center px-2 py-3" : "gap-3 px-4 py-3"
-                } rounded-lg transition-all duration-200 group relative ${
+                } rounded-lg transition-all duration-200 group ${
                   isActive
-                    ? "font-medium common-bg-icons"
+                    ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
                     : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white"
                 }`
               }
             >
-              <item.icon className="w-5 h-5 flex-shrink-0" />
+              <Settings className="w-5 h-5 flex-shrink-0" />
               <motion.span
                 animate={{
                   opacity: isCollapsed ? 0 : 1,
@@ -194,45 +453,58 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed }) => {
                 transition={{ duration: 0.2 }}
                 className="text-sm whitespace-nowrap overflow-hidden"
               >
-                {item.label}
+                Settings
               </motion.span>
             </NavLink>
-          ))}
-        </nav>
+            {!isCollapsed && (
+              <button
+                onClick={() => toggleExpanded('/settings')}
+                className="px-2 py-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+              >
+                <ChevronDown
+                  className={`w-4 h-4 transition-transform ${
+                    expandedItems['/settings'] ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+            )}
+          </div>
 
-        {/* Additional Settings */}
-        <div
-          className={`${
-            isCollapsed ? "mt-4 pt-4" : "mt-6 pt-6"
-          } border-t border-slate-200 dark:border-slate-700`}
-        >
-          <NavLink
-            to="/settings"
-            onClick={() => onClose()}
-            title={isCollapsed ? "Settings" : undefined}
-            className={({ isActive }) =>
-              `flex items-center ${
-                isCollapsed ? "justify-center px-2 py-3" : "gap-3 px-4 py-3"
-              } rounded-lg transition-all duration-200 group ${
-                isActive
-                  ? "bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-medium"
-                  : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white"
-              }`
-            }
-          >
-            <Settings className="w-5 h-5 flex-shrink-0" />
-            <motion.span
-              animate={{
-                opacity: isCollapsed ? 0 : 1,
-                width: isCollapsed ? 0 : "auto",
-              }}
+          {/* Settings Submenu */}
+          {expandedItems['/settings'] && !isCollapsed && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.2 }}
-              className="text-sm whitespace-nowrap overflow-hidden"
+              className="space-y-1 mt-1 ml-2 border-l border-slate-200 dark:border-slate-700 pl-3"
             >
-              Settings
-            </motion.span>
-          </NavLink>
+              {[
+                { path: "/settings#profile",  icon: User,  label: "Profile"            },
+                { path: "/settings#security", icon: Globe, label: "Security"            },
+                { path: "/settings#accounts", icon: Link2, label: "Connected Accounts"  },
+                { path: "/settings#api",      icon: Key,   label: "API Keys"            },
+              ].map((child) => (
+                <NavLink
+                  key={child.path}
+                  to={child.path}
+                  onClick={() => onClose()}
+                  className={() =>
+                    `flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
+                      isHashActive(child.path)
+                        ? "font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20"
+                        : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white"
+                    }`
+                  }
+                >
+                  <child.icon className="w-4 h-4 flex-shrink-0" />
+                  <span className="whitespace-nowrap overflow-hidden">{child.label}</span>
+                </NavLink>
+              ))}
+            </motion.div>
+          )}
         </div>
+        )}
       </div>
 
       {/* User Profile Section */}

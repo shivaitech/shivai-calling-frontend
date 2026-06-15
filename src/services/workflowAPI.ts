@@ -135,6 +135,7 @@ export interface UpdateDocumentPayload {
   websiteUrl?: string;
   keywords?: string[];
   description?: string;
+  file?: File; // optional file replacement
 }
 
 export interface UpdateDocumentResponse {
@@ -250,12 +251,34 @@ class WorkflowAPI {
     return apiFetchJson<GetDocumentResponse>(`/documents/${documentId}`);
   }
 
-  // API 4 — Update document metadata
+  // API 4 — Update document (metadata + optional file replacement)
   async updateDocument(documentId: string, payload: UpdateDocumentPayload): Promise<UpdateDocumentResponse> {
+    if (payload.file) {
+      // multipart when a replacement file is included
+      const formData = new FormData();
+      formData.append("file", payload.file);
+      if (payload.documentName)  formData.append("documentName",  payload.documentName);
+      if (payload.documentType)  formData.append("documentType",  payload.documentType);
+      if (payload.websiteUrl)    formData.append("websiteUrl",    payload.websiteUrl);
+      if (payload.description)   formData.append("description",   payload.description);
+      if (payload.keywords && payload.keywords.length > 0) {
+        formData.append("keywords", JSON.stringify(payload.keywords));
+      }
+      return apiFetchJson<UpdateDocumentResponse>(`/documents/${documentId}`, {
+        method: "PATCH",
+        body: formData,
+      });
+    }
     return apiFetchJson<UpdateDocumentResponse>(`/documents/${documentId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        documentName: payload.documentName,
+        documentType: payload.documentType,
+        websiteUrl:   payload.websiteUrl,
+        keywords:     payload.keywords,
+        description:  payload.description,
+      }),
     });
   }
 

@@ -415,8 +415,8 @@
         _wlog('? Agent status response:', data);
         let agentRes = data?.data?.agent
         agentStatus.active = agentRes?.is_active !== false; // Default to true if not specified
-        agentStatus.message = agentRes?.is_active === false 
-          ? 'AI Employee is currently under maintenance. Please check back later.' 
+        agentStatus.message = agentRes?.is_active === false
+          ? 'AI Employee is currently under maintenance. Please check back later.'
           : '';
         
         // Store agent's configured language for widget default

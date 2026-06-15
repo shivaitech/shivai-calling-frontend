@@ -3,6 +3,14 @@ import axios, { AxiosResponse } from "axios";
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 
+export interface SheetColumn {
+  header: string;
+  field: string;
+  required: boolean;
+  ask_as?: string;
+  prefix?: string;
+}
+
 interface LoginRequest {
   email: string;
   password: string;
@@ -409,4 +417,93 @@ export const authAPI = {
       .post('/onboarding/upload-files', formData, config)
       .then((res) => res.data);
   },
+
+  // ── Unified OAuth (new backend) ─────────────────────────────────────────────
+  // Navigate directly so the server's 302 redirect to Google is followed
+  // natively (Axios XHR cannot follow cross-origin redirects).
+
+  connectGmail: (): void => {
+    const tokens = localStorage.getItem('auth_tokens');
+    const accessToken = tokens ? JSON.parse(tokens).accessToken : '';
+    window.location.href = `${API_BASE_URL}/oauth/connect/google?token=${encodeURIComponent(accessToken)}`;
+  },
+
+  connectGoogleSheets: (): void => {
+    const tokens = localStorage.getItem('auth_tokens');
+    const accessToken = tokens ? JSON.parse(tokens).accessToken : '';
+    window.location.href = `${API_BASE_URL}/oauth/connect/google?token=${encodeURIComponent(accessToken)}`;
+  },
+
+  // GET /oauth/status — returns all connected providers for the current user
+  getOAuthStatus: (): Promise<{ provider: string; email?: string; status: string; credential_id?: string }[]> =>
+    apiClient.get('/oauth/status').then(res => res.data?.data ?? res.data ?? []),
+
+  // GET /integrations — list all integrations (optionally filter by service)
+  getIntegrations: (serviceName?: string): Promise<any[]> =>
+    apiClient
+      .get('/integrations', { params: serviceName ? { service_name: serviceName } : undefined })
+      .then(res => res.data?.data ?? res.data ?? []),
+
+  // Fetch list of user's Google Sheets after OAuth
+  fetchGoogleSheets: (): Promise<{ id: string; name: string }[]> =>
+    apiClient
+      .get('/integrations/service/google_sheets/discover')
+      .then(res => {
+        const sheets: any[] = res.data?.data?.sheets ?? res.data?.sheets ?? [];
+        return sheets.map(s => ({ id: s.sheet_id, name: s.sheet_name }));
+      }),
+
+  // Save the selected sheet for the user
+  saveSelectedSheet: (sheetId: string, sheetName: string): Promise<any> =>
+    apiClient
+      .post('/oauth/sheets/select', { sheetId, sheetName })
+      .then(res => res.data),
+
+  // PUT /integrations/:id — update an existing integration
+  updateIntegration: (integrationId: string, payload: {
+    agent_id?: string;
+    label?: string;
+    config?: {
+      google_sheets?: {
+        sheet_id?: string;
+        sheet_name?: string;
+        tab_name?: string;
+      };
+    };
+  }): Promise<any> =>
+    apiClient.put(`/integrations/${integrationId}`, payload).then(res => res.data),
+
+  // POST /integrations — link an existing sheet to an agent
+  createIntegration: (payload: {
+    agent_id: string;
+    service_name: string;
+    label: string;
+    credential_id?: string;
+    config: {
+      google_sheets: {
+        sheet_id: string;
+        sheet_name: string;
+        tab_name?: string;
+        columns?: SheetColumn[];
+      };
+    };
+  }): Promise<any> =>
+    apiClient.post('/integrations', payload).then(res => res.data),
+
+  // Create a new Google Sheet linked to an agent
+  createGoogleSheet: (payload: {
+    agent_id: string;
+    title: string;
+    tab_name?: string;
+    columns?: SheetColumn[];
+    credential_id?: string;
+  }): Promise<{
+    sheet_id: string;
+    sheet_name: string;
+    web_view_link: string;
+    columns: SheetColumn[];
+  }> =>
+    apiClient
+      .post('/integrations/sheets/create', payload)
+      .then(res => res.data?.data ?? res.data),
 };
