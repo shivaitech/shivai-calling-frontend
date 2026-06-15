@@ -695,24 +695,18 @@ class LiveKitService {
     try {
       console.log('📤 Sending chat message:', message);
 
-      // Use LiveKit sendText method
-      if (typeof this.room.localParticipant.sendText === 'function') {
-        await this.room.localParticipant.sendText(message, { topic: 'lk.chat' });
-        console.log('✅ Chat sent with sendText');
-      } else {
-        // Fallback to publishData
-        const chatMessage = {
-          type: 'chat',
-          text: message,
-          timestamp: Date.now(),
-          source: 'typed',
-        };
-        const encoder = new TextEncoder();
-        const data = encoder.encode(JSON.stringify(chatMessage));
-        
-        this.room.localParticipant.publishData(data, { reliable: true });
-        console.log('✅ Chat sent with publishData');
-      }
+      // Primary: publishData — backend agent listens on DataReceived for typed chat
+      const chatMessage = {
+        type: 'chat',
+        text: message,
+        role: 'user',
+        timestamp: Date.now(),
+        source: 'typed',
+      };
+      const encoder = new TextEncoder();
+      const data = encoder.encode(JSON.stringify(chatMessage));
+      await this.room.localParticipant.publishData(data, { reliable: true });
+      console.log('✅ Chat sent with publishData');
 
       // Add to UI immediately
       this.addMessage(true, message, 'chat');

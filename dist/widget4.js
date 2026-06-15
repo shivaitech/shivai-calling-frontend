@@ -5606,6 +5606,23 @@
     });
   }
 
+  // Send typed chat to the agent via LiveKit data channel (backend listens on DataReceived).
+  function sendChatViaDataChannel(text) {
+    const chatMessage = {
+      type: "chat",
+      text,
+      role: "user",
+      timestamp: Date.now(),
+      source: "typed",
+    };
+    const encoder = new TextEncoder();
+    const data = encoder.encode(JSON.stringify(chatMessage));
+    return room.localParticipant.publishData(data, {
+      reliable: true,
+      destinationIdentities: [],
+    });
+  }
+
   // Message sending functionality
   function sendMessage() {
     const messageInput = document.getElementById("shivai-message-input");
@@ -5615,30 +5632,22 @@
 
     if (message && room && isConnected) {
       try {
-        _wlog("📤 Sending chat message:", message);
+        _wlog("📤 Sending chat message via data channel:", message);
 
-        // Use proper LiveKit sendText method like test-client
-        if (typeof room.localParticipant.sendText === "function") {
-          _wlog("Using sendText method with lk.chat topic");
-          room.localParticipant
-            .sendText(message, {
-              topic: "lk.chat",
-            })
-            .then((info) => {
-              _wlog(
-                "✅ Chat sent with sendText, stream ID:",
-                info.streamId
-              );
-            })
-            .catch((error) => {
-              console.error("❌ sendText failed:", error);
-              // Fallback to publishData if sendText fails
-              fallbackSendChat(message);
-            });
-        } else {
-          _wlog("sendText not available, using fallback publishData");
-          fallbackSendChat(message);
-        }
+        sendChatViaDataChannel(message)
+          .then(() => {
+            _wlog("✅ Chat sent via publishData");
+          })
+          .catch((error) => {
+            console.error("❌ publishData failed:", error);
+            // Secondary fallback — some agents may also listen on lk.chat
+            if (typeof room.localParticipant.sendText === "function") {
+              return room.localParticipant.sendText(message, { topic: "lk.chat" });
+            }
+          })
+          .catch((error) => {
+            console.error("❌ All chat send methods failed:", error);
+          });
 
         // Add message to UI immediately (like test-client does)
         addMessage("user", message, { source: "typed" });
@@ -5661,20 +5670,7 @@
   function fallbackSendChat(text) {
     try {
       _wlog("Using fallback publishData method");
-      const chatMessage = {
-        type: "chat",
-        text,
-        timestamp: Date.now(),
-        source: "typed",
-      };
-      const encoder = new TextEncoder();
-      const data = encoder.encode(JSON.stringify(chatMessage));
-
-      room.localParticipant.publishData(data, {
-        reliable: true,
-        destinationIdentities: [], // send to all participants
-      });
-
+      sendChatViaDataChannel(text);
       _wlog("✅ Chat sent with publishData");
     } catch (error) {
       console.error("❌ publishData fallback failed:", error);
@@ -6012,7 +6008,7 @@
       }
 
       const response = await fetch(
-        "https://staging.voice.callshivai.com/token",
+        "https://voice.callshivai.com/token",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
