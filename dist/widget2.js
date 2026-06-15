@@ -73,6 +73,7 @@
   let minBufferChunks = 3;
   let audioStreamComplete = false;
   let isDisconnecting = false; // Track disconnect process to prevent multiple clicks
+  let isStoppingConversation = false; // Prevent duplicate teardown + end tone
   let aiJustFinished = false; // Track when AI just finished to prevent feedback
 
   // Mobile browser detection for fallbacks
@@ -759,6 +760,14 @@
     } catch (error) {
       console.warn("Error playing connecting sound:", error);
     }
+  }
+
+  function isConnectingSoundPlaying() {
+    return !!(ringAudio && !ringAudio.paused && !ringAudio.ended);
+  }
+
+  function hasActiveCallSession() {
+    return isConnecting || isConnected || !!room || !!ws;
   }
 
   function stopConnectingSound() {
@@ -4371,7 +4380,7 @@
       }
 
       // Call stopConversation for cleanup (async in background)
-      stopConversation().catch((err) => {
+      stopConversation({ force: true, playEndTone: true }).catch((err) => {
         console.warn("Error in stopConversation:", err);
       });
 
@@ -4743,6 +4752,23 @@
     return html;
   }
 
+  /** Map backend role strings (agent, assistant, user, etc.) to chat bubble roles. */
+  function normalizeMessageRole(role) {
+    if (!role) return null;
+    const r = String(role).toLowerCase().trim();
+    if (r === "user" || r === "human" || r.includes("user")) return "user";
+    if (
+      r === "assistant" ||
+      r === "agent" ||
+      r === "ai" ||
+      r.includes("assistant") ||
+      r.includes("agent")
+    ) {
+      return "assistant";
+    }
+    return null;
+  }
+
   function addMessage(role, text, options = {}) {
     _wlog("🔍 addMessage called:", {
       role,
@@ -4770,7 +4796,7 @@
     }
 
     // Stop connecting sound when assistant speaks
-    if (role === "assistant") {
+    if (role === "assistant" && isConnectingSoundPlaying()) {
       stopConnectingSound();
     }
 
@@ -5714,38 +5740,6 @@
                   return;
                 }
 
-                // ── New backend: transcription type ─────────────────────────
-                if (jsonData.type === "transcription") {
-                  const role = jsonData.role === "assistant" ? "assistant" : "user";
-                  const tText = (jsonData.text || "").trim();
-                  if (tText) {
-                    if (role === "user") {
-                      if (!lastSentMessage || tText !== lastSentMessage.trim()) {
-                        if (!lastUserMessageDiv) {
-                          lastUserMessageDiv = addMessage("user", tText);
-                        } else {
-                          updateMessage(lastUserMessageDiv, tText);
-                          if (jsonData.is_final) lastUserMessageDiv = null;
-                        }
-                      }
-                    } else {
-                      addMessage("assistant", tText);
-                      if (!firstResponseReceived) {
-                        firstResponseReceived = true;
-                        if (!callTimerStarted) {
-                          callTimerStarted = true;
-                          updateStatus("✅ Connected - Speak now!", "connected");
-                          stopConnectingSound();
-                          clearLoadingStatus();
-                          hideConnectingState();
-                          startCallTimer();
-                        }
-                      }
-                    }
-                  }
-                  return;
-                }
-
                 // ── New backend: event type ──────────────────────────────────
                 if (jsonData.type === "event") {
                   const evtName = jsonData.event || "";
@@ -5780,7 +5774,7 @@
 
                 // ── New backend: transcription type ─────────────────────────
                 if (jsonData.type === "transcription") {
-                  const role    = jsonData.role === "user" ? "user" : "assistant";
+                  const role    = normalizeMessageRole(jsonData.role) || "assistant";
                   const isFinal = jsonData.is_final === true || jsonData.is_final === "true";
                   let tText     = (jsonData.text || "").trim();
 
@@ -5947,9 +5941,8 @@
                 // Check for role information
                 let isUser = false;
                 if (jsonData.role) {
-                  isUser =
-                    jsonData.role.includes("user") ||
-                    jsonData.role.includes("human");
+                  const normalizedRole = normalizeMessageRole(jsonData.role);
+                  isUser = normalizedRole ? normalizedRole === "user" : false;
                 } else if (jsonData.speaker) {
                   isUser =
                     jsonData.speaker.includes("user") ||
@@ -5999,7 +5992,8 @@
 
                 // Handle legacy transcript format
                 if (jsonData.type === "transcript" && jsonData.text) {
-                  if (jsonData.role === "user") {
+                  const transcriptRole = normalizeMessageRole(jsonData.role) || "assistant";
+                  if (transcriptRole === "user") {
                     // Allow voice transcripts for user, but skip chat messages
                     if (jsonData.type !== "chat") {
                       if (!lastUserMessageDiv) {
@@ -6012,7 +6006,7 @@
                         "🚫 Skipping user chat message (already shown from sendMessage)"
                       );
                     }
-                  } else if (jsonData.role === "assistant") {
+                  } else {
                     addMessage("assistant", jsonData.text);
                     // Track first assistant response
                     if (!firstResponseReceived) {
@@ -6133,9 +6127,7 @@
 
                   if (parsedStream && typeof parsedStream === "object") {
                     // Structured message — determine real role from payload if present
-                    const streamRole = parsedStream.role === "assistant" ? "assistant"
-                                     : parsedStream.role === "user"      ? "user"
-                                     : senderName;
+                    const streamRole = normalizeMessageRole(parsedStream.role) || senderName;
 
                     // Render document cards if present
                     if (Array.isArray(parsedStream.documents) && parsedStream.documents.length > 0) {
@@ -6354,10 +6346,27 @@
       stopConversation();
     }
   }
-  async function stopConversation() {
-    _wlog("🛑 stopConversation() called");
+  async function stopConversation(options = {}) {
+    const { force = false, playEndTone = null } = options;
+    const hadActiveSession = hasActiveCallSession();
 
-    // Stop connecting sound immediately
+    if (!hadActiveSession && !force) {
+      _wlog("🛑 stopConversation() skipped — no active call session");
+      return;
+    }
+
+    if (isStoppingConversation) {
+      _wlog("🛑 stopConversation() already in progress");
+      return;
+    }
+    isStoppingConversation = true;
+
+    const shouldPlayEndTone =
+      playEndTone !== null ? playEndTone : hadActiveSession;
+
+    _wlog("🛑 stopConversation() called", { hadActiveSession, shouldPlayEndTone });
+
+    try {
     stopConnectingSound();
 
     isConnected = false;
@@ -6408,10 +6417,12 @@
       }
       ws = null;
     }
-    try {
-      playSound("call-end");
-    } catch (e) {
-      console.warn("Could not play call-end sound:", e);
+    if (shouldPlayEndTone) {
+      try {
+        playSound("call-end");
+      } catch (e) {
+        console.warn("Could not play call-end sound:", e);
+      }
     }
     
     // Clear currentCallId without API call
@@ -6454,6 +6465,9 @@
     document.querySelectorAll("audio").forEach((el) => el.remove());
 
     _wlog("✅ Conversation stopped - LiveKit cleanup complete");
+    } finally {
+      isStoppingConversation = false;
+    }
   }
 
   // Remove unused WebSocket audio streaming function
@@ -6618,7 +6632,9 @@
     return btoa(binary);
   }
   window.addEventListener("beforeunload", () => {
-    stopConversation();
+    if (hasActiveCallSession()) {
+      stopConversation({ force: true, playEndTone: false });
+    }
   });
 
   if (document.readyState === "loading") {

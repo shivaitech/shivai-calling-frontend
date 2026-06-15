@@ -74,6 +74,7 @@
   let minBufferChunks = 3;
   let audioStreamComplete = false;
   let isDisconnecting = false; // Track disconnect process to prevent multiple clicks
+  let isStoppingConversation = false; // Prevent duplicate teardown + end tone
   let aiJustFinished = false; // Track when AI just finished to prevent feedback
 
   // Mobile browser detection for fallbacks
@@ -320,8 +321,12 @@
     if (triggerBtn) triggerBtn.style.display = display;
     if (widgetContainer) {
       if (!show) {
-        // Leaving landing — fully close/hide the panel and end any call.
-        try { if (typeof stopConversation === "function") stopConversation(); } catch (e) {}
+        // Leaving landing — hide panel; only tear down an actual call session.
+        if (isConnecting || isConnected || room) {
+          try {
+            stopConversation({ force: true, playEndTone: true });
+          } catch (e) {}
+        }
         widgetContainer.style.display = "none";
         widgetContainer.classList.remove("open");
         document.body.classList.remove("shivai-widget-open");
@@ -804,6 +809,14 @@
     } catch (error) {
       console.warn("Error playing connecting sound:", error);
     }
+  }
+
+  function isConnectingSoundPlaying() {
+    return !!(ringAudio && !ringAudio.paused && !ringAudio.ended);
+  }
+
+  function hasActiveCallSession() {
+    return isConnecting || isConnected || !!room || !!ws;
   }
 
   function stopConnectingSound() {
@@ -5004,7 +5017,7 @@
       }
 
       // Call stopConversation for cleanup (async in background)
-      stopConversation().catch((err) => {
+      stopConversation({ force: true, playEndTone: true }).catch((err) => {
         console.warn("Error in stopConversation:", err);
       });
 
@@ -5415,8 +5428,8 @@
       }
     }
 
-    // Stop connecting sound when assistant speaks
-    if (role === "assistant") {
+    // Stop connecting sound when assistant speaks (only if ring is actually playing)
+    if (role === "assistant" && isConnectingSoundPlaying()) {
       stopConnectingSound();
     }
 
@@ -6774,9 +6787,27 @@
       stopConversation();
     }
   }
-  async function stopConversation() {
-    _wlog("🛑 stopConversation() called");
+  async function stopConversation(options = {}) {
+    const { force = false, playEndTone = null } = options;
+    const hadActiveSession = hasActiveCallSession();
 
+    if (!hadActiveSession && !force) {
+      _wlog("🛑 stopConversation() skipped — no active call session");
+      return;
+    }
+
+    if (isStoppingConversation) {
+      _wlog("🛑 stopConversation() already in progress");
+      return;
+    }
+    isStoppingConversation = true;
+
+    const shouldPlayEndTone =
+      playEndTone !== null ? playEndTone : hadActiveSession;
+
+    _wlog("🛑 stopConversation() called", { hadActiveSession, shouldPlayEndTone });
+
+    try {
     // Stop connecting sound immediately
     stopConnectingSound();
 
@@ -6828,10 +6859,12 @@
       }
       ws = null;
     }
-    try {
-      playSound("call-end");
-    } catch (e) {
-      console.warn("Could not play call-end sound:", e);
+    if (shouldPlayEndTone) {
+      try {
+        playSound("call-end");
+      } catch (e) {
+        console.warn("Could not play call-end sound:", e);
+      }
     }
     
     // Clear currentCallId without API call
@@ -6874,6 +6907,9 @@
     document.querySelectorAll("audio").forEach((el) => el.remove());
 
     _wlog("✅ Conversation stopped - LiveKit cleanup complete");
+    } finally {
+      isStoppingConversation = false;
+    }
   }
 
   // Remove unused WebSocket audio streaming function
@@ -7038,7 +7074,9 @@
     return btoa(binary);
   }
   window.addEventListener("beforeunload", () => {
-    stopConversation();
+    if (hasActiveCallSession()) {
+      stopConversation({ force: true, playEndTone: false });
+    }
   });
 
   // Loads the LiveKit SDK then builds the widget. Guarded so it runs only once.
