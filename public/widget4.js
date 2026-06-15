@@ -5021,7 +5021,10 @@
     if (!isConnecting && !isConnected && !isDisconnecting) {
       _wlog("🔵 Starting new connection");
       isConnecting = true;
-      connectBtn.disabled = true;
+      // NOTE: do NOT disable the button while connecting — the user must be able
+      // to hang up / cancel at any point during "Connecting…". Re-entrancy is
+      // already prevented by the isConnecting / isDisconnecting guards above.
+      connectBtn.disabled = false;
 
       try {
         connectBtn.innerHTML =

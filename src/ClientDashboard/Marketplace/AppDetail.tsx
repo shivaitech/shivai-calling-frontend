@@ -11,6 +11,7 @@ import {
   Sparkles,
   ShieldCheck,
   Loader2,
+  ChevronRight,
 } from "lucide-react";
 import { getAppById, MarketplaceApp, openAppWorkspace } from "../../marketplace/apps";
 import { useInstalledApps } from "../../marketplace/useInstalledApps";
@@ -66,42 +67,48 @@ const AppDetail = () => {
   };
 
   return (
-    <div className="space-y-6 w-full max-w-4xl">
-      {/* Back */}
-      <button
-        onClick={() => navigate("/marketplace")}
-        className="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white transition-colors"
-      >
-        <ArrowLeft className="w-4 h-4" /> Marketplace
-      </button>
+    <div className="space-y-5 w-full">
+      {/* Header / breadcrumb bar */}
+      <div className="flex items-center gap-2 text-sm">
+        <button
+          onClick={() => navigate("/marketplace")}
+          className="common-button-bg2 inline-flex items-center gap-1.5 !px-3 !py-2 rounded-xl flex-shrink-0"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Back</span>
+        </button>
+        <div className="hidden sm:flex items-center gap-2 text-slate-400 dark:text-slate-500 min-w-0">
+          <button onClick={() => navigate("/marketplace")} className="hover:text-slate-700 dark:hover:text-slate-200 transition-colors">
+            Marketplace
+          </button>
+          <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="text-slate-600 dark:text-slate-300 font-medium truncate">{app.name}</span>
+        </div>
+      </div>
 
       {/* ── Hero ── */}
-      <div className="relative overflow-hidden rounded-2xl border border-slate-200/70 dark:border-slate-700/70 bg-white dark:bg-slate-800/90">
-        <div className={`h-24 sm:h-28 bg-gradient-to-br ${app.gradient} relative`}>
-          <div className="absolute inset-0 opacity-30">
-            <div className="absolute -top-8 right-10 w-40 h-40 rounded-full bg-white/40 blur-3xl" />
-          </div>
-        </div>
-        <div className="px-6 sm:px-8 pb-6 -mt-10 sm:-mt-12">
-          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-            <div className="flex items-end gap-4 min-w-0">
+      <div className="rounded-2xl border border-slate-200/70 dark:border-slate-700/70 bg-white dark:bg-slate-800/90">
+        {/* Content row */}
+        <div className="p-5 sm:p-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="flex items-center gap-4 min-w-0">
               <div
-                className={`w-20 h-20 rounded-3xl bg-gradient-to-br ${app.gradient} flex items-center justify-center shadow-xl shadow-black/20 ring-4 ring-white dark:ring-slate-800 flex-shrink-0`}
+                className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br ${app.gradient} flex items-center justify-center shadow-lg shadow-slate-300/30 dark:shadow-black/30 flex-shrink-0`}
               >
-                <Icon className="w-10 h-10 text-white" />
+                <Icon className="w-7 h-7 sm:w-8 sm:h-8 text-white" />
               </div>
-              <div className="min-w-0 pb-1">
+              <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h1 className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-white">
+                  <h1 className="text-lg sm:text-2xl font-bold text-slate-800 dark:text-white truncate">
                     {app.name}
                   </h1>
                   {installed && (
-                    <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded-full border border-emerald-200/70 dark:border-emerald-800/60">
+                    <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded-full border border-emerald-200/70 dark:border-emerald-800/60 flex-shrink-0">
                       <Check className="w-3.5 h-3.5" /> Installed
                     </span>
                   )}
                 </div>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{app.category}</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{app.category}</p>
               </div>
             </div>
 

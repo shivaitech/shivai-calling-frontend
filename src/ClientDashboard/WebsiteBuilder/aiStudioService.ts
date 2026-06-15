@@ -9,6 +9,15 @@ import type {
   ThemeStyle,
   SectionType,
 } from "./sectionTemplates/types";
+import {
+  pickDesignRef,
+  fetchDesignMd,
+  trimDesignMd,
+} from "./designMdService";
+
+// A valid CSS hex like #fff or #533afd — used to validate AI-provided tokens.
+const HEX_RE = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+const isHex = (v: unknown): v is string => typeof v === "string" && HEX_RE.test(v.trim());
 
 const GEMINI_MODEL =
   (import.meta.env.VITE_GEMINI_MODEL as string) || "gemini-2.5-pro";
@@ -187,6 +196,23 @@ const CONTENT_SCHEMA = {
       type: "ARRAY",
       items: { type: "STRING" },
     },
+    // Visual design system distilled from the reference DESIGN.md (when provided).
+    // These tokens override the basic theme presets so the look matches the
+    // famous-site reference, not a generic template.
+    designSystem: {
+      type: "OBJECT",
+      properties: {
+        primaryColor:  { type: "STRING" }, // hex, main brand/CTA color
+        accentColor:   { type: "STRING" }, // hex, secondary accent
+        bgColor:       { type: "STRING" }, // hex, page background
+        textColor:     { type: "STRING" }, // hex, body text
+        mutedColor:    { type: "STRING" }, // hex, muted/secondary text
+        headingFont:   { type: "STRING" }, // a web-safe / Google Font family that best approximates the reference
+        bodyFont:      { type: "STRING" },
+        borderRadius:  { type: "STRING" }, // "sharp" | "soft" | "rounded" | "pill"
+        designNotes:   { type: "STRING" }, // 1-2 sentences on the visual language applied
+      },
+    },
   },
   required: [
     "siteName", "tagline", "description", "heroHeadline", "heroSubheadline",
@@ -196,8 +222,37 @@ const CONTENT_SCHEMA = {
   ],
 };
 
-function buildGeminiPrompt(form: StudioFormData): string {
-  return `You are an expert web copywriter and business consultant. Generate rich, realistic, production-quality website content for the following business. Every field must feel authentic and industry-specific — never generic.
+function buildGeminiPrompt(form: StudioFormData, designRef?: { label: string; md: string }): string {
+  const designBlock = designRef
+    ? `
+
+────────────────────────────────────────────────────────
+DESIGN SYSTEM REFERENCE — emulate "${designRef.label}"
+You are given a production-grade DESIGN.md describing a famous website's design
+system. Treat it as the visual + structural North Star for THIS site. Adapt its
+design language (color philosophy, typography, spacing, component style, layout
+rhythm, and tone of voice) to the business above — do NOT copy its brand name or
+copy verbatim, and keep all content about the business above.
+
+From this reference you MUST populate the "designSystem" object with concrete
+tokens that capture the reference's look, adapted to the business:
+- primaryColor / accentColor / bgColor / textColor / mutedColor as HEX values
+  inspired by the reference's palette (you may tune hue toward the business).
+- headingFont / bodyFont: pick real Google/web-safe fonts that best approximate
+  the reference's typography.
+- borderRadius: one of "sharp" | "soft" | "rounded" | "pill" matching the reference.
+- designNotes: 1-2 sentences naming the visual language you applied.
+Also let the reference shape the copy's voice and the ordering/density of sections.
+
+REFERENCE DESIGN.md:
+"""
+${designRef.md}
+"""
+────────────────────────────────────────────────────────
+`
+    : "";
+
+  return `You are an expert web designer and copywriter. Generate rich, realistic, production-quality website content AND a cohesive visual design system for the following business. Every field must feel authentic and industry-specific — never generic.
 
 BUSINESS DETAILS:
 - Name: ${form.businessName}
@@ -206,7 +261,7 @@ BUSINESS DETAILS:
 - Tone: ${form.tone || "professional and friendly"}
 - Theme Style: ${form.themeStyle}
 - Contact: ${form.email || ""} | ${form.phone || ""} | ${form.address || ""}
-
+${designBlock}
 GENERATE:
 - siteName: exact business name or refined brand version (≤5 words)
 - tagline: punchy, memorable, industry-specific tagline (≤8 words)
@@ -226,8 +281,9 @@ GENERATE:
 - teamMembers: exactly 4-5 team members with realistic names, roles, and 2-sentence bios
 - portfolioItems: exactly 6 portfolio/project items relevant to the industry. Each: title, category (service type), description (1 sentence about the project)
 - imageSearchKeywords: exactly 6 concise Pixabay search keywords for high-quality stock photos relevant to the business. Examples: "modern office team", "restaurant dining", "healthcare doctor", "fitness gym workout", "software developer laptop". Each should be 2-4 words, specific and visual.
+- designSystem: a cohesive visual design system for this site. ${designRef ? `Derive it from the DESIGN SYSTEM REFERENCE above.` : `Craft a tasteful, modern system fitting the industry and theme.`} Include primaryColor, accentColor, bgColor, textColor, mutedColor (all HEX), headingFont, bodyFont (real font families), borderRadius ("sharp"|"soft"|"rounded"|"pill"), and designNotes.
 
-Make every single piece of content feel like it was written by a professional copywriter for a real, established business. Avoid all clichés and generic filler text.`;
+Make every single piece of content feel like it was written by a professional copywriter for a real, established business, and make the design system feel intentional and premium. Avoid all clichés and generic filler text.`;
 }
 
 async function callGemini(prompt: string): Promise<Record<string, unknown>> {
@@ -344,9 +400,22 @@ export async function generateStudioWebsite(
 ): Promise<WebsiteTemplateData> {
   onProgress?.("Analyzing your business details...");
 
-  const prompt = buildGeminiPrompt(form);
+  // Auto-match a famous-site DESIGN.md reference and fetch it (best-effort).
+  const ref = pickDesignRef(form.industry, form.themeStyle);
+  onProgress?.(`Studying ${ref.label}'s design system…`);
+  let designRef: { label: string; md: string } | undefined;
+  const md = await fetchDesignMd(ref.brand);
+  if (md) {
+    designRef = { label: ref.label, md: trimDesignMd(md) };
+  }
 
-  onProgress?.("Generating website content with AI...");
+  const prompt = buildGeminiPrompt(form, designRef);
+
+  onProgress?.(
+    designRef
+      ? `Designing your site, ${ref.label}-grade…`
+      : "Generating website content with AI..."
+  );
   const raw = await callGemini(prompt);
 
   onProgress?.("Generating professional images...");
@@ -357,6 +426,21 @@ export async function generateStudioWebsite(
 
   const fonts = THEME_FONTS[form.themeStyle] ?? THEME_FONTS.modern;
   const colors = THEME_COLORS[form.themeStyle] ?? THEME_COLORS.modern;
+
+  // ── Apply the AI-extracted design system (from the famous-site reference) ──
+  // Each token only overrides the preset/form default when it's valid, so a
+  // missing or malformed value never breaks the output.
+  const ds = (raw.designSystem as Record<string, unknown> | undefined) || {};
+  const dsPrimary = isHex(ds.primaryColor) ? (ds.primaryColor as string).trim() : form.primaryColor;
+  const dsAccent  = isHex(ds.accentColor)  ? (ds.accentColor as string).trim()  : form.accentColor;
+  const dsBg      = isHex(ds.bgColor)      ? (ds.bgColor as string).trim()      : colors.bg;
+  const dsText    = isHex(ds.textColor)    ? (ds.textColor as string).trim()    : colors.text;
+  const dsMuted   = isHex(ds.mutedColor)   ? (ds.mutedColor as string).trim()   : colors.muted;
+  const dsHeading = typeof ds.headingFont === "string" && ds.headingFont.trim() ? (ds.headingFont as string).trim() : fonts.heading;
+  const dsBody    = typeof ds.bodyFont === "string" && ds.bodyFont.trim() ? (ds.bodyFont as string).trim() : fonts.body;
+  if (designRef && (ds.designNotes || ds.primaryColor)) {
+    onProgress?.("Applying the reference design language…");
+  }
 
   const navItems = (raw.navItems as Array<{ label: string; href: string }>) ?? [
     { label: "Home", href: "#hero" },
@@ -392,13 +476,13 @@ export async function generateStudioWebsite(
     industry:        form.industry,
     themeStyle:      form.themeStyle,
     tone:            form.tone || "professional",
-    primaryColor:    form.primaryColor,
-    accentColor:     form.accentColor,
-    bgColor:         colors.bg,
-    textColor:       colors.text,
-    mutedColor:      colors.muted,
-    headingFont:     fonts.heading,
-    bodyFont:        fonts.body,
+    primaryColor:    dsPrimary,
+    accentColor:     dsAccent,
+    bgColor:         dsBg,
+    textColor:       dsText,
+    mutedColor:      dsMuted,
+    headingFont:     dsHeading,
+    bodyFont:        dsBody,
     navItems,
     ctaText:         (raw.ctaText as string)          || "Get Started",
     ctaLink:         "#contact",
@@ -410,7 +494,7 @@ export async function generateStudioWebsite(
     stats,
     testimonials:    testimonials.map((t) => ({ ...t, rating: t.rating ?? 5, avatar: "" })),
     pricingPlans:    rawPricing,
-    teamMembers:     teamMembers.map((m) => ({ ...m, avatar: avatarUrl(m.name, form.primaryColor), socialLinks: {} })),
+    teamMembers:     teamMembers.map((m) => ({ ...m, avatar: avatarUrl(m.name, dsPrimary.replace(/^#/, "")), socialLinks: {} })),
     portfolioItems:  portfolioItems.map((p, i) => ({ ...p, image: images[i + 1] || images[0] || "" })),
     aboutTitle:      (raw.aboutTitle as string)       || "About Us",
     aboutDescription:(raw.aboutDescription as string) || "",

@@ -23,7 +23,19 @@
       "PowerShell(npm run build 2>&1 | Select-String -Pattern \"SupportCRM|error|built in\" | Select-Object -First 5; Write-Output \"BUILD_EXIT=$LASTEXITCODE\")",
       "PowerShell(npx tsc --noEmit; Write-Output \"TSC=$LASTEXITCODE\"; npm run build 2>&1 | Select-String -Pattern \"SupportCRM|error|built in\" | Select-Object -First 5; Write-Output \"BUILD=$LASTEXITCODE\")",
       "Bash(node --check public/widget4.js)",
-      "PowerShell(npm run build 2>&1 | Select-String -Pattern \"AuthModel|error|built in\" | Select-Object -First 5; Write-Output \"BUILD_EXIT=$LASTEXITCODE\")"
+      "PowerShell(npm run build 2>&1 | Select-String -Pattern \"AuthModel|error|built in\" | Select-Object -First 5; Write-Output \"BUILD_EXIT=$LASTEXITCODE\")",
+      "Bash(git add *)",
+      "Bash(git check-ignore *)",
+      "Bash(grep -nE \"sk_|pk_|whsec|api[_-]?key.*=.*\\\\\"[A-Za-z0-9]{16,}|Bearer [A-Za-z0-9]|token.*=.*\\\\\"[A-Za-z0-9]{16,}|password.*=.*\\\\\"[^\\\\\"]{8,}\\\\\"\" src/ClientDashboard/apps/SupportCRM/ImportCenter.tsx)",
+      "WebFetch(domain:getdesign.md)",
+      "Bash(gh api *)",
+      "WebFetch(domain:api.github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "PowerShell(npx tsc --noEmit 2>&1 | Select-Object -First 30; Write-Output \"TSC_EXIT=$LASTEXITCODE\")",
+      "PowerShell(npm run build 2>&1 | Select-String -Pattern \"WebsiteBuilder|designMd|error|built in\" | Select-Object -First 6; Write-Output \"BUILD_EXIT=$LASTEXITCODE\")",
+      "Bash(node -e ' *)",
+      "PowerShell(npx tsc --noEmit 2>&1 | Select-Object -First 25; Write-Output \"TSC_EXIT=$LASTEXITCODE\")",
+      "PowerShell(npm run build 2>&1 | Select-String -Pattern \"WebsiteBuilder|error|built in\" | Select-Object -First 4; Write-Output \"BUILD_EXIT=$LASTEXITCODE\")"
     ]
   }
 }

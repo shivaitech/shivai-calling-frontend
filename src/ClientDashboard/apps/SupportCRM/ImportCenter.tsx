@@ -252,8 +252,11 @@ const FileImport: React.FC<{ source: "csv" | "excel"; onBack: () => void }> = ({
 // ── Webhook setup ─────────────────────────────────────────────────────────────
 const WebhookImport: React.FC<{ onBack: () => void }> = ({ onBack }) => {
   const [copied, setCopied] = useState(false);
-  const url = "https://api.callshivai.com/v1/ingest/wh_8f3a92c1b7";
-  const secret = "whsec_4Kd9XpL2mNqR7sT0vWxYz3aB";
+  // Placeholder values for the mockup. The real endpoint + signing secret are
+  // generated server-side and shown here once the webhook is created — never
+  // hardcoded. These are obvious dummies so secret scanners don't flag them.
+  const url = "https://api.callshivai.com/v1/ingest/<your-webhook-id>";
+  const secret = "•••••••••• generated after you save ••••••••••";
   const copy = (text: string) => { navigator.clipboard?.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500); };
   return (
     <div className="space-y-5 max-w-3xl">
