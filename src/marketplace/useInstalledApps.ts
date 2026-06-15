@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { canInstallApp } from "./apps";
 
 /**
  * ── Installed-apps store ─────────────────────────────────────────────────────
@@ -17,18 +18,23 @@ import { useCallback, useEffect, useState } from "react";
 const STORAGE_PREFIX = "shivai_installed_apps_";
 const INSTALLED_APPS_EVENT = "shivai:installed-apps-changed";
 
-/** Resolve the current user id from auth storage to scope installs per-account. */
-function getUserId(): string {
+function readAuthUser(): { id?: string; email?: string } | null {
   try {
     const raw = localStorage.getItem("auth_user");
-    if (raw) {
-      const u = JSON.parse(raw);
-      return u?.id || u?.user?.id || "anon";
-    }
+    if (!raw) return null;
+    const u = JSON.parse(raw);
+    return {
+      id: u?.id || u?.user?.id,
+      email: u?.email || u?.user?.email,
+    };
   } catch {
-    /* ignore parse errors */
+    return null;
   }
-  return "anon";
+}
+
+/** Resolve the current user id from auth storage to scope installs per-account. */
+function getUserId(): string {
+  return readAuthUser()?.id || "anon";
 }
 
 function storageKey(): string {
@@ -88,6 +94,8 @@ export function useInstalledApps(): UseInstalledApps {
   );
 
   const install = useCallback((appId: string) => {
+    const email = readAuthUser()?.email;
+    if (!canInstallApp(appId, email)) return;
     const current = readInstalled();
     if (current.includes(appId)) return;
     writeInstalled([...current, appId]);

@@ -13,7 +13,7 @@ import {
   Loader2,
   ChevronRight,
 } from "lucide-react";
-import { getAppById, MarketplaceApp, openAppWorkspace, getVisibleApps } from "../../marketplace/apps";
+import { getVisibleAppById, MarketplaceApp, openAppWorkspace } from "../../marketplace/apps";
 import { useInstalledApps } from "../../marketplace/useInstalledApps";
 import { useAuth } from "../../contexts/AuthContext";
 
@@ -34,11 +34,9 @@ const AppDetail = () => {
   const [installing, setInstalling] = useState(false);
   const [justInstalled, setJustInstalled] = useState(false);
 
-  const app = appId ? getAppById(appId) : undefined;
-  const visibleApps = getVisibleApps(user?.email);
-  const isAppVisible = app && visibleApps.some((a) => a.id === app.id);
+  const app = appId ? getVisibleAppById(appId, user?.email) : undefined;
 
-  if (!app || !isAppVisible) {
+  if (!app) {
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
         <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center">

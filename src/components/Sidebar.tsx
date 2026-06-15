@@ -76,7 +76,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMod
 
   // Installed marketplace apps shown under the "My Apps" group, filtered by visibility.
   const visibleApps = getVisibleApps(user?.email);
-  const installedApps = visibleApps.filter((a) => installedIds.includes(a.id));
+  const installedApps = visibleApps.filter(
+    (a) => installedIds.includes(a.id) && a.status === "live"
+  );
 
   const toggleCollapse = () => {
     setIsCollapsed(!isCollapsed);

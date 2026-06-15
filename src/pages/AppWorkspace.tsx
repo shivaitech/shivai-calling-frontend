@@ -5,10 +5,9 @@ import { Settings as SettingsIcon, Sparkles } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import TopBar from "../components/TopBar";
 import {
-  getAppById,
+  getVisibleAppById,
   DEFAULT_WORKSPACE_SECTION,
   WorkspaceSection,
-  getVisibleApps,
 } from "../marketplace/apps";
 import { useInstalledApps } from "../marketplace/useInstalledApps";
 import { useAuth } from "../contexts/AuthContext";
@@ -49,9 +48,10 @@ const AppWorkspace: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
-  const app = appId ? getAppById(appId) : undefined;
-  const visibleApps = useMemo(() => getVisibleApps(user?.email), [user?.email]);
-  const isAppVisible = app && visibleApps.some((a) => a.id === app.id);
+  const app = useMemo(
+    () => (appId ? getVisibleAppById(appId, user?.email) : undefined),
+    [appId, user?.email]
+  );
 
   const sections: WorkspaceSection[] = useMemo(
     () => (app?.workspaceSections?.length ? app.workspaceSections : [DEFAULT_WORKSPACE_SECTION]),
@@ -67,15 +67,6 @@ const AppWorkspace: React.FC = () => {
       <WorkspaceEmpty
         title="App not found"
         subtitle="This app doesn't exist or has been removed."
-        onBack={() => navigate("/marketplace")}
-      />
-    );
-  }
-  if (!isAppVisible) {
-    return (
-      <WorkspaceEmpty
-        title="App not available"
-        subtitle="This app is not available for your account."
         onBack={() => navigate("/marketplace")}
       />
     );

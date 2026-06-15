@@ -310,52 +310,58 @@ export const APPS: MarketplaceApp[] = [
 /** Demo/developer account emails that can see all developing apps. */
 const DEMO_ACCOUNTS = ["atharkatheri@gmail.com", "demo@callshivai.com"];
 
-/** Lookup a single app by id. */
+/** Lookup a single app by id (raw catalog entry — prefer getVisibleAppById for UI). */
 export function getAppById(id: string): MarketplaceApp | undefined {
   return APPS.find((a) => a.id === id);
 }
 
-/**
- * Get visible apps based on authentication status and user email.
- * - Public (unauthenticated): All apps visible, only Google Sheets is live & installable, others as "coming-soon"
- * - Demo accounts: All apps visible as live
- * - Other authenticated users: Only live apps visible
- */
-export function getVisibleApps(userEmail?: string): MarketplaceApp[] {
-  const isDemoAccount = userEmail && DEMO_ACCOUNTS.includes(userEmail);
+export function isDemoAccount(userEmail?: string): boolean {
+  return !!userEmail && DEMO_ACCOUNTS.includes(userEmail);
+}
 
-  if (!userEmail) {
-    // Public/unauthenticated: Show all apps, but only Google Sheets is live and installable
-    return APPS.map((app) => {
-      if (app.id === "google-sheets") {
-        return app; // Keep as live
-      }
-      // All other apps: mark as coming-soon for public users
-      if (app.status === "live" && app.id !== "google-sheets") {
-        return { ...app, status: "coming-soon" as AppStatus };
-      }
-      return app;
-    });
-  }
-
-  if (isDemoAccount) {
-    // Demo account: Show all apps as live
-    return APPS.map((app) => ({
-      ...app,
-      status: "live" as AppStatus,
-    }));
-  }
-
-  // Other authenticated users: Only show live apps
-  return APPS.filter((app) => app.status === "live");
+/** Public catalog: every app is listed; only Google Sheets stays installable. */
+function applyPublicCatalog(apps: MarketplaceApp[]): MarketplaceApp[] {
+  return apps.map((app) => {
+    if (app.id === "google-sheets") return app;
+    if (app.status === "live") {
+      return { ...app, status: "coming-soon" as AppStatus };
+    }
+    return app;
+  });
 }
 
 /**
- * Check if a public user can install a specific app.
- * Public users can only install Google Sheets.
+ * Get visible apps based on user email.
+ * - Public (everyone except demo accounts): All apps visible, only Google Sheets is live & installable
+ * - Demo accounts: All apps visible as live & installable
  */
-export function canPublicUserInstall(appId: string): boolean {
+export function getVisibleApps(userEmail?: string): MarketplaceApp[] {
+  if (isDemoAccount(userEmail)) {
+    return APPS.map((app) => ({ ...app, status: "live" as AppStatus }));
+  }
+  return applyPublicCatalog(APPS);
+}
+
+/** Single-app lookup with visibility rules applied (status, installability). */
+export function getVisibleAppById(
+  id: string,
+  userEmail?: string
+): MarketplaceApp | undefined {
+  return getVisibleApps(userEmail).find((a) => a.id === id);
+}
+
+/**
+ * Whether the user may install a given app.
+ * Public users can only install Google Sheets; demo accounts can install any app.
+ */
+export function canInstallApp(appId: string, userEmail?: string): boolean {
+  if (isDemoAccount(userEmail)) return true;
   return appId === "google-sheets";
+}
+
+/** @deprecated Use canInstallApp */
+export function canPublicUserInstall(appId: string): boolean {
+  return canInstallApp(appId);
 }
 
 /** Default left-rail section when an app doesn't declare its own. */
