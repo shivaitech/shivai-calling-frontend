@@ -11,7 +11,19 @@ import {
   ChevronDown,
   X,
   RefreshCw,
+  UserCog,
 } from 'lucide-react';
+import {
+  isDirectorySheet,
+  getDirectorySheetId,
+  DEFAULT_DIRECTORY_TAB_NAME,
+  GoogleSheetsIntegrationConfig,
+  buildSheetIframeUrl,
+  isGoogleSheetRecent,
+  NEW_SHEET_WARM_MS,
+  IFRAME_READY_DELAY_MS,
+  IFRAME_LOAD_FALLBACK_MS,
+} from './sheetTypes';
 
 const SheetIcon = () => (
   <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none">
@@ -28,12 +40,19 @@ const GoogleSheetView = () => {
   const [searchParams] = useSearchParams();
   const sheetName = searchParams.get('name') ?? 'Google Sheet';
   const isNew = searchParams.get('new') === 'true';
+  const isDirectoryParam = searchParams.get('role') === 'directory';
+  const gidParam = searchParams.get('gid');
+
+  const [displayName, setDisplayName] = useState(sheetName);
+
+  useEffect(() => {
+    setDisplayName(sheetName);
+  }, [sheetName]);
 
   const [iframeKey, setIframeKey] = useState(0);
   const [iframeLoaded, setIframeLoaded] = useState(false);
-  // For newly created sheets, hold off loading the iframe for a few seconds
-  // so Google has time to initialize it in edit mode.
-  const [warming, setWarming] = useState(isNew);
+  const [iframeSrc, setIframeSrc] = useState('');
+  const [warming, setWarming] = useState(false);
 
   // Existing assignment (fetched on mount)
   const [existingIntegrationId, setExistingIntegrationId] = useState('');
@@ -49,9 +68,29 @@ const GoogleSheetView = () => {
   const [assignSuccess, setAssignSuccess] = useState(false);
   const [assignError, setAssignError] = useState('');
 
+  const [sheetRole, setSheetRole] = useState<'data' | 'directory'>('data');
+  const [linkedDataSheet, setLinkedDataSheet] = useState<{ id: string; name: string } | null>(null);
+  const [linkedStaffRoster, setLinkedStaffRoster] = useState<{ id: string; name: string } | null>(null);
+
   useEffect(() => {
+    if (!id) return;
     setIframeLoaded(false);
-  }, [id]);
+    setIframeKey(k => k + 1);
+    setWarming(isNew || isGoogleSheetRecent(id));
+    setIframeSrc(buildSheetIframeUrl(id, gidParam ? { gid: gidParam } : undefined));
+  }, [id, isNew, gidParam]);
+
+  useEffect(() => {
+    if (!id || !warming) return;
+    const timer = setTimeout(() => setWarming(false), NEW_SHEET_WARM_MS);
+    return () => clearTimeout(timer);
+  }, [id, warming]);
+
+  useEffect(() => {
+    if (!id || warming || iframeLoaded) return;
+    const timer = setTimeout(() => setIframeLoaded(true), IFRAME_LOAD_FALLBACK_MS);
+    return () => clearTimeout(timer);
+  }, [id, warming, iframeLoaded]);
 
   // Fetch existing assignment on mount so the button reflects current state
   useEffect(() => {
@@ -60,24 +99,59 @@ const GoogleSheetView = () => {
       authAPI.getIntegrations('google_sheets').catch(() => []),
       agentAPI.getAgents().catch(() => []),
     ]).then(([integrations, agentList]) => {
-      const existing = integrations.find((i: any) =>
+      const integrationList = integrations as any[];
+      const existing = integrationList.find((i: any) =>
         i.config?.google_sheets?.sheet_id === id || i.sheet_id === id
       );
+
+      const parentForDirectory = integrationList.find((i: any) => {
+        const gs = i.config?.google_sheets as GoogleSheetsIntegrationConfig | undefined;
+        return getDirectorySheetId(gs) === id;
+      });
+
+      const isDirectory = isDirectoryParam || isDirectorySheet(id!, integrationList);
+
+      if (isDirectory) {
+        setSheetRole('directory');
+        if (parentForDirectory) {
+          const parentGs = parentForDirectory.config?.google_sheets as GoogleSheetsIntegrationConfig;
+          setLinkedDataSheet({
+            id: parentGs.sheet_id,
+            name: parentGs.sheet_name || parentForDirectory.label || 'Data Sheet',
+          });
+          if (parentGs.assignment?.directory_sheet_name) {
+            setDisplayName(parentGs.assignment.directory_sheet_name);
+          }
+          const agentId = parentForDirectory.agent_id ?? parentForDirectory.agentId ?? '';
+          const agent = (agentList as ApiAgent[]).find(a => a.id === agentId);
+          setAssignedAgentName(agent?.name ?? '');
+        }
+        return;
+      }
+
       if (existing) {
         setExistingIntegrationId(existing._id ?? existing.id ?? '');
         const agentId = existing.agent_id ?? existing.agentId ?? '';
         const agent = (agentList as ApiAgent[]).find(a => a.id === agentId);
         setAssignedAgentName(agent?.name ?? '');
         setSelectedAgentId(agentId);
+
+        const gs = existing.config?.google_sheets as GoogleSheetsIntegrationConfig | undefined;
+        setSheetRole('data');
+        const directoryId = getDirectorySheetId(gs);
+        if (directoryId) {
+          setLinkedStaffRoster({
+            id: directoryId,
+            name: gs?.assignment?.directory_sheet_name || 'Staff Directory',
+          });
+        }
       }
     });
-  }, [id]);
+  }, [id, isDirectoryParam]);
 
-  useEffect(() => {
-    if (!isNew) return;
-    const timer = setTimeout(() => setWarming(false), 3000);
-    return () => clearTimeout(timer);
-  }, [isNew]);
+  const handleIframeLoad = () => {
+    window.setTimeout(() => setIframeLoaded(true), IFRAME_READY_DELAY_MS);
+  };
 
   const openAssignModal = async () => {
     setAssignOpen(true);
@@ -134,8 +208,7 @@ const GoogleSheetView = () => {
     }
   };
 
-  const iframeSrc = `https://docs.google.com/spreadsheets/d/${id}/edit`;
-  const openUrl = `https://docs.google.com/spreadsheets/d/${id}/edit`;
+  const openUrl = iframeSrc || (id ? buildSheetIframeUrl(id, gidParam ? { gid: gidParam } : undefined) : '');
 
   return (
     <div className="flex flex-col" style={{ height: 'calc(100vh - 105px)' }}>
@@ -159,16 +232,46 @@ const GoogleSheetView = () => {
             <SheetIcon />
           </div>
           <div className="min-w-0">
-            <p className="font-semibold text-slate-800 dark:text-white text-sm leading-tight truncate">{sheetName}</p>
-            <p className="text-xs text-slate-400 dark:text-slate-500 leading-tight">Google Sheets</p>
+            <p className="font-semibold text-slate-800 dark:text-white text-sm leading-tight truncate">{displayName}</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500 leading-tight">
+              {sheetRole === 'directory' ? `Assignment directory · ${DEFAULT_DIRECTORY_TAB_NAME}` : 'Google Sheets'}
+            </p>
           </div>
         </div>
+
+        {/* Linked sheet shortcuts */}
+        {(linkedDataSheet || linkedStaffRoster) && (
+          <div className="hidden md:flex items-center gap-2 flex-shrink-0">
+            {linkedDataSheet && (
+              <button
+                onClick={() => navigate(`/google-sheets/${linkedDataSheet.id}/view?name=${encodeURIComponent(linkedDataSheet.name)}`)}
+                className="common-button-bg2 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium"
+              >
+                <ExternalLink className="w-3 h-3" />
+                Data sheet
+              </button>
+            )}
+            {linkedStaffRoster && (
+              <button
+                onClick={() => navigate(`/google-sheets/${linkedStaffRoster.id}/view?name=${encodeURIComponent(linkedStaffRoster.name)}&role=directory&tab=${encodeURIComponent(DEFAULT_DIRECTORY_TAB_NAME)}`)}
+                className="common-button-bg2 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-emerald-700 dark:text-emerald-400"
+              >
+                <UserCog className="w-3 h-3" />
+                Staff roster
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Actions */}
         <div className="flex items-center gap-2 flex-shrink-0">
           {/* Reload */}
           <button
-            onClick={() => { setIframeLoaded(false); setIframeKey(k => k + 1); }}
+            onClick={() => {
+              setIframeLoaded(false);
+              setWarming(isGoogleSheetRecent(id!));
+              setIframeKey(k => k + 1);
+            }}
             title="Reload"
             className="common-button-bg2 p-2 rounded-xl"
           >
@@ -186,7 +289,8 @@ const GoogleSheetView = () => {
             <span className="hidden sm:inline">Open in Google</span>
           </a>
 
-          {/* Assign / Update AI */}
+          {/* Assign / Update AI — hidden for staff roster sheets (inherits parent agent) */}
+          {sheetRole !== 'directory' && (
           <button
             onClick={openAssignModal}
             className="common-button-bg flex items-center gap-1.5 !px-3 !py-2 rounded-xl text-xs font-medium flex-shrink-0"
@@ -203,6 +307,13 @@ const GoogleSheetView = () => {
               </>
             )}
           </button>
+          )}
+          {sheetRole === 'directory' && assignedAgentName && (
+            <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium common-button-bg2 flex-shrink-0">
+              <UserCog className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span className="hidden sm:inline truncate max-w-[100px]">{assignedAgentName}</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -216,14 +327,14 @@ const GoogleSheetView = () => {
             </p>
           </div>
         )}
-        {!warming && (
+        {!warming && iframeSrc && (
           <iframe
             key={iframeKey}
             src={iframeSrc}
             className="w-full h-full border-0"
             title={sheetName}
             allow="clipboard-read; clipboard-write"
-            onLoad={() => setIframeLoaded(true)}
+            onLoad={handleIframeLoad}
           />
         )}
       </div>

@@ -1,10 +1,12 @@
 import { SheetColumn } from '../services/authAPI';
+import type { GoogleSheetsAssignmentConfig } from '../ClientDashboard/GoogleSheets/sheetTypes';
 
 interface SheetPromptConfig {
   agentName?: string;
   sheetName: string;
   tabName?: string;
   columns: SheetColumn[];
+  assignment?: GoogleSheetsAssignmentConfig;
 }
 
 /**
@@ -12,7 +14,7 @@ interface SheetPromptConfig {
  * from users via conversation and logs it to a connected Google Sheet.
  */
 export function generateSheetSystemPrompt(config: SheetPromptConfig): string {
-  const { agentName, sheetName, columns } = config;
+  const { agentName, sheetName, columns, assignment } = config;
 
   const required = columns.filter(c => c.required);
   const optional = columns.filter(c => !c.required);
@@ -37,6 +39,20 @@ export function generateSheetSystemPrompt(config: SheetPromptConfig): string {
 
   const allFields = columns.map(c => `"${c.field}": "<value or null>"`).join(',\n  ');
   const name = agentName ?? 'AI Assistant';
+
+  const staffAssignmentBlock = assignment?.enabled
+    ? `
+
+---
+
+## AUTO-ASSIGNMENT
+
+Officer assignment is handled automatically by the system using the "${assignment.directory_tab_name}" directory sheet.
+Match fields: ${assignment.match.map(m => `\`${m.record_field}\` → \`${m.directory_column}\``).join(', ') || 'none configured'}.
+Output fields: ${assignment.output.map(o => `\`${o.directory_column}\` → \`${o.record_column}\``).join(', ') || 'none configured'}.
+
+Do not manually pick assignees — the backend assigns based on category and availability.`
+    : '';
 
   return `## GOOGLE SHEET DATA COLLECTION
 
@@ -70,6 +86,7 @@ ${optionalList}
 6. **Confirm before logging** — once you have all required data, briefly summarise what you have collected and ask the user to confirm before saving.
 7. **Handle corrections** — if the user corrects something, update your understanding and re-confirm.
 8. **Be concise** — keep responses short and focused.
+${staffAssignmentBlock}
 
 ---
 

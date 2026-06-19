@@ -90,6 +90,10 @@
   let retryCount = 0;
   const MAX_RETRIES = 0; // No retries - terminate immediately on error
   const CONNECTION_TIMEOUT = 15000; // 15 seconds
+  const CONFIG_FETCH_TIMEOUT = 12000; // 12 seconds for agent-config API
+  const NETWORK_PING_INTERVAL = 5000; // 5 seconds
+  const NETWORK_PING_URL = "https://nodejs.service.callshivai.com/api/v1/health";
+  const STATUS_SIGNAL_SVG = `<svg class="shivai-status-signal" width="16" height="11" viewBox="0 0 16 11" aria-hidden="true"><rect class="signal-bar" data-bar="1" x="0" y="7" width="2.5" height="4" rx="0.5"/><rect class="signal-bar" data-bar="2" x="3.5" y="5" width="2.5" height="6" rx="0.5"/><rect class="signal-bar" data-bar="3" x="7" y="3" width="2.5" height="8" rx="0.5"/><rect class="signal-bar" data-bar="4" x="10.5" y="0" width="2.5" height="11" rx="0.5"/></svg>`;
   let knowledgeBaseReady = false;
   let callTimerStarted = false;
   const AI_RESPONSE_TIMEOUT = 20000; // 20 seconds after connection
@@ -104,6 +108,8 @@
     isSpeaking: false,
     isAgentSpeaking: false,
   };
+  let networkStats = { pingMs: null, rtt: null, downlink: null, uplink: null };
+  let networkMonitorTimer = null;
 
   let liveMessages = [
     "📞 Call ShivAI!",
@@ -364,12 +370,146 @@
   let callTimerElement = null;
   let callStartTime = null;
   let callTimerInterval = null;
-  let agentStatus = { active: true, message: '' }; // Store agent status
+  let agentStatus = { active: true, message: '', loading: false, canRetry: false, errorType: null };
   let agentLanguage = null; // Store agent's configured language
   let globalTenantId = null; // Store tenant_id globally so it's available in startConversation
+
+  async function fetchWithTimeout(url, options = {}, timeoutMs = CONFIG_FETCH_TIMEOUT) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  function setAgentUnavailable(message, { canRetry = false, errorType = 'api' } = {}) {
+    agentStatus.active = false;
+    agentStatus.message = message;
+    agentStatus.canRetry = canRetry;
+    agentStatus.errorType = errorType;
+  }
+
+  async function retryAgentStatusCheck() {
+    agentStatus.loading = true;
+    updateLandingViewBasedOnStatus();
+    updateTriggerBasedOnStatus();
+    await checkAgentStatusOnLoad();
+    updateLandingViewBasedOnStatus();
+    updateTriggerBasedOnStatus();
+    refreshWidgetContent();
+  }
+
+  function updateTriggerBasedOnStatus() {
+    if (!triggerBtn) return;
+    const subtitleEl = triggerBtn.querySelector('.shivai-trigger-subtitle');
+    const callBtnEl = triggerBtn.querySelector('.shivai-trigger-call-btn');
+    triggerBtn.classList.remove('shivai-trigger--loading', 'shivai-trigger--offline');
+    if (callBtnEl) callBtnEl.classList.remove('shivai-trigger-call-btn--disabled');
+
+    if (agentStatus.loading) {
+      triggerBtn.classList.add('shivai-trigger--loading');
+      if (subtitleEl) subtitleEl.textContent = 'Loading...';
+      return;
+    }
+    if (!agentStatus.active) {
+      triggerBtn.classList.add('shivai-trigger--offline');
+      if (callBtnEl) callBtnEl.classList.add('shivai-trigger-call-btn--disabled');
+      if (subtitleEl) {
+        subtitleEl.textContent = agentStatus.errorType === 'maintenance'
+          ? 'Offline'
+          : 'Unavailable';
+      }
+      return;
+    }
+    if (subtitleEl) subtitleEl.textContent = 'AI Assistant';
+  }
+
+  function wireAgentRetryButton() {
+    const retryBtn = document.getElementById('agent-status-retry-btn');
+    if (!retryBtn) return;
+    retryBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      retryAgentStatusCheck();
+    });
+  }
+
+  function showCallErrorState(message, showRetry = true) {
+    if (!messagesDiv) return;
+    const connectingState = messagesDiv.querySelector('.connecting-state');
+    if (connectingState) connectingState.style.display = 'none';
+    hideMessageInterface();
+    let errorEl = messagesDiv.querySelector('.call-error-state');
+    if (!errorEl) {
+      errorEl = document.createElement('div');
+      errorEl.className = 'call-error-state';
+      messagesDiv.appendChild(errorEl);
+    }
+    const emptyState = messagesDiv.querySelector('.empty-state');
+    if (emptyState) emptyState.style.display = 'none';
+    errorEl.style.display = 'flex';
+    errorEl.innerHTML = `
+      <div class="call-error-icon" aria-hidden="true">⚠️</div>
+      <div class="call-error-title">Couldn't connect</div>
+      <div class="call-error-text">${message}</div>
+      ${showRetry ? '<button type="button" class="call-error-retry-btn" id="call-error-retry-btn">Try Again</button>' : ''}
+    `;
+    const retryBtn = errorEl.querySelector('#call-error-retry-btn');
+    if (retryBtn) {
+      retryBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        hideCallErrorState();
+        handleConnectClick(e);
+      });
+    }
+  }
+
+  function hideCallErrorState() {
+    if (!messagesDiv) return;
+    const errorEl = messagesDiv.querySelector('.call-error-state');
+    if (errorEl) errorEl.style.display = 'none';
+    const emptyState = messagesDiv.querySelector('.empty-state');
+    const hasMessages = messagesDiv.querySelector('.message');
+    if (emptyState && !hasMessages && !isConnecting) {
+      emptyState.style.display = 'block';
+    }
+  }
+
+  function handleConnectionFailure(errorMsg, { showRetry = true } = {}) {
+    clearLoadingStatus();
+    if (connectionTimeout) {
+      clearTimeout(connectionTimeout);
+      connectionTimeout = null;
+    }
+    if (aiResponseTimeout) {
+      clearTimeout(aiResponseTimeout);
+      aiResponseTimeout = null;
+    }
+    stopConnectingSound();
+    if (messagesDiv) {
+      const connectingState = messagesDiv.querySelector('.connecting-state');
+      if (connectingState) connectingState.style.display = 'none';
+    }
+    hideMessageInterface();
+    showCallErrorState(errorMsg, showRetry);
+    updateStatus(`${errorMsg}${showRetry ? ' — Tap Try Again' : ''}`, 'disconnected');
+    isConnected = false;
+    isConnecting = false;
+    isDisconnecting = false;
+    if (connectBtn) {
+      connectBtn.disabled = false;
+      connectBtn.classList.remove('connected');
+      connectBtn.innerHTML =
+        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>';
+      connectBtn.title = 'Retry Connection';
+    }
+    setupSiriWave('idle');
+  }
   
   // Check agent status when widget loads
   async function checkAgentStatusOnLoad() {
+    agentStatus.loading = true;
     try {
       // Get agent ID and tenant ID from configuration (dynamic)
       let agentId = null;
@@ -445,19 +585,25 @@
       // If no agentId found, set status to inactive
       if (!agentId) {
         console.warn('⚠️ No agentId found in script URL or configuration');
-        agentStatus.active = false;
-        agentStatus.message = 'Agent ID not configured. Please check your widget installation.';
+        setAgentUnavailable('Agent ID not configured. Please check your widget installation.', {
+          canRetry: false,
+          errorType: 'config',
+        });
         return;
       }
       
       _wlog('🔍 Checking agent status for ID:', agentId);
-      const response = await fetch(`https://nodejs.service.callshivai.com/api/v1/agent-configs/${agentId}`);
+      const response = await fetchWithTimeout(
+        `https://nodejs.service.callshivai.com/api/v1/agent-configs/${agentId}`
+      );
       
       if (response.ok) {
         const data = await response.json();
         _wlog('✅ Agent status response:', data);
         let agentRes = data?.data?.agent
-        agentStatus.active = agentRes?.is_active !== false; // Default to true if not specified
+        agentStatus.active = agentRes?.is_active !== false;
+        agentStatus.canRetry = false;
+        agentStatus.errorType = agentRes?.is_active === false ? 'maintenance' : null;
         agentStatus.message = agentRes?.is_active === false 
           ? 'AI Employee is currently under maintenance. Please check back later.' 
           : '';
@@ -513,6 +659,8 @@
               console.warn('🚫 ShivAI Widget: this domain is not authorised to load this widget. Aborting.');
               agentStatus.active = false;
               agentStatus.blocked = true;
+              agentStatus.canRetry = false;
+              agentStatus.errorType = 'domain';
               agentStatus.message = 'Widget not available on this domain.';
               return; // Abort — do not render widget
             }
@@ -523,14 +671,22 @@
         }
       } else {
         console.warn('⚠️ Could not fetch agent status, defaulting to inactive');
-        agentStatus.active = false;
-        agentStatus.message = 'Unable to verify agent status. Please try again later.';
+        setAgentUnavailable('Unable to verify agent status. Please try again.', {
+          canRetry: true,
+          errorType: 'api',
+        });
       }
     } catch (error) {
       console.error('❌ Error checking agent status:', error);
-      // Default to inactive on error
-      agentStatus.active = false;
-      agentStatus.message = 'Service temporarily unavailable. Please try again later.';
+      const timedOut = error && error.name === 'AbortError';
+      setAgentUnavailable(
+        timedOut
+          ? 'Connection timed out. Please check your network and try again.'
+          : 'Service temporarily unavailable. Please try again.',
+        { canRetry: true, errorType: 'api' }
+      );
+    } finally {
+      agentStatus.loading = false;
     }
   }
   
@@ -685,6 +841,7 @@
     }
 
     updateLandingViewBasedOnStatus();
+    updateTriggerBasedOnStatus();
     refreshWidgetTheme();
     
     _wlog("✅ Widget content refresh completed");
@@ -1198,6 +1355,7 @@
           }
 
           _wlog(`⚡ Response latency: ${Math.round(latency)}ms`);
+          updateNetworkIndicator();
 
           latencyMetrics.userSpeechEndTime = null;
         }
@@ -1570,7 +1728,10 @@
       <div class="shivai-status-bar">
         <span class="shivai-status-time" id="shivai-status-time-landing">--:--</span>
         <span class="shivai-status-network" id="shivai-status-network-landing">
-          <svg class="shivai-status-signal" width="16" height="11" viewBox="0 0 16 11" fill="currentColor"><rect x="0" y="7" width="2.5" height="4" rx="0.5"/><rect x="3.5" y="5" width="2.5" height="6" rx="0.5"/><rect x="7" y="3" width="2.5" height="8" rx="0.5"/><rect x="10.5" y="0" width="2.5" height="11" rx="0.5"/></svg>
+          <span class="shivai-status-network-pill">
+            ${STATUS_SIGNAL_SVG}
+            <span class="shivai-status-metric" aria-live="polite">--</span>
+          </span>
           <button class="widget-close status-close" aria-label="Close widget">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg>
           </button>
@@ -1636,7 +1797,10 @@
     <div class="shivai-status-bar call-status-bar">
       <span class="shivai-status-time" id="shivai-status-time-call">--:--</span>
       <span class="shivai-status-network" id="shivai-status-network-call">
-        <svg class="shivai-status-signal" width="16" height="11" viewBox="0 0 16 11" fill="currentColor"><rect x="0" y="7" width="2.5" height="4" rx="0.5"/><rect x="3.5" y="5" width="2.5" height="6" rx="0.5"/><rect x="7" y="3" width="2.5" height="8" rx="0.5"/><rect x="10.5" y="0" width="2.5" height="11" rx="0.5"/></svg>
+        <span class="shivai-status-network-pill">
+          ${STATUS_SIGNAL_SVG}
+          <span class="shivai-status-metric" aria-live="polite">--</span>
+        </span>
         <button class="widget-close status-close" aria-label="Close widget">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg>
         </button>
@@ -1815,6 +1979,7 @@
       // Hide message interface initially (when not connected)
       hideMessageInterface();
       updateLandingViewBasedOnStatus();
+      updateTriggerBasedOnStatus();
     }, 100);
   }
   
@@ -1822,6 +1987,17 @@
     const actionArea = document.getElementById('landing-action-area');
     const privacyText = document.querySelector('.privacy-text');
     if (!actionArea) return;
+
+    if (agentStatus.loading) {
+      actionArea.innerHTML = `
+        <div class="agent-status-loading" aria-live="polite">
+          <div class="agent-status-loading-spinner" aria-hidden="true"></div>
+          <div class="agent-status-loading-text">Checking availability...</div>
+        </div>
+      `;
+      if (privacyText) privacyText.style.display = 'none';
+      return;
+    }
     
     if (agentStatus.active) {
       // Agent is active - show Start Call button
@@ -1860,25 +2036,22 @@
         privacyText.style.display = 'block';
       }
     } else {
-      // Show inactive/maintenance message
+      const title = agentStatus.errorType === 'maintenance'
+        ? 'Our AI Employee is currently offline.'
+        : "Couldn't reach the assistant";
+      const body = agentStatus.message || "We're getting things ready and will be back shortly to assist you.";
+      const retryBtn = agentStatus.canRetry
+        ? '<button type="button" class="agent-retry-btn" id="agent-status-retry-btn">Try Again</button>'
+        : '';
+
       actionArea.innerHTML = `
-        <div class="agent-inactive-message" style="
-          background: rgba(255,255,255,0.55);
-          border: 1px solid rgba(255,59,48,0.18);
-          border-radius: 14px;
-          padding: 14px 16px;
-          margin: 8px 0;
-          text-align: center;
-          box-shadow: 0 2px 8px -2px rgba(70,110,200,0.18);
-        ">
-          <div style="font-size: 14px; font-weight: 600; color: #0d1117; margin-bottom: 4px;">
-            Our AI Employee is currently offline.
-          </div>
-          <div style="font-size: 13px; color: #6b7280; line-height: 1.4;">
-            We're getting things ready and will be back shortly to assist you.
-          </div>
+        <div class="agent-inactive-message">
+          <div class="agent-inactive-title">${title}</div>
+          <div class="agent-inactive-body">${body}</div>
+          ${retryBtn}
         </div>
       `;
+      wireAgentRetryButton();
       
       // Hide privacy text when agent is not active
       if (privacyText) {
@@ -1887,6 +2060,7 @@
     }
 
     setDefaultLanguage();
+    updateTriggerBasedOnStatus();
   }
   function setDefaultLanguage() {
     const langToLabel = {
@@ -2055,6 +2229,7 @@
       document.querySelector(".message-input-container");
 
     if (container) {
+      const wasHidden = container.classList.contains("hidden");
       _wlog("📝 Container found, removing hidden class");
       container.classList.remove("hidden");
 
@@ -2063,16 +2238,19 @@
       container.style.visibility = "";
       container.style.opacity = "";
 
-      // Reset input field and hide send button initially
       const messageInput = document.getElementById("shivai-message-input");
       const sendBtn = document.getElementById("shivai-send-btn");
 
-      if (messageInput) {
-        messageInput.value = ""; // Clear any existing text
-      }
-      if (sendBtn) {
-        sendBtn.style.setProperty('display', 'none', 'important'); // Hide send button initially
-        sendBtn.style.setProperty('visibility', 'hidden', 'important');
+      // Preserve in-progress typed text — do not clear on every status tick.
+      if (messageInput && sendBtn) {
+        const hasText = messageInput.value.trim().length > 0;
+        if (hasText) {
+          sendBtn.style.setProperty("display", "flex", "important");
+          sendBtn.style.setProperty("visibility", "visible", "important");
+        } else if (wasHidden) {
+          sendBtn.style.setProperty("display", "none", "important");
+          sendBtn.style.setProperty("visibility", "hidden", "important");
+        }
       }
 
       _wlog("📝 Message interface shown - classes:", container.className);
@@ -2219,6 +2397,160 @@
 
   // Live time + network indicators for status bar
   let statusBarTimer = null;
+
+  function readConnectionApi() {
+    const conn =
+      navigator.connection ||
+      navigator.mozConnection ||
+      navigator.webkitConnection;
+    if (!conn) return;
+    if (typeof conn.rtt === "number" && conn.rtt >= 0) {
+      networkStats.rtt = conn.rtt;
+    }
+    if (typeof conn.downlink === "number" && conn.downlink >= 0) {
+      networkStats.downlink = conn.downlink;
+    }
+    if (typeof conn.uplink === "number" && conn.uplink >= 0) {
+      networkStats.uplink = conn.uplink;
+    }
+  }
+
+  async function measureNetworkPing() {
+    const start = performance.now();
+    try {
+      await fetch(NETWORK_PING_URL, {
+        method: "HEAD",
+        cache: "no-store",
+        mode: "no-cors",
+      });
+      return Math.round(performance.now() - start);
+    } catch (error) {
+      try {
+        await fetch(NETWORK_PING_URL, {
+          method: "GET",
+          cache: "no-store",
+        });
+        return Math.round(performance.now() - start);
+      } catch (fallbackError) {
+        console.warn("Network ping failed:", fallbackError);
+        return null;
+      }
+    }
+  }
+
+  function getAverageCallLatency() {
+    if (!latencyMetrics.measurements.length) return null;
+    const sum = latencyMetrics.measurements.reduce((acc, value) => acc + value, 0);
+    return Math.round(sum / latencyMetrics.measurements.length);
+  }
+
+  function getEffectiveLatencyMs() {
+    if (hasActiveCallSession()) {
+      const callLatency = getAverageCallLatency();
+      if (callLatency != null) return callLatency;
+    }
+    if (networkStats.pingMs != null) return networkStats.pingMs;
+    if (networkStats.rtt != null) return Math.round(networkStats.rtt);
+    return null;
+  }
+
+  function getSignalBars() {
+    if (!navigator.onLine) return 0;
+    const latencyMs = getEffectiveLatencyMs();
+    if (latencyMs != null) {
+      if (latencyMs <= 60) return 4;
+      if (latencyMs <= 120) return 3;
+      if (latencyMs <= 250) return 2;
+      if (latencyMs <= 500) return 1;
+      return 1;
+    }
+    const downlink = networkStats.downlink;
+    if (downlink != null) {
+      if (downlink >= 10) return 4;
+      if (downlink >= 5) return 3;
+      if (downlink >= 1.5) return 2;
+      if (downlink >= 0.5) return 1;
+    }
+    return 2;
+  }
+
+  function formatNetworkSpeed(value) {
+    if (value == null) return null;
+    return value >= 10 ? String(Math.round(value)) : value.toFixed(1);
+  }
+
+  function formatNetworkMetric() {
+    if (!navigator.onLine) return "Offline";
+
+    if (hasActiveCallSession()) {
+      const callLatency = getAverageCallLatency();
+      if (callLatency != null) return `${callLatency}ms`;
+    }
+
+    const down = formatNetworkSpeed(networkStats.downlink);
+    const up = formatNetworkSpeed(networkStats.uplink);
+    if (down && up) return `↓${down}↑${up}`;
+    if (down) return `↓${down}Mbps`;
+
+    const latencyMs = getEffectiveLatencyMs();
+    if (latencyMs != null) return `${latencyMs}ms`;
+    return "--";
+  }
+
+  function updateNetworkIndicator() {
+    const online = navigator.onLine;
+    const bars = getSignalBars();
+    const metricText = formatNetworkMetric();
+    const quality =
+      !online ? "offline" : bars >= 3 ? "good" : bars >= 2 ? "medium" : bars >= 1 ? "weak" : "poor";
+
+    document.querySelectorAll(".shivai-status-network").forEach((el) => {
+      el.classList.toggle("offline", !online);
+      el.classList.toggle("online", online);
+      el.classList.remove("good", "medium", "weak", "poor");
+      if (online) el.classList.add(quality);
+
+      el.querySelectorAll(".signal-bar").forEach((bar) => {
+        const barNum = parseInt(bar.getAttribute("data-bar"), 10);
+        bar.classList.toggle("active", online && barNum <= bars);
+      });
+
+      const metricEl = el.querySelector(".shivai-status-metric");
+      if (metricEl) metricEl.textContent = metricText;
+    });
+  }
+
+  async function measureAndUpdateNetwork() {
+    if (!navigator.onLine) {
+      networkStats.pingMs = null;
+      updateNetworkIndicator();
+      return;
+    }
+    readConnectionApi();
+    const ping = await measureNetworkPing();
+    if (ping != null) networkStats.pingMs = ping;
+    updateNetworkIndicator();
+  }
+
+  function startNetworkMonitor() {
+    const conn =
+      navigator.connection ||
+      navigator.mozConnection ||
+      navigator.webkitConnection;
+    if (conn && !conn._shivaiBound) {
+      conn._shivaiBound = true;
+      conn.addEventListener("change", () => {
+        readConnectionApi();
+        updateNetworkIndicator();
+      });
+    }
+    measureAndUpdateNetwork();
+    if (networkMonitorTimer) clearInterval(networkMonitorTimer);
+    networkMonitorTimer = setInterval(measureAndUpdateNetwork, NETWORK_PING_INTERVAL);
+    window.addEventListener("online", measureAndUpdateNetwork);
+    window.addEventListener("offline", updateNetworkIndicator);
+  }
+
   function startStatusBarUpdates() {
     const renderTime = () => {
       const timeEls = document.querySelectorAll(".shivai-status-time");
@@ -2232,12 +2564,7 @@
       timeEls.forEach((el) => { el.textContent = text; });
     };
     const renderNetwork = () => {
-      const networkEls = document.querySelectorAll(".shivai-status-network");
-      const online = navigator.onLine;
-      networkEls.forEach((el) => {
-        el.classList.toggle("offline", !online);
-        el.classList.toggle("online", online);
-      });
+      updateNetworkIndicator();
     };
     const renderBattery = (level, charging) => {
       const levelEls = document.querySelectorAll(".shivai-status-battery-level");
@@ -2251,6 +2578,7 @@
     };
     renderTime();
     renderNetwork();
+    startNetworkMonitor();
     if (navigator.getBattery) {
       navigator.getBattery().then((bat) => {
         renderBattery(bat.level, bat.charging);
@@ -2262,8 +2590,6 @@
     }
     if (statusBarTimer) clearInterval(statusBarTimer);
     statusBarTimer = setInterval(renderTime, 20000);
-    window.addEventListener("online", renderNetwork);
-    window.addEventListener("offline", renderNetwork);
   }
 
   function createLiveMessageBubble() {
@@ -2572,6 +2898,88 @@
           0 0 0 1px rgba(10,132,255,0.55);
         transform: scale(1.04);
       }
+      .shivai-trigger--loading .shivai-trigger-subtitle { color: rgba(13,17,23,0.45); }
+      .shivai-trigger--offline { opacity: 0.92; }
+      .shivai-trigger--offline .shivai-trigger-subtitle { color: #ff3b30; }
+      .shivai-trigger-call-btn--disabled {
+        opacity: 0.45;
+        filter: grayscale(0.35);
+      }
+      .agent-inactive-message {
+        background: rgba(255,255,255,0.55);
+        border: 1px solid rgba(255,59,48,0.18);
+        border-radius: 14px;
+        padding: 14px 16px;
+        margin: 8px 0;
+        text-align: center;
+        box-shadow: 0 2px 8px -2px rgba(70,110,200,0.18);
+      }
+      .agent-inactive-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: #0d1117;
+        margin-bottom: 4px;
+      }
+      .agent-inactive-body {
+        font-size: 13px;
+        color: #6b7280;
+        line-height: 1.4;
+      }
+      .agent-retry-btn,
+      .call-error-retry-btn {
+        margin-top: 12px;
+        padding: 10px 18px;
+        border: none;
+        border-radius: 999px;
+        background: #0a84ff;
+        color: #fff;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        font-family: inherit;
+      }
+      .agent-retry-btn:hover,
+      .call-error-retry-btn:hover { background: #0077ed; }
+      .agent-status-loading {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        padding: 18px 12px;
+        color: rgba(13,17,23,0.65);
+        font-size: 13px;
+      }
+      .agent-status-loading-spinner {
+        width: 22px;
+        height: 22px;
+        border: 2px solid rgba(10,132,255,0.2);
+        border-top-color: #0a84ff;
+        border-radius: 50%;
+        animation: shivaiSpin 0.8s linear infinite;
+      }
+      @keyframes shivaiSpin { to { transform: rotate(360deg); } }
+      .call-error-state {
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: 8px;
+        padding: 20px 16px;
+        min-height: 120px;
+      }
+      .call-error-icon { font-size: 28px; line-height: 1; }
+      .call-error-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: #0d1117;
+      }
+      .call-error-text {
+        font-size: 13px;
+        color: #6b7280;
+        line-height: 1.45;
+        max-width: 260px;
+      }
 
       /* ── Message Bubble ── */
       .shivai-message-bubble {
@@ -2646,13 +3054,67 @@
       .shivai-status-network {
         display: inline-flex;
         align-items: center;
-        gap: 6px;
+        gap: 8px;
         color: #0d1117;
         transition: color 0.2s ease, opacity 0.2s ease;
       }
-      .shivai-status-network.offline { color: #ff3b30; opacity: 0.8; }
-      .shivai-status-network svg { display: block; }
+      .shivai-status-network-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 4px 9px 4px 7px;
+        border-radius: 999px;
+        border: 1px solid rgba(13,17,23,0.14);
+        background: rgba(255,255,255,0.52);
+        backdrop-filter: blur(10px) saturate(160%);
+        -webkit-backdrop-filter: blur(10px) saturate(160%);
+        box-shadow:
+          0 1px 2px rgba(0,0,0,0.05),
+          inset 0 1px 0 rgba(255,255,255,0.65);
+        transition: border-color 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
+      }
+      .shivai-status-network.good .shivai-status-network-pill {
+        border-color: rgba(36,138,61,0.28);
+        background: rgba(48,209,88,0.1);
+      }
+      .shivai-status-network.medium .shivai-status-network-pill {
+        border-color: rgba(13,17,23,0.14);
+        background: rgba(255,255,255,0.52);
+      }
+      .shivai-status-network.weak .shivai-status-network-pill {
+        border-color: rgba(201,52,0,0.28);
+        background: rgba(255,149,0,0.1);
+      }
+      .shivai-status-network.poor .shivai-status-network-pill,
+      .shivai-status-network.offline .shivai-status-network-pill {
+        border-color: rgba(255,59,48,0.3);
+        background: rgba(255,59,48,0.08);
+      }
+      .shivai-status-metric {
+        font-size: 10px;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: -0.02em;
+        line-height: 1;
+        white-space: nowrap;
+        min-width: 24px;
+        text-align: center;
+        padding: 1px 0 0;
+      }
+      .shivai-status-network.good .shivai-status-metric { color: #248a3d; }
+      .shivai-status-network.medium .shivai-status-metric { color: #0d1117; }
+      .shivai-status-network.weak .shivai-status-metric { color: #c93400; }
+      .shivai-status-network.poor .shivai-status-metric,
+      .shivai-status-network.offline .shivai-status-metric { color: #ff3b30; }
+      .shivai-status-network.offline { color: #ff3b30; opacity: 0.9; }
+      .shivai-status-network svg { display: block; flex-shrink: 0; }
       .shivai-status-signal { color: inherit; }
+      .signal-bar {
+        fill: currentColor;
+        opacity: 0.22;
+        transition: opacity 0.25s ease;
+      }
+      .signal-bar.active { opacity: 1; }
       .shivai-status-wifi { color: inherit; }
       .shivai-status-battery {
         display: inline-flex;
@@ -4195,6 +4657,35 @@
       .shivai-widget .send-btn:disabled { color: rgba(245,245,247,0.2) !important; cursor: not-allowed !important; }
       .shivai-widget .send-btn svg { width: 15px; height: 15px; }
 
+      /* Call view input — must follow generic .shivai-widget input rules (higher specificity) */
+      .shivai-widget .call-view .message-input-container {
+        background: transparent !important;
+        border-top: none !important;
+        padding: 4px 14px 4px !important;
+      }
+      .shivai-widget .call-view .input-field-container {
+        background: #ffffff !important;
+        background-color: #ffffff !important;
+        border: 1px solid rgba(0,0,0,0.08) !important;
+        border-radius: 999px !important;
+        box-shadow: 0 4px 14px -4px rgba(0,0,0,0.18) !important;
+      }
+      .shivai-widget .call-view .input-field-container:focus-within {
+        border-color: rgba(10,132,255,0.45) !important;
+        box-shadow: 0 4px 16px -4px rgba(10,132,255,0.25), 0 0 0 3px rgba(10,132,255,0.12) !important;
+      }
+      .shivai-widget .call-view .message-input {
+        -webkit-appearance: none !important;
+        appearance: none !important;
+        background: transparent !important;
+        background-color: transparent !important;
+        color: #0d1117 !important;
+      }
+      .shivai-widget .call-view .message-input::placeholder {
+        color: rgba(13,17,23,0.4) !important;
+        font-size: 14px !important;
+      }
+
       .shivai-widget .attachment-menu {
         animation: slideUpFade 0.2s ease-out !important;
         background: rgba(28,28,30,0.97) !important;
@@ -4781,8 +5272,12 @@
     }
     
     // Re-check agent status when widget opens to ensure UI is up-to-date
+    agentStatus.loading = true;
+    updateLandingViewBasedOnStatus();
+    updateTriggerBasedOnStatus();
     checkAgentStatusOnLoad().then(() => {
       updateLandingViewBasedOnStatus();
+      updateTriggerBasedOnStatus();
     });
   }
   function closeWidget() {
@@ -5032,6 +5527,15 @@
     }
     // Start new connection only if not currently connected or connecting
     if (!isConnecting && !isConnected && !isDisconnecting) {
+      if (!agentStatus.active) {
+        updateStatus(agentStatus.message || 'Assistant unavailable', 'disconnected');
+        if (currentView !== 'call') {
+          openWidget();
+        }
+        updateLandingViewBasedOnStatus();
+        return;
+      }
+
       _wlog("🔵 Starting new connection");
       isConnecting = true;
       // NOTE: do NOT disable the button while connecting — the user must be able
@@ -5092,10 +5596,10 @@
         connectBtn.title = "Start Call";
         connectBtn.disabled = false; // Ensure button is enabled for reconnection
         
-        updateStatus(
-          "❌ Failed to connect - Click to retry",
-          "disconnected"
-        );
+        const failMsg = error && error.message
+          ? error.message.replace(/^Error:\s*/i, '')
+          : 'Failed to connect';
+        handleConnectionFailure(failMsg, { showRetry: true });
         
         if (muteBtn) {
           muteBtn.style.display = "none";
@@ -5163,11 +5667,14 @@
     statusDiv.className = `call-info-status ${className}`;
 
     // The message/attachment input is only usable during an active call.
-    // Hide it for any non-connected state ("Ready to connect", connecting,
-    // disconnected/ended) so it never shows when the call isn't live.
     const liveStates = ["connected", "listening", "speaking"];
+    const container =
+      messageInputContainer ||
+      document.querySelector(".message-input-container");
     if (liveStates.indexOf(className) !== -1) {
-      showMessageInterface();
+      if (!container || container.classList.contains("hidden")) {
+        showMessageInterface();
+      }
     } else {
       hideMessageInterface();
     }
@@ -5235,6 +5742,7 @@
   }
   function showConnectingState() {
     if (!messagesDiv) return;
+    hideCallErrorState();
     const connectingState = messagesDiv.querySelector(".connecting-state");
     const emptyState = messagesDiv.querySelector(".empty-state");
     
@@ -5260,14 +5768,18 @@
       connectingState.style.display = "none";
     }
     
-    // Show empty state only if no messages
+    // Show empty state only if no messages and no error panel
     const hasMessages = messagesDiv.querySelector(".message");
-    if (emptyState && !hasMessages) {
+    const errorEl = messagesDiv.querySelector(".call-error-state");
+    const hasError = errorEl && errorEl.style.display !== "none";
+    if (emptyState && !hasMessages && !hasError) {
       emptyState.style.display = "block";
     }
     
     // Show message interface now that connection is stable
-    showMessageInterface();
+    if (!hasError) {
+      showMessageInterface();
+    }
     
     _wlog("✅ Hiding connecting animation");
   }
@@ -5844,12 +6356,8 @@
       connectionTimeout = setTimeout(() => {
         if (!isConnected) {
           console.error("❌ Connection timeout - AI server not responding");
-          updateStatus(
-            "⚠️ Connection timeout - Please try again",
-            "disconnected"
-          );
-          alert("Connection timeout. Please start a new call.");
-          stopConversation();
+          handleConnectionFailure('Connection timed out. The server is not responding.', { showRetry: true });
+          stopConversation({ force: true, playEndTone: false, preserveError: true });
         }
       }, CONNECTION_TIMEOUT);
 
@@ -6007,7 +6515,7 @@
         console.warn("⚠️ No userId found, tenant_id will not be sent");
       }
 
-      const response = await fetch(
+      const response = await fetchWithTimeout(
         "https://voice.callshivai.com/token",
         {
           method: "POST",
@@ -6021,7 +6529,8 @@
             ip: await getClientIP(),
             ...(userId && { tenant_id: userId })
           }),
-        }
+        },
+        CONNECTION_TIMEOUT
       );
 
       if (!response.ok) {
@@ -6745,46 +7254,30 @@
       _wlog("🎤 Microphone enabled with LiveKit");
     } catch (error) {
       console.error("❌ Connection Error:", error);
-      clearLoadingStatus();
-
-      // Clear timeouts
-      if (connectionTimeout) clearTimeout(connectionTimeout);
-      if (aiResponseTimeout) clearTimeout(aiResponseTimeout);
-
-      // Stop connecting sound on any error
       stopConnectingSound();
 
-      // Show user-friendly error message
       let errorMsg = "Connection failed";
-      if (error.message.includes("token")) {
-        errorMsg = "Authentication failed";
-      } else if (error.message.includes("timeout")) {
-        errorMsg = "Connection timeout";
-      } else if (error.message.includes("network")) {
-        errorMsg = "Network error";
+      if (error && error.name === "AbortError") {
+        errorMsg = "Connection timed out";
+      } else if (error && error.message) {
+        if (error.message.includes("token")) {
+          errorMsg = "Authentication failed";
+        } else if (error.message.includes("timeout")) {
+          errorMsg = "Connection timeout";
+        } else if (error.message.includes("network") || error.message.includes("Failed to fetch")) {
+          errorMsg = "Network error";
+        } else if (error.message.includes("LiveKit")) {
+          errorMsg = "Audio service unavailable";
+        }
       }
 
-      updateStatus(`❌ ${errorMsg} - Click to retry`, "disconnected");
+      handleConnectionFailure(errorMsg, { showRetry: true });
       console.error("❌ Connection terminated due to error:", error);
-      
-      // Reset all connection flags
-      isConnected = false;
-      isConnecting = false;
-      isDisconnecting = false;
-      
-      // Ensure button is clickable for retry
-      connectBtn.disabled = false;
-      connectBtn.innerHTML =
-        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>';
-      connectBtn.classList.remove("connected");
-      connectBtn.title = "Retry Connection";
-      
-      alert(`Connection failed: ${errorMsg}. Click the call button to try again.`);
-      stopConversation();
+      await stopConversation({ force: true, playEndTone: false, preserveError: true });
     }
   }
   async function stopConversation(options = {}) {
-    const { force = false, playEndTone = null } = options;
+    const { force = false, playEndTone = null, preserveError = false } = options;
     const hadActiveSession = hasActiveCallSession();
 
     if (!hadActiveSession && !force) {
@@ -6831,6 +7324,9 @@
     // Hide message interface when disconnected
     hideMessageInterface();
     hideConnectingState();
+    if (!preserveError) {
+      hideCallErrorState();
+    }
 
     stopCallTimer();
     clearLoadingStatus();
@@ -6887,11 +7383,13 @@
       visualizerInterval = null;
       animateVisualizer(false);
     }
-    updateStatus("Ready to connect", "disconnected");
-    connectBtn.innerHTML =
-      '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>';
-    connectBtn.classList.remove("connected");
-    connectBtn.title = "Start Call";
+    if (!preserveError) {
+      updateStatus("Ready to connect", "disconnected");
+      connectBtn.innerHTML =
+        '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>';
+      connectBtn.classList.remove("connected");
+      connectBtn.title = "Start Call";
+    }
     if (muteBtn) {
       muteBtn.style.display = "none";
       muteBtn.classList.remove("muted");

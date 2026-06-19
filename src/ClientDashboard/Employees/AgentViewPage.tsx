@@ -46,10 +46,17 @@ import {
   Search,
   ExternalLink,
   ChevronDown,
+  UserCog,
 } from "lucide-react";
 import { workflowAPI } from "../../services/workflowAPI";
 import { authAPI } from "../../services/authAPI";
 import type { WorkflowDocument, AgentDocumentFile } from "../../services/workflowAPI";
+import {
+  isDirectorySheet,
+  getDirectorySheetId,
+  DEFAULT_DIRECTORY_TAB_NAME,
+  GoogleSheetsIntegrationConfig,
+} from "../GoogleSheets/sheetTypes";
 
 interface AgentViewPageProps {
   currentAgent: Agent;
@@ -179,6 +186,7 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
 
   // ── Google Sheet integration state ───────────────────────────────────────
   const [sheetIntegration, setSheetIntegration] = useState<any>(null);
+  const [staffRosterLink, setStaffRosterLink] = useState<{ sheetId: string; sheetName: string } | null>(null);
   const [sheetLoading, setSheetLoading] = useState(false);
 
   useEffect(() => {
@@ -186,8 +194,23 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
     setSheetLoading(true);
     authAPI.getIntegrations('google_sheets')
       .then(data => {
-        const found = data.find((i: any) => i.agent_id === id || i.agentId === id);
-        setSheetIntegration(found ?? null);
+        const agentIntegrations = data.filter((i: any) => i.agent_id === id || i.agentId === id);
+        const dataSheet = agentIntegrations.find((i: any) => !isDirectorySheet(
+          i.config?.google_sheets?.sheet_id ?? i.sheet_id,
+          data
+        )) ?? null;
+        setSheetIntegration(dataSheet);
+
+        const gs = dataSheet?.config?.google_sheets as GoogleSheetsIntegrationConfig | undefined;
+        const directoryId = getDirectorySheetId(gs);
+        if (directoryId) {
+          setStaffRosterLink({
+            sheetId: directoryId,
+            sheetName: gs?.assignment?.directory_sheet_name || 'Staff Directory',
+          });
+        } else {
+          setStaffRosterLink(null);
+        }
       })
       .catch(() => {})
       .finally(() => setSheetLoading(false));
@@ -647,6 +670,7 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
               <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
             </div>
           ) : sheetIntegration ? (
+            <div className="space-y-2">
             <div className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
               <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center flex-shrink-0">
                 <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none">
@@ -660,7 +684,7 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
                 <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">
                   {sheetIntegration.label ?? sheetIntegration.config?.google_sheets?.sheet_name ?? 'Google Sheet'}
                 </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Google Sheets</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Data sheet</p>
               </div>
               <button
                 onClick={() => {
@@ -673,6 +697,27 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
                 <ExternalLink className="w-3.5 h-3.5" />
                 View
               </button>
+            </div>
+            {staffRosterLink && (
+              <div className="flex items-center gap-3 p-3 rounded-xl border border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/50 dark:bg-emerald-900/10">
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center flex-shrink-0">
+                  <UserCog className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">
+                    {staffRosterLink.sheetName}
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Assignment directory · {DEFAULT_DIRECTORY_TAB_NAME}</p>
+                </div>
+                <button
+                  onClick={() => navigate(`/google-sheets/${staffRosterLink.sheetId}/view?name=${encodeURIComponent(staffRosterLink.sheetName)}&role=directory&tab=${encodeURIComponent(DEFAULT_DIRECTORY_TAB_NAME)}`)}
+                  className="common-button-bg2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium flex-shrink-0"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  View
+                </button>
+              </div>
+            )}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-8 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl gap-3">

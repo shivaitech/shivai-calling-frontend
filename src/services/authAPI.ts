@@ -1,4 +1,10 @@
 import axios, { AxiosResponse } from "axios";
+import type {
+  GoogleSheetsIntegrationConfig,
+  GoogleSheetsIntegrationPayload,
+  DiscoverGoogleSheetsResult,
+  StandaloneSheetResult,
+} from "../ClientDashboard/GoogleSheets/sheetTypes";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -9,6 +15,8 @@ export interface SheetColumn {
   required: boolean;
   ask_as?: string;
   prefix?: string;
+  role?: 'caller' | 'system' | 'internal' | 'tracking';
+  auto_classify?: boolean;
 }
 
 interface LoginRequest {
@@ -444,14 +452,52 @@ export const authAPI = {
       .get('/integrations', { params: serviceName ? { service_name: serviceName } : undefined })
       .then(res => res.data?.data ?? res.data ?? []),
 
-  // Fetch list of user's Google Sheets after OAuth
+  // Fetch list of user's Google Sheets after OAuth (simple list)
   fetchGoogleSheets: (): Promise<{ id: string; name: string }[]> =>
     apiClient
-      .get('/integrations/service/google_sheets/discover')
+      .get('/integrations/service/google_sheets/discover', { params: { ownedOnly: true } })
       .then(res => {
         const sheets: any[] = res.data?.data?.sheets ?? res.data?.sheets ?? [];
         return sheets.map(s => ({ id: s.sheet_id, name: s.sheet_name }));
       }),
+
+  // Discover sheets in user's Drive (full metadata for link-existing flow)
+  discoverGoogleSheets: (params?: {
+    credentialId?: string;
+    ownedOnly?: boolean;
+  }): Promise<DiscoverGoogleSheetsResult> =>
+    apiClient
+      .get('/integrations/service/google_sheets/discover', {
+        params: {
+          credentialId: params?.credentialId,
+          ownedOnly: params?.ownedOnly ?? true,
+        },
+      })
+      .then(res => {
+        const data = res.data?.data ?? res.data ?? {};
+        return {
+          credential_id: data.credential_id,
+          email: data.email,
+          sheets: data.sheets ?? [],
+        };
+      }),
+
+  // GET /integrations/agent/:agentId/service/:serviceName
+  getAgentServiceIntegrations: (agentId: string, serviceName: string): Promise<any[]> =>
+    apiClient
+      .get(`/integrations/agent/${agentId}/service/${serviceName}`)
+      .then(res => res.data?.data ?? res.data ?? []),
+
+  // Create a standalone roster/directory sheet (no integration saved)
+  createStandaloneSheet: (payload: {
+    title: string;
+    tab_name?: string;
+    columns?: SheetColumn[];
+    credential_id?: string;
+  }): Promise<StandaloneSheetResult> =>
+    apiClient
+      .post('/integrations/sheets/create-standalone', payload)
+      .then(res => res.data?.data ?? res.data),
 
   // Save the selected sheet for the user
   saveSelectedSheet: (sheetId: string, sheetName: string): Promise<any> =>
@@ -463,15 +509,11 @@ export const authAPI = {
   updateIntegration: (integrationId: string, payload: {
     agent_id?: string;
     label?: string;
-    config?: {
-      google_sheets?: {
-        sheet_id?: string;
-        sheet_name?: string;
-        tab_name?: string;
-      };
+    config?: Partial<GoogleSheetsIntegrationPayload> & {
+      google_sheets?: Partial<GoogleSheetsIntegrationConfig> & { assignment?: GoogleSheetsIntegrationConfig['assignment'] | null };
     };
   }): Promise<any> =>
-    apiClient.put(`/integrations/${integrationId}`, payload).then(res => res.data),
+    apiClient.put(`/integrations/${integrationId}`, payload).then(res => res.data?.data ?? res.data),
 
   // POST /integrations — link an existing sheet to an agent
   createIntegration: (payload: {
@@ -479,16 +521,9 @@ export const authAPI = {
     service_name: string;
     label: string;
     credential_id?: string;
-    config: {
-      google_sheets: {
-        sheet_id: string;
-        sheet_name: string;
-        tab_name?: string;
-        columns?: SheetColumn[];
-      };
-    };
+    config: GoogleSheetsIntegrationPayload;
   }): Promise<any> =>
-    apiClient.post('/integrations', payload).then(res => res.data),
+    apiClient.post('/integrations', payload).then(res => res.data?.data ?? res.data),
 
   // Create a new Google Sheet linked to an agent
   createGoogleSheet: (payload: {
@@ -502,6 +537,8 @@ export const authAPI = {
     sheet_name: string;
     web_view_link: string;
     columns: SheetColumn[];
+    tab_gid?: number | string;
+    gid?: number | string;
   }> =>
     apiClient
       .post('/integrations/sheets/create', payload)
