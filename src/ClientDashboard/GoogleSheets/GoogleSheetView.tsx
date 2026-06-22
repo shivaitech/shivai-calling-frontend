@@ -15,6 +15,7 @@ import {
   Trash2,
   Settings2,
 } from 'lucide-react';
+import ModalOverlay from '../../components/ModalOverlay';
 import SheetColumnsModal, { SheetColumnsModalTarget } from './SheetColumnsModal';
 import DeleteIntegrationModal from './DeleteIntegrationModal';
 import {
@@ -420,9 +421,8 @@ const GoogleSheetView = () => {
       </div>
 
       {/* ── Assign AI modal ── */}
-      {assignOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-5 border border-slate-200 dark:border-slate-700">
+      <ModalOverlay open={assignOpen} onClose={() => setAssignOpen(false)} panelClassName="max-w-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full p-6 space-y-5 border border-slate-200 dark:border-slate-700">
 
             {/* Header */}
             <div className="flex items-start justify-between gap-3">
@@ -488,8 +488,7 @@ const GoogleSheetView = () => {
               </button>
             </div>
           </div>
-        </div>
-      )}
+      </ModalOverlay>
 
       <SheetColumnsModal
         target={columnsModalTarget}

@@ -8,6 +8,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
+import ModalOverlay from '../../components/ModalOverlay';
 
 interface DeleteIntegrationModalProps {
   open: boolean;
@@ -40,24 +41,21 @@ const DeleteIntegrationModal = ({
   onClose,
   onConfirm,
 }: DeleteIntegrationModalProps) => {
-  if (!open) return null;
-
   const shortId =
     integrationId && integrationId.length > 10
       ? `${integrationId.slice(0, 6)}…${integrationId.slice(-4)}`
       : integrationId;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-      onClick={() => !deleting && onClose()}
+    <ModalOverlay
+      open={open}
+      panelClassName="max-w-[420px]"
+      onClose={onClose}
+      closeOnBackdrop={!deleting}
     >
       <div
-        className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-[420px] border border-slate-200/80 dark:border-slate-700 overflow-hidden"
-        role="dialog"
+        className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full border border-slate-200/80 dark:border-slate-700 overflow-hidden"
         aria-labelledby="delete-integration-title"
-        aria-modal="true"
-        onClick={e => e.stopPropagation()}
       >
         <div className="h-1 bg-gradient-to-r from-red-500 via-red-400 to-orange-400" />
 
@@ -188,7 +186,7 @@ const DeleteIntegrationModal = ({
           </div>
         </div>
       </div>
-    </div>
+    </ModalOverlay>
   );
 };
 

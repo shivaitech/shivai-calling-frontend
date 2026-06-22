@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Loader2, RefreshCw, X, Columns3, Check } from 'lucide-react';
+import ModalOverlay from '../../components/ModalOverlay';
 import { authAPI, SheetColumn } from '../../services/authAPI';
 import SheetColumnEditor from './SheetColumnEditor';
 import {
@@ -159,10 +160,9 @@ const SheetColumnsModal = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+    <ModalOverlay open zIndex={110} panelClassName="max-w-[min(760px,94vw)]">
       <div
-        className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-[min(760px,94vw)] max-h-[min(90vh,780px)] border border-slate-200/80 dark:border-slate-700 flex flex-col overflow-hidden"
-        role="dialog"
+        className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-h-[min(90vh,780px)] border border-slate-200/80 dark:border-slate-700 flex flex-col overflow-hidden"
         aria-labelledby="columns-modal-title"
       >
         {/* Header — fixed */}
@@ -269,7 +269,7 @@ const SheetColumnsModal = ({
           </button>
         </div>
       </div>
-    </div>
+    </ModalOverlay>
   );
 };
 

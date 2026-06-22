@@ -4,6 +4,7 @@ import { authAPI, SheetColumn } from '../../services/authAPI';
 import { agentAPI, ApiAgent } from '../../services/agentAPI';
 import GlassCard from '../../components/GlassCard';
 import SearchableSelect from '../../components/SearchableSelect';
+import ModalOverlay from '../../components/ModalOverlay';
 import {
   ArrowLeft,
   ExternalLink,
@@ -1123,9 +1124,8 @@ const GoogleSheetsManager = () => {
       </GlassCard>
 
       {/* ── Create Sheet modal ── */}
-      {createOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4 py-6 overflow-y-auto">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg border border-slate-200 dark:border-slate-700 my-auto">
+      <ModalOverlay open={createOpen} onClose={() => setCreateOpen(false)} panelClassName="max-w-lg">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full border border-slate-200 dark:border-slate-700">
 
             {/* Header */}
             <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
@@ -1351,13 +1351,16 @@ const GoogleSheetsManager = () => {
               </div>
             </div>
           </div>
-        </div>
-      )}
+      </ModalOverlay>
 
       {/* ── Assign modal ── */}
       {assignSheet && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-5 border border-slate-200 dark:border-slate-700">
+      <ModalOverlay
+        open
+        onClose={() => setAssignSheet(null)}
+        panelClassName="max-w-sm"
+      >
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full p-6 space-y-5 border border-slate-200 dark:border-slate-700">
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center flex-shrink-0">
@@ -1416,13 +1419,17 @@ const GoogleSheetsManager = () => {
               </button>
             </div>
           </div>
-        </div>
+      </ModalOverlay>
       )}
 
       {/* ── Staff Roster modal ── */}
       {staffSheet && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4 py-6 overflow-y-auto">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg border border-slate-200 dark:border-slate-700 my-auto">
+      <ModalOverlay
+        open
+        onClose={() => setStaffSheet(null)}
+        panelClassName="max-w-lg"
+      >
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full border border-slate-200 dark:border-slate-700">
             <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center">
@@ -1678,7 +1685,7 @@ const GoogleSheetsManager = () => {
               </div>
             </div>
           </div>
-        </div>
+      </ModalOverlay>
       )}
       <SheetColumnsModal
         target={columnsModalTarget}
