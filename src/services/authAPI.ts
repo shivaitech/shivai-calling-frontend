@@ -505,7 +505,7 @@ export const authAPI = {
       .post('/oauth/sheets/select', { sheetId, sheetName })
       .then(res => res.data),
 
-  // PUT /integrations/:id — update an existing integration
+  // PUT /integrations/:id — replace integration fields (full config)
   updateIntegration: (integrationId: string, payload: {
     agent_id?: string;
     label?: string;
@@ -514,6 +514,40 @@ export const authAPI = {
     };
   }): Promise<any> =>
     apiClient.put(`/integrations/${integrationId}`, payload).then(res => res.data?.data ?? res.data),
+
+  // PATCH /integrations/:id — partial update (send only what changes)
+  patchIntegration: (integrationId: string, payload: {
+    agent_id?: string;
+    label?: string;
+    config?: {
+      google_sheets?: Partial<GoogleSheetsIntegrationConfig> & {
+        assignment?: GoogleSheetsIntegrationConfig['assignment'] | null;
+      };
+      timezone?: string;
+    };
+  }): Promise<any> =>
+    apiClient.patch(`/integrations/${integrationId}`, payload).then(res => res.data?.data ?? res.data),
+
+  // DELETE /integrations/:id — remove integration (sheet remains in Drive)
+  deleteIntegration: (integrationId: string): Promise<void> =>
+    apiClient.delete(`/integrations/${integrationId}`).then(() => undefined),
+
+  // GET /integrations/sheets/:sheetId/columns — read header row from Google Sheet
+  fetchSheetColumns: (
+    sheetId: string,
+    params?: { tab_name?: string; credential_id?: string },
+  ): Promise<SheetColumn[]> =>
+    apiClient
+      .get(`/integrations/sheets/${sheetId}/columns`, {
+        params: {
+          tab_name: params?.tab_name,
+          credential_id: params?.credential_id,
+        },
+      })
+      .then(res => {
+        const data = res.data?.data ?? res.data;
+        return data?.columns ?? data ?? [];
+      }),
 
   // POST /integrations — link an existing sheet to an agent
   createIntegration: (payload: {

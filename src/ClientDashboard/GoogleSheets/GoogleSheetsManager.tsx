@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authAPI, SheetColumn } from '../../services/authAPI';
 import { agentAPI, ApiAgent } from '../../services/agentAPI';
 import GlassCard from '../../components/GlassCard';
+import SearchableSelect from '../../components/SearchableSelect';
 import {
   ArrowLeft,
   ExternalLink,
@@ -22,7 +23,13 @@ import {
   Play,
   UserCog,
   AlertTriangle,
+  Columns3,
+  Trash2,
+  Settings2,
 } from 'lucide-react';
+import SheetColumnsModal, { SheetColumnsModalTarget } from './SheetColumnsModal';
+import DeleteIntegrationModal from './DeleteIntegrationModal';
+import { cloneColumns, applyAiFillDefaults, normalizeColumnsForApi, roleBadgeClass } from './sheetColumnUtils';
 import {
   DEFAULT_DIRECTORY_COLUMNS,
   DEFAULT_DIRECTORY_TAB_NAME,
@@ -38,9 +45,11 @@ import {
   resolveDataSheetColumns,
   defaultDirectorySheetTitle,
   DiscoveredGoogleSheet,
+  rosterSheetsForPicker,
   getLinkedDirectoryForDataSheet,
   isDirectoryOnlySheet,
   buildDataSheetCards,
+  buildRosterSheetCards,
 } from './sheetTypes';
 
 interface Sheet {
@@ -67,6 +76,7 @@ const TEMPLATES: Template[] = [
     icon: <Phone className="w-4 h-4" />,
     tab_name: 'Call Logs',
     columns: [
+      { header: 'Call ID', field: 'call_id', required: true, role: 'system', prefix: 'CL' },
       { header: 'Start Date', field: 'start_date', required: true, role: 'system' },
       { header: 'Start Time', field: 'start_time', required: false, role: 'system' },
       { header: 'End Date', field: 'end_date', required: true, role: 'system' },
@@ -88,6 +98,7 @@ const TEMPLATES: Template[] = [
     icon: <Target className="w-4 h-4" />,
     tab_name: 'Leads',
     columns: [
+      { header: 'Lead ID', field: 'lead_id', required: true, role: 'system', prefix: 'LD' },
       { header: 'Name', field: 'caller_name', required: true, ask_as: "What is the lead's name?", role: 'caller' },
       { header: 'Phone', field: 'caller_phone', required: true, ask_as: 'What is their phone number?', role: 'caller' },
       { header: 'Email', field: 'email', required: false, role: 'caller' },
@@ -109,6 +120,7 @@ const TEMPLATES: Template[] = [
     tab_name: 'Support',
     auto_assign: true,
     columns: [
+      { header: 'Complaint ID', field: 'complaint_id', required: true, role: 'system', prefix: 'CMP' },
       { header: 'Name', field: 'caller_name', required: true, ask_as: 'your full name', role: 'caller' },
       { header: 'Phone', field: 'caller_phone', required: true, ask_as: 'your mobile number', role: 'caller' },
       { header: 'Email', field: 'email', required: false, role: 'caller' },
@@ -129,7 +141,7 @@ const TEMPLATES: Template[] = [
     tab_name: 'Tickets',
     auto_assign: true,
     columns: [
-      { header: 'Ticket ID', field: 'ticket_id', required: false, role: 'system', prefix: 'TKT' },
+      { header: 'Ticket ID', field: 'ticket_id', required: true, role: 'system', prefix: 'TKT' },
       { header: 'Customer', field: 'caller_name', required: true, ask_as: 'your full name', role: 'caller' },
       { header: 'Phone', field: 'caller_phone', required: false, ask_as: 'your mobile number', role: 'caller' },
       { header: 'Email', field: 'email', required: false, role: 'caller' },
@@ -149,6 +161,7 @@ const TEMPLATES: Template[] = [
     icon: <Package className="w-4 h-4" />,
     tab_name: 'Inventory',
     columns: [
+      { header: 'Product ID', field: 'product_id', required: true, role: 'system', prefix: 'PRD' },
       { header: 'Product Name', field: 'product_name', required: true, ask_as: 'What is the product name?' },
       { header: 'SKU', field: 'sku', required: false },
       { header: 'Category', field: 'category', required: false },
@@ -170,6 +183,7 @@ const TEMPLATES: Template[] = [
     icon: <CalendarDays className="w-4 h-4" />,
     tab_name: 'Appointments',
     columns: [
+      { header: 'Appointment ID', field: 'appointment_id', required: true, role: 'system', prefix: 'APT' },
       { header: 'Customer Name', field: 'customer_name', required: true, ask_as: "What is the customer's name?" },
       { header: 'Phone', field: 'phone', required: true, ask_as: 'What is their phone number?' },
       { header: 'Email', field: 'email', required: false },
@@ -223,6 +237,21 @@ const GoogleSheetsManager = () => {
   const [enableAutoAssign, setEnableAutoAssign] = useState(true);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
+  const [draftColumns, setDraftColumns] = useState<SheetColumn[]>([]);
+
+  // ── Column manager modal ──
+  const [columnsModalTarget, setColumnsModalTarget] = useState<SheetColumnsModalTarget | null>(null);
+
+  // ── Delete integration modal ──
+  const [deleteTarget, setDeleteTarget] = useState<{
+    sheet: Sheet;
+    integrationId: string;
+    hasLinkedRoster: boolean;
+  } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
+  const [sheetsTab, setSheetsTab] = useState<'main' | 'roster'>('main');
 
   // ── Staff roster modal (per agent / data sheet) ──
   const [staffSheet, setStaffSheet] = useState<Sheet | null>(null);
@@ -234,6 +263,10 @@ const GoogleSheetsManager = () => {
   const [creatingStaffRoster, setCreatingStaffRoster] = useState(false);
   const [staffRosterError, setStaffRosterError] = useState('');
   const [staffRosterSuccess, setStaffRosterSuccess] = useState(false);
+  const [linkedRosterForModal, setLinkedRosterForModal] = useState<{
+    sheetId: string;
+    sheetName: string;
+  } | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -294,8 +327,21 @@ const GoogleSheetsManager = () => {
   const getStaffRosterForDataSheet = (dataSheetId: string) =>
     getLinkedDirectoryForDataSheet(dataSheetId, pageIntegrations, id => sheets.find(s => s.id === id)?.name);
 
-  /** Primary data sheets only — linked roster sheets nest inside their parent card. */
+  /** Primary data sheets only — roster sheets have their own tab. */
   const dataSheets = buildDataSheetCards(pageIntegrations, sheets);
+
+  const rosterSheets = useMemo(
+    () =>
+      buildRosterSheetCards(pageIntegrations, sheets, agentId =>
+        pageAgents.find(a => a.id === agentId)?.name,
+      ),
+    [pageIntegrations, sheets, pageAgents],
+  );
+
+  const previewRosterTitle = useMemo(
+    () => defaultDirectorySheetTitle(sheetTitle.trim() || selectedTemplate?.name || 'New Sheet'),
+    [sheetTitle, selectedTemplate],
+  );
 
   // ── Assign handlers ──
   const handleAssign = async (sheet: Sheet) => {
@@ -360,8 +406,9 @@ const GoogleSheetsManager = () => {
     setSheetTitle('');
     setTabName('');
     setCreateAgentId('');
-    setEnableAutoAssign(true);
+    setEnableAutoAssign(false);
     setCreateError('');
+    setDraftColumns([]);
     try {
       const data = await agentAPI.getAgents();
       setCreateAgents(data);
@@ -373,6 +420,83 @@ const GoogleSheetsManager = () => {
     if (!sheetTitle) setSheetTitle(tpl.name);
     setTabName(tpl.tab_name);
     setEnableAutoAssign(Boolean(tpl.auto_assign));
+    setDraftColumns(applyAiFillDefaults(cloneColumns(tpl.columns)));
+  };
+
+  const openColumnsModal = (sheet: Sheet) => {
+    const assignment = getSheetAssignment(sheet.id);
+    const integration = getSheetIntegration(sheet.id);
+    const gs = integration?.config?.google_sheets as GoogleSheetsIntegrationConfig | undefined;
+    if (!assignment?.integrationId) return;
+    setColumnsModalTarget({
+      mode: 'integration',
+      sheetId: sheet.id,
+      sheetName: sheet.name,
+      tabName: gs?.tab_name,
+      integrationId: assignment.integrationId,
+      credentialId: pageCredentialId || undefined,
+      columns: gs?.columns ?? assignment.dataSheetColumns,
+      config: gs,
+      timezone: integration?.config?.timezone,
+    });
+  };
+
+  const openCreateColumnsModal = () => {
+    setColumnsModalTarget({
+      mode: 'draft',
+      sheetName: sheetTitle.trim() || selectedTemplate?.name || 'New sheet',
+      tabName: tabName.trim() || selectedTemplate?.tab_name,
+      columns: draftColumns,
+    });
+  };
+
+  const handleDraftColumnsApply = (columns: SheetColumn[]) => {
+    setDraftColumns(columns);
+  };
+
+  const handleColumnsSaved = (
+    integrationId: string,
+    _columns: SheetColumn[],
+    fullConfig: ReturnType<typeof buildFullIntegrationConfig>,
+  ) => {
+    setPageIntegrations(prev =>
+      prev.map((i: any) => {
+        const id = i._id ?? i.id ?? '';
+        if (id !== integrationId) return i;
+        return { ...i, config: fullConfig };
+      }),
+    );
+  };
+
+  const openDeleteModal = (sheet: Sheet) => {
+    const assignment = getSheetAssignment(sheet.id);
+    if (!assignment?.integrationId || assignment.integrationId.startsWith('tmp-')) return;
+    setDeleteError('');
+    setDeleteTarget({
+      sheet,
+      integrationId: assignment.integrationId,
+      hasLinkedRoster: Boolean(getStaffRosterForDataSheet(sheet.id)),
+    });
+  };
+
+  const handleDeleteIntegration = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      await authAPI.deleteIntegration(deleteTarget.integrationId);
+      const deletedSheetId = deleteTarget.sheet.id;
+      setPageIntegrations(prev =>
+        prev.filter((i: any) => (i._id ?? i.id) !== deleteTarget.integrationId),
+      );
+      setSheets(prev => prev.filter(s => s.id !== deletedSheetId));
+      setDeleteTarget(null);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setDeleteError(msg ?? 'Failed to delete integration. Please try again.');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const handleCreate = async () => {
@@ -380,24 +504,26 @@ const GoogleSheetsManager = () => {
     setCreating(true);
     setCreateError('');
     try {
-      const columns = selectedTemplate?.columns;
       const tab = tabName.trim() || selectedTemplate?.tab_name || 'Sheet1';
+      const columns = normalizeColumnsForApi(draftColumns);
+      const columnsPayload = columns.length > 0 ? columns : undefined;
 
       const result = await authAPI.createGoogleSheet({
         agent_id: createAgentId,
         title: sheetTitle.trim(),
         tab_name: tab,
-        columns,
+        columns: columnsPayload,
         credential_id: pageCredentialId || undefined,
       });
 
-      const integrationColumns = columns ?? result.columns;
+      const integrationColumns = columnsPayload ?? result.columns;
       let assignmentConfig: ReturnType<typeof buildAssignmentConfig> | undefined;
       let directorySheet: Sheet | null = null;
 
-      if (selectedTemplate?.auto_assign && enableAutoAssign && integrationColumns?.length) {
+      if (enableAutoAssign) {
+        const rosterTitle = defaultDirectorySheetTitle(sheetTitle.trim());
         const dirResult = await authAPI.createStandaloneSheet({
-          title: `${sheetTitle.trim()} — Staff`,
+          title: rosterTitle,
           tab_name: DEFAULT_DIRECTORY_TAB_NAME,
           columns: DEFAULT_DIRECTORY_COLUMNS,
           credential_id: pageCredentialId || undefined,
@@ -407,7 +533,7 @@ const GoogleSheetsManager = () => {
           directorySheetId: dirResult.sheet_id,
           directorySheetName: dirResult.sheet_name,
           directoryTabName: DEFAULT_DIRECTORY_TAB_NAME,
-          dataSheetColumns: integrationColumns,
+          dataSheetColumns: resolveDataSheetColumns(integrationColumns),
         });
       }
 
@@ -447,6 +573,9 @@ const GoogleSheetsManager = () => {
           assignment: assignmentConfig,
         }),
       }]);
+      if (directorySheet) {
+        setSheetsTab('roster');
+      }
       setCreateOpen(false);
       navigate(sheetViewPath(result.sheet_id, {
         name: result.sheet_name,
@@ -465,16 +594,8 @@ const GoogleSheetsManager = () => {
     const assignment = getSheetAssignment(sheet.id);
     if (!assignment?.agentId) return;
     const existing = getStaffRosterForDataSheet(sheet.id);
-    if (existing) {
-      navigate(sheetViewPath(existing.sheetId, {
-        name: existing.sheetName,
-        role: 'directory',
-        tab: DEFAULT_DIRECTORY_TAB_NAME,
-        new: isGoogleSheetRecent(existing.sheetId),
-      }));
-      return;
-    }
     setStaffSheet(sheet);
+    setLinkedRosterForModal(existing);
     setRosterSourceMode('pick');
     setSelectedRosterSheetId('');
     setStaffRosterTitle(defaultDirectorySheetTitle(sheet.name));
@@ -494,6 +615,31 @@ const GoogleSheetsManager = () => {
     } finally {
       setDiscoverLoading(false);
     }
+  };
+
+  const mergeAssignmentIntoIntegrations = (
+    parentSheetId: string,
+    assignment: GoogleSheetsIntegrationConfig['assignment'] | null | undefined,
+  ) => {
+    setPageIntegrations(prev =>
+      prev.map((i: any) => {
+        const sid = i.config?.google_sheets?.sheet_id ?? i.sheet_id;
+        if (sid !== parentSheetId) return i;
+        const gs = { ...(i.config?.google_sheets ?? {}) };
+        if (assignment === null) {
+          delete gs.assignment;
+        } else if (assignment) {
+          gs.assignment = assignment;
+        }
+        return {
+          ...i,
+          config: {
+            ...i.config,
+            google_sheets: gs,
+          },
+        };
+      }),
+    );
   };
 
   const linkDirectoryToParent = async (
@@ -516,18 +662,23 @@ const GoogleSheetsManager = () => {
       dataSheetColumns: dataColumns,
     });
 
-    const fullConfig = buildFullIntegrationConfig({
-      sheetId: parentSheet.id,
-      sheetName: parentGs?.sheet_name ?? parentSheet.name,
-      tabName: parentGs?.tab_name,
-      columns: dataColumns,
-      assignment: assignmentConfig,
-      timezone: parentIntegration?.config?.timezone,
-    });
-
     if (sheetAssignment.integrationId && !sheetAssignment.integrationId.startsWith('tmp-')) {
-      await authAPI.updateIntegration(sheetAssignment.integrationId, { config: fullConfig });
+      await authAPI.patchIntegration(sheetAssignment.integrationId, {
+        config: {
+          google_sheets: {
+            assignment: assignmentConfig,
+          },
+        },
+      });
     } else {
+      const fullConfig = buildFullIntegrationConfig({
+        sheetId: parentSheet.id,
+        sheetName: parentGs?.sheet_name ?? parentSheet.name,
+        tabName: parentGs?.tab_name,
+        columns: dataColumns,
+        assignment: assignmentConfig,
+        timezone: parentIntegration?.config?.timezone,
+      });
       await authAPI.createIntegration({
         agent_id: sheetAssignment.agentId,
         service_name: 'google_sheets',
@@ -537,23 +688,7 @@ const GoogleSheetsManager = () => {
       });
     }
 
-    setPageIntegrations(prev => {
-      const withoutParent = prev.filter((i: any) => {
-        const sid = i.config?.google_sheets?.sheet_id ?? i.sheet_id;
-        return sid !== parentSheet.id;
-      });
-      return [
-        ...withoutParent,
-        {
-          _id: sheetAssignment.integrationId.startsWith('tmp-')
-            ? `tmp-${Date.now()}`
-            : sheetAssignment.integrationId,
-          agent_id: sheetAssignment.agentId,
-          label: parentGs?.sheet_name ?? parentSheet.name,
-          config: fullConfig,
-        },
-      ];
-    });
+    mergeAssignmentIntoIntegrations(parentSheet.id, assignmentConfig);
 
     setSheets(prev => {
       const exists = prev.some(s => s.id === directorySheetId);
@@ -564,9 +699,12 @@ const GoogleSheetsManager = () => {
       markGoogleSheetRecent(directorySheetId);
     }
     setStaffRosterSuccess(true);
+    setLinkedRosterForModal({ sheetId: directorySheetId, sheetName: directorySheetName });
+    setSheetsTab('roster');
     setTimeout(() => {
       setStaffSheet(null);
       setStaffRosterSuccess(false);
+      setLinkedRosterForModal(null);
       if (options?.openSheet) {
         navigate(sheetViewPath(directorySheetId, {
           name: directorySheetName,
@@ -577,6 +715,37 @@ const GoogleSheetsManager = () => {
         }));
       }
     }, 1200);
+  };
+
+  const handleUnlinkStaffRoster = async () => {
+    const parentSheet = staffSheet;
+    if (!parentSheet || !linkedRosterForModal) return;
+
+    const sheetAssignment = getSheetAssignment(parentSheet.id);
+    if (!sheetAssignment?.integrationId || sheetAssignment.integrationId.startsWith('tmp-')) return;
+
+    setCreatingStaffRoster(true);
+    setStaffRosterError('');
+    try {
+      await authAPI.patchIntegration(sheetAssignment.integrationId, {
+        config: {
+          google_sheets: {
+            assignment: null,
+          },
+        },
+      });
+      mergeAssignmentIntoIntegrations(parentSheet.id, null);
+      setStaffRosterSuccess(true);
+      setTimeout(() => {
+        setStaffSheet(null);
+        setStaffRosterSuccess(false);
+        setLinkedRosterForModal(null);
+      }, 900);
+    } catch (err: any) {
+      setStaffRosterError(err?.response?.data?.message ?? 'Failed to unlink staff roster.');
+    } finally {
+      setCreatingStaffRoster(false);
+    }
   };
 
   const handleLinkStaffRoster = async () => {
@@ -626,10 +795,30 @@ const GoogleSheetsManager = () => {
     }
   };
 
-  const selectedDiscoveredSheet = discoveredSheets.find(s => s.sheet_id === selectedRosterSheetId);
-  const canLinkRoster = rosterSourceMode === 'pick'
-    ? Boolean(selectedRosterSheetId)
-    : Boolean(staffRosterTitle.trim());
+  const rosterSheetOptions = useMemo(() => {
+    return rosterSheetsForPicker(discoveredSheets, linkedRosterForModal?.sheetId).map(s => ({
+      value: s.sheet_id,
+      label: s.sheet_name,
+    }));
+  }, [discoveredSheets, linkedRosterForModal?.sheetId]);
+
+  const selectedDiscoveredSheet = useMemo(
+    () => discoveredSheets.find(s => s.sheet_id === selectedRosterSheetId),
+    [discoveredSheets, selectedRosterSheetId],
+  );
+
+  const pendingRosterName =
+    rosterSourceMode === 'create'
+      ? staffRosterTitle.trim() || null
+      : selectedDiscoveredSheet?.sheet_name ?? null;
+
+  const rosterSelectionChanged =
+    rosterSourceMode === 'create'
+      ? Boolean(staffRosterTitle.trim())
+      : Boolean(selectedRosterSheetId) &&
+        selectedRosterSheetId !== linkedRosterForModal?.sheetId;
+
+  const canLinkRoster = rosterSelectionChanged;
 
   return (
     <div className="space-y-5 w-full">
@@ -671,18 +860,56 @@ const GoogleSheetsManager = () => {
       {/* ── Sheets grid ── */}
       <GlassCard>
         <div className="p-4 sm:p-6">
+          <div className="flex rounded-xl border border-slate-200 dark:border-slate-700 p-1 gap-1 mb-4">
+            <button
+              type="button"
+              onClick={() => setSheetsTab('main')}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-medium transition-colors ${
+                sheetsTab === 'main'
+                  ? 'common-button-bg'
+                  : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`}
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              Main Sheets
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                sheetsTab === 'main' ? 'bg-white/20' : 'bg-slate-100 dark:bg-slate-800'
+              }`}>
+                {dataSheets.length}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSheetsTab('roster')}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-medium transition-colors ${
+                sheetsTab === 'roster'
+                  ? 'common-button-bg'
+                  : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`}
+            >
+              <UserCog className="w-3.5 h-3.5" />
+              Roster Sheets
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                sheetsTab === 'roster' ? 'bg-white/20' : 'bg-slate-100 dark:bg-slate-800'
+              }`}>
+                {rosterSheets.length}
+              </span>
+            </button>
+          </div>
+
           {loading ? (
             <div className="flex items-center justify-center py-16 gap-3">
               <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
               <span className="text-sm text-slate-500 dark:text-slate-400">Loading your spreadsheets…</span>
             </div>
-          ) : dataSheets.length === 0 ? (
+          ) : sheetsTab === 'main' ? (
+            dataSheets.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 gap-4">
               <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center">
                 <FileSpreadsheet className="w-7 h-7 text-green-500" />
               </div>
               <div className="text-center">
-                <p className="font-medium text-slate-700 dark:text-slate-300 text-sm">No spreadsheets found</p>
+                <p className="font-medium text-slate-700 dark:text-slate-300 text-sm">No main sheets found</p>
                 <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Create a new sheet or connect your Google account</p>
               </div>
               <button
@@ -702,14 +929,13 @@ const GoogleSheetsManager = () => {
                   key={sheet.id}
                   className="common-bg-icons rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden hover:border-slate-300 dark:hover:border-slate-600 transition-colors"
                 >
-                  {/* Main data sheet */}
                   <div className="p-4 flex flex-col gap-3">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center flex-shrink-0">
                         <SheetIcon />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Data sheet</p>
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Main sheet</p>
                         <p className="font-semibold text-slate-800 dark:text-white text-sm leading-snug line-clamp-2">{sheet.name}</p>
                         {assignment?.agentName ? (
                           <div className="flex items-center gap-1 mt-1">
@@ -722,38 +948,24 @@ const GoogleSheetsManager = () => {
                       </div>
                     </div>
 
-                    {/* Linked roster — nested inside same card */}
                     {staffRoster ? (
-                      <div className="rounded-lg border border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/40 dark:bg-emerald-900/10 p-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center flex-shrink-0">
-                            <UserCog className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[10px] font-medium uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Linked roster</p>
-                            <p className="text-xs font-semibold text-slate-800 dark:text-white truncate">{staffRoster.sheetName}</p>
-                            <p className="text-[10px] text-slate-500 dark:text-slate-400">{DEFAULT_DIRECTORY_TAB_NAME} tab · auto-assign</p>
-                          </div>
-                          <button
-                            onClick={() => navigate(sheetViewPath(staffRoster.sheetId, {
-                              name: staffRoster.sheetName,
-                              role: 'directory',
-                              tab: DEFAULT_DIRECTORY_TAB_NAME,
-                            }))}
-                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-medium common-button-bg2 flex-shrink-0"
-                          >
-                            <ExternalLink className="w-3 h-3" />
-                            View
-                          </button>
-                        </div>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSheetsTab('roster')}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/80 dark:border-emerald-800/50 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors text-left"
+                      >
+                        <UserCog className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span className="truncate">
+                          Roster: <span className="font-medium">{staffRoster.sheetName}</span>
+                        </span>
+                      </button>
                     ) : assignment?.agentId ? (
                       <button
                         onClick={() => openStaffRosterModal(sheet)}
                         className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border border-dashed border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
                       >
                         <UserCog className="w-3.5 h-3.5" />
-                        Add linked staff roster
+                        Add staff roster
                       </button>
                     ) : null}
 
@@ -773,27 +985,138 @@ const GoogleSheetsManager = () => {
                         <Play className="w-3.5 h-3.5" />
                         Test AI
                       </button>
-                      {staffRoster && (
-                        <button
-                          onClick={() => openStaffRosterModal(sheet)}
-                          className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium common-button-bg2 flex-shrink-0"
-                        >
-                          <UserCog className="w-3.5 h-3.5" />
-                          Manage roster
-                        </button>
-                      )}
+                      <button
+                        onClick={() => openColumnsModal(sheet)}
+                        disabled={!assignment?.integrationId}
+                        className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium common-button-bg2 flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <Columns3 className="w-3.5 h-3.5" />
+                        Manage cols
+                      </button>
                       <button
                         onClick={() => handleAssign(sheet)}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium common-button-bg transition-all active:scale-[0.98] ml-auto"
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium common-button-bg transition-all active:scale-[0.98]"
                       >
                         <Users className="w-3.5 h-3.5 flex-shrink-0" />
                         {assignment ? 'Update Agent' : 'Assign AI'}
+                      </button>
+                      <button
+                        onClick={() => openDeleteModal(sheet)}
+                        disabled={!assignment?.integrationId}
+                        title="Delete integration"
+                        className="flex items-center justify-center p-2 rounded-lg text-xs font-medium border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
                 </div>
                 );
               })}
+            </div>
+          )
+          ) : rosterSheets.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-4">
+              <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center">
+                <UserCog className="w-7 h-7 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div className="text-center">
+                <p className="font-medium text-slate-700 dark:text-slate-300 text-sm">No roster sheets linked</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 max-w-xs">
+                  Link a staff directory from a main sheet to enable auto-assignment
+                </p>
+              </div>
+              {dataSheets.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSheetsTab('main')}
+                  className="common-button-bg2 flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium"
+                >
+                  <FileSpreadsheet className="w-4 h-4" /> Go to Main Sheets
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {rosterSheets.map(roster => (
+                <div
+                  key={roster.id}
+                  className="common-bg-icons rounded-xl border border-emerald-200/80 dark:border-emerald-800/50 overflow-hidden hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors"
+                >
+                  <div className="p-4 flex flex-col gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center flex-shrink-0">
+                        <UserCog className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Roster sheet</p>
+                        <p className="font-semibold text-slate-800 dark:text-white text-sm leading-snug line-clamp-2">{roster.name}</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{DEFAULT_DIRECTORY_TAB_NAME} tab · auto-assign</p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        navigate(
+                          `/google-sheets/${roster.parentDataSheetId}/view?name=${encodeURIComponent(roster.parentDataSheetName)}`,
+                        )
+                      }
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left"
+                    >
+                      <SheetIcon />
+                      <span className="truncate">
+                        Main sheet: <span className="font-medium">{roster.parentDataSheetName}</span>
+                      </span>
+                    </button>
+
+                    {roster.agentName && (
+                      <div className="flex items-center gap-1 px-1">
+                        <div className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
+                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{roster.agentName}</p>
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                      <button
+                        onClick={() =>
+                          navigate(
+                            sheetViewPath(roster.id, {
+                              name: roster.name,
+                              role: 'directory',
+                              tab: DEFAULT_DIRECTORY_TAB_NAME,
+                            }),
+                          )
+                        }
+                        className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium common-button-bg2 flex-shrink-0"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        View
+                      </button>
+                      <button
+                        onClick={() =>
+                          openStaffRosterModal({
+                            id: roster.parentDataSheetId,
+                            name: roster.parentDataSheetName,
+                          })
+                        }
+                        className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium common-button-bg2 flex-shrink-0"
+                      >
+                        <Settings2 className="w-3.5 h-3.5" />
+                        Manage roster
+                      </button>
+                      <button
+                        onClick={() => roster.agentId && navigate(`/agents/${roster.agentId}`)}
+                        disabled={!roster.agentId}
+                        className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium common-button-bg2 flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <Play className="w-3.5 h-3.5" />
+                        Test AI
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -836,7 +1159,10 @@ const GoogleSheetsManager = () => {
                     onChange={e => {
                       const tpl = TEMPLATES.find(t => t.id === e.target.value) ?? null;
                       if (tpl) handleSelectTemplate(tpl);
-                      else { setSelectedTemplate(null); }
+                      else {
+                        setSelectedTemplate(null);
+                        setDraftColumns([]);
+                      }
                     }}
                     className="w-full px-3 py-2.5 rounded-xl text-sm common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-blue-500/40 text-slate-800 dark:text-white appearance-none pr-8"
                   >
@@ -848,32 +1174,41 @@ const GoogleSheetsManager = () => {
                   <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                 </div>
 
-                {/* Column preview */}
-                {selectedTemplate && (
-                  <div className="mt-2.5 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-                    <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Columns</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {selectedTemplate.columns.map(col => (
-                        <span key={col.field} className="text-[11px] px-2 py-0.5 rounded-full bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 font-medium">
-                          {col.header}
-                        </span>
-                      ))}
-                    </div>
-                    {selectedTemplate.auto_assign && (
-                      <label className="flex items-start gap-2.5 mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={enableAutoAssign}
-                          onChange={e => setEnableAutoAssign(e.target.checked)}
-                          className="mt-0.5 rounded border-slate-300 dark:border-slate-600"
-                        />
-                        <span className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                          Create staff directory &amp; enable auto-assignment (matches category → department, assigns officer by availability)
-                        </span>
-                      </label>
+                {/* Columns summary — template auto-fills; open modal to customise */}
+                <div className="mt-2.5 flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5">
+                      Columns
+                    </p>
+                    {draftColumns.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {draftColumns.slice(0, 5).map(col => (
+                          <span
+                            key={col.field}
+                            className={`text-[10px] px-1.5 py-0.5 rounded-md border border-slate-200 dark:border-slate-600 ${roleBadgeClass(col.role)}`}
+                          >
+                            {col.header}
+                          </span>
+                        ))}
+                        {draftColumns.length > 5 && (
+                          <span className="text-[10px] px-1.5 py-0.5 text-slate-400">
+                            +{draftColumns.length - 5} more
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-slate-400">Pick a template or manage columns</p>
                     )}
                   </div>
-                )}
+                  <button
+                    type="button"
+                    onClick={openCreateColumnsModal}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium common-button-bg2 flex-shrink-0"
+                  >
+                    <Settings2 className="w-3.5 h-3.5" />
+                    Manage
+                  </button>
+                </div>
               </div>
 
               {/* Sheet title */}
@@ -902,6 +1237,67 @@ const GoogleSheetsManager = () => {
                   placeholder="e.g. Sheet1"
                   className="w-full px-3 py-2.5 rounded-xl text-sm common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-blue-500/40 text-slate-800 dark:text-white placeholder:text-slate-400"
                 />
+              </div>
+
+              {/* Roster sheet (optional) */}
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                <label className="flex items-start gap-3 p-3.5 cursor-pointer common-bg-icons">
+                  <input
+                    type="checkbox"
+                    checked={enableAutoAssign}
+                    onChange={e => setEnableAutoAssign(e.target.checked)}
+                    className="mt-1 rounded border-slate-300 dark:border-slate-600"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <UserCog className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+                      <span className="text-sm font-medium text-slate-800 dark:text-white">
+                        Create roster sheet
+                      </span>
+                      <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                        optional
+                      </span>
+                      {selectedTemplate?.auto_assign && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 font-medium">
+                          Recommended
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                      Sheet with auto-assignment engine — matches records to staff by category and availability, then fills Assigned To and email on each row.
+                    </p>
+                  </div>
+                </label>
+                {enableAutoAssign && (
+                  <div className="px-3.5 pb-3.5 pt-0 border-t border-slate-100 dark:border-slate-800/80">
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-3">
+                      Roster sheet:{' '}
+                      <span className="font-medium text-slate-700 dark:text-slate-300">{previewRosterTitle}</span>
+                      {' · '}tab{' '}
+                      <span className="font-medium text-slate-700 dark:text-slate-300">{DEFAULT_DIRECTORY_TAB_NAME}</span>
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-2 mb-1.5">Auto-generated from template</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {DEFAULT_DIRECTORY_COLUMNS.map(col => (
+                        <span
+                          key={col.field}
+                          className="text-[10px] px-2 py-0.5 rounded-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400"
+                        >
+                          {col.header}
+                        </span>
+                      ))}
+                    </div>
+                    {selectedTemplate?.auto_assign ? (
+                      <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-2">
+                        Category → Department matching is pre-configured for this template.
+                      </p>
+                    ) : (
+                      <p className="text-[10px] text-slate-400 mt-2">
+                        Add Category and Assigned To columns on the main sheet for best auto-assignment results.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* AI Employee */}
@@ -946,6 +1342,8 @@ const GoogleSheetsManager = () => {
                 >
                   {creating ? (
                     <><Loader2 className="w-4 h-4 animate-spin" /> Creating…</>
+                  ) : enableAutoAssign ? (
+                    <><Plus className="w-4 h-4" /> Create Sheet + Roster</>
                   ) : (
                     <><Plus className="w-4 h-4" /> Create Sheet</>
                   )}
@@ -1031,7 +1429,9 @@ const GoogleSheetsManager = () => {
                   <UserCog className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-semibold text-slate-800 dark:text-white">Staff & Officers Roster</h2>
+                  <h2 className="text-sm font-semibold text-slate-800 dark:text-white">
+                    {linkedRosterForModal ? 'Manage staff roster' : 'Staff & Officers Roster'}
+                  </h2>
                   <p className="text-xs text-slate-400 dark:text-slate-500 truncate max-w-[240px]">For: {staffSheet.name}</p>
                 </div>
               </div>
@@ -1044,8 +1444,111 @@ const GoogleSheetsManager = () => {
             </div>
 
             <div className="p-6 space-y-5">
+              {/* Selected / pending roster */}
+              <div className="rounded-xl border border-slate-200/80 dark:border-slate-700/80 overflow-hidden">
+                <div className="px-3 py-2 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200/80 dark:border-slate-700/80">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                    Selected roster
+                  </p>
+                </div>
+                <div className="p-3">
+                  {linkedRosterForModal ? (
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-800/50 flex items-center justify-center flex-shrink-0">
+                        <UserCog className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-slate-800 dark:text-white truncate" title={linkedRosterForModal.sheetName}>
+                          {linkedRosterForModal.sheetName}
+                        </p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                          Current · {DEFAULT_DIRECTORY_TAB_NAME} tab
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          navigate(
+                            sheetViewPath(linkedRosterForModal.sheetId, {
+                              name: linkedRosterForModal.sheetName,
+                              role: 'directory',
+                              tab: DEFAULT_DIRECTORY_TAB_NAME,
+                            }),
+                          )
+                        }
+                        className="text-[10px] font-medium text-emerald-700 dark:text-emerald-400 hover:underline flex-shrink-0"
+                      >
+                        View
+                      </button>
+                    </div>
+                  ) : pendingRosterName && rosterSourceMode === 'pick' ? (
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-800/50 flex items-center justify-center flex-shrink-0">
+                        <FileSpreadsheet className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-slate-800 dark:text-white truncate" title={pendingRosterName}>
+                          {pendingRosterName}
+                        </p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                          Selected · not linked yet
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-500 dark:text-slate-400">No roster linked yet — pick or create one below.</p>
+                  )}
+
+                  {rosterSelectionChanged &&
+                    pendingRosterName &&
+                    linkedRosterForModal &&
+                    rosterSourceMode === 'pick' && (
+                    <div className="mt-3 pt-3 border-t border-dashed border-slate-200 dark:border-slate-700">
+                      <p className="text-[10px] font-medium uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-1.5">
+                        Will switch to
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-800/50 flex items-center justify-center flex-shrink-0">
+                          <FileSpreadsheet className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <p className="text-sm font-medium text-slate-800 dark:text-white truncate" title={pendingRosterName}>
+                          {pendingRosterName}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {rosterSelectionChanged && pendingRosterName && rosterSourceMode === 'create' && (
+                    <div className={linkedRosterForModal ? 'mt-3 pt-3 border-t border-dashed border-slate-200 dark:border-slate-700' : ''}>
+                      {!linkedRosterForModal && (
+                        <p className="text-[10px] font-medium uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-1.5">
+                          New roster
+                        </p>
+                      )}
+                      {linkedRosterForModal && (
+                        <p className="text-[10px] font-medium uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-1.5">
+                          Will create
+                        </p>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-800/50 flex items-center justify-center flex-shrink-0">
+                          <Plus className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <p className="text-sm font-medium text-slate-800 dark:text-white truncate" title={pendingRosterName}>
+                          {pendingRosterName}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                Link a staff directory to <span className="font-medium text-slate-700 dark:text-slate-300">{staffSheet.name}</span> for auto-assignment. Pick an existing sheet from Drive or create a new roster — the directory is nested under this data sheet&apos;s integration config.
+                Choose a different sheet from Drive or create a new roster, then click{' '}
+                <span className="font-medium text-slate-700 dark:text-slate-300">
+                  {linkedRosterForModal ? 'Update roster' : 'Link roster'}
+                </span>
+                .
               </p>
 
               {/* Source mode toggle */}
@@ -1059,7 +1562,7 @@ const GoogleSheetsManager = () => {
                       : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
                   }`}
                 >
-                  Link existing sheet
+                  Link existing
                 </button>
                 <button
                   type="button"
@@ -1070,14 +1573,14 @@ const GoogleSheetsManager = () => {
                       : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
                   }`}
                 >
-                  Create new roster
+                  Create new
                 </button>
               </div>
 
               {rosterSourceMode === 'pick' ? (
                 <div>
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
-                    Select roster sheet from Drive
+                    Choose roster sheet from Drive
                   </label>
                   {discoverLoading ? (
                     <div className="flex items-center gap-2 py-3 text-xs text-slate-500">
@@ -1085,36 +1588,16 @@ const GoogleSheetsManager = () => {
                       Loading your Google Sheets…
                     </div>
                   ) : (
-                    <div className="relative">
-                      <select
-                        value={selectedRosterSheetId}
-                        onChange={e => setSelectedRosterSheetId(e.target.value)}
-                        className="w-full px-3 py-2.5 rounded-xl text-sm common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500/40 text-slate-800 dark:text-white appearance-none pr-8"
-                      >
-                        <option value="">Choose a sheet…</option>
-                        {discoveredSheets.map(s => (
-                          <option key={s.sheet_id} value={s.sheet_id}>
-                            {s.sheet_name}{s.is_connected ? ' ⚠ already linked' : ''}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                    </div>
+                    <SearchableSelect
+                      options={rosterSheetOptions}
+                      value={selectedRosterSheetId}
+                      onChange={setSelectedRosterSheetId}
+                      placeholder={linkedRosterForModal ? 'Search for a different sheet…' : 'Search or select a sheet…'}
+                      disabled={creatingStaffRoster}
+                    />
                   )}
-                  {selectedDiscoveredSheet?.is_connected && (
-                    <div className="mt-2 flex items-start gap-2 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50">
-                      <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
-                      <p className="text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
-                        This sheet is already linked to another agent
-                        {selectedDiscoveredSheet.connections?.[0]?.agent_name
-                          ? ` (${selectedDiscoveredSheet.connections[0].agent_name})`
-                          : ''}.
-                        Using it here may affect that connection.
-                      </p>
-                    </div>
-                  )}
-                  {!discoverLoading && discoveredSheets.length === 0 && (
-                    <p className="mt-2 text-xs text-slate-400">No other sheets found in Drive. Switch to &quot;Create new roster&quot;.</p>
+                  {!discoverLoading && rosterSheetOptions.length === 0 && (
+                    <p className="mt-2 text-xs text-slate-400">No sheets found in Drive. Switch to Create new.</p>
                   )}
                 </div>
               ) : (
@@ -1129,6 +1612,11 @@ const GoogleSheetsManager = () => {
                     placeholder="e.g. Help Desk Tickets — Staff"
                     className="w-full px-3 py-2.5 rounded-xl text-sm common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500/40 text-slate-800 dark:text-white"
                   />
+                  {staffRosterTitle.trim() && (
+                    <p className="mt-2 text-[11px] text-blue-600 dark:text-blue-400">
+                      A new roster sheet will be created and linked on update.
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -1152,31 +1640,67 @@ const GoogleSheetsManager = () => {
                 </p>
               )}
 
-              <div className="flex gap-2.5">
-                <button
-                  onClick={() => setStaffSheet(null)}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-medium common-bg-icons border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleLinkStaffRoster}
-                  disabled={!canLinkRoster || creatingStaffRoster || staffRosterSuccess || discoverLoading}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-medium common-button-bg disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
-                >
-                  {creatingStaffRoster ? (
-                    <><Loader2 className="w-4 h-4 animate-spin" /> Linking…</>
-                  ) : staffRosterSuccess ? (
-                    <><Check className="w-4 h-4" /> Linked!</>
-                  ) : (
-                    <><UserCog className="w-4 h-4" /> Link Roster</>
-                  )}
-                </button>
+              <div className="flex flex-col gap-2.5">
+                <div className="flex gap-2.5">
+                  <button
+                    onClick={() => {
+                      setStaffSheet(null);
+                      setLinkedRosterForModal(null);
+                    }}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-medium common-bg-icons border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleLinkStaffRoster}
+                    disabled={!canLinkRoster || creatingStaffRoster || staffRosterSuccess || discoverLoading}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-medium common-button-bg disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                  >
+                    {creatingStaffRoster ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</>
+                    ) : staffRosterSuccess ? (
+                      <><Check className="w-4 h-4" /> Saved!</>
+                    ) : (
+                      <><UserCog className="w-4 h-4" /> {linkedRosterForModal ? 'Update roster' : 'Link roster'}</>
+                    )}
+                  </button>
+                </div>
+                {linkedRosterForModal && (
+                  <button
+                    type="button"
+                    onClick={handleUnlinkStaffRoster}
+                    disabled={creatingStaffRoster || staffRosterSuccess}
+                    className="w-full py-2 rounded-xl text-xs font-medium text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800/50 hover:bg-red-50 dark:hover:bg-red-950/20 disabled:opacity-50 transition-colors"
+                  >
+                    Unlink roster (remove auto-assignment)
+                  </button>
+                )}
               </div>
             </div>
           </div>
         </div>
       )}
+      <SheetColumnsModal
+        target={columnsModalTarget}
+        onClose={() => setColumnsModalTarget(null)}
+        onSaved={handleColumnsSaved}
+        onDraftApply={handleDraftColumnsApply}
+      />
+      <DeleteIntegrationModal
+        open={Boolean(deleteTarget)}
+        sheetName={deleteTarget?.sheet.name ?? ''}
+        integrationId={deleteTarget?.integrationId}
+        hasLinkedRoster={deleteTarget?.hasLinkedRoster}
+        deleting={deleting}
+        error={deleteError}
+        onClose={() => {
+          if (!deleting) {
+            setDeleteTarget(null);
+            setDeleteError('');
+          }
+        }}
+        onConfirm={handleDeleteIntegration}
+      />
     </div>
   );
 };

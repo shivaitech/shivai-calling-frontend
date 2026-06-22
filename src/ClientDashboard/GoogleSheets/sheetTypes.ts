@@ -58,6 +58,28 @@ export interface DiscoverGoogleSheetsResult {
   sheets: DiscoveredGoogleSheet[];
 }
 
+/** Sheets eligible for roster picker — excludes current roster and sheets linked elsewhere. */
+export function rosterSheetsForPicker(
+  discovered: DiscoveredGoogleSheet[],
+  currentRosterId?: string,
+): DiscoveredGoogleSheet[] {
+  return discovered.filter(s => {
+    if (currentRosterId && s.sheet_id === currentRosterId) return false;
+    if (isRosterLinkedToAnotherAgent(s, currentRosterId)) return false;
+    return true;
+  });
+}
+
+/** True when sheet is linked to a different integration (not the roster already on this data sheet). */
+export function isRosterLinkedToAnotherAgent(
+  sheet: DiscoveredGoogleSheet,
+  currentRosterId?: string,
+): boolean {
+  if (!sheet.is_connected) return false;
+  if (currentRosterId && sheet.sheet_id === currentRosterId) return false;
+  return true;
+}
+
 export interface StandaloneSheetResult {
   sheet_id: string;
   sheet_name: string;
@@ -85,10 +107,11 @@ export const DEFAULT_DIRECTORY_TAB_NAME = 'Staff';
 
 /** Fallback data-sheet columns when integration was created without a template schema. */
 export const DEFAULT_ASSIGNMENT_DATA_COLUMNS: SheetColumn[] = [
-  { header: 'Name', field: 'caller_name', required: true, ask_as: 'your full name', role: 'caller' },
-  { header: 'Phone', field: 'caller_phone', required: true, ask_as: 'your mobile number', role: 'caller' },
+  { header: 'Ticket ID', field: 'ticket_id', required: true, role: 'system', prefix: 'TKT' },
+  { header: 'Name', field: 'caller_name', required: true, ask_as: 'your full name', role: 'caller', auto_classify: true },
+  { header: 'Phone', field: 'caller_phone', required: true, ask_as: 'your mobile number', role: 'caller', auto_classify: true },
   { header: 'Category', field: 'category', required: true, ask_as: 'type of issue', role: 'caller', auto_classify: true },
-  { header: 'Description', field: 'description', required: true, ask_as: 'describe the problem', role: 'caller' },
+  { header: 'Description', field: 'description', required: true, ask_as: 'describe the problem', role: 'caller', auto_classify: true },
   { header: 'Registered At', field: 'registered_at', required: false, role: 'system' },
   { header: 'Assigned To', field: 'assigned_to', required: false, role: 'internal' },
   { header: 'Assigned Email', field: 'assigned_email', required: false, role: 'internal' },
@@ -225,7 +248,7 @@ export function isDirectoryOnlySheet(sheetId: string, integrations: IntegrationL
   return false;
 }
 
-/** Linked roster/directory sheet for a data sheet (assignment block, legacy integration, or name match). */
+/** Linked roster/directory sheet for a data sheet — only explicit API links, no name guessing. */
 export function getLinkedDirectoryForDataSheet(
   dataSheetId: string,
   integrations: IntegrationLike[],
@@ -255,43 +278,6 @@ export function getLinkedDirectoryForDataSheet(
     };
   }
 
-  const parentName = (gs.sheet_name ?? parentInt?.label ?? '').trim();
-  const agentId = (parentInt as { agent_id?: string; agentId?: string })?.agent_id
-    ?? (parentInt as { agent_id?: string; agentId?: string })?.agentId;
-
-  if (parentName) {
-    const byName = integrations.find(i => {
-      const sid = i.config?.google_sheets?.sheet_id ?? i.sheet_id;
-      if (!sid || sid === dataSheetId) return false;
-      const rname = (i.config?.google_sheets?.sheet_name ?? i.label ?? '').trim();
-      return rname.toLowerCase().startsWith(parentName.toLowerCase()) && /—\s*Staff\b/i.test(rname);
-    });
-    if (byName) {
-      const rgs = byName.config!.google_sheets!;
-      return {
-        sheetId: rgs.sheet_id,
-        sheetName: rgs.sheet_name ?? byName.label ?? 'Staff Directory',
-      };
-    }
-  }
-
-  if (agentId) {
-    const siblingRoster = integrations.find(i => {
-      const sid = i.config?.google_sheets?.sheet_id ?? i.sheet_id;
-      if (!sid || sid === dataSheetId) return false;
-      if ((i.agent_id ?? i.agentId) !== agentId) return false;
-      const rname = (i.config?.google_sheets?.sheet_name ?? i.label ?? '').trim();
-      return /—\s*Staff\b/i.test(rname);
-    });
-    if (siblingRoster) {
-      const rgs = siblingRoster.config!.google_sheets!;
-      return {
-        sheetId: rgs.sheet_id,
-        sheetName: rgs.sheet_name ?? siblingRoster.label ?? 'Staff Directory',
-      };
-    }
-  }
-
   return null;
 }
 
@@ -311,6 +297,56 @@ export function buildDataSheetCards(
     cards.push({
       id: sheetId,
       name: i.config?.google_sheets?.sheet_name ?? i.label ?? sheets.find(s => s.id === sheetId)?.name ?? 'Sheet',
+    });
+  }
+
+  return cards;
+}
+
+export interface RosterSheetCard {
+  id: string;
+  name: string;
+  parentDataSheetId: string;
+  parentDataSheetName: string;
+  agentId?: string;
+  agentName?: string;
+  parentIntegrationId?: string;
+}
+
+export function buildRosterSheetCards(
+  integrations: IntegrationLike[],
+  sheets: { id: string; name: string }[],
+  resolveAgentName?: (agentId: string) => string | undefined,
+): RosterSheetCard[] {
+  const cards: RosterSheetCard[] = [];
+  const seen = new Set<string>();
+
+  for (const dataSheet of buildDataSheetCards(integrations, sheets)) {
+    const linked = getLinkedDirectoryForDataSheet(
+      dataSheet.id,
+      integrations,
+      id => sheets.find(s => s.id === id)?.name,
+    );
+    if (!linked || seen.has(linked.sheetId)) continue;
+    seen.add(linked.sheetId);
+
+    const parentInt = integrations.find(
+      i => (i.config?.google_sheets?.sheet_id ?? i.sheet_id) === dataSheet.id,
+    );
+    const agentId =
+      (parentInt as { agent_id?: string; agentId?: string } | undefined)?.agent_id
+      ?? (parentInt as { agent_id?: string; agentId?: string } | undefined)?.agentId;
+
+    cards.push({
+      id: linked.sheetId,
+      name: linked.sheetName,
+      parentDataSheetId: dataSheet.id,
+      parentDataSheetName: dataSheet.name,
+      agentId,
+      agentName: agentId ? resolveAgentName?.(agentId) : undefined,
+      parentIntegrationId:
+        (parentInt as { _id?: string; id?: string } | undefined)?._id
+        ?? (parentInt as { _id?: string; id?: string } | undefined)?.id,
     });
   }
 

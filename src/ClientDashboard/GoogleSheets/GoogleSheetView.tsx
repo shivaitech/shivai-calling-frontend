@@ -12,8 +12,13 @@ import {
   X,
   RefreshCw,
   UserCog,
+  Trash2,
+  Settings2,
 } from 'lucide-react';
+import SheetColumnsModal, { SheetColumnsModalTarget } from './SheetColumnsModal';
+import DeleteIntegrationModal from './DeleteIntegrationModal';
 import {
+  buildFullIntegrationConfig,
   isDirectorySheet,
   getDirectorySheetId,
   DEFAULT_DIRECTORY_TAB_NAME,
@@ -71,6 +76,12 @@ const GoogleSheetView = () => {
   const [sheetRole, setSheetRole] = useState<'data' | 'directory'>('data');
   const [linkedDataSheet, setLinkedDataSheet] = useState<{ id: string; name: string } | null>(null);
   const [linkedStaffRoster, setLinkedStaffRoster] = useState<{ id: string; name: string } | null>(null);
+  const [integrationConfig, setIntegrationConfig] = useState<GoogleSheetsIntegrationConfig | null>(null);
+  const [integrationTimezone, setIntegrationTimezone] = useState<string | undefined>();
+  const [columnsModalTarget, setColumnsModalTarget] = useState<SheetColumnsModalTarget | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   useEffect(() => {
     if (!id) return;
@@ -138,6 +149,8 @@ const GoogleSheetView = () => {
 
         const gs = existing.config?.google_sheets as GoogleSheetsIntegrationConfig | undefined;
         setSheetRole('data');
+        setIntegrationConfig(gs ?? null);
+        setIntegrationTimezone(existing.config?.timezone);
         const directoryId = getDirectorySheetId(gs);
         if (directoryId) {
           setLinkedStaffRoster({
@@ -208,6 +221,49 @@ const GoogleSheetView = () => {
     }
   };
 
+  const tabFromUrl = searchParams.get('tab') ?? undefined;
+
+  const openColumnsModal = () => {
+    if (!id || !existingIntegrationId || sheetRole === 'directory') return;
+    setColumnsModalTarget({
+      mode: 'integration',
+      sheetId: id,
+      sheetName: displayName,
+      tabName: tabFromUrl ?? integrationConfig?.tab_name,
+      integrationId: existingIntegrationId,
+      credentialId: credentialId || undefined,
+      columns: integrationConfig?.columns,
+      config: integrationConfig ?? undefined,
+      timezone: integrationTimezone,
+    });
+  };
+
+  const handleColumnsSaved = (
+    integrationId: string,
+    _cols: unknown,
+    fullConfig: ReturnType<typeof buildFullIntegrationConfig>,
+  ) => {
+    setIntegrationConfig(fullConfig.google_sheets);
+    setIntegrationTimezone(fullConfig.timezone);
+    void integrationId;
+  };
+
+  const handleDeleteIntegration = async () => {
+    if (!existingIntegrationId) return;
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      await authAPI.deleteIntegration(existingIntegrationId);
+      setDeleteOpen(false);
+      navigate('/google-sheets');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setDeleteError(msg ?? 'Failed to delete integration.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const openUrl = iframeSrc || (id ? buildSheetIframeUrl(id, gidParam ? { gid: gidParam } : undefined) : '');
 
   return (
@@ -265,6 +321,17 @@ const GoogleSheetView = () => {
 
         {/* Actions */}
         <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Manage columns — data sheets only */}
+          {sheetRole !== 'directory' && existingIntegrationId && (
+            <button
+              onClick={openColumnsModal}
+              className="common-button-bg2 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium"
+            >
+              <Settings2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Manage cols</span>
+            </button>
+          )}
+
           {/* Reload */}
           <button
             onClick={() => {
@@ -313,6 +380,19 @@ const GoogleSheetView = () => {
               <UserCog className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
               <span className="hidden sm:inline truncate max-w-[100px]">{assignedAgentName}</span>
             </div>
+          )}
+
+          {sheetRole !== 'directory' && existingIntegrationId && (
+            <button
+              onClick={() => {
+                setDeleteError('');
+                setDeleteOpen(true);
+              }}
+              title="Delete integration"
+              className="p-2 rounded-xl border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
           )}
         </div>
       </div>
@@ -410,6 +490,28 @@ const GoogleSheetView = () => {
           </div>
         </div>
       )}
+
+      <SheetColumnsModal
+        target={columnsModalTarget}
+        onClose={() => setColumnsModalTarget(null)}
+        onSaved={handleColumnsSaved}
+      />
+
+      <DeleteIntegrationModal
+        open={deleteOpen}
+        sheetName={displayName}
+        integrationId={existingIntegrationId || undefined}
+        hasLinkedRoster={Boolean(linkedStaffRoster)}
+        deleting={deleting}
+        error={deleteError}
+        onClose={() => {
+          if (!deleting) {
+            setDeleteOpen(false);
+            setDeleteError('');
+          }
+        }}
+        onConfirm={handleDeleteIntegration}
+      />
     </div>
   );
 };
