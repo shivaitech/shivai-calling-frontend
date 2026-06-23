@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { getHomeRoute } from '../utils/homeRoute';
 
 const GoogleCallback: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -34,7 +35,7 @@ const GoogleCallback: React.FC = () => {
       try {
         clearError();
         await googleAuth(code);
-        navigate('/dashboard', { replace: true });
+        navigate(getHomeRoute(), { replace: true });
       } catch (error: any) {
         const errorMessage = error.message || 'Authentication failed';
         navigate(`/landing?error=${encodeURIComponent(errorMessage)}`, { replace: true });

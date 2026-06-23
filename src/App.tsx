@@ -13,7 +13,9 @@ import { AgentProvider } from "./contexts/AgentContext";
 import ScrollToTop from "./components/ScrollToTop";
 import PublicRoute from "./components/PublicRoute";
 import ProtectedRoute from "./components/ProtectedRoute";
+import HomeRedirect from "./components/HomeRedirect";
 import GoogleCallback from "./components/GoogleCallback";
+import { saveLastRoute } from "./utils/homeRoute";
 
 // Lazy-load orb so it is NOT in the main bundle critical path
 const OrbFallback = lazy(() =>
@@ -37,6 +39,7 @@ const Landing = lazy(() => import("./pages/Website/Landing"));
 const Sidebar = lazy(() => import("./components/Sidebar"));
 const TopBar = lazy(() => import("./components/TopBar"));
 const Overview = lazy(() => import("./ClientDashboard/Dashboard/Overview"));
+const DashboardEntry = lazy(() => import("./components/DashboardEntry"));
 const AgentManagement = lazy(() => import("./ClientDashboard/Employees/AgentManagement"));
 const CreateAgent = lazy(() => import("./ClientDashboard/Employees/CreateAgent"));
 const EditAgent = lazy(() => import("./ClientDashboard/Employees/EditAgent"));
@@ -54,6 +57,8 @@ const GoogleSheetsManager = lazy(() => import("./ClientDashboard/GoogleSheets/Go
 const GoogleSheetView = lazy(() => import("./ClientDashboard/GoogleSheets/GoogleSheetView"));
 const ResetPassword = lazy(() => import("./components/ResetPassword"));
 const AgentPublicPage = lazy(() => import("./pages/AgentPublicPage"));
+const DoctorCalendarPublicPage = lazy(() => import("./pages/DoctorCalendarPublicPage"));
+const DoctorCalendarPWALauncher = lazy(() => import("./pages/DoctorCalendarPWALauncher"));
 
 function LoadingFallback() {
   return (
@@ -75,14 +80,29 @@ function AppContent() {
   const isAuthCallback = location.pathname === "/auth/google/callback";
   const isResetPassword = location.pathname.startsWith("/reset-password");
   const isAgentPublicPage = location.pathname.startsWith("/MyAIEmployee");
+  const isDoctorCalendarPage = location.pathname.startsWith("/doctor-calendar");
   const isWebsitePreview = location.pathname.startsWith("/website-preview");
   // Standalone app workspace — auth-protected but rendered without dashboard chrome.
   const isAppWorkspace = location.pathname.startsWith("/app/");
   const [collapsed, setCollapsed] = useState(false);
 
+  useEffect(() => {
+    if (
+      isLandingPage ||
+      isAuthCallback ||
+      isResetPassword ||
+      isAgentPublicPage ||
+      isDoctorCalendarPage ||
+      isWebsitePreview
+    ) {
+      return;
+    }
+    saveLastRoute(`${location.pathname}${location.search}`);
+  }, [location.pathname, location.search, isLandingPage, isAuthCallback, isResetPassword, isAgentPublicPage, isDoctorCalendarPage, isWebsitePreview]);
+
   return (
     <div className="min-h-screen">
-      {isLandingPage || isAuthCallback || isResetPassword || isAgentPublicPage || isWebsitePreview || isAppWorkspace ? (
+      {isLandingPage || isAuthCallback || isResetPassword || isAgentPublicPage || isDoctorCalendarPage || isWebsitePreview || isAppWorkspace ? (
         <Suspense fallback={<LoadingFallback />}>
           <Routes>
             <Route
@@ -113,6 +133,10 @@ function AppContent() {
 
             {/* Public agent test page - no auth required */}
             <Route path="/MyAIEmployee/:agentId" element={<AgentPublicPage />} />
+
+            {/* Doctor personal calendar PWA — launcher + per-doctor calendar */}
+            <Route path="/doctor-calendar" element={<DoctorCalendarPWALauncher />} />
+            <Route path="/doctor-calendar/:shareToken" element={<DoctorCalendarPublicPage />} />
 
             {/* Website preview - no auth required, opens in new tab */}
             <Route path="/website-preview" element={<WebsitePreview />} />
@@ -163,7 +187,7 @@ function AppContent() {
                   <TopBar onMenuClick={() => setSidebarOpen(true)} />
                   <main className="px-4 sm:px-6 lg:px-6 py-2 lg:py-6 pt-16 sm:pt-[70px] lg:pt-[105px] pl-2 min-w-0 max-w-full overflow-hidden">
                     <Routes>
-                      <Route path="/dashboard" element={<Overview />} />
+                      <Route path="/dashboard" element={<DashboardEntry />} />
                       <Route
                         path="/agents"
                         element={<AgentManagement key="list" />}
@@ -192,7 +216,7 @@ function AppContent() {
                       <Route path="/google-sheets/:id/view" element={<GoogleSheetView />} />
 
                       {/* Default route for authenticated users */}
-                      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                      <Route path="/" element={<HomeRedirect />} />
 
                       {/* Redirect routes to home */}
                       <Route

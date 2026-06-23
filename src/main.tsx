@@ -1,7 +1,10 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
+import { maybeRedirectDoctorPWA } from './utils/doctorPWA';
 import App from './App.tsx';
 import './index.css';
+
+maybeRedirectDoctorPWA();
 
 const RELOAD_KEY = 'shivai_chunk_reload';
 

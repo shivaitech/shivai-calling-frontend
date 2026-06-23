@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, Suspense, lazy } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useAuth } from "../../contexts/AuthContext";
+import { getHomeRoute } from "../../utils/homeRoute";
 import AuthModel from "../../components/AuthModel";
 import Hero from "./Hero";
 import Navbar from "./Navbar";
@@ -64,7 +65,7 @@ const Landing: React.FC = () => {
   let token = localStorage.getItem("auth_tokens");
   useEffect(() => {
     if (token) {
-      navigate("/dashboard");
+      navigate(getHomeRoute());
     }
   }, [token, navigate]);
 
@@ -109,13 +110,13 @@ const Landing: React.FC = () => {
         completeOnboarding();
         toast.success("Account created successfully! Welcome aboard.");
         setShowAuthModal(false);
-        navigate("/dashboard");
+        navigate(getHomeRoute());
       } else {
         const response = await login(formData.email, formData.password);
         setShowAuthModal(false);
         localStorage.setItem("auth_tokens", JSON.stringify(response.tokens));
         localStorage.setItem("auth_user", JSON.stringify(response.user));
-        navigate("/dashboard");
+        navigate(getHomeRoute());
       }
     } catch (error: any) {
       if (error.response?.status === 422 && error.response?.data?.errors) {

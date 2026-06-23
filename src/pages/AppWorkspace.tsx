@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useMemo, useState } from "react";
+import React, { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Settings as SettingsIcon, Sparkles } from "lucide-react";
@@ -23,11 +23,14 @@ const appComponents: Record<string, React.LazyExoticComponent<React.ComponentTyp
   "support-crm": lazy(
     () => import("../ClientDashboard/apps/SupportCRM/SupportCRM")
   ),
+  "appointment-crm": lazy(
+    () => import("../ClientDashboard/apps/AppointmentCRM/AppointmentCRM")
+  ),
 };
 
 // Apps that render ALL their own sections (including "settings") internally.
 // For these, the workspace must not substitute the generic settings placeholder.
-const APPS_OWNING_SECTIONS = new Set<string>(["support-crm"]);
+const APPS_OWNING_SECTIONS = new Set<string>(["support-crm", "appointment-crm"]);
 
 function Spinner() {
   return (
@@ -58,8 +61,16 @@ const AppWorkspace: React.FC = () => {
     [app]
   );
 
-  const activeSection = searchParams.get("section") || sections[0].key;
+  const activeSection =
+    searchParams.get("section") || app?.defaultSection || sections[0].key;
   const AppComponent = app ? appComponents[app.id] : undefined;
+
+  useEffect(() => {
+    if (!app?.defaultSection || searchParams.get("section")) return;
+    const next = new URLSearchParams(searchParams);
+    next.set("section", app.defaultSection);
+    setSearchParams(next, { replace: true });
+  }, [app?.defaultSection, app?.id, searchParams, setSearchParams]);
 
   // ── Guards ────────────────────────────────────────────────────────────────
   if (!app) {

@@ -648,7 +648,7 @@ const GoogleSheetsManager = () => {
     directorySheetId: string,
     directorySheetName: string,
     directoryTabName: string,
-    options?: { gid?: number | string; openSheet?: boolean },
+    options?: { gid?: number | string; openSheet?: boolean; isRosterUpdate?: boolean },
   ) => {
     const sheetAssignment = getSheetAssignment(parentSheet.id);
     if (!sheetAssignment?.agentId) return;
@@ -663,7 +663,21 @@ const GoogleSheetsManager = () => {
       dataSheetColumns: dataColumns,
     });
 
-    if (sheetAssignment.integrationId && !sheetAssignment.integrationId.startsWith('tmp-')) {
+    const fullConfig = buildFullIntegrationConfig({
+      sheetId: parentSheet.id,
+      sheetName: parentGs?.sheet_name ?? parentSheet.name,
+      tabName: parentGs?.tab_name,
+      columns: dataColumns,
+      assignment: assignmentConfig,
+      timezone: parentIntegration?.config?.timezone,
+    });
+
+    const shouldPatch =
+      options?.isRosterUpdate &&
+      sheetAssignment.integrationId &&
+      !sheetAssignment.integrationId.startsWith('tmp-');
+
+    if (shouldPatch) {
       await authAPI.patchIntegration(sheetAssignment.integrationId, {
         config: {
           google_sheets: {
@@ -672,21 +686,31 @@ const GoogleSheetsManager = () => {
         },
       });
     } else {
-      const fullConfig = buildFullIntegrationConfig({
-        sheetId: parentSheet.id,
-        sheetName: parentGs?.sheet_name ?? parentSheet.name,
-        tabName: parentGs?.tab_name,
-        columns: dataColumns,
-        assignment: assignmentConfig,
-        timezone: parentIntegration?.config?.timezone,
-      });
-      await authAPI.createIntegration({
+      const integration = await authAPI.createIntegration({
         agent_id: sheetAssignment.agentId,
         service_name: 'google_sheets',
         label: parentGs?.sheet_name ?? parentSheet.name,
         credential_id: pageCredentialId || undefined,
         config: fullConfig,
       });
+      const integrationId = integration?._id ?? integration?.id;
+      if (integrationId) {
+        setPageIntegrations(prev => {
+          const withoutParent = prev.filter((i: any) => {
+            const sid = i.config?.google_sheets?.sheet_id ?? i.sheet_id;
+            return sid !== parentSheet.id;
+          });
+          return [
+            ...withoutParent,
+            {
+              _id: integrationId,
+              agent_id: sheetAssignment.agentId,
+              label: parentGs?.sheet_name ?? parentSheet.name,
+              config: fullConfig,
+            },
+          ];
+        });
+      }
     }
 
     mergeAssignmentIntoIntegrations(parentSheet.id, assignmentConfig);
@@ -753,6 +777,8 @@ const GoogleSheetsManager = () => {
     const parentSheet = staffSheet;
     if (!parentSheet) return;
 
+    const isRosterUpdate = Boolean(getStaffRosterForDataSheet(parentSheet.id));
+
     setCreatingStaffRoster(true);
     setStaffRosterError('');
     try {
@@ -769,6 +795,7 @@ const GoogleSheetsManager = () => {
           picked.sheet_id,
           picked.sheet_name,
           directoryTabName,
+          { isRosterUpdate },
         );
       } else {
         if (!staffRosterTitle.trim()) {
@@ -786,7 +813,7 @@ const GoogleSheetsManager = () => {
           result.sheet_id,
           result.sheet_name,
           directoryTabName,
-          { gid: result.tab_gid ?? result.gid, openSheet: true },
+          { gid: result.tab_gid ?? result.gid, openSheet: true, isRosterUpdate },
         );
       }
     } catch (err: any) {
@@ -1093,18 +1120,6 @@ const GoogleSheetsManager = () => {
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
                         View
-                      </button>
-                      <button
-                        onClick={() =>
-                          openStaffRosterModal({
-                            id: roster.parentDataSheetId,
-                            name: roster.parentDataSheetName,
-                          })
-                        }
-                        className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium common-button-bg2 flex-shrink-0"
-                      >
-                        <Settings2 className="w-3.5 h-3.5" />
-                        Manage roster
                       </button>
                       <button
                         onClick={() => roster.agentId && navigate(`/agents/${roster.agentId}`)}

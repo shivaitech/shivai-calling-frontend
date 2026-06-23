@@ -54,6 +54,10 @@ function readInstalled(): string[] {
   }
 }
 
+export function readInstalledAppIds(): string[] {
+  return readInstalled();
+}
+
 function writeInstalled(ids: string[]): void {
   try {
     localStorage.setItem(storageKey(), JSON.stringify(ids));

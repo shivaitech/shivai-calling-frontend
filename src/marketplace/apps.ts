@@ -19,6 +19,9 @@ import {
   LayoutDashboard,
   PanelsTopLeft,
   Settings as SettingsIcon,
+  Calendar,
+  Bell,
+  UserCog,
   LucideIcon,
 } from "lucide-react";
 
@@ -67,6 +70,8 @@ export interface MarketplaceApp {
   route: string;
   /** Left-rail sections shown inside the app's standalone workspace. */
   workspaceSections?: WorkspaceSection[];
+  /** Default section when opening the workspace without ?section= */
+  defaultSection?: string;
   /** Brand gradient for the app tile (tailwind from/to classes). */
   gradient: string;
   /** Short feature bullets for the detail page. */
@@ -210,18 +215,33 @@ export const APPS: MarketplaceApp[] = [
     name: "Appointment Scheduling CRM",
     tagline: "Let customers book, reschedule, and get reminders automatically.",
     description:
-      "A scheduling CRM that lets customers book, reschedule, and cancel in plain conversation. Sync with your calendar and keep every booking tied to the customer record. How AI helps: the AI understands natural requests like \"next Tuesday afternoon,\" checks real-time availability, books the slot on the spot, and sends smart confirmations and reminders that adapt to reduce no-shows — no back-and-forth, no booking forms.",
+      "A scheduling CRM that lets customers book, reschedule, and cancel in plain conversation. Sync with your calendar and keep every booking tied to the customer record. Industry-ready for hospitals, clinics, schools, salons, and more — with multi-branch support and template-based setup. How AI helps: the AI understands natural requests like \"next Tuesday afternoon,\" checks real-time availability, books the slot on the spot, and sends smart confirmations and reminders that adapt to reduce no-shows — no back-and-forth, no booking forms.",
     icon: CalendarClock,
     category: "Scheduling",
-    status: "coming-soon",
-    route: "/marketplace",
+    status: "live",
+    route: "/app/appointment-crm",
+    defaultSection: "calendar",
     gradient: "from-violet-500 to-purple-400",
     pricing: "Premium",
+    badge: "New",
+    workspaceSections: [
+      { key: "overview", label: "Command Center", icon: LayoutDashboard },
+      { key: "calendar", label: "Calendar", icon: Calendar },
+      { key: "bookings", label: "Bookings", icon: CalendarClock },
+      { key: "branches", label: "Branches", icon: Building2 },
+      { key: "staff", label: "Staff & Departments", icon: UserCog },
+      { key: "customers", label: "Customers", icon: Contact },
+      { key: "agents", label: "AI Agents", icon: Users },
+      { key: "reminders", label: "Reminders", icon: Bell },
+      { key: "settings", label: "Setup", icon: SettingsIcon },
+    ],
     features: [
+      "Industry templates — Hospital, Clinic, School & more",
+      "First-run setup wizard — company, branches & terminology",
       "Real-time availability & booking on calls",
-      "Calendar sync (Google, Outlook)",
-      "Automated confirmations & reminders",
-      "Reschedule & cancellation handling",
+      "Multi-branch calendars & staff routing",
+      "Branch → department → staff hierarchy",
+      "Automated confirmations & smart reminders",
       "Bookings linked to customer records",
     ],
   },
@@ -373,7 +393,9 @@ export const DEFAULT_WORKSPACE_SECTION: WorkspaceSection = {
 
 /** Canonical standalone workspace URL for an app. */
 export function appWorkspacePath(appId: string, section?: string): string {
-  return section ? `/app/${appId}?section=${section}` : `/app/${appId}`;
+  const app = APPS.find((a) => a.id === appId);
+  const sec = section ?? app?.defaultSection;
+  return sec ? `/app/${appId}?section=${sec}` : `/app/${appId}`;
 }
 
 /**
@@ -382,7 +404,9 @@ export function appWorkspacePath(appId: string, section?: string): string {
  */
 export function openAppWorkspace(appId: string, section?: string): void {
   if (typeof window === "undefined") return;
-  window.open(appWorkspacePath(appId, section), "_blank", "noopener");
+  const app = APPS.find((a) => a.id === appId);
+  const sec = section ?? app?.defaultSection;
+  window.open(appWorkspacePath(appId, sec), "_blank", "noopener");
 }
 
 /** Icon used for the marketplace nav/section header. */
