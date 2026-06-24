@@ -126,7 +126,7 @@ const AppDetail = () => {
               ) : installed ? (
                 <>
                   <button
-                    onClick={() => openAppWorkspace(app.id)}
+                    onClick={() => openAppWorkspace(app.id, undefined, navigate)}
                     className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:opacity-90 shadow-md shadow-indigo-500/20 transition-all active:scale-[0.98]"
                   >
                     Open <ArrowRight className="w-4 h-4" />

@@ -30,6 +30,8 @@ import {
 } from 'lucide-react';
 import SheetColumnsModal, { SheetColumnsModalTarget } from './SheetColumnsModal';
 import DeleteIntegrationModal from './DeleteIntegrationModal';
+import AgentPickerField from './AgentPickerField';
+import { getLinkedGoogleSheetsAgentIds } from './agentPickerUtils';
 import { cloneColumns, applyAiFillDefaults, normalizeColumnsForApi, roleBadgeClass } from './sheetColumnUtils';
 import {
   DEFAULT_DIRECTORY_COLUMNS,
@@ -220,7 +222,6 @@ const GoogleSheetsManager = () => {
 
   // ── Assign modal ──
   const [assignSheet, setAssignSheet] = useState<Sheet | null>(null);
-  const [agents, setAgents] = useState<ApiAgent[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState('');
   const [existingIntegrationId, setExistingIntegrationId] = useState('');
   const [credentialId, setCredentialId] = useState('');
@@ -230,7 +231,6 @@ const GoogleSheetsManager = () => {
 
   // ── Create modal ──
   const [createOpen, setCreateOpen] = useState(false);
-  const [createAgents, setCreateAgents] = useState<ApiAgent[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
   const [sheetTitle, setSheetTitle] = useState('');
   const [tabName, setTabName] = useState('');
@@ -344,13 +344,21 @@ const GoogleSheetsManager = () => {
     [sheetTitle, selectedTemplate],
   );
 
+  const createBlockedAgentIds = useMemo(
+    () => getLinkedGoogleSheetsAgentIds(pageIntegrations),
+    [pageIntegrations],
+  );
+
+  const assignBlockedAgentIds = useMemo(
+    () => getLinkedGoogleSheetsAgentIds(pageIntegrations, { excludeSheetId: assignSheet?.id }),
+    [pageIntegrations, assignSheet?.id],
+  );
+
   // ── Assign handlers ──
-  const handleAssign = async (sheet: Sheet) => {
+  const handleAssign = (sheet: Sheet) => {
     setAssignSheet(sheet);
     setAssignSuccess(false);
     setAssignError('');
-    // Use page-level data for instant open
-    setAgents(pageAgents);
     setCredentialId(pageCredentialId);
     const existing = getSheetAssignment(sheet.id);
     setSelectedAgentId(existing?.agentId ?? '');
@@ -359,6 +367,10 @@ const GoogleSheetsManager = () => {
 
   const handleAssignSave = async () => {
     if (!assignSheet || !selectedAgentId) return;
+    if (assignBlockedAgentIds.has(selectedAgentId)) {
+      setAssignError('This AI employee is already linked to another sheet.');
+      return;
+    }
     setAssigning(true);
     setAssignError('');
     try {
@@ -401,7 +413,7 @@ const GoogleSheetsManager = () => {
   };
 
   // ── Create handlers ──
-  const openCreate = async () => {
+  const openCreate = () => {
     setCreateOpen(true);
     setSelectedTemplate(null);
     setSheetTitle('');
@@ -410,10 +422,6 @@ const GoogleSheetsManager = () => {
     setEnableAutoAssign(false);
     setCreateError('');
     setDraftColumns([]);
-    try {
-      const data = await agentAPI.getAgents();
-      setCreateAgents(data);
-    } catch { /* ignore */ }
   };
 
   const handleSelectTemplate = (tpl: Template) => {
@@ -502,6 +510,10 @@ const GoogleSheetsManager = () => {
 
   const handleCreate = async () => {
     if (!sheetTitle.trim() || !createAgentId) return;
+    if (createBlockedAgentIds.has(createAgentId)) {
+      setCreateError('This AI employee is already linked to another sheet.');
+      return;
+    }
     setCreating(true);
     setCreateError('');
     try {
@@ -1139,17 +1151,17 @@ const GoogleSheetsManager = () => {
       </GlassCard>
 
       {/* ── Create Sheet modal ── */}
-      <ModalOverlay open={createOpen} onClose={() => setCreateOpen(false)} panelClassName="max-w-lg">
+      <ModalOverlay open={createOpen} onClose={() => setCreateOpen(false)} panelClassName="max-w-3xl">
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full border border-slate-200 dark:border-slate-700">
 
             {/* Header */}
-            <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-center justify-between px-6 lg:px-8 pt-6 pb-4 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center">
                   <SheetIcon />
                 </div>
                 <div>
-                  <h2 className="text-sm font-semibold text-slate-800 dark:text-white">Create New Sheet</h2>
+                  <h2 className="text-base font-semibold text-slate-800 dark:text-white">Create New Sheet</h2>
                   <p className="text-xs text-slate-400 dark:text-slate-500">Choose a template & link to an AI Employee</p>
                 </div>
               </div>
@@ -1161,101 +1173,113 @@ const GoogleSheetsManager = () => {
               </button>
             </div>
 
-            <div className="p-6 space-y-5">
+            <div className="p-6 lg:p-8 space-y-5">
 
-              {/* Template picker */}
-              <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
-                  Choose a Template <span className="text-slate-400 font-normal">(optional)</span>
+              {/* Template + columns */}
+              <div className="grid grid-cols-1 md:grid-cols-[11rem_1fr] gap-2 md:gap-5 md:items-start">
+                <label className="text-xs font-medium text-slate-600 dark:text-slate-400 md:pt-2.5 md:text-right shrink-0">
+                  Choose a Template
+                  <span className="block text-slate-400 font-normal">(optional)</span>
                 </label>
-                <div className="relative">
-                  <select
-                    value={selectedTemplate?.id ?? ''}
-                    onChange={e => {
-                      const tpl = TEMPLATES.find(t => t.id === e.target.value) ?? null;
-                      if (tpl) handleSelectTemplate(tpl);
-                      else {
-                        setSelectedTemplate(null);
-                        setDraftColumns([]);
-                      }
-                    }}
-                    className="w-full px-3 py-2.5 rounded-xl text-sm common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-blue-500/40 text-slate-800 dark:text-white appearance-none pr-8"
-                  >
-                    <option value="">No template — blank sheet</option>
-                    {TEMPLATES.map(tpl => (
-                      <option key={tpl.id} value={tpl.id}>{tpl.name} — {tpl.description}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                </div>
-
-                {/* Columns summary — template auto-fills; open modal to customise */}
-                <div className="mt-2.5 flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5">
-                      Columns
-                    </p>
-                    {draftColumns.length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {draftColumns.slice(0, 5).map(col => (
-                          <span
-                            key={col.field}
-                            className={`text-[10px] px-1.5 py-0.5 rounded-md border border-slate-200 dark:border-slate-600 ${roleBadgeClass(col.role)}`}
-                          >
-                            {col.header}
-                          </span>
-                        ))}
-                        {draftColumns.length > 5 && (
-                          <span className="text-[10px] px-1.5 py-0.5 text-slate-400">
-                            +{draftColumns.length - 5} more
-                          </span>
-                        )}
-                      </div>
-                    ) : (
-                      <p className="text-[11px] text-slate-400">Pick a template or manage columns</p>
-                    )}
+                <div className="min-w-0 space-y-2.5">
+                  <div className="relative">
+                    <select
+                      value={selectedTemplate?.id ?? ''}
+                      onChange={e => {
+                        const tpl = TEMPLATES.find(t => t.id === e.target.value) ?? null;
+                        if (tpl) handleSelectTemplate(tpl);
+                        else {
+                          setSelectedTemplate(null);
+                          setDraftColumns([]);
+                        }
+                      }}
+                      className="w-full px-3 py-2.5 rounded-xl text-sm common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-blue-500/40 text-slate-800 dark:text-white appearance-none pr-8"
+                    >
+                      <option value="">No template — blank sheet</option>
+                      {TEMPLATES.map(tpl => (
+                        <option key={tpl.id} value={tpl.id}>{tpl.name} — {tpl.description}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                   </div>
-                  <button
-                    type="button"
-                    onClick={openCreateColumnsModal}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium common-button-bg2 flex-shrink-0"
-                  >
-                    <Settings2 className="w-3.5 h-3.5" />
-                    Manage
-                  </button>
+
+                  <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5">
+                        Columns
+                      </p>
+                      {draftColumns.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {draftColumns.slice(0, 8).map(col => (
+                            <span
+                              key={col.field}
+                              className={`text-[10px] px-1.5 py-0.5 rounded-md border border-slate-200 dark:border-slate-600 ${roleBadgeClass(col.role)}`}
+                            >
+                              {col.header}
+                            </span>
+                          ))}
+                          {draftColumns.length > 8 && (
+                            <span className="text-[10px] px-1.5 py-0.5 text-slate-400">
+                              +{draftColumns.length - 8} more
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-slate-400">Pick a template or manage columns</p>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={openCreateColumnsModal}
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-medium common-button-bg2 flex-shrink-0"
+                    >
+                      <Settings2 className="w-3.5 h-3.5" />
+                      Manage
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              {/* Sheet title */}
-              <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
-                  Sheet Title <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={sheetTitle}
-                  onChange={e => setSheetTitle(e.target.value)}
-                  placeholder="e.g. Customer Complaints Q2"
-                  className="w-full px-3 py-2.5 rounded-xl text-sm common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-blue-500/40 text-slate-800 dark:text-white placeholder:text-slate-400"
-                />
-              </div>
-
-              {/* Tab name */}
-              <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
-                  Tab Name <span className="text-slate-400 font-normal">(optional)</span>
-                </label>
-                <input
-                  type="text"
-                  value={tabName}
-                  onChange={e => setTabName(e.target.value)}
-                  placeholder="e.g. Sheet1"
-                  className="w-full px-3 py-2.5 rounded-xl text-sm common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-blue-500/40 text-slate-800 dark:text-white placeholder:text-slate-400"
-                />
+              {/* Sheet title + tab — side by side on desktop */}
+              <div className="grid grid-cols-1 md:grid-cols-[11rem_1fr] gap-2 md:gap-5 md:items-start">
+                <span className="text-xs font-medium text-slate-600 dark:text-slate-400 md:pt-2.5 md:text-right shrink-0">
+                  Sheet details
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
+                      Sheet Title <span className="text-red-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={sheetTitle}
+                      onChange={e => setSheetTitle(e.target.value)}
+                      placeholder="e.g. Customer Complaints Q2"
+                      className="w-full px-3 py-2.5 rounded-xl text-sm common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-blue-500/40 text-slate-800 dark:text-white placeholder:text-slate-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
+                      Tab Name <span className="text-slate-400 font-normal">(optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={tabName}
+                      onChange={e => setTabName(e.target.value)}
+                      placeholder="e.g. Sheet1"
+                      className="w-full px-3 py-2.5 rounded-xl text-sm common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-blue-500/40 text-slate-800 dark:text-white placeholder:text-slate-400"
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Roster sheet (optional) */}
-              <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+              <div className="grid grid-cols-1 md:grid-cols-[11rem_1fr] gap-2 md:gap-5 md:items-start">
+                <span className="text-xs font-medium text-slate-600 dark:text-slate-400 md:pt-3 md:text-right shrink-0">
+                  Roster
+                  <span className="block text-slate-400 font-normal">(optional)</span>
+                </span>
+                <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden min-w-0">
                 <label className="flex items-start gap-3 p-3.5 cursor-pointer common-bg-icons">
                   <input
                     type="checkbox"
@@ -1269,9 +1293,6 @@ const GoogleSheetsManager = () => {
                       <span className="text-sm font-medium text-slate-800 dark:text-white">
                         Create roster sheet
                       </span>
-                      <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
-                        optional
-                      </span>
                       {selectedTemplate?.auto_assign && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 font-medium">
                           Recommended
@@ -1279,7 +1300,7 @@ const GoogleSheetsManager = () => {
                       )}
                     </div>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                      Sheet with auto-assignment engine — matches records to staff by category and availability, then fills Assigned To and email on each row.
+                      Auto-assignment engine — matches records to staff by category and availability, then fills Assigned To and email on each row.
                     </p>
                   </div>
                 </label>
@@ -1313,47 +1334,37 @@ const GoogleSheetsManager = () => {
                     )}
                   </div>
                 )}
-              </div>
-
-              {/* AI Employee */}
-              <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
-                  Link to AI Employee <span className="text-red-400">*</span>
-                </label>
-                <div className="relative">
-                  <select
-                    value={createAgentId}
-                    onChange={e => setCreateAgentId(e.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl text-sm common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-blue-500/40 text-slate-800 dark:text-white appearance-none pr-8"
-                  >
-                    <option value="" disabled>Choose an AI Employee…</option>
-                    {createAgents.map(a => (
-                      <option key={a.id} value={a.id}>{a.name}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                 </div>
               </div>
 
+              <AgentPickerField
+                value={createAgentId}
+                onChange={setCreateAgentId}
+                blockedAgentIds={createBlockedAgentIds}
+                required
+                active={createOpen}
+                layout="horizontal"
+              />
+
               {/* Error */}
               {createError && (
-                <p className="text-xs text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">
+                <p className="text-xs text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2 md:ml-[calc(11rem+1.25rem)]">
                   {createError}
                 </p>
               )}
 
               {/* Actions */}
-              <div className="flex gap-2.5 pt-1">
+              <div className="flex flex-col-reverse sm:flex-row gap-2.5 pt-1 sm:justify-end md:pl-[calc(11rem+1.25rem)]">
                 <button
                   onClick={() => setCreateOpen(false)}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-medium common-bg-icons border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600 transition-colors"
+                  className="sm:min-w-[7.5rem] py-2.5 rounded-xl text-sm font-medium common-bg-icons border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleCreate}
                   disabled={!sheetTitle.trim() || !createAgentId || creating}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-medium common-button-bg disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                  className="sm:min-w-[11rem] py-2.5 rounded-xl text-sm font-medium common-button-bg disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
                 >
                   {creating ? (
                     <><Loader2 className="w-4 h-4 animate-spin" /> Creating…</>
@@ -1393,22 +1404,14 @@ const GoogleSheetsManager = () => {
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Select AI Employee <span className="text-red-400">*</span></label>
-              <div className="relative">
-                <select
-                  value={selectedAgentId}
-                  onChange={e => setSelectedAgentId(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl text-sm common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-blue-500/40 text-slate-800 dark:text-white appearance-none pr-8"
-                >
-                  <option value="" disabled>Choose an AI Employee…</option>
-                  {agents.map(agent => (
-                    <option key={agent.id} value={agent.id}>{agent.name}</option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-              </div>
-            </div>
+            <AgentPickerField
+              value={selectedAgentId}
+              onChange={setSelectedAgentId}
+              blockedAgentIds={assignBlockedAgentIds}
+              label="Select AI Employee"
+              required
+              active={Boolean(assignSheet)}
+            />
             {assignError && (
               <p className="text-xs text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">
                 {assignError}

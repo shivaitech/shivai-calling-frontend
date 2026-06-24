@@ -399,14 +399,22 @@ export function appWorkspacePath(appId: string, section?: string): string {
 }
 
 /**
- * Open an installed app in its dedicated workspace in a NEW browser tab.
- * Centralised so every entry point (card, detail, sidebar) behaves identically.
+ * Open an installed app in its workspace in the **current** tab (same session).
+ * Pass React Router's `navigate` when available for client-side routing.
  */
-export function openAppWorkspace(appId: string, section?: string): void {
-  if (typeof window === "undefined") return;
-  const app = APPS.find((a) => a.id === appId);
-  const sec = section ?? app?.defaultSection;
-  window.open(appWorkspacePath(appId, sec), "_blank", "noopener");
+export function openAppWorkspace(
+  appId: string,
+  section?: string,
+  navigate?: (to: string) => void
+): void {
+  const path = appWorkspacePath(appId, section);
+  if (navigate) {
+    navigate(path);
+    return;
+  }
+  if (typeof window !== "undefined") {
+    window.location.assign(path);
+  }
 }
 
 /** Icon used for the marketplace nav/section header. */

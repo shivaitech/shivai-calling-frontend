@@ -58,7 +58,7 @@ const Marketplace = () => {
     e.stopPropagation();
     if (app.status === "coming-soon") return;
     if (isInstalled(app.id)) {
-      openAppWorkspace(app.id); // opens the app's workspace in a new tab
+      openAppWorkspace(app.id, undefined, navigate);
     } else {
       install(app.id);
     }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { authAPI } from '../../services/authAPI';
 import { agentAPI, ApiAgent } from '../../services/agentAPI';
@@ -8,7 +8,6 @@ import {
   Users,
   Loader2,
   Check,
-  ChevronDown,
   X,
   RefreshCw,
   UserCog,
@@ -18,6 +17,8 @@ import {
 import ModalOverlay from '../../components/ModalOverlay';
 import SheetColumnsModal, { SheetColumnsModalTarget } from './SheetColumnsModal';
 import DeleteIntegrationModal from './DeleteIntegrationModal';
+import AgentPickerField from './AgentPickerField';
+import { getLinkedGoogleSheetsAgentIds } from './agentPickerUtils';
 import {
   buildFullIntegrationConfig,
   isDirectorySheet,
@@ -66,7 +67,7 @@ const GoogleSheetView = () => {
 
   // Assign modal state
   const [assignOpen, setAssignOpen] = useState(false);
-  const [agents, setAgents] = useState<ApiAgent[]>([]);
+  const [sheetIntegrations, setSheetIntegrations] = useState<unknown[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState('');
 
   const [credentialId, setCredentialId] = useState('');
@@ -112,6 +113,7 @@ const GoogleSheetView = () => {
       agentAPI.getAgents().catch(() => []),
     ]).then(([integrations, agentList]) => {
       const integrationList = integrations as any[];
+      setSheetIntegrations(integrationList);
       const existing = integrationList.find((i: any) =>
         i.config?.google_sheets?.sheet_id === id || i.sheet_id === id
       );
@@ -167,19 +169,19 @@ const GoogleSheetView = () => {
     window.setTimeout(() => setIframeLoaded(true), IFRAME_READY_DELAY_MS);
   };
 
+  const assignBlockedAgentIds = useMemo(
+    () => getLinkedGoogleSheetsAgentIds(sheetIntegrations, { excludeSheetId: id }),
+    [sheetIntegrations, id],
+  );
+
   const openAssignModal = async () => {
     setAssignOpen(true);
     setAssignSuccess(false);
     setAssignError('');
     try {
-      const [agentData, oauthStatus] = await Promise.all([
-        agentAPI.getAgents(),
-        authAPI.getOAuthStatus(),
-      ]);
-      setAgents(agentData);
+      const oauthStatus = await authAPI.getOAuthStatus();
       const googleCred = oauthStatus.find(s => s.provider?.includes('google'));
       setCredentialId(googleCred?.credential_id ?? '');
-      // selectedAgentId is already set from mount-time fetch; keep it
     } catch {
       // ignore
     }
@@ -187,6 +189,10 @@ const GoogleSheetView = () => {
 
   const handleAssignSave = async () => {
     if (!id || !selectedAgentId) return;
+    if (assignBlockedAgentIds.has(selectedAgentId)) {
+      setAssignError('This AI employee is already linked to another sheet.');
+      return;
+    }
     setAssigning(true);
     setAssignError('');
     try {
@@ -443,23 +449,14 @@ const GoogleSheetView = () => {
               </button>
             </div>
 
-            {/* Agent picker */}
-            <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Select AI Employee</label>
-              <div className="relative">
-                <select
-                  value={selectedAgentId}
-                  onChange={e => setSelectedAgentId(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl text-sm common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-blue-500/40 text-slate-800 dark:text-white appearance-none pr-8"
-                >
-                  <option value="">Choose an AI Employee…</option>
-                  {agents.map(agent => (
-                    <option key={agent.id} value={agent.id}>{agent.name}</option>
-                  ))}
-                </select>
-                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-              </div>
-            </div>
+            <AgentPickerField
+              value={selectedAgentId}
+              onChange={setSelectedAgentId}
+              blockedAgentIds={assignBlockedAgentIds}
+              label="Select AI Employee"
+              required
+              active={assignOpen}
+            />
 
             {assignError && (
               <p className="text-xs text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">

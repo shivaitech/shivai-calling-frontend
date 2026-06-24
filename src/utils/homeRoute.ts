@@ -13,9 +13,18 @@ const SKIP_PERSIST_PREFIXES = [
   "/website-preview",
 ];
 
+/** App workspace deep links should not hijack home or dashboard navigation. */
+const SKIP_PERSIST_EXACT = ["/", "/dashboard"];
+
+function isAppWorkspacePath(path: string): boolean {
+  return path.startsWith("/app/");
+}
+
 export function saveLastRoute(path: string): void {
-  if (!path || path === "/") return;
+  if (!path || SKIP_PERSIST_EXACT.includes(path)) return;
   if (SKIP_PERSIST_PREFIXES.some((p) => path.startsWith(p))) return;
+  // Do not persist marketplace app URLs — reopen uses calendar default, not last CRM section.
+  if (isAppWorkspacePath(path)) return;
   try {
     localStorage.setItem(LAST_ROUTE_KEY, path);
   } catch {
@@ -33,10 +42,11 @@ export function readLastRoute(): string | null {
 
 function isRestorableRoute(path: string): boolean {
   if (!path || path === "/") return false;
+  if (isAppWorkspacePath(path)) return false;
   return !SKIP_PERSIST_PREFIXES.some((p) => path.startsWith(p));
 }
 
-/** Default landing route after login or app reopen. */
+/** Default landing route after login or visiting `/` (not `/dashboard`). */
 export function getHomeRoute(): string {
   const installed = readInstalledAppIds();
   if (installed.includes("appointment-crm")) {

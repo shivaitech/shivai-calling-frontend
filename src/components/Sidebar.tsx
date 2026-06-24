@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import Logo from "../resources/images/ShivaiLogo.svg";
 import { useAuth } from "../contexts/AuthContext";
@@ -30,7 +30,6 @@ import {
   Phone,
   Sparkles,
   Package,
-  ExternalLink,
 } from "lucide-react";
 
 interface AppSection {
@@ -70,6 +69,7 @@ interface NavItem {
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMode }) => {
   const { user, logout } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const { installedIds } = useInstalledApps();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
@@ -193,8 +193,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMod
               if (isCollapsed) {
                 setIsCollapsed(false);
               } else {
-                window.location.href = "/";
-                window.scrollTo({ top: 0, behavior: "smooth" });
+                navigate("/dashboard");
+                onClose();
               }
             }}
             whileHover={{ scale: 1.02 }}
@@ -257,7 +257,28 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMod
         <nav className="space-y-2">
           {/* App workspace mode: show the app's own sections instead of dashboard nav */}
           {appMode ? (
-            appMode.sections.map((s) => {
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  navigate("/dashboard");
+                  onClose();
+                }}
+                title={isCollapsed ? "Main Dashboard" : undefined}
+                className={`w-full flex items-center ${
+                  isCollapsed ? "justify-center px-2 py-3" : "gap-3 px-4 py-3"
+                } rounded-lg transition-all duration-200 group mb-2 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white border border-slate-200/80 dark:border-slate-700/80`}
+              >
+                <Home className="w-5 h-5 flex-shrink-0" />
+                <motion.span
+                  animate={{ opacity: isCollapsed ? 0 : 1, width: isCollapsed ? 0 : "auto" }}
+                  transition={{ duration: 0.2 }}
+                  className="text-sm whitespace-nowrap overflow-hidden text-left"
+                >
+                  Main Dashboard
+                </motion.span>
+              </button>
+              {appMode.sections.map((s) => {
               const active = s.key === appMode.activeSection;
               return (
                 <button
@@ -285,7 +306,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMod
                   </motion.span>
                 </button>
               );
-            })
+            })}
+            </>
           ) : (
           navItems.map((item) => (
             <div key={item.path}>
@@ -396,10 +418,10 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMod
                 <button
                   key={app.id}
                   onClick={() => {
-                    openAppWorkspace(app.id); // opens in a new tab
+                    openAppWorkspace(app.id, undefined, navigate);
                     onClose();
                   }}
-                  title={isCollapsed ? `${app.name} (opens in new tab)` : undefined}
+                  title={isCollapsed ? app.name : undefined}
                   className={`w-full flex items-center ${
                     isCollapsed ? "justify-center px-2 py-3" : "gap-3 px-4 py-2.5"
                   } rounded-lg transition-all duration-200 group text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white`}
@@ -415,9 +437,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMod
                   >
                     {app.name}
                   </motion.span>
-                  {!isCollapsed && (
-                    <ExternalLink className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 group-hover:text-slate-400 dark:group-hover:text-slate-400 flex-shrink-0" />
-                  )}
                 </button>
               ))}
             </nav>
