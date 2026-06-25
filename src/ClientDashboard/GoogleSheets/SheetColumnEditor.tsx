@@ -1,5 +1,5 @@
 import { Plus, Trash2, Info } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { SheetColumn } from '../../services/authAPI';
 import ColumnRoleGuide from './ColumnRoleGuide';
 import ColumnAutoClassifyGuide from './ColumnAutoClassifyGuide';
@@ -13,6 +13,12 @@ import {
   roleBadgeClass,
 } from './sheetColumnUtils';
 import type { SheetColumnRole } from './sheetTypes';
+
+let nextRowKeyId = 0;
+function createRowKey() {
+  nextRowKeyId += 1;
+  return `sheet-col-${nextRowKeyId}`;
+}
 
 interface SheetColumnEditorProps {
   columns: SheetColumn[];
@@ -29,6 +35,11 @@ const SheetColumnEditor = ({
 }: SheetColumnEditorProps) => {
   const [roleGuideOpen, setRoleGuideOpen] = useState(false);
   const [clsGuideOpen, setClsGuideOpen] = useState(false);
+  const rowKeysRef = useRef<string[]>([]);
+  while (rowKeysRef.current.length < columns.length) {
+    rowKeysRef.current.push(createRowKey());
+  }
+  rowKeysRef.current.length = columns.length;
 
   const updateAt = (index: number, patch: Partial<SheetColumn>) => {
     const next = columns.map((col, i) => {
@@ -39,7 +50,7 @@ const SheetColumnEditor = ({
       } else if (patch.role && patch.role !== 'caller') {
         updated.auto_classify = false;
       }
-      if (patch.header !== undefined && !col.field?.trim()) {
+      if (patch.header !== undefined && !isRecordIdColumn(updated)) {
         updated.field = fieldFromHeader(patch.header);
       }
       return updated;
@@ -48,6 +59,7 @@ const SheetColumnEditor = ({
   };
 
   const removeAt = (index: number) => {
+    rowKeysRef.current.splice(index, 1);
     onChange(columns.filter((_, i) => i !== index));
   };
 
@@ -71,7 +83,7 @@ const SheetColumnEditor = ({
           <div className="space-y-2 max-h-[min(340px,50vh)] overflow-y-auto pr-0.5">
             {columns.map((col, index) => (
               <CardRow
-                key={`${col.field}-${index}`}
+                key={rowKeysRef.current[index]}
                 col={col}
                 index={index}
                 disabled={disabled}
@@ -121,7 +133,9 @@ const SheetColumnEditor = ({
                             ? 'Auto-classify — AI fills from conversation'
                             : label === 'Prefix'
                               ? 'ID prefix — e.g. TKT becomes TKT-001'
-                              : undefined
+                              : label === 'Field'
+                                ? 'Auto-generated from column name'
+                                : undefined
                       }
                     >
                       {label === 'Role' ? (
@@ -170,9 +184,12 @@ const SheetColumnEditor = ({
                   const recordId = isRecordIdColumn(col);
                   const canAutoClassify =
                     resolveColumnRole(col.role) === 'caller' && !recordId;
+                  const displayField =
+                    col.field?.trim() ||
+                    (col.header?.trim() ? fieldFromHeader(col.header) : '');
                   return (
                   <tr
-                    key={`${col.field}-${index}`}
+                    key={rowKeysRef.current[index]}
                     className="group border-b border-slate-100 dark:border-slate-800/80 last:border-0 hover:bg-white/70 dark:hover:bg-slate-800/30 transition-colors"
                   >
                     <td className="px-2 py-1">
@@ -187,15 +204,14 @@ const SheetColumnEditor = ({
                       />
                     </td>
                     <td className="px-2 py-1">
-                      <input
-                        type="text"
-                        value={col.field}
-                        disabled={disabled || recordId}
-                        onChange={e => updateAt(index, { field: e.target.value })}
-                        placeholder="field_key"
-                        title={col.field}
-                        className={`${inputBase} font-mono text-[11px] text-slate-600 dark:text-slate-300 ${recordId ? 'opacity-70' : ''}`}
-                      />
+                      <div
+                        className={`${inputBase} font-mono text-[11px] text-slate-500 dark:text-slate-400 bg-slate-100/90 dark:bg-slate-800/60 cursor-default select-all`}
+                        title="System-generated from column name"
+                      >
+                        {displayField || (
+                          <span className="text-slate-300 dark:text-slate-600">auto</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-2 py-1">
                       <select

@@ -12,12 +12,6 @@ export interface GoogleSheetsAssignmentOutput {
   record_column: string;
 }
 
-export interface GoogleSheetsAssignmentAvailability {
-  from_column: string;
-  to_column: string;
-  days_column: string;
-}
-
 export interface GoogleSheetsAssignmentConfig {
   enabled: boolean;
   directory_sheet_id: string;
@@ -25,7 +19,6 @@ export interface GoogleSheetsAssignmentConfig {
   directory_tab_name: string;
   match: GoogleSheetsAssignmentMatch[];
   output: GoogleSheetsAssignmentOutput[];
-  availability?: GoogleSheetsAssignmentAvailability;
   fallback?: Record<string, string>;
 }
 
@@ -95,12 +88,10 @@ export const DEFAULT_INTEGRATION_TIMEZONE = 'Asia/Kolkata';
 export const DEFAULT_DIRECTORY_COLUMNS: SheetColumn[] = [
   { header: 'Name', field: 'name', required: true },
   { header: 'Email', field: 'email', required: false },
+  { header: 'Category', field: 'category', required: false },
   { header: 'Department', field: 'department', required: false },
   { header: 'Phone', field: 'phone', required: false },
   { header: 'Role', field: 'role', required: false },
-  { header: 'Available From', field: 'available_from', required: false },
-  { header: 'Available To', field: 'available_to', required: false },
-  { header: 'Working Days', field: 'working_days', required: false },
 ];
 
 export const DEFAULT_DIRECTORY_TAB_NAME = 'Staff';
@@ -395,14 +386,9 @@ export function buildAssignmentConfig(params: {
     directory_sheet_name: params.directorySheetName,
     directory_tab_name: params.directoryTabName ?? DEFAULT_DIRECTORY_TAB_NAME,
     match: categoryCol
-      ? [{ record_field: categoryCol.field, directory_column: 'Department' }]
+      ? [{ record_field: categoryCol.field, directory_column: 'Category' }]
       : [],
     output,
-    availability: {
-      from_column: 'Available From',
-      to_column: 'Available To',
-      days_column: 'Working Days',
-    },
     fallback,
   };
 }

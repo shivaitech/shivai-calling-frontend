@@ -261,6 +261,7 @@ const GoogleSheetsManager = () => {
   const [discoverLoading, setDiscoverLoading] = useState(false);
   const [selectedRosterSheetId, setSelectedRosterSheetId] = useState('');
   const [staffRosterTitle, setStaffRosterTitle] = useState('');
+  const [rosterColumnsDraft, setRosterColumnsDraft] = useState<SheetColumn[]>(cloneColumns(DEFAULT_DIRECTORY_COLUMNS));
   const [creatingStaffRoster, setCreatingStaffRoster] = useState(false);
   const [staffRosterError, setStaffRosterError] = useState('');
   const [staffRosterSuccess, setStaffRosterSuccess] = useState(false);
@@ -354,6 +355,12 @@ const GoogleSheetsManager = () => {
     [pageIntegrations, assignSheet?.id],
   );
 
+  const updateRosterColumnHeader = (field: string, header: string) => {
+    setRosterColumnsDraft(prev =>
+      prev.map(col => (col.field === field ? { ...col, header } : col)),
+    );
+  };
+
   // ── Assign handlers ──
   const handleAssign = (sheet: Sheet) => {
     setAssignSheet(sheet);
@@ -422,6 +429,7 @@ const GoogleSheetsManager = () => {
     setEnableAutoAssign(false);
     setCreateError('');
     setDraftColumns([]);
+    setRosterColumnsDraft(cloneColumns(DEFAULT_DIRECTORY_COLUMNS));
   };
 
   const handleSelectTemplate = (tpl: Template) => {
@@ -538,7 +546,7 @@ const GoogleSheetsManager = () => {
         const dirResult = await authAPI.createStandaloneSheet({
           title: rosterTitle,
           tab_name: DEFAULT_DIRECTORY_TAB_NAME,
-          columns: DEFAULT_DIRECTORY_COLUMNS,
+          columns: normalizeColumnsForApi(rosterColumnsDraft),
           credential_id: pageCredentialId || undefined,
         });
         directorySheet = { id: dirResult.sheet_id, name: dirResult.sheet_name };
@@ -612,6 +620,7 @@ const GoogleSheetsManager = () => {
     setRosterSourceMode('pick');
     setSelectedRosterSheetId('');
     setStaffRosterTitle(defaultDirectorySheetTitle(sheet.name));
+    setRosterColumnsDraft(cloneColumns(DEFAULT_DIRECTORY_COLUMNS));
     setStaffRosterError('');
     setStaffRosterSuccess(false);
     setDiscoverLoading(true);
@@ -817,7 +826,7 @@ const GoogleSheetsManager = () => {
         const result = await authAPI.createStandaloneSheet({
           title: staffRosterTitle.trim(),
           tab_name: directoryTabName,
-          columns: DEFAULT_DIRECTORY_COLUMNS,
+          columns: normalizeColumnsForApi(rosterColumnsDraft),
           credential_id: pageCredentialId || undefined,
         });
         await linkDirectoryToParent(
@@ -1312,20 +1321,23 @@ const GoogleSheetsManager = () => {
                       {' · '}tab{' '}
                       <span className="font-medium text-slate-700 dark:text-slate-300">{DEFAULT_DIRECTORY_TAB_NAME}</span>
                     </p>
-                    <p className="text-[10px] text-slate-400 mt-2 mb-1.5">Auto-generated from template</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {DEFAULT_DIRECTORY_COLUMNS.map(col => (
-                        <span
-                          key={col.field}
-                          className="text-[10px] px-2 py-0.5 rounded-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400"
-                        >
-                          {col.header}
-                        </span>
+                    <p className="text-[10px] text-slate-400 mt-2 mb-1.5">Edit roster column names</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {rosterColumnsDraft.map(col => (
+                        <label key={col.field} className="text-[10px] text-slate-500 dark:text-slate-400">
+                          <span className="uppercase tracking-wide">{col.field.replace(/_/g, ' ')}</span>
+                          <input
+                            type="text"
+                            value={col.header}
+                            onChange={e => updateRosterColumnHeader(col.field, e.target.value)}
+                            className="mt-1 w-full px-2 py-1.5 rounded-lg text-xs common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500/30 text-slate-700 dark:text-slate-200"
+                          />
+                        </label>
                       ))}
                     </div>
                     {selectedTemplate?.auto_assign ? (
                       <p className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-2">
-                        Category → Department matching is pre-configured for this template.
+                        Category-based matching is pre-configured for this template.
                       </p>
                     ) : (
                       <p className="text-[10px] text-slate-400 mt-2">
@@ -1646,15 +1658,18 @@ const GoogleSheetsManager = () => {
               )}
 
               <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-3">
-                <p className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">Suggested roster columns</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {DEFAULT_DIRECTORY_COLUMNS.map(col => (
-                    <span
-                      key={col.field}
-                      className="text-[10px] px-2 py-0.5 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400"
-                    >
-                      {col.header}
-                    </span>
+                <p className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">Roster columns (editable)</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {rosterColumnsDraft.map(col => (
+                    <label key={col.field} className="text-[10px] text-slate-500 dark:text-slate-400">
+                      <span className="uppercase tracking-wide">{col.field.replace(/_/g, ' ')}</span>
+                      <input
+                        type="text"
+                        value={col.header}
+                        onChange={e => updateRosterColumnHeader(col.field, e.target.value)}
+                        className="mt-1 w-full px-2 py-1.5 rounded-lg text-xs common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-emerald-500/30 text-slate-700 dark:text-slate-200"
+                      />
+                    </label>
                   ))}
                 </div>
               </div>

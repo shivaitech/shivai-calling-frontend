@@ -35,6 +35,11 @@ import {
   LiveKitCallbacks,
 } from "../../services/liveKitService";
 import { agentAPI } from "../../services/agentAPI";
+import { authAPI } from "../../services/authAPI";
+import { workflowAPI } from "../../services/workflowAPI";
+import AgentCardWorkflows from "./agents/AgentCardWorkflows";
+import { loadWorkflowChipsForAgents } from "./agents/agentWorkflowSummary";
+import type { AgentWorkflowChip } from "./agents/AgentCardWorkflows";
 import {
   Bot,
   Play,
@@ -294,6 +299,8 @@ const AgentManagement = () => {
   const agentsRef = useRef<any[]>([]);
   const [totalPages, setTotalPages] = useState(0);
   const [isLoadingAgents, setIsLoadingAgents] = useState(false);
+  const [agentWorkflowChips, setAgentWorkflowChips] = useState<Record<string, AgentWorkflowChip[]>>({});
+  const [workflowsLoading, setWorkflowsLoading] = useState(false);
 
   // Pagination state - read from URL query params
   const currentPage = parseInt(searchParams.get("page") || "1", 10);
@@ -3048,6 +3055,40 @@ const AgentManagement = () => {
   // Paginated agents are now directly from API response
   const paginatedAgents = filteredAgents;
 
+  useEffect(() => {
+    if (!isList || !isDeveloper || filteredAgents.length === 0) {
+      setAgentWorkflowChips({});
+      setWorkflowsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setWorkflowsLoading(true);
+    const agentIds = filteredAgents.map((a: { id: string }) => a.id);
+
+    loadWorkflowChipsForAgents(
+      agentIds,
+      () => authAPI.getIntegrations("google_sheets"),
+      async (agentId) => {
+        const res = await workflowAPI.getAgentDocuments(agentId);
+        return res.data?.document?.files ?? [];
+      },
+    )
+      .then((map) => {
+        if (!cancelled) setAgentWorkflowChips(map);
+      })
+      .catch(() => {
+        if (!cancelled) setAgentWorkflowChips({});
+      })
+      .finally(() => {
+        if (!cancelled) setWorkflowsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isList, isDeveloper, filteredAgents, agentListRefreshToken]);
+
   // Handle page change
   const handlePageChange = (page: number) => {
     setSearchParams({ page: page.toString() });
@@ -3349,9 +3390,6 @@ const AgentManagement = () => {
 
         {/* Mobile-First Agent Grid */}
         {!isLoadingAgents && paginatedAgents.length > 0 && (
-          <>
-            {console.log('🎨 [Render] Rendering', paginatedAgents.length, 'agents')}
-            {console.log('🎨 [Render] Paginated agent IDs:', paginatedAgents.map(a => a.id))}
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
             {paginatedAgents.map((agent) => {
               return (
@@ -3476,6 +3514,12 @@ const AgentManagement = () => {
                       </span>
                     </div>
                   </div>
+
+                  <AgentCardWorkflows
+                    agentId={agent.id}
+                    chips={agentWorkflowChips[agent.id] ?? []}
+                    loading={workflowsLoading && !agentWorkflowChips[agent.id]}
+                  />
 
                   {/* KB Failed Alert Banner */}
                   {(agent as any).knowledge_base_status === 'failed' && (
@@ -3620,7 +3664,6 @@ const AgentManagement = () => {
               );
             })}
           </div>
-          </>
         )}
 
         {/* Pagination */}
