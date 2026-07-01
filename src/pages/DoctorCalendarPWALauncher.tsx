@@ -1,21 +1,28 @@
 import { useEffect } from "react";
 import { Navigate } from "react-router-dom";
 import { Smartphone } from "lucide-react";
-import {
-  getDoctorCalendarPath,
-  getDoctorPWAToken,
-} from "../utils/doctorPWA";
+import { getDoctorPWAStaffId, getStaffCalendarPath } from "../utils/doctorPWA";
+import { getShareByToken } from "../ClientDashboard/apps/AppointmentCRM/doctorCalendarShareStore";
 
-/** PWA start_url — restores the doctor's personal calendar (not the main app). */
+/** PWA start_url — restores the staff personal calendar. */
 export default function DoctorCalendarPWALauncher() {
-  const token = getDoctorPWAToken();
+  const staffId = getDoctorPWAStaffId();
 
   useEffect(() => {
     document.title = "My Appointment Calendar";
-  }, [token]);
+  }, [staffId]);
 
-  if (token) {
-    return <Navigate to={getDoctorCalendarPath(token)} replace />;
+  if (staffId) {
+    return <Navigate to={getStaffCalendarPath(staffId)} replace />;
+  }
+
+  // Legacy: old installs may only have a share token saved
+  const legacyToken = localStorage.getItem("shivai_doctor_pwa_token");
+  if (legacyToken) {
+    const share = getShareByToken(legacyToken);
+    if (share?.staffId) {
+      return <Navigate to={getStaffCalendarPath(share.staffId)} replace />;
+    }
   }
 
   return (

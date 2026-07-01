@@ -35,6 +35,12 @@ const GoogleCallback: React.FC = () => {
       try {
         clearError();
         await googleAuth(code);
+        const calendarReturn = sessionStorage.getItem("staff_calendar_return");
+        if (calendarReturn) {
+          sessionStorage.removeItem("staff_calendar_return");
+          navigate(calendarReturn, { replace: true });
+          return;
+        }
         navigate(getHomeRoute(), { replace: true });
       } catch (error: any) {
         const errorMessage = error.message || 'Authentication failed';

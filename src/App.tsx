@@ -137,7 +137,7 @@ function AppContent() {
 
             {/* Doctor personal calendar PWA — launcher + per-doctor calendar */}
             <Route path="/doctor-calendar" element={<DoctorCalendarPWALauncher />} />
-            <Route path="/doctor-calendar/:shareToken" element={<DoctorCalendarPublicPage />} />
+            <Route path="/doctor-calendar/:staffId" element={<DoctorCalendarPublicPage />} />
 
             {/* Website preview - no auth required, opens in new tab */}
             <Route path="/website-preview" element={<WebsitePreview />} />

@@ -9,6 +9,7 @@ import { isKunalPrakashClient, isNagarNigamMoradabadClient, isGrowthLiveClient }
 import AgentPublicPageNLP from "./AgentPublicPageNLP";
 import NagarNigamMoradabad from "./agentTestPages/NagarNigamMoradabad";
 import GrowthLive from "./agentTestPages/GrowthLive";
+import GrowithNova from "./agentTestPages/GrowithNova";
 
 interface AgentInfo {
   name: string;
@@ -166,9 +167,12 @@ export default function AgentPublicPage() {
     );
   }
 
+  // New Nova UI is the default for growith clients; old page stays at ?ui=old
+  const legacyGrowthUi = searchParams.get("ui") === "old";
+
   if (isTradeFxClient) return <AgentPublicPageNLP />;
   if (isNagarNigamClient) return <NagarNigamMoradabad />;
-  if (isGrowthClient) return <GrowthLive />;
+  if (isGrowthClient) return legacyGrowthUi ? <GrowthLive /> : <GrowithNova />;
 
   // ── Default test page ─────────────────────────────────────────────────────
   return (

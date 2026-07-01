@@ -38,7 +38,7 @@ const ShareDoctorCalendarModal = ({ open, staff, onClose }: Props) => {
     setConfirmPassword("");
     setError(null);
     setSent(false);
-    setShareUrl(existing ? getDoctorCalendarUrl(existing.shareToken) : "");
+    setShareUrl(getDoctorCalendarUrl(staff.id));
     setCopied(null);
     setEmailViaApi(false);
   }, [open, staff]);
@@ -68,7 +68,7 @@ const ShareDoctorCalendarModal = ({ open, staff, onClose }: Props) => {
         password,
         branchId: staff.branchId,
       });
-      const url = getDoctorCalendarUrl(share.shareToken);
+      const url = getDoctorCalendarUrl(staff.id);
       setShareUrl(url);
 
       await syncDoctorShareToServer(share, password);

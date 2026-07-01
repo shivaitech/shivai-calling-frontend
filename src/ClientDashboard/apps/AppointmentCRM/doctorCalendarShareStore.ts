@@ -114,8 +114,8 @@ export function buildSnapshotForStaff(staffId: string): DoctorCalendarSnapshot |
   };
 }
 
-export function getDoctorCalendarUrl(shareToken: string): string {
-  return `${window.location.origin}/doctor-calendar/${shareToken}`;
+export function getDoctorCalendarUrl(staffId: string): string {
+  return `${window.location.origin}/doctor-calendar/${staffId}`;
 }
 
 export async function createOrUpdateDoctorShare(params: {
@@ -232,8 +232,8 @@ export function markShareSent(shareToken: string): void {
   writeDoctorShares(list);
 }
 
-export function buildInviteEmailBody(share: DoctorCalendarShare, password: string): string {
-  const url = getDoctorCalendarUrl(share.shareToken);
+export function buildInviteEmailBody(share: DoctorCalendarShare, _password?: string): string {
+  const url = getDoctorCalendarUrl(share.staffId);
   return `Hello ${share.staffName},
 
 Your personal appointment calendar is ready. Open the link on your phone, tablet, or laptop.
@@ -241,11 +241,7 @@ Your personal appointment calendar is ready. Open the link on your phone, tablet
 Calendar link:
 ${url}
 
-Login email:
-${share.doctorEmail}
-
-Password:
-${password}
+Sign in with your ShivAI clinic account (same email and password as your ShivAI panel).
 
 Install as an app (recommended):
 • iPhone/iPad: Open in Safari → Share → Add to Home Screen

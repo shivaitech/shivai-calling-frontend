@@ -1,0 +1,1 @@
+const t="shivai_staff_calendar_staff_id";function a(t){return`/doctor-calendar/${t}`}function r(a){try{localStorage.setItem(t,a)}catch{}}function c(){try{return localStorage.getItem(t)}catch{return null}}export{c as a,a as g,r as s};
