@@ -354,11 +354,27 @@ export function fetchStaffCalendarShare(shareToken: string) {
   );
 }
 
+/** Tenant JWT — for staff/admin until per-share RBAC is ready. */
+export function fetchStaffCalendarShareAuthed(shareToken: string) {
+  return crmRequest<ApiStaffCalendarShare>({
+    method: "GET",
+    url: `/staff-calendar-shares/${shareToken}`,
+  });
+}
+
 export function fetchStaffCalendarShareDay(shareToken: string, date: string) {
   return crmRequest<ApiCalendarDay>(
     { method: "GET", url: `/staff-calendar-shares/${shareToken}/calendar`, params: { date } },
     { public: true },
   );
+}
+
+export function fetchStaffCalendarShareDayAuthed(shareToken: string, date: string) {
+  return crmRequest<ApiCalendarDay>({
+    method: "GET",
+    url: `/staff-calendar-shares/${shareToken}/calendar`,
+    params: { date },
+  });
 }
 
 export function deleteStaffCalendarShare(staffId: string) {
@@ -420,7 +436,9 @@ export const appointmentCrmAPI = {
   loginStaffCalendarShare,
   sendStaffCalendarShareEmail,
   fetchStaffCalendarShare,
+  fetchStaffCalendarShareAuthed,
   fetchStaffCalendarShareDay,
+  fetchStaffCalendarShareDayAuthed,
   deleteStaffCalendarShare,
 };
 

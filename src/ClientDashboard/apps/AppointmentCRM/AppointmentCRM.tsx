@@ -105,7 +105,7 @@ const AppointmentCRMContent: React.FC<Props> = ({ section = "calendar" }) => {
   return (
     <>
       <SetupModal open={setupOpen} onComplete={handleSetupComplete} />
-      {showBranchBar && <BranchSwitcher variant="compact" className="mb-4" />}
+      {showBranchBar && <BranchSwitcher variant="compact" className="mb-3 sm:mb-4" />}
       {content}
     </>
   );

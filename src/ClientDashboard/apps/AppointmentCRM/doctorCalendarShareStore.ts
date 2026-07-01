@@ -42,6 +42,7 @@ import {
 const SHARES_KEY = "shivai_appointmentcrm_doctor_shares";
 const SHARE_EVENT = "shivai:doctor-calendar-share-changed";
 const SESSION_PREFIX = "shivai_doctor_calendar_session:";
+const JWT_SESSION_PREFIX = "shivai_doctor_calendar_jwt:";
 
 function makeToken(): string {
   return `dc-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
@@ -184,10 +185,44 @@ export function hasDoctorSession(shareToken: string): boolean {
 export function clearDoctorSession(shareToken: string): void {
   try {
     sessionStorage.removeItem(`${SESSION_PREFIX}${shareToken}`);
+    sessionStorage.removeItem(`${JWT_SESSION_PREFIX}${shareToken}`);
     clearDoctorPWASession();
   } catch {
     /* ignore */
   }
+}
+
+export function setDoctorJwtSession(shareToken: string): void {
+  try {
+    sessionStorage.setItem(`${JWT_SESSION_PREFIX}${shareToken}`, JSON.stringify({ at: Date.now() }));
+    saveDoctorPWASession(shareToken);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function hasDoctorJwtSession(shareToken: string): boolean {
+  try {
+    const raw = localStorage.getItem("auth_tokens");
+    if (!raw || !JSON.parse(raw).accessToken) return false;
+    return Boolean(sessionStorage.getItem(`${JWT_SESSION_PREFIX}${shareToken}`));
+  } catch {
+    return false;
+  }
+}
+
+export function hasStoredTenantJwt(): boolean {
+  try {
+    const raw = localStorage.getItem("auth_tokens");
+    return Boolean(raw && JSON.parse(raw).accessToken);
+  } catch {
+    return false;
+  }
+}
+
+export function clearTenantJwtAuth(): void {
+  localStorage.removeItem("auth_tokens");
+  localStorage.removeItem("auth_user");
 }
 
 export function markShareSent(shareToken: string): void {

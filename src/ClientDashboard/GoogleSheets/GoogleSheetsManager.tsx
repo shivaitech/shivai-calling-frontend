@@ -979,23 +979,23 @@ const GoogleSheetsManager = () => {
                   className="common-bg-icons rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden hover:border-slate-300 dark:hover:border-slate-600 transition-colors"
                 >
                   <div className="p-4 flex flex-col gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center flex-shrink-0">
-                        <SheetIcon />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Main sheet</p>
-                        <p className="font-semibold text-slate-800 dark:text-white text-sm leading-snug line-clamp-2">{sheet.name}</p>
-                        {assignment?.agentName ? (
-                          <div className="flex items-center gap-1 mt-1">
-                            <div className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
-                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{assignment.agentName}</p>
-                          </div>
-                        ) : (
-                          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">No agent assigned</p>
-                        )}
-                      </div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center flex-shrink-0">
+                      <SheetIcon />
                     </div>
+                    <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Main sheet</p>
+                      <p className="font-semibold text-slate-800 dark:text-white text-sm leading-snug line-clamp-2">{sheet.name}</p>
+                      {assignment?.agentName ? (
+                        <div className="flex items-center gap-1 mt-1">
+                          <div className="w-1.5 h-1.5 rounded-full bg-green-500 flex-shrink-0" />
+                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{assignment.agentName}</p>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">No agent assigned</p>
+                      )}
+                    </div>
+                  </div>
 
                     {staffRoster ? (
                       <button
@@ -1019,21 +1019,21 @@ const GoogleSheetsManager = () => {
                     ) : null}
 
                     <div className="flex flex-wrap items-center gap-2 pt-0.5">
-                      <button
-                        onClick={() => navigate(`/google-sheets/${sheet.id}/view?name=${encodeURIComponent(sheet.name)}`)}
-                        className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium common-button-bg2 flex-shrink-0"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                        View
-                      </button>
-                      <button
-                        onClick={() => assignment?.agentId && navigate(`/agents/${assignment.agentId}`)}
-                        disabled={!assignment?.agentId}
-                        className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium common-button-bg2 flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        <Play className="w-3.5 h-3.5" />
-                        Test AI
-                      </button>
+                    <button
+                      onClick={() => navigate(`/google-sheets/${sheet.id}/view?name=${encodeURIComponent(sheet.name)}`)}
+                      className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium common-button-bg2 flex-shrink-0"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      View
+                    </button>
+                    <button
+                      onClick={() => assignment?.agentId && navigate(`/agents/${assignment.agentId}`)}
+                      disabled={!assignment?.agentId}
+                      className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium common-button-bg2 flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <Play className="w-3.5 h-3.5" />
+                      Test AI
+                    </button>
                       <button
                         onClick={() => openColumnsModal(sheet)}
                         disabled={!assignment?.integrationId}
@@ -1042,13 +1042,13 @@ const GoogleSheetsManager = () => {
                         <Columns3 className="w-3.5 h-3.5" />
                         Manage cols
                       </button>
-                      <button
-                        onClick={() => handleAssign(sheet)}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium common-button-bg transition-all active:scale-[0.98]"
-                      >
-                        <Users className="w-3.5 h-3.5 flex-shrink-0" />
-                        {assignment ? 'Update Agent' : 'Assign AI'}
-                      </button>
+                    <button
+                      onClick={() => handleAssign(sheet)}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium common-button-bg transition-all active:scale-[0.98]"
+                    >
+                      <Users className="w-3.5 h-3.5 flex-shrink-0" />
+                      {assignment ? 'Update Agent' : 'Assign AI'}
+                    </button>
                       <button
                         onClick={() => openDeleteModal(sheet)}
                         disabled={!assignment?.integrationId}
@@ -1191,26 +1191,26 @@ const GoogleSheetsManager = () => {
                   <span className="block text-slate-400 font-normal">(optional)</span>
                 </label>
                 <div className="min-w-0 space-y-2.5">
-                  <div className="relative">
-                    <select
-                      value={selectedTemplate?.id ?? ''}
-                      onChange={e => {
-                        const tpl = TEMPLATES.find(t => t.id === e.target.value) ?? null;
-                        if (tpl) handleSelectTemplate(tpl);
+                <div className="relative">
+                  <select
+                    value={selectedTemplate?.id ?? ''}
+                    onChange={e => {
+                      const tpl = TEMPLATES.find(t => t.id === e.target.value) ?? null;
+                      if (tpl) handleSelectTemplate(tpl);
                         else {
                           setSelectedTemplate(null);
                           setDraftColumns([]);
                         }
-                      }}
-                      className="w-full px-3 py-2.5 rounded-xl text-sm common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-blue-500/40 text-slate-800 dark:text-white appearance-none pr-8"
-                    >
-                      <option value="">No template — blank sheet</option>
-                      {TEMPLATES.map(tpl => (
-                        <option key={tpl.id} value={tpl.id}>{tpl.name} — {tpl.description}</option>
-                      ))}
-                    </select>
-                    <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                  </div>
+                    }}
+                    className="w-full px-3 py-2.5 rounded-xl text-sm common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-blue-500/40 text-slate-800 dark:text-white appearance-none pr-8"
+                  >
+                    <option value="">No template — blank sheet</option>
+                    {TEMPLATES.map(tpl => (
+                      <option key={tpl.id} value={tpl.id}>{tpl.name} — {tpl.description}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                </div>
 
                   <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
                     <div className="min-w-0 flex-1">
@@ -1224,15 +1224,15 @@ const GoogleSheetsManager = () => {
                               key={col.field}
                               className={`text-[10px] px-1.5 py-0.5 rounded-md border border-slate-200 dark:border-slate-600 ${roleBadgeClass(col.role)}`}
                             >
-                              {col.header}
-                            </span>
-                          ))}
+                          {col.header}
+                        </span>
+                      ))}
                           {draftColumns.length > 8 && (
                             <span className="text-[10px] px-1.5 py-0.5 text-slate-400">
                               +{draftColumns.length - 8} more
                             </span>
                           )}
-                        </div>
+                    </div>
                       ) : (
                         <p className="text-[11px] text-slate-400">Pick a template or manage columns</p>
                       )}
@@ -1255,29 +1255,29 @@ const GoogleSheetsManager = () => {
                   Sheet details
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0">
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
-                      Sheet Title <span className="text-red-400">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={sheetTitle}
-                      onChange={e => setSheetTitle(e.target.value)}
-                      placeholder="e.g. Customer Complaints Q2"
-                      className="w-full px-3 py-2.5 rounded-xl text-sm common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-blue-500/40 text-slate-800 dark:text-white placeholder:text-slate-400"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
-                      Tab Name <span className="text-slate-400 font-normal">(optional)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={tabName}
-                      onChange={e => setTabName(e.target.value)}
-                      placeholder="e.g. Sheet1"
-                      className="w-full px-3 py-2.5 rounded-xl text-sm common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-blue-500/40 text-slate-800 dark:text-white placeholder:text-slate-400"
-                    />
+              <div>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
+                  Sheet Title <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={sheetTitle}
+                  onChange={e => setSheetTitle(e.target.value)}
+                  placeholder="e.g. Customer Complaints Q2"
+                  className="w-full px-3 py-2.5 rounded-xl text-sm common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-blue-500/40 text-slate-800 dark:text-white placeholder:text-slate-400"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
+                  Tab Name <span className="text-slate-400 font-normal">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={tabName}
+                  onChange={e => setTabName(e.target.value)}
+                  placeholder="e.g. Sheet1"
+                  className="w-full px-3 py-2.5 rounded-xl text-sm common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-blue-500/40 text-slate-800 dark:text-white placeholder:text-slate-400"
+                />
                   </div>
                 </div>
               </div>
@@ -1417,7 +1417,7 @@ const GoogleSheetsManager = () => {
               </button>
             </div>
             <AgentPickerField
-              value={selectedAgentId}
+                  value={selectedAgentId}
               onChange={setSelectedAgentId}
               blockedAgentIds={assignBlockedAgentIds}
               label="Select AI Employee"
@@ -1464,7 +1464,7 @@ const GoogleSheetsManager = () => {
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center">
                   <UserCog className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                </div>
+        </div>
                 <div>
                   <h2 className="text-sm font-semibold text-slate-800 dark:text-white">
                     {linkedRosterForModal ? 'Manage staff roster' : 'Staff & Officers Roster'}

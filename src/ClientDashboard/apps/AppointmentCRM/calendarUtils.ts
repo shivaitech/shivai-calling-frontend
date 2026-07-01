@@ -2,9 +2,9 @@ import type { Booking } from "./mockData";
 
 export const CALENDAR_SLOT_MINUTES = 15;
 export const CALENDAR_DAY_START_MIN = 9 * 60;
-export const CALENDAR_DAY_END_MIN = 17 * 60;
-/** ~48px per hour — Google Calendar–style density (was 42px per 15 min). */
-export const CALENDAR_SLOT_HEIGHT_PX = 12;
+export const CALENDAR_DAY_END_MIN = 21 * 60;
+/** ~56px per hour at 15-min slots — readable on mobile without an oversized grid. */
+export const CALENDAR_SLOT_HEIGHT_PX = 14;
 
 /** Parse "09:30 AM", "14:15", "09:00" → minutes from midnight. */
 export function parseTimeToMinutes(time: string): number {

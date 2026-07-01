@@ -16,8 +16,6 @@ import {
   toIsoDate,
 } from "./availabilityStore";
 import {
-  CALENDAR_DAY_END_MIN,
-  CALENDAR_DAY_START_MIN,
   CALENDAR_SLOT_HEIGHT_PX,
   bookingOverlapsSlot,
   formatAxisTimeCompact,
@@ -26,6 +24,7 @@ import {
   minutesToTopPx,
   totalCalendarHeightPx,
 } from "./calendarUtils";
+import { useCalendarConfig } from "./calendarConfig";
 import type { Booking } from "./mockData";
 import BookingDetailModal from "./BookingDetailModal";
 import StaffScheduleModal from "./StaffScheduleModal";
@@ -84,6 +83,7 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
   const [deletingBlock, setDeletingBlock] = useState(false);
 
   const branchId = activeBranchId ?? "";
+  const { dayStartMin, dayEndMin, slotMinutes } = useCalendarConfig(branchId || null);
 
   useEffect(() => {
     if (!lockedStaffId) return;
@@ -165,13 +165,19 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
     [bookings, branchId, deptId, viewDate],
   );
 
-  const timeSlots = useMemo(() => generateDaySlots(), []);
-  const hourLabels = useMemo(() => generateHourLabels(), []);
-  const halfHourLabels = useMemo(
-    () => generateDaySlots().filter((m) => m % 60 === 30),
-    [],
+  const timeSlots = useMemo(
+    () => generateDaySlots(dayStartMin, dayEndMin, slotMinutes),
+    [dayStartMin, dayEndMin, slotMinutes],
   );
-  const gridHeight = totalCalendarHeightPx();
+  const hourLabels = useMemo(
+    () => generateHourLabels(dayStartMin, dayEndMin),
+    [dayStartMin, dayEndMin],
+  );
+  const halfHourLabels = useMemo(
+    () => generateDaySlots(dayStartMin, dayEndMin, slotMinutes).filter((m) => m % 60 === 30),
+    [dayStartMin, dayEndMin, slotMinutes],
+  );
+  const gridHeight = totalCalendarHeightPx(dayStartMin, dayEndMin);
 
   const staffBookings = useMemo(() => {
     const map = new Map<string, Booking[]>();
@@ -217,23 +223,36 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3 sm:space-y-5">
       <SectionTitle
         title={lockedStaffId && focusedStaff ? displayName(focusedStaff) : "Calendar"}
         subtitle={
           lockedStaffId
-            ? `Your ${terms.appointments.toLowerCase()} · 15-min slots`
-            : `${terms.appointments} by ${terms.staff.toLowerCase()} · 15-min slots`
+            ? `Your ${terms.appointments.toLowerCase()} · ${slotMinutes}-min slots`
+            : `${terms.appointments} by ${terms.staff.toLowerCase()} · ${slotMinutes}-min slots`
         }
+        stackOnMobile
         right={
-          <CalendarDateNav
-            viewDate={viewDate}
-            onViewDateChange={(date) => setViewDate(new Date(date))}
-          />
+          <>
+            <div className="w-full sm:hidden">
+              <CalendarDateNav
+                viewDate={viewDate}
+                onViewDateChange={(date) => setViewDate(new Date(date))}
+                fullWidth
+                compact
+              />
+            </div>
+            <div className="hidden sm:block">
+              <CalendarDateNav
+                viewDate={viewDate}
+                onViewDateChange={(date) => setViewDate(new Date(date))}
+              />
+            </div>
+          </>
         }
       />
 
-      <div className="flex flex-wrap gap-1.5 text-[9px]">
+      <div className="grid grid-cols-3 gap-1.5 sm:flex sm:flex-wrap sm:gap-1.5 text-[9px] sm:text-[9px]">
         {[
           { label: "Available", dot: "bg-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 border-emerald-200/70" },
           { label: "Booked", dot: "bg-violet-500", bg: "bg-violet-50 dark:bg-violet-950/20 text-violet-700 dark:text-violet-400 border-violet-200/70" },
@@ -242,7 +261,10 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
           { label: "Leave", dot: "bg-red-400", bg: "bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-400 border-red-200/70" },
           { label: "Off hours", dot: "bg-slate-300", bg: "bg-slate-100 dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700" },
         ].map((item) => (
-          <span key={item.label} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border ${item.bg}`}>
+          <span
+            key={item.label}
+            className={`inline-flex items-center justify-center sm:justify-start gap-1 px-1.5 sm:px-2 py-1 sm:py-0.5 rounded-full border ${item.bg}`}
+          >
             <span className={`w-1.5 h-1.5 rounded-full ${item.dot}`} />
             {item.label}
           </span>
@@ -250,29 +272,31 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
       </div>
 
       {!lockedStaffId && branchDepts.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          <Layers className="w-4 h-4 text-slate-400" />
-          <button
-            type="button"
-            onClick={() => setDeptId("all")}
-            className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-              deptId === "all" ? "bg-slate-800 dark:bg-white text-white dark:text-slate-900 border-transparent" : "border-slate-200 dark:border-slate-700 hover:border-slate-300"
-            }`}
-          >
-            All {terms.departments}
-          </button>
-          {branchDepts.map((d) => (
+        <div className="-mx-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex items-center gap-2 px-1 pb-0.5 min-w-min">
+            <Layers className="w-4 h-4 text-slate-400 shrink-0" />
             <button
-              key={d.id}
               type="button"
-              onClick={() => setDeptId(d.id)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                deptId === d.id ? "bg-violet-600 text-white border-violet-600" : "border-slate-200 dark:border-slate-700 hover:border-slate-300"
+              onClick={() => setDeptId("all")}
+              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors whitespace-nowrap ${
+                deptId === "all" ? "bg-slate-800 dark:bg-white text-white dark:text-slate-900 border-transparent" : "border-slate-200 dark:border-slate-700 hover:border-slate-300"
               }`}
             >
-              {d.name}
+              All {terms.departments}
             </button>
-          ))}
+            {branchDepts.map((d) => (
+              <button
+                key={d.id}
+                type="button"
+                onClick={() => setDeptId(d.id)}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors whitespace-nowrap ${
+                  deptId === d.id ? "bg-violet-600 text-white border-violet-600" : "border-slate-200 dark:border-slate-700 hover:border-slate-300"
+                }`}
+              >
+                {d.name}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -325,7 +349,15 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
           </div>
         )}
         <div className="p-1.5 sm:p-2 overflow-x-auto">
-          <div className="min-w-[520px] rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+          <div
+            className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden"
+            style={{
+              minWidth: Math.max(
+                280,
+                TIME_AXIS_WIDTH + displayStaff.length * STAFF_COL_MIN,
+              ),
+            }}
+          >
             {/* Staff headers */}
             <div
               className="grid border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900"
@@ -404,7 +436,7 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
                   <div
                     key={mins}
                     className="absolute left-0 right-0 flex items-start justify-end pr-1 -translate-y-1/2"
-                    style={{ top: minutesToTopPx(mins) }}
+                    style={{ top: minutesToTopPx(mins, dayStartMin) }}
                   >
                     <span className="text-[9px] font-medium text-slate-500 dark:text-slate-400 tabular-nums leading-none whitespace-nowrap">
                       {formatAxisTimeCompact(mins)}
@@ -420,14 +452,14 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
                   <div
                     key={`hour-line-${mins}`}
                     className="absolute left-0 right-0 border-t border-slate-200 dark:border-slate-700 pointer-events-none z-[1]"
-                    style={{ top: minutesToTopPx(mins) }}
+                    style={{ top: minutesToTopPx(mins, dayStartMin) }}
                   />
                 ))}
                 {halfHourLabels.map((mins) => (
                   <div
                     key={`half-line-${mins}`}
                     className="absolute left-0 right-0 border-t border-dotted border-slate-100 dark:border-slate-700/60 pointer-events-none z-[1]"
-                    style={{ top: minutesToTopPx(mins) }}
+                    style={{ top: minutesToTopPx(mins, dayStartMin) }}
                   />
                 ))}
 
@@ -454,7 +486,7 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
                             key={slotMin}
                             className={`absolute left-0 right-0 ${SLOT_BG[state]}`}
                             style={{
-                              top: minutesToTopPx(slotMin),
+                              top: minutesToTopPx(slotMin, dayStartMin),
                               height: CALENDAR_SLOT_HEIGHT_PX,
                             }}
                           />
@@ -465,8 +497,8 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
                         <CalendarOfflineBlockCard
                           key={block.id}
                           block={block}
-                          dayStartMin={CALENDAR_DAY_START_MIN}
-                          dayEndMin={CALENDAR_DAY_END_MIN}
+                          dayStartMin={dayStartMin}
+                          dayEndMin={dayEndMin}
                           onClick={() => setSelectedOfflineBlock(block)}
                         />
                       ))}
@@ -475,8 +507,8 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
                         <CalendarBookingCard
                           key={booking.id}
                           booking={booking}
-                          dayStartMin={CALENDAR_DAY_START_MIN}
-                          dayEndMin={CALENDAR_DAY_END_MIN}
+                          dayStartMin={dayStartMin}
+                          dayEndMin={dayEndMin}
                           onClick={() => setSelectedBooking(booking)}
                         />
                       ))}

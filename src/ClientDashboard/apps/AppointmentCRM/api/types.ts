@@ -47,6 +47,11 @@ export interface ApiOrgConfig {
   flags?: Record<string, unknown>;
 }
 
+export interface ApiBranchCalendar {
+  dayStart?: string;
+  dayEnd?: string;
+}
+
 export interface ApiBranch {
   id?: string;
   _id?: string;
@@ -55,6 +60,7 @@ export interface ApiBranch {
   phone?: string;
   isPrimary?: boolean;
   active?: boolean;
+  calendar?: ApiBranchCalendar;
 }
 
 export interface ApiDepartment {

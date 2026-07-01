@@ -1,16 +1,15 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Clock } from "lucide-react";
 import CalendarDateNav from "./CalendarDateNav";
 import type { DoctorCalendarSnapshot } from "./doctorCalendarShareStore";
+import { fetchDoctorCalendarDayWithJwt } from "./doctorCalendarShareAPI";
+import { toIsoDate } from "./availabilityStore";
+import type { CalendarCellState } from "./availabilityStore";
 import {
-  CalendarCellState,
-  toIsoDate,
   isMinuteInDailyBreak,
   isMinuteInWeeklyAvailability,
 } from "./availabilityStore";
 import {
-  CALENDAR_DAY_END_MIN,
-  CALENDAR_DAY_START_MIN,
   CALENDAR_SLOT_HEIGHT_PX,
   bookingOverlapsSlot,
   formatAxisTimeCompact,
@@ -19,6 +18,7 @@ import {
   minutesToTopPx,
   totalCalendarHeightPx,
 } from "./calendarUtils";
+import { useCalendarConfig } from "./calendarConfig";
 import { offlineBlockOverlapsSlot } from "./offlineBlocksStore";
 import { bookingMatchesViewDate } from "./bookingsStore";
 import CalendarBookingCard from "./CalendarBookingCard";
@@ -39,6 +39,8 @@ const TIME_AXIS_WIDTH = 48;
 interface Props {
   snapshot: DoctorCalendarSnapshot;
   readOnly?: boolean;
+  shareToken?: string;
+  useJwtApi?: boolean;
 }
 
 function slotState(
@@ -67,11 +69,40 @@ function slotState(
   return "available";
 }
 
-const DoctorPublicCalendar = ({ snapshot }: Props) => {
+const DoctorPublicCalendar = ({ snapshot: initialSnapshot, shareToken, useJwtApi }: Props) => {
+  const [snapshot, setSnapshot] = useState(initialSnapshot);
   const [viewDate, setViewDate] = useState(() => new Date());
+
+  useEffect(() => {
+    setSnapshot(initialSnapshot);
+  }, [initialSnapshot]);
+
+  useEffect(() => {
+    if (!shareToken || !useJwtApi) return;
+    const iso = toIsoDate(viewDate);
+    let cancelled = false;
+    (async () => {
+      const day = await fetchDoctorCalendarDayWithJwt(shareToken, iso);
+      if (cancelled || !day) return;
+      setSnapshot((prev) => ({
+        ...prev,
+        staff: day.staff ?? prev.staff,
+        branchId: day.branchId ?? prev.branchId,
+        bookings: day.bookings ?? prev.bookings,
+        offlineBlocks: day.offlineBlocks ?? prev.offlineBlocks,
+        availability: day.availability ?? prev.availability,
+        leaves: day.leaves ?? prev.leaves,
+        syncedAt: day.syncedAt ?? prev.syncedAt,
+      }));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [shareToken, useJwtApi, viewDate]);
   const staff = snapshot.staff;
   const name = staffDisplayName(staff);
   const viewIso = toIsoDate(viewDate);
+  const { dayStartMin, dayEndMin, slotMinutes } = useCalendarConfig(snapshot.branchId);
 
   const dayBookings = useMemo(
     () => snapshot.bookings.filter((b) => b.status !== "cancelled" && bookingMatchesViewDate(b, viewDate)),
@@ -82,10 +113,19 @@ const DoctorPublicCalendar = ({ snapshot }: Props) => {
     [snapshot.offlineBlocks, viewIso],
   );
 
-  const timeSlots = useMemo(() => generateDaySlots(), []);
-  const hourLabels = useMemo(() => generateHourLabels(), []);
-  const halfHourLabels = useMemo(() => generateDaySlots().filter((m) => m % 60 === 30), []);
-  const gridHeight = totalCalendarHeightPx();
+  const timeSlots = useMemo(
+    () => generateDaySlots(dayStartMin, dayEndMin, slotMinutes),
+    [dayStartMin, dayEndMin, slotMinutes],
+  );
+  const hourLabels = useMemo(
+    () => generateHourLabels(dayStartMin, dayEndMin),
+    [dayStartMin, dayEndMin],
+  );
+  const halfHourLabels = useMemo(
+    () => generateDaySlots(dayStartMin, dayEndMin, slotMinutes).filter((m) => m % 60 === 30),
+    [dayStartMin, dayEndMin, slotMinutes],
+  );
+  const gridHeight = totalCalendarHeightPx(dayStartMin, dayEndMin);
   const onLeave = snapshot.leaves.some((l) => l.fromDate <= viewIso && l.toDate >= viewIso);
 
   return (
@@ -119,7 +159,7 @@ const DoctorPublicCalendar = ({ snapshot }: Props) => {
         <div className="flex">
           <div className="relative border-r border-slate-200 dark:border-slate-700 flex-shrink-0" style={{ width: TIME_AXIS_WIDTH, height: gridHeight }}>
             {hourLabels.map((mins) => (
-              <div key={mins} className="absolute right-1 -translate-y-1/2" style={{ top: minutesToTopPx(mins) }}>
+              <div key={mins} className="absolute right-1 -translate-y-1/2" style={{ top: minutesToTopPx(mins, dayStartMin) }}>
                 <span className="text-[9px] text-slate-500 tabular-nums">{formatAxisTimeCompact(mins)}</span>
               </div>
             ))}
@@ -127,10 +167,10 @@ const DoctorPublicCalendar = ({ snapshot }: Props) => {
 
           <div className="flex-1 relative" style={{ height: gridHeight, minWidth: 0 }}>
             {hourLabels.map((mins) => (
-              <div key={mins} className="absolute left-0 right-0 border-t border-slate-200 dark:border-slate-700 pointer-events-none" style={{ top: minutesToTopPx(mins) }} />
+              <div key={mins} className="absolute left-0 right-0 border-t border-slate-200 dark:border-slate-700 pointer-events-none" style={{ top: minutesToTopPx(mins, dayStartMin) }} />
             ))}
             {halfHourLabels.map((mins) => (
-              <div key={mins} className="absolute left-0 right-0 border-t border-dotted border-slate-100 dark:border-slate-700/60 pointer-events-none" style={{ top: minutesToTopPx(mins) }} />
+              <div key={mins} className="absolute left-0 right-0 border-t border-dotted border-slate-100 dark:border-slate-700/60 pointer-events-none" style={{ top: minutesToTopPx(mins, dayStartMin) }} />
             ))}
 
             {timeSlots.map((slotMin) => {
@@ -142,7 +182,7 @@ const DoctorPublicCalendar = ({ snapshot }: Props) => {
                 <div
                   key={slotMin}
                   className={`absolute left-0 right-0 ${SLOT_BG[state]}`}
-                  style={{ top: minutesToTopPx(slotMin), height: CALENDAR_SLOT_HEIGHT_PX }}
+                  style={{ top: minutesToTopPx(slotMin, dayStartMin), height: CALENDAR_SLOT_HEIGHT_PX }}
                 />
               );
             })}
@@ -151,8 +191,8 @@ const DoctorPublicCalendar = ({ snapshot }: Props) => {
               <CalendarOfflineBlockCard
                 key={block.id}
                 block={block}
-                dayStartMin={CALENDAR_DAY_START_MIN}
-                dayEndMin={CALENDAR_DAY_END_MIN}
+                dayStartMin={dayStartMin}
+                dayEndMin={dayEndMin}
                 onClick={() => {}}
               />
             ))}
@@ -161,8 +201,8 @@ const DoctorPublicCalendar = ({ snapshot }: Props) => {
               <CalendarBookingCard
                 key={booking.id}
                 booking={booking}
-                dayStartMin={CALENDAR_DAY_START_MIN}
-                dayEndMin={CALENDAR_DAY_END_MIN}
+                dayStartMin={dayStartMin}
+                dayEndMin={dayEndMin}
                 onClick={() => {}}
               />
             ))}

@@ -63,7 +63,7 @@ function hueFromSeed(seed: string, fallback = 0): number {
 
 export function mapBranch(b: ApiBranch, index = 0): Branch {
   const id = apiId(b);
-  return {
+  const branch: Branch = {
     id,
     name: b.name,
     address: b.address,
@@ -71,6 +71,10 @@ export function mapBranch(b: ApiBranch, index = 0): Branch {
     isPrimary: b.isPrimary ?? index === 0,
     active: b.active !== false,
   };
+  if (b.calendar?.dayStart && b.calendar?.dayEnd) {
+    branch.calendar = { dayStart: b.calendar.dayStart, dayEnd: b.calendar.dayEnd };
+  }
+  return branch;
 }
 
 export function mapDepartment(d: ApiDepartment, index = 0): Department {

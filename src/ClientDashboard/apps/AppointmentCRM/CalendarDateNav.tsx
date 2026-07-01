@@ -6,6 +6,8 @@ interface Props {
   viewDate: Date;
   onViewDateChange: (date: Date) => void;
   compact?: boolean;
+  /** Stretch toolbar full width — use when stacked below title on mobile. */
+  fullWidth?: boolean;
 }
 
 const WEEKDAYS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
@@ -37,7 +39,7 @@ export function calendarToolbarShellClass(compact = false): string {
   }`;
 }
 
-const CalendarDateNav = ({ viewDate, onViewDateChange, compact = false }: Props) => {
+const CalendarDateNav = ({ viewDate, onViewDateChange, compact = false, fullWidth = false }: Props) => {
   const [open, setOpen] = useState(false);
   const [pickerMonth, setPickerMonth] = useState(() => startOfMonth(viewDate));
   const rootRef = useRef<HTMLDivElement>(null);
@@ -97,8 +99,15 @@ const CalendarDateNav = ({ viewDate, onViewDateChange, compact = false }: Props)
     : "p-2 rounded-xl";
 
   return (
-    <div ref={rootRef} className="relative inline-flex flex-col items-end">
-      <div className={`${calendarToolbarShellClass(compact)} gap-0.5`}>
+    <div
+      ref={rootRef}
+      className={`relative ${fullWidth ? "w-full" : "inline-flex flex-col items-end"}`}
+    >
+      <div
+        className={`${calendarToolbarShellClass(compact)} gap-0.5 ${
+          fullWidth ? "w-full flex items-center justify-between" : ""
+        }`}
+      >
         <button
           type="button"
           onClick={() => shiftDay(-1)}
@@ -111,7 +120,9 @@ const CalendarDateNav = ({ viewDate, onViewDateChange, compact = false }: Props)
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className={`flex items-center gap-1.5 rounded-xl border transition-colors ${
+          className={`flex items-center gap-1.5 rounded-xl border transition-colors min-w-0 ${
+            fullWidth ? "flex-1 justify-center mx-0.5" : ""
+          } ${
             open
               ? "border-violet-300 dark:border-violet-700 bg-violet-50 dark:bg-violet-950/40"
               : "border-transparent hover:bg-slate-50 dark:hover:bg-slate-800/80"
@@ -125,7 +136,7 @@ const CalendarDateNav = ({ viewDate, onViewDateChange, compact = false }: Props)
               {label}
             </span>
             {!compact && (
-              <span className="block text-[10px] text-slate-500 dark:text-slate-400 leading-tight truncate max-w-[140px] sm:max-w-none">
+              <span className="block text-[10px] text-slate-500 dark:text-slate-400 leading-tight truncate max-w-[160px] sm:max-w-none">
                 {formatFullDate(viewDate)}
               </span>
             )}
@@ -145,7 +156,7 @@ const CalendarDateNav = ({ viewDate, onViewDateChange, compact = false }: Props)
           <button
             type="button"
             onClick={goToday}
-            className={`ml-0.5 rounded-xl font-medium text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-950/40 hover:bg-violet-100 dark:hover:bg-violet-900/50 border border-violet-200/70 dark:border-violet-800/60 transition-colors ${
+            className={`shrink-0 rounded-xl font-medium text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-950/40 hover:bg-violet-100 dark:hover:bg-violet-900/50 border border-violet-200/70 dark:border-violet-800/60 transition-colors ${
               compact ? "px-2 py-1 text-[10px]" : "px-2.5 py-1.5 text-xs"
             }`}
           >

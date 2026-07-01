@@ -87,12 +87,30 @@ export const StatCard: React.FC<{
 };
 
 // ── Section heading ──────────────────────────────────────────────────────────
-export const SectionTitle: React.FC<{ title: string; subtitle?: string; right?: React.ReactNode }> = ({ title, subtitle, right }) => (
-  <div className="flex items-end justify-between gap-4 mb-4">
-    <div>
-      <h2 className="text-lg sm:text-xl font-bold text-slate-800 dark:text-white">{title}</h2>
-      {subtitle && <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">{subtitle}</p>}
+export const SectionTitle: React.FC<{
+  title: string;
+  subtitle?: string;
+  right?: React.ReactNode;
+  /** Stack title and right slot vertically on small screens (e.g. calendar date nav). */
+  stackOnMobile?: boolean;
+}> = ({ title, subtitle, right, stackOnMobile }) => (
+  <div
+    className={`mb-3 sm:mb-4 gap-2 sm:gap-4 ${
+      stackOnMobile
+        ? "flex flex-col sm:flex-row sm:items-end sm:justify-between"
+        : "flex items-end justify-between"
+    }`}
+  >
+    <div className="min-w-0">
+      <h2 className="text-base sm:text-lg md:text-xl font-bold text-slate-800 dark:text-white">{title}</h2>
+      {subtitle && (
+        <p className="text-[11px] sm:text-xs md:text-sm text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-2 sm:line-clamp-none">
+          {subtitle}
+        </p>
+      )}
     </div>
-    {right}
+    {right && (
+      <div className={stackOnMobile ? "w-full sm:w-auto shrink-0" : "shrink-0"}>{right}</div>
+    )}
   </div>
 );

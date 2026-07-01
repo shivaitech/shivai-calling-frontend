@@ -6,6 +6,16 @@ import { isAppointmentCrmApiMode } from "./api/apiMode";
 import { mapBranch } from "./api/mappers";
 import appointmentCrmAPI from "./api/index";
 
+export interface BranchCalendarHours {
+  dayStart: string;
+  dayEnd: string;
+}
+
+export const DEFAULT_BRANCH_CALENDAR: BranchCalendarHours = {
+  dayStart: "09:00",
+  dayEnd: "21:00",
+};
+
 export interface Branch {
   id: string;
   name: string;
@@ -13,6 +23,7 @@ export interface Branch {
   phone?: string;
   isPrimary?: boolean;
   active?: boolean;
+  calendar?: BranchCalendarHours;
 }
 
 const STORAGE_KEY = "shivai_appointmentcrm_branches";
@@ -122,6 +133,7 @@ export function seedBranchesFromPreset(seeds: BranchSeed[], mode: "single" | "mu
     address: s.address,
     isPrimary: i === 0,
     active: true,
+    calendar: { ...DEFAULT_BRANCH_CALENDAR },
   }));
   writeBranches(branches);
   ensureActiveBranch(branches);
@@ -147,6 +159,7 @@ export async function addBranch(name: string, address?: string): Promise<Branch>
     address,
     isPrimary: branches.length === 0,
     active: true,
+    calendar: { ...DEFAULT_BRANCH_CALENDAR },
   };
   persistBranches([...branches, branch]);
   if (branches.length === 0) await setActiveBranchId(branch.id);
