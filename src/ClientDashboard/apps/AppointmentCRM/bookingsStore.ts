@@ -5,6 +5,7 @@ import { StaffMember, staffDisplayName } from "./staffStore";
 import type { Booking, BookingStatus, BookingChannel } from "./mockData";
 import { toIsoDate } from "./availabilityStore";
 import { getActiveIndustryId } from "./industryConfig";
+import { isAppointmentCrmApiMode } from "./api/apiMode";
 
 export function bookingMatchesViewDate(booking: Booking, viewDate: Date): boolean {
   const iso = toIsoDate(viewDate);
@@ -26,7 +27,10 @@ export function bookingMatchesViewDate(booking: Booking, viewDate: Date): boolea
 const STORAGE_KEY = "shivai_appointmentcrm_bookings";
 const BOOKING_EVENT = "shivai:appointment-bookings-changed";
 
+let memoryBookings: Booking[] | null = null;
+
 export function readBookings(): Booking[] {
+  if (memoryBookings) return memoryBookings;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
@@ -37,9 +41,18 @@ export function readBookings(): Booking[] {
   }
 }
 
-export function writeBookings(list: Booking[]): void {
+export function writeBookings(list: Booking[], opts?: { fromApi?: boolean; merge?: boolean }): void {
+  if (opts?.merge && memoryBookings) {
+    const byId = new Map(memoryBookings.map((b) => [b.id, b]));
+    list.forEach((b) => byId.set(b.id, b));
+    memoryBookings = [...byId.values()];
+  } else {
+    memoryBookings = list;
+  }
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+    if (!isAppointmentCrmApiMode() || !opts?.fromApi) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(memoryBookings));
+    }
     window.dispatchEvent(new CustomEvent(BOOKING_EVENT));
   } catch {
     /* ignore */

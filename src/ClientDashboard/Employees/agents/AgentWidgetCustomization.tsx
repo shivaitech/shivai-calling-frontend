@@ -18,6 +18,73 @@ const SlickNextArrow = ({ currentSlide: _c, slideCount: _s, ...props }: any) => 
 import { agentAPI } from "../../../services/agentAPI";
 import { useAuth } from "../../../contexts/AuthContext";
 
+const LEGACY_CALL_TO_ACTION = "📞 Call ShivAI!";
+
+function defaultCallToActionText(agentName: string): string {
+  const name = (agentName || "AI Employee").trim();
+  return `Talk to ${name}`;
+}
+
+function resolveCallToActionText(
+  saved: string | undefined | null,
+  agentName: string
+): string {
+  if (!saved || saved === LEGACY_CALL_TO_ACTION) {
+    return defaultCallToActionText(agentName);
+  }
+  return saved;
+}
+
+/** API theme slugs (widget `theme` field) — not the same as local `widgetStyle`. */
+const PRESET_ID_TO_API_THEME: Record<string, string> = {
+  original: "original-default",
+  "transparent-glass": "original-default",
+  default: "shivai-blue",
+  ocean: "ocean-breeze",
+  sunset: "sunset-glow",
+  forest: "forest-green",
+  purple: "purple-dream",
+  teal: "teal-wave",
+  rose: "rose-garden",
+  gradient1: "cosmic-fusion",
+  gradient2: "warm-citrus",
+  gradient3: "cool-mint",
+};
+
+const API_THEME_GLASS_STYLES = new Set(["original-default", "transparent-glass"]);
+
+function resolveApiTheme(
+  theme: WidgetConfig["theme"],
+  presets: { id: string; primaryColor: string; accentColor: string }[]
+): string {
+  const matched = presets.find(
+    (p) =>
+      p.primaryColor === theme.primaryColor &&
+      p.accentColor === theme.accentColor
+  );
+  if (matched) {
+    return PRESET_ID_TO_API_THEME[matched.id] || "original-default";
+  }
+  if (
+    theme.widgetStyle === "transparent-glass" ||
+    theme.widgetStyle === "original"
+  ) {
+    return "original-default";
+  }
+  return "shivai-blue";
+}
+
+function resolveWidgetStyleFromApi(
+  apiTheme: string | undefined,
+  apiWidgetStyle: string | undefined
+): string {
+  if (apiTheme) {
+    return API_THEME_GLASS_STYLES.has(apiTheme) ? "transparent-glass" : "modern";
+  }
+  if (apiWidgetStyle) return apiWidgetStyle;
+  return "transparent-glass";
+}
+
 interface WidgetConfig {
   theme: {
     primaryColor: string;
@@ -83,7 +150,6 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
   const [triggerButtonImagePreview, setTriggerButtonImagePreview] = useState<string>("");
   const [previewKey, setPreviewKey] = useState(0);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const configTimeoutRef = useRef<number | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const triggerButtonInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -180,6 +246,14 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
       accentColor: "#059669",
       gradient: "linear-gradient(135deg, #34d399 0%, #059669 100%)",
     },
+    {
+      id: "transparent-glass",
+      name: "Transparent Glass",
+      primaryColor: "#7c3aed",
+      secondaryColor: "#6d28d9",
+      accentColor: "#a78bfa",
+      gradient: "linear-gradient(135deg, rgba(124,58,237,0.7) 0%, rgba(109,40,217,0.7) 100%)",
+    },
   ];
 
   // Apply gradient preset
@@ -191,6 +265,9 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
         primaryColor: preset.primaryColor,
         secondaryColor: preset.secondaryColor,
         accentColor: preset.accentColor,
+        widgetStyle: preset.id === "transparent-glass" ? "transparent-glass"
+                   : preset.id === "original"          ? "original"
+                   : "modern",
       },
     };
 
@@ -221,12 +298,12 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
 
   const [widgetConfig, setWidgetConfig] = useState<WidgetConfig>({
     theme: {
-      primaryColor: "#4b5563",
-      secondaryColor: "#6b7280",
-      accentColor: "#374151",
+      primaryColor: "#7c3aed",
+      secondaryColor: "#6d28d9",
+      accentColor: "#a78bfa",
       borderRadius: "16px",
       buttonStyle: "floating",
-      widgetStyle: "modern",
+      widgetStyle: "transparent-glass",
     },
     ui: {
       position: "bottom-right",
@@ -245,7 +322,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
       companyDescription: "",
       companyLogo: "",
       triggerButtonImage: "",
-      callToActionText: "📞 Call ShivAI!",
+      callToActionText: defaultCallToActionText(agentName),
       placeholderText: "Type your message...",
       offlineMessage: "We're currently offline. Please leave a message.",
     },
@@ -259,6 +336,80 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
     },
     customCSS: "",
   });
+
+  // Push config changes into the preview iframe without a full reload
+  useEffect(() => {
+    if (isLoading) return;
+    const iframe = iframeRef.current;
+    if (!iframe?.contentWindow) return;
+
+    let cancelled = false;
+    let attempts = 0;
+
+    const syncPreview = () => {
+      if (cancelled) return;
+      const win = iframe.contentWindow as Window & {
+        SHIVAI_CONFIG?: Record<string, unknown>;
+        SHIVAI_WIDGET_CONFIG?: Record<string, unknown>;
+        ShivAI?: { config?: Record<string, unknown> };
+        ShivAIWidget?: { refreshContent?: () => void };
+      };
+      if (!win) return;
+
+      const content = widgetConfig.content;
+      win.SHIVAI_CONFIG = {
+        ...(win.SHIVAI_CONFIG || {}),
+        agentId,
+        userId: user?.id || "",
+        theme: widgetConfig.theme,
+        ui: widgetConfig.ui,
+        content,
+        features: widgetConfig.features,
+        widgetStyle: widgetConfig.theme.widgetStyle,
+      };
+
+      // API-loaded config takes priority in widget5 — keep it in sync for live preview
+      win.SHIVAI_WIDGET_CONFIG = {
+        ...win.SHIVAI_WIDGET_CONFIG,
+        _agent_name: content.companyName,
+        ai_employee_name: content.companyName,
+        ai_employee_description: content.companyDescription,
+        button_text: content.callToActionText,
+        company_logo: content.companyLogo || undefined,
+        trigger_button_image: content.triggerButtonImage || undefined,
+        theme: resolveApiTheme(widgetConfig.theme, gradientPresets),
+        primary_color: widgetConfig.theme.primaryColor,
+        gradient_start: widgetConfig.theme.primaryColor,
+        gradient_end: widgetConfig.theme.accentColor,
+        widget_style: widgetConfig.theme.widgetStyle,
+      };
+
+      win.ShivAI = win.ShivAI || {};
+      win.ShivAI.config = {
+        ...(win.ShivAI.config || {}),
+        companyName: content.companyName,
+        companyDescription: content.companyDescription,
+        callToActionText: content.callToActionText,
+        ...(content.companyLogo ? { companyLogo: content.companyLogo } : {}),
+        ...(content.triggerButtonImage
+          ? { triggerButtonImage: content.triggerButtonImage }
+          : {}),
+      };
+
+      if (win.ShivAIWidget?.refreshContent) {
+        win.ShivAIWidget.refreshContent();
+      } else if (attempts < 25) {
+        attempts += 1;
+        window.setTimeout(syncPreview, 200);
+      }
+    };
+
+    const timer = window.setTimeout(syncPreview, 80);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [widgetConfig, agentId, user?.id, isLoading, previewKey]);
 
   // Main effect to load widget config - this is the ONLY place state should be updated
   useEffect(() => {
@@ -286,12 +437,12 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
       // Reset widget config to initial default state
       const defaultConfig: WidgetConfig = {
         theme: {
-          primaryColor: "#4b5563",
-          secondaryColor: "#6b7280",
-          accentColor: "#374151",
+          primaryColor: "#7c3aed",
+          secondaryColor: "#6d28d9",
+          accentColor: "#a78bfa",
           borderRadius: "16px",
           buttonStyle: "floating",
-          widgetStyle: "modern",
+          widgetStyle: "transparent-glass",
         },
         ui: {
           position: "bottom-right",
@@ -310,7 +461,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
           companyDescription: "AI-Powered Support - We offer 24/7 voice support to handle your business calls effieciently and professionally.",
           companyLogo: "",
           triggerButtonImage: "",
-          callToActionText: "📞 Call ShivAI!",
+          callToActionText: defaultCallToActionText(agentName),
           placeholderText: "Type your message...",
           offlineMessage: "We're currently offline. Please leave a message.",
         },
@@ -374,12 +525,15 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
             // Map API response to widget config state
             const loadedConfig: WidgetConfig = {
               theme: {
-                primaryColor: widget.primary_color || "#4b5563",
-                secondaryColor: widget.gradient_start || "#6b7280",
-                accentColor: widget.gradient_end || "#374151",
+                primaryColor: widget.primary_color || "#7c3aed",
+                secondaryColor: widget.gradient_start || "#6d28d9",
+                accentColor: widget.gradient_end || "#a78bfa",
                 borderRadius: "16px",
                 buttonStyle: "floating",
-                widgetStyle: "modern",
+                widgetStyle: resolveWidgetStyleFromApi(
+                  widget.theme,
+                  widget.widget_style
+                ),
               },
               ui: {
                 position: widget.position || "bottom-right",
@@ -402,7 +556,10 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                   "AI-Powered Support - We offer 24/7 voice support to handle your business calls effieciently and professionally.",
                 companyLogo: widget.company_logo || "",
                 triggerButtonImage: widget.trigger_button_image || "",
-                callToActionText: widget.button_text || "📞 Call ShivAI!",
+                callToActionText: resolveCallToActionText(
+                  widget.button_text,
+                  agentName || widget.ai_employee_name
+                ),
                 placeholderText: "Type your message...",
                 offlineMessage: "We're currently offline. Please leave a message.",
               },
@@ -503,9 +660,6 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
       if (abortControllerRef.current) {
         console.log("🛑 Cleanup: Aborting widget config request");
         abortControllerRef.current.abort();
-      }
-      if (configTimeoutRef.current) {
-        clearTimeout(configTimeoutRef.current);
       }
     };
   }, [agentId, agentName]);
@@ -645,9 +799,14 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
         trigger_button_image: finalTriggerButtonImageUrl,
         ai_employee_name: widgetConfig.content.companyName,
         ai_employee_description: widgetConfig.content.companyDescription,
-        theme: "shivai-blue",
+        theme: resolveApiTheme(widgetConfig.theme, gradientPresets),
+        widget_style: widgetConfig.theme.widgetStyle || "modern",
         position: widgetConfig.ui.position,
-        button_text: widgetConfig.content.callToActionText || "📞 Call ShivAI!",
+        button_text:
+          widgetConfig.content.callToActionText ||
+          defaultCallToActionText(
+            widgetConfig.content.companyName || agentName
+          ),
         welcome_message: widgetConfig.content.welcomeMessage,
         primary_color: widgetConfig.theme.primaryColor,
         gradient_start: widgetConfig.theme.primaryColor,
@@ -913,12 +1072,33 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
     key: string,
     value: any
   ) => {
+    let sectionData: Record<string, any> = {
+      ...(widgetConfig[section] as Record<string, any>),
+      [key]: value,
+    };
+
+    // Keep cloud bubble text aligned with agent name when still using the default pattern
+    if (section === "content" && key === "companyName") {
+      const prevContent = widgetConfig.content;
+      const prevAuto = defaultCallToActionText(
+        prevContent.companyName || agentName
+      );
+      const current = prevContent.callToActionText;
+      if (
+        !current ||
+        current === prevAuto ||
+        current === LEGACY_CALL_TO_ACTION
+      ) {
+        sectionData = {
+          ...sectionData,
+          callToActionText: defaultCallToActionText(value),
+        };
+      }
+    }
+
     const newConfig = {
       ...widgetConfig,
-      [section]: {
-        ...(widgetConfig[section] as Record<string, any>),
-        [key]: value,
-      },
+      [section]: sectionData,
     };
 
     setWidgetConfig(newConfig);
@@ -932,15 +1112,6 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
       },
     });
     window.dispatchEvent(event);
-
-    // Debounced real-time preview update
-    if (configTimeoutRef.current) {
-      clearTimeout(configTimeoutRef.current);
-    }
-
-    configTimeoutRef.current = window.setTimeout(() => {
-      setPreviewKey((prev) => prev + 1);
-    }, 500);
   };
 
   return (
@@ -1173,10 +1344,12 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                               e.target.value
                             )
                           }
-                          placeholder="📞 Call ShivAI!"
+                          placeholder={defaultCallToActionText(
+                            widgetConfig.content.companyName || agentName
+                          )}
                           className="common-bg-icons w-full px-3 py-2 rounded-lg text-sm"
                         />
-                        <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">Animated text shown in the cloud bubble next to the trigger button.</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">Shown below the agent name on the trigger button and in the cloud bubble.</p>
                       </div>
 
                       {/* Company Name */}
@@ -1462,9 +1635,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                     }`}
                   >
                     <iframe
-                      key={`${previewKey}-${JSON.stringify(
-                        widgetConfig.content
-                      )}`}
+                      key={`preview-${previewKey}`}
                       ref={iframeRef}
                       srcDoc={`<!DOCTYPE html>
 <html lang="en">
@@ -1477,21 +1648,66 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
             margin: 0;
             padding: 20px;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #f0f9ff 0%, #e0e7ff 100%);
+            background: #f0f4ff;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             overflow: hidden;
+            position: relative;
+        }
+        /* Rich visual blobs so glassmorphism has something colourful to blur through */
+        body::before {
+            content: '';
+            position: fixed;
+            top: -80px; right: -60px;
+            width: 340px; height: 340px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #818cf8 0%, #6366f1 50%, transparent 80%);
+            opacity: 0.55;
+            filter: blur(0px);
+            z-index: 0;
+        }
+        body::after {
+            content: '';
+            position: fixed;
+            bottom: -60px; left: -40px;
+            width: 300px; height: 300px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #38bdf8 0%, #0ea5e9 50%, transparent 80%);
+            opacity: 0.5;
+            filter: blur(0px);
+            z-index: 0;
         }
         .demo-content {
             text-align: center;
             max-width: 600px;
             width: 100%;
             padding: 2rem;
-            background: white;
+            background: rgba(255,255,255,0.5);
             border-radius: 16px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+            position: relative;
+            z-index: 1;
+        }
+        /* Extra blobs for glassmorphism depth */
+        .bg-blob-1 {
+            position: fixed; top: 30%; right: 10%;
+            width: 220px; height: 220px; border-radius: 50%;
+            background: radial-gradient(circle, #f472b6 0%, #ec4899 60%, transparent 90%);
+            opacity: 0.4; z-index: 0;
+        }
+        .bg-blob-2 {
+            position: fixed; top: 10%; left: 20%;
+            width: 180px; height: 180px; border-radius: 50%;
+            background: radial-gradient(circle, #34d399 0%, #10b981 60%, transparent 90%);
+            opacity: 0.4; z-index: 0;
+        }
+        .bg-blob-3 {
+            position: fixed; bottom: 20%; right: 25%;
+            width: 160px; height: 160px; border-radius: 50%;
+            background: radial-gradient(circle, #fbbf24 0%, #f59e0b 60%, transparent 90%);
+            opacity: 0.35; z-index: 0;
         }
         .company-header {
             margin-bottom: 2rem;
@@ -1541,12 +1757,12 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
     </style>
 </head>
 <body>
-    <div class="">
-      
-        
-      
+    <!-- Background blobs for glassmorphism backdrop -->
+    <div class="bg-blob-1"></div>
+    <div class="bg-blob-2"></div>
+    <div class="bg-blob-3"></div>
 
-                        
+    <div class="">
 
 <div class="demo-text">
   <strong> Test Your AI Employee Widget:</strong>
@@ -1598,7 +1814,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                 ? `triggerButtonImage: "${widgetConfig.content.triggerButtonImage}",`
                 : ""
             }
-            callToActionText: "${widgetConfig.content.callToActionText || '📞 Call ShivAI!'}",
+            callToActionText: "${widgetConfig.content.callToActionText || defaultCallToActionText(widgetConfig.content.companyName || agentName)}",
         };
         
         // Also set SHIVAI_CONFIG for agent ID and user ID (tenant_id)
@@ -1622,11 +1838,18 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
         }, 100);
     </script>
     
-    <!-- Load the actual widget.js — cache-busted at runtime so latest version always loads -->
+    <!-- Load widget5.js — supports transparent glass theme and all client-page fixes -->
     <script>
       (function(){
+        // Set widgetStyle in SHIVAI_CONFIG explicitly so refreshWidgetTheme reads it correctly
+        window.SHIVAI_CONFIG = window.SHIVAI_CONFIG || {};
+        window.SHIVAI_CONFIG.widgetStyle = '${widgetConfig.theme.widgetStyle || "original"}';
+        window.SHIVAI_CONFIG.theme = ${JSON.stringify({
+          ...widgetConfig.theme,
+          widgetStyle: widgetConfig.theme.widgetStyle || "original"
+        })};
         var s = document.createElement('script');
-        s.src = '/widget2.js?agentId=${agentId}&userId=${user?.id || ''}&bypass=true&companyName=${encodeURIComponent(
+        s.src = '/widget5.js?agentId=${agentId}&userId=${user?.id || ''}&bypass=true&companyName=${encodeURIComponent(
                         widgetConfig.content.companyName
                       )}&companyDescription=${encodeURIComponent(
                         widgetConfig.content.companyDescription

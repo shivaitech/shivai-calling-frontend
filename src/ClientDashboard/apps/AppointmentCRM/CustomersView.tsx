@@ -1,20 +1,72 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronRight, Search } from "lucide-react";
 import GlassCard from "../../../components/GlassCard";
 import { SectionTitle } from "../SupportCRM/ui";
 import { useAppointmentIndustry } from "./industryConfig";
+import appointmentCrmAPI from "./api/index";
+import { isAppointmentCrmApiConfigured } from "./api/client";
+import { apiId } from "./api/mappers";
+import { isAppointmentCrmApiMode } from "./api/apiMode";
 import { MOCK_CUSTOMERS } from "./mockData";
+
+interface CustomerRow {
+  id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  tags: string[];
+  totalAppointments: number;
+  upcoming: number;
+  noShows: number;
+}
 
 const CustomersView = () => {
   const { terms } = useAppointmentIndustry();
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
+  const [apiCustomers, setApiCustomers] = useState<CustomerRow[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const list = MOCK_CUSTOMERS.filter((c) =>
-    `${c.name} ${c.phone}`.toLowerCase().includes(q.toLowerCase()),
-  );
+  useEffect(() => {
+    if (!isAppointmentCrmApiMode() || !isAppointmentCrmApiConfigured()) return;
+    let cancelled = false;
+    setLoading(true);
+    appointmentCrmAPI
+      .fetchCustomers(q.trim() || undefined)
+      .then((rows) => {
+        if (cancelled) return;
+        setApiCustomers(
+          rows.map((c) => ({
+            id: apiId(c),
+            name: c.name,
+            phone: c.phone ?? "",
+            email: c.email,
+            tags: c.tags ?? [],
+            totalAppointments: 0,
+            upcoming: 0,
+            noShows: 0,
+          })),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setApiCustomers([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [q]);
 
-  const detail = selected ? MOCK_CUSTOMERS.find((c) => c.id === selected) : null;
+  const list = useMemo(() => {
+    if (isAppointmentCrmApiMode()) return apiCustomers;
+    return MOCK_CUSTOMERS.filter((c) =>
+      `${c.name} ${c.phone}`.toLowerCase().includes(q.toLowerCase()),
+    );
+  }, [apiCustomers, q]);
+
+  const detail = selected ? list.find((c) => c.id === selected) : null;
 
   if (detail) {
     return (

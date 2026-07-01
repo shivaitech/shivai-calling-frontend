@@ -1,5 +1,3 @@
-import { readInstalledAppIds } from "../marketplace/useInstalledApps";
-
 export const APPOINTMENT_CALENDAR_ROUTE = "/app/appointment-crm?section=calendar";
 
 const LAST_ROUTE_KEY = "shivai_last_route";
@@ -23,7 +21,7 @@ function isAppWorkspacePath(path: string): boolean {
 export function saveLastRoute(path: string): void {
   if (!path || SKIP_PERSIST_EXACT.includes(path)) return;
   if (SKIP_PERSIST_PREFIXES.some((p) => path.startsWith(p))) return;
-  // Do not persist marketplace app URLs — reopen uses calendar default, not last CRM section.
+  // Do not persist marketplace app URLs — apps open only when the user chooses them.
   if (isAppWorkspacePath(path)) return;
   try {
     localStorage.setItem(LAST_ROUTE_KEY, path);
@@ -46,17 +44,7 @@ function isRestorableRoute(path: string): boolean {
   return !SKIP_PERSIST_PREFIXES.some((p) => path.startsWith(p));
 }
 
-/** Default landing route after login or visiting `/` (not `/dashboard`). */
+/** Default landing route after login — always the main dashboard (apps open only when user picks them). */
 export function getHomeRoute(): string {
-  const installed = readInstalledAppIds();
-  if (installed.includes("appointment-crm")) {
-    const last = readLastRoute();
-    if (last && isRestorableRoute(last) && last !== "/dashboard") {
-      return last;
-    }
-    return APPOINTMENT_CALENDAR_ROUTE;
-  }
-  const last = readLastRoute();
-  if (last && isRestorableRoute(last)) return last;
   return "/dashboard";
 }

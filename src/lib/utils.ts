@@ -55,3 +55,10 @@ export function isNagarNigamMoradabadClient(userEmail?: string, agentName?: stri
     userEmail?.toLowerCase() === "nagarnigammoradabad@gmail.com";
   return !!(emailMatch || hasMoradabad(agentName) || hasMoradabad(companyName));
 }
+
+// Check if this is the GrowithLive client — matched by company name containing "growith"
+export function isGrowthLiveClient(userEmail?: string, agentName?: string, companyName?: string): boolean {
+  const hasGrowith = (s?: string) => (s || "").toLowerCase().includes("growith");
+  const emailMatch = hasGrowith(userEmail);
+  return !!(emailMatch || hasGrowith(agentName) || hasGrowith(companyName));
+}

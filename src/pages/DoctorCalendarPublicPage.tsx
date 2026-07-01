@@ -14,10 +14,6 @@ import {
 } from "../ClientDashboard/apps/AppointmentCRM/doctorCalendarShareStore";
 import { getStaffById } from "../ClientDashboard/apps/AppointmentCRM/staffStore";
 import {
-  applyDoctorManifest,
-  rememberDoctorForPWA,
-} from "../utils/doctorPWA";
-import {
   fetchDoctorShareFromServer,
   validateDoctorLoginViaApi,
 } from "../ClientDashboard/apps/AppointmentCRM/doctorCalendarShareAPI";
@@ -39,17 +35,7 @@ export default function DoctorCalendarPublicPage() {
     theme.setAttribute("name", "theme-color");
     theme.setAttribute("content", "#7c3aed");
     if (!theme.parentElement) document.head.appendChild(theme);
-    if (shareToken) rememberDoctorForPWA(shareToken);
   }, [shareToken]);
-
-  useEffect(() => {
-    if (!shareToken || !share) return;
-    applyDoctorManifest({
-      shareToken,
-      staffName: share.staffName,
-      companyName: share.companyName,
-    });
-  }, [shareToken, share]);
 
   useEffect(() => {
     const handler = (e: Event) => {

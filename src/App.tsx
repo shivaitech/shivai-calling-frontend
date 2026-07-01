@@ -93,12 +93,13 @@ function AppContent() {
       isResetPassword ||
       isAgentPublicPage ||
       isDoctorCalendarPage ||
-      isWebsitePreview
+      isWebsitePreview ||
+      isAppWorkspace
     ) {
       return;
     }
     saveLastRoute(`${location.pathname}${location.search}`);
-  }, [location.pathname, location.search, isLandingPage, isAuthCallback, isResetPassword, isAgentPublicPage, isDoctorCalendarPage, isWebsitePreview]);
+  }, [location.pathname, location.search, isLandingPage, isAuthCallback, isResetPassword, isAgentPublicPage, isDoctorCalendarPage, isWebsitePreview, isAppWorkspace]);
 
   return (
     <div className="min-h-screen">

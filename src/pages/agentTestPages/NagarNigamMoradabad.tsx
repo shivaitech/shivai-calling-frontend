@@ -67,6 +67,8 @@ export default function NagarNigamMoradabad() {
     return () => { agentFetchRef.current = null; };
   }, [agentId]);
 
+  // widget4.js is injected by the parent AgentPublicPage.
+
   const agentName = agentInfo?.name || "नगर सहायक";
 
   return (

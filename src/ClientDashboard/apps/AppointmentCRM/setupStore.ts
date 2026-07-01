@@ -22,7 +22,10 @@ const DEFAULT_SETUP: AppointmentSetup = {
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata",
 };
 
+let memorySetup: AppointmentSetup | null = null;
+
 export function readSetup(): AppointmentSetup {
+  if (memorySetup) return { ...DEFAULT_SETUP, ...memorySetup };
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return { ...DEFAULT_SETUP };
@@ -32,11 +35,17 @@ export function readSetup(): AppointmentSetup {
   }
 }
 
-export function writeSetup(patch: Partial<AppointmentSetup>): AppointmentSetup {
+export function writeSetup(
+  patch: Partial<AppointmentSetup>,
+  opts?: { fromApi?: boolean; skipEvent?: boolean },
+): AppointmentSetup {
   const next = { ...readSetup(), ...patch };
+  memorySetup = next;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    window.dispatchEvent(new CustomEvent(SETUP_EVENT));
+    if (!opts?.fromApi) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    }
+    if (!opts?.skipEvent) window.dispatchEvent(new CustomEvent(SETUP_EVENT));
   } catch {
     /* ignore */
   }
@@ -58,6 +67,40 @@ export function completeSetup(params: {
     setupComplete: true,
     completedAt: new Date().toISOString(),
   });
+}
+
+export async function completeSetupViaApi(params: {
+  companyName: string;
+  industryId: string;
+  branchMode: BranchMode;
+  timezone?: string;
+  branches?: { name: string; address?: string; phone?: string; isPrimary?: boolean }[];
+}): Promise<AppointmentSetup> {
+  const { appointmentCrmAPI } = await import("./api/index");
+  const { templateIdFromIndustry } = await import("./api/mappers");
+  const { hydrateFromBootstrap } = await import("./api/hydrate");
+  const { setAppointmentCrmApiMode } = await import("./api/apiMode");
+  setAppointmentCrmApiMode(true);
+  await appointmentCrmAPI.completeSetup({
+    templateId: templateIdFromIndustry(params.industryId),
+    companyName: params.companyName,
+    timezone: params.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+    branchMode: params.branchMode,
+    branches: params.branches,
+  });
+  const bootstrap = await appointmentCrmAPI.fetchBootstrap();
+  hydrateFromBootstrap(bootstrap);
+  return writeSetup(
+    {
+      companyName: params.companyName,
+      industryId: params.industryId,
+      branchMode: params.branchMode,
+      timezone: params.timezone,
+      setupComplete: true,
+      completedAt: new Date().toISOString(),
+    },
+    { fromApi: true },
+  );
 }
 
 export function resetSetup(): void {

@@ -2,11 +2,9 @@ import { useEffect } from "react";
 import { Navigate } from "react-router-dom";
 import { Smartphone } from "lucide-react";
 import {
-  applyDoctorManifest,
   getDoctorCalendarPath,
   getDoctorPWAToken,
 } from "../utils/doctorPWA";
-import { getShareByToken } from "../ClientDashboard/apps/AppointmentCRM/doctorCalendarShareStore";
 
 /** PWA start_url — restores the doctor's personal calendar (not the main app). */
 export default function DoctorCalendarPWALauncher() {
@@ -14,15 +12,6 @@ export default function DoctorCalendarPWALauncher() {
 
   useEffect(() => {
     document.title = "My Appointment Calendar";
-    if (!token) return;
-    const share = getShareByToken(token);
-    if (share) {
-      applyDoctorManifest({
-        shareToken: token,
-        staffName: share.staffName,
-        companyName: share.companyName,
-      });
-    }
   }, [token]);
 
   if (token) {
@@ -43,8 +32,4 @@ export default function DoctorCalendarPWALauncher() {
       </div>
     </div>
   );
-}
-
-export function rememberDoctorForPWA(shareToken: string): void {
-  saveDoctorPWAToken(shareToken);
 }

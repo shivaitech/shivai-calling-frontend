@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
@@ -13,11 +13,13 @@ import {
 import GlassCard from "../../../components/GlassCard";
 import { AgentAvatar, SectionTitle, StatusPill, StatCard } from "../SupportCRM/ui";
 import { useAppointmentIndustry, APPOINTMENT_INDUSTRY_PRESETS, setActiveIndustryId } from "./industryConfig";
-import { rebuildOrgFromIndustry, useEnsureOrgSeeded } from "./orgSeed";
+import { rebuildOrgFromIndustry, ensureOrgSeeded } from "./orgSeed";
 import { useActiveBranch } from "./branchesStore";
 import { useAppointmentSetup, writeSetup, isSetupComplete } from "./setupStore";
+import { isAppointmentCrmApiMode } from "./api/apiMode";
 import SetupModal from "./SetupModal";
 import BranchSwitcher from "./BranchSwitcher";
+import { AppointmentCRMProvider, useAppointmentCRM } from "./AppointmentCRMProvider";
 import OverviewView from "./OverviewView";
 import BookingsView from "./BookingsView";
 import CalendarView from "./CalendarView";
@@ -30,11 +32,29 @@ interface Props {
   section?: string;
 }
 
-const AppointmentCRM: React.FC<Props> = ({ section = "calendar" }) => {
+const AppointmentCRM: React.FC<Props> = ({ section = "calendar" }) => (
+  <AppointmentCRMProvider>
+    <AppointmentCRMContent section={section} />
+  </AppointmentCRMProvider>
+);
+
+const AppointmentCRMContent: React.FC<Props> = ({ section = "calendar" }) => {
   const [setupOpen, setSetupOpen] = useState(!isSetupComplete());
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const { branches, activeBranch } = useActiveBranch();
-  useEnsureOrgSeeded(branches);
+  const { apiReady, bootstrap } = useAppointmentCRM();
+
+  useEffect(() => {
+    if (!isAppointmentCrmApiMode() && !apiReady) {
+      ensureOrgSeeded(branches);
+    }
+  }, [branches.length, apiReady]);
+
+  useEffect(() => {
+    if (apiReady && bootstrap) {
+      setSetupOpen(!bootstrap.setup.setupComplete);
+    }
+  }, [apiReady, bootstrap?.setup.setupComplete]);
 
   const handleSetupComplete = () => setSetupOpen(false);
 

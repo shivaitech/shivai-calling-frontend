@@ -5,6 +5,9 @@ import { Department } from "./departmentsStore";
 import { StaffMember } from "./staffStore";
 import { toIsoDate } from "./availabilityStore";
 import { getActiveIndustryId } from "./industryConfig";
+import { isAppointmentCrmApiMode } from "./api/apiMode";
+import appointmentCrmAPI from "./api/index";
+import { mapOfflineBlock, offlineBlockToApiBody } from "./api/mappers";
 
 export type OfflineBlockType = "manual_booking" | "unavailable" | "break";
 
@@ -23,8 +26,31 @@ export interface StaffOfflineBlock {
 const STORAGE_KEY = "shivai_appointmentcrm_offline_blocks";
 const OFFLINE_EVENT = "shivai:appointment-schedule-changed";
 
-function makeId(): string {
-  return `ob-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+let memoryOfflineBlocks: StaffOfflineBlock[] | null = null;
+
+function persistOfflineBlocks(list: StaffOfflineBlock[], fromApi = false): void {
+  memoryOfflineBlocks = list;
+  try {
+    if (!isAppointmentCrmApiMode() || !fromApi) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+    }
+    window.dispatchEvent(new CustomEvent(OFFLINE_EVENT));
+  } catch {
+    /* ignore */
+  }
+}
+
+export function writeOfflineBlocks(
+  list: StaffOfflineBlock[],
+  opts?: { fromApi?: boolean; merge?: boolean },
+): void {
+  if (opts?.merge && memoryOfflineBlocks) {
+    const byId = new Map(memoryOfflineBlocks.map((b) => [b.id, b]));
+    list.forEach((b) => byId.set(b.id, b));
+    persistOfflineBlocks([...byId.values()], opts?.fromApi);
+    return;
+  }
+  persistOfflineBlocks(list, opts?.fromApi);
 }
 
 function normalizeBlockType(type: string): OfflineBlockType {
@@ -33,7 +59,12 @@ function normalizeBlockType(type: string): OfflineBlockType {
   return "unavailable";
 }
 
+function makeId(): string {
+  return `ob-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
 export function readOfflineBlocks(): StaffOfflineBlock[] {
+  if (memoryOfflineBlocks) return memoryOfflineBlocks;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
@@ -45,13 +76,57 @@ export function readOfflineBlocks(): StaffOfflineBlock[] {
   }
 }
 
-function writeOfflineBlocks(list: StaffOfflineBlock[]): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
-    window.dispatchEvent(new CustomEvent(OFFLINE_EVENT));
-  } catch {
-    /* ignore */
+export async function addOfflineBlock(params: {
+  staffId: string;
+  date: string;
+  fromTime: string;
+  toTime: string;
+  type: OfflineBlockType;
+  patientName?: string;
+  patientId?: string;
+  notes?: string;
+  branchId?: string;
+}): Promise<StaffOfflineBlock> {
+  const fromMin = parseTimeToMinutes(params.fromTime);
+  const toMin = parseTimeToMinutes(params.toTime);
+  if (isAppointmentCrmApiMode()) {
+    const created = await appointmentCrmAPI.createOfflineBlock(
+      offlineBlockToApiBody({
+        staffId: params.staffId,
+        branchId: params.branchId,
+        date: params.date,
+        fromTime: params.fromTime,
+        toTime: params.toTime,
+        type: params.type,
+        patientName: params.patientName,
+        notes: params.notes,
+      }),
+    );
+    const block = mapOfflineBlock(created);
+    persistOfflineBlocks([...readOfflineBlocks(), block], true);
+    return block;
   }
+  const block: StaffOfflineBlock = {
+    id: makeId(),
+    staffId: params.staffId,
+    date: params.date,
+    fromTime: params.fromTime,
+    toTime: params.toTime,
+    type: params.type,
+    patientName: params.patientName?.trim(),
+    patientId: params.patientId?.trim(),
+    notes: params.notes?.trim(),
+  };
+  if (fromMin >= toMin) throw new Error("End time must be after start time");
+  persistOfflineBlocks([...readOfflineBlocks(), block]);
+  return block;
+}
+
+export async function removeOfflineBlock(id: string): Promise<void> {
+  if (isAppointmentCrmApiMode()) {
+    await appointmentCrmAPI.deleteOfflineBlock(id);
+  }
+  persistOfflineBlocks(readOfflineBlocks().filter((b) => b.id !== id), isAppointmentCrmApiMode());
 }
 
 export function getOfflineBlocksForStaff(staffId: string): StaffOfflineBlock[] {
@@ -62,33 +137,6 @@ export function getOfflineBlocksForStaffOnDate(staffId: string, isoDate: string)
   return readOfflineBlocks().filter((b) => b.staffId === staffId && b.date === isoDate);
 }
 
-export function addOfflineBlock(params: {
-  staffId: string;
-  date: string;
-  fromTime: string;
-  toTime: string;
-  type: OfflineBlockType;
-  patientName?: string;
-  patientId?: string;
-  notes?: string;
-}): StaffOfflineBlock {
-  const fromMin = parseTimeToMinutes(params.fromTime);
-  const toMin = parseTimeToMinutes(params.toTime);
-  const block: StaffOfflineBlock = {
-    id: makeId(),
-    staffId: params.staffId,
-    date: params.date,
-    fromTime: params.fromTime,
-    toTime: toMin > fromMin ? params.toTime : params.fromTime,
-    type: params.type,
-    patientName: params.patientName?.trim() || undefined,
-    patientId: params.patientId?.trim() || undefined,
-    notes: params.notes?.trim() || undefined,
-  };
-  writeOfflineBlocks([...readOfflineBlocks(), block]);
-  return block;
-}
-
 export function isManualBookingBlock(block: StaffOfflineBlock): boolean {
   return block.type === "manual_booking";
 }
@@ -97,10 +145,6 @@ export function blockTypeLabel(block: StaffOfflineBlock): string {
   if (block.type === "manual_booking") return "Manual booking";
   if (block.type === "break") return "Break";
   return "Unavailable";
-}
-
-export function removeOfflineBlock(id: string): void {
-  writeOfflineBlocks(readOfflineBlocks().filter((b) => b.id !== id));
 }
 
 export function removeOfflineBlocksForStaff(staffId: string): void {

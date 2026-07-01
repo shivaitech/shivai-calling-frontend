@@ -25,6 +25,10 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
   // In an app workspace, the page opens in its own tab — close it to return to
   // the dashboard tab, or navigate there directly if opened standalone.
   const handleBackToDashboard = () => {
+    if (workspaceApp?.id === "appointment-crm") {
+      navigate(-1);
+      return;
+    }
     if (window.opener && !window.opener.closed) {
       window.close();
     } else {
@@ -83,10 +87,12 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
             <button
               onClick={handleBackToDashboard}
               className="common-button-bg2 flex items-center gap-1.5 !px-2.5 sm:!px-3 !py-1.5 sm:!py-2 rounded-lg flex-shrink-0"
-              title="Back to Dashboard"
+              title={workspaceApp.id === "appointment-crm" ? "Back" : "Back to Dashboard"}
             >
               <ArrowLeft className="w-4 h-4" />
-              <span className="hidden sm:inline">Dashboard</span>
+              {workspaceApp.id !== "appointment-crm" && (
+                <span className="hidden sm:inline">Dashboard</span>
+              )}
             </button>
           )}
 

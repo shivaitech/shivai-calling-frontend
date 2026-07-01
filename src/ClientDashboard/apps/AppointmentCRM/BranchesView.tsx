@@ -36,8 +36,7 @@ const BranchesView = () => {
                 type="button"
                 onClick={() => {
                   if (newName.trim()) {
-                    addBranch(newName.trim());
-                    setNewName("");
+                    void addBranch(newName.trim()).then(() => setNewName(""));
                   }
                 }}
                 className="flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium common-button-bg"
@@ -79,7 +78,7 @@ const BranchesView = () => {
                 {canAdd && branches.length > 1 && (
                   <button
                     type="button"
-                    onClick={() => removeBranch(b.id)}
+                    onClick={() => void removeBranch(b.id)}
                     className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
                     aria-label="Remove"
                   >
@@ -90,9 +89,13 @@ const BranchesView = () => {
               {!b.isPrimary && canAdd && (
                 <button
                   type="button"
-                  onClick={() => {
-                    branches.forEach((br) => updateBranch(br.id, { isPrimary: br.id === b.id }));
-                  }}
+                    onClick={() => {
+                      void Promise.all(
+                        branches.map((br) =>
+                          updateBranch(br.id, { isPrimary: br.id === b.id }),
+                        ),
+                      );
+                    }}
                   className="mt-3 text-xs font-medium text-violet-600 dark:text-violet-400 hover:underline"
                 >
                   Set as primary

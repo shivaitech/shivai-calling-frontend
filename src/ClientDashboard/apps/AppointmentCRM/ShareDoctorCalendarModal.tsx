@@ -72,7 +72,7 @@ const ShareDoctorCalendarModal = ({ open, staff, onClose }: Props) => {
       setShareUrl(url);
 
       await syncDoctorShareToServer(share, password);
-      const apiSent = await sendDoctorShareEmailViaApi(share, password);
+      const apiSent = await sendDoctorShareEmailViaApi(share);
       setEmailViaApi(apiSent);
 
       if (!apiSent) {

@@ -40,6 +40,7 @@ import { workflowAPI } from "../../services/workflowAPI";
 import AgentCardWorkflows from "./agents/AgentCardWorkflows";
 import { loadWorkflowChipsForAgents } from "./agents/agentWorkflowSummary";
 import type { AgentWorkflowChip } from "./agents/AgentCardWorkflows";
+import { openInNewBrowserTab } from "../../utils/openInBrowser";
 import {
   Bot,
   Play,
@@ -517,8 +518,7 @@ const AgentManagement = () => {
     params.set("agentId", currentAgent.id);
     if (user?.id) params.set("userId", user.id);
     const url = `/MyAIEmployee/${currentAgent.id}?${params.toString()}`;
-    // Small delay to let save fire before navigating
-    setTimeout(() => window.open(url, "_blank", "noopener,noreferrer"), 300);
+    setTimeout(() => openInNewBrowserTab(url), 300);
   };
 
   // Template section navigation tabs

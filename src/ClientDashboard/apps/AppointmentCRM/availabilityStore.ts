@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import { getOfflineBlockAtMinute, removeOfflineBlocksForStaff } from "./offlineBlocksStore";
+import { isAppointmentCrmApiMode } from "./api/apiMode";
+import appointmentCrmAPI from "./api/index";
+import { apiId, availabilityToApiBody } from "./api/mappers";
 
 export type Weekday = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
 
@@ -38,6 +41,9 @@ export type CalendarCellState = "leave" | "unavailable" | "available" | "booking
 const AVAIL_KEY = "shivai_appointmentcrm_availability";
 const LEAVE_KEY = "shivai_appointmentcrm_leaves";
 const SCHEDULE_EVENT = "shivai:appointment-schedule-changed";
+
+let memoryAvailability: StaffAvailability[] | null = null;
+let memoryLeaves: StaffLeave[] | null = null;
 
 export const WEEKDAYS: { key: Weekday; label: string }[] = [
   { key: "mon", label: "Mon" },
@@ -140,6 +146,7 @@ export function getSlotStateAtMinute(
 }
 
 export function readAvailability(): StaffAvailability[] {
+  if (memoryAvailability) return memoryAvailability;
   try {
     const raw = localStorage.getItem(AVAIL_KEY);
     if (!raw) return [];
@@ -150,16 +157,37 @@ export function readAvailability(): StaffAvailability[] {
   }
 }
 
-export function writeAvailability(list: StaffAvailability[]): void {
+function persistAvailability(list: StaffAvailability[], fromApi = false): void {
+  memoryAvailability = list;
   try {
-    localStorage.setItem(AVAIL_KEY, JSON.stringify(list));
+    if (!isAppointmentCrmApiMode() || !fromApi) {
+      localStorage.setItem(AVAIL_KEY, JSON.stringify(list));
+    }
     window.dispatchEvent(new CustomEvent(SCHEDULE_EVENT));
   } catch {
     /* ignore */
   }
 }
 
+export function writeAvailability(list: StaffAvailability[]): void {
+  persistAvailability(list);
+}
+
+export function writeAvailabilityList(
+  list: StaffAvailability[],
+  opts?: { fromApi?: boolean; merge?: boolean },
+): void {
+  if (opts?.merge && memoryAvailability) {
+    const byStaff = new Map(memoryAvailability.map((a) => [a.staffId, a]));
+    list.forEach((a) => byStaff.set(a.staffId, a));
+    persistAvailability([...byStaff.values()], opts?.fromApi);
+    return;
+  }
+  persistAvailability(list, opts?.fromApi);
+}
+
 export function readLeaves(): StaffLeave[] {
+  if (memoryLeaves) return memoryLeaves;
   try {
     const raw = localStorage.getItem(LEAVE_KEY);
     if (!raw) return [];
@@ -170,13 +198,33 @@ export function readLeaves(): StaffLeave[] {
   }
 }
 
-export function writeLeaves(list: StaffLeave[]): void {
+function persistLeaves(list: StaffLeave[], fromApi = false): void {
+  memoryLeaves = list;
   try {
-    localStorage.setItem(LEAVE_KEY, JSON.stringify(list));
+    if (!isAppointmentCrmApiMode() || !fromApi) {
+      localStorage.setItem(LEAVE_KEY, JSON.stringify(list));
+    }
     window.dispatchEvent(new CustomEvent(SCHEDULE_EVENT));
   } catch {
     /* ignore */
   }
+}
+
+export function writeLeaves(list: StaffLeave[]): void {
+  persistLeaves(list);
+}
+
+export function writeLeavesList(
+  list: StaffLeave[],
+  opts?: { fromApi?: boolean; merge?: boolean },
+): void {
+  if (opts?.merge && memoryLeaves) {
+    const byId = new Map(memoryLeaves.map((l) => [l.id, l]));
+    list.forEach((l) => byId.set(l.id, l));
+    persistLeaves([...byId.values()], opts?.fromApi);
+    return;
+  }
+  persistLeaves(list, opts?.fromApi);
 }
 
 export function getAvailabilityForStaff(staffId: string): StaffAvailability {
@@ -190,17 +238,22 @@ export function getAvailabilityForStaff(staffId: string): StaffAvailability {
   return { staffId, weekly: defaultWeeklySchedule(), dailyBreak: defaultDailyBreak() };
 }
 
-export function saveStaffAvailability(staffId: string, weekly: DaySlot[], dailyBreak?: DailyBreak): void {
+export async function saveStaffAvailability(
+  staffId: string,
+  weekly: DaySlot[],
+  dailyBreak?: DailyBreak,
+): Promise<void> {
   const existing = getAvailabilityForStaff(staffId);
+  const next: StaffAvailability = {
+    staffId,
+    weekly,
+    dailyBreak: dailyBreak ?? existing.dailyBreak ?? defaultDailyBreak(),
+  };
+  if (isAppointmentCrmApiMode()) {
+    await appointmentCrmAPI.putAvailability(staffId, availabilityToApiBody(next));
+  }
   const list = readAvailability().filter((a) => a.staffId !== staffId);
-  writeAvailability([
-    ...list,
-    {
-      staffId,
-      weekly,
-      dailyBreak: dailyBreak ?? existing.dailyBreak ?? defaultDailyBreak(),
-    },
-  ]);
+  persistAvailability([...list, next], isAppointmentCrmApiMode());
 }
 
 export function saveStaffDailyBreak(staffId: string, dailyBreak: DailyBreak): void {
@@ -236,13 +289,31 @@ export function removeAvailabilityForStaff(staffId: string): void {
   removeOfflineBlocksForStaff(staffId);
 }
 
-export function addStaffLeave(params: {
+export async function addStaffLeave(params: {
   staffId: string;
   fromDate: string;
   toDate: string;
   reason: string;
   type?: LeaveType;
-}): StaffLeave {
+}): Promise<StaffLeave> {
+  if (isAppointmentCrmApiMode()) {
+    const created = await appointmentCrmAPI.createLeave(params.staffId, {
+      fromDate: params.fromDate,
+      toDate: params.toDate,
+      reason: params.reason,
+      type: params.type ?? "leave",
+    });
+    const leave: StaffLeave = {
+      id: apiId(created),
+      staffId: params.staffId,
+      fromDate: params.fromDate,
+      toDate: params.toDate,
+      reason: params.reason.trim() || "Leave",
+      type: params.type ?? "leave",
+    };
+    persistLeaves([...readLeaves(), leave], true);
+    return leave;
+  }
   const leave: StaffLeave = {
     id: makeLeaveId(),
     staffId: params.staffId,
@@ -251,12 +322,15 @@ export function addStaffLeave(params: {
     reason: params.reason.trim() || "Leave",
     type: params.type ?? "leave",
   };
-  writeLeaves([...readLeaves(), leave]);
+  persistLeaves([...readLeaves(), leave]);
   return leave;
 }
 
-export function removeStaffLeave(id: string): void {
-  writeLeaves(readLeaves().filter((l) => l.id !== id));
+export async function removeStaffLeave(id: string): Promise<void> {
+  if (isAppointmentCrmApiMode()) {
+    await appointmentCrmAPI.deleteLeave(id);
+  }
+  persistLeaves(readLeaves().filter((l) => l.id !== id), isAppointmentCrmApiMode());
 }
 
 export function getLeaveOnDate(staffId: string, isoDate: string): StaffLeave | undefined {

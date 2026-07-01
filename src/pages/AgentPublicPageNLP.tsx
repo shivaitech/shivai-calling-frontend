@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState, useRef } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
@@ -104,10 +104,11 @@ export default function AgentPublicPage() {
     fetchAgent();
 
     return () => {
-      // Reset fetch ref on unmount
       agentFetchRef.current = null;
     };
   }, [agentId]);
+
+  // widget4.js is injected by the parent AgentPublicPage.
 
   const agentName = agentInfo?.name || "Your AI Employee";
 

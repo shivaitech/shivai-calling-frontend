@@ -21,9 +21,11 @@ import {
   AppointmentIndustryPreset,
   setActiveIndustryId,
 } from "./industryConfig";
-import { BranchMode, completeSetup } from "./setupStore";
+import { BranchMode, completeSetup, completeSetupViaApi } from "./setupStore";
 import { seedBranchesFromPreset, ensureActiveBranch } from "./branchesStore";
 import { seedOrgHierarchy } from "./orgSeed";
+import { isAppointmentCrmApiConfigured } from "./api/client";
+import { useAppointmentCRM } from "./AppointmentCRMProvider";
 
 interface SetupModalProps {
   open: boolean;
@@ -53,6 +55,7 @@ const industryIcon = (id: string) => {
 };
 
 const SetupModal = ({ open, onComplete }: SetupModalProps) => {
+  const { refresh, apiReady } = useAppointmentCRM();
   const [step, setStep] = useState(0);
   const [companyName, setCompanyName] = useState("");
   const [industryId, setIndustryId] = useState("clinic");
@@ -84,21 +87,36 @@ const SetupModal = ({ open, onComplete }: SetupModalProps) => {
       setActiveIndustryId(industryId);
       const seeds = branchNames
         .filter((n) => n.trim())
-        .map((name) => {
+        .map((name, i) => {
           const match = preset.defaultBranches.find((b) => b.name === name);
-          return { name: name.trim(), address: match?.address };
+          return {
+            name: name.trim(),
+            address: match?.address,
+            isPrimary: i === 0,
+          };
         });
-      const createdBranches = seedBranchesFromPreset(
-        seeds.length ? seeds : [{ name: companyName.trim() }],
-        branchMode,
-      );
-      seedOrgHierarchy(createdBranches);
-      ensureActiveBranch(createdBranches);
-      completeSetup({
-        companyName: companyName.trim(),
-        industryId,
-        branchMode,
-      });
+
+      if (apiReady && isAppointmentCrmApiConfigured()) {
+        await completeSetupViaApi({
+          companyName: companyName.trim(),
+          industryId,
+          branchMode,
+          branches: seeds.length ? seeds : [{ name: companyName.trim(), isPrimary: true }],
+        });
+        await refresh();
+      } else {
+        const createdBranches = seedBranchesFromPreset(
+          seeds.length ? seeds : [{ name: companyName.trim() }],
+          branchMode,
+        );
+        seedOrgHierarchy(createdBranches);
+        ensureActiveBranch(createdBranches);
+        completeSetup({
+          companyName: companyName.trim(),
+          industryId,
+          branchMode,
+        });
+      }
       onComplete();
     } finally {
       setSaving(false);

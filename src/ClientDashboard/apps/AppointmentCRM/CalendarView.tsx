@@ -32,9 +32,13 @@ import StaffScheduleModal from "./StaffScheduleModal";
 import CalendarBookingCard from "./CalendarBookingCard";
 import CalendarOfflineBlockCard from "./CalendarOfflineBlockCard";
 import OfflineBlockDetailModal from "./OfflineBlockDetailModal";
+import DeleteOfflineBlockModal from "./DeleteOfflineBlockModal";
 import ShareDoctorCalendarModal from "./ShareDoctorCalendarModal";
+import appToast from "../../../components/AppToast";
 import {
+  blockTypeLabel,
   getOfflineBlocksForStaffOnDate,
+  isManualBookingBlock,
   offlineBlockOverlapsSlot,
   removeOfflineBlock,
   useOfflineBlocks,
@@ -76,6 +80,8 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
   const [scheduleStaff, setScheduleStaff] = useState<StaffMember | null>(null);
   const [focusedStaffId, setFocusedStaffId] = useState<string | null>(lockedStaffId ?? null);
   const [shareStaff, setShareStaff] = useState<StaffMember | null>(null);
+  const [pendingDeleteBlock, setPendingDeleteBlock] = useState<StaffOfflineBlock | null>(null);
+  const [deletingBlock, setDeletingBlock] = useState(false);
 
   const branchId = activeBranchId ?? "";
 
@@ -96,6 +102,31 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
     if (lockedStaffId) return;
     setFocusedStaffId(null);
   }, [deptId, lockedStaffId]);
+
+  const handleConfirmDeleteBlock = async () => {
+    if (!pendingDeleteBlock || deletingBlock) return;
+    setDeletingBlock(true);
+    const toastId = appToast.loading("Removing…");
+    try {
+      await removeOfflineBlock(pendingDeleteBlock.id);
+      appToast.dismiss(toastId);
+      const label = blockTypeLabel(pendingDeleteBlock).toLowerCase();
+      appToast.success(
+        isManualBookingBlock(pendingDeleteBlock) && pendingDeleteBlock.patientName
+          ? `Removed booking for ${pendingDeleteBlock.patientName}`
+          : `${label.charAt(0).toUpperCase() + label.slice(1)} removed`,
+      );
+      if (selectedOfflineBlock?.id === pendingDeleteBlock.id) {
+        setSelectedOfflineBlock(null);
+      }
+      setPendingDeleteBlock(null);
+    } catch {
+      appToast.dismiss(toastId);
+      appToast.error("Could not remove. Please try again.");
+    } finally {
+      setDeletingBlock(false);
+    }
+  };
 
   const branchDepts = useMemo(
     () => departments.filter((d) => d.branchId === branchId && d.active),
@@ -309,7 +340,7 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
                 return (
                   <div
                     key={col.id}
-                    className={`flex flex-col gap-1 px-1.5 py-1.5 border-r border-slate-200 dark:border-slate-700 last:border-r-0 min-w-0 ${
+                    className={`flex flex-col gap-1.5 px-1.5 py-1.5 border-r border-slate-200 dark:border-slate-700 last:border-r-0 min-w-0 ${
                       isFocused ? "bg-violet-50/80 dark:bg-violet-950/20" : ""
                     }`}
                   >
@@ -330,25 +361,29 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
                       </div>
                     </div>
                     {!readOnly && (
-                      <div className="flex flex-wrap items-center justify-end gap-1">
-                        {!lockedStaffId && !focusedStaffId && (
+                      <div className="flex flex-wrap items-center justify-start gap-1.5 w-full">
+                        {!lockedStaffId && (
                           <button
                             type="button"
                             onClick={() => setFocusedStaffId(col.id)}
-                            className="inline-flex items-center justify-center gap-0.5 px-2 py-0.5 rounded-md text-[9px] font-medium border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shrink-0"
+                            className={`inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium border transition-colors shrink-0 ${
+                              focusedStaffId === col.id
+                                ? "border-violet-300 dark:border-violet-700 text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-900/30"
+                                : "border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 bg-white/80 dark:bg-slate-800/80 hover:bg-slate-50 dark:hover:bg-slate-800"
+                            }`}
                             title={`View only ${displayName(col)}`}
                           >
-                            <Eye className="w-2.5 h-2.5" />
+                            <Eye className="w-3 h-3" />
                             View
                           </button>
                         )}
                         <button
                           type="button"
                           onClick={() => setScheduleStaff(col)}
-                          className="inline-flex items-center justify-center gap-0.5 px-2 py-0.5 rounded-md text-[9px] font-medium border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-violet-50 dark:hover:bg-violet-900/30 hover:border-violet-300 dark:hover:border-violet-700 hover:text-violet-700 dark:hover:text-violet-300 transition-colors shrink-0"
+                          className="inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 bg-white/80 dark:bg-slate-800/80 hover:bg-violet-50 dark:hover:bg-violet-900/30 hover:border-violet-300 dark:hover:border-violet-700 hover:text-violet-700 dark:hover:text-violet-300 transition-colors shrink-0"
                           title={`Edit ${displayName(col)} hours & bookings`}
                         >
-                          <Pencil className="w-2.5 h-2.5" />
+                          <Pencil className="w-3 h-3" />
                           Edit
                         </button>
                       </div>
@@ -455,8 +490,8 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
       </GlassCard>
 
       {!lockedStaffId && (
-        <p className="text-[10px] text-slate-400">
-          Use <strong>View</strong> to show one {terms.staff.toLowerCase()}&apos;s column · <strong>Edit</strong> for hours & manual bookings
+        <p className="text-[10px] text-slate-400 sm:hidden">
+          Tap <strong>View</strong> for one {terms.staff.toLowerCase()} · <strong>Edit</strong> for hours & bookings
         </p>
       )}
 
@@ -477,7 +512,24 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
             : ""
         }
         onClose={() => setSelectedOfflineBlock(null)}
-        onRemove={readOnly ? undefined : removeOfflineBlock}
+        onRemove={
+          readOnly
+            ? undefined
+            : () => {
+                if (selectedOfflineBlock) {
+                  setPendingDeleteBlock(selectedOfflineBlock);
+                  setSelectedOfflineBlock(null);
+                }
+              }
+        }
+      />
+
+      <DeleteOfflineBlockModal
+        open={Boolean(pendingDeleteBlock)}
+        block={pendingDeleteBlock}
+        onClose={() => !deletingBlock && setPendingDeleteBlock(null)}
+        onConfirm={handleConfirmDeleteBlock}
+        deleting={deletingBlock}
       />
 
       {!readOnly && (

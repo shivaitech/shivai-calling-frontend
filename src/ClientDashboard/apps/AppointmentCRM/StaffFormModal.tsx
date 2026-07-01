@@ -91,13 +91,13 @@ const StaffFormModal = ({
   );
   const specializationListId = "staff-specialization-suggestions";
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.name.trim()) return;
     const specialization = form.specialization.trim() || undefined;
     if (specialization) rememberCustomSpecialization(specialization);
 
     if (mode === "add") {
-      const member = addStaffMember({
+      const member = await addStaffMember({
         branchId,
         departmentId,
         name: form.name.trim(),
@@ -113,7 +113,7 @@ const StaffFormModal = ({
     }
 
     if (!staff) return;
-    updateStaffMember(staff.id, {
+    await updateStaffMember(staff.id, {
       name: form.name.trim(),
       role: form.role,
       title: form.title || undefined,
@@ -126,9 +126,9 @@ const StaffFormModal = ({
     onClose();
   };
 
-  const handleRemove = () => {
+  const handleRemove = async () => {
     if (!staff) return;
-    removeStaffMember(staff.id);
+    await removeStaffMember(staff.id);
     onClose();
   };
 

@@ -57,9 +57,9 @@ const StaffView = () => {
     ? staff.find((s) => s.id === staffModal.staffId)
     : undefined;
 
-  const handleAddDepartment = () => {
+  const handleAddDepartment = async () => {
     if (!selectedBranchId || !newDeptName.trim()) return;
-    const dept = addDepartment(selectedBranchId, newDeptName.trim());
+    const dept = await addDepartment(selectedBranchId, newDeptName.trim());
     setNewDeptName("");
     setSelectedDeptId(dept.id);
   };
@@ -157,7 +157,7 @@ const StaffView = () => {
                       <button
                         type="button"
                         onClick={() => {
-                          removeDepartment(d.id);
+                          void removeDepartment(d.id);
                           if (selectedDeptId === d.id) setSelectedDeptId(null);
                         }}
                         className="p-2 mr-1 text-slate-400 hover:text-red-500 rounded-lg"
