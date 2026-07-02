@@ -2355,7 +2355,7 @@
   }
   function setDefaultLanguage() {
     const langToLabel = {
-      "en": "English", "en-us": "English (US)", "en-gb": "English (UK)",
+      "en": "English", "en-us": "English (US)", "en-gb": "English (UK)", "en-au": "English (AU)",
       "es": "Spanish", "fr": "French", "de": "German", "pt": "Portuguese",
       "ar": "Arabic", "ja": "Japanese", "ko": "Korean", "zh": "Chinese",
       "th": "Thai", "id": "Indonesian", "ru": "Russian", "it": "Italian",
@@ -2370,7 +2370,7 @@
       "ml": "Malayalam (മലയാളം)", "pa": "Punjabi (ਪੰਜਾਬੀ)",
     };
     const langToCountry = {
-      "en": "us", "en-us": "us", "en-gb": "gb", "en-in": "in",
+      "en": "us", "en-us": "us", "en-gb": "gb", "en-in": "in", "en-au": "au",
       "es": "es", "fr": "fr", "de": "de", "pt": "pt", "it": "it",
       "ru": "ru", "nl": "nl", "pl": "pl", "sv": "se", "da": "dk",
       "nb": "no", "fi": "fi", "tr": "tr", "uk": "ua", "cs": "cz",
@@ -2412,14 +2412,6 @@
       });
     }
 
-    function scrollLangCardToCenter(gridEl, card) {
-      if (!gridEl || !card) return;
-      const gridWidth = gridEl.clientWidth;
-      const cardWidth = card.offsetWidth;
-      const cardLeft = card.offsetLeft;
-      gridEl.scrollLeft = Math.max(0, cardLeft - (gridWidth - cardWidth) / 2);
-    }
-
     function applyLangCarouselLayout(langCount) {
       const carousel = document.querySelector('.landing-lang-carousel');
       if (!carousel) return;
@@ -2455,19 +2447,20 @@
       if (nextBtn) nextBtn.style.display = '';
       if (!prevBtn || !nextBtn) return;
 
-      const scrollByOne = (dir) => {
+      const scrollByPair = (dir) => {
         const card = gridEl.querySelector('.landing-lang-card');
         const gap = 10;
         const cardWidth = card ? card.getBoundingClientRect().width : 120;
-        gridEl.scrollBy({ left: dir * (cardWidth + gap), behavior: 'smooth' });
+        const pair = (cardWidth + gap) * 2;
+        gridEl.scrollBy({ left: dir * pair, behavior: 'smooth' });
       };
       const updateArrows = () => {
         const max = gridEl.scrollWidth - gridEl.clientWidth - 1;
         prevBtn.disabled = gridEl.scrollLeft <= 2;
         nextBtn.disabled = gridEl.scrollLeft >= max;
       };
-      prevBtn.onclick = () => scrollByOne(-1);
-      nextBtn.onclick = () => scrollByOne(1);
+      prevBtn.onclick = () => scrollByPair(-1);
+      nextBtn.onclick = () => scrollByPair(1);
       gridEl.addEventListener('scroll', updateArrows, { passive: true });
       window.addEventListener('resize', updateArrows);
       setTimeout(updateArrows, 60);
@@ -2502,9 +2495,6 @@
           if (hiddenSelectEl) hiddenSelectEl.value = key;
           gridEl.querySelectorAll('.landing-lang-card').forEach(c => c.classList.remove('selected'));
           btn.classList.add('selected');
-          if (ordered.length >= 3) {
-            scrollLangCardToCenter(gridEl, btn);
-          }
         });
         gridEl.appendChild(btn);
       });
@@ -2552,13 +2542,7 @@
       if (landingLangGrid) {
         landingLangGrid.querySelectorAll('.landing-lang-card').forEach(c => c.classList.remove('selected'));
         const sel = landingLangGrid.querySelector(`.landing-lang-card[data-lang="${defaultLang}"]`);
-        if (sel) {
-          sel.classList.add('selected');
-          const langCount = landingLangGrid.querySelectorAll('.landing-lang-card').length;
-          if (langCount >= 3) {
-            setTimeout(() => scrollLangCardToCenter(landingLangGrid, sel), 80);
-          }
-        }
+        if (sel) sel.classList.add('selected');
       }
     }
   }
@@ -3698,13 +3682,13 @@
       .landing-lang-carousel--dual .landing-lang-grid {
         overflow: hidden;
       }
+      .landing-lang-carousel--dual .landing-lang-card,
+      .landing-lang-carousel--multi .landing-lang-card {
+        flex: 0 0 calc((100% - 10px) / 2);
+        scroll-snap-align: start;
+      }
       .landing-lang-carousel--multi .landing-lang-grid {
         scroll-snap-type: x mandatory;
-        scroll-padding-inline: 11%;
-      }
-      .landing-lang-carousel--multi .landing-lang-card {
-        flex: 0 0 78%;
-        scroll-snap-align: center;
       }
       .landing-lang-arrow {
         flex: 0 0 28px;
