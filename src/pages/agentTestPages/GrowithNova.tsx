@@ -305,19 +305,11 @@ function Navbar() {
 function Hero() {
   return (
     <>
-      <motion.div {...entrance(0.06)} className="mt-3 flex items-center justify-center gap-2 lg:mt-0 lg:justify-start">
-        <Sparkles className="h-3.5 w-3.5 lg:h-4 lg:w-4" style={{ color: C.navPurple, filter: `drop-shadow(0 0 6px ${GLOW.violet},0.9))` }} />
-        <span
-          className="text-[10.5px] font-bold uppercase tracking-[0.24em] lg:text-[11px]"
-          style={{ color: C.paleLilac, textShadow: `0 0 12px ${GLOW.soft},0.42), ${LABEL_HIGHLIGHT}` }}
-        >
-          Meet Your AI Investment Assistant
-        </span>
-      </motion.div>
+      
 
       <motion.h1
         {...entrance(0.12)}
-        className="relative mt-3 text-center text-[3rem] font-extrabold leading-[1.02] tracking-[-0.02em] sm:text-[3.6rem] lg:text-left lg:text-[3.75rem] xl:text-[4.25rem]"
+        className="relative mt-4 text-center text-[3rem] font-extrabold leading-[1.02] tracking-[-0.02em] sm:text-[3.6rem] lg:text-left lg:text-[3.75rem] xl:text-[4.25rem]"
         style={{ color: C.white }}
       >
         {/* hero glow — layered radials behind the type */}
@@ -360,7 +352,7 @@ function Hero() {
 function VoiceButton({ onClick, delay = 0 }: { onClick: () => void; delay?: number }) {
   return (
     <div className="relative my-10 flex w-full flex-col items-center lg:my-0 lg:flex-1 lg:justify-end lg:pb-1 lg:pt-4 xl:pt-6">
-      <div className="relative flex h-[210px] w-[210px] items-center justify-center lg:h-[240px] lg:w-[240px] xl:h-[260px] xl:w-[260px]">
+      <div className="relative flex h-[190px] w-[190px] items-center justify-center lg:h-[215px] lg:w-[215px] xl:h-[235px] xl:w-[235px]">
         <AnimatedWave />
 
         {/* L1 · outer blue glow (large blurred radial) */}
@@ -428,7 +420,7 @@ function VoiceButton({ onClick, delay = 0 }: { onClick: () => void; delay?: numb
           />
           {/* L7 · microphone with bloom */}
           <Mic
-            className="relative h-9 w-9 lg:h-10 lg:w-10"
+            className="relative h-8 w-8 lg:h-9 lg:w-9"
             strokeWidth={2}
             style={{ color: C.white, filter: "drop-shadow(0 0 9px rgba(210,228,255,0.9)) drop-shadow(0 0 2px rgba(255,255,255,0.95))" }}
           />

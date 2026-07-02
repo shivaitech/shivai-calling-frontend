@@ -371,16 +371,17 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
       // API-loaded config takes priority in widget5 — keep it in sync for live preview
       win.SHIVAI_WIDGET_CONFIG = {
         ...win.SHIVAI_WIDGET_CONFIG,
-        _agent_name: content.companyName,
+        _agent_name: agentName,
         ai_employee_name: content.companyName,
         ai_employee_description: content.companyDescription,
         button_text: content.callToActionText,
-        company_logo: content.companyLogo || undefined,
-        trigger_button_image: content.triggerButtonImage || undefined,
+        company_logo: content.companyLogo,
+        trigger_button_image: content.triggerButtonImage,
         theme: resolveApiTheme(widgetConfig.theme, gradientPresets),
         primary_color: widgetConfig.theme.primaryColor,
         gradient_start: widgetConfig.theme.primaryColor,
         gradient_end: widgetConfig.theme.accentColor,
+        position: widgetConfig.ui.position,
         widget_style: widgetConfig.theme.widgetStyle,
       };
 
@@ -750,7 +751,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
   const saveWidgetConfig = async (silent = false) => {
     setIsSaving(true);
     try {
-      let finalLogoUrl = widgetConfig.content.companyLogo;
+      let finalLogoUrl = widgetConfig.content.companyLogo || logoPreview || "";
 
       // Step 1: If logo is base64 (local preview), upload it first
       if (finalLogoUrl && finalLogoUrl.startsWith("data:image")) {
@@ -774,7 +775,8 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
       }
 
       // Step 1b: Upload trigger button image if it's base64
-      let finalTriggerButtonImageUrl = widgetConfig.content.triggerButtonImage;
+      let finalTriggerButtonImageUrl =
+        widgetConfig.content.triggerButtonImage || triggerButtonImagePreview || "";
       if (finalTriggerButtonImageUrl && finalTriggerButtonImageUrl.startsWith("data:image")) {
         console.log("📤 Trigger button image is local, uploading to server first...");
         const response = await fetch(finalTriggerButtonImageUrl);
@@ -1853,9 +1855,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                         widgetConfig.content.companyName
                       )}&companyDescription=${encodeURIComponent(
                         widgetConfig.content.companyDescription
-                      )}&agentName=${encodeURIComponent(
-                        widgetConfig.content.companyName
-                      )}&v=' + Date.now();
+                      )}&agentName=${encodeURIComponent(agentName)}&v=' + Date.now();
         document.body.appendChild(s);
       })();
     </script>

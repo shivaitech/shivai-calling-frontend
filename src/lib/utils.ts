@@ -62,3 +62,10 @@ export function isGrowthLiveClient(userEmail?: string, agentName?: string, compa
   const emailMatch = hasGrowith(userEmail);
   return !!(emailMatch || hasGrowith(agentName) || hasGrowith(companyName));
 }
+
+/** Growith Nova test page: company name includes "growith" AND agent name is "Nova". */
+export function isGrowithNovaClient(agentName?: string, companyName?: string): boolean {
+  const hasGrowith = (s?: string) => (s || "").toLowerCase().includes("growith");
+  const isNova = (s?: string) => (s || "").trim().toLowerCase() === "nova";
+  return hasGrowith(companyName) && isNova(agentName);
+}

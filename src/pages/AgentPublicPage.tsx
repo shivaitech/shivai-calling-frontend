@@ -5,7 +5,7 @@ import { useParams, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Orb, oceanDepthsPreset } from "react-ai-orb";
 import bgNew from "../resources/AiImages/bg22.webp";
-import { isKunalPrakashClient, isNagarNigamMoradabadClient, isGrowthLiveClient } from "../lib/utils";
+import { isKunalPrakashClient, isNagarNigamMoradabadClient, isGrowithNovaClient } from "../lib/utils";
 import AgentPublicPageNLP from "./AgentPublicPageNLP";
 import NagarNigamMoradabad from "./agentTestPages/NagarNigamMoradabad";
 import GrowthLive from "./agentTestPages/GrowthLive";
@@ -26,6 +26,7 @@ export default function AgentPublicPage() {
   const userId = searchParams.get("userId");
 
   const [agentInfo, setAgentInfo] = useState<AgentInfo | null>(null);
+  const [agentInfoLoaded, setAgentInfoLoaded] = useState(false);
   const agentFetchRef = useRef<string | null>(null);
   const scriptRef = useRef(false);
 
@@ -45,7 +46,7 @@ export default function AgentPublicPage() {
   const isKunalClient    = isKunalPrakashClient(userEmail || undefined);
   const isTradeFxClient  = (agentInfo?.name || "") === "Saanvi" || (userEmail || "").toLowerCase() === "tradefxservicesofficial@gmail.com";
   const isNagarNigamClient = isNagarNigamMoradabadClient(userEmail || undefined, agentInfo?.name, agentInfo?.company_name);
-  const isGrowthClient   = isGrowthLiveClient(userEmail || undefined, agentInfo?.name, agentInfo?.company_name);
+  const isGrowithNova    = isGrowithNovaClient(agentInfo?.name, agentInfo?.company_name);
 
   const badgePhrases = isTradeFxClient
     ? [
@@ -96,6 +97,7 @@ export default function AgentPublicPage() {
   useEffect(() => {
     if (!agentId || agentFetchRef.current === agentId) return;
     agentFetchRef.current = agentId;
+    setAgentInfoLoaded(false);
     (async () => {
       try {
         const res = await fetch(`https://nodejs.service.callshivai.com/api/v1/agent-configs/${agentId}`);
@@ -103,28 +105,40 @@ export default function AgentPublicPage() {
           const data = await res.json();
           if (agentFetchRef.current === agentId) setAgentInfo(data?.data?.agent || data);
         }
-      } catch {}
+      } catch {} finally {
+        if (agentFetchRef.current === agentId) setAgentInfoLoaded(true);
+      }
     })();
     return () => { agentFetchRef.current = null; };
   }, [agentId]);
 
-  // Load widget4.js exactly once — widget4.js has a singleton guard so even if
-  // a custom child page also injects it, it won't initialise twice.
+  // Load widget5.js after agent info is known (Nova test page needs novaPage flag on mobile).
   useEffect(() => {
-    if (!agentId || scriptRef.current) return;
+    if (!agentId || !agentInfoLoaded || scriptRef.current) return;
     scriptRef.current = true;
     const params = new URLSearchParams();
     params.set("agentId", agentId);
     if (userId) params.set("userId", userId);
     params.set("bypass", "true");
+    if (isGrowithNovaClient(agentInfo?.name, agentInfo?.company_name)) {
+      params.set("novaPage", "1");
+    }
     params.set("v", Date.now().toString());
     const script = document.createElement("script");
     script.src = `/widget5.js?${params.toString()}`;
     script.async = false;
     document.body.appendChild(script);
-  }, []);
+  }, [agentId, userId, agentInfoLoaded, agentInfo?.name, agentInfo?.company_name]);
 
   const agentName = agentInfo?.name || "Your AI Employee";
+
+  if (agentId && !agentInfoLoaded) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-slate-950">
+        <div className="w-8 h-8 border-2 border-white/20 border-t-white/80 rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   // ── Custom client branches ────────────────────────────────────────────────
   if (isKunalClient) {
@@ -172,7 +186,7 @@ export default function AgentPublicPage() {
 
   if (isTradeFxClient) return <AgentPublicPageNLP />;
   if (isNagarNigamClient) return <NagarNigamMoradabad />;
-  if (isGrowthClient) return legacyGrowthUi ? <GrowthLive /> : <GrowithNova />;
+  if (isGrowithNova) return legacyGrowthUi ? <GrowthLive /> : <GrowithNova />;
 
   // ── Default test page ─────────────────────────────────────────────────────
   return (

@@ -88,6 +88,8 @@
   let messageBubble = null;
   let connectionTimeout = null;
   let novaBottomCenterTrigger = false;
+  let widgetPreviewMode = false;
+  let novaTestPageMode = false;
   let aiResponseTimeout = null;
   let retryCount = 0;
   const MAX_RETRIES = 0; // No retries - terminate immediately on error
@@ -184,45 +186,57 @@
       }
       
       // ✅ PRIORITY 2: Check SHIVAI_CONFIG (legacy component state)
-      else if (window.SHIVAI_CONFIG && typeof window.SHIVAI_CONFIG === 'object') {
-        _wlog("📦 SHIVAI_CONFIG found, using as fallback source");
+      if (window.SHIVAI_CONFIG && typeof window.SHIVAI_CONFIG === 'object') {
+        if (configSource === "defaults") {
+          _wlog("📦 SHIVAI_CONFIG found, using as fallback source");
+        }
         
         const config = window.SHIVAI_CONFIG;
         
         if (config.content) {
-          if (config.content.companyName) {
-            companyName = config.content.companyName;
-            _wlog("🏢 Using companyName from SHIVAI_CONFIG:", companyName);
+          if (!companyName || companyName === "ShivAI") {
+            if (config.content.companyName) {
+              companyName = config.content.companyName;
+              _wlog("🏢 Using companyName from SHIVAI_CONFIG:", companyName);
+            }
           }
-          if (config.content.companyDescription) {
-            companyDescription = config.content.companyDescription;
-            _wlog("📄 Using companyDescription from SHIVAI_CONFIG:", companyDescription);
+          if (!companyDescription || companyDescription === "AI-Powered Support") {
+            if (config.content.companyDescription) {
+              companyDescription = config.content.companyDescription;
+              _wlog("📄 Using companyDescription from SHIVAI_CONFIG:", companyDescription);
+            }
           }
-          if (config.content.companyLogo) {
+          if (!companyLogo && config.content.companyLogo) {
             companyLogo = config.content.companyLogo;
             _wlog("🖼️ Using companyLogo from SHIVAI_CONFIG");
           }
-          if (config.content.triggerButtonImage) {
+          if (!triggerButtonImage && config.content.triggerButtonImage) {
             triggerButtonImage = config.content.triggerButtonImage;
             _wlog("🖼️ Using triggerButtonImage from SHIVAI_CONFIG");
           }
-          if (config.content.callToActionText) {
+          if ((!callToActionText || callToActionText === "📞 Call ShivAI!") && config.content.callToActionText) {
             callToActionText = config.content.callToActionText;
             _wlog("💬 Using callToActionText from SHIVAI_CONFIG:", callToActionText);
           }
         }
 
-        // Also check ShivAI.config for triggerButtonImage / callToActionText
+        // Also check ShivAI.config for images / callToActionText
         if (!triggerButtonImage && window.ShivAI && window.ShivAI.config && window.ShivAI.config.triggerButtonImage) {
           triggerButtonImage = window.ShivAI.config.triggerButtonImage;
           _wlog("🖼️ Using triggerButtonImage from ShivAI.config");
         }
+        if (!companyLogo && window.ShivAI && window.ShivAI.config && window.ShivAI.config.companyLogo) {
+          companyLogo = window.ShivAI.config.companyLogo;
+          _wlog("🖼️ Using companyLogo from ShivAI.config");
+        }
         if (window.ShivAI && window.ShivAI.config && window.ShivAI.config.callToActionText) {
-          callToActionText = window.ShivAI.config.callToActionText;
-          _wlog("💬 Using callToActionText from ShivAI.config:", callToActionText);
+          if (!callToActionText || callToActionText === "📞 Call ShivAI!") {
+            callToActionText = window.ShivAI.config.callToActionText;
+            _wlog("💬 Using callToActionText from ShivAI.config:", callToActionText);
+          }
         }
         
-        if (config.theme) {
+        if (config.theme && configSource === "defaults") {
           if (config.theme.primaryColor) {
             themeColors.primaryColor = config.theme.primaryColor;
           }
@@ -235,11 +249,13 @@
           _wlog("🎨 Using theme colors from SHIVAI_CONFIG:", themeColors);
         }
         
-        configSource = "SHIVAI_CONFIG";
+        if (configSource === "defaults") {
+          configSource = "SHIVAI_CONFIG";
+        }
       }
       
       // ✅ PRIORITY 3: Check URL parameters (legacy fallback)
-      else {
+      if (configSource === "defaults") {
         _wlog("📝 No API/component config found, checking URL parameters as fallback");
         
         const scriptTags = document.getElementsByTagName('script');
@@ -315,18 +331,49 @@
       agentRes.widget && agentRes.widget._agent_name,
     ];
     novaBottomCenterTrigger = names.some(isNovaAgentName);
-    _wlog("📍 Nova bottom-center trigger:", novaBottomCenterTrigger);
+    _wlog("📍 Nova agent (custom orb page):", novaBottomCenterTrigger);
   }
 
-  function applyNovaTriggerPosition() {
-    if (!triggerBtn || !novaBottomCenterTrigger) return;
-    triggerBtn.classList.add("shivai-trigger--bottom-center");
+  function isNovaMobileViewport() {
+    return window.matchMedia("(max-width: 768px)").matches;
+  }
+
+  function shouldHideNovaTrigger() {
+    if (!novaBottomCenterTrigger) return false;
+    // Production Nova pages use the custom mic orb instead of the floating pill.
+    if (!widgetPreviewMode) return true;
+    // Nova public test page on mobile — mic orb opens the widget.
+    if (novaTestPageMode && isNovaMobileViewport()) return true;
+    return false;
+  }
+
+  function updateNovaTriggerVisibility() {
+    if (!triggerBtn || isWidgetOpen) return;
+    triggerBtn.style.display = shouldHideNovaTrigger() ? "none" : "flex";
+  }
+
+  function getWidgetPositionPreference() {
+    var widget = window.SHIVAI_WIDGET_CONFIG;
+    var ui = window.SHIVAI_CONFIG && window.SHIVAI_CONFIG.ui;
+    var pos = (widget && widget.position) || (ui && ui.position) || "bottom-right";
+    return String(pos).toLowerCase() === "bottom-left" ? "bottom-left" : "bottom-right";
+  }
+
+  function applyDefaultTriggerPosition() {
+    if (!triggerBtn) return;
+    triggerBtn.classList.remove("shivai-trigger--bottom-center");
+    var pos = getWidgetPositionPreference();
     triggerBtn.style.position = "fixed";
-    triggerBtn.style.left = "50%";
-    triggerBtn.style.right = "auto";
     triggerBtn.style.bottom = "calc(24px + env(safe-area-inset-bottom))";
     triggerBtn.style.top = "auto";
-    triggerBtn.style.transform = "translateX(-50%)";
+    triggerBtn.style.transform = "";
+    if (pos === "bottom-left") {
+      triggerBtn.style.left = "24px";
+      triggerBtn.style.right = "auto";
+    } else {
+      triggerBtn.style.right = "24px";
+      triggerBtn.style.left = "auto";
+    }
   }
   
   let currentMessageIndex = 0;
@@ -526,6 +573,7 @@
             const urlAgentId = url.searchParams.get('agentId');
             const urlUserId = url.searchParams.get('userId');
             const urlBypass = url.searchParams.get('bypass');
+            const urlNovaPage = url.searchParams.get('novaPage');
             
             if (urlAgentId) {
               agentId = urlAgentId;
@@ -538,7 +586,12 @@
             }
             if (urlBypass === 'true') {
               bypassDomainCheck = true;
+              widgetPreviewMode = true;
               _wlog("✅ Domain check bypass enabled - testing/preview mode");
+            }
+            if (urlNovaPage === '1' || urlNovaPage === 'true') {
+              novaTestPageMode = true;
+              _wlog("✅ Nova test page mode enabled");
             }
             if (foundFromUrl) break;
           } catch (urlErr) {
@@ -616,10 +669,41 @@
         
         // ✅ Extract and set widget configuration from API response
         if (agentRes?.widget) {
-          window.SHIVAI_WIDGET_CONFIG = agentRes.widget;
+          const apiWidget = agentRes.widget;
+          const localContent =
+            window.SHIVAI_CONFIG && window.SHIVAI_CONFIG.content
+              ? window.SHIVAI_CONFIG.content
+              : null;
+          const shivAiConfig =
+            window.ShivAI && window.ShivAI.config ? window.ShivAI.config : null;
+
+          window.SHIVAI_WIDGET_CONFIG = { ...apiWidget };
           // Top-level agent name takes priority
           if (agentRes.name) window.SHIVAI_WIDGET_CONFIG._agent_name = agentRes.name;
-          // Promote top-level avatar fields into widget config so getCompanyInfo picks them up
+
+          // Keep editor/preview images when API omits one field (avoid logo replacing trigger)
+          if (!apiWidget.trigger_button_image) {
+            const localTrigger =
+              (localContent && localContent.triggerButtonImage) ||
+              (shivAiConfig && shivAiConfig.triggerButtonImage) ||
+              "";
+            if (localTrigger) {
+              window.SHIVAI_WIDGET_CONFIG.trigger_button_image = localTrigger;
+              _wlog("🖼️ Preserved trigger_button_image from local preview config");
+            }
+          }
+          if (!apiWidget.company_logo) {
+            const localLogo =
+              (localContent && localContent.companyLogo) ||
+              (shivAiConfig && shivAiConfig.companyLogo) ||
+              "";
+            if (localLogo) {
+              window.SHIVAI_WIDGET_CONFIG.company_logo = localLogo;
+              _wlog("🖼️ Preserved company_logo from local preview config");
+            }
+          }
+
+          // Promote top-level avatar only when that specific slot is still empty
           const avatarSrc =
             agentRes.avatar || agentRes.avatar_url || agentRes.profile_image ||
             agentRes.agent_image || agentRes.image || agentRes.photo || "";
@@ -999,12 +1083,19 @@
       _wlog("✅ Updated landing agent avatar to:", logoSrc);
     }
 
-    // Update trigger button avatar — match widget2's direct <img> approach
-    const triggerAvatarSrc = companyInfo.triggerButtonImage || logoSrc;
+    // Update trigger button avatar — trigger image only (never fall back to company logo)
+    const triggerAvatarSrc = companyInfo.triggerButtonImage || "";
     const triggerAvatarWrap = triggerBtn && triggerBtn.querySelector('.shivai-trigger-avatar-wrap');
-    if (triggerAvatarWrap && triggerAvatarSrc) {
-      triggerAvatarWrap.innerHTML = `<img class="shivai-trigger-avatar" src="${triggerAvatarSrc}" alt="${companyInfo.name || 'AI'}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;max-width:none;">`;
-      _wlog("✅ Updated trigger button avatar to:", triggerAvatarSrc);
+    if (triggerAvatarWrap) {
+      const displayName = companyInfo.name || companyInfo.agentName || "S";
+      const initial = displayName.trim().charAt(0).toUpperCase();
+      if (triggerAvatarSrc) {
+        triggerAvatarWrap.innerHTML = `<img class="shivai-trigger-avatar" src="${triggerAvatarSrc}" alt="${displayName}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;max-width:none;">`;
+        _wlog("✅ Updated trigger button avatar to:", triggerAvatarSrc);
+      } else {
+        triggerAvatarWrap.innerHTML = `<div class="shivai-trigger-avatar shivai-trigger-avatar--fallback">${initial}</div>`;
+        _wlog("✅ Updated trigger button avatar to initial fallback:", initial);
+      }
     }
 
     // Update trigger button name text
@@ -1033,7 +1124,7 @@
     updateLandingViewBasedOnStatus();
     updateTriggerBasedOnStatus();
     refreshWidgetTheme();
-    applyNovaTriggerPosition();
+    applyDefaultTriggerPosition();
     
     _wlog("✅ Widget content refresh completed");
   }
@@ -1830,34 +1921,6 @@
       activePointerId = null;
     }
   }
-  function positionWidgetForNovaCenter() {
-    if (!widgetContainer) return;
-    const vw = document.documentElement.clientWidth;
-    const vh = window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight;
-    let safeBottom = 0;
-    try {
-      const sab = document.createElement("div");
-      sab.style.cssText = "position:fixed;bottom:0;left:0;width:1px;height:env(safe-area-inset-bottom,0px);pointer-events:none;opacity:0;";
-      document.body.appendChild(sab);
-      safeBottom = sab.getBoundingClientRect().height || 0;
-      document.body.removeChild(sab);
-    } catch (e) {}
-    const margin = 10;
-    const widgetWidth = Math.min(380, vw - 2 * margin);
-    const isCallView = currentView === "call";
-    const maxWidgetHeight = Math.min(isCallView ? 720 : 550, vh - 2 * margin - safeBottom);
-    const triggerBottomOffset = 24 + safeBottom;
-    const triggerHeight = 72;
-    let left = (vw - widgetWidth) / 2;
-    left = Math.max(margin, Math.min(left, vw - widgetWidth - margin));
-    widgetContainer.style.position = "fixed";
-    widgetContainer.style.left = left + "px";
-    widgetContainer.style.right = "auto";
-    widgetContainer.style.maxHeight = maxWidgetHeight + "px";
-    widgetContainer.style.bottom = (triggerBottomOffset + triggerHeight + margin) + "px";
-    widgetContainer.style.top = "auto";
-  }
-
   // Position the widget panel adjacent to the trigger button, wherever it was dragged.
   function positionWidgetNearTrigger() {
     if (!triggerBtn || !widgetContainer) return;
@@ -1894,7 +1957,7 @@
     // maxHeight is fixed — never clamped to available space (avoids clipping)
     widgetContainer.style.maxHeight = maxWidgetHeight + "px";
 
-    if (spaceAbove >= maxWidgetHeight || spaceAbove >= spaceBelow || novaBottomCenterTrigger) {
+    if (spaceAbove >= maxWidgetHeight || spaceAbove >= spaceBelow) {
       // Open ABOVE: use 'bottom' so the widget bottom edge is always flush
       // just above the trigger top — no gap regardless of actual widget height.
       widgetContainer.style.bottom = (vh - btnRect.top + margin) + "px";
@@ -1915,7 +1978,7 @@
     const triggerName = triggerCompanyInfo.name || triggerCompanyInfo.agentName || "ShivAi";
     // Use the cloud bubble text (button_text / callToActionText) as the subtitle under the name
     const triggerSubtitle = triggerCompanyInfo.callToActionText || (triggerName ? "Talk to " + triggerName : "AI Assistant");
-    const triggerAvatarSrc = triggerCompanyInfo.triggerButtonImage || triggerCompanyInfo.logo || "";
+    const triggerAvatarSrc = triggerCompanyInfo.triggerButtonImage || "";
     const initial = (triggerName || "S").trim().charAt(0).toUpperCase();
 
     const avatarMarkup = triggerAvatarSrc
@@ -2179,11 +2242,12 @@
     document.body.appendChild(triggerBtn);
     document.body.appendChild(widgetContainer);
     makeWidgetDraggable(widgetContainer);
-    if (novaBottomCenterTrigger) {
-      applyNovaTriggerPosition();
-      triggerBtn.style.display = "none";
-    } else {
-      makeTriggerBtnDraggable(triggerBtn);
+    applyDefaultTriggerPosition();
+    makeTriggerBtnDraggable(triggerBtn);
+    updateNovaTriggerVisibility();
+    if (novaTestPageMode && !window.__shivaiNovaTestResizeHooked) {
+      window.__shivaiNovaTestResizeHooked = true;
+      window.addEventListener("resize", updateNovaTriggerVisibility);
     }
 
     // Live message bubble disabled — trigger pill already communicates intent
@@ -2348,32 +2412,68 @@
       });
     }
 
-    function wireLangCarousel(gridEl) {
+    function scrollLangCardToCenter(gridEl, card) {
+      if (!gridEl || !card) return;
+      const gridWidth = gridEl.clientWidth;
+      const cardWidth = card.offsetWidth;
+      const cardLeft = card.offsetLeft;
+      gridEl.scrollLeft = Math.max(0, cardLeft - (gridWidth - cardWidth) / 2);
+    }
+
+    function applyLangCarouselLayout(langCount) {
+      const carousel = document.querySelector('.landing-lang-carousel');
+      if (!carousel) return;
+      carousel.classList.remove(
+        'landing-lang-carousel--single',
+        'landing-lang-carousel--dual',
+        'landing-lang-carousel--multi'
+      );
+      if (langCount <= 1) {
+        carousel.classList.add('landing-lang-carousel--single');
+      } else if (langCount === 2) {
+        carousel.classList.add('landing-lang-carousel--dual');
+      } else {
+        carousel.classList.add('landing-lang-carousel--multi');
+      }
+    }
+
+    function wireLangCarousel(gridEl, langCount) {
       const prevBtn = document.getElementById('shivai-lang-prev');
       const nextBtn = document.getElementById('shivai-lang-next');
-      if (!prevBtn || !nextBtn || !gridEl) return;
-      const scrollByPair = (dir) => {
+      if (!gridEl) return;
+
+      applyLangCarouselLayout(langCount);
+
+      if (langCount <= 2) {
+        if (prevBtn) prevBtn.style.display = 'none';
+        if (nextBtn) nextBtn.style.display = 'none';
+        gridEl.scrollLeft = 0;
+        return;
+      }
+
+      if (prevBtn) prevBtn.style.display = '';
+      if (nextBtn) nextBtn.style.display = '';
+      if (!prevBtn || !nextBtn) return;
+
+      const scrollByOne = (dir) => {
         const card = gridEl.querySelector('.landing-lang-card');
-        const cardWidth = card ? card.getBoundingClientRect().width : 120;
         const gap = 10;
-        const pair = (cardWidth + gap) * 2;
-        gridEl.scrollBy({ left: dir * pair, behavior: 'smooth' });
+        const cardWidth = card ? card.getBoundingClientRect().width : 120;
+        gridEl.scrollBy({ left: dir * (cardWidth + gap), behavior: 'smooth' });
       };
       const updateArrows = () => {
         const max = gridEl.scrollWidth - gridEl.clientWidth - 1;
         prevBtn.disabled = gridEl.scrollLeft <= 2;
         nextBtn.disabled = gridEl.scrollLeft >= max;
       };
-      prevBtn.onclick = () => scrollByPair(-1);
-      nextBtn.onclick = () => scrollByPair(1);
+      prevBtn.onclick = () => scrollByOne(-1);
+      nextBtn.onclick = () => scrollByOne(1);
       gridEl.addEventListener('scroll', updateArrows, { passive: true });
       window.addEventListener('resize', updateArrows);
       setTimeout(updateArrows, 60);
     }
 
-    function buildLangCards(gridEl, hiddenSelectEl, langArray) {
-      if (!gridEl || !Array.isArray(langArray) || langArray.length === 0) return;
-      gridEl.innerHTML = '';
+    function getOrderedLangs(langArray) {
       const ordered = [];
       const hasMulti = langArray.some(c => String(c).toLowerCase() === 'multilingual');
       if (hasMulti) ordered.push('multilingual');
@@ -2381,6 +2481,13 @@
         const key = String(code).toLowerCase();
         if (key !== 'multilingual' && !ordered.includes(key)) ordered.push(key);
       });
+      return ordered;
+    }
+
+    function buildLangCards(gridEl, hiddenSelectEl, langArray) {
+      if (!gridEl || !Array.isArray(langArray) || langArray.length === 0) return 0;
+      gridEl.innerHTML = '';
+      const ordered = getOrderedLangs(langArray);
       ordered.forEach(key => {
         const label = key === 'multilingual' ? 'Multilingual' : (langToLabel[key] || key);
         const btn = document.createElement('button');
@@ -2395,9 +2502,13 @@
           if (hiddenSelectEl) hiddenSelectEl.value = key;
           gridEl.querySelectorAll('.landing-lang-card').forEach(c => c.classList.remove('selected'));
           btn.classList.add('selected');
+          if (ordered.length >= 3) {
+            scrollLangCardToCenter(gridEl, btn);
+          }
         });
         gridEl.appendChild(btn);
       });
+      return ordered.length;
     }
 
     const langArray = Array.isArray(agentLanguage)
@@ -2410,8 +2521,8 @@
       const landingLangGrid = document.getElementById('shivai-lang-grid');
       if (landingLanguageSelect) buildOptions(landingLanguageSelect, langArray);
       if (landingLangGrid) {
-        buildLangCards(landingLangGrid, landingLanguageSelect, langArray);
-        wireLangCarousel(landingLangGrid);
+        const langCount = buildLangCards(landingLangGrid, landingLanguageSelect, langArray);
+        wireLangCarousel(landingLangGrid, langCount);
       }
     }
 
@@ -2441,7 +2552,13 @@
       if (landingLangGrid) {
         landingLangGrid.querySelectorAll('.landing-lang-card').forEach(c => c.classList.remove('selected'));
         const sel = landingLangGrid.querySelector(`.landing-lang-card[data-lang="${defaultLang}"]`);
-        if (sel) sel.classList.add('selected');
+        if (sel) {
+          sel.classList.add('selected');
+          const langCount = landingLangGrid.querySelectorAll('.landing-lang-card').length;
+          if (langCount >= 3) {
+            setTimeout(() => scrollLangCardToCenter(landingLangGrid, sel), 80);
+          }
+        }
       }
     }
   }
@@ -3031,14 +3148,19 @@
         background-repeat: no-repeat !important;
       }
       .shivai-trigger-avatar--fallback {
-        display: flex;
+        display: flex !important;
         align-items: center;
         justify-content: center;
+        width: 100% !important;
+        height: 100% !important;
         font-size: 24px;
         font-weight: 700;
         color: #0a84ff;
         letter-spacing: -0.02em;
+        line-height: 1;
+        text-align: center;
         font-family: inherit;
+        background: rgba(255, 255, 255, 0.92);
       }
       .shivai-trigger-info {
         display: flex;
@@ -3546,6 +3668,43 @@
         gap: 6px;
         width: auto;
         margin: 0 -14px;
+      }
+      .landing-lang-carousel--single {
+        margin: 0;
+        justify-content: center;
+      }
+      .landing-lang-carousel--single .landing-lang-arrow,
+      .landing-lang-carousel--dual .landing-lang-arrow {
+        display: none !important;
+      }
+      .landing-lang-carousel--single .landing-lang-grid {
+        overflow: hidden;
+        justify-content: center;
+        padding: 6px 0 8px;
+        width: 100%;
+      }
+      .landing-lang-carousel--single .landing-lang-card {
+        flex: 1 1 100%;
+        max-width: 100%;
+        width: 100%;
+        scroll-snap-align: none;
+      }
+      .landing-lang-carousel--single .landing-lang-name {
+        overflow: visible;
+        text-overflow: clip;
+        white-space: normal;
+        text-align: center;
+      }
+      .landing-lang-carousel--dual .landing-lang-grid {
+        overflow: hidden;
+      }
+      .landing-lang-carousel--multi .landing-lang-grid {
+        scroll-snap-type: x mandatory;
+        scroll-padding-inline: 11%;
+      }
+      .landing-lang-carousel--multi .landing-lang-card {
+        flex: 0 0 78%;
+        scroll-snap-align: center;
       }
       .landing-lang-arrow {
         flex: 0 0 28px;
@@ -5476,11 +5635,7 @@
     }
   }
   function openWidget() {
-    if (novaBottomCenterTrigger) {
-      positionWidgetForNovaCenter();
-    } else {
-      positionWidgetNearTrigger();
-    }
+    positionWidgetNearTrigger();
     widgetContainer.classList.add("active");
     isWidgetOpen = true;
     if (triggerBtn) {
@@ -5608,7 +5763,7 @@
     widgetContainer.classList.remove("active");
     isWidgetOpen = false;
     if (triggerBtn) {
-      triggerBtn.style.display = novaBottomCenterTrigger ? "none" : "flex";
+      updateNovaTriggerVisibility();
     }
     switchToLandingView();
     if (!messageInterval) {
