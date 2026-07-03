@@ -168,7 +168,6 @@
 
   // Resolve branding from API widget config (no static company name)
   function getCompanyInfo() {
-    let companyName = "";
     let companyDescription = "";
     let agentName = "";
     let companyLogo = "";
@@ -176,7 +175,7 @@
     let callToActionText = "";
     let themeColors = {
       primaryColor: "#4b5563",
-      secondaryColor: "#ffffff",
+      secondaryColor: "#ffffff", 
       accentColor: "#2563eb"
     };
     let configSource = "none";
@@ -190,23 +189,17 @@
       if (widget) {
         _wlog("📦 API Widget Config found:", widget);
 
-        // Company name — always from API agent.company_name (stored as _company_name)
-        if (widget._company_name || widget.company_name) {
-          companyName = String(widget._company_name || widget.company_name).trim();
-          _wlog("🏢 Using company_name from API:", companyName);
-        } else if (widget.ai_employee_name) {
-          companyName = String(widget.ai_employee_name).trim();
-          _wlog("🏢 Using ai_employee_name from API widget config:", companyName);
-        }
-
+        // Agent name — shown on trigger and inside the widget
         if (widget._agent_name) {
           agentName = String(widget._agent_name).trim();
+        } else if (widget.ai_employee_name) {
+          agentName = String(widget.ai_employee_name).trim();
         }
 
         if (widget.ai_employee_description != null) {
           companyDescription = String(widget.ai_employee_description);
         }
-
+        
         if (widget.company_logo) {
           companyLogo = widget.company_logo;
         }
@@ -242,8 +235,8 @@
           if (config.content.triggerButtonImage) {
             triggerButtonImage = config.content.triggerButtonImage;
           }
-          if (!companyName && config.content.companyName) {
-            companyName = config.content.companyName;
+          if (config.content.companyName) {
+            agentName = String(config.content.companyName);
           }
         }
         if (config.theme) {
@@ -254,8 +247,8 @@
         configSource = configSource === "none" ? "SHIVAI_CONFIG" : configSource + "+editor";
       }
 
-      // Legacy URL params — only when API did not provide a name
-      if (!companyName) {
+      // Legacy URL params — agent name only
+      if (!agentName) {
         const scriptTags = document.getElementsByTagName("script");
         for (let i = scriptTags.length - 1; i >= 0; i--) {
           const script = scriptTags[i];
@@ -269,15 +262,15 @@
           ) {
             try {
               const url = new URL(script.src);
-              const urlCompanyName = url.searchParams.get("companyName");
               const urlCompanyDescription = url.searchParams.get("companyDescription");
               const urlAgentName = url.searchParams.get("agentName");
+              const urlCompanyName = url.searchParams.get("companyName");
               const urlCompanyLogo = url.searchParams.get("companyLogo");
-              if (urlCompanyName) companyName = decodeURIComponent(urlCompanyName);
-              if (urlCompanyDescription) companyDescription = decodeURIComponent(urlCompanyDescription);
               if (urlAgentName) agentName = decodeURIComponent(urlAgentName);
+              else if (urlCompanyName) agentName = decodeURIComponent(urlCompanyName);
+              if (urlCompanyDescription) companyDescription = decodeURIComponent(urlCompanyDescription);
               if (urlCompanyLogo) companyLogo = decodeURIComponent(urlCompanyLogo);
-              if (urlCompanyName) configSource = "URL parameters";
+              if (agentName) configSource = "URL parameters";
               break;
             } catch (urlError) {
               console.warn("⚠️ Error parsing script URL:", urlError);
@@ -290,13 +283,12 @@
     }
 
     if (!callToActionText) {
-      if (companyName) callToActionText = "Talk to " + companyName;
-      else if (agentName) callToActionText = "Talk to " + agentName;
+      if (agentName) callToActionText = "Talk to " + agentName;
       else callToActionText = "Talk to us";
     }
-
+    
     const result = {
-      name: companyName,
+      name: agentName,
       description: companyDescription,
       agentName: agentName,
       logo: companyLogo,
@@ -1316,34 +1308,33 @@
       _wlog("✅ Updated landing agent avatar to:", logoSrc);
     }
 
-    // Update trigger button avatar — trigger image only (never fall back to company logo)
+    // Update trigger button — agent name on pill, CTA as subtitle
+    const triggerDisplayName = companyInfo.agentName || companyInfo.name || "AI Employee";
     const triggerAvatarSrc = companyInfo.triggerButtonImage || "";
     const triggerAvatarWrap = triggerBtn && triggerBtn.querySelector('.shivai-trigger-avatar-wrap');
     if (triggerAvatarWrap) {
-      const displayName = companyInfo.name || companyInfo.agentName || "S";
-      const initial = displayName.trim().charAt(0).toUpperCase();
+      const initial = triggerDisplayName.trim().charAt(0).toUpperCase();
       if (triggerAvatarSrc) {
-        triggerAvatarWrap.innerHTML = `<img class="shivai-trigger-avatar" src="${triggerAvatarSrc}" alt="${displayName}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;max-width:none;">`;
-        _wlog("✅ Updated trigger button avatar to:", triggerAvatarSrc);
+        triggerAvatarWrap.innerHTML = `<img class="shivai-trigger-avatar" src="${triggerAvatarSrc}" alt="${triggerDisplayName}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;max-width:none;">`;
+      _wlog("✅ Updated trigger button avatar to:", triggerAvatarSrc);
       } else {
         triggerAvatarWrap.innerHTML = `<div class="shivai-trigger-avatar shivai-trigger-avatar--fallback">${initial}</div>`;
         _wlog("✅ Updated trigger button avatar to initial fallback:", initial);
       }
     }
 
-    // Update trigger button name text — show company name on client embeds
     const triggerTitle = triggerBtn && triggerBtn.querySelector('.shivai-trigger-title');
-    if (triggerTitle && companyInfo.name) {
-      triggerTitle.textContent = companyInfo.name;
+    if (triggerTitle) {
+      triggerTitle.textContent = triggerDisplayName;
     }
     if (triggerBtn) {
-      triggerBtn.setAttribute("aria-label", "Open " + (companyInfo.name || companyInfo.agentName || "AI") + " Assistant");
+      triggerBtn.setAttribute("aria-label", "Open " + triggerDisplayName + " Assistant");
     }
 
-    // Update trigger subtitle to cloud bubble text
     const triggerSubtitleEl = triggerBtn && triggerBtn.querySelector('.shivai-trigger-subtitle');
     if (triggerSubtitleEl) {
-      const cta = companyInfo.callToActionText || (companyInfo.name ? "Talk to " + companyInfo.name : "AI Assistant");
+      const cta = companyInfo.callToActionText ||
+        (companyInfo.agentName ? "Talk to " + companyInfo.agentName : "AI Assistant");
       triggerSubtitleEl.textContent = cta;
     }
 
@@ -1388,11 +1379,11 @@
       console.warn('🚫 ShivAI Widget: rendering aborted — domain not authorised.');
       return;
     }
-
+    
     createWidgetUI();
     setupEventListeners();
     initSoundContext();
-    refreshWidgetContent();
+      refreshWidgetContent();
     updateTriggerBasedOnStatus();
     updateLandingViewBasedOnStatus();
     updateNovaTriggerVisibility();
@@ -2216,8 +2207,8 @@
 
     // Fetch company info to check for trigger button image
     const triggerCompanyInfo = getCompanyInfo();
-    const triggerName = triggerCompanyInfo.name || triggerCompanyInfo.agentName || "AI Employee";
-    // Use the cloud bubble text (button_text / callToActionText) as the subtitle under the name
+    const triggerName = triggerCompanyInfo.agentName || triggerCompanyInfo.name || "AI Employee";
+    // Subtitle uses CTA (defaults to "Talk to {agentName}")
     const triggerSubtitle = triggerCompanyInfo.callToActionText || (triggerName ? "Talk to " + triggerName : "AI Assistant");
     const triggerAvatarSrc = triggerCompanyInfo.triggerButtonImage || "";
     const initial = (triggerName || "S").trim().charAt(0).toUpperCase();
@@ -2493,7 +2484,7 @@
     document.body.appendChild(widgetContainer);
     makeWidgetDraggable(widgetContainer);
     applyDefaultTriggerPosition();
-    makeTriggerBtnDraggable(triggerBtn);
+      makeTriggerBtnDraggable(triggerBtn);
     updateNovaTriggerVisibility();
     if (novaTestPageMode && !window.__shivaiNovaTestResizeHooked) {
       window.__shivaiNovaTestResizeHooked = true;
@@ -6066,7 +6057,7 @@
     }
   }
   function openWidget() {
-    positionWidgetNearTrigger();
+      positionWidgetNearTrigger();
     widgetContainer.classList.add("active");
     isWidgetOpen = true;
     if (triggerBtn) {
@@ -8392,7 +8383,7 @@
   function startWidget() {
     hookSpaNavigation();
     if (shouldAllowWidget5OnThisPage()) {
-      bootstrapWidget();
+    bootstrapWidget();
     } else {
       _wlog("⏭️ Widget5 suppressed — landing page uses widget4.js:", window.location.pathname);
     }
