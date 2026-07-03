@@ -29,6 +29,7 @@ import {
   GeneratedTemplate,
 } from "../../services/aiTemplateService";
 import { isDeveloperUser, formatAgentLanguages } from "../../lib/utils";
+import { buildWidgetEmbedScript } from "../../lib/widgetConfig";
 import {
   liveKitService,
   LiveKitMessage,
@@ -4103,8 +4104,11 @@ const AgentManagement = () => {
                       {(() => {
                         const agentObj = agents.find((a: any) => a.id === agentForIntegration);
                         const agentLang = agentObj?.language || '';
-                        const embedUrl = `https://www.callshivai.com/widget2.js?agentId=${agentForIntegration}&userId=${user?.id || ''}${agentLang ? `&language=${agentLang}` : ''}`;
-                        const embedCode = `<script src="${embedUrl}"><\/script>`;
+                        const embedCode = buildWidgetEmbedScript({
+                          agentId: agentForIntegration,
+                          userId: user?.id,
+                          ...(agentLang ? { language: agentLang } : {}),
+                        });
                         return (
                           <>
                       <code className="common-bg-icons block w-full p-4 rounded-lg text-xs sm:text-sm font-mono text-slate-800 dark:text-white overflow-x-auto whitespace-pre-wrap max-h-48 overflow-y-auto">

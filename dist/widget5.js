@@ -113,6 +113,7 @@
   };
   let networkStats = { pingMs: null, rtt: null, downlink: null, uplink: null };
   let networkMonitorTimer = null;
+  let closeLangDropdownRef = null;
 
   let liveMessages = [
     "📞 Call ShivAI!",
@@ -2035,14 +2036,23 @@
             <div class="landing-agent-desc">${companyInfo.description}${companyInfo.description && !companyInfo.description.endsWith('.') ? '.' : ''}</div>
           </div>
         </div>
-        <div class="landing-lang-carousel">
-          <button type="button" class="landing-lang-arrow landing-lang-arrow-left" id="shivai-lang-prev" aria-label="Previous languages">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        <div class="language-section-landing">
+          <p class="landing-lang-instruction">Please choose language of your choice</p>
+          <div class="landing-lang-dropdown" id="shivai-lang-dropdown">
+          <button type="button" class="landing-lang-trigger" id="shivai-lang-trigger" aria-haspopup="listbox" aria-expanded="false">
+            <span class="landing-lang-trigger-flag" id="shivai-lang-trigger-flag"></span>
+            <span class="landing-lang-trigger-label" id="shivai-lang-trigger-label">Select language</span>
+            <svg class="landing-lang-trigger-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
           </button>
-          <div class="landing-lang-grid" id="shivai-lang-grid"></div>
-          <button type="button" class="landing-lang-arrow landing-lang-arrow-right" id="shivai-lang-next" aria-label="Next languages">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-          </button>
+          <div class="landing-lang-menu" id="shivai-lang-menu" role="listbox" hidden>
+            <div class="landing-lang-search-wrap" id="shivai-lang-search-wrap" hidden>
+              <svg class="landing-lang-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input type="text" class="landing-lang-search" id="shivai-lang-search" placeholder="Search languages..." autocomplete="off" aria-label="Search languages" />
+            </div>
+            <div class="landing-lang-options" id="shivai-lang-options"></div>
+            <div class="landing-lang-empty" id="shivai-lang-empty" hidden>No languages found</div>
+          </div>
+        </div>
         </div>
         <select id="shivai-language-landing" class="landing-lang-hidden-select" aria-hidden="true"></select>
         <div id="landing-action-area"></div>
@@ -2412,60 +2422,6 @@
       });
     }
 
-    function applyLangCarouselLayout(langCount) {
-      const carousel = document.querySelector('.landing-lang-carousel');
-      if (!carousel) return;
-      carousel.classList.remove(
-        'landing-lang-carousel--single',
-        'landing-lang-carousel--dual',
-        'landing-lang-carousel--multi'
-      );
-      if (langCount <= 1) {
-        carousel.classList.add('landing-lang-carousel--single');
-      } else if (langCount === 2) {
-        carousel.classList.add('landing-lang-carousel--dual');
-      } else {
-        carousel.classList.add('landing-lang-carousel--multi');
-      }
-    }
-
-    function wireLangCarousel(gridEl, langCount) {
-      const prevBtn = document.getElementById('shivai-lang-prev');
-      const nextBtn = document.getElementById('shivai-lang-next');
-      if (!gridEl) return;
-
-      applyLangCarouselLayout(langCount);
-
-      if (langCount <= 2) {
-        if (prevBtn) prevBtn.style.display = 'none';
-        if (nextBtn) nextBtn.style.display = 'none';
-        gridEl.scrollLeft = 0;
-        return;
-      }
-
-      if (prevBtn) prevBtn.style.display = '';
-      if (nextBtn) nextBtn.style.display = '';
-      if (!prevBtn || !nextBtn) return;
-
-      const scrollByPair = (dir) => {
-        const card = gridEl.querySelector('.landing-lang-card');
-        const gap = 10;
-        const cardWidth = card ? card.getBoundingClientRect().width : 120;
-        const pair = (cardWidth + gap) * 2;
-        gridEl.scrollBy({ left: dir * pair, behavior: 'smooth' });
-      };
-      const updateArrows = () => {
-        const max = gridEl.scrollWidth - gridEl.clientWidth - 1;
-        prevBtn.disabled = gridEl.scrollLeft <= 2;
-        nextBtn.disabled = gridEl.scrollLeft >= max;
-      };
-      prevBtn.onclick = () => scrollByPair(-1);
-      nextBtn.onclick = () => scrollByPair(1);
-      gridEl.addEventListener('scroll', updateArrows, { passive: true });
-      window.addEventListener('resize', updateArrows);
-      setTimeout(updateArrows, 60);
-    }
-
     function getOrderedLangs(langArray) {
       const ordered = [];
       const hasMulti = langArray.some(c => String(c).toLowerCase() === 'multilingual');
@@ -2477,28 +2433,250 @@
       return ordered;
     }
 
-    function buildLangCards(gridEl, hiddenSelectEl, langArray) {
-      if (!gridEl || !Array.isArray(langArray) || langArray.length === 0) return 0;
-      gridEl.innerHTML = '';
-      const ordered = getOrderedLangs(langArray);
-      ordered.forEach(key => {
-        const label = key === 'multilingual' ? 'Multilingual' : (langToLabel[key] || key);
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'landing-lang-card';
-        btn.setAttribute('data-lang', key);
-        btn.innerHTML = `
-          <span class="landing-lang-flag">${flagMarkup(key)}</span>
-          <span class="landing-lang-name">${label}</span>
-        `;
-        btn.addEventListener('click', () => {
-          if (hiddenSelectEl) hiddenSelectEl.value = key;
-          gridEl.querySelectorAll('.landing-lang-card').forEach(c => c.classList.remove('selected'));
-          btn.classList.add('selected');
-        });
-        gridEl.appendChild(btn);
+    function getLangLabel(key) {
+      return key === 'multilingual' ? 'Multilingual' : (langToLabel[key] || key);
+    }
+
+    var langDropdownOpen = false;
+    var langDropdownOrdered = [];
+    var langMenuRepositionHandler = null;
+    var langMenuHome = null;
+
+    function attachLangMenuToPortal() {
+      var menu = document.getElementById('shivai-lang-menu');
+      var dropdown = document.getElementById('shivai-lang-dropdown');
+      if (!menu || !dropdown || menu.__shivaiPortaled) return;
+      langMenuHome = { parent: dropdown, nextSibling: menu.nextSibling };
+      document.body.appendChild(menu);
+      menu.__shivaiPortaled = true;
+      menu.classList.add('landing-lang-menu--portaled');
+    }
+
+    function detachLangMenuFromPortal() {
+      var menu = document.getElementById('shivai-lang-menu');
+      if (!menu || !menu.__shivaiPortaled || !langMenuHome) return;
+      if (langMenuHome.nextSibling) {
+        langMenuHome.parent.insertBefore(menu, langMenuHome.nextSibling);
+      } else {
+        langMenuHome.parent.appendChild(menu);
+      }
+      menu.__shivaiPortaled = false;
+      menu.classList.remove('landing-lang-menu--portaled');
+      langMenuHome = null;
+    }
+
+    function resetLangMenuPosition() {
+      var menu = document.getElementById('shivai-lang-menu');
+      var optionsEl = document.getElementById('shivai-lang-options');
+      if (menu) {
+        menu.classList.remove('landing-lang-menu--fixed');
+        menu.style.position = '';
+        menu.style.left = '';
+        menu.style.right = '';
+        menu.style.top = '';
+        menu.style.bottom = '';
+        menu.style.width = '';
+        menu.style.zIndex = '';
+      }
+      if (optionsEl) optionsEl.style.maxHeight = '';
+      detachLangMenuFromPortal();
+    }
+
+    function positionLangMenu() {
+      var trigger = document.getElementById('shivai-lang-trigger');
+      var menu = document.getElementById('shivai-lang-menu');
+      var optionsEl = document.getElementById('shivai-lang-options');
+      if (!trigger || !menu || menu.hidden) return;
+
+      if (optionsEl) optionsEl.style.maxHeight = '';
+
+      var rect = trigger.getBoundingClientRect();
+      var gap = 6;
+      menu.classList.add('landing-lang-menu--fixed');
+      menu.style.position = 'fixed';
+      menu.style.left = rect.left + 'px';
+      menu.style.width = rect.width + 'px';
+      menu.style.right = 'auto';
+      menu.style.zIndex = '2147483646';
+      menu.style.top = (rect.bottom + gap) + 'px';
+      menu.style.bottom = 'auto';
+
+      var menuRect = menu.getBoundingClientRect();
+      var spaceBelow = window.innerHeight - rect.bottom - gap;
+      var spaceAbove = rect.top - gap;
+
+      if (menuRect.height > spaceBelow && spaceAbove > menuRect.height) {
+        menu.style.top = 'auto';
+        menu.style.bottom = (window.innerHeight - rect.top + gap) + 'px';
+      } else if (optionsEl && menuRect.height > spaceBelow) {
+        var chrome = menuRect.height - optionsEl.offsetHeight;
+        optionsEl.style.maxHeight = Math.max(80, Math.floor(spaceBelow - chrome - 8)) + 'px';
+      }
+    }
+
+    function bindLangMenuReposition() {
+      if (langMenuRepositionHandler) return;
+      langMenuRepositionHandler = function() {
+        if (langDropdownOpen) positionLangMenu();
+      };
+      window.addEventListener('resize', langMenuRepositionHandler);
+      window.addEventListener('scroll', langMenuRepositionHandler, true);
+    }
+
+    function unbindLangMenuReposition() {
+      if (!langMenuRepositionHandler) return;
+      window.removeEventListener('resize', langMenuRepositionHandler);
+      window.removeEventListener('scroll', langMenuRepositionHandler, true);
+      langMenuRepositionHandler = null;
+    }
+
+    function updateLangTriggerDisplay(key) {
+      var flagEl = document.getElementById('shivai-lang-trigger-flag');
+      var labelEl = document.getElementById('shivai-lang-trigger-label');
+      if (!flagEl || !labelEl) return;
+      flagEl.innerHTML = flagMarkup(key);
+      labelEl.textContent = getLangLabel(key);
+    }
+
+    function filterLangOptions(query) {
+      var optionsEl = document.getElementById('shivai-lang-options');
+      var emptyEl = document.getElementById('shivai-lang-empty');
+      if (!optionsEl) return;
+      var q = String(query || '').trim().toLowerCase();
+      var visible = 0;
+      optionsEl.querySelectorAll('.landing-lang-option').forEach(function(opt) {
+        var label = (opt.getAttribute('data-label') || '').toLowerCase();
+        var key = (opt.getAttribute('data-lang') || '').toLowerCase();
+        var match = !q || label.indexOf(q) !== -1 || key.indexOf(q) !== -1;
+        opt.hidden = !match;
+        if (match) visible++;
       });
+      if (emptyEl) emptyEl.hidden = visible > 0;
+      if (langDropdownOpen) requestAnimationFrame(positionLangMenu);
+    }
+
+    function closeLangDropdown() {
+      var dropdown = document.getElementById('shivai-lang-dropdown');
+      var trigger = document.getElementById('shivai-lang-trigger');
+      var menu = document.getElementById('shivai-lang-menu');
+      var search = document.getElementById('shivai-lang-search');
+      if (!dropdown || !menu) return;
+      dropdown.classList.remove('open');
+      menu.hidden = true;
+      if (trigger) trigger.setAttribute('aria-expanded', 'false');
+      langDropdownOpen = false;
+      if (search) search.value = '';
+      resetLangMenuPosition();
+      unbindLangMenuReposition();
+      filterLangOptions('');
+    }
+
+    function openLangDropdown() {
+      var dropdown = document.getElementById('shivai-lang-dropdown');
+      var trigger = document.getElementById('shivai-lang-trigger');
+      var menu = document.getElementById('shivai-lang-menu');
+      var search = document.getElementById('shivai-lang-search');
+      var searchWrap = document.getElementById('shivai-lang-search-wrap');
+      if (!dropdown || !menu) return;
+      dropdown.classList.add('open');
+      menu.hidden = false;
+      if (trigger) trigger.setAttribute('aria-expanded', 'true');
+      langDropdownOpen = true;
+      filterLangOptions(search ? search.value : '');
+      if (searchWrap && langDropdownOrdered.length > 5 && search) {
+        searchWrap.hidden = false;
+        setTimeout(function() { search.focus(); }, 50);
+      }
+      attachLangMenuToPortal();
+      bindLangMenuReposition();
+      requestAnimationFrame(function() { positionLangMenu(); });
+    }
+
+    closeLangDropdownRef = closeLangDropdown;
+
+    function setSelectedLang(key, hiddenSelectEl, closeMenu) {
+      if (hiddenSelectEl) hiddenSelectEl.value = key;
+      if (languageSelect) languageSelect.value = key;
+      var optionsEl = document.getElementById('shivai-lang-options');
+      if (optionsEl) {
+        optionsEl.querySelectorAll('.landing-lang-option').forEach(function(o) {
+          var isSel = o.getAttribute('data-lang') === key;
+          o.classList.toggle('selected', isSel);
+          o.setAttribute('aria-selected', isSel ? 'true' : 'false');
+        });
+      }
+      updateLangTriggerDisplay(key);
+      if (closeMenu) closeLangDropdown();
+    }
+
+    function buildLangDropdown(hiddenSelectEl, langArray) {
+      var optionsEl = document.getElementById('shivai-lang-options');
+      var searchWrap = document.getElementById('shivai-lang-search-wrap');
+      var dropdown = document.getElementById('shivai-lang-dropdown');
+      if (!optionsEl || !Array.isArray(langArray) || langArray.length === 0) return 0;
+
+      var ordered = getOrderedLangs(langArray);
+      langDropdownOrdered = ordered;
+      optionsEl.innerHTML = '';
+
+      ordered.forEach(function(key) {
+        var label = getLangLabel(key);
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'landing-lang-option';
+        btn.setAttribute('role', 'option');
+        btn.setAttribute('data-lang', key);
+        btn.setAttribute('data-label', label);
+        btn.setAttribute('aria-selected', 'false');
+        btn.innerHTML =
+          '<span class="landing-lang-flag">' + flagMarkup(key) + '</span>' +
+          '<span class="landing-lang-name">' + label + '</span>' +
+          '<svg class="landing-lang-check" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+        btn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          setSelectedLang(key, hiddenSelectEl, true);
+        });
+        optionsEl.appendChild(btn);
+      });
+
+      if (searchWrap) searchWrap.hidden = ordered.length <= 5;
+      if (dropdown) dropdown.classList.toggle('landing-lang-dropdown--searchable', ordered.length > 5);
       return ordered.length;
+    }
+
+    function wireLangDropdown(hiddenSelectEl) {
+      var trigger = document.getElementById('shivai-lang-trigger');
+      var dropdown = document.getElementById('shivai-lang-dropdown');
+      var search = document.getElementById('shivai-lang-search');
+      var menu = document.getElementById('shivai-lang-menu');
+      if (!trigger || !dropdown) return;
+      if (trigger.__shivaiLangWired) return;
+      trigger.__shivaiLangWired = true;
+
+      trigger.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (langDropdownOpen) closeLangDropdown();
+        else openLangDropdown();
+      });
+
+      if (search) {
+        search.addEventListener('input', function() { filterLangOptions(search.value); });
+        search.addEventListener('click', function(e) { e.stopPropagation(); });
+      }
+
+      document.addEventListener('click', function(e) {
+        var t = e.target;
+        if (dropdown.contains(t)) return;
+        if (menu && menu.contains(t)) return;
+        if (langDropdownOpen) closeLangDropdown();
+      });
+
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && langDropdownOpen) {
+          closeLangDropdown();
+          trigger.focus();
+        }
+      });
     }
 
     const langArray = Array.isArray(agentLanguage)
@@ -2508,11 +2686,11 @@
     if (langArray && langArray.length > 0) {
       if (languageSelect) buildOptions(languageSelect, langArray);
       const landingLanguageSelect = document.getElementById('shivai-language-landing');
-      const landingLangGrid = document.getElementById('shivai-lang-grid');
+      const landingLangOptions = document.getElementById('shivai-lang-options');
       if (landingLanguageSelect) buildOptions(landingLanguageSelect, langArray);
-      if (landingLangGrid) {
-        const langCount = buildLangCards(landingLangGrid, landingLanguageSelect, langArray);
-        wireLangCarousel(landingLangGrid, langCount);
+      if (landingLangOptions) {
+        buildLangDropdown(landingLanguageSelect, langArray);
+        wireLangDropdown(landingLanguageSelect);
       }
     }
 
@@ -2537,12 +2715,8 @@
     if (defaultLang) {
       if (languageSelect) languageSelect.value = defaultLang;
       const landingLanguageSelect = document.getElementById('shivai-language-landing');
-      if (landingLanguageSelect) landingLanguageSelect.value = defaultLang;
-      const landingLangGrid = document.getElementById('shivai-lang-grid');
-      if (landingLangGrid) {
-        landingLangGrid.querySelectorAll('.landing-lang-card').forEach(c => c.classList.remove('selected'));
-        const sel = landingLangGrid.querySelector(`.landing-lang-card[data-lang="${defaultLang}"]`);
-        if (sel) sel.classList.add('selected');
+      if (landingLanguageSelect) {
+        setSelectedLang(defaultLang, landingLanguageSelect, false);
       }
     }
   }
@@ -3646,139 +3820,172 @@
         font-weight: 500;
         letter-spacing: -0.005em;
       }
-      .landing-lang-carousel {
-        display: flex;
-        align-items: stretch;
-        gap: 6px;
-        width: auto;
-        margin: 0 -14px;
-      }
-      .landing-lang-carousel--single {
+      .landing-lang-dropdown {
+        position: relative;
+        width: 100%;
         margin: 0;
-        justify-content: center;
       }
-      .landing-lang-carousel--single .landing-lang-arrow,
-      .landing-lang-carousel--dual .landing-lang-arrow {
-        display: none !important;
-      }
-      .landing-lang-carousel--single .landing-lang-grid {
-        overflow: hidden;
-        justify-content: center;
-        padding: 6px 0 8px;
-        width: 100%;
-      }
-      .landing-lang-carousel--single .landing-lang-card {
-        flex: 1 1 100%;
-        max-width: 100%;
-        width: 100%;
-        scroll-snap-align: none;
-      }
-      .landing-lang-carousel--single .landing-lang-name {
-        overflow: visible;
-        text-overflow: clip;
-        white-space: normal;
+      .landing-lang-instruction {
+        font-size: 13px;
+        font-weight: 500;
+        color: #6b7280;
+        margin: 0 0 8px;
+        line-height: 1.4;
+        letter-spacing: -0.01em;
         text-align: center;
       }
-      .landing-lang-carousel--dual .landing-lang-grid {
-        overflow: hidden;
-      }
-      .landing-lang-carousel--dual .landing-lang-card,
-      .landing-lang-carousel--multi .landing-lang-card {
-        flex: 0 0 calc((100% - 10px) / 2);
-        scroll-snap-align: start;
-      }
-      .landing-lang-carousel--multi .landing-lang-grid {
-        scroll-snap-type: x mandatory;
-      }
-      .landing-lang-arrow {
-        flex: 0 0 28px;
-        align-self: center;
-        width: 28px;
-        height: 28px;
-        border-radius: 50%;
-        background: rgba(255,255,255,0.7);
-        border: 1px solid rgba(255,255,255,0.85);
-        color: #0d1117;
-        cursor: pointer;
+      .landing-lang-trigger {
+        width: 100%;
         display: flex;
         align-items: center;
-        justify-content: center;
-        padding: 0;
-        box-shadow:
-          0 2px 8px -2px rgba(70, 110, 200, 0.22),
-          0 0 0 1px rgba(120, 150, 220, 0.14);
-        transition: background 0.15s ease, transform 0.15s cubic-bezier(0.34,1.56,0.64,1), opacity 0.15s ease, box-shadow 0.15s ease;
-      }
-      .landing-lang-arrow:hover:not(:disabled) {
-        background: rgba(255,255,255,0.92);
-        transform: scale(1.06);
-        box-shadow:
-          0 4px 12px -2px rgba(70, 110, 200, 0.3),
-          0 0 0 1px rgba(120, 150, 220, 0.22);
-      }
-      .landing-lang-arrow:active:not(:disabled) { transform: scale(0.94); }
-      .landing-lang-arrow:disabled {
-        opacity: 0.35;
-        cursor: default;
-        pointer-events: none;
-      }
-      .landing-lang-arrow svg { display: block; }
-
-      .landing-lang-grid {
-        flex: 1 1 auto;
-        min-width: 0;
-        display: flex;
         gap: 10px;
-        overflow-x: auto;
-        overflow-y: hidden;
-        scroll-snap-type: x mandatory;
-        -webkit-overflow-scrolling: touch;
-        scroll-behavior: smooth;
-        scrollbar-width: none;
-        padding: 6px 4px 8px;
-      }
-      .landing-lang-grid::-webkit-scrollbar { display: none; }
-      .landing-lang-hidden-select {
-        display: none !important;
-      }
-      .landing-lang-card {
-        flex: 0 0 calc((100% - 10px) / 2);
-        scroll-snap-align: start;
-        min-width: 0;
-        display: flex;
-        flex-direction: row;
-        align-items: center;
-        justify-content: center;
-        gap: 7px;
-        padding: 8px 10px;
-        background: rgba(255,255,255,0.65);
-        border: 1px solid rgba(255,255,255,0.8);
-        border-radius: 12px;
+        padding: 10px 12px;
+        background: rgba(255,255,255,0.72);
+        border: 1px solid rgba(255,255,255,0.85);
+        border-radius: 14px;
         cursor: pointer;
         font-family: inherit;
         color: #0d1117;
-        transition: transform 0.18s cubic-bezier(0.34,1.56,0.64,1), background 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
-        box-shadow:
-          0 2px 8px -2px rgba(70, 110, 200, 0.18),
-          0 0 0 1px rgba(120, 150, 220, 0.1);
+        box-shadow: 0 2px 10px -2px rgba(70,110,200,0.2), 0 0 0 1px rgba(120,150,220,0.12);
+        transition: background 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
         outline: none;
       }
-      .landing-lang-card:hover {
-        background: rgba(255,255,255,0.85);
-        transform: translateY(-1px);
-        box-shadow:
-          0 6px 16px -4px rgba(70, 110, 200, 0.28),
-          0 0 0 1px rgba(120, 150, 220, 0.18);
+      .landing-lang-trigger:hover {
+        background: rgba(255,255,255,0.92);
+        box-shadow: 0 4px 14px -2px rgba(70,110,200,0.28), 0 0 0 1px rgba(120,150,220,0.2);
       }
-      .landing-lang-card:active {
-        transform: translateY(0) scale(0.98);
+      .landing-lang-dropdown.open .landing-lang-trigger {
+        border-color: rgba(10,132,255,0.45);
+        box-shadow: 0 6px 18px -4px rgba(10,132,255,0.28), inset 0 0 0 1px rgba(10,132,255,0.2);
       }
-      .landing-lang-card.selected {
+      .landing-lang-trigger-flag {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+      }
+      .landing-lang-trigger-label {
+        flex: 1;
+        min-width: 0;
+        text-align: left;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: -0.015em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .landing-lang-trigger-chevron {
+        flex-shrink: 0;
+        color: #6b7280;
+        transition: transform 0.2s ease, color 0.2s ease;
+      }
+      .landing-lang-dropdown.open .landing-lang-trigger-chevron {
+        transform: rotate(180deg);
+        color: #0a84ff;
+      }
+      .landing-lang-menu {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: calc(100% + 6px);
+        z-index: 1;
         background: rgba(255,255,255,0.97);
-        border-color: rgba(10, 132, 255, 0.55);
-        box-shadow:
-          0 6px 16px -4px rgba(10, 132, 255, 0.32),
-          inset 0 0 0 2px rgba(10, 132, 255, 0.5);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(255,255,255,0.9);
+        border-radius: 14px;
+        box-shadow: 0 16px 40px -8px rgba(30,40,80,0.28), 0 0 0 1px rgba(120,150,220,0.14);
+        overflow: hidden;
+        animation: langMenuIn 0.18s ease;
+      }
+      .landing-lang-menu.landing-lang-menu--fixed,
+      .landing-lang-menu.landing-lang-menu--portaled {
+        z-index: 2147483646 !important;
+        font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Segoe UI', sans-serif;
+        background: rgba(255,255,255,0.98);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+      }
+      @keyframes langMenuIn {
+        from { opacity: 0; transform: translateY(-4px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .landing-lang-search-wrap {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 12px;
+        border-bottom: 1px solid rgba(13,17,23,0.08);
+        background: rgba(248,250,252,0.92);
+      }
+      .landing-lang-search-wrap[hidden] { display: none !important; }
+      .landing-lang-search-icon { flex-shrink: 0; color: #9ca3af; }
+      .landing-lang-search {
+        flex: 1;
+        border: none;
+        background: transparent;
+        font-family: inherit;
+        font-size: 13px;
+        color: #0d1117;
+        outline: none;
+        min-width: 0;
+      }
+      .landing-lang-search::placeholder { color: #9ca3af; }
+      .landing-lang-options {
+        max-height: 220px;
+        overflow-y: auto;
+        padding: 6px;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(10,132,255,0.35) transparent;
+      }
+      .landing-lang-options::-webkit-scrollbar { width: 5px; }
+      .landing-lang-options::-webkit-scrollbar-thumb {
+        background: rgba(10,132,255,0.35);
+        border-radius: 99px;
+      }
+      .landing-lang-option {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 10px;
+        border: none;
+        background: transparent;
+        border-radius: 10px;
+        cursor: pointer;
+        font-family: inherit;
+        color: #0d1117;
+        transition: background 0.12s ease;
+        outline: none;
+        text-align: left;
+      }
+      .landing-lang-option[hidden] { display: none !important; }
+      .landing-lang-option:hover { background: rgba(10,132,255,0.08); }
+      .landing-lang-option.selected { background: rgba(10,132,255,0.12); }
+      .landing-lang-option .landing-lang-name {
+        flex: 1;
+        min-width: 0;
+        font-size: 13px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .landing-lang-check {
+        flex-shrink: 0;
+        color: #0a84ff;
+        opacity: 0;
+        transition: opacity 0.12s ease;
+      }
+      .landing-lang-option.selected .landing-lang-check { opacity: 1; }
+      .landing-lang-empty {
+        padding: 16px 12px;
+        text-align: center;
+        font-size: 12px;
+        color: #6b7280;
+      }
+      .landing-lang-empty[hidden] { display: none !important; }
+      .landing-lang-hidden-select {
+        display: none !important;
       }
       .landing-lang-flag {
         display: flex;
@@ -5743,6 +5950,7 @@
       clearInterval(networkMonitorTimer);
       networkMonitorTimer = null;
     }
+    if (closeLangDropdownRef) closeLangDropdownRef();
     _wlog("🔴 Complete cleanup finished on widget close");
     widgetContainer.classList.remove("active");
     isWidgetOpen = false;

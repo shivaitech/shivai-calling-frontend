@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { buildWidgetEmbedScript } from "../../../lib/widgetConfig";
 
 /**
  * ── Agent channels store ─────────────────────────────────────────────────────
@@ -50,7 +51,7 @@ export function mockNumberFor(agentId: string): string {
 
 /** A copyable web embed snippet for the agent's website widget. */
 export function webEmbedFor(agentId: string): string {
-  return `<script src="https://www.callshivai.com/widget2.js?agentId=${agentId}" async></script>`;
+  return buildWidgetEmbedScript({ agentId }, "async");
 }
 
 export function useAgentChannels() {

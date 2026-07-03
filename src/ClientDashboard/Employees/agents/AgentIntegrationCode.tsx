@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Copy } from "lucide-react";
 import GlassCard from "../../../components/GlassCard";
 import { useAuth } from "../../../contexts/AuthContext";
+import { buildWidgetEmbedScript } from "../../../lib/widgetConfig";
 
 interface WidgetConfig {
   theme: {
@@ -123,14 +124,11 @@ const AgentIntegrationCode: React.FC<AgentIntegrationCodeProps> = ({
   }, [currentAgent.id]);
 
   // Generate short JavaScript embed code with agentId and userId
-  const generateEmbedCode = () => {
-    const params = new URLSearchParams();
-    params.set('agentId', currentAgent.id);
-    if (user?.id) {
-      params.set('userId', user.id);
-    }
-    return `<script src="https://www.callshivai.com/widget2.js?${params.toString()}"></script>`;
-  };
+  const generateEmbedCode = () =>
+    buildWidgetEmbedScript({
+      agentId: currentAgent.id,
+      userId: user?.id,
+    });
 
   const embedCode = generateEmbedCode();
 
