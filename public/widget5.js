@@ -115,199 +115,172 @@
   let networkMonitorTimer = null;
   let closeLangDropdownRef = null;
 
-  let liveMessages = [
-    "📞 Call ShivAI!",
-    "📞 Call ShivAI!",
-    "📞 Call ShivAI!",
-    "📞 Call ShivAI!",
-  ];
+  let liveMessages = ["", "", "", ""];
 
-  // Helper function to get company info from API widget config, URL parameters, or defaults
+  // In dashboard preview, SHIVAI_CONFIG.content from the editor wins over API widget fields
+  function applyEditorOverridesFromConfig() {
+    if (!widgetPreviewMode) return;
+    var cfg = window.SHIVAI_CONFIG;
+    if (!cfg || !cfg.content) return;
+    if (!window.SHIVAI_WIDGET_CONFIG) window.SHIVAI_WIDGET_CONFIG = {};
+    var c = cfg.content;
+    if (c.companyDescription != null) {
+      window.SHIVAI_WIDGET_CONFIG.ai_employee_description = c.companyDescription;
+    }
+    if (c.companyName != null) {
+      window.SHIVAI_WIDGET_CONFIG.ai_employee_name = c.companyName;
+    }
+    if (c.callToActionText != null) {
+      window.SHIVAI_WIDGET_CONFIG.button_text = c.callToActionText;
+    }
+    if (c.companyLogo) {
+      window.SHIVAI_WIDGET_CONFIG.company_logo = c.companyLogo;
+    }
+    if (c.triggerButtonImage) {
+      window.SHIVAI_WIDGET_CONFIG.trigger_button_image = c.triggerButtonImage;
+    }
+    if (cfg.theme) {
+      if (cfg.theme.primaryColor) window.SHIVAI_WIDGET_CONFIG.primary_color = cfg.theme.primaryColor;
+      if (cfg.theme.secondaryColor) window.SHIVAI_WIDGET_CONFIG.gradient_start = cfg.theme.secondaryColor;
+      if (cfg.theme.accentColor) window.SHIVAI_WIDGET_CONFIG.gradient_end = cfg.theme.accentColor;
+    }
+    if (cfg.widgetStyle) {
+      window.SHIVAI_WIDGET_CONFIG.widget_style = cfg.widgetStyle;
+    }
+    _wlog("📝 Applied editor overrides from SHIVAI_CONFIG (preview mode)");
+  }
+
+  // Resolve branding from API widget config (no static company name)
   function getCompanyInfo() {
-    let companyName = "ShivAI";
-    let companyDescription = "AI-Powered Support";
-    let agentName = "AI Employee";
-    let companyLogo = ""; // Empty means use default ShivAI logo
-    let triggerButtonImage = ""; // Empty means use default phone icon
-    let callToActionText = "📞 Call ShivAI!"; // Default cloud bubble text
+    let companyName = "";
+    let companyDescription = "";
+    let agentName = "";
+    let companyLogo = "";
+    let triggerButtonImage = "";
+    let callToActionText = "";
     let themeColors = {
       primaryColor: "#4b5563",
-      secondaryColor: "#ffffff", 
+      secondaryColor: "#ffffff",
       accentColor: "#2563eb"
     };
-    let configSource = "defaults";
-    
+    let configSource = "none";
+
     try {
-      // ✅ PRIORITY 1: Check for API widget configuration (from AgentWidgetCustomization component)
-      if (window.SHIVAI_WIDGET_CONFIG && typeof window.SHIVAI_WIDGET_CONFIG === 'object') {
-        _wlog("📦 API Widget Config found, using as primary source:", window.SHIVAI_WIDGET_CONFIG);
-        
-        const widget = window.SHIVAI_WIDGET_CONFIG;
-        
-        // Map API response fields to component structure
-        // Prefer top-level agent name (_agent_name) over widget.ai_employee_name
-        if (widget._agent_name || widget.ai_employee_name) {
-          companyName = widget._agent_name || widget.ai_employee_name;
-          _wlog("🏢 Using agent name from API config:", companyName);
+      const widget =
+        window.SHIVAI_WIDGET_CONFIG && typeof window.SHIVAI_WIDGET_CONFIG === "object"
+          ? window.SHIVAI_WIDGET_CONFIG
+          : null;
+
+      if (widget) {
+        _wlog("📦 API Widget Config found:", widget);
+
+        // Company name — always from API agent.company_name (stored as _company_name)
+        if (widget._company_name || widget.company_name) {
+          companyName = String(widget._company_name || widget.company_name).trim();
+          _wlog("🏢 Using company_name from API:", companyName);
+        } else if (widget.ai_employee_name) {
+          companyName = String(widget.ai_employee_name).trim();
+          _wlog("🏢 Using ai_employee_name from API widget config:", companyName);
         }
-        
-        if (widget.ai_employee_description) {
-          companyDescription = widget.ai_employee_description;
-          _wlog("📄 Using ai_employee_description from API widget config:", companyDescription);
+
+        if (widget._agent_name) {
+          agentName = String(widget._agent_name).trim();
         }
-        
+
+        if (widget.ai_employee_description != null) {
+          companyDescription = String(widget.ai_employee_description);
+        }
+
         if (widget.company_logo) {
           companyLogo = widget.company_logo;
-          _wlog("🖼️ Using company_logo from API widget config (S3 URL)");
         }
 
         if (widget.trigger_button_image) {
           triggerButtonImage = widget.trigger_button_image;
-          _wlog("🖼️ Using trigger_button_image from API widget config");
         }
 
         if (widget.button_text) {
           callToActionText = widget.button_text;
-          _wlog("💬 Using button_text from API widget config:", callToActionText);
-        }
-        
-        // Map color fields from API response
-        if (widget.primary_color) {
-          themeColors.primaryColor = widget.primary_color;
-        }
-        if (widget.gradient_start) {
-          themeColors.secondaryColor = widget.gradient_start;
-        }
-        if (widget.gradient_end) {
-          themeColors.accentColor = widget.gradient_end;
-        }
-        
-        _wlog("🎨 Using theme colors from API widget config:", themeColors);
-        configSource = "API widget config";
-      }
-      
-      // ✅ PRIORITY 2: Check SHIVAI_CONFIG (legacy component state)
-      if (window.SHIVAI_CONFIG && typeof window.SHIVAI_CONFIG === 'object') {
-        if (configSource === "defaults") {
-          _wlog("📦 SHIVAI_CONFIG found, using as fallback source");
-        }
-        
-        const config = window.SHIVAI_CONFIG;
-        
-        if (config.content) {
-          if (!companyName || companyName === "ShivAI") {
-            if (config.content.companyName) {
-              companyName = config.content.companyName;
-              _wlog("🏢 Using companyName from SHIVAI_CONFIG:", companyName);
-            }
-          }
-          if (!companyDescription || companyDescription === "AI-Powered Support") {
-            if (config.content.companyDescription) {
-              companyDescription = config.content.companyDescription;
-              _wlog("📄 Using companyDescription from SHIVAI_CONFIG:", companyDescription);
-            }
-          }
-          if (!companyLogo && config.content.companyLogo) {
-            companyLogo = config.content.companyLogo;
-            _wlog("🖼️ Using companyLogo from SHIVAI_CONFIG");
-          }
-          if (!triggerButtonImage && config.content.triggerButtonImage) {
-            triggerButtonImage = config.content.triggerButtonImage;
-            _wlog("🖼️ Using triggerButtonImage from SHIVAI_CONFIG");
-          }
-          if ((!callToActionText || callToActionText === "📞 Call ShivAI!") && config.content.callToActionText) {
-            callToActionText = config.content.callToActionText;
-            _wlog("💬 Using callToActionText from SHIVAI_CONFIG:", callToActionText);
-          }
         }
 
-        // Also check ShivAI.config for images / callToActionText
-        if (!triggerButtonImage && window.ShivAI && window.ShivAI.config && window.ShivAI.config.triggerButtonImage) {
-          triggerButtonImage = window.ShivAI.config.triggerButtonImage;
-          _wlog("🖼️ Using triggerButtonImage from ShivAI.config");
-        }
-        if (!companyLogo && window.ShivAI && window.ShivAI.config && window.ShivAI.config.companyLogo) {
-          companyLogo = window.ShivAI.config.companyLogo;
-          _wlog("🖼️ Using companyLogo from ShivAI.config");
-        }
-        if (window.ShivAI && window.ShivAI.config && window.ShivAI.config.callToActionText) {
-          if (!callToActionText || callToActionText === "📞 Call ShivAI!") {
-            callToActionText = window.ShivAI.config.callToActionText;
-            _wlog("💬 Using callToActionText from ShivAI.config:", callToActionText);
-          }
-        }
-        
-        if (config.theme && configSource === "defaults") {
-          if (config.theme.primaryColor) {
-            themeColors.primaryColor = config.theme.primaryColor;
-          }
-          if (config.theme.secondaryColor) {
-            themeColors.secondaryColor = config.theme.secondaryColor;
-          }
-          if (config.theme.accentColor) {
-            themeColors.accentColor = config.theme.accentColor;
-          }
-          _wlog("🎨 Using theme colors from SHIVAI_CONFIG:", themeColors);
-        }
-        
-        if (configSource === "defaults") {
-          configSource = "SHIVAI_CONFIG";
-        }
+        if (widget.primary_color) themeColors.primaryColor = widget.primary_color;
+        if (widget.gradient_start) themeColors.secondaryColor = widget.gradient_start;
+        if (widget.gradient_end) themeColors.accentColor = widget.gradient_end;
+
+        configSource = "API";
       }
-      
-      // ✅ PRIORITY 3: Check URL parameters (legacy fallback)
-      if (configSource === "defaults") {
-        _wlog("📝 No API/component config found, checking URL parameters as fallback");
-        
-        const scriptTags = document.getElementsByTagName('script');
+
+      // Dashboard preview — editor is source of truth (always overrides stale API values)
+      if (widgetPreviewMode && window.SHIVAI_CONFIG && typeof window.SHIVAI_CONFIG === "object") {
+        const config = window.SHIVAI_CONFIG;
+        if (config.content) {
+          if (config.content.companyDescription != null) {
+            companyDescription = String(config.content.companyDescription);
+          }
+          if (config.content.callToActionText != null) {
+            callToActionText = String(config.content.callToActionText);
+          }
+          if (config.content.companyLogo) {
+            companyLogo = config.content.companyLogo;
+          }
+          if (config.content.triggerButtonImage) {
+            triggerButtonImage = config.content.triggerButtonImage;
+          }
+          if (!companyName && config.content.companyName) {
+            companyName = config.content.companyName;
+          }
+        }
+        if (config.theme) {
+          if (config.theme.primaryColor) themeColors.primaryColor = config.theme.primaryColor;
+          if (config.theme.secondaryColor) themeColors.secondaryColor = config.theme.secondaryColor;
+          if (config.theme.accentColor) themeColors.accentColor = config.theme.accentColor;
+        }
+        configSource = configSource === "none" ? "SHIVAI_CONFIG" : configSource + "+editor";
+      }
+
+      // Legacy URL params — only when API did not provide a name
+      if (!companyName) {
+        const scriptTags = document.getElementsByTagName("script");
         for (let i = scriptTags.length - 1; i >= 0; i--) {
           const script = scriptTags[i];
-          if (script.src && script.src.includes('/widget2.js')) {
+          if (
+            script.src &&
+            (script.src.includes("/widget2.js") ||
+              script.src.includes("/widget3.js") ||
+              script.src.includes("/widget4.js") ||
+              script.src.includes("/widget5.js") ||
+              script.src.includes("/widget.js"))
+          ) {
             try {
               const url = new URL(script.src);
-              const urlCompanyName = url.searchParams.get('companyName');
-              const urlCompanyDescription = url.searchParams.get('companyDescription');
-              const urlAgentName = url.searchParams.get('agentName');
-              const urlCompanyLogo = url.searchParams.get('companyLogo');
-              
-              if (urlCompanyName) {
-                companyName = decodeURIComponent(urlCompanyName);
-                _wlog("🏢 Using companyName from URL parameter:", companyName);
-              }
-              if (urlCompanyDescription) {
-                companyDescription = decodeURIComponent(urlCompanyDescription);
-                _wlog("📄 Using companyDescription from URL parameter:", companyDescription);
-              }
-              if (urlAgentName) {
-                agentName = decodeURIComponent(urlAgentName);
-                _wlog("🤖 Using agentName from URL parameter:", agentName);
-              }
-              if (urlCompanyLogo) {
-                companyLogo = decodeURIComponent(urlCompanyLogo);
-                _wlog("🖼️ Using companyLogo from URL parameter");
-              }
+              const urlCompanyName = url.searchParams.get("companyName");
+              const urlCompanyDescription = url.searchParams.get("companyDescription");
+              const urlAgentName = url.searchParams.get("agentName");
+              const urlCompanyLogo = url.searchParams.get("companyLogo");
+              if (urlCompanyName) companyName = decodeURIComponent(urlCompanyName);
+              if (urlCompanyDescription) companyDescription = decodeURIComponent(urlCompanyDescription);
+              if (urlAgentName) agentName = decodeURIComponent(urlAgentName);
+              if (urlCompanyLogo) companyLogo = decodeURIComponent(urlCompanyLogo);
+              if (urlCompanyName) configSource = "URL parameters";
               break;
             } catch (urlError) {
               console.warn("⚠️ Error parsing script URL:", urlError);
-              continue;
             }
           }
         }
-        
-        configSource = "URL parameters";
       }
-      
     } catch (error) {
-      console.warn("⚠️ Error getting company info, using defaults:", error);
-      configSource = "defaults";
+      console.warn("⚠️ Error getting company info:", error);
     }
 
-    if (!callToActionText || callToActionText === "📞 Call ShivAI!") {
-      callToActionText = companyName ? "Talk to " + companyName : "Talk to AI Employee";
+    if (!callToActionText) {
+      if (companyName) callToActionText = "Talk to " + companyName;
+      else if (agentName) callToActionText = "Talk to " + agentName;
+      else callToActionText = "Talk to us";
     }
-    
+
     const result = {
-      name: companyName, 
+      name: companyName,
       description: companyDescription,
       agentName: agentName,
       logo: companyLogo,
@@ -316,7 +289,7 @@
       theme: themeColors,
       configSource: configSource
     };
-    _wlog(`✅ Final company info being used (source: ${configSource}):`, result);
+    _wlog("✅ Final company info (source: " + configSource + "):", result);
     return result;
   }
 
@@ -648,7 +621,7 @@
       
       _wlog('🔍 Checking agent status for ID:', agentId);
       const response = await fetchWithTimeout(
-        `https://nodejs.service.callshivai.com/api/v1/agent-configs/${agentId}`
+        `https://nodejs.service.callshivai.com/api/v1/agent-configs/${agentId}?_=${Date.now()}`
       );
       
       if (response.ok) {
@@ -668,6 +641,18 @@
         updateNovaTriggerLayoutFlag(agentRes);
         
         _wlog('📊 Agent status set to:', agentStatus);
+
+        // Always store top-level agent fields on widget config (even if widget object is missing)
+        if (!window.SHIVAI_WIDGET_CONFIG) {
+          window.SHIVAI_WIDGET_CONFIG = {};
+        }
+        if (agentRes.name) {
+          window.SHIVAI_WIDGET_CONFIG._agent_name = agentRes.name;
+        }
+        if (agentRes.company_name) {
+          window.SHIVAI_WIDGET_CONFIG._company_name = agentRes.company_name;
+          _wlog('🏢 Stored company_name from agent API:', agentRes.company_name);
+        }
         
         // ✅ Extract and set widget configuration from API response
         if (agentRes?.widget) {
@@ -679,9 +664,10 @@
           const shivAiConfig =
             window.ShivAI && window.ShivAI.config ? window.ShivAI.config : null;
 
-          window.SHIVAI_WIDGET_CONFIG = { ...apiWidget };
-          // Top-level agent name takes priority
+          window.SHIVAI_WIDGET_CONFIG = { ...window.SHIVAI_WIDGET_CONFIG, ...apiWidget };
+          // Top-level agent + company names take priority over widget sub-fields
           if (agentRes.name) window.SHIVAI_WIDGET_CONFIG._agent_name = agentRes.name;
+          if (agentRes.company_name) window.SHIVAI_WIDGET_CONFIG._company_name = agentRes.company_name;
 
           // Keep editor/preview images when API omits one field (avoid logo replacing trigger)
           if (!apiWidget.trigger_button_image) {
@@ -717,6 +703,9 @@
             window.SHIVAI_WIDGET_CONFIG.company_logo = avatarSrc;
             _wlog("🖼️ Promoted top-level agent avatar to company_logo:", avatarSrc);
           }
+
+          applyEditorOverridesFromConfig();
+
           _wlog('📦 Widget configuration set from API:', window.SHIVAI_WIDGET_CONFIG);
           _wlog('🎨 Available widget properties:');
           _wlog('  - ai_employee_name:', agentRes.widget.ai_employee_name);
@@ -763,7 +752,7 @@
             _wlog('✅ Domain authorisation passed for:', currentHost);
           }
         } else {
-          _wlog('ℹ️ No widget configuration found in agent response - getCompanyInfo() will use URL parameters or defaults');
+          _wlog('ℹ️ No widget sub-config in agent response — using top-level agent fields (company_name, etc.)');
         }
       } else {
         console.warn('⚠️ Could not fetch agent status, defaulting to inactive');
@@ -1058,6 +1047,19 @@
       _wlog("✅ Updated landing view description to:", companyInfo.description);
     }
 
+    const landingAgentName = widgetContainer && widgetContainer.querySelector('.landing-agent-name');
+    if (landingAgentName) {
+      landingAgentName.textContent = companyInfo.name;
+      _wlog("✅ Updated landing agent name to:", companyInfo.name);
+    }
+
+    const landingAgentDesc = widgetContainer && widgetContainer.querySelector('.landing-agent-desc');
+    if (landingAgentDesc) {
+      var desc = companyInfo.description || "";
+      landingAgentDesc.textContent = desc && !desc.endsWith('.') ? desc + '.' : desc;
+      _wlog("✅ Updated landing agent description to:", companyInfo.description);
+    }
+
     const logoSrc = companyInfo.logo || "";
     const imgStyle = "width:100%;height:100%;object-fit:cover;border-radius:12px;display:block;";
 
@@ -1069,7 +1071,7 @@
 
     const callInfoName = document.querySelector('.call-info-name');
     if (callInfoName) {
-      callInfoName.textContent = companyInfo.name;
+      callInfoName.textContent = companyInfo.agentName || companyInfo.name;
     }
     
     const callAvatar = document.querySelector('.call-avatar');
@@ -1100,10 +1102,13 @@
       }
     }
 
-    // Update trigger button name text
+    // Update trigger button name text — show company name on client embeds
     const triggerTitle = triggerBtn && triggerBtn.querySelector('.shivai-trigger-title');
     if (triggerTitle && companyInfo.name) {
       triggerTitle.textContent = companyInfo.name;
+    }
+    if (triggerBtn) {
+      triggerBtn.setAttribute("aria-label", "Open " + (companyInfo.name || companyInfo.agentName || "AI") + " Assistant");
     }
 
     // Update trigger subtitle to cloud bubble text
@@ -1140,16 +1145,9 @@
 
   async function initWidget() {
     _dbg("Widget5 initializing…");
-
-    // Render UI immediately so client embeds feel instant (widget2-style UX).
-    createWidgetUI();
-    setupEventListeners();
-    initSoundContext();
     agentStatus.loading = true;
-    updateTriggerBasedOnStatus();
-    updateLandingViewBasedOnStatus();
 
-    // Load LiveKit + agent config in parallel (was serial: LiveKit → then config → then UI).
+    // Fetch agent config from API first — company name must come from API, not static defaults.
     await Promise.all([
       loadLiveKitSDK().catch(function (error) {
         console.error("❌ Failed to load LiveKit SDK:", error);
@@ -1159,13 +1157,12 @@
 
     if (agentStatus.blocked) {
       console.warn('🚫 ShivAI Widget: rendering aborted — domain not authorised.');
-      if (triggerBtn) triggerBtn.remove();
-      if (widgetContainer) widgetContainer.remove();
-      triggerBtn = null;
-      widgetContainer = null;
       return;
     }
 
+    createWidgetUI();
+    setupEventListeners();
+    initSoundContext();
     refreshWidgetContent();
     updateTriggerBasedOnStatus();
     updateLandingViewBasedOnStatus();
@@ -1990,7 +1987,7 @@
 
     // Fetch company info to check for trigger button image
     const triggerCompanyInfo = getCompanyInfo();
-    const triggerName = triggerCompanyInfo.name || triggerCompanyInfo.agentName || "ShivAi";
+    const triggerName = triggerCompanyInfo.name || triggerCompanyInfo.agentName || "AI Employee";
     // Use the cloud bubble text (button_text / callToActionText) as the subtitle under the name
     const triggerSubtitle = triggerCompanyInfo.callToActionText || (triggerName ? "Talk to " + triggerName : "AI Assistant");
     const triggerAvatarSrc = triggerCompanyInfo.triggerButtonImage || "";
