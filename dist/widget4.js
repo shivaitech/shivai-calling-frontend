@@ -307,12 +307,45 @@
   let widgetInitialized = false; // becomes true after initWidget() runs once
 
   // ── Route guard ───────────────────────────────────────────────────────────
-  // This widget must only appear on the public landing page, never inside the
-  // ShivAI dashboard/app. We allow only "/" and "/landing" (with optional
-  // trailing slash). On every other route the trigger + panel are hidden.
+  // widget4.js is ONLY for the public ShivAI landing page ("/" and "/landing").
+  // It must never appear on agent test pages, Nova, dashboard, or client embeds.
+  var LANDING_WIDGET_BLOCKED_PREFIXES = [
+    "/MyAIEmployee",
+    "/agents",
+    "/dashboard",
+    "/app/",
+    "/doctor-calendar",
+    "/website-preview",
+    "/auth/",
+    "/reset-password",
+  ];
+
+  function getLandingWidgetScriptParams() {
+    try {
+      var scripts = document.getElementsByTagName("script");
+      for (var i = scripts.length - 1; i >= 0; i--) {
+        var s = scripts[i];
+        if (s.src && s.src.indexOf("/widget4.js") !== -1) {
+          return new URL(s.src, window.location.origin).searchParams;
+        }
+      }
+    } catch (e) {}
+    return null;
+  }
+
   function isLandingRoute() {
-    var p = (window.location.pathname || "/").replace(/\/+$/, "") || "/";
-    return p === "" || p === "/" || p === "/landing";
+    var full = window.location.pathname || "/";
+    var p = full.replace(/\/+$/, "") || "/";
+    if (p !== "" && p !== "/" && p !== "/landing") return false;
+    for (var i = 0; i < LANDING_WIDGET_BLOCKED_PREFIXES.length; i++) {
+      if (full.indexOf(LANDING_WIDGET_BLOCKED_PREFIXES[i]) === 0) return false;
+    }
+    // Never run landing widget when loaded as a test/preview embed (use widget5 instead)
+    var params = getLandingWidgetScriptParams();
+    if (params && (params.get("bypass") === "true" || params.get("novaPage") === "1")) {
+      return false;
+    }
+    return true;
   }
   // Show/hide the widget based on the current route. Initialises lazily the
   // first time the user lands on an allowed route.
@@ -321,6 +354,9 @@
     if (show && !widgetInitialized) {
       // Lazy first init on the landing page.
       bootstrapWidget();
+      return;
+    }
+    if (!show && !widgetInitialized) {
       return;
     }
     var display = show ? "" : "none";
@@ -2084,7 +2120,7 @@
       "sr": "Serbian", "sk": "Slovak", "sl": "Slovenian", "et": "Estonian",
       "lv": "Latvian", "lt": "Lithuanian",
       "en-in": "Indian English", "hi": "Hindi (हिन्दी)", "ta": "Tamil (தமிழ்)", "te": "Telugu (తెలుగు)",
-      "mr": "Marathi (मराठी)", "bn": "Bengali (বাংলা)", "gu": "Gujarati (ગુજરાતી)", "kn": "Kannada (ಕನ್ನಡ)",
+      "mr": "Marathi (मराठी)", "bn": "Bengali (বাংলা)", "ur": "Urdu (اردو)", "gu": "Gujarati (ગુજરાતી)", "kn": "Kannada (ಕನ್ನಡ)",
       "ml": "Malayalam (മലയാളം)", "pa": "Punjabi (ਪੰਜਾਬੀ)",
     };
     const langToCountry = {
@@ -2096,7 +2132,7 @@
       "vi": "vn", "hr": "hr", "sr": "rs", "sk": "sk", "sl": "si",
       "et": "ee", "lv": "lv", "lt": "lt", "th": "th", "id": "id",
       "ar": "sa", "ja": "jp", "ko": "kr", "zh": "cn",
-      "hi": "in", "ta": "in", "te": "in", "mr": "in", "bn": "bd",
+      "hi": "in", "ta": "in", "te": "in", "mr": "in", "bn": "in", "ur": "in",
       "gu": "in", "kn": "in", "ml": "in", "pa": "in",
     };
     const globeSvg = `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><radialGradient id="earthOcean" cx="35%" cy="32%" r="80%"><stop offset="0%" stop-color="#5fb6ff"/><stop offset="60%" stop-color="#0a84ff"/><stop offset="100%" stop-color="#0050b8"/></radialGradient></defs><circle cx="32" cy="32" r="30" fill="url(#earthOcean)"/><path fill="#34c759" d="M16 18c2-1.5 4.5-2 7-1.5 2 .5 3.5 2 4.5 4 .8 1.7 1 3.5 2 5 1.2 1.8 3.5 2.4 5.5 2 1.6-.3 2.8-1.6 3-3.2.1-1.4-.5-2.7-1.4-3.7-1-1.2-2.3-2.2-3-3.5-.5-1-.4-2.4.4-3.3.3-.4.7-.7 1.2-.9 5 1.8 8.7 6.2 9.6 11.4-1-.4-2-.7-3-.5-1.4.3-2.5 1.4-3.3 2.6-1.4 2.3-1.9 5-3.6 7.2-1.6 2-4.4 3-6.6 1.9-1.6-.8-2.6-2.5-3-4.2-.4-2-.1-4.1-1.1-5.9-1-1.7-3-2.6-4.9-2.7-1.5-.1-3.1.4-4.4 1.3-1 .7-1.9 1.7-3 2.2-1 .5-2.3.5-3.1-.3-.5-.4-.7-1-.8-1.6-.3-2 .6-4.1 1.9-5.7 1.4-1.7 3.3-2.9 5.1-3.6zM41 38c1.6-.6 3.5-.4 4.8.8 1 .9 1.5 2.3 1.7 3.6.1 1-.1 2.2-.9 2.9-.7.7-1.8.8-2.7.4-1-.4-1.7-1.4-1.9-2.5-.2-.9-.1-1.9-.5-2.7-.4-.8-1.3-1.3-2.1-1.4.5-.5 1-.9 1.6-1.1z"/><path fill="#34c759" d="M23 38c1.6-.4 3.5.1 4.5 1.4 1 1.3 1.1 3.2.4 4.7-.7 1.5-2.2 2.6-3.9 2.7-1.7.1-3.4-.8-4.3-2.2-1-1.5-1-3.7.1-5.1.7-.9 1.8-1.4 2.9-1.5z"/></svg>`;

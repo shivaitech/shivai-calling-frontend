@@ -383,6 +383,8 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
         gradient_end: widgetConfig.theme.accentColor,
         position: widgetConfig.ui.position,
         widget_style: widgetConfig.theme.widgetStyle,
+        visibility: widgetConfig.ui.visibility,
+        allowed_domains: widgetConfig.ui.allowedDomains.filter((d) => d.trim() !== ""),
       };
 
       win.ShivAI = win.ShivAI || {};

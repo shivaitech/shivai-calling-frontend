@@ -28,7 +28,6 @@ export default function AgentPublicPage() {
   const [agentInfo, setAgentInfo] = useState<AgentInfo | null>(null);
   const [agentInfoLoaded, setAgentInfoLoaded] = useState(false);
   const agentFetchRef = useRef<string | null>(null);
-  const scriptRef = useRef(false);
 
   const getUserEmailFromStorage = () => {
     try {
@@ -114,8 +113,11 @@ export default function AgentPublicPage() {
 
   // Load widget5.js after agent info is known (Nova test page needs novaPage flag on mobile).
   useEffect(() => {
-    if (!agentId || !agentInfoLoaded || scriptRef.current) return;
-    scriptRef.current = true;
+    if (!agentId || !agentInfoLoaded) return;
+
+    const scriptId = `shivai-widget5-${agentId}`;
+    if (document.getElementById(scriptId)) return;
+
     const params = new URLSearchParams();
     params.set("agentId", agentId);
     if (userId) params.set("userId", userId);
@@ -124,10 +126,17 @@ export default function AgentPublicPage() {
       params.set("novaPage", "1");
     }
     params.set("v", Date.now().toString());
+
     const script = document.createElement("script");
+    script.id = scriptId;
     script.src = `/widget5.js?${params.toString()}`;
     script.async = false;
     document.body.appendChild(script);
+
+    return () => {
+      const existing = document.getElementById(scriptId);
+      if (existing) existing.remove();
+    };
   }, [agentId, userId, agentInfoLoaded, agentInfo?.name, agentInfo?.company_name]);
 
   const agentName = agentInfo?.name || "Your AI Employee";

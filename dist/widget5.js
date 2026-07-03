@@ -90,6 +90,14 @@
   let novaBottomCenterTrigger = false;
   let widgetPreviewMode = false;
   let novaTestPageMode = false;
+  // Params from the script tag that loaded this file (reliable for dynamic injection)
+  var bootScriptEl = document.currentScript;
+  var bootScriptParams = null;
+  try {
+    if (bootScriptEl && bootScriptEl.src) {
+      bootScriptParams = new URL(bootScriptEl.src, window.location.origin).searchParams;
+    }
+  } catch (e) {}
   let aiResponseTimeout = null;
   let retryCount = 0;
   const MAX_RETRIES = 0; // No retries - terminate immediately on error
@@ -146,6 +154,14 @@
     }
     if (cfg.widgetStyle) {
       window.SHIVAI_WIDGET_CONFIG.widget_style = cfg.widgetStyle;
+    }
+    if (cfg.ui) {
+      if (cfg.ui.visibility) window.SHIVAI_WIDGET_CONFIG.visibility = cfg.ui.visibility;
+      if (Array.isArray(cfg.ui.allowedDomains)) {
+        window.SHIVAI_WIDGET_CONFIG.allowed_domains = cfg.ui.allowedDomains.filter(function (d) {
+          return String(d || "").trim() !== "";
+        });
+      }
     }
     _wlog("📝 Applied editor overrides from SHIVAI_CONFIG (preview mode)");
   }
@@ -359,21 +375,238 @@
   let callView = null;
   let widgetInitialized = false; // becomes true after initWidget() runs once
 
-  // ── widget5 has NO route guard — it is designed for client/test/QR pages ──
-  // It always bootstraps regardless of the URL path.
-  function applyRouteVisibility() {
-    // widget5 is always visible — no route restriction
-    if (!widgetInitialized) {
-      bootstrapWidget();
+  // ── Route guard (ShivAI app only) ───────────────────────────────────────
+  // widget5.js is for client embeds, agent test pages (/MyAIEmployee), and
+  // dashboard preview iframes (bypass=true). The landing page uses widget4.js.
+  var WIDGET5_BLOCKED_ON_HOST_PREFIXES = [
+    "/agents",
+    "/dashboard",
+    "/app/",
+    "/doctor-calendar",
+    "/website-preview",
+  ];
+
+  function isShivaiHostedApp() {
+    var h = (window.location.hostname || "").toLowerCase();
+    return (
+      h === "callshivai.com" ||
+      h === "www.callshivai.com" ||
+      h === "localhost" ||
+      h === "127.0.0.1"
+    );
+  }
+
+  function isLandingOnlyRoute() {
+    var p = (window.location.pathname || "/").replace(/\/+$/, "") || "/";
+    return p === "" || p === "/" || p === "/landing";
+  }
+
+  function getWidget5ScriptParams() {
+    if (bootScriptParams) return bootScriptParams;
+    try {
+      var scripts = document.getElementsByTagName("script");
+      for (var i = scripts.length - 1; i >= 0; i--) {
+        var s = scripts[i];
+        if (s.src && s.src.indexOf("/widget5.js") !== -1) {
+          return new URL(s.src, window.location.origin).searchParams;
+        }
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  function readBootScriptParam(key) {
+    var params = getWidget5ScriptParams();
+    return params ? params.get(key) : null;
+  }
+
+  // Visibility from customization: public = all sites, private = allowed URLs only
+  var cachedWidgetVisibility = "public";
+  var cachedWidgetAllowedDomains = [];
+  var cachedBypassDomainCheck = false;
+
+  function applyBootScriptFlags() {
+    if (readBootScriptParam("bypass") === "true") {
+      cachedBypassDomainCheck = true;
+      // Preview editor mode only when SHIVAI_CONFIG is present (customization iframe)
+      if (window.SHIVAI_CONFIG && window.SHIVAI_CONFIG.content) {
+        widgetPreviewMode = true;
+        _wlog("✅ Dashboard preview mode enabled");
+      } else {
+        _wlog("✅ Test/QR bypass enabled — using API widget config");
+      }
+    }
+    if (readBootScriptParam("novaPage") === "1" || readBootScriptParam("novaPage") === "true") {
+      novaTestPageMode = true;
+      _wlog("✅ Nova test page mode enabled");
     }
   }
+  applyBootScriptFlags();
+
+  function shouldAllowWidget5OnThisPage() {
+    // External client websites — always show the embed
+    if (!isShivaiHostedApp()) return true;
+
+    var params = getWidget5ScriptParams();
+    // Preview iframe, QR, and agent test pages pass bypass=true
+    if (params && params.get("bypass") === "true") return true;
+
+    var path = window.location.pathname || "";
+    if (path.indexOf("/MyAIEmployee") === 0) return true;
+
+    // Landing page is handled by widget4.js — never show widget5 there
+    if (isLandingOnlyRoute()) return false;
+
+    for (var i = 0; i < WIDGET5_BLOCKED_ON_HOST_PREFIXES.length; i++) {
+      if (path.indexOf(WIDGET5_BLOCKED_ON_HOST_PREFIXES[i]) === 0) return false;
+    }
+
+    return false;
+  }
+
+  function normalizeWidgetHost(host) {
+    return String(host || "").toLowerCase().replace(/\.$/, "");
+  }
+
+  function widgetHostsMatch(allowedHost, currentHost) {
+    var a = normalizeWidgetHost(allowedHost);
+    var c = normalizeWidgetHost(currentHost);
+    if (!a || !c) return false;
+    if (a === c) return true;
+    if (c.endsWith("." + a)) return true;
+    if (a.indexOf("www.") === 0 && c === a.slice(4)) return true;
+    if (c === "www." + a) return true;
+    return false;
+  }
+
+  function getWidgetPageContext() {
+    var origin = window.location.origin.toLowerCase();
+    var host = window.location.hostname.toLowerCase();
+    var href = window.location.href.split("#")[0].toLowerCase().replace(/\/+$/, "");
+    var pathname = window.location.pathname.toLowerCase().replace(/\/+$/, "") || "";
+    return { origin: origin, host: host, href: href, pathname: pathname };
+  }
+
+  function matchesAllowedWidgetUrl(entry, page) {
+    var raw = String(entry || "").trim().toLowerCase();
+    if (!raw) return false;
+    raw = raw.replace(/\/+$/, "");
+
+    if (/^https?:\/\//.test(raw)) {
+      try {
+        var allowed = new URL(raw);
+        var current = new URL(page.href);
+        if (!widgetHostsMatch(allowed.hostname, current.hostname) && allowed.origin.toLowerCase() !== current.origin) {
+          return false;
+        }
+        var allowedPath = allowed.pathname.replace(/\/+$/, "") || "";
+        if (!allowedPath || allowedPath === "/") return true;
+        var currentPath = current.pathname.replace(/\/+$/, "") || "";
+        return currentPath === allowedPath || currentPath.indexOf(allowedPath + "/") === 0;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    var withoutProto = raw.replace(/^https?:\/\//, "");
+    var slash = withoutProto.indexOf("/");
+    var hostPart = slash === -1 ? withoutProto : withoutProto.slice(0, slash);
+    var pathPart = slash === -1 ? "" : withoutProto.slice(slash).replace(/\/+$/, "");
+
+    if (
+      !widgetHostsMatch(hostPart, page.host) &&
+      page.origin !== "https://" + hostPart &&
+      page.origin !== "http://" + hostPart
+    ) {
+      return false;
+    }
+
+    if (!pathPart || pathPart === "/") return true;
+    var normPath = pathPart.charAt(0) === "/" ? pathPart : "/" + pathPart;
+    normPath = normPath.replace(/\/+$/, "");
+    return page.pathname === normPath || page.pathname.indexOf(normPath + "/") === 0;
+  }
+
+  function isWidgetVisibilityAllowed(visibility, allowedDomains, skipCheck) {
+    if (skipCheck) return true;
+    var mode = String(visibility || "public").toLowerCase();
+    if (mode !== "private") return true;
+
+    var list = Array.isArray(allowedDomains) ? allowedDomains : [];
+    var cleaned = list.map(function (d) { return String(d || "").trim(); }).filter(Boolean);
+    if (cleaned.length === 0) return false;
+
+    var page = getWidgetPageContext();
+    return cleaned.some(function (entry) {
+      return matchesAllowedWidgetUrl(entry, page);
+    });
+  }
+
+  function enforceWidgetVisibilityRestrictions(visibility, allowedDomains, skipCheck) {
+    if (isWidgetVisibilityAllowed(visibility, allowedDomains, skipCheck)) {
+      _wlog("✅ Widget visibility check passed:", visibility, allowedDomains);
+      return false;
+    }
+    console.warn("🚫 ShivAI Widget: this page is not in the allowed URL list.");
+    agentStatus.active = false;
+    agentStatus.blocked = true;
+    agentStatus.canRetry = false;
+    agentStatus.errorType = "domain";
+    agentStatus.message = "Widget not available on this domain.";
+    return true;
+  }
+
+  function shouldShowWidget5Here() {
+    if (!shouldAllowWidget5OnThisPage()) return false;
+    if (cachedBypassDomainCheck || widgetPreviewMode) return true;
+    return isWidgetVisibilityAllowed(cachedWidgetVisibility, cachedWidgetAllowedDomains, false);
+  }
+
+  function applyRouteVisibility() {
+    var show = shouldShowWidget5Here();
+    if (show && !widgetInitialized) {
+      bootstrapWidget();
+      return;
+    }
+    if (!show && !widgetInitialized) {
+      return;
+    }
+    if (triggerBtn) {
+      if (!show) {
+        triggerBtn.style.display = "none";
+      } else {
+        updateNovaTriggerVisibility();
+      }
+    }
+    if (widgetContainer) {
+      if (!show) {
+        if (isConnecting || isConnected || room) {
+          try {
+            stopConversation({ force: true, playEndTone: true });
+          } catch (e) {}
+        }
+        widgetContainer.style.display = "none";
+        widgetContainer.classList.remove("open");
+        document.body.classList.remove("shivai-widget-open");
+      } else {
+        widgetContainer.style.display = "";
+        updateNovaTriggerVisibility();
+      }
+    }
+  }
+
   function hookSpaNavigation() {
-    // No SPA route-change handling needed in widget5 — it stays visible everywhere.
     if (window.__shivaiRouteHooked5) return;
     window.__shivaiRouteHooked5 = true;
+    var fire = function () {
+      setTimeout(applyRouteVisibility, 0);
+    };
     var _push = history.pushState;
-    // No-op patching — widget5 doesn't hide on navigation
-    history.pushState = _push;
+    history.pushState = function () { var r = _push.apply(this, arguments); fire(); return r; };
+    var _replace = history.replaceState;
+    history.replaceState = function () { var r = _replace.apply(this, arguments); fire(); return r; };
+    window.addEventListener("popstate", fire);
+    window.addEventListener("hashchange", fire);
   }
   let statusDiv = null;
   let connectBtn = null;
@@ -534,12 +767,27 @@
     try {
       // Get agent ID and tenant ID from configuration (dynamic)
       let agentId = null;
-      let bypassDomainCheck = false;
       
       // First try to get from URL parameters of the widget script
       const scriptTags = document.getElementsByTagName('script');
       let foundFromUrl = false;
       
+      // Prefer params from the script tag that loaded widget5.js
+      if (bootScriptParams) {
+        var bootAgentId = bootScriptParams.get("agentId");
+        var bootUserId = bootScriptParams.get("userId");
+        if (bootAgentId) {
+          agentId = bootAgentId;
+          foundFromUrl = true;
+          _wlog("🎯 Using agentId from boot script:", agentId);
+        }
+        if (bootUserId) {
+          globalTenantId = bootUserId;
+          _wlog("👤 Using userId from boot script:", globalTenantId);
+        }
+      }
+
+      // Fallback: scan other widget script tags
       for (let i = scriptTags.length - 1; i >= 0; i--) {
         const script = scriptTags[i];
         if (script.src && (script.src.includes('/widget2.js') || script.src.includes('/widget3.js') || script.src.includes('/widget4.js') || script.src.includes('/widget5.js') || script.src.includes('/widget.js'))) {
@@ -547,33 +795,24 @@
             const url = new URL(script.src);
             const urlAgentId = url.searchParams.get('agentId');
             const urlUserId = url.searchParams.get('userId');
-            const urlBypass = url.searchParams.get('bypass');
-            const urlNovaPage = url.searchParams.get('novaPage');
             
-            if (urlAgentId) {
+            if (!foundFromUrl && urlAgentId) {
               agentId = urlAgentId;
               foundFromUrl = true;
               _wlog("🎯 Using agentId for status check from URL:", agentId);
             }
-            if (urlUserId) {
+            if (!globalTenantId && urlUserId) {
               globalTenantId = urlUserId;
               _wlog("👤 Using userId (tenant_id) from URL:", globalTenantId);
             }
-            if (urlBypass === 'true') {
-              bypassDomainCheck = true;
-              widgetPreviewMode = true;
-              _wlog("✅ Domain check bypass enabled - testing/preview mode");
-            }
-            if (urlNovaPage === '1' || urlNovaPage === 'true') {
-              novaTestPageMode = true;
-              _wlog("✅ Nova test page mode enabled");
-            }
-            if (foundFromUrl) break;
+            if (foundFromUrl && globalTenantId) break;
           } catch (urlErr) {
             console.warn("⚠️ Could not parse script URL:", urlErr);
           }
         }
       }
+
+      var bypassDomainCheck = cachedBypassDomainCheck;
       
       // If not found in URL, try SHIVAI_CONFIG
       if (!foundFromUrl && window.SHIVAI_CONFIG && window.SHIVAI_CONFIG.agentId) {
@@ -627,7 +866,10 @@
       if (response.ok) {
         const data = await response.json();
         _wlog('✅ Agent status response:', data);
-        let agentRes = data?.data?.agent
+        let agentRes = data?.data?.agent || data?.agent;
+        if (!agentRes) {
+          console.warn('⚠️ Agent config response missing agent object:', data);
+        }
         agentStatus.active = agentRes?.is_active !== false;
         agentStatus.canRetry = false;
         agentStatus.errorType = agentRes?.is_active === false ? 'maintenance' : null;
@@ -706,6 +948,22 @@
 
           applyEditorOverridesFromConfig();
 
+          cachedBypassDomainCheck = bypassDomainCheck;
+          cachedWidgetVisibility = agentRes.widget.visibility || "public";
+          cachedWidgetAllowedDomains = Array.isArray(agentRes.widget.allowed_domains)
+            ? agentRes.widget.allowed_domains
+            : [];
+          window.SHIVAI_WIDGET_CONFIG.visibility = cachedWidgetVisibility;
+          window.SHIVAI_WIDGET_CONFIG.allowed_domains = cachedWidgetAllowedDomains;
+
+          if (enforceWidgetVisibilityRestrictions(
+            cachedWidgetVisibility,
+            cachedWidgetAllowedDomains,
+            bypassDomainCheck
+          )) {
+            return;
+          }
+
           _wlog('📦 Widget configuration set from API:', window.SHIVAI_WIDGET_CONFIG);
           _wlog('🎨 Available widget properties:');
           _wlog('  - ai_employee_name:', agentRes.widget.ai_employee_name);
@@ -719,40 +977,11 @@
           
           // Note: Widget UI will be created after this function completes in initWidget()
           // refreshWidgetContent() will be called there after createWidgetUI()
-
-          // ✅ Domain restriction check
-          const widgetVisibility = agentRes.widget.visibility || 'public';
-          const allowedDomains = agentRes.widget.allowed_domains || [];
-          
-          // Skip domain check if bypass is enabled (for preview/testing/QR pages)
-          if (bypassDomainCheck) {
-            _wlog('✅ Domain check skipped - bypass mode enabled');
-          } else if (widgetVisibility === 'private' && allowedDomains.length > 0) {
-            const currentOrigin = window.location.origin.toLowerCase();
-            const currentHost = window.location.hostname.toLowerCase();
-            const isAllowed = allowedDomains.some(function(domain) {
-              if (!domain) return false;
-              const d = domain.toLowerCase().replace(/\/+$/, '');
-              // Match full origin or hostname with/without protocol
-              return currentOrigin === d ||
-                     currentHost === d ||
-                     currentOrigin.endsWith('://' + d) ||
-                     currentHost.endsWith('.' + d) ||
-                     d.replace(/^https?:\/\//, '') === currentHost;
-            });
-            if (!isAllowed) {
-              console.warn('🚫 ShivAI Widget: this domain is not authorised to load this widget. Aborting.');
-              agentStatus.active = false;
-              agentStatus.blocked = true;
-              agentStatus.canRetry = false;
-              agentStatus.errorType = 'domain';
-              agentStatus.message = 'Widget not available on this domain.';
-              return; // Abort — do not render widget
-            }
-            _wlog('✅ Domain authorisation passed for:', currentHost);
-          }
         } else {
           _wlog('ℹ️ No widget sub-config in agent response — using top-level agent fields (company_name, etc.)');
+          cachedBypassDomainCheck = bypassDomainCheck;
+          cachedWidgetVisibility = "public";
+          cachedWidgetAllowedDomains = [];
         }
       } else {
         console.warn('⚠️ Could not fetch agent status, defaulting to inactive');
@@ -2387,7 +2616,7 @@
       "sr": "Serbian", "sk": "Slovak", "sl": "Slovenian", "et": "Estonian",
       "lv": "Latvian", "lt": "Lithuanian",
       "en-in": "Indian English", "hi": "Hindi (हिन्दी)", "ta": "Tamil (தமிழ்)", "te": "Telugu (తెలుగు)",
-      "mr": "Marathi (मराठी)", "bn": "Bengali (বাংলা)", "gu": "Gujarati (ગુજરાતી)", "kn": "Kannada (ಕನ್ನಡ)",
+      "mr": "Marathi (मराठी)", "bn": "Bengali (বাংলা)", "ur": "Urdu (اردو)", "gu": "Gujarati (ગુજરાતી)", "kn": "Kannada (ಕನ್ನಡ)",
       "ml": "Malayalam (മലയാളം)", "pa": "Punjabi (ਪੰਜਾਬੀ)",
     };
     const langToCountry = {
@@ -2399,7 +2628,7 @@
       "vi": "vn", "hr": "hr", "sr": "rs", "sk": "sk", "sl": "si",
       "et": "ee", "lv": "lv", "lt": "lt", "th": "th", "id": "id",
       "ar": "sa", "ja": "jp", "ko": "kr", "zh": "cn",
-      "hi": "in", "ta": "in", "te": "in", "mr": "in", "bn": "bd",
+      "hi": "in", "ta": "in", "te": "in", "mr": "in", "bn": "in", "ur": "in",
       "gu": "in", "kn": "in", "ml": "in", "pa": "in",
     };
     const globeSvg = `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><radialGradient id="earthOcean" cx="35%" cy="32%" r="80%"><stop offset="0%" stop-color="#5fb6ff"/><stop offset="60%" stop-color="#0a84ff"/><stop offset="100%" stop-color="#0050b8"/></radialGradient></defs><circle cx="32" cy="32" r="30" fill="url(#earthOcean)"/><path fill="#34c759" d="M16 18c2-1.5 4.5-2 7-1.5 2 .5 3.5 2 4.5 4 .8 1.7 1 3.5 2 5 1.2 1.8 3.5 2.4 5.5 2 1.6-.3 2.8-1.6 3-3.2.1-1.4-.5-2.7-1.4-3.7-1-1.2-2.3-2.2-3-3.5-.5-1-.4-2.4.4-3.3.3-.4.7-.7 1.2-.9 5 1.8 8.7 6.2 9.6 11.4-1-.4-2-.7-3-.5-1.4.3-2.5 1.4-3.3 2.6-1.4 2.3-1.9 5-3.6 7.2-1.6 2-4.4 3-6.6 1.9-1.6-.8-2.6-2.5-3-4.2-.4-2-.1-4.1-1.1-5.9-1-1.7-3-2.6-4.9-2.7-1.5-.1-3.1.4-4.4 1.3-1 .7-1.9 1.7-3 2.2-1 .5-2.3.5-3.1-.3-.5-.4-.7-1-.8-1.6-.3-2 .6-4.1 1.9-5.7 1.4-1.7 3.3-2.9 5.1-3.6zM41 38c1.6-.6 3.5-.4 4.8.8 1 .9 1.5 2.3 1.7 3.6.1 1-.1 2.2-.9 2.9-.7.7-1.8.8-2.7.4-1-.4-1.7-1.4-1.9-2.5-.2-.9-.1-1.9-.5-2.7-.4-.8-1.3-1.3-2.1-1.4.5-.5 1-.9 1.6-1.1z"/><path fill="#34c759" d="M23 38c1.6-.4 3.5.1 4.5 1.4 1 1.3 1.1 3.2.4 4.7-.7 1.5-2.2 2.6-3.9 2.7-1.7.1-3.4-.8-4.3-2.2-1-1.5-1-3.7.1-5.1.7-.9 1.8-1.4 2.9-1.5z"/></svg>`;
@@ -8150,14 +8379,23 @@
   function bootstrapWidget() {
     if (widgetInitialized) return;
     widgetInitialized = true;
-    initWidget().catch(function (error) {
-      console.error("❌ ShivAI Widget init failed:", error);
-      widgetInitialized = false;
-    });
+    initWidget()
+      .catch(function (error) {
+        console.error("❌ ShivAI Widget init failed:", error);
+        widgetInitialized = false;
+      })
+      .finally(function () {
+        applyRouteVisibility();
+      });
   }
 
   function startWidget() {
-    bootstrapWidget();
+    hookSpaNavigation();
+    if (shouldAllowWidget5OnThisPage()) {
+      bootstrapWidget();
+    } else {
+      _wlog("⏭️ Widget5 suppressed — landing page uses widget4.js:", window.location.pathname);
+    }
   }
 
   if (document.readyState === "loading") {
