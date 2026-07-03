@@ -206,7 +206,7 @@ const StaffView = () => {
                 >
                   <Plus className="w-4 h-4" /> Add {terms.staff}
                 </button>
-              </div>
+              </div>  
             ) : (
               <div className="space-y-1.5 max-h-[420px] overflow-y-auto">
                 {deptStaff.map((s) => (

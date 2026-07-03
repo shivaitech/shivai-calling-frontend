@@ -51,7 +51,7 @@ const CTA_SHADOW =
 const CTA_GLOSS =
   "linear-gradient(180deg, rgba(255,255,255,0.58) 0%, rgba(255,255,255,0.1) 55%, transparent 100%)";
 
-/* shared glow hues derived from ref palette */
+  
 const GLOW = {
   violet: "rgba(104,58,255",
   deep: "rgba(90,57,204",

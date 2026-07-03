@@ -4894,7 +4894,7 @@
       console.log(`Getting token for Agent: ${agentId}, User: ${userId || 'not set'}...`);
 
       const response = await fetch(
-        "https://staging.voice.callshivai.com/token",
+        "https://voice.callshivai.com/token",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
