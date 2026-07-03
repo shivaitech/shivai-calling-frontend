@@ -341,10 +341,11 @@
 
   function shouldHideNovaTrigger() {
     if (!novaBottomCenterTrigger) return false;
-    // Production Nova pages use the custom mic orb instead of the floating pill.
-    if (!widgetPreviewMode) return true;
-    // Nova public test page on mobile — mic orb opens the widget.
+    // Dashboard customization preview — keep floating trigger visible
+    if (widgetPreviewMode) return false;
+    // Growith Nova custom test page — mic orb replaces trigger (mobile only)
     if (novaTestPageMode && isNovaMobileViewport()) return true;
+    // External client websites — always show the standard floating trigger
     return false;
   }
 
@@ -1138,26 +1139,38 @@
   window.ShivAIWidget.close = closeWidget;
 
   async function initWidget() {
-    // Check agent status first and wait for it to complete
-    // This will also fetch and set window.SHIVAI_WIDGET_CONFIG from API
-    await checkAgentStatusOnLoad();
+    _dbg("Widget5 initializing…");
 
-    // If domain is not authorised, do not render anything
-    if (agentStatus.blocked) {
-      console.warn('🚫 ShivAI Widget: rendering aborted — domain not authorised.');
-      return;
-    }
-    
-    // Now create the widget UI - getCompanyInfo() will use the API data
+    // Render UI immediately so client embeds feel instant (widget2-style UX).
     createWidgetUI();
     setupEventListeners();
     initSoundContext();
-    
-    // Refresh content again to ensure all dynamic elements are updated
-    // (in case any elements weren't available during createWidgetUI)
-    setTimeout(() => {
-      refreshWidgetContent();
-    }, 100);
+    agentStatus.loading = true;
+    updateTriggerBasedOnStatus();
+    updateLandingViewBasedOnStatus();
+
+    // Load LiveKit + agent config in parallel (was serial: LiveKit → then config → then UI).
+    await Promise.all([
+      loadLiveKitSDK().catch(function (error) {
+        console.error("❌ Failed to load LiveKit SDK:", error);
+      }),
+      checkAgentStatusOnLoad(),
+    ]);
+
+    if (agentStatus.blocked) {
+      console.warn('🚫 ShivAI Widget: rendering aborted — domain not authorised.');
+      if (triggerBtn) triggerBtn.remove();
+      if (widgetContainer) widgetContainer.remove();
+      triggerBtn = null;
+      widgetContainer = null;
+      return;
+    }
+
+    refreshWidgetContent();
+    updateTriggerBasedOnStatus();
+    updateLandingViewBasedOnStatus();
+    updateNovaTriggerVisibility();
+    _dbg("Widget5 ready");
   }
   function initSoundContext() {
     if (!soundsEnabled) return;
@@ -1971,6 +1984,7 @@
   }
 
   function createWidgetUI() {
+    if (triggerBtn && widgetContainer) return;
     triggerBtn = document.createElement("button");
     triggerBtn.className = "shivai-trigger";
 
@@ -8135,27 +8149,16 @@
     }
   });
 
-  // Loads the LiveKit SDK then builds the widget. Guarded so it runs only once.
+  // Loads the widget once. LiveKit + config run inside initWidget (parallel).
   function bootstrapWidget() {
     if (widgetInitialized) return;
     widgetInitialized = true;
-    loadLiveKitSDK()
-      .then(() => {
-        _wlog("🚀 Initializing widget with LiveKit support");
-        return initWidget();
-      })
-      .catch((error) => {
-        console.error("❌ Failed to load LiveKit SDK:", error);
-        _wlog("⚠️ Initializing widget anyway (LiveKit features may not work)");
-        return initWidget();
-      })
-      .finally(() => {
-        // Re-apply visibility in case the route changed during async init.
-        applyRouteVisibility();
-      });
+    initWidget().catch(function (error) {
+      console.error("❌ ShivAI Widget init failed:", error);
+      widgetInitialized = false;
+    });
   }
 
-  // Entry point for widget5 — always bootstraps on any page (no route guard).
   function startWidget() {
     bootstrapWidget();
   }
@@ -8165,4 +8168,4 @@
   } else {
     startWidget();
   }
-})(window, document);
+})();
