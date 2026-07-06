@@ -54,7 +54,11 @@
   let currentAssistantTranscript = "";
   let currentUserTranscript = "";
   let lastUserMessageDiv = null;
+  let lastAssistantMessageDiv = null;
   let lastSentMessage = null; // Track last sent message to prevent duplicates
+  let textStreamTranscriptsEnabled = false;
+  let lastUserTranscriptSegmentId = null;
+  let lastAssistantTranscriptSegmentId = null;
   let visualizerInterval = null;
   let isWidgetOpen = false;
   let isConnecting = false;
@@ -347,7 +351,7 @@
     triggerBtn.classList.remove("shivai-trigger--bottom-center");
     var pos = getWidgetPositionPreference();
     triggerBtn.style.position = "fixed";
-    triggerBtn.style.bottom = "calc(24px + env(safe-area-inset-bottom))";
+    triggerBtn.style.bottom = "calc(12px + env(safe-area-inset-bottom))";
     triggerBtn.style.top = "auto";
     triggerBtn.style.transform = "";
     if (pos === "bottom-left") {
@@ -363,6 +367,7 @@
   let messageInterval = null;
   let triggerBtn = null;
   let widgetContainer = null;
+  let lastTriggerRect = null;
   let landingView = null;
   let callView = null;
   let widgetInitialized = false; // becomes true after initWidget() runs once
@@ -1118,6 +1123,16 @@
     };
   }
 
+  function buildCallChatBoxOverrides() {
+    return [
+      ".call-view .call-transcript-box { background: #f8fafc !important; border: 2px solid #cbd5e1 !important; border-radius: 16px !important; box-shadow: 0 12px 32px -10px rgba(15,23,42,0.18), 0 4px 14px -4px rgba(15,23,42,0.1), inset 0 1px 0 rgba(255,255,255,0.9) !important; }",
+      ".call-view .transcript-header { background: #ffffff !important; border-bottom: 1px solid #e2e8f0 !important; }",
+      ".call-view .message.assistant { background: #ffffff !important; border: 1px solid #dbe3ee !important; box-shadow: 0 3px 10px rgba(15,23,42,0.08) !important; color: #111827 !important; }",
+      ".call-view .message.assistant .message-label { display: block !important; color: #374151 !important; margin-bottom: 4px !important; }",
+      ".call-view .message.assistant .message-text { display: block !important; color: #111827 !important; }",
+    ];
+  }
+
   function buildThemedButtonOverrides(p1, p2) {
     var btnGrad = "linear-gradient(135deg, " + p1 + " 0%, " + p2 + " 100%)";
     var btnShadow =
@@ -1198,11 +1213,15 @@
         origEl.textContent = [
           ".shivai-widget .landing-view, .shivai-widget .call-view { background: transparent !important; }",
           ".shivai-widget .landing-content, .shivai-widget .widget-body { background: transparent !important; }",
+          ".shivai-widget .call-bg-photo { display: none !important; }",
+          ".call-view .call-title, .call-view .call-title-prefix, .call-view .call-title-lang { color: #0d1117 !important; text-shadow: none !important; }",
+          ".call-view .call-control-label { color: #374151 !important; text-shadow: none !important; }",
           ".shivai-widget .message.assistant { background: rgba(255,255,255,0.55) !important; }",
+          ".call-view .message.assistant { background: #ffffff !important; border: 1px solid #dbe3ee !important; box-shadow: 0 3px 10px rgba(15,23,42,0.08) !important; }",
           ".shivai-widget .input-field { background: rgba(255,255,255,0.7) !important; color: #1a1a2e !important; }",
           ".shivai-widget .landing-headline, .shivai-widget .widget-title { color: #111827 !important; }",
           ".shivai-widget .widget-subtitle, .shivai-widget .landing-agent-desc { color: #374151 !important; }",
-        ].concat(buildThemedButtonOverrides(p1, p2)).join('\n');
+        ].concat(buildCallChatBoxOverrides(), buildThemedButtonOverrides(p1, p2)).join('\n');
         document.head.appendChild(origEl);
       }
     } else {
@@ -1232,17 +1251,22 @@
         ".widget-subtitle, .landing-agent-desc { color: #4b5563 !important; }",
         ".message.assistant .message-text { color: #1a1a2e !important; }",
         ".message.user .message-text { color: #ffffff !important; }",
-        ".shivai-widget .message.assistant { background: #f3f4f6 !important; }",
+        ".shivai-widget .landing-view .message.assistant { background: #f3f4f6 !important; }",
         ".shivai-widget .message.user { background: " + btnGrad + " !important; }",
         ".call-info-name { color: #1a1a2e !important; }",
         ".call-status { color: #4b5563 !important; }",
         ".input-field { background: #f8fafc !important; color: #1a1a2e !important; border-color: #e2e8f0 !important; }",
+        ".call-view .call-bg-photo, .call-view .call-bg-tint { display: none !important; }",
+        ".call-view .call-title, .call-view .call-title-prefix, .call-view .call-title-lang { color: #1a1a2e !important; text-shadow: none !important; }",
+        ".call-view .call-control-label { color: #374151 !important; text-shadow: none !important; }",
+        ".call-view .call-back-btn { background: #f3f4f6 !important; color: #1a1a2e !important; border: 1px solid #e5e7eb !important; box-shadow: none !important; }",
         ".agent-retry-btn, .call-error-retry-btn { background: " + p1 + " !important; }",
         ".agent-retry-btn:hover, .call-error-retry-btn:hover { background: " + p2 + " !important; }",
-      ].join('\n');
+      ].concat(buildCallChatBoxOverrides()).join('\n');
       document.head.appendChild(overrideEl);
     }
     _wlog("🎨 Widget theme refreshed:", isGlassWidgetBackground() ? "glass" : "white", p1, p2);
+    applyCallViewTheme();
   }
 
   // Function to refresh widget content with updated company info
@@ -2152,15 +2176,12 @@
       activePointerId = null;
     }
   }
-  // Position the widget panel adjacent to the trigger button, wherever it was dragged.
+  // Position the widget panel — when open, anchor flush to viewport bottom.
   function positionWidgetNearTrigger() {
-    if (!triggerBtn || !widgetContainer) return;
-    const btnRect = triggerBtn.getBoundingClientRect();
-    if (btnRect.width === 0 && btnRect.height === 0) return;
+    if (!widgetContainer) return;
 
     const vw = document.documentElement.clientWidth;
     const vh = window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight;
-    // Read safe-area-inset-bottom via a temporary sentinel element
     let safeBottom = 0;
     try {
       const sab = document.createElement('div');
@@ -2169,34 +2190,66 @@
       safeBottom = sab.getBoundingClientRect().height || 0;
       document.body.removeChild(sab);
     } catch (e) {}
+
+    const widgetIsOpen =
+      isWidgetOpen ||
+      widgetContainer.classList.contains("active");
+
+    let btnRect = null;
+    if (triggerBtn) {
+      const rect = triggerBtn.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        lastTriggerRect = {
+          left: rect.left,
+          top: rect.top,
+          right: rect.right,
+          bottom: rect.bottom,
+          width: rect.width,
+          height: rect.height,
+        };
+        btnRect = lastTriggerRect;
+      }
+    }
+    if (!btnRect && widgetIsOpen && lastTriggerRect) {
+      btnRect = lastTriggerRect;
+    }
+    if (!btnRect && !widgetIsOpen) return;
+
     const margin = 10;
     const widgetWidth = Math.min(380, vw - 2 * margin);
-    // Maximum height the widget is ever allowed to be — call view gets more room
     const isCallView = currentView === "call";
-    const maxWidgetHeight = Math.min(isCallView ? 720 : 550, vh - 2 * margin - safeBottom);
+    const callCap = widgetPreviewMode ? 520 : 620;
+    const landingCap = widgetPreviewMode ? 460 : 550;
+    const desiredMaxHeight = isCallView ? callCap : landingCap;
+    const bottomInset = (widgetPreviewMode ? 6 : 10) + safeBottom;
 
-    // Horizontal: center over trigger, clamped to viewport edges
-    let left = btnRect.left + btnRect.width / 2 - widgetWidth / 2;
+    let left;
+    if (btnRect) {
+      left = btnRect.left + btnRect.width / 2 - widgetWidth / 2;
+    } else {
+      // Fallback when open without cached trigger rect
+      left = getWidgetPositionPreference() === "bottom-left"
+        ? margin
+        : vw - widgetWidth - 24;
+    }
     left = Math.max(margin, Math.min(left, vw - widgetWidth - margin));
-
-    const spaceAbove = btnRect.top - margin;
-    const spaceBelow = vh - btnRect.bottom - margin;
 
     widgetContainer.style.position = "fixed";
     widgetContainer.style.left = left + "px";
     widgetContainer.style.right = "auto";
-    // maxHeight is fixed — never clamped to available space (avoids clipping)
-    widgetContainer.style.maxHeight = maxWidgetHeight + "px";
+    widgetContainer.style.top = "auto";
 
-    if (spaceAbove >= maxWidgetHeight || spaceAbove >= spaceBelow) {
-      // Open ABOVE: use 'bottom' so the widget bottom edge is always flush
-      // just above the trigger top — no gap regardless of actual widget height.
-      widgetContainer.style.bottom = (vh - btnRect.top + margin) + "px";
-      widgetContainer.style.top = "auto";
-    } else {
-      // Open BELOW: use 'top' so the widget top is flush below the trigger bottom.
-      widgetContainer.style.top = (btnRect.bottom + margin) + "px";
-      widgetContainer.style.bottom = "auto";
+    if (widgetIsOpen) {
+      const maxFromBottom = Math.max(200, vh - bottomInset - margin);
+      widgetContainer.style.bottom = bottomInset + "px";
+      widgetContainer.style.maxHeight =
+        Math.min(desiredMaxHeight, maxFromBottom) + "px";
+    } else if (btnRect) {
+      const gapAboveTrigger = 6;
+      const availableHeight = Math.max(200, btnRect.top - gapAboveTrigger - margin);
+      widgetContainer.style.bottom = (vh - btnRect.top + gapAboveTrigger) + "px";
+      widgetContainer.style.maxHeight =
+        Math.min(desiredMaxHeight, availableHeight, vh - margin - safeBottom) + "px";
     }
   }
 
@@ -2304,7 +2357,6 @@
     const callCompanyInfo = getCompanyInfo();
     _wlog("📞 Using company info for call view:", callCompanyInfo);
     
-    const callBgUrl = callCompanyInfo.triggerButtonImage || callCompanyInfo.logo || "";
     const visualizerBarsHtml = Array.from({ length: 64 }, (_, i) => {
       const t = i / 63; // 0 → 1
       // Rainbow hue cycle: cyan → blue → purple → pink → red → orange → yellow-green → cyan
@@ -2318,8 +2370,8 @@
       return `<span class="visualizer-bar" style="--bar-color:hsl(${hue},${sat}%,${light}%); --bar-scale:${scale}; animation-delay:${delay}s;"></span>`;
     }).join('');
     callView.innerHTML = `
-    <div class="call-bg-photo" id="call-bg-photo"${callBgUrl ? ` style="background-image:url('${callBgUrl}')"` : ''}></div>
-    <div class="call-bg-tint"></div>
+    <div class="call-bg-photo" id="call-bg-photo" aria-hidden="true"></div>
+    <div class="call-bg-tint" aria-hidden="true"></div>
     <div class="shivai-status-bar call-status-bar">
       <span class="shivai-status-time" id="shivai-status-time-call">--:--</span>
       <span class="shivai-status-network" id="shivai-status-network-call">
@@ -2479,6 +2531,9 @@
     `;
     widgetContainer.appendChild(landingView);
     widgetContainer.appendChild(callView);
+    if (widgetPreviewMode) {
+      widgetContainer.classList.add("shivai-preview-mode");
+    }
     addWidgetStyles();
     document.body.appendChild(triggerBtn);
     document.body.appendChild(widgetContainer);
@@ -3455,7 +3510,7 @@
       /* ── Trigger Button (glass pill capsule) ── */
       .shivai-trigger {
         position: fixed;
-        bottom: calc(24px + env(safe-area-inset-bottom));
+        bottom: calc(12px + env(safe-area-inset-bottom));
         right: 24px;
         display: flex;
         align-items: center;
@@ -3508,7 +3563,7 @@
       .shivai-trigger--bottom-center {
         left: 50% !important;
         right: auto !important;
-        bottom: calc(24px + env(safe-area-inset-bottom)) !important;
+        bottom: calc(12px + env(safe-area-inset-bottom)) !important;
         transform: translateX(-50%);
       }
       .shivai-trigger--bottom-center:hover:not(.dragging) {
@@ -3739,7 +3794,7 @@
       /* ── Widget Container (glass like trigger) ── */
       .shivai-widget {
       position: fixed;
-      bottom: calc(92px + env(safe-area-inset-bottom));
+      bottom: calc(10px + env(safe-area-inset-bottom));
       right: 24px;
       width: 360px;
       max-width: 360px;
@@ -3877,6 +3932,9 @@
       }
       .shivai-widget.active {
       display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      max-height: inherit;
       animation: widgetReveal 0.36s cubic-bezier(0.34,1.56,0.64,1);
       }
       @keyframes widgetReveal {
@@ -4520,22 +4578,24 @@
       display: flex;
       flex-direction: column;
       width: 100%;
-      background: transparent;
+      background: #ffffff;
       position: relative;
-      overflow: visible;
+      overflow: hidden;
+      flex: 1 1 auto;
+      min-height: 0;
       }
 
-      /* ── Call View v2: Blurred photo bg + glass controls ── */
+      /* Call bg layers — avatar photo disabled; theme bg used instead */
       .call-bg-photo {
+        display: none !important;
         position: absolute;
         inset: 0;
         background-size: cover;
         background-position: center;
-        background-color: #4a90e2;
-        filter: blur(18px) saturate(120%);
-        transform: scale(1.12);
+        background-color: transparent;
         z-index: 0;
-        opacity: 0.95;
+        opacity: 0;
+        pointer-events: none;
       }
       .call-bg-tint {
         position: absolute;
@@ -4543,6 +4603,26 @@
         background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.12) 50%, rgba(255,255,255,0.28) 100%);
         z-index: 1;
         pointer-events: none;
+      }
+      .call-view--solid {
+        background: #ffffff !important;
+      }
+      .call-view--solid .call-bg-tint { display: none; }
+      .call-view--solid .call-title,
+      .call-view--solid .call-title-prefix,
+      .call-view--solid .call-title-lang {
+        color: #0d1117 !important;
+        text-shadow: none !important;
+      }
+      .call-view--solid .call-control-label {
+        color: #374151 !important;
+        text-shadow: none !important;
+      }
+      .call-view--solid .call-back-btn {
+        background: #f3f4f6 !important;
+        color: #0d1117 !important;
+        border: 1px solid #e5e7eb !important;
+        box-shadow: none !important;
       }
       .call-status-bar {
         position: relative;
@@ -4554,8 +4634,9 @@
         z-index: 4;
         display: flex;
         flex-direction: column;
-        flex: 1;
+        flex: 1 1 auto;
         min-height: 0;
+        overflow: hidden;
         gap: 0;
       }
 
@@ -4590,16 +4671,14 @@
       .call-title {
         font-size: 15px;
         font-weight: 600;
-        color: #ffffff;
+        color: #0d1117;
         flex: 1;
         line-height: 1.25;
         letter-spacing: -0.015em;
-        text-shadow:
-          0 1px 3px rgba(0,0,0,0.5),
-          0 0 12px rgba(0,0,0,0.35);
+        text-shadow: none;
       }
-      .call-title-prefix { font-weight: 500; opacity: 0.92; margin-right: 4px; color: #ffffff; }
-      .call-title-lang { font-weight: 700; text-transform: capitalize; color: #ffffff; }
+      .call-title-prefix { font-weight: 500; opacity: 0.92; margin-right: 4px; color: #0d1117; }
+      .call-title-lang { font-weight: 700; text-transform: capitalize; color: #0d1117; }
       .call-hidden-status { display: none !important; }
 
       /* Visualizer (SiriWave) */
@@ -4659,27 +4738,28 @@
       /* Transcript Box (always visible) */
       .call-transcript-box {
         order: 3;
-        background: rgba(255,255,255,0.97);
-        border: 1px solid rgba(255,255,255,0.7);
-        border-radius: 18px;
-        margin: 4px 14px 4px;
+        background: #f8fafc !important;
+        border: 2px solid #cbd5e1 !important;
+        border-radius: 16px !important;
+        margin: 8px 14px 8px !important;
         box-shadow:
-          0 6px 18px -4px rgba(0,0,0,0.18),
-          0 0 0 1px rgba(120,150,220,0.1);
+          0 12px 32px -10px rgba(15, 23, 42, 0.18),
+          0 4px 14px -4px rgba(15, 23, 42, 0.1),
+          inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
         overflow: hidden;
         display: flex;
         flex-direction: column;
         flex: 1 1 auto;
-        min-height: 120px;
-        max-height: 280px;
+        min-height: 80px;
+        max-height: none;
       }
       .transcript-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 8px 14px;
-        border-bottom: 1px solid rgba(13,17,23,0.08);
-        background: transparent;
+        padding: 10px 14px;
+        border-bottom: 1px solid #e2e8f0;
+        background: #ffffff;
         flex-shrink: 0;
       }
       .transcript-timer {
@@ -4718,55 +4798,60 @@
       /* Messages (inside transcript box) */
       .call-view .messages-container {
         flex: 1 1 auto;
-        overflow-y: scroll;
+        overflow-y: auto;
         -webkit-overflow-scrolling: touch;
         padding: 12px 14px;
         display: flex;
         flex-direction: column;
         gap: 8px;
         min-height: 0;
-        max-height: 220px;
+        max-height: none;
         background: transparent;
         scrollbar-width: none;
       }
       .call-view .messages-container::-webkit-scrollbar { display: none; }
 
       .call-view .message {
-        background: #f1f3f6 !important;
+        background: #ffffff !important;
         color: #0d1117 !important;
-        border: none !important;
+        border: 1px solid #e2e8f0 !important;
         border-radius: 14px !important;
-        padding: 8px 12px !important;
-        max-width: 88% !important;
-        box-shadow: none !important;
+        padding: 10px 14px !important;
+        max-width: 92% !important;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06) !important;
         font-size: 13px !important;
-        line-height: 1.4 !important;
+        line-height: 1.45 !important;
         letter-spacing: -0.005em !important;
       }
       .call-view .message.user {
         background: linear-gradient(135deg, #0a84ff 0%, #2563eb 100%) !important;
         color: #ffffff !important;
+        border: none !important;
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.28) !important;
         margin-left: auto !important;
         border-bottom-right-radius: 4px !important;
       }
       .call-view .message.assistant {
-        background: #f1f3f6 !important;
+        background: #ffffff !important;
+        border: 1px solid #dbe3ee !important;
+        box-shadow: 0 3px 10px rgba(15, 23, 42, 0.08) !important;
         margin-right: auto !important;
         border-bottom-left-radius: 4px !important;
       }
       .call-view .message-label {
-        display: inline !important;
-        font-size: 13px !important;
+        display: block !important;
+        font-size: 12px !important;
         font-weight: 700 !important;
-        margin: 0 4px 0 0 !important;
+        margin: 0 0 4px 0 !important;
         padding: 0 !important;
-        color: inherit !important;
+        color: #374151 !important;
         text-transform: none !important;
-        letter-spacing: -0.005em !important;
+        letter-spacing: -0.01em !important;
       }
       .call-view .message-label::after { content: ":"; }
-      .call-view .message.user .message-label { color: rgba(255,255,255,1) !important; }
-      .call-view .message-text { display: inline !important; font-size: 13px !important; line-height: 1.42 !important; color: inherit !important; }
+      .call-view .message.user .message-label { color: rgba(255,255,255,0.92) !important; }
+      .call-view .message-text { display: block !important; font-size: 13px !important; line-height: 1.5 !important; color: #111827 !important; }
+      .call-view .message.user .message-text { color: #ffffff !important; }
       .call-view .connecting-text { color: #0d1117; text-shadow: 0 1px 2px rgba(255,255,255,0.5); }
       .call-view .empty-state { color: rgba(13,17,23,0.55); }
       .call-view .empty-state-text { color: rgba(13,17,23,0.55); text-shadow: 0 1px 2px rgba(255,255,255,0.4); }
@@ -4818,8 +4903,8 @@
       .call-control-label {
         font-size: 12px;
         font-weight: 600;
-        color: #0d1117;
-        text-shadow: 0 1px 2px rgba(255,255,255,0.5);
+        color: #374151;
+        text-shadow: none;
         letter-spacing: -0.005em;
       }
 
@@ -5378,15 +5463,45 @@
       .control-btn-icon.mute.muted { background:rgba(255,59,48,0.12); border-color:rgba(255,59,48,0.2); color:#ff3b30; }
       .control-btn-icon.mute.muted:hover { background:rgba(255,59,48,0.2); }
 
+      /* ── Dashboard preview iframe — keep call UI inside preview bounds ── */
+      .shivai-widget.shivai-preview-mode {
+        max-height: min(520px, calc(100vh - 24px)) !important;
+        overflow: hidden !important;
+      }
+      .shivai-widget.shivai-preview-mode .call-view {
+        max-height: 100%;
+      }
+      .shivai-widget.shivai-preview-mode .call-visualizer-zone {
+        display: none;
+      }
+      .shivai-widget.shivai-preview-mode .call-transcript-box {
+        min-height: 72px;
+        margin: 4px 12px !important;
+        border: 2px solid #cbd5e1 !important;
+        box-shadow: 0 10px 28px -10px rgba(15, 23, 42, 0.16) !important;
+      }
+      .shivai-widget.shivai-preview-mode .call-controls-bar {
+        padding: 4px 20px 10px;
+        gap: 16px;
+      }
+      .shivai-widget.shivai-preview-mode .call-view .end-call-btn {
+        width: 68px !important;
+        height: 68px !important;
+      }
+      .shivai-widget.shivai-preview-mode .call-view .control-btn-icon {
+        width: 44px !important;
+        height: 44px !important;
+      }
+
       /* ── Responsive ── */
       @media (max-width: 768px) {
       .shivai-trigger { bottom:calc(18px + env(safe-area-inset-bottom)); right:18px; }
       .shivai-trigger--bottom-center { left:50% !important; right:auto !important; bottom:calc(18px + env(safe-area-inset-bottom)) !important; transform:translateX(-50%); }
       .shivai-message-bubble { font-size:12px; padding:8px 12px; max-width:200px; }
-      .shivai-widget { width:calc(100vw - 32px); right:16px; bottom:calc(96px + env(safe-area-inset-bottom)); max-height:min(620px, calc(100dvh - 120px - env(safe-area-inset-bottom))); }
+      .shivai-widget { width:calc(100vw - 32px); right:16px; bottom:calc(10px + env(safe-area-inset-bottom)); max-height:min(620px, calc(100dvh - 24px - env(safe-area-inset-bottom))); }
       }
       @media (max-width: 480px) {
-      .shivai-widget { width:calc(100vw - 24px); right:12px; bottom:calc(90px + env(safe-area-inset-bottom)); max-height:min(580px, calc(100dvh - 110px - env(safe-area-inset-bottom))); }
+      .shivai-widget { width:calc(100vw - 24px); right:12px; bottom:calc(10px + env(safe-area-inset-bottom)); max-height:min(580px, calc(100dvh - 24px - env(safe-area-inset-bottom))); }
       .widget-header  { padding:16px 16px 14px; }
       .widget-body    { padding:14px 16px; }
       .shivai-trigger { bottom:calc(14px + env(safe-area-inset-bottom)); right:14px; }
@@ -6029,12 +6144,25 @@
   }
 
   function refreshCallBgPhoto() {
+    applyCallViewTheme();
+  }
+
+  function applyCallViewTheme() {
+    if (!callView) return;
     const photoEl = document.getElementById("call-bg-photo");
-    if (!photoEl) return;
-    const info = getCompanyInfo();
-    const url = info.triggerButtonImage || info.logo || "";
-    if (url) {
-      photoEl.style.backgroundImage = `url('${url}')`;
+    const tintEl = callView.querySelector(".call-bg-tint");
+    const isGlass = isGlassWidgetBackground();
+
+    callView.classList.toggle("call-view--glass", isGlass);
+    callView.classList.toggle("call-view--solid", !isGlass);
+
+    // Never show avatar/photo background in call UI — use theme background instead
+    if (photoEl) {
+      photoEl.style.backgroundImage = "none";
+      photoEl.style.display = "none";
+    }
+    if (tintEl) {
+      tintEl.style.display = isGlass ? "block" : "none";
     }
   }
   function switchToLandingView() {
@@ -6057,12 +6185,13 @@
     }
   }
   function openWidget() {
-      positionWidgetNearTrigger();
     widgetContainer.classList.add("active");
     isWidgetOpen = true;
+    positionWidgetNearTrigger();
     if (triggerBtn) {
       triggerBtn.style.display = "none";
     }
+    positionWidgetNearTrigger();
     hideBubble();
     if (messageInterval) {
       clearInterval(messageInterval);
@@ -6141,7 +6270,11 @@
     currentUserTranscript = "";
     currentAssistantTranscript = "";
     lastUserMessageDiv = null;
+    lastAssistantMessageDiv = null;
     lastSentMessage = null; // Reset last sent message tracker
+    textStreamTranscriptsEnabled = false;
+    lastUserTranscriptSegmentId = null;
+    lastAssistantTranscriptSegmentId = null;
     if (visualizerInterval) {
       clearInterval(visualizerInterval);
       visualizerInterval = null;
@@ -6734,13 +6867,22 @@
     // Check for duplicate messages from the same role in the last 2 seconds
     const now = Date.now();
     const recentMessages = Array.from(messagesDiv.querySelectorAll('.message')).slice(-5);
+    const normalizedIncoming = text.trim().replace(/\s+/g, " ");
     for (const msgEl of recentMessages) {
-      const msgText = msgEl.querySelector('.message-text')?.textContent?.trim();
+      const msgText = msgEl.querySelector('.message-text')?.textContent?.trim().replace(/\s+/g, " ");
       const msgRole = msgEl.classList.contains('user') ? 'user' : 'assistant';
       const msgTime = msgEl.dataset.timestamp ? parseInt(msgEl.dataset.timestamp) : 0;
-      if (msgRole === role && msgText === text.trim() && (now - msgTime) < 2000) {
-        _wlog("🚫 Skipping duplicate message:", text.substring(0, 50));
-        return msgEl;
+      if (msgRole === role && msgText === normalizedIncoming) {
+        if ((now - msgTime) < 2000) {
+          _wlog("🚫 Skipping duplicate message:", text.substring(0, 50));
+          return msgEl;
+        }
+        // Exact duplicate even outside 2s window (e.g. dual event channels)
+        const isLastOfRole = msgEl === messagesDiv.querySelector(`.message.${role}:last-of-type`);
+        if (isLastOfRole) {
+          _wlog("🚫 Skipping repeat of last message:", text.substring(0, 50));
+          return msgEl;
+        }
       }
     }
 
@@ -6815,6 +6957,100 @@
         textDiv.textContent = text;
       }
     }
+  }
+
+  function normalizeTranscriptText(text) {
+    return (text || "").trim().replace(/\s+/g, " ");
+  }
+
+  function getLastTranscriptBubble(role) {
+    return messagesDiv
+      ? messagesDiv.querySelector(`.message.${role}:last-of-type .message-text`)
+      : null;
+  }
+
+  // Single entry point for live voice transcripts — updates one bubble per utterance.
+  function addOrUpdateTranscript(role, text, options = {}) {
+    const normalized = normalizeTranscriptText(text);
+    if (!normalized) return null;
+
+    const isFinal = options.isFinal === true;
+    const isPartial = options.isFinal === false;
+    const segmentId = options.segmentId || null;
+
+    if (
+      role === "user" &&
+      lastSentMessage &&
+      normalized === normalizeTranscriptText(lastSentMessage)
+    ) {
+      _wlog("🚫 Skipping echo of typed/sent user message:", normalized.substring(0, 50));
+      return null;
+    }
+
+    const lastSegmentId =
+      role === "user"
+        ? lastUserTranscriptSegmentId
+        : lastAssistantTranscriptSegmentId;
+
+    if (segmentId && lastSegmentId && segmentId !== lastSegmentId) {
+      if (role === "user") lastUserMessageDiv = null;
+      else lastAssistantMessageDiv = null;
+    }
+    if (segmentId) {
+      if (role === "user") lastUserTranscriptSegmentId = segmentId;
+      else lastAssistantTranscriptSegmentId = segmentId;
+    }
+
+    let trackingDiv =
+      role === "user" ? lastUserMessageDiv : lastAssistantMessageDiv;
+
+    if (isPartial || (isFinal && trackingDiv)) {
+      if (trackingDiv && trackingDiv.isConnected) {
+        updateMessage(trackingDiv, normalized);
+      } else {
+        trackingDiv = addMessage(role, normalized, options);
+        if (role === "user") lastUserMessageDiv = trackingDiv;
+        else lastAssistantMessageDiv = trackingDiv;
+      }
+      if (isFinal) {
+        if (role === "user") {
+          lastUserMessageDiv = null;
+          lastUserTranscriptSegmentId = null;
+        } else {
+          lastAssistantMessageDiv = null;
+          lastAssistantTranscriptSegmentId = null;
+        }
+      }
+      return trackingDiv;
+    }
+
+    const lastBubble = getLastTranscriptBubble(role);
+    if (
+      lastBubble &&
+      normalizeTranscriptText(lastBubble.textContent) === normalized
+    ) {
+      _wlog(
+        "🚫 Skipping exact duplicate transcript:",
+        role,
+        normalized.substring(0, 50)
+      );
+      return null;
+    }
+
+    return addMessage(role, normalized, options);
+  }
+
+  function addAssistantTranscriptOnce(text, options = {}) {
+    const normalized = normalizeTranscriptText(text);
+    if (!normalized) return null;
+    const lastBubble = getLastTranscriptBubble("assistant");
+    if (
+      lastBubble &&
+      normalizeTranscriptText(lastBubble.textContent) === normalized
+    ) {
+      return null;
+    }
+    return addMessage("assistant", normalized, options);
   }
 
   // ── WhatsApp-style document card from AI ────────────────────────────────
@@ -7430,7 +7666,7 @@
             try {
               const data = JSON.parse(metadata);
               if (data.transcript || data.text) {
-                addMessage("assistant", data.transcript || data.text);
+                addAssistantTranscriptOnce(data.transcript || data.text);
                 _wlog(
                   "✅ Transcript from participant metadata:",
                   data.transcript || data.text
@@ -7449,7 +7685,7 @@
           try {
             const data = JSON.parse(metadata);
             if (data.transcript || data.text) {
-              addMessage("assistant", data.transcript || data.text);
+              addAssistantTranscriptOnce(data.transcript || data.text);
               _wlog(
                 "✅ Transcript from room metadata:",
                 data.transcript || data.text
@@ -7786,6 +8022,10 @@
 
                 // Handle legacy transcript format
                 if (jsonData.type === "transcript" && jsonData.text) {
+                  if (textStreamTranscriptsEnabled) {
+                    _wlog("🚫 Skipping DataReceived transcript — using lk.transcription stream");
+                    return;
+                  }
                   if (jsonData.role === "user") {
                     // Allow voice transcripts for user, but skip chat messages
                     if (jsonData.type !== "chat") {
@@ -7821,6 +8061,10 @@
                 }
 
                 if (shouldAddToChat) {
+                  if (textStreamTranscriptsEnabled) {
+                    _wlog("🚫 Skipping DataReceived chat text — using lk.transcription stream");
+                    return;
+                  }
                   const senderRole = isUser ? "user" : "assistant";
                   // Skip typed messages (they have source: 'typed') but allow voice transcripts
                   if (
@@ -7849,6 +8093,11 @@
               } catch (e) {
                 // Not JSON, treat as plain text
                 _dbg("📄 Plain text received:", text);
+
+                if (textStreamTranscriptsEnabled) {
+                  _wlog("🚫 Skipping plain DataReceived text — using lk.transcription stream");
+                  return;
+                }
 
                 // If it's reasonable length text (not just noise), add it
                 if (text.length >= 2 && text.length <= 1000) {
@@ -7912,36 +8161,46 @@
                   const isUser =
                     participantInfo.identity ===
                     room.localParticipant?.identity;
-                  const senderName = isUser ? "user" : "assistant";
+                  const role = isUser ? "user" : "assistant";
 
-                  // Skip duplicate typed/sent messages
+                  // Prevent duplicate typed/sent user messages (widget4 behaviour)
                   if (
                     isUser &&
                     lastSentMessage &&
                     text.trim() === lastSentMessage.trim()
                   ) {
-                    _wlog("🚫 Skipping duplicate user transcription:", text);
+                    _wlog(
+                      "🚫 Skipping duplicate user message from transcription:",
+                      text
+                    );
                     return;
                   }
 
                   if (isUser) {
-                    // ── User speech: update same bubble for every partial, clear on final ──
-                    if (!lastUserMessageDiv) {
-                      lastUserMessageDiv = addMessage("user", text);
-                    } else {
-                      updateMessage(lastUserMessageDiv, text);
-                    }
-                    if (isFinal) {
-                      lastUserMessageDiv = null;
-                    }
-                  } else {
-                    // ── Assistant: dedupe, then add new bubble ──
-                    const lastBubble = messagesDiv && messagesDiv.querySelector(".message.assistant:last-of-type .message-text");
-                    if (!lastBubble || lastBubble.textContent.trim() !== text.trim()) {
-                      addMessage("assistant", text);
+                    const lastUserBubble = getLastTranscriptBubble("user");
+                    if (
+                      lastUserBubble &&
+                      normalizeTranscriptText(lastUserBubble.textContent) ===
+                        normalizeTranscriptText(text) &&
+                      !lastUserMessageDiv
+                    ) {
+                      _wlog(
+                        "🚫 Skipping duplicate - same user message already in UI:",
+                        text
+                      );
+                      return;
                     }
                   }
-                  _wlog("✅ Transcription added:", { sender: senderName, text, isFinal });
+
+                  addOrUpdateTranscript(role, text, {
+                    isFinal: isFinal,
+                    segmentId: segmentId || null,
+                  });
+                  _wlog("✅ Transcription added:", {
+                    sender: role,
+                    text,
+                    isFinal,
+                  });
 
                   // Clear loading/connecting state on first AI transcription
                   if (!isUser && !firstResponseReceived) {
@@ -7978,7 +8237,7 @@
 
                 if (!isUser && text && text.trim()) {
                   _wlog("💬 AI Chat response received:", text);
-                  addMessage("assistant", text, { source: "chat" });
+                  addAssistantTranscriptOnce(text, { source: "chat" });
                   _wlog("💬 Chat message added:", {
                     sender: participantInfo.identity,
                     text,
@@ -8005,10 +8264,12 @@
           );
 
           _wlog("✅ Text stream handlers registered successfully");
+          textStreamTranscriptsEnabled = true;
         } else {
           console.warn(
             "⚠️ registerTextStreamHandler not available, using fallback DataReceived"
           );
+          textStreamTranscriptsEnabled = false;
         }
       } catch (error) {
         console.error("❌ Error registering text stream handlers:", error);

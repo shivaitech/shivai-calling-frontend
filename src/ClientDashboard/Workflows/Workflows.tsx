@@ -2299,19 +2299,19 @@ const Workflows = () => {
                 </div>
 
                 <GlassCard>
-                  <div className="p-4 sm:p-6">
+                  <div className="p-4 sm:p-6 min-w-0 overflow-hidden">
                     {/* Page header */}
-                    <div className="flex items-center gap-3 mb-6">
+                    <div className="flex items-start sm:items-center gap-3 mb-6 min-w-0">
                       <button
                         onClick={() => { setDocView('list'); resetDocForm(); }}
-                        className="p-2 rounded-xl common-bg-icons hover:text-blue-500 transition-colors"
+                        className="p-2 rounded-xl common-bg-icons hover:text-blue-500 transition-colors flex-shrink-0"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                       </button>
-                      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
                         <BookOpen className="w-4 h-4 text-white" />
                       </div>
-                      <div>
+                      <div className="min-w-0 flex-1">
                         <h3 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-white">
                           {editingDoc ? 'Edit Document' : 'New Document'}
                         </h3>
@@ -2321,9 +2321,9 @@ const Workflows = () => {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-8">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-8 min-w-0">
                       {/* Left Column */}
-                      <div className="space-y-5">
+                      <div className="space-y-5 min-w-0">
                       {/* Document name */}
                       <div>
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
@@ -2339,11 +2339,11 @@ const Workflows = () => {
                       </div>
 
                       {/* Keywords */}
-                      <div>
+                      <div className="min-w-0">
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                           Keywords
                         </label>
-                        <p className="text-xs text-slate-400 mb-2">Type a keyword and click <span className="font-medium text-blue-500">+ Add</span> (or press Enter) to add it.</p>
+                        <p className="text-xs text-slate-400 mb-2 break-words">Type a keyword and click <span className="font-medium text-blue-500">+ Add</span> (or press Enter) to add it.</p>
                         {/* Tag chips */}
                         {newDoc.keywords.length > 0 && (
                           <div className="flex flex-wrap gap-1.5 mb-2">
@@ -2363,7 +2363,7 @@ const Workflows = () => {
                           </div>
                         )}
                         {/* Input + Add button row */}
-                        <div className="flex gap-2 items-center">
+                        <div className="flex flex-col sm:flex-row gap-2 w-full min-w-0 sm:items-center">
                           <input
                             id="kw-input-page"
                             type="text"
@@ -2371,13 +2371,13 @@ const Workflows = () => {
                             onChange={e => setDocKeywordInput(e.target.value)}
                             onKeyDown={handleKeywordInputKey}
                             placeholder="e.g. pricing, refund policy..."
-                            className="flex-1 px-3 py-2 rounded-xl text-sm common-bg-icons outline-none text-slate-700 dark:text-slate-300 placeholder:text-slate-400"
+                            className="w-full sm:flex-1 min-w-0 px-3 py-2.5 rounded-xl text-sm common-bg-icons outline-none text-slate-700 dark:text-slate-300 placeholder:text-slate-400"
                           />
                           <button
                             type="button"
                             onClick={handleAddKeyword}
                             disabled={!docKeywordInput.trim()}
-                            className="px-3 py-2 rounded-xl text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                            className="w-full sm:w-auto flex-shrink-0 px-4 py-2.5 rounded-xl text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
                           >
                             + Add
                           </button>
@@ -2401,7 +2401,7 @@ const Workflows = () => {
                       </div>
 
                       {/* Right Column */}
-                      <div className="space-y-5">
+                      <div className="space-y-5 min-w-0">
                       {/* Document type */}
                       <div>
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
