@@ -1,1 +1,0 @@
-const t="https://www.callshivai.com/widget5.js";function s(s){const c=new URLSearchParams;Object.entries(s).forEach(([t,s])=>{null!=s&&""!==s&&c.set(t,s)});const n=c.toString();return n?`${t}?${n}`:t}function c(t,c=""){const n=c?` ${c.trim()}`:"";return`<script src="${s(t)}"${n}><\/script>`}export{s as a,c as b};

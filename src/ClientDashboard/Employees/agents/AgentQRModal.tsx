@@ -2,7 +2,7 @@ import React from "react";
 import { QrCode, X } from "lucide-react";
 import QRCode from "react-qr-code";
 import { useAuth } from "../../../contexts/AuthContext";
-import { buildWidgetScriptUrl } from "../../../lib/widgetConfig";
+import { buildAgentPageUrl, buildWidgetScriptUrl } from "../../../lib/widgetConfig";
 
 interface Agent {
   id: string;
@@ -21,7 +21,7 @@ const AgentQRModal: React.FC<AgentQRModalProps> = ({ agent, onClose }) => {
     agentId: agent.id,
     userId: user?.id,
   });
-  const widgetPageUrl = `https://www.callshivai.com/MyAIEmployee/${agent.id}/?agentId=${agent.id}${user?.id ? `&userId=${user.id}` : ''}`;
+  const widgetPageUrl = buildAgentPageUrl(agent.id, { userId: user?.id });
   const [qrSize, setQrSize] = React.useState(180);
 
   React.useEffect(() => {
