@@ -1130,6 +1130,15 @@
       ".call-view .message.assistant { background: #ffffff !important; border: 1px solid #dbe3ee !important; box-shadow: 0 3px 10px rgba(15,23,42,0.08) !important; color: #111827 !important; }",
       ".call-view .message.assistant .message-label { display: block !important; color: #374151 !important; margin-bottom: 4px !important; }",
       ".call-view .message.assistant .message-text { display: block !important; color: #111827 !important; }",
+      ".call-view .doc-card { background: #f8fafc !important; border: 1px solid #dbe3ee !important; box-shadow: 0 2px 8px rgba(15,23,42,0.06) !important; }",
+      ".call-view .doc-card:hover { background: #f1f5f9 !important; }",
+      ".call-view .doc-name { color: #111827 !important; }",
+      ".call-view .doc-size, .call-view .doc-type-label { color: #6b7280 !important; }",
+      ".call-view .doc-caption { color: #6b7280 !important; }",
+      ".call-view .message.assistant.message-document { display: flex !important; flex-direction: column !important; align-items: flex-start !important; gap: 4px !important; }",
+      ".call-view .message.assistant.message-document .message-label { display: block !important; margin: 0 0 4px 0 !important; color: #374151 !important; }",
+      ".call-view .message.assistant.message-document .message-label::after { content: \"\" !important; }",
+      ".call-view .message.assistant.message-document .doc-card { width: 100% !important; max-width: 260px !important; margin-top: 2px !important; }",
     ];
   }
 
@@ -7054,6 +7063,34 @@
   }
 
   // ── WhatsApp-style document card from AI ────────────────────────────────
+  function resolveDocumentPayload(jsonData) {
+    const url = jsonData.url || jsonData.file_url || jsonData.download_url;
+    if (!url) return null;
+    const rawType = String(jsonData.type || "").toLowerCase();
+    const docType =
+      jsonData.doc_type ||
+      (rawType && rawType !== "link" ? jsonData.type : "") ||
+      "";
+    return {
+      url: url,
+      name: jsonData.name || jsonData.file_name || jsonData.filename || "Document",
+      size: jsonData.size || jsonData.file_size || null,
+      mime_type: jsonData.mime_type || jsonData.content_type || jsonData.type_hint || "",
+      type: docType,
+      caption: jsonData.caption || jsonData.description || "",
+    };
+  }
+
+  const DOCUMENT_SHARE_TYPES = new Set([
+    "document_share",
+    "file_share",
+    "link",
+    "document",
+    "document_link",
+    "pdf",
+    "file",
+  ]);
+
   function addDocumentMessage(docData) {
     // docData: { url, name, size, mime_type, type, caption }
     if (!docData || !docData.url) return;
@@ -7075,14 +7112,14 @@
 
     // Icon + colour — check docData.type first, then mime_type, then filename
     let iconEmoji = '📄', colorClass = 'file', isLinkType = false;
-    if      (typeStr.includes('pdf'))                           { iconEmoji = '📕'; colorClass = 'pdf';    }
+    if      (typeStr.includes('pdf') || /pdf/i.test(name))       { iconEmoji = '📕'; colorClass = 'pdf';    }
     else if (typeStr.includes('word'))                          { iconEmoji = '📘'; colorClass = 'word';   }
     else if (typeStr.includes('image'))                         { iconEmoji = '🖼️'; colorClass = 'img';    }
     else if (typeStr.includes('text'))                          { iconEmoji = '📄'; colorClass = 'txt';    }
     else if (typeStr.includes('website'))                       { iconEmoji = '🌐'; colorClass = 'link';   isLinkType = true; }
     else if (typeStr.includes('social'))                        { iconEmoji = '📱'; colorClass = 'social'; isLinkType = true; }
     else if (typeStr.includes('link'))                          { iconEmoji = '🔗'; colorClass = 'link';   isLinkType = true; }
-    else if (mime.includes('pdf'))                              { iconEmoji = '📕'; colorClass = 'pdf';    }
+    else if (mime.includes('pdf') || url.match(/\.pdf(\?|$)/i)) { iconEmoji = '📕'; colorClass = 'pdf';    }
     else if (mime.includes('word') || name.match(/\.docx?$/i)) { iconEmoji = '📘'; colorClass = 'word';   }
     else if (mime.includes('sheet') || name.match(/\.xlsx?$/i)){ iconEmoji = '📗'; colorClass = 'xls';    }
     else if (mime.includes('presentation') || name.match(/\.pptx?$/i)) { iconEmoji = '📙'; colorClass = 'ppt'; }
@@ -7103,12 +7140,13 @@
 
     // Build card
     const card = document.createElement('div');
-    card.className = 'message assistant';
+    card.className = 'message assistant message-document';
     card.dataset.timestamp = Date.now().toString();
 
     const label       = document.createElement('div');
     label.className   = 'message-label';
-    label.textContent = 'AI Employee';
+    const _ci = (typeof getCompanyInfo === "function") ? getCompanyInfo() : {};
+    label.textContent = _ci.name || _ci.agentName || 'AI Employee';
 
     const link = document.createElement('a');
     link.className = 'doc-card';
@@ -7141,7 +7179,7 @@
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
     if (clearBtn) clearBtn.style.display = 'flex';
-    _wlog('📎 Document card added:', name, typeLabel, url);
+    _dbg('📎 Document card added:', name, url);
   }
   function animateVisualizer(active) {
     if (!visualizerBars) return;
@@ -7903,18 +7941,14 @@
                   return;
                 }
 
-                // ── Document / file shared by AI ────────────────────────────
-                if (jsonData.type === "document_share" || jsonData.type === "file_share") {
-                  _wlog("📎 AI shared a document:", jsonData);
-                  addDocumentMessage({
-                    url:       jsonData.url       || jsonData.file_url  || jsonData.download_url,
-                    name:      jsonData.name      || jsonData.file_name || jsonData.filename || "Document",
-                    size:      jsonData.size      || jsonData.file_size || null,
-                    mime_type: jsonData.mime_type || jsonData.content_type || jsonData.type_hint || "",
-                    type:      jsonData.doc_type  || "",
-                    caption:   jsonData.caption   || jsonData.description || "",
-                  });
-                  return;
+                // ── Document / file / link shared by AI ─────────────────────
+                if (DOCUMENT_SHARE_TYPES.has(jsonData.type)) {
+                  const docPayload = resolveDocumentPayload(jsonData);
+                  if (docPayload) {
+                    _dbg("📎 Rendering document card:", docPayload.name, docPayload.url);
+                    addDocumentMessage(docPayload);
+                    return;
+                  }
                 }
 
                 // ── Documents array inside transcription ─────────────────────

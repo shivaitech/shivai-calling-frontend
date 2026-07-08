@@ -56,6 +56,7 @@
   let lastSentMessage = null; // Track last sent message to prevent duplicates
   let visualizerInterval = null;
   let isWidgetOpen = false;
+  let lastTriggerRect = null;
   let isConnecting = false;
   let loadingInterval = null;
   let hasReceivedFirstAIResponse = false;
@@ -112,25 +113,25 @@
   let closeLangDropdownRef = null;
 
   let liveMessages = [
-    "📞 Call ShivAI!",
-    "📞 Call ShivAI!",
-    "📞 Call ShivAI!",
-    "📞 Call ShivAI!",
+    "Talk to us",
+    "Talk to us",
+    "Talk to us",
+    "Talk to us",
   ];
 
-  // Helper function to get company info from API widget config, URL parameters, or defaults
+  // Resolve branding from API widget config (aligned with widget5)
   function getCompanyInfo() {
-    let companyDescription = "AI-Powered Support";
-    let agentName = "AI Employee";
-    let companyLogo = ""; // Empty means use default ShivAI logo
-    let triggerButtonImage = ""; // Empty means use default phone icon
-    let callToActionText = "📞 Call ShivAI!"; // Default cloud bubble text
+    let companyDescription = "";
+    let agentName = "";
+    let companyLogo = "";
+    let triggerButtonImage = "";
+    let callToActionText = "";
     let themeColors = {
       primaryColor: "#4b5563",
       secondaryColor: "#ffffff", 
       accentColor: "#2563eb"
     };
-    let configSource = "defaults";
+    let configSource = "none";
     
     try {
       // ✅ PRIORITY 1: Check for API widget configuration (from AgentWidgetCustomization component)
@@ -183,8 +184,8 @@
         configSource = "API widget config";
       }
       
-      // ✅ PRIORITY 2: Check SHIVAI_CONFIG (legacy component state)
-      else if (window.SHIVAI_CONFIG && typeof window.SHIVAI_CONFIG === 'object') {
+      // SHIVAI_CONFIG fallback when API config is not loaded yet
+      if (!agentName && window.SHIVAI_CONFIG && typeof window.SHIVAI_CONFIG === 'object') {
         _wlog("📦 SHIVAI_CONFIG found, using as fallback source");
         
         const config = window.SHIVAI_CONFIG;
@@ -238,14 +239,20 @@
         configSource = "SHIVAI_CONFIG";
       }
       
-      // ✅ PRIORITY 3: Check URL parameters (legacy fallback)
-      else {
-        _wlog("📝 No API/component config found, checking URL parameters as fallback");
-        
+      // URL parameters from widget script tag
+      if (!agentName) {
+        _wlog("📝 Checking URL parameters for agent branding");
         const scriptTags = document.getElementsByTagName('script');
         for (let i = scriptTags.length - 1; i >= 0; i--) {
           const script = scriptTags[i];
-          if (script.src && script.src.includes('/widget2.js')) {
+          if (
+            script.src &&
+            (script.src.includes('/widget2.js') ||
+              script.src.includes('/widget3.js') ||
+              script.src.includes('/widget4.js') ||
+              script.src.includes('/widget5.js') ||
+              script.src.includes('/widget.js'))
+          ) {
             try {
               const url = new URL(script.src);
               const urlCompanyName = url.searchParams.get('companyName');
@@ -260,14 +267,13 @@
                 agentName = decodeURIComponent(urlCompanyName);
                 _wlog("🤖 Using companyName URL param as agent name:", agentName);
               }
-              if (urlCompanyDescription) {
+              if (!companyDescription && urlCompanyDescription) {
                 companyDescription = decodeURIComponent(urlCompanyDescription);
-                _wlog("📄 Using companyDescription from URL parameter:", companyDescription);
               }
-              if (urlCompanyLogo) {
+              if (!companyLogo && urlCompanyLogo) {
                 companyLogo = decodeURIComponent(urlCompanyLogo);
-                _wlog("🖼️ Using companyLogo from URL parameter");
               }
+              if (agentName) configSource = configSource === "none" ? "URL parameters" : configSource;
               break;
             } catch (urlError) {
               console.warn("⚠️ Error parsing script URL:", urlError);
@@ -275,23 +281,19 @@
             }
           }
         }
-        
-        configSource = "URL parameters";
       }
       
     } catch (error) {
-      console.warn("⚠️ Error getting company info, using defaults:", error);
-      configSource = "defaults";
+      console.warn("⚠️ Error getting company info:", error);
     }
     
-    if (!callToActionText || callToActionText === "📞 Call ShivAI!") {
-      if (agentName && agentName !== "AI Employee") {
-        callToActionText = "Talk to " + agentName;
-      }
+    if (!callToActionText) {
+      if (agentName) callToActionText = "Talk to " + agentName;
+      else callToActionText = "Talk to us";
     }
     
     const result = { 
-      name: agentName || "ShivAI", 
+      name: agentName,
       description: companyDescription,
       agentName: agentName,
       logo: companyLogo,
@@ -300,7 +302,7 @@
       theme: themeColors,
       configSource: configSource
     };
-    _wlog(`✅ Final company info being used (source: ${configSource}):`, result);
+    _wlog(`✅ Final company info (source: ${configSource}):`, result);
     return result;
   }
   
@@ -465,7 +467,11 @@
       }
       return;
     }
-    if (subtitleEl) subtitleEl.textContent = 'AI Assistant';
+    // Show dynamic CTA / agent name as subtitle (same as widget5)
+    if (subtitleEl) {
+      var info = getCompanyInfo();
+      subtitleEl.textContent = info.callToActionText || (info.name ? "Talk to " + info.name : "Talk to us");
+    }
   }
 
   function wireAgentRetryButton() {
@@ -898,7 +904,7 @@
       landingAgentDesc.textContent = desc && !desc.endsWith('.') ? desc + '.' : desc;
     }
 
-    const triggerDisplayName = companyInfo.agentName || companyInfo.name || "ShivAI";
+    const triggerDisplayName = companyInfo.agentName || companyInfo.name || "AI Employee";
     const triggerTitle = triggerBtn && triggerBtn.querySelector('.shivai-trigger-title');
     if (triggerTitle) {
       triggerTitle.textContent = triggerDisplayName;
@@ -906,7 +912,7 @@
     const triggerSubtitleEl = triggerBtn && triggerBtn.querySelector('.shivai-trigger-subtitle');
     if (triggerSubtitleEl && agentStatus.active && !agentStatus.loading) {
       triggerSubtitleEl.textContent = companyInfo.callToActionText ||
-        (companyInfo.agentName ? "Talk to " + companyInfo.agentName : "AI Assistant");
+        (companyInfo.agentName || companyInfo.name ? "Talk to " + (companyInfo.agentName || companyInfo.name) : "Talk to us");
     }
     if (triggerBtn) {
       triggerBtn.setAttribute("aria-label", "Open " + triggerDisplayName + " Assistant");
@@ -920,6 +926,23 @@
       } else {
         triggerAvatarWrap.innerHTML = `<div class="shivai-trigger-avatar shivai-trigger-avatar--fallback">${initial}</div>`;
       }
+    }
+
+    const connectingTextEl = widgetContainer && widgetContainer.querySelector('.connecting-text');
+    if (connectingTextEl) {
+      const displayName = companyInfo.agentName || companyInfo.name;
+      connectingTextEl.textContent = displayName
+        ? `Connecting to ${displayName}...`
+        : "Connecting to your AI Employee...";
+    }
+
+    if (companyInfo.callToActionText) {
+      liveMessages = [
+        companyInfo.callToActionText,
+        companyInfo.callToActionText,
+        companyInfo.callToActionText,
+        companyInfo.callToActionText,
+      ];
     }
 
     updateLandingViewBasedOnStatus();
@@ -1719,15 +1742,12 @@
       activePointerId = null;
     }
   }
-  // Position the widget panel adjacent to the trigger button, wherever it was dragged.
+  // Position the widget panel — when open, anchor flush to viewport bottom.
   function positionWidgetNearTrigger() {
-    if (!triggerBtn || !widgetContainer) return;
-    const btnRect = triggerBtn.getBoundingClientRect();
-    if (btnRect.width === 0 && btnRect.height === 0) return;
+    if (!widgetContainer) return;
 
     const vw = document.documentElement.clientWidth;
     const vh = window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight;
-    // Read safe-area-inset-bottom via a temporary sentinel element
     let safeBottom = 0;
     try {
       const sab = document.createElement('div');
@@ -1736,34 +1756,61 @@
       safeBottom = sab.getBoundingClientRect().height || 0;
       document.body.removeChild(sab);
     } catch (e) {}
+
+    const widgetIsOpen =
+      isWidgetOpen ||
+      widgetContainer.classList.contains("active");
+
+    let btnRect = null;
+    if (triggerBtn) {
+      const rect = triggerBtn.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        lastTriggerRect = {
+          left: rect.left,
+          top: rect.top,
+          right: rect.right,
+          bottom: rect.bottom,
+          width: rect.width,
+          height: rect.height,
+        };
+        btnRect = lastTriggerRect;
+      }
+    }
+    if (!btnRect && widgetIsOpen && lastTriggerRect) {
+      btnRect = lastTriggerRect;
+    }
+    if (!btnRect && !widgetIsOpen) return;
+
     const margin = 10;
     const widgetWidth = Math.min(380, vw - 2 * margin);
-    // Maximum height the widget is ever allowed to be — call view gets more room
     const isCallView = currentView === "call";
-    const maxWidgetHeight = Math.min(isCallView ? 720 : 550, vh - 2 * margin - safeBottom);
+    const desiredMaxHeight = isCallView ? 620 : 550;
+    const bottomInset = 10 + safeBottom + Math.round(vh * 0.04);
 
-    // Horizontal: center over trigger, clamped to viewport edges
-    let left = btnRect.left + btnRect.width / 2 - widgetWidth / 2;
+    let left;
+    if (btnRect) {
+      left = btnRect.left + btnRect.width / 2 - widgetWidth / 2;
+    } else {
+      left = vw - widgetWidth - 24;
+    }
     left = Math.max(margin, Math.min(left, vw - widgetWidth - margin));
-
-    const spaceAbove = btnRect.top - margin;
-    const spaceBelow = vh - btnRect.bottom - margin;
 
     widgetContainer.style.position = "fixed";
     widgetContainer.style.left = left + "px";
     widgetContainer.style.right = "auto";
-    // maxHeight is fixed — never clamped to available space (avoids clipping)
-    widgetContainer.style.maxHeight = maxWidgetHeight + "px";
+    widgetContainer.style.top = "auto";
 
-    if (spaceAbove >= maxWidgetHeight || spaceAbove >= spaceBelow) {
-      // Open ABOVE: use 'bottom' so the widget bottom edge is always flush
-      // just above the trigger top — no gap regardless of actual widget height.
-      widgetContainer.style.bottom = (vh - btnRect.top + margin) + "px";
-      widgetContainer.style.top = "auto";
-    } else {
-      // Open BELOW: use 'top' so the widget top is flush below the trigger bottom.
-      widgetContainer.style.top = (btnRect.bottom + margin) + "px";
-      widgetContainer.style.bottom = "auto";
+    if (widgetIsOpen) {
+      const maxFromBottom = Math.max(200, vh - bottomInset - margin);
+      widgetContainer.style.bottom = bottomInset + "px";
+      widgetContainer.style.maxHeight =
+        Math.min(desiredMaxHeight, maxFromBottom) + "px";
+    } else if (btnRect) {
+      const gapAboveTrigger = 6;
+      const availableHeight = Math.max(200, btnRect.top - gapAboveTrigger - margin);
+      widgetContainer.style.bottom = (vh - btnRect.top + gapAboveTrigger) + "px";
+      widgetContainer.style.maxHeight =
+        Math.min(desiredMaxHeight, availableHeight, vh - margin - safeBottom) + "px";
     }
   }
 
@@ -1773,9 +1820,9 @@
 
     // Fetch company info to check for trigger button image
     const triggerCompanyInfo = getCompanyInfo();
-    const triggerName = triggerCompanyInfo.agentName || triggerCompanyInfo.name || "ShivAI";
+    const triggerName = triggerCompanyInfo.agentName || triggerCompanyInfo.name || "AI Employee";
     const triggerSubtitle = triggerCompanyInfo.callToActionText ||
-      (triggerName ? "Talk to " + triggerName : "AI Assistant");
+      (triggerName ? "Talk to " + triggerName : "Talk to us");
     const triggerAvatarSrc = triggerCompanyInfo.triggerButtonImage || triggerCompanyInfo.logo || "";
     const initial = (triggerName || "S").trim().charAt(0).toUpperCase();
 
@@ -1946,7 +1993,7 @@
             </svg>
           </div>
         </div>
-        <div class="connecting-text">Connecting to AI Assistant...</div>
+        <div class="connecting-text">Connecting to ${callCompanyInfo.name ? callCompanyInfo.name : 'your AI Employee'}...</div>
       </div>
       <!-- Empty State (shown when connected but no messages) -->
       <div class="empty-state">
@@ -3015,7 +3062,7 @@
       /* ── Trigger Button (glass pill capsule) ── */
       .shivai-trigger {
         position: fixed;
-        bottom: calc(24px + env(safe-area-inset-bottom));
+        bottom: calc(12px + env(safe-area-inset-bottom));
         right: 24px;
         display: flex;
         align-items: center;
@@ -3280,11 +3327,11 @@
       /* ── Widget Container (glass like trigger) ── */
       .shivai-widget {
       position: fixed;
-      bottom: calc(92px + env(safe-area-inset-bottom));
+      bottom: calc(10px + 4dvh + env(safe-area-inset-bottom));
       right: 24px;
       width: 360px;
       max-width: 360px;
-      max-height: min(620px, calc(100dvh - 120px - env(safe-area-inset-bottom)));
+      max-height: min(620px, calc(96dvh - 24px - env(safe-area-inset-bottom)));
       background: rgba(225, 230, 238, 0.62);
       border-radius: 22px;
       border: 1px solid rgba(255,255,255,0.55);
@@ -4312,6 +4359,40 @@
       .call-view .empty-state { color: rgba(13,17,23,0.55); }
       .call-view .empty-state-text { color: rgba(13,17,23,0.55); text-shadow: 0 1px 2px rgba(255,255,255,0.4); }
 
+      /* Document cards inside call transcript (light theme) */
+      .call-view .message.assistant.message-document {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 4px !important;
+      }
+      .call-view .message.assistant.message-document .message-label {
+        display: block !important;
+        margin: 0 0 4px 0 !important;
+        color: #374151 !important;
+      }
+      .call-view .message.assistant.message-document .message-label::after {
+        content: "" !important;
+      }
+      .call-view .doc-card {
+        display: flex !important;
+        align-items: center !important;
+        gap: 10px !important;
+        width: 100% !important;
+        max-width: 260px !important;
+        background: #f8fafc !important;
+        border: 1px solid #dbe3ee !important;
+        border-radius: 12px !important;
+        padding: 10px 12px !important;
+        box-shadow: 0 2px 8px rgba(15,23,42,0.06) !important;
+        text-decoration: none !important;
+      }
+      .call-view .doc-card:hover { background: #f1f5f9 !important; }
+      .call-view .doc-name { color: #111827 !important; }
+      .call-view .doc-size,
+      .call-view .doc-type-label { color: #6b7280 !important; }
+      .call-view .doc-caption { color: #6b7280 !important; }
+
       /* Controls */
       .call-controls-bar {
         display: flex;
@@ -4923,10 +5004,10 @@
       @media (max-width: 768px) {
       .shivai-trigger { bottom:calc(18px + env(safe-area-inset-bottom)); right:18px; }
       .shivai-message-bubble { font-size:12px; padding:8px 12px; max-width:200px; }
-      .shivai-widget { width:calc(100vw - 32px); right:16px; bottom:calc(96px + env(safe-area-inset-bottom)); max-height:min(620px, calc(100dvh - 120px - env(safe-area-inset-bottom))); }
+      .shivai-widget { width:calc(100vw - 32px); right:16px; bottom:calc(10px + 4dvh + env(safe-area-inset-bottom)); max-height:min(620px, calc(96dvh - 24px - env(safe-area-inset-bottom))); }
       }
       @media (max-width: 480px) {
-      .shivai-widget { width:calc(100vw - 24px); right:12px; bottom:calc(90px + env(safe-area-inset-bottom)); max-height:min(580px, calc(100dvh - 110px - env(safe-area-inset-bottom))); }
+      .shivai-widget { width:calc(100vw - 24px); right:12px; bottom:calc(10px + 4dvh + env(safe-area-inset-bottom)); max-height:min(580px, calc(96dvh - 24px - env(safe-area-inset-bottom))); }
       .widget-header  { padding:16px 16px 14px; }
       .widget-body    { padding:14px 16px; }
       .shivai-trigger { bottom:calc(14px + env(safe-area-inset-bottom)); right:14px; }
@@ -5596,12 +5677,13 @@
     }
   }
   function openWidget() {
-    positionWidgetNearTrigger();
     widgetContainer.classList.add("active");
     isWidgetOpen = true;
+    positionWidgetNearTrigger();
     if (triggerBtn) {
       triggerBtn.style.display = "none";
     }
+    positionWidgetNearTrigger();
     hideBubble();
     if (messageInterval) {
       clearInterval(messageInterval);
@@ -6317,7 +6399,7 @@
     const labelDiv = document.createElement("div");
     labelDiv.className = "message-label";
     const _ci = (typeof getCompanyInfo === "function") ? getCompanyInfo() : {};
-    const _agentName = _ci.name || _ci.agentName || "AI Employee";
+    const _agentName = _ci.agentName || _ci.name || "AI Employee";
     labelDiv.textContent = role === "user" ? "You" : _agentName;
     if (options.isFile) {
       const fileDiv = document.createElement("div");
@@ -6357,6 +6439,34 @@
   }
 
   // ── WhatsApp-style document card from AI ────────────────────────────────
+  function resolveDocumentPayload(jsonData) {
+    const url = jsonData.url || jsonData.file_url || jsonData.download_url;
+    if (!url) return null;
+    const rawType = String(jsonData.type || "").toLowerCase();
+    const docType =
+      jsonData.doc_type ||
+      (rawType && rawType !== "link" ? jsonData.type : "") ||
+      "";
+    return {
+      url: url,
+      name: jsonData.name || jsonData.file_name || jsonData.filename || "Document",
+      size: jsonData.size || jsonData.file_size || null,
+      mime_type: jsonData.mime_type || jsonData.content_type || jsonData.type_hint || "",
+      type: docType,
+      caption: jsonData.caption || jsonData.description || "",
+    };
+  }
+
+  const DOCUMENT_SHARE_TYPES = new Set([
+    "document_share",
+    "file_share",
+    "link",
+    "document",
+    "document_link",
+    "pdf",
+    "file",
+  ]);
+
   function addDocumentMessage(docData) {
     // docData: { url, name, size, mime_type, type, caption }
     if (!docData || !docData.url) return;
@@ -6378,14 +6488,14 @@
 
     // Icon + colour — check docData.type first, then mime_type, then filename
     let iconEmoji = '📄', colorClass = 'file', isLinkType = false;
-    if      (typeStr.includes('pdf'))                           { iconEmoji = '📕'; colorClass = 'pdf';    }
+    if      (typeStr.includes('pdf') || /pdf/i.test(name))       { iconEmoji = '📕'; colorClass = 'pdf';    }
     else if (typeStr.includes('word'))                          { iconEmoji = '📘'; colorClass = 'word';   }
     else if (typeStr.includes('image'))                         { iconEmoji = '🖼️'; colorClass = 'img';    }
     else if (typeStr.includes('text'))                          { iconEmoji = '📄'; colorClass = 'txt';    }
     else if (typeStr.includes('website'))                       { iconEmoji = '🌐'; colorClass = 'link';   isLinkType = true; }
     else if (typeStr.includes('social'))                        { iconEmoji = '📱'; colorClass = 'social'; isLinkType = true; }
     else if (typeStr.includes('link'))                          { iconEmoji = '🔗'; colorClass = 'link';   isLinkType = true; }
-    else if (mime.includes('pdf'))                              { iconEmoji = '📕'; colorClass = 'pdf';    }
+    else if (mime.includes('pdf') || url.match(/\.pdf(\?|$)/i)) { iconEmoji = '📕'; colorClass = 'pdf';    }
     else if (mime.includes('word') || name.match(/\.docx?$/i)) { iconEmoji = '📘'; colorClass = 'word';   }
     else if (mime.includes('sheet') || name.match(/\.xlsx?$/i)){ iconEmoji = '📗'; colorClass = 'xls';    }
     else if (mime.includes('presentation') || name.match(/\.pptx?$/i)) { iconEmoji = '📙'; colorClass = 'ppt'; }
@@ -6406,12 +6516,13 @@
 
     // Build card
     const card = document.createElement('div');
-    card.className = 'message assistant';
+    card.className = 'message assistant message-document';
     card.dataset.timestamp = Date.now().toString();
 
     const label       = document.createElement('div');
     label.className   = 'message-label';
-    label.textContent = 'AI Employee';
+    const _ci = (typeof getCompanyInfo === "function") ? getCompanyInfo() : {};
+    label.textContent = _ci.agentName || _ci.name || 'AI Employee';
 
     const link = document.createElement('a');
     link.className = 'doc-card';
@@ -6444,7 +6555,7 @@
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
     if (clearBtn) clearBtn.style.display = 'flex';
-    _wlog('📎 Document card added:', name, typeLabel, url);
+    _dbg('📎 Document card added:', name, url);
   }
   function animateVisualizer(active) {
     if (!visualizerBars) return;
@@ -7206,18 +7317,14 @@
                   return;
                 }
 
-                // ── Document / file shared by AI ────────────────────────────
-                if (jsonData.type === "document_share" || jsonData.type === "file_share") {
-                  _wlog("📎 AI shared a document:", jsonData);
-                  addDocumentMessage({
-                    url:       jsonData.url       || jsonData.file_url  || jsonData.download_url,
-                    name:      jsonData.name      || jsonData.file_name || jsonData.filename || "Document",
-                    size:      jsonData.size      || jsonData.file_size || null,
-                    mime_type: jsonData.mime_type || jsonData.content_type || jsonData.type_hint || "",
-                    type:      jsonData.doc_type  || "",
-                    caption:   jsonData.caption   || jsonData.description || "",
-                  });
-                  return;
+                // ── Document / file / link shared by AI ─────────────────────
+                if (DOCUMENT_SHARE_TYPES.has(jsonData.type)) {
+                  const docPayload = resolveDocumentPayload(jsonData);
+                  if (docPayload) {
+                    _dbg("📎 Rendering document card:", docPayload.name, docPayload.url);
+                    addDocumentMessage(docPayload);
+                    return;
+                  }
                 }
 
                 // ── Documents array inside transcription ─────────────────────

@@ -4901,7 +4901,7 @@
           body: JSON.stringify({
             room: roomName,
             language: selectedLanguage,
-            agent_id: agentId,git add 
+            agent_id: agentId,
             device: deviceType,
             user_agent: navigator.userAgent,
             ip: await getClientIP(),
