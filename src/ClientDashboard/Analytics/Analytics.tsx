@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import GlassCard from "../../components/GlassCard";
 import { useAuth } from "../../contexts/AuthContext";
 import { isDeveloperUser } from "../../lib/utils";
@@ -25,6 +25,14 @@ import {
   Trash2,
 } from "lucide-react";
 import appToast from "../../components/AppToast";
+import {
+  resolveIPLocationsBatch,
+  needsLocationResolution,
+  normalizeSessionLocation,
+  formatIPLocationLabel,
+  isUsableLocation,
+  type IPLocationResult,
+} from "../../lib/ipGeolocation";
 
 const Analytics = () => {
   const { user } = useAuth();
@@ -50,112 +58,8 @@ const Analytics = () => {
   const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [loadingLocations, setLoadingLocations] = useState<Set<string>>(new Set());
-  const ipLocationCacheRef = useRef<any>({});
   const pageSize = 20;
   const agentPageSize = 20;
-
-  // Helper: Detect private/reserved IP addresses
-  const isPrivateIP = (ip: string): boolean => {
-    if (!ip) return false;
-    // Private ranges: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8
-    const privateRanges = [
-      /^10\./,
-      /^172\.(1[6-9]|2[0-9]|3[01])\./,
-      /^192\.168\./,
-      /^127\./,
-      /^169\.254\./,  // Link-local
-      /^::1$/,         // IPv6 loopback
-      /^fc00:/,        // IPv6 private
-      /^0\.0\.0\.0$/,  // Invalid
-      /^255\.255\.255\.255$/, // Broadcast
-    ];
-    return privateRanges.some(range => range.test(ip));
-  };
-
-  // Function to resolve IP to location
-  const resolveIPLocation = async (ip: string) => {
-    // Check if IP is valid
-    if (!ip || ip === "Unknown" || ip === "N/A") {
-      return {
-        city: "Unknown",
-        region: "Unknown",
-        country: "Unknown",
-        status: "invalid",
-      };
-    }
-
-    // Check if private IP
-    if (isPrivateIP(ip)) {
-      console.log(`🔒 Private/Reserved IP detected: ${ip}`);
-      return {
-        city: "Private Network",
-        region: "Local",
-        country: "N/A",
-        status: "private",
-        ip: ip,
-      };
-    }
-
-    // Check cache first
-    if (ipLocationCacheRef.current[ip]) {
-      console.log(`📦 Using cached location for IP ${ip}`);
-      return ipLocationCacheRef.current[ip];
-    }
-
-    try {
-      console.log(`🌐 Resolving location for IP: ${ip}`);
-      // Use HTTPS endpoint with CORS support
-      const response = await fetch(
-        `https://ipapi.co/${ip}/json/`,
-        {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json'
-          }
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      // Use region (state) instead of city — state-level geolocation is far
-      // more accurate for IP lookups than city, since ISPs assign IPs based
-      // on their regional hubs, not the user's actual city.
-      const result = {
-        city: data.city || "Unknown",
-        region: data.region || "Unknown",
-        country: data.country_name || "Unknown",
-        status: "resolved",
-        ip: ip,
-      };
-
-      console.log(`✅ Resolved location for ${ip}:`, result);
-
-      // Cache the result
-      ipLocationCacheRef.current[ip] = result;
-
-      return result;
-    } catch (error) {
-      console.error(`Error resolving IP location for ${ip}:`, error);
-      
-      // Return a default response with Unknown values instead of failing
-      const defaultResponse = {
-        city: "Unknown",
-        region: "Unknown",
-        country: "Unknown",
-        status: "failed",
-        ip: ip,
-      };
-
-      // Cache the error response to avoid repeated failed requests
-      ipLocationCacheRef.current[ip] = defaultResponse;
-
-      return defaultResponse;
-    }
-  };
 
   // Date range state
   const [dateRange, setDateRange] = useState({
@@ -303,22 +207,27 @@ const Analytics = () => {
       const sessionIds = new Set(sessions.map((s: any) => s.id || s.call_id));
       setLoadingLocations(sessionIds);
 
-      // Resolve IP locations for all sessions
-      const sessionsWithLocations = await Promise.all(
-        sessions.map(async (session: any) => {
+      // Resolve IPs when backend location is missing or stub (city/country = Unknown)
+      const ipsToResolve = sessions
+        .filter((session: any) => {
           const ip = session?.user_ip || session?.ip;
-          if (ip && !session?.location) {
-            try {
-              const location = await resolveIPLocation(ip);
-              return { ...session, location };
-            } catch (err) {
-              console.error(`Failed to resolve location for ${ip}:`, err);
-              return { ...session, location: null };
-            }
-          }
-          return session;
+          return ip && needsLocationResolution(session?.location);
         })
-      );
+        .map((session: any) => session?.user_ip || session?.ip);
+
+      const locationMap = await resolveIPLocationsBatch(ipsToResolve, 2);
+
+      const sessionsWithLocations = sessions.map((session: any) => {
+        const ip = session?.user_ip || session?.ip;
+        if (ip && needsLocationResolution(session?.location) && locationMap[ip]) {
+          return { ...session, location: locationMap[ip] };
+        }
+        const normalized = normalizeSessionLocation(session?.location, ip);
+        if (normalized) {
+          return { ...session, location: normalized };
+        }
+        return session;
+      });
 
       // Clear loading state
       setLoadingLocations(new Set());
@@ -997,12 +906,13 @@ const Analytics = () => {
 
                           {/* Location Badge */}
                           {(() => {
-                            const locationData = session.location;
+                            const ip = session?.user_ip || session?.ip;
                             const sessionId = session.id || session.call_id;
                             const isResolvingLocation = loadingLocations.has(sessionId);
-                            const ip = session?.user_ip || session?.ip;
+                            const locationData: IPLocationResult | null =
+                              normalizeSessionLocation(session.location, ip) ||
+                              (session.location as IPLocationResult | null);
 
-                            // If still resolving, show loading indicator
                             if (isResolvingLocation) {
                               return (
                                 <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800/40 px-3 py-1.5 rounded-lg text-xs animate-pulse">
@@ -1012,9 +922,10 @@ const Analytics = () => {
                               );
                             }
 
-                            // Always show something if we have an IP
-                            if (ip && !locationData) {
-                              // If no location data yet, it means resolution failed
+                            if (!ip && !locationData) return null;
+
+                            const displayText = formatIPLocationLabel(locationData, ip);
+                            if (!displayText || displayText.startsWith("Resolving")) {
                               return (
                                 <div className="flex items-center gap-1.5 bg-amber-50 dark:bg-amber-900/20 px-3 py-1.5 rounded-lg text-xs">
                                   <MapPin className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
@@ -1023,44 +934,26 @@ const Analytics = () => {
                               );
                             }
 
-                            if (!locationData) {
-                              return null;
-                            }
-
-                            const { status, city, region, country } = locationData;
-                            
-                            // Build location label based on status
-                            let displayText = '';
                             let badgeColor = 'bg-slate-50 dark:bg-slate-900/30 text-slate-700 dark:text-slate-300';
-                            let icon = null;
+                            let icon = <MapPin className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />;
 
-                            if (status === 'private') {
-                              displayText = `${city} (${ip})`;
+                            if (locationData?.status === 'private') {
                               badgeColor = 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300';
                               icon = <Globe className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />;
-                            } else if (status === 'resolved') {
-                              const cityPart = city?.toLowerCase() !== 'unknown' ? city : '';
-                              const regionPart = region && region?.toLowerCase() !== 'unknown' && region !== city ? region : '';
-                              const countryPart = country?.toLowerCase() !== 'unknown' ? country : '';
-                              displayText = [cityPart, regionPart, countryPart].filter(Boolean).join(', ');
+                            } else if (isUsableLocation(locationData)) {
                               badgeColor = 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300';
                               icon = <MapPin className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />;
-                            } else if (status === 'failed') {
-                              displayText = `Unable to resolve (${ip})`;
+                            } else if (locationData?.status === 'failed' || displayText.includes('Unknown')) {
                               badgeColor = 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300';
                               icon = <XCircle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />;
-                            } else {
-                              displayText = `${city || 'Unknown'} (${ip})`;
-                              badgeColor = 'bg-gray-50 dark:bg-gray-900/20 text-gray-600 dark:text-gray-400';
-                              icon = <MapPin className="w-3.5 h-3.5 text-gray-500 dark:text-gray-500" />;
                             }
 
-                            return displayText ? (
+                            return (
                               <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs ${badgeColor}`}>
                                 {icon}
                                 <span className="font-medium">{displayText}</span>
                               </div>
-                            ) : null;
+                            );
                           })()}
                         </div>
 

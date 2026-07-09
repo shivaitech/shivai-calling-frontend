@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { X, FileText, Clock, MapPin, Calendar, Users, MessageSquare, Loader2, Bot, Play, Pause, Download, Volume2, VolumeX, SkipBack, SkipForward, TrendingUp, CheckCircle, XCircle, Phone, Mail, Share2 } from "lucide-react";
 import { agentAPI } from '../../../services/agentAPI';
 import appToast from '../../../components/AppToast';
+import { resolveIPLocation } from '../../../lib/ipGeolocation';
 
 interface SessionTranscriptModalProps {
   session: any;
@@ -23,7 +24,6 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
   
   // Location state
   const [locationData, setLocationData] = useState<any>(null);
-  const [ipLocationCache, setIpLocationCache] = useState<any>({});
   
   // Audio player state
   const [isPlaying, setIsPlaying] = useState(false);
@@ -34,91 +34,6 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const audioRef = useRef<HTMLAudioElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
-
-  // Function to resolve IP to location
-  const resolveIPLocation = async (ip: string) => {
-    // Check if IP is valid
-    if (!ip || ip === "Unknown" || ip === "N/A") {
-      return {
-        city: "Unknown",
-        region: "",
-        country: "Unknown",
-        countryCode: "",
-        isp: "Unknown ISP",
-        lat: null,
-        lon: null,
-        timezone: "",
-      };
-    }
-
-    // Check cache first
-    if (ipLocationCache[ip]) {
-      return ipLocationCache[ip];
-    }
-
-    try {
-      // Use HTTPS endpoint with CORS support
-      const response = await fetch(
-        `https://ipapi.co/${ip}/json/`,
-        {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json'
-          }
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      // ipapi.co response format
-      const result = {
-        city: data.city || "Unknown",
-        region: data.region || "",
-        country: data.country_name || "Unknown",
-        countryCode: data.country_code || "",
-        zip: data.postal || "",
-        isp: data.org || "Unknown ISP",
-        lat: data.latitude || null,
-        lon: data.longitude || null,
-        timezone: data.timezone || "",
-        as: data.asn || "",
-      };
-
-      // Cache the result
-      setIpLocationCache((prev: any) => ({
-        ...prev,
-        [ip]: result,
-      }));
-
-      return result;
-    } catch (error) {
-      console.error(`Error resolving IP location for ${ip}:`, error);
-      
-      // Return a default response with Unknown values instead of failing
-      const defaultResponse = {
-        city: "Unknown",
-        region: "",
-        country: "Unknown",
-        countryCode: "",
-        isp: "Unknown ISP",
-        lat: null,
-        lon: null,
-        timezone: "",
-      };
-
-      // Cache the error response to avoid repeated failed requests
-      setIpLocationCache((prev: any) => ({
-        ...prev,
-        [ip]: defaultResponse,
-      }));
-
-      return defaultResponse;
-    }
-  };
 
   useEffect(() => {
     const fetchTranscripts = async () => {

@@ -5236,7 +5236,6 @@
       if (connectionTimeout) clearTimeout(connectionTimeout);
       if (aiResponseTimeout) clearTimeout(aiResponseTimeout);
 
-      // Check if connection was cancelled before setting timeout
       if (!isConnecting) {
         _wlog("? Connection cancelled before setting timeout");
         return;

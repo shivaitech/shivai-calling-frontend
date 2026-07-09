@@ -2246,7 +2246,7 @@
     widgetContainer.style.position = "fixed";
     widgetContainer.style.left = left + "px";
     widgetContainer.style.right = "auto";
-    widgetContainer.style.top = "auto";
+      widgetContainer.style.top = "auto";
 
     if (widgetIsOpen) {
       const maxFromBottom = Math.max(200, vh - bottomInset - margin);
@@ -6883,8 +6883,8 @@
       const msgTime = msgEl.dataset.timestamp ? parseInt(msgEl.dataset.timestamp) : 0;
       if (msgRole === role && msgText === normalizedIncoming) {
         if ((now - msgTime) < 2000) {
-          _wlog("🚫 Skipping duplicate message:", text.substring(0, 50));
-          return msgEl;
+        _wlog("🚫 Skipping duplicate message:", text.substring(0, 50));
+        return msgEl;
         }
         // Exact duplicate even outside 2s window (e.g. dual event channels)
         const isLastOfRole = msgEl === messagesDiv.querySelector(`.message.${role}:last-of-type`);
@@ -7947,7 +7947,7 @@
                   if (docPayload) {
                     _dbg("📎 Rendering document card:", docPayload.name, docPayload.url);
                     addDocumentMessage(docPayload);
-                    return;
+                  return;
                   }
                 }
 
