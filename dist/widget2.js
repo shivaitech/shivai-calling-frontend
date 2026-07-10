@@ -3198,6 +3198,16 @@
       color: inherit;
       }
       /* ── Document / File card (WhatsApp-style) ── */
+      .message.assistant.message-document {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      max-width: min(92%, 380px);
+      }
+      .message.assistant.message-document .doc-card {
+      width: 100%;
+      max-width: 100%;
+      }
       .doc-card {
       display: flex;
       align-items: center;
@@ -3206,7 +3216,9 @@
       border: 1px solid #e2e8f0;
       border-radius: 10px;
       padding: 10px 12px;
-      max-width: 260px;
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
       box-shadow: 0 1px 4px rgba(0,0,0,0.08);
       text-decoration: none;
       }
@@ -3239,7 +3251,6 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      max-width: 160px;
       }
       .doc-size {
       font-size: 11px;
@@ -4934,7 +4945,7 @@
 
     // Build card
     const card = document.createElement('div');
-    card.className = 'message assistant';
+    card.className = 'message assistant message-document';
     card.dataset.timestamp = Date.now().toString();
 
     const label       = document.createElement('div');
@@ -5390,7 +5401,7 @@
       }
 
       const response = await fetch(
-        "https://voice.callshivai.com/token",
+        "https://staging.voice.callshivai.com/token",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

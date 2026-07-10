@@ -4363,8 +4363,9 @@
       .call-view .message.assistant.message-document {
         display: flex !important;
         flex-direction: column !important;
-        align-items: flex-start !important;
+        align-items: stretch !important;
         gap: 4px !important;
+        max-width: min(92%, 380px) !important;
       }
       .call-view .message.assistant.message-document .message-label {
         display: block !important;
@@ -4379,7 +4380,8 @@
         align-items: center !important;
         gap: 10px !important;
         width: 100% !important;
-        max-width: 260px !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
         background: #f8fafc !important;
         border: 1px solid #dbe3ee !important;
         border-radius: 12px !important;
@@ -4899,11 +4901,19 @@
       .message-text { font-size: 13px; line-height: 1.45; color: inherit; }
 
       /* ── Doc card (dark) ── */
+      .message.assistant.message-document {
+      display: flex; flex-direction: column; align-items: stretch;
+      max-width: min(92%, 380px);
+      }
+      .message.assistant.message-document .doc-card {
+      width: 100%; max-width: 100%;
+      }
       .doc-card {
       display: flex; align-items: center; gap: 10px;
       background: rgba(255,255,255,0.07);
       border: 1px solid rgba(255,255,255,0.09);
-      border-radius: 12px; padding: 10px 12px; max-width: 260px;
+      border-radius: 12px; padding: 10px 12px;
+      width: 100%; max-width: 100%; box-sizing: border-box;
       box-shadow: 0 2px 10px rgba(0,0,0,0.25); text-decoration: none;
       }
       .doc-card:hover { background: rgba(255,255,255,0.1); }
@@ -4919,7 +4929,7 @@
       .doc-icon-wrap.social { background: rgba(255,55,95,0.18);  }
       .doc-icon-wrap.img    { background: rgba(191,90,242,0.18); }
       .doc-meta { flex:1; min-width:0; }
-      .doc-name { font-size:13px; font-weight:600; color:#f5f5f7; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:155px; }
+      .doc-name { font-size:13px; font-weight:600; color:#f5f5f7; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
       .doc-size { font-size:11px; color:rgba(245,245,247,0.4); margin-top:1px; }
       .doc-type-label { font-size:10px; color:rgba(245,245,247,0.3); margin-top:2px; text-transform:uppercase; letter-spacing:0.4px; font-weight:500; }
       .doc-dl-btn { flex-shrink:0; width:28px; height:28px; border-radius:50%; background:rgba(10,132,255,0.15); border:1px solid rgba(10,132,255,0.25); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:background 0.15s; }
@@ -6970,7 +6980,7 @@
       }
 
       const response = await fetchWithTimeout(
-        "https://voice.callshivai.com/token",
+        "https://staging.voice.callshivai.com/token",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

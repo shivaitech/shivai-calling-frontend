@@ -3533,6 +3533,16 @@
       }
 
       /* -- Document / File card (WhatsApp-style, received from AI) -- */
+      .message.assistant.message-document {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      max-width: min(92%, 380px);
+      }
+      .message.assistant.message-document .doc-card {
+      width: 100%;
+      max-width: 100%;
+      }
       .doc-card {
       display: flex;
       align-items: center;
@@ -3541,7 +3551,9 @@
       border: 1px solid #e2e8f0;
       border-radius: 10px;
       padding: 10px 12px;
-      max-width: 260px;
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
       box-shadow: 0 1px 4px rgba(0,0,0,0.08);
       text-decoration: none;
       }
@@ -3574,7 +3586,6 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      max-width: 160px;
       }
       .doc-size {
       font-size: 11px;
@@ -4857,7 +4868,7 @@
     const actionBtn = '<span class="doc-dl-btn" title="Open"><svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></span>';
 
     const card = document.createElement('div');
-    card.className = 'message assistant';
+    card.className = 'message assistant message-document';
     card.dataset.timestamp = Date.now().toString();
 
     const labelEl       = document.createElement('div');
@@ -5260,6 +5271,7 @@
         : "desktop";
 
       // Optimized audio configuration for feedback prevention and user input
+      
       const audioConfig = {
         // Enhanced feedback prevention
         echoCancellation: true, // Critical for feedback prevention
@@ -5409,7 +5421,7 @@
       }
 
       const response = await fetch(
-        "https://voice.callshivai.com/token",
+        "https://staging.voice.callshivai.com/token",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
