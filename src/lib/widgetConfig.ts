@@ -1,5 +1,10 @@
-/** Public embed script served from callshivai.com (deployments use widget5.js). */
-export const WIDGET_SCRIPT_FILE = "widget5.js";
+/**
+ * Client-facing embed script served from callshivai.com.
+ * widget4.js is the client/production file (embed snippet, QR, public agent
+ * page, landing). widget5.js is reserved for the internal dashboard
+ * customization preview only.
+ */
+export const WIDGET_SCRIPT_FILE = "widget4.js";
 export const PRODUCTION_APP_BASE_URL = "https://www.callshivai.com";
 
 export function isStagingEnv(): boolean {

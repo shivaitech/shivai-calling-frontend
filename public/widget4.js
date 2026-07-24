@@ -53,6 +53,11 @@
   let currentAssistantTranscript = "";
   let currentUserTranscript = "";
   let lastUserMessageDiv = null;
+  // Track the live assistant bubble + its segment so streaming transcript
+  // partials UPDATE one bubble instead of adding a new bubble per chunk.
+  let lastAssistantMessageDiv = null;
+  let lastAssistantSegmentId = null;
+  let assistantBubbleText = ""; // full text currently shown in the live assistant bubble
   let lastSentMessage = null; // Track last sent message to prevent duplicates
   // Once the agent's words arrive on lk.transcription, that stream owns the
   // assistant transcript; lk.chat then sends the SAME text and must not re-add it.
@@ -1973,8 +1978,8 @@
       return `<span class="visualizer-bar" style="--bar-color:hsl(${hue},${sat}%,${light}%); --bar-scale:${scale}; animation-delay:${delay}s;"></span>`;
     }).join('');
     callView.innerHTML = `
-    <div class="call-bg-photo" id="call-bg-photo"${callBgUrl ? ` style="background-image:url('${callBgUrl}')"` : ''}></div>
-    <div class="call-bg-tint"></div>
+    <div class="call-bg-photo" id="call-bg-photo" style="display:none"></div>
+    <div class="call-bg-tint" style="display:none"></div>
     <div class="shivai-status-bar call-status-bar">
       <span class="shivai-status-time" id="shivai-status-time-call">--:--</span>
       <span class="shivai-status-network" id="shivai-status-network-call">
@@ -3667,16 +3672,6 @@
         transform: scale(1.08);
       }
       .shivai-status-bar .status-minimize svg { display: block; }
-      /* Call view sits on a dark photo/gradient — lighten the controls there */
-      .call-status-bar .status-minimize,
-      .call-status-bar .status-close {
-        background: rgba(255,255,255,0.16) !important;
-        color: #ffffff !important;
-      }
-      .call-status-bar .status-minimize:hover,
-      .call-status-bar .status-close:hover {
-        background: rgba(255,255,255,0.28) !important;
-      }
 
       /* ── Minimized: hide the panel, keep it in the DOM (call stays live) ── */
       .shivai-widget.minimized {
@@ -4298,7 +4293,7 @@
       display: flex;
       flex-direction: column;
       width: 100%;
-      background: transparent;
+      background: #f5f6f8;
       position: relative;
       overflow: visible;
       }
@@ -4368,16 +4363,14 @@
       .call-title {
         font-size: 15px;
         font-weight: 600;
-        color: #ffffff;
+        color: #0d1117;
         flex: 1;
         line-height: 1.25;
         letter-spacing: -0.015em;
-        text-shadow:
-          0 1px 3px rgba(0,0,0,0.5),
-          0 0 12px rgba(0,0,0,0.35);
+        text-shadow: none;
       }
-      .call-title-prefix { font-weight: 500; opacity: 0.92; margin-right: 4px; color: #ffffff; }
-      .call-title-lang { font-weight: 700; text-transform: capitalize; color: #ffffff; }
+      .call-title-prefix { font-weight: 500; opacity: 0.92; margin-right: 4px; color: #0d1117; }
+      .call-title-lang { font-weight: 700; text-transform: capitalize; color: #0d1117; }
       .call-hidden-status { display: none !important; }
 
       /* Visualizer (SiriWave) */
@@ -4639,8 +4632,8 @@
 
       /* Main call action (phone icon by default, hangup when connected) */
       .call-view .end-call-btn.control-btn-icon {
-        width: 110px !important;
-        height: 110px !important;
+        width: 55px !important;
+        height: 55px !important;
         border-radius: 50% !important;
         background: linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%) !important;
         border: none !important;
@@ -4660,8 +4653,8 @@
       }
       .call-view .end-call-btn svg {
         display: block !important;
-        width: 40px !important;
-        height: 40px !important;
+        width: 22px !important;
+        height: 22px !important;
         stroke: #ffffff;
         stroke-width: 2.2;
       }
@@ -5230,12 +5223,12 @@
 
       /* Dashboard customization preview — call controls scaled for the narrow iframe */
       .shivai-widget.shivai-preview-mode .call-view .end-call-btn {
-        width: 110px !important;
-        height: 110px !important;
+        width: 55px !important;
+        height: 55px !important;
       }
       .shivai-widget.shivai-preview-mode .call-view .end-call-btn svg {
-        width: 25px !important;
-        height: 25px !important;
+        width: 22px !important;
+        height: 22px !important;
       }
       .shivai-widget.shivai-preview-mode .call-view .control-btn-icon {
         width: 52px !important;
@@ -5904,13 +5897,13 @@
   }
 
   function refreshCallBgPhoto() {
+    // No avatar/photo background behind the call UI — keep the call screen clean.
     const photoEl = document.getElementById("call-bg-photo");
     if (!photoEl) return;
-    const info = getCompanyInfo();
-    const url = info.triggerButtonImage || info.logo || "";
-    if (url) {
-      photoEl.style.backgroundImage = `url('${url}')`;
-    }
+    photoEl.style.backgroundImage = "none";
+    photoEl.style.display = "none";
+    const tintEl = document.querySelector(".call-bg-tint");
+    if (tintEl) tintEl.style.display = "none";
   }
   function switchToLandingView() {
     currentView = "landing";
@@ -6138,6 +6131,9 @@
     currentUserTranscript = "";
     currentAssistantTranscript = "";
     lastUserMessageDiv = null;
+    lastAssistantMessageDiv = null;
+    lastAssistantSegmentId = null;
+    assistantBubbleText = "";
     lastSentMessage = null; // Reset last sent message tracker
     if (visualizerInterval) {
       clearInterval(visualizerInterval);
@@ -6818,6 +6814,68 @@
     }
   }
 
+  // Merge an incoming assistant transcript chunk into the live bubble, cutting
+  // any text that repeats what's already shown. Returns what to render.
+  //   { changed, fullText, newBubble }
+  function appendAssistantTranscript(rawChunk) {
+    const norm = (t) => (t || "").replace(/\s+/g, " ").trim();
+    const chunk = norm(rawChunk);
+    const acc = assistantBubbleText; // already normalised
+
+    if (!chunk) return { changed: false, fullText: acc, newBubble: false };
+
+    // 1) Nothing new — chunk is already fully contained in what we've shown.
+    if (acc && acc.indexOf(chunk) !== -1) {
+      return { changed: false, fullText: acc, newBubble: false };
+    }
+
+    // 2) No live bubble yet → start fresh.
+    if (!acc || !lastAssistantMessageDiv || !lastAssistantMessageDiv.isConnected) {
+      assistantBubbleText = chunk;
+      return { changed: true, fullText: chunk, newBubble: true };
+    }
+
+    // 3) Chunk is a superset that starts with everything we have → replace.
+    if (chunk.startsWith(acc)) {
+      assistantBubbleText = chunk;
+      return { changed: true, fullText: chunk, newBubble: false };
+    }
+
+    // 4) Find the largest overlap where the END of acc matches the START of chunk,
+    //    then append only the non-overlapping remainder (cut the repeated part).
+    const maxOverlap = Math.min(acc.length, chunk.length);
+    let overlap = 0;
+    for (let k = maxOverlap; k > 0; k--) {
+      if (acc.slice(acc.length - k) === chunk.slice(0, k)) { overlap = k; break; }
+    }
+    if (overlap > 0) {
+      const remainder = chunk.slice(overlap).trim();
+      if (!remainder) return { changed: false, fullText: acc, newBubble: false };
+      assistantBubbleText = (acc + " " + remainder).replace(/\s+/g, " ").trim();
+      return { changed: true, fullText: assistantBubbleText, newBubble: false };
+    }
+
+    // 5) No overlap at all → genuinely new utterance → new bubble.
+    assistantBubbleText = chunk;
+    return { changed: true, fullText: chunk, newBubble: true };
+  }
+
+  // SINGLE entry point for ALL assistant transcript text (lk.transcription,
+  // lk.chat, legacy DataReceived, metadata). Every channel merges into the same
+  // bubble via the overlap trimmer, so the same words never render twice no
+  // matter which channel delivers them or in what order.
+  function renderAssistantTranscript(rawText) {
+    if (!rawText || !rawText.trim()) return;
+    assistantTranscriptionActive = true;
+    const r = appendAssistantTranscript(rawText);
+    if (!r.changed) return;
+    if (r.newBubble || !lastAssistantMessageDiv || !lastAssistantMessageDiv.isConnected) {
+      lastAssistantMessageDiv = addMessage("assistant", r.fullText);
+    } else {
+      updateMessage(lastAssistantMessageDiv, r.fullText);
+    }
+  }
+
   // ── WhatsApp-style document card from AI ────────────────────────────────
   function resolveDocumentPayload(jsonData) {
     const url = jsonData.url || jsonData.file_url || jsonData.download_url;
@@ -7029,6 +7087,9 @@
       knowledgeBaseReady = false;
       firstResponseReceived = false;
       assistantTranscriptionActive = false;
+      lastAssistantMessageDiv = null;
+      lastAssistantSegmentId = null;
+      assistantBubbleText = "";
       callTimerStarted = false;
 
       // Show connecting animation
@@ -7460,12 +7521,8 @@
           if (metadata) {
             try {
               const data = JSON.parse(metadata);
-              if ((data.transcript || data.text) && !assistantTranscriptionActive) {
-                addMessage("assistant", data.transcript || data.text);
-                _wlog(
-                  "✅ Transcript from participant metadata:",
-                  data.transcript || data.text
-                );
+              if (data.transcript || data.text) {
+                renderAssistantTranscript(data.transcript || data.text);
               }
             } catch (e) {
               _wlog("Metadata not JSON:", metadata);
@@ -7479,12 +7536,8 @@
         if (metadata) {
           try {
             const data = JSON.parse(metadata);
-            if ((data.transcript || data.text) && !assistantTranscriptionActive) {
-              addMessage("assistant", data.transcript || data.text);
-              _wlog(
-                "✅ Transcript from room metadata:",
-                data.transcript || data.text
-              );
+            if (data.transcript || data.text) {
+              renderAssistantTranscript(data.transcript || data.text);
             }
           } catch (e) {
             _wlog("Room metadata not JSON:", metadata);
@@ -7827,7 +7880,8 @@
                       );
                     }
                   } else if (jsonData.role === "assistant") {
-                    addMessage("assistant", jsonData.text);
+                    // All assistant text funnels through one merger.
+                    renderAssistantTranscript(jsonData.text);
                     // Track first assistant response
                     if (!firstResponseReceived) {
                       _dbg("✅ First AI response (legacy transcript):", jsonData.text.substring(0,80));
@@ -7855,7 +7909,13 @@
                     (isUser && jsonData.type !== "chat") ||
                     (isUser && jsonData.source !== "typed")
                   ) {
-                    addMessage(senderRole, transcriptText);
+                    // Assistant text → the single overlap-merger (prevents doubles
+                    // across channels); user text keeps the plain add.
+                    if (!isUser) {
+                      renderAssistantTranscript(transcriptText);
+                    } else {
+                      addMessage(senderRole, transcriptText);
+                    }
                     _dbg("✅ Transcript added:", senderRole, "|", transcriptText.substring(0, 100));
                     // Track first AI response
                     if (!isUser && !firstResponseReceived) {
@@ -7886,7 +7946,11 @@
                   const senderRole = isUser ? "user" : "assistant";
 
                   // Add all transcripts (both user voice and assistant)
-                  addMessage(senderRole, transcriptText);
+                  if (!isUser) {
+                    renderAssistantTranscript(transcriptText);
+                  } else {
+                    addMessage(senderRole, transcriptText);
+                  }
                   _dbg("✅ Plain text transcript:", senderRole, "|", transcriptText.substring(0, 100));
                 }
               }
@@ -7973,12 +8037,14 @@
                     }
                   }
 
-                  // Mark the transcription stream as authoritative for assistant
-                  // text so lk.chat won't re-add the same words.
-                  if (!isUser) assistantTranscriptionActive = true;
-
-                  // Add transcriptions
-                  addMessage(senderName, text);
+                  if (!isUser) {
+                    // All assistant text funnels through one overlap-merger, so
+                    // the same words never render twice across channels/chunks.
+                    renderAssistantTranscript(text);
+                  } else {
+                    // Add user transcriptions as before
+                    addMessage(senderName, text);
+                  }
                   _wlog("✅ Transcription added:", {
                     sender: senderName,
                     text,
@@ -8020,17 +8086,9 @@
 
                 if (!isUser && text && text.trim()) {
                   _wlog("💬 AI Chat response received:", text);
-                  // If lk.transcription is already carrying assistant text, skip —
-                  // lk.chat is delivering the same words (the double).
-                  if (assistantTranscriptionActive) {
-                    _wlog("🚫 Skipping lk.chat assistant text — lk.transcription is authoritative");
-                  } else {
-                    addMessage("assistant", text, { source: "chat" });
-                    _wlog("💬 Chat message added:", {
-                      sender: participantInfo.identity,
-                      text,
-                    });
-                  }
+                  // Funnel through the same merger — overlap is trimmed so lk.chat
+                  // never duplicates what lk.transcription already showed.
+                  renderAssistantTranscript(text);
 
                   // Clear loading/connecting state on first AI chat message
                   if (!firstResponseReceived) {

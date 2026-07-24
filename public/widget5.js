@@ -1287,15 +1287,17 @@
         widgetContainer.style.boxShadow = "0 32px 64px -16px rgba(70,110,200,0.28), 0 14px 32px -10px rgba(70,110,200,0.18), 0 1px 0 rgba(255,255,255,0.85) inset, 0 0 0 1px rgba(120,150,220,0.15)";
         var lv0 = widgetContainer.querySelector('.landing-view');
         if (lv0) lv0.style.background = "transparent";
+        // Call view stays SOLID even in glass mode — no blurred page/avatar behind the call UI
         var cv0 = widgetContainer.querySelector('.call-view');
-        if (cv0) cv0.style.background = "transparent";
-        // Keep inner elements transparent so the glass blur shows through
+        if (cv0) cv0.style.background = "#f5f6f8";
+        // Keep landing transparent for the glass look; call view is opaque.
         var origOverride = document.getElementById('shivai-theme-override');
         if (origOverride) origOverride.remove();
         var origEl = document.createElement('style');
         origEl.id = 'shivai-theme-override';
         origEl.textContent = [
-          ".shivai-widget .landing-view, .shivai-widget .call-view { background: transparent !important; }",
+          ".shivai-widget .landing-view { background: transparent !important; }",
+          ".shivai-widget .call-view { background: #f5f6f8 !important; }",
           ".shivai-widget .landing-content, .shivai-widget .widget-body { background: transparent !important; }",
           ".shivai-widget .call-bg-photo { display: none !important; }",
           ".call-view .call-title, .call-view .call-title-prefix, .call-view .call-title-lang { color: #0d1117 !important; text-shadow: none !important; }",
@@ -4200,16 +4202,6 @@
         transform: scale(1.08);
       }
       .shivai-status-bar .status-minimize svg { display: block; }
-      /* Call view sits on a dark photo/gradient — lighten the controls there */
-      .call-status-bar .status-minimize,
-      .call-status-bar .status-close {
-        background: rgba(255,255,255,0.16) !important;
-        color: #ffffff !important;
-      }
-      .call-status-bar .status-minimize:hover,
-      .call-status-bar .status-close:hover {
-        background: rgba(255,255,255,0.28) !important;
-      }
 
       /* ── Minimized: hide the panel, keep it in the DOM (call stays live) ── */
       .shivai-widget.minimized {
@@ -4831,7 +4823,7 @@
       display: flex;
       flex-direction: column;
       width: 100%;
-      background: #ffffff;
+      background: #f5f6f8;
       position: relative;
       overflow: hidden;
       flex: 1 1 auto;
@@ -4858,7 +4850,7 @@
         pointer-events: none;
       }
       .call-view--solid {
-        background: #ffffff !important;
+        background: #f5f6f8 !important;
       }
       .call-view--solid .call-bg-tint { display: none; }
       .call-view--solid .call-title,
@@ -5163,8 +5155,8 @@
 
       /* Main call action (phone icon by default, hangup when connected) */
       .call-view .end-call-btn.control-btn-icon {
-        width: 110px !important;
-        height: 110px !important;
+        width: 55px !important;
+        height: 55px !important;
         border-radius: 50% !important;
         background: linear-gradient(135deg, #4b5563 0%, #2563eb 100%) !important;
         border: none !important;
@@ -5184,8 +5176,8 @@
       }
       .call-view .end-call-btn svg {
         display: block !important;
-        width: 40px !important;
-        height: 40px !important;
+        width: 22px !important;
+        height: 22px !important;
         stroke: #ffffff;
         stroke-width: 2.2;
       }
@@ -5771,12 +5763,12 @@
         gap: 16px;
       }
       .shivai-widget.shivai-preview-mode .call-view .end-call-btn {
-        width: 110px !important;
-        height: 110px !important;
+        width: 55px !important;
+        height: 55px !important;
       }
       .shivai-widget.shivai-preview-mode .call-view .end-call-btn svg {
-        width: 25px !important;
-        height: 25px !important;
+        width: 22px !important;
+        height: 22px !important;
       }
       .shivai-widget.shivai-preview-mode .call-view .control-btn-icon {
         width: 52px !important;
@@ -6454,10 +6446,11 @@
     if (!callView) return;
     const photoEl = document.getElementById("call-bg-photo");
     const tintEl = callView.querySelector(".call-bg-tint");
-    const isGlass = isGlassWidgetBackground();
 
-    callView.classList.toggle("call-view--glass", isGlass);
-    callView.classList.toggle("call-view--solid", !isGlass);
+    // Call view is ALWAYS solid — no glass blur / avatar showing through behind
+    // the call UI, even when the rest of the widget uses the glass theme.
+    callView.classList.remove("call-view--glass");
+    callView.classList.add("call-view--solid");
 
     // Never show avatar/photo background in call UI — use theme background instead
     if (photoEl) {
@@ -6465,7 +6458,7 @@
       photoEl.style.display = "none";
     }
     if (tintEl) {
-      tintEl.style.display = isGlass ? "block" : "none";
+      tintEl.style.display = "none";
     }
   }
   function switchToLandingView() {
