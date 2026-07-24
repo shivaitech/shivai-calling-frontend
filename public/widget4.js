@@ -54,6 +54,9 @@
   let currentUserTranscript = "";
   let lastUserMessageDiv = null;
   let lastSentMessage = null; // Track last sent message to prevent duplicates
+  // Once the agent's words arrive on lk.transcription, that stream owns the
+  // assistant transcript; lk.chat then sends the SAME text and must not re-add it.
+  let assistantTranscriptionActive = false;
   let visualizerInterval = null;
   let isWidgetOpen = false;
   let lastTriggerRect = null;
@@ -128,8 +131,8 @@
     let callToActionText = "";
     let themeColors = {
       primaryColor: "#4b5563",
-      secondaryColor: "#ffffff", 
-      accentColor: "#2563eb"
+      secondaryColor: "#6b7280",
+      accentColor: "#374151"
     };
     let configSource = "none";
     
@@ -310,13 +313,19 @@
   let messageInterval = null;
   let triggerBtn = null;
   let widgetContainer = null;
+  let collapseHandle = null;   // edge chevron tab shown when the widget is minimized
+  let isMinimized = false;     // true while collapsed to the edge tab (call may still be live)
+  let minimizedEdge = "right"; // which screen edge the handle is parked on: "left" | "right"
+  let collapseHandleTop = null; // remembered vertical position (px) after the user drags the tab
   let landingView = null;
   let callView = null;
   let widgetInitialized = false; // becomes true after initWidget() runs once
 
   // ── Route guard ───────────────────────────────────────────────────────────
-  // widget4.js is ONLY for the public ShivAI landing page ("/" and "/landing").
-  // It must never appear on agent test pages, Nova, dashboard, or client embeds.
+  // widget4.js is the CLIENT embed script. On external client websites it must
+  // run everywhere (the visibility/allowed-domains check below decides). On the
+  // ShivAI app host itself it is restricted to the public landing page ("/",
+  // "/landing") and must stay off dashboard/auth/test routes.
   var LANDING_WIDGET_BLOCKED_PREFIXES = [
     "/MyAIEmployee",
     "/agents",
@@ -341,14 +350,31 @@
     return null;
   }
 
+  function isShivaiHostedApp4() {
+    var h = (window.location.hostname || "").toLowerCase();
+    return (
+      h === "callshivai.com" ||
+      h === "www.callshivai.com" ||
+      h === "localhost" ||
+      h === "127.0.0.1"
+    );
+  }
+
+  // Kept the name isLandingRoute() so the rest of the file (applyRouteVisibility)
+  // needs no changes — it now means "should widget4 run on this page".
   function isLandingRoute() {
+    // Client websites (not the ShivAI app) — always allow; the domain/visibility
+    // check in checkAgentStatusOnLoad() decides whether it actually renders.
+    if (!isShivaiHostedApp4()) return true;
+
+    // On the ShivAI host, restrict to the public landing page only.
     var full = window.location.pathname || "/";
     var p = full.replace(/\/+$/, "") || "/";
     if (p !== "" && p !== "/" && p !== "/landing") return false;
     for (var i = 0; i < LANDING_WIDGET_BLOCKED_PREFIXES.length; i++) {
       if (full.indexOf(LANDING_WIDGET_BLOCKED_PREFIXES[i]) === 0) return false;
     }
-    // Never run landing widget when loaded as a test/preview embed (use widget5 instead)
+    // Test/preview embeds on the host use widget5 instead.
     var params = getLandingWidgetScriptParams();
     if (params && (params.get("bypass") === "true" || params.get("novaPage") === "1")) {
       return false;
@@ -1593,7 +1619,7 @@
       if (e.pointerType === "mouse" && e.button !== 0) return;
       if (
         e.target.closest(
-          ".widget-close, .start-call-btn, .back-btn, " +
+          ".widget-close, .widget-minimize, .start-call-btn, .back-btn, " +
           ".language-section-landing, .privacy-link"
         ) ||
         e.target.tagName === "SELECT" ||
@@ -1656,6 +1682,19 @@
         document.body.style.userSelect = "";
         document.body.style.webkitUserSelect = "";
         if (activeHeader) activeHeader.style.cursor = "grab";
+        // Auto-minimize when the user drags the panel into either screen edge.
+        // The drag clamp keeps the panel on-screen, so we detect "shoved to the
+        // edge" by how close its edge sits to the viewport border.
+        const vw = document.documentElement.clientWidth;
+        const rect = widgetElement.getBoundingClientRect();
+        const EDGE_SNAP = 24; // px from the border that counts as "docked"
+        if (rect.left <= EDGE_SNAP) {
+          minimizedEdge = "left";
+          minimizeWidget();
+        } else if (rect.right >= vw - EDGE_SNAP) {
+          minimizedEdge = "right";
+          minimizeWidget();
+        }
       }
       activePointerId = null;
       activeHeader = null;
@@ -1862,13 +1901,16 @@
             ${STATUS_SIGNAL_SVG}
             <span class="shivai-status-metric" aria-live="polite">--</span>
           </span>
+          <button class="widget-minimize status-minimize" aria-label="Minimize widget" title="Minimize">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
           <button class="widget-close status-close" aria-label="Close widget">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg>
           </button>
         </span>
       </div>
       <div class="landing-content">
-        <h2 class="landing-headline">Connect with your AI Employee</h2>
+        <h2 class="landing-headline">How can I help you today?</h2>
         <div class="landing-agent-card">
           <div class="landing-agent-avatar">
             ${companyInfo.logo
@@ -1940,6 +1982,9 @@
           ${STATUS_SIGNAL_SVG}
           <span class="shivai-status-metric" aria-live="polite">--</span>
         </span>
+        <button class="widget-minimize status-minimize" aria-label="Minimize widget" title="Minimize">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
         <button class="widget-close status-close" aria-label="Close widget">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg>
         </button>
@@ -2086,6 +2131,12 @@
           <span class="call-control-label">Keypad</span>
         </div>
       </div>
+      <div class="call-footer">
+        <div class="footer-text">
+          <span>Powered by</span>
+          <a href="https://callshivai.com" target="_blank" rel="noopener noreferrer" class="footer-shivai-link">ShivAI</a>
+        </div>
+      </div>
     </div>
     <input type="file" id="shivai-file-input" accept=".pdf,.docx,.doc,.txt,.md,.csv" style="display: none !important;" multiple>
     <select id="shivai-language" class="call-hidden-select" aria-hidden="true" style="display:none !important; position:absolute; left:-9999px;"></select>
@@ -2095,6 +2146,23 @@
     addWidgetStyles();
     document.body.appendChild(triggerBtn);
     document.body.appendChild(widgetContainer);
+
+    // Collapsed edge tab (Google-Meet style) — hidden until the widget is minimized
+    collapseHandle = document.createElement("button");
+    collapseHandle.className = "shivai-collapse-handle";
+    collapseHandle.setAttribute("aria-label", "Expand widget");
+    collapseHandle.setAttribute("title", "Expand");
+    collapseHandle.innerHTML = `
+      <span class="shivai-collapse-live" aria-hidden="true"></span>
+      <svg class="shivai-collapse-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>
+    `;
+    makeCollapseHandleDraggable(collapseHandle);
+    document.body.appendChild(collapseHandle);
+    // Keep the docked handle within the viewport as the window resizes
+    window.addEventListener("resize", () => {
+      if (isMinimized) positionCollapseHandle();
+    });
+
     makeWidgetDraggable(widgetContainer);
     makeTriggerBtnDraggable(triggerBtn);
 
@@ -3048,10 +3116,12 @@
   function addWidgetStyles() {
     // Get theme colors from company info
     const companyInfo = getCompanyInfo();
+    // Fallback matches the app's "Original Default" preset (grey), so an
+    // unconfigured widget doesn't render the old hardcoded blue.
     const theme = companyInfo.theme || {
       primaryColor: "#4b5563",
-      secondaryColor: "#ffffff",
-      accentColor: "#2563eb"
+      secondaryColor: "#6b7280",
+      accentColor: "#374151"
     };
     
     const styles = `
@@ -3092,7 +3162,7 @@
         transition: transform 0.22s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.22s ease;
         min-height: 70px;
         max-height: 72px;
-        max-width: 280px;
+        max-width: 400px;
         width: max-content;
       }
       .shivai-trigger:hover:not(.dragging) {
@@ -3147,9 +3217,11 @@
         gap: 2px;
         min-width: 0;
         flex: 1 1 auto;
+        max-width: 270px;
         padding: 0;
         margin: 0;
         text-align: left;
+        overflow: hidden;
       }
       .shivai-trigger-title {
         font-size: 18px;
@@ -3160,7 +3232,8 @@
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        max-width: 180px;
+        max-width: 100%;
+        width: 100%;
         text-align: left;
         margin: 0;
         padding: 0;
@@ -3174,6 +3247,10 @@
         letter-spacing: -0.01em;
         line-height: 1.2;
         white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+        width: 100%;
         text-align: left;
         margin: 0;
         padding: 0;
@@ -3204,12 +3281,12 @@
         transition: transform 0.18s cubic-bezier(0.34,1.56,0.64,1), background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
       }
       .shivai-trigger:hover:not(.dragging) .shivai-trigger-call-btn {
-        background: #0a84ff;
+        background: ${theme.primaryColor};
         color: #ffffff;
         animation-play-state: paused;
         box-shadow:
-          0 6px 18px -4px rgba(10,132,255,0.5),
-          0 0 0 1px rgba(10,132,255,0.55);
+          0 6px 18px -4px ${theme.primaryColor}80,
+          0 0 0 1px ${theme.primaryColor}88;
         transform: scale(1.04);
       }
       .shivai-trigger--loading .shivai-trigger-subtitle { color: rgba(13,17,23,0.45); }
@@ -3245,7 +3322,7 @@
         padding: 10px 18px;
         border: none;
         border-radius: 999px;
-        background: #0a84ff;
+        background: ${theme.primaryColor};
         color: #fff;
         font-size: 14px;
         font-weight: 600;
@@ -3542,27 +3619,140 @@
       }
       .shivai-status-bar .status-close {
         position: static !important;
-        width: 22px !important;
-        height: 22px !important;
+        width: 24px !important;
+        height: 24px !important;
         padding: 0 !important;
         margin: 0 0 0 4px !important;
-        background: rgba(13,17,23,0.06) !important;
-        border: none !important;
+        background: rgba(255,255,255,0.9) !important;
+        border: 1px solid rgba(13,17,23,0.1) !important;
         border-radius: 50% !important;
-        color: #0d1117 !important;
+        color: #000000 !important;
         display: inline-flex !important;
         align-items: center;
         justify-content: center;
         cursor: pointer;
-        box-shadow: none !important;
+        box-shadow: 0 1px 3px rgba(13,17,23,0.12) !important;
         transition: background 0.15s ease, transform 0.15s ease;
         flex-shrink: 0;
       }
       .shivai-status-bar .status-close:hover {
-        background: rgba(13,17,23,0.12) !important;
-        transform: scale(1.06);
+        background: #ffffff !important;
+        color: #ef4444 !important;
+        transform: scale(1.08);
       }
       .shivai-status-bar .status-close svg { display: block; }
+
+      /* ── Minimize button (sits left of the close button) ── */
+      .shivai-status-bar .status-minimize {
+        position: static !important;
+        width: 24px !important;
+        height: 24px !important;
+        padding: 0 !important;
+        margin: 0 0 0 4px !important;
+        background: rgba(255,255,255,0.9) !important;
+        border: 1px solid rgba(13,17,23,0.1) !important;
+        border-radius: 50% !important;
+        color: #000000 !important;
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        box-shadow: 0 1px 3px rgba(13,17,23,0.12) !important;
+        transition: background 0.15s ease, transform 0.15s ease;
+        flex-shrink: 0;
+      }
+      .shivai-status-bar .status-minimize:hover {
+        background: #ffffff !important;
+        color: #4f46e5 !important;
+        transform: scale(1.08);
+      }
+      .shivai-status-bar .status-minimize svg { display: block; }
+      /* Call view sits on a dark photo/gradient — lighten the controls there */
+      .call-status-bar .status-minimize,
+      .call-status-bar .status-close {
+        background: rgba(255,255,255,0.16) !important;
+        color: #ffffff !important;
+      }
+      .call-status-bar .status-minimize:hover,
+      .call-status-bar .status-close:hover {
+        background: rgba(255,255,255,0.28) !important;
+      }
+
+      /* ── Minimized: hide the panel, keep it in the DOM (call stays live) ── */
+      .shivai-widget.minimized {
+        display: none !important;
+      }
+
+      /* ── Collapsed edge tab (Google-Meet style handle) ── */
+      .shivai-collapse-handle {
+        position: fixed;
+        top: 50%;
+        z-index: 10001;
+        width: 34px;
+        height: 52px;
+        padding: 0;
+        border: none;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        gap: 0;
+        cursor: grab;
+        touch-action: none;
+        color: #ffffff;
+        background: linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%);
+        box-shadow: 0 8px 22px -6px ${theme.primaryColor}80, 0 0 0 1px rgba(255,255,255,0.12) inset;
+        transition: transform 0.18s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.18s ease, background 0.18s ease;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .shivai-collapse-handle:active { cursor: grabbing; }
+      .shivai-collapse-handle.visible {
+        display: inline-flex;
+        animation: shivaiHandleIn 0.28s cubic-bezier(0.34,1.56,0.64,1);
+      }
+      .shivai-collapse-handle.edge-right {
+        right: 0;
+        border-radius: 14px 0 0 14px;
+      }
+      .shivai-collapse-handle.edge-left {
+        left: 0;
+        border-radius: 0 14px 14px 0;
+      }
+      /* Chevron points toward the screen, i.e. away from the docked edge */
+      .shivai-collapse-handle.edge-left .shivai-collapse-chevron { transform: rotate(0deg); }
+      .shivai-collapse-handle.edge-right .shivai-collapse-chevron { transform: rotate(180deg); }
+      .shivai-collapse-handle:hover {
+        background: linear-gradient(135deg, ${theme.accentColor} 0%, ${theme.primaryColor} 100%);
+        box-shadow: 0 10px 26px -6px ${theme.primaryColor}99, 0 0 0 1px rgba(255,255,255,0.18) inset;
+      }
+      .shivai-collapse-handle.edge-right:hover { transform: translateX(-3px); }
+      .shivai-collapse-handle.edge-left:hover  { transform: translateX(3px); }
+      .shivai-collapse-chevron { display: block; transition: transform 0.18s ease; }
+      /* Live-call pulse dot — only shown while a call is active behind the tab */
+      .shivai-collapse-live {
+        position: absolute;
+        top: 7px;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #34d399;
+        box-shadow: 0 0 0 0 rgba(52,211,153,0.7);
+        display: none;
+      }
+      .shivai-collapse-handle.edge-right .shivai-collapse-live { right: 7px; }
+      .shivai-collapse-handle.edge-left  .shivai-collapse-live { left: 7px; }
+      .shivai-collapse-handle.is-live .shivai-collapse-live {
+        display: block;
+        animation: shivaiLivePulse 1.6s ease-out infinite;
+      }
+      @keyframes shivaiHandleIn {
+        from { opacity: 0; transform: scale(0.6); }
+        to   { opacity: 1; transform: scale(1); }
+      }
+      @keyframes shivaiLivePulse {
+        0%   { box-shadow: 0 0 0 0 rgba(52,211,153,0.7); }
+        70%  { box-shadow: 0 0 0 7px rgba(52,211,153,0); }
+        100% { box-shadow: 0 0 0 0 rgba(52,211,153,0); }
+      }
       .landing-content {
         padding: 10px 20px 16px;
         display: flex;
@@ -3920,14 +4110,14 @@
       }
       .footer-shivai-link:hover { color: #1a94ff !important; text-decoration: underline; text-underline-offset: 2px; }
 
-      /* Start-call button (landing) — widget2 gray→blue gradient */
+      /* Start-call button (landing) — themed from the selected preset */
       .start-call-btn {
       width: 100%;
       padding: 12px 24px;
       border: 1px solid transparent;
       border-radius: 999px;
       font-size: 15px;
-      background: linear-gradient(135deg, #4b5563 0%, #2563eb 100%);
+      background: linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%);
       color: white;
       font-weight: 600;
       cursor: pointer;
@@ -3947,7 +4137,7 @@
       font-family: inherit;
       }
       .start-call-btn:hover {
-      background: linear-gradient(135deg, #2563eb 0%, #4b5563 100%);
+      background: linear-gradient(135deg, ${theme.accentColor} 0%, ${theme.primaryColor} 100%);
       transform: translateY(-1px);
       box-shadow:
         0 12px 28px -8px rgba(37, 99, 235, 0.6),
@@ -4400,8 +4590,8 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        padding: 6px 36px 14px;
-        gap: 20px;
+        padding: 10px 36px 8px;
+        gap: 22px;
         order: 5;
         flex-shrink: 0;
       }
@@ -4448,11 +4638,11 @@
       }
 
       /* Main call action (phone icon by default, hangup when connected) */
-      .call-view .end-call-btn {
-        width: 77px !important;
-        height: 77px !important;
+      .call-view .end-call-btn.control-btn-icon {
+        width: 110px !important;
+        height: 110px !important;
         border-radius: 50% !important;
-        background: linear-gradient(135deg, #4b5563 0%, #2563eb 100%) !important;
+        background: linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%) !important;
         border: none !important;
         color: #ffffff !important;
         cursor: pointer;
@@ -4460,23 +4650,24 @@
         align-items: center !important;
         justify-content: center !important;
         box-shadow:
-          0 10px 26px -6px rgba(37, 99, 235, 0.5),
-          0 4px 12px -4px rgba(75, 85, 99, 0.4),
+          0 10px 26px -6px ${theme.accentColor}80,
+          0 4px 12px -4px ${theme.primaryColor}66,
           inset 0 1px 0 rgba(255,255,255,0.22) !important;
         transition: transform 0.18s cubic-bezier(0.34,1.56,0.64,1), background 0.2s ease, box-shadow 0.2s ease !important;
         animation: none !important;
-        padding: 0;
+        padding: 0 !important;
+        box-sizing: border-box !important;
       }
       .call-view .end-call-btn svg {
         display: block !important;
-        width: 28px !important;
-        height: 28px !important;
+        width: 40px !important;
+        height: 40px !important;
         stroke: #ffffff;
         stroke-width: 2.2;
       }
       .call-view .end-call-btn .end-call-label { display: none !important; }
       .call-view .end-call-btn:hover {
-        background: linear-gradient(135deg, #2563eb 0%, #4b5563 100%) !important;
+        background: linear-gradient(135deg, ${theme.accentColor} 0%, ${theme.primaryColor} 100%) !important;
         transform: scale(1.04);
       }
       .call-view .end-call-btn:active { transform: scale(0.96); }
@@ -4584,6 +4775,33 @@
       .call-view .widget-footer { display: none !important; }
       .call-view .footer-text { display: none !important; }
       .call-view .controls { display: none !important; }
+
+      /* ShivAI branding at the bottom of the call screen */
+      .call-footer {
+        order: 6;
+        flex-shrink: 0;
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        margin: 8px 20px 0;
+        padding: 12px 0 14px;
+        border-top: 1px solid rgba(13,17,23,0.08);
+      }
+      .call-footer .footer-text {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 3px !important;
+        font-size: 11px !important;
+        color: #6b7280 !important;
+      }
+      .call-footer .footer-text span { color: #6b7280 !important; font-weight: 500 !important; }
+      .call-footer .footer-shivai-link {
+        color: #0a84ff !important;
+        font-weight: 700 !important;
+        text-decoration: none !important;
+      }
+      .call-footer .footer-shivai-link:hover { text-decoration: underline !important; text-underline-offset: 2px; }
 
       .call-header {
       display: flex;
@@ -4881,7 +5099,7 @@
       }
       @keyframes msgIn { from{opacity:0;transform:translateY(6px) scale(0.96)} to{opacity:1;transform:translateY(0) scale(1)} }
       .message.user {
-      background: #0a84ff;
+      background: linear-gradient(135deg, ${theme.primaryColor} 0%, ${theme.accentColor} 100%);
       margin-left: auto;
       color: #ffffff;
       border-bottom-right-radius: 4px;
@@ -4979,7 +5197,7 @@
       }
       .control-btn-icon.connect {
       width: 58px; height: 58px;
-      background: #0a84ff;
+      background: ${theme.primaryColor};
       box-shadow: 0 4px 22px rgba(10,132,255,0.5);
       animation: connectPulse 2.2s ease-in-out infinite;
       }
@@ -5010,9 +5228,24 @@
       .control-btn-icon.mute.muted { background:rgba(255,59,48,0.12); border-color:rgba(255,59,48,0.2); color:#ff3b30; }
       .control-btn-icon.mute.muted:hover { background:rgba(255,59,48,0.2); }
 
+      /* Dashboard customization preview — call controls scaled for the narrow iframe */
+      .shivai-widget.shivai-preview-mode .call-view .end-call-btn {
+        width: 110px !important;
+        height: 110px !important;
+      }
+      .shivai-widget.shivai-preview-mode .call-view .end-call-btn svg {
+        width: 25px !important;
+        height: 25px !important;
+      }
+      .shivai-widget.shivai-preview-mode .call-view .control-btn-icon {
+        width: 52px !important;
+        height: 52px !important;
+      }
+
       /* ── Responsive ── */
       @media (max-width: 768px) {
-      .shivai-trigger { bottom:calc(18px + env(safe-area-inset-bottom)); right:18px; }
+      .shivai-trigger { bottom:calc(18px + env(safe-area-inset-bottom)); right:18px; max-width:calc(100vw - 36px); }
+      .shivai-trigger-info { max-width:calc(100vw - 190px); }
       .shivai-message-bubble { font-size:12px; padding:8px 12px; max-width:200px; }
       .shivai-widget { width:calc(100vw - 32px); right:16px; bottom:calc(10px + 4dvh + env(safe-area-inset-bottom)); max-height:min(620px, calc(96dvh - 24px - env(safe-area-inset-bottom))); }
       }
@@ -5041,7 +5274,8 @@
       .widget-header .language-select-styled-landing:hover,
       .call-header .widget-close:hover,
       .call-header .back-btn:hover,
-      .shivai-status-bar .widget-close:hover { cursor: pointer; }
+      .shivai-status-bar .widget-close:hover,
+      .shivai-status-bar .widget-minimize:hover { cursor: pointer; }
 
       /* ── Message input container ── */
       .shivai-widget .message-input-container {
@@ -5213,7 +5447,7 @@
       .shivai-widget .shivai-fsp-caption::placeholder { color: rgba(245,245,247,0.3); }
       .shivai-widget .shivai-fsp-send-btn {
         width: 44px; height: 44px; border-radius: 50%;
-        background: #0a84ff; border: none; cursor: pointer;
+        background: ${theme.primaryColor}; border: none; cursor: pointer;
         display: flex; align-items: center; justify-content: center;
         flex-shrink: 0; transition: background 0.15s, transform 0.12s;
         box-shadow: 0 4px 16px rgba(10,132,255,0.45);
@@ -5231,6 +5465,13 @@
     const closeButtons = widgetContainer.querySelectorAll(".widget-close");
     closeButtons.forEach((btn) => {
       btn.addEventListener("click", closeWidget);
+    });
+    const minimizeButtons = widgetContainer.querySelectorAll(".widget-minimize");
+    minimizeButtons.forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        minimizeWidget();
+      });
     });
     // Note: start-call-btn is now dynamically created in updateLandingViewBasedOnStatus
     // Event listener is attached there instead of here
@@ -5256,7 +5497,11 @@
     }
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && isWidgetOpen) {
-        closeWidget();
+        if (isMinimized) {
+          expandWidget();
+        } else {
+          closeWidget();
+        }
       }
     });
 
@@ -5679,15 +5924,136 @@
       stopConversation();
     }
   }
+  // ── Minimize / expand (edge chevron tab) ────────────────────────────────────
+  // Minimize keeps everything alive (mic, LiveKit, audio) — it only hides the
+  // panel to a small handle on the nearest screen edge. Close() tears down.
+
+  // The collapsed edge tab can be slid vertically along its screen edge.
+  // A short press without movement counts as a click → expand the widget.
+  function makeCollapseHandleDraggable(handleEl) {
+    const DRAG_THRESHOLD = 6;
+    let isDragging = false;
+    let activePointerId = null;
+    let startY, initialTop;
+
+    handleEl.style.touchAction = "none";
+    handleEl.addEventListener("pointerdown", startDrag);
+
+    function startDrag(e) {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      e.preventDefault();
+      handleEl.setPointerCapture(e.pointerId);
+      activePointerId = e.pointerId;
+      startY = e.clientY;
+      isDragging = false;
+      initialTop = handleEl.getBoundingClientRect().top;
+      handleEl.addEventListener("pointermove", drag);
+      handleEl.addEventListener("pointerup", stopDrag);
+      handleEl.addEventListener("pointercancel", stopDrag);
+    }
+
+    function drag(e) {
+      if (e.pointerId !== activePointerId) return;
+      const dy = e.clientY - startY;
+      if (!isDragging) {
+        if (Math.abs(dy) < DRAG_THRESHOLD) return;
+        isDragging = true;
+        handleEl.style.transition = "none";
+        document.body.style.userSelect = "none";
+        document.body.style.webkitUserSelect = "none";
+      }
+      e.preventDefault();
+      const handleH = handleEl.offsetHeight || 52;
+      const vh = document.documentElement.clientHeight;
+      // Vertical only — the tab stays glued to its edge
+      collapseHandleTop = Math.max(12, Math.min(initialTop + dy, vh - handleH - 12));
+      handleEl.style.top = collapseHandleTop + "px";
+    }
+
+    function stopDrag(e) {
+      if (e.pointerId !== activePointerId) return;
+      handleEl.removeEventListener("pointermove", drag);
+      handleEl.removeEventListener("pointerup", stopDrag);
+      handleEl.removeEventListener("pointercancel", stopDrag);
+      const wasDragging = isDragging;
+      if (isDragging) {
+        isDragging = false;
+        handleEl.style.transition = "";
+        document.body.style.userSelect = "";
+        document.body.style.webkitUserSelect = "";
+      }
+      activePointerId = null;
+      // No movement → treat as a click and expand the widget
+      if (!wasDragging) expandWidget();
+    }
+  }
+
+  function positionCollapseHandle() {
+    if (!collapseHandle) return;
+    const handleH = collapseHandle.offsetHeight || 52;
+    const vh = document.documentElement.clientHeight;
+    let top;
+    if (collapseHandleTop != null) {
+      // User has dragged the tab — keep their chosen vertical position (clamped)
+      top = Math.max(12, Math.min(collapseHandleTop, vh - handleH - 12));
+    } else {
+      // Default: 10% down from the top of the viewport
+      top = Math.max(12, Math.min(vh * 0.1, vh - handleH - 12));
+    }
+    collapseHandle.style.top = top + "px";
+    collapseHandle.classList.toggle("edge-left", minimizedEdge === "left");
+    collapseHandle.classList.toggle("edge-right", minimizedEdge === "right");
+    if (minimizedEdge === "left") {
+      collapseHandle.style.left = "0px";
+      collapseHandle.style.right = "auto";
+    } else {
+      collapseHandle.style.right = "0px";
+      collapseHandle.style.left = "auto";
+    }
+  }
+
+  function minimizeWidget() {
+    if (!isWidgetOpen || isMinimized) return;
+    // Decide which edge to dock to based on the widget's current horizontal center
+    const vw = document.documentElement.clientWidth;
+    const r = widgetContainer.getBoundingClientRect();
+    minimizedEdge = (r.left + r.width / 2) < vw / 2 ? "left" : "right";
+
+    isMinimized = true;
+    // Mirror live-call state onto the handle so the pulse dot only shows mid-call
+    collapseHandle.classList.toggle("is-live", !!isConnected || !!isConnecting);
+    widgetContainer.classList.add("minimized");
+    positionCollapseHandle();
+    collapseHandle.classList.add("visible");
+    // Keep trigger hidden while minimized — the handle is the way back in
+    if (triggerBtn) triggerBtn.style.display = "none";
+  }
+
+  function expandWidget() {
+    if (!isMinimized) return;
+    isMinimized = false;
+    collapseHandle.classList.remove("visible");
+    widgetContainer.classList.remove("minimized");
+    // Snap panel back beside the edge it was docked to, within the viewport
+    positionWidgetNearTrigger();
+  }
+
   function toggleWidget() {
     if (isWidgetOpen) {
-      closeWidget();
+      if (isMinimized) {
+        expandWidget();
+      } else {
+        closeWidget();
+      }
     } else {
       openWidget();
     }
   }
   function openWidget() {
     widgetContainer.classList.add("active");
+    widgetContainer.classList.remove("minimized");
+    if (collapseHandle) collapseHandle.classList.remove("visible", "is-live");
+    isMinimized = false;
     isWidgetOpen = true;
     positionWidgetNearTrigger();
     if (triggerBtn) {
@@ -5815,6 +6181,10 @@
     if (closeLangDropdownRef) closeLangDropdownRef();
     _wlog("🔴 Complete cleanup finished on widget close");
     widgetContainer.classList.remove("active");
+    widgetContainer.classList.remove("minimized");
+    if (collapseHandle) collapseHandle.classList.remove("visible", "is-live");
+    isMinimized = false;
+    collapseHandleTop = null; // forget dragged position — next session starts centered
     isWidgetOpen = false;
     if (triggerBtn) {
       triggerBtn.style.display = "flex";
@@ -6658,6 +7028,7 @@
       // Reset call timer flags for new conversation
       knowledgeBaseReady = false;
       firstResponseReceived = false;
+      assistantTranscriptionActive = false;
       callTimerStarted = false;
 
       // Show connecting animation
@@ -7089,7 +7460,7 @@
           if (metadata) {
             try {
               const data = JSON.parse(metadata);
-              if (data.transcript || data.text) {
+              if ((data.transcript || data.text) && !assistantTranscriptionActive) {
                 addMessage("assistant", data.transcript || data.text);
                 _wlog(
                   "✅ Transcript from participant metadata:",
@@ -7108,7 +7479,7 @@
         if (metadata) {
           try {
             const data = JSON.parse(metadata);
-            if (data.transcript || data.text) {
+            if ((data.transcript || data.text) && !assistantTranscriptionActive) {
               addMessage("assistant", data.transcript || data.text);
               _wlog(
                 "✅ Transcript from room metadata:",
@@ -7602,6 +7973,10 @@
                     }
                   }
 
+                  // Mark the transcription stream as authoritative for assistant
+                  // text so lk.chat won't re-add the same words.
+                  if (!isUser) assistantTranscriptionActive = true;
+
                   // Add transcriptions
                   addMessage(senderName, text);
                   _wlog("✅ Transcription added:", {
@@ -7645,11 +8020,17 @@
 
                 if (!isUser && text && text.trim()) {
                   _wlog("💬 AI Chat response received:", text);
-                  addMessage("assistant", text, { source: "chat" });
-                  _wlog("💬 Chat message added:", {
-                    sender: participantInfo.identity,
-                    text,
-                  });
+                  // If lk.transcription is already carrying assistant text, skip —
+                  // lk.chat is delivering the same words (the double).
+                  if (assistantTranscriptionActive) {
+                    _wlog("🚫 Skipping lk.chat assistant text — lk.transcription is authoritative");
+                  } else {
+                    addMessage("assistant", text, { source: "chat" });
+                    _wlog("💬 Chat message added:", {
+                      sender: participantInfo.identity,
+                      text,
+                    });
+                  }
 
                   // Clear loading/connecting state on first AI chat message
                   if (!firstResponseReceived) {

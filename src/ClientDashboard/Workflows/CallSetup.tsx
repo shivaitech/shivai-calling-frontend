@@ -1,7 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import GlassCard from '../../components/GlassCard';
 import { useAgent } from '../../contexts/AgentContext';
+import {
+  getNumberCatalog,
+  buyPhoneNumber,
+  getPhoneNumbers,
+  reassignPhoneNumber,
+  deprovisionPhoneNumber,
+  enableOutbound,
+  createCampaign,
+  uploadCampaignContacts,
+  startCampaign,
+  pauseCampaign,
+  getCampaigns,
+  getCampaignStatus,
+  contactsToCsvFile,
+  formatDid,
+  type CatalogNumber,
+  type ProvisionedNumber,
+  type Campaign,
+  type CampaignLiveStatus,
+} from '../../services/phoneNumbersAPI';
 import {
   Phone,
   PhoneIncoming,
@@ -10,11 +30,7 @@ import {
   Trash2,
   Settings,
   CheckCircle,
-  XCircle,
   AlertCircle,
-  Eye,
-  EyeOff,
-  Calendar,
   Clock,
   Upload,
   Bot,
@@ -22,20 +38,16 @@ import {
   ChevronRight,
   Play,
   Pause,
-  Square,
   Hash,
-  Shield,
   Mic,
   MicOff,
   PhoneCall,
   PhoneMissed,
-  BarChart2,
   Users,
   Zap,
   Info,
   X,
   Check,
-  Link,
 } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -45,9 +57,25 @@ interface PhoneNumber {
   number: string;
   friendlyName: string;
   assignedAgentId: string | null;
-  capabilities: { voice: boolean; sms: boolean };
-  region: string;
+  language: string;
+  isActive: boolean;
+  inboundEnabled: boolean;
+  outboundEnabled: boolean;
+  provisionedAt: string;
 }
+
+// Map an API record onto the shape this screen renders
+const toPhoneNumber = (n: ProvisionedNumber): PhoneNumber => ({
+  id: n._id,
+  number: n.phone_number,
+  friendlyName: n.display_name,
+  assignedAgentId: n.agent_id || null,
+  language: n.language,
+  isActive: n.is_active,
+  inboundEnabled: n.inbound_enabled,
+  outboundEnabled: !!n.outbound_enabled,
+  provisionedAt: n.provisioned_at,
+});
 
 interface InboundRule {
   numberId: string;
@@ -58,67 +86,14 @@ interface InboundRule {
   fallbackNumber?: string;
 }
 
-interface OutboundCampaign {
-  id: string;
-  name: string;
-  agentId: string;
-  callerId: string;
-  contacts: ContactEntry[];
-  status: 'draft' | 'scheduled' | 'running' | 'paused' | 'completed';
-  scheduledAt: string | null;
-  timezone: string;
-  maxConcurrent: number;
-  retryAttempts: number;
-  retryDelay: number;
-  recordCalls: boolean;
-  voicemailDetection: boolean;
-  dncEnabled: boolean;
-  createdAt: string;
-  progress: { called: number; answered: number; failed: number };
-}
+// Live status (total/pending/dialing/completed/no_answer) fetched per campaign
+type CampaignRow = Campaign & { live?: CampaignLiveStatus };
 
 interface ContactEntry {
   id: string;
   phone: string;
   name?: string;
 }
-
-// ─── Static Numbers ───────────────────────────────────────────────────────────
-
-const STATIC_NUMBERS: PhoneNumber[] = [
-  {
-    id: 'num_1',
-    number: '+1 (415) 555-0123',
-    friendlyName: 'Main Support Line',
-    assignedAgentId: null,
-    capabilities: { voice: true, sms: true },
-    region: 'US',
-  },
-  {
-    id: 'num_2',
-    number: '+1 (628) 555-0187',
-    friendlyName: 'Sales Line',
-    assignedAgentId: null,
-    capabilities: { voice: true, sms: false },
-    region: 'US',
-  },
-  {
-    id: 'num_3',
-    number: '+44 20 7946 0123',
-    friendlyName: 'UK Office',
-    assignedAgentId: null,
-    capabilities: { voice: true, sms: true },
-    region: 'GB',
-  },
-  {
-    id: 'num_4',
-    number: '+91 98765 43210',
-    friendlyName: 'India Operations',
-    assignedAgentId: null,
-    capabilities: { voice: true, sms: true },
-    region: 'IN',
-  },
-];
 
 const TIMEZONES = [
   'Asia/Kolkata', 'Asia/Dubai', 'Asia/Singapore', 'Asia/Tokyo',
@@ -162,15 +137,15 @@ const COUNTRY_CODES = [
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const statusBadge = (status: OutboundCampaign['status']) => {
-  const map: Record<OutboundCampaign['status'], { label: string; cls: string }> = {
+const statusBadge = (status: string) => {
+  const map: Record<string, { label: string; cls: string }> = {
     draft:     { label: 'Draft',     cls: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300' },
     scheduled: { label: 'Scheduled', cls: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' },
     running:   { label: 'Running',   cls: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' },
     paused:    { label: 'Paused',    cls: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' },
     completed: { label: 'Completed', cls: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300' },
   };
-  const s = map[status];
+  const s = map[status] || { label: status || 'Unknown', cls: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300' };
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${s.cls}`}>
       {s.label}
@@ -224,51 +199,174 @@ const CallSetup: React.FC = () => {
   const [activeSection, setActiveSection] = useState<'inbound' | 'outbound'>('inbound');
 
   // ── Inbound state ──
-  const [numbers, setNumbers] = useState<PhoneNumber[]>(STATIC_NUMBERS);
+  const [numbers, setNumbers] = useState<PhoneNumber[]>([]);
+  const [numbersLoading, setNumbersLoading] = useState(true);
+  const [numbersError, setNumbersError] = useState<string | null>(null);
   const [assignModal, setAssignModal] = useState<PhoneNumber | null>(null);
   const [rulesModal, setRulesModal] = useState<PhoneNumber | null>(null);
   const [inboundRules, setInboundRules] = useState<Record<string, InboundRule>>({});
+  const [assigningId, setAssigningId] = useState<string | null>(null);
+  const [releasingId, setReleasingId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  // ── Outbound state ──
-  const [campaigns, setCampaigns] = useState<OutboundCampaign[]>([]);
+  // ── Buy-number state ──
+  const [showBuyModal, setShowBuyModal] = useState(false);
+  const [catalog, setCatalog] = useState<CatalogNumber[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [selectedDid, setSelectedDid] = useState<CatalogNumber | null>(null);
+  const [buyDisplayName, setBuyDisplayName] = useState('');
+  const [buyAgentId, setBuyAgentId] = useState('');
+  const [isBuying, setIsBuying] = useState(false);
+  const [buyError, setBuyError] = useState<string | null>(null);
+
+  // ── Enable-outbound state (per number) ──
+  const [enablingOutboundId, setEnablingOutboundId] = useState<string | null>(null);
+
+  // ── Outbound / campaign state ──
+  const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
+  const [campaignsLoading, setCampaignsLoading] = useState(false);
+  const [campaignsError, setCampaignsError] = useState<string | null>(null);
+  const [campaignActionId, setCampaignActionId] = useState<string | null>(null);
+
+  // ── Create-campaign wizard state ──
   const [showCreateCampaign, setShowCreateCampaign] = useState(false);
   const [campaignStep, setCampaignStep] = useState<1 | 2 | 3>(1);
+  const [contactMode, setContactMode] = useState<'single' | 'bulk' | 'file'>('single');
   const [bulkInput, setBulkInput] = useState('');
-  const [contactMode, setContactMode] = useState<'single' | 'bulk'>('single');
   const [singleContact, setSingleContact] = useState({ phone: '', name: '' });
   const [selectedCountryId, setSelectedCountryId] = useState('IN');
   const selectedCountry = COUNTRY_CODES.find((c) => c.id === selectedCountryId) ?? COUNTRY_CODES[0];
   const [campaignContacts, setCampaignContacts] = useState<ContactEntry[]>([]);
-  const [campaignScheduleMode, setCampaignScheduleMode] = useState<'now' | 'schedule'>('now');
+  const [contactFile, setContactFile] = useState<File | null>(null);
   const [isSavingCampaign, setIsSavingCampaign] = useState(false);
-  const [newCampaign, setNewCampaign] = useState<Omit<OutboundCampaign, 'id' | 'createdAt' | 'progress' | 'contacts'>>({
+  const [wizardError, setWizardError] = useState<string | null>(null);
+  const [wizardStage, setWizardStage] = useState<string>(''); // progress text while launching
+  const [startNow, setStartNow] = useState(true);
+  const [newCampaign, setNewCampaign] = useState({
     name: '',
     agentId: '',
-    callerId: '',
-    status: 'draft',
-    scheduledAt: null,
-    timezone: 'Asia/Kolkata',
-    maxConcurrent: 2,
-    retryAttempts: 2,
-    retryDelay: 30,
-    recordCalls: true,
-    voicemailDetection: true,
-    dncEnabled: false,
+    callerNumber: '',
+    language: 'en-in',
+    maxConcurrent: 3,
   });
 
   // ─── Inbound handlers ─────────────────────────────────────────────────────
 
-  const handleAssignAgent = (agentId: string) => {
-    if (!assignModal) return;
-    setNumbers((prev) =>
-      prev.map((n) => n.id === assignModal.id ? { ...n, assignedAgentId: agentId || null } : n)
-    );
-    setAssignModal(null);
+  const loadNumbers = useCallback(async () => {
+    setNumbersLoading(true);
+    setNumbersError(null);
+    try {
+      const { data } = await getPhoneNumbers({ limit: 100 });
+      setNumbers(data.map(toPhoneNumber));
+    } catch (err: any) {
+      setNumbersError(err.message || 'Failed to load phone numbers');
+    } finally {
+      setNumbersLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadNumbers();
+  }, [loadNumbers]);
+
+  // Reassignment rebuilds the LiveKit dispatch rule server-side
+  const handleAssignAgent = async (agentId: string) => {
+    if (!assignModal || !agentId) return;
+    const target = assignModal;
+    setAssigningId(target.id);
+    setActionError(null);
+    try {
+      await reassignPhoneNumber(target.id, agentId);
+      setNumbers((prev) =>
+        prev.map((n) => (n.id === target.id ? { ...n, assignedAgentId: agentId } : n))
+      );
+      setAssignModal(null);
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to reassign number');
+    } finally {
+      setAssigningId(null);
+    }
+  };
+
+  // Deprovision — tears down the trunk + dispatch rule so inbound stops routing
+  const handleDeprovision = async (num: PhoneNumber) => {
+    if (!window.confirm(
+      `Stop routing inbound calls on ${num.number}?\n\nThe number stays on your account but will no longer reach an agent.`
+    )) return;
+    setReleasingId(num.id);
+    setActionError(null);
+    try {
+      await deprovisionPhoneNumber(num.id);
+      setNumbers((prev) =>
+        prev.map((n) =>
+          n.id === num.id ? { ...n, inboundEnabled: false, isActive: false, assignedAgentId: null } : n
+        )
+      );
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to deprovision number');
+    } finally {
+      setReleasingId(null);
+    }
+  };
+
+  // ─── Buy-number handlers ──────────────────────────────────────────────────
+
+  const openBuyModal = async () => {
+    setShowBuyModal(true);
+    setSelectedDid(null);
+    setBuyDisplayName('');
+    setBuyAgentId('');
+    setBuyError(null);
+    setCatalogLoading(true);
+    setCatalogError(null);
+    try {
+      setCatalog(await getNumberCatalog());
+    } catch (err: any) {
+      setCatalogError(err.message || 'Failed to load available numbers');
+    } finally {
+      setCatalogLoading(false);
+    }
+  };
+
+  const handleBuyNumber = async () => {
+    if (!selectedDid || !buyAgentId || !buyDisplayName.trim()) return;
+    setIsBuying(true);
+    setBuyError(null);
+    try {
+      await buyPhoneNumber({
+        voicelink_did_id: selectedDid.id,
+        agent_id: buyAgentId,
+        display_name: buyDisplayName.trim(),
+      });
+      setShowBuyModal(false);
+      await loadNumbers();
+    } catch (err: any) {
+      setBuyError(err.message || 'Failed to provision number');
+    } finally {
+      setIsBuying(false);
+    }
   };
 
   const handleSaveRules = (rule: InboundRule) => {
     setInboundRules((prev) => ({ ...prev, [rule.numberId]: rule }));
     setRulesModal(null);
+  };
+
+  // Enable outbound on a number so it can be used as a campaign caller
+  const handleEnableOutbound = async (num: PhoneNumber) => {
+    setEnablingOutboundId(num.id);
+    setActionError(null);
+    try {
+      await enableOutbound(num.id);
+      setNumbers((prev) =>
+        prev.map((n) => (n.id === num.id ? { ...n, outboundEnabled: true } : n))
+      );
+    } catch (err: any) {
+      setActionError(err.message || 'Failed to enable outbound calling');
+    } finally {
+      setEnablingOutboundId(null);
+    }
   };
 
   // ─── Outbound handlers ────────────────────────────────────────────────────
@@ -294,55 +392,146 @@ const CallSetup: React.FC = () => {
     setCampaignContacts(parsed);
   };
 
-  const handleSaveCampaign = async () => {
-    if (!newCampaign.name.trim() || !newCampaign.agentId || campaignContacts.length === 0) return;
+  // ─── Campaign list ────────────────────────────────────────────────────────
+
+  const loadCampaigns = useCallback(async () => {
+    setCampaignsLoading(true);
+    setCampaignsError(null);
+    try {
+      const list = await getCampaigns();
+      setCampaigns(list);
+      // Fetch live stats per campaign; failures are non-fatal (leave live undefined)
+      const withStats = await Promise.all(
+        list.map(async (c) => {
+          try {
+            return { ...c, live: await getCampaignStatus(c._id) };
+          } catch {
+            return c;
+          }
+        })
+      );
+      setCampaigns(withStats);
+    } catch (err: any) {
+      setCampaignsError(err.message || 'Failed to load campaigns');
+    } finally {
+      setCampaignsLoading(false);
+    }
+  }, []);
+
+  // Load campaigns the first time the user opens the Outbound tab
+  useEffect(() => {
+    if (activeSection === 'outbound' && campaigns.length === 0 && !campaignsLoading) {
+      loadCampaigns();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSection]);
+
+  // Poll live status while any campaign is running
+  useEffect(() => {
+    if (activeSection !== 'outbound') return;
+    const anyRunning = campaigns.some((c) => c.status === 'running');
+    if (!anyRunning) return;
+    const t = setInterval(async () => {
+      const running = campaigns.filter((c) => c.status === 'running');
+      const updates = await Promise.all(
+        running.map(async (c) => {
+          try {
+            return { id: c._id, live: await getCampaignStatus(c._id) };
+          } catch {
+            return null;
+          }
+        })
+      );
+      setCampaigns((prev) =>
+        prev.map((c) => {
+          const u = updates.find((x) => x && x.id === c._id);
+          return u ? { ...c, live: u.live } : c;
+        })
+      );
+    }, 5000);
+    return () => clearInterval(t);
+  }, [activeSection, campaigns]);
+
+  // Create → upload contacts → optionally start. Matches the required API order.
+  const handleLaunchCampaign = async () => {
+    if (!step1Valid || !step2Valid) return;
     setIsSavingCampaign(true);
-    await new Promise((r) => setTimeout(r, 900));
-    const campaign: OutboundCampaign = {
-      ...newCampaign,
-      id: `camp_${Date.now()}`,
-      status: campaignScheduleMode === 'now' ? 'running' : 'scheduled',
-      scheduledAt: campaignScheduleMode === 'schedule' ? newCampaign.scheduledAt : null,
-      contacts: campaignContacts,
-      createdAt: new Date().toISOString(),
-      progress: { called: 0, answered: 0, failed: 0 },
-    };
-    setCampaigns((prev) => [campaign, ...prev]);
-    setIsSavingCampaign(false);
-    setShowCreateCampaign(false);
-    resetCampaignForm();
+    setWizardError(null);
+    try {
+      setWizardStage('Creating campaign…');
+      const created = await createCampaign({
+        agent_id: newCampaign.agentId,
+        name: newCampaign.name.trim(),
+        caller_number: newCampaign.callerNumber,
+        language: newCampaign.language,
+        max_concurrent: newCampaign.maxConcurrent,
+      });
+
+      setWizardStage('Uploading contacts…');
+      const file =
+        contactMode === 'file' && contactFile
+          ? contactFile
+          : contactsToCsvFile(campaignContacts.map((c) => ({ phone: c.phone, name: c.name })));
+      await uploadCampaignContacts(created._id, file);
+
+      if (startNow) {
+        setWizardStage('Starting dialer…');
+        await startCampaign(created._id);
+      }
+
+      setShowCreateCampaign(false);
+      resetCampaignForm();
+      await loadCampaigns();
+    } catch (err: any) {
+      setWizardError(err.message || 'Failed to launch campaign');
+    } finally {
+      setIsSavingCampaign(false);
+      setWizardStage('');
+    }
   };
 
   const resetCampaignForm = () => {
     setCampaignStep(1);
     setCampaignContacts([]);
+    setContactFile(null);
     setBulkInput('');
     setContactMode('single');
     setSingleContact({ phone: '', name: '' });
-    setCampaignScheduleMode('now');
-    setNewCampaign({
-      name: '', agentId: '', callerId: '', status: 'draft', scheduledAt: null,
-      timezone: 'Asia/Kolkata', maxConcurrent: 2, retryAttempts: 2, retryDelay: 30,
-      recordCalls: true, voicemailDetection: true, dncEnabled: false,
-    });
+    setStartNow(true);
+    setWizardError(null);
+    setNewCampaign({ name: '', agentId: '', callerNumber: '', language: 'en-in', maxConcurrent: 3 });
   };
 
-  const handleCampaignAction = (id: string, action: 'pause' | 'resume' | 'stop') => {
-    setCampaigns((prev) =>
-      prev.map((c) =>
-        c.id === id
-          ? { ...c, status: action === 'pause' ? 'paused' : action === 'resume' ? 'running' : 'completed' }
-          : c
-      )
-    );
+  const openCampaignWizard = () => {
+    resetCampaignForm();
+    setShowCreateCampaign(true);
+  };
+
+  // Pause / resume via the phone-service dialer
+  const handleCampaignAction = async (id: string, action: 'pause' | 'resume') => {
+    setCampaignActionId(id);
+    setCampaignsError(null);
+    try {
+      if (action === 'pause') {
+        await pauseCampaign(id);
+        setCampaigns((prev) => prev.map((c) => (c._id === id ? { ...c, status: 'paused' } : c)));
+      } else {
+        await startCampaign(id);
+        setCampaigns((prev) => prev.map((c) => (c._id === id ? { ...c, status: 'running' } : c)));
+      }
+    } catch (err: any) {
+      setCampaignsError(err.message || `Failed to ${action} campaign`);
+    } finally {
+      setCampaignActionId(null);
+    }
   };
 
   // ─── Derived ─────────────────────────────────────────────────────────────
 
-  const voiceNumbers = numbers.filter((n) => n.capabilities.voice);
+  const outboundNumbers = numbers.filter((n) => n.outboundEnabled && n.isActive);
   const assignedCount = numbers.filter((n) => n.assignedAgentId).length;
-  const step1Valid = !!(newCampaign.name.trim() && newCampaign.agentId);
-  const step2Valid = campaignContacts.length > 0;
+  const step1Valid = !!(newCampaign.name.trim() && newCampaign.agentId && newCampaign.callerNumber);
+  const step2Valid = contactMode === 'file' ? !!contactFile : campaignContacts.length > 0;
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
@@ -429,14 +618,64 @@ const CallSetup: React.FC = () => {
                     subtitle="Assign AI agents to handle inbound calls on each number"
                     color="bg-gradient-to-br from-blue-500 to-indigo-600"
                   />
-                  <div className="hidden sm:flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500 bg-slate-50 dark:bg-slate-800/50 px-3 py-2 rounded-xl whitespace-nowrap">
-                    <Info className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span>Static numbers — connect Twilio to sync live</span>
-                  </div>
+                  <button
+                    onClick={openBuyModal}
+                    className="common-button-bg flex items-center gap-2 flex-shrink-0"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Buy Number
+                  </button>
                 </div>
 
+                {actionError && (
+                  <div className="mb-4 flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                    <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-red-600 dark:text-red-400 flex-1">{actionError}</p>
+                    <button onClick={() => setActionError(null)} className="text-red-400 hover:text-red-600">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Loading */}
+                {numbersLoading && (
+                  <div className="flex items-center justify-center py-14 gap-2 text-slate-400">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span className="text-sm">Loading your numbers…</span>
+                  </div>
+                )}
+
+                {/* Load error */}
+                {!numbersLoading && numbersError && (
+                  <div className="text-center py-12 border-2 border-dashed border-red-200 dark:border-red-800 rounded-2xl">
+                    <div className="w-14 h-14 rounded-2xl bg-red-50 dark:bg-red-900/20 flex items-center justify-center mx-auto mb-3">
+                      <AlertCircle className="w-6 h-6 text-red-500" />
+                    </div>
+                    <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">{numbersError}</p>
+                    <button onClick={loadNumbers} className="common-button-bg2 inline-flex items-center gap-2 text-sm px-4 py-2 rounded-xl">
+                      Try again
+                    </button>
+                  </div>
+                )}
+
+                {/* Empty */}
+                {!numbersLoading && !numbersError && numbers.length === 0 && (
+                  <div className="text-center py-14 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
+                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/20 dark:to-indigo-900/20 flex items-center justify-center mx-auto mb-4">
+                      <Phone className="w-7 h-7 text-blue-500" />
+                    </div>
+                    <h3 className="text-base font-semibold text-slate-700 dark:text-slate-300 mb-2">No phone numbers yet</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto mb-6">
+                      Buy a number to start receiving inbound calls. It goes live the moment it's provisioned.
+                    </p>
+                    <button onClick={openBuyModal} className="common-button-bg inline-flex items-center gap-2">
+                      <Plus className="w-4 h-4" /> Buy Number
+                    </button>
+                  </div>
+                )}
+
                 <div className="space-y-2">
-                  {numbers.map((num) => {
+                  {!numbersLoading && !numbersError && numbers.map((num) => {
                     const agent = agents.find((a) => a.id === num.assignedAgentId);
                     const rules = inboundRules[num.id];
                     return (
@@ -453,13 +692,17 @@ const CallSetup: React.FC = () => {
                             <p className="font-semibold text-slate-800 dark:text-white text-sm">{num.number}</p>
                             <div className="flex flex-wrap items-center gap-1 mt-0.5">
                               <span className="text-xs text-slate-500 dark:text-slate-400">{num.friendlyName}</span>
-                              {num.capabilities.voice && (
-                                <span className="text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded-md">Voice</span>
+                              {num.inboundEnabled && num.isActive ? (
+                                <span className="text-xs bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 px-1.5 py-0.5 rounded-md">Live</span>
+                              ) : (
+                                <span className="text-xs bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded-md">Inactive</span>
                               )}
-                              {num.capabilities.sms && (
-                                <span className="text-xs bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 px-1.5 py-0.5 rounded-md">SMS</span>
+                              {num.outboundEnabled && (
+                                <span className="text-xs bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
+                                  <PhoneOutgoing className="w-3 h-3" /> Outbound
+                                </span>
                               )}
-                              <span className="text-xs text-slate-400 dark:text-slate-500">{num.region}</span>
+                              <span className="text-xs text-slate-400 dark:text-slate-500 uppercase">{num.language}</span>
                             </div>
                           </div>
                         </div>
@@ -490,6 +733,19 @@ const CallSetup: React.FC = () => {
                               <span className="hidden xs:inline sm:inline">{agent ? 'Change' : 'Assign'}</span>
                               <span className="xs:hidden sm:hidden">{agent ? '↺' : '+'}</span>
                             </button>
+                            {num.isActive && !num.outboundEnabled && (
+                              <button
+                                onClick={() => handleEnableOutbound(num)}
+                                disabled={enablingOutboundId === num.id}
+                                title="Enable this number for outbound campaigns"
+                                className="text-xs px-2.5 py-1.5 rounded-lg flex items-center gap-1 whitespace-nowrap bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors disabled:opacity-50"
+                              >
+                                {enablingOutboundId === num.id
+                                  ? <Loader2 className="w-3 h-3 animate-spin" />
+                                  : <PhoneOutgoing className="w-3 h-3" />}
+                                <span className="hidden sm:inline">Enable outbound</span>
+                              </button>
+                            )}
                             <button
                               onClick={() => setRulesModal(num)}
                               title="Configure routing rules"
@@ -497,6 +753,18 @@ const CallSetup: React.FC = () => {
                             >
                               <Settings className="w-4 h-4" />
                             </button>
+                            {num.inboundEnabled && (
+                              <button
+                                onClick={() => handleDeprovision(num)}
+                                disabled={releasingId === num.id}
+                                title="Stop inbound routing"
+                                className="p-1.5 sm:p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
+                              >
+                                {releasingId === num.id
+                                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                                  : <Trash2 className="w-4 h-4" />}
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -523,19 +791,10 @@ const CallSetup: React.FC = () => {
             {/* Stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
               {[
-                { label: 'Total Campaigns', value: campaigns.length,                                                         icon: Zap,      color: 'from-blue-500 to-indigo-600'   },
-                { label: 'Running',         value: campaigns.filter((c) => c.status === 'running').length,                   icon: Play,     color: 'from-green-500 to-emerald-600'  },
-                { label: 'Contacts Called', value: campaigns.reduce((s, c) => s + c.progress.called, 0),                    icon: PhoneCall, color: 'from-purple-500 to-pink-600'   },
-                {
-                  label: 'Answer Rate',
-                  value: (() => {
-                    const called   = campaigns.reduce((s, c) => s + c.progress.called, 0);
-                    const answered = campaigns.reduce((s, c) => s + c.progress.answered, 0);
-                    return called > 0 ? `${Math.round((answered / called) * 100)}%` : '—';
-                  })(),
-                  icon: BarChart2,
-                  color: 'from-orange-500 to-amber-600',
-                },
+                { label: 'Total Campaigns', value: campaigns.length,                                               icon: Zap,       color: 'from-blue-500 to-indigo-600'   },
+                { label: 'Running',         value: campaigns.filter((c) => c.status === 'running').length,         icon: Play,      color: 'from-green-500 to-emerald-600'  },
+                { label: 'Contacts Completed', value: campaigns.reduce((s, c) => s + (c.live?.completed || 0), 0), icon: PhoneCall, color: 'from-purple-500 to-pink-600'   },
+                { label: 'Pending',         value: campaigns.reduce((s, c) => s + (c.live?.pending || 0), 0),      icon: Clock,     color: 'from-orange-500 to-amber-600'  },
               ].map((stat) => (
                 <GlassCard key={stat.label}>
                   <div className="p-2 sm:p-4 flex flex-col sm:flex-row sm:items-center sm:gap-3">
@@ -564,16 +823,56 @@ const CallSetup: React.FC = () => {
                     subtitle="Create AI-powered outbound call campaigns"
                     color="bg-gradient-to-br from-indigo-500 to-purple-600"
                   />
-                  <button
-                    onClick={() => setShowCreateCampaign(true)}
-                    className="common-button-bg flex items-center gap-2 flex-shrink-0"
-                  >
-                    <Plus className="w-4 h-4" />
-                    New Campaign
-                  </button>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      onClick={loadCampaigns}
+                      disabled={campaignsLoading}
+                      title="Refresh"
+                      className="p-2.5 rounded-xl common-bg-icons text-slate-500 dark:text-slate-400 hover:opacity-90 transition-opacity disabled:opacity-50"
+                    >
+                      <Loader2 className={`w-4 h-4 ${campaignsLoading ? 'animate-spin' : ''}`} />
+                    </button>
+                    <button
+                      onClick={openCampaignWizard}
+                      className="common-button-bg flex items-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      New Campaign
+                    </button>
+                  </div>
                 </div>
 
-                {campaigns.length === 0 ? (
+                {/* No outbound-enabled numbers → guide the user to enable one first */}
+                {!campaignsLoading && outboundNumbers.length === 0 && campaigns.length === 0 && (
+                  <div className="mb-4 flex items-start gap-3 p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                    <Info className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm text-amber-700 dark:text-amber-300">
+                      <p className="font-medium">Enable outbound on a number first</p>
+                      <p className="text-amber-600 dark:text-amber-400 mt-0.5">
+                        A campaign needs a caller number with outbound calling enabled. Go to the{' '}
+                        <button onClick={() => setActiveSection('inbound')} className="underline font-medium">Inbound</button>{' '}
+                        tab and click <span className="font-medium">Enable outbound</span> on one of your numbers.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {campaignsError && (
+                  <div className="mb-4 flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                    <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-red-600 dark:text-red-400 flex-1">{campaignsError}</p>
+                    <button onClick={() => setCampaignsError(null)} className="text-red-400 hover:text-red-600">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                {campaignsLoading && campaigns.length === 0 ? (
+                  <div className="flex items-center justify-center py-14 gap-2 text-slate-400">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span className="text-sm">Loading campaigns…</span>
+                  </div>
+                ) : campaigns.length === 0 ? (
                   <div className="text-center py-14 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
                     <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-900/20 dark:to-purple-900/20 flex items-center justify-center mx-auto mb-4">
                       <PhoneOutgoing className="w-7 h-7 text-indigo-500" />
@@ -582,18 +881,25 @@ const CallSetup: React.FC = () => {
                     <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto mb-6">
                       Create a campaign to start making AI-powered outbound calls to your contacts.
                     </p>
-                    <button onClick={() => setShowCreateCampaign(true)} className="common-button-bg inline-flex items-center gap-2">
+                    <button
+                      onClick={openCampaignWizard}
+                      disabled={outboundNumbers.length === 0}
+                      className="common-button-bg inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
                       <Plus className="w-4 h-4" /> Create Campaign
                     </button>
                   </div>
                 ) : (
                   <div className="space-y-3">
                     {campaigns.map((campaign) => {
-                      const agent = agents.find((a) => a.id === campaign.agentId);
-                      const total = campaign.contacts.length;
-                      const pct = total > 0 ? Math.round((campaign.progress.called / total) * 100) : 0;
+                      const agent = agents.find((a) => a.id === campaign.agent_id);
+                      const live = campaign.live;
+                      const total = live?.total || 0;
+                      const done = (live?.completed || 0) + (live?.no_answer || 0);
+                      const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                      const busy = campaignActionId === campaign._id;
                       return (
-                        <div key={campaign.id} className="common-bg-icons p-4 sm:p-5 rounded-2xl">
+                        <div key={campaign._id} className="common-bg-icons p-4 sm:p-5 rounded-2xl">
                           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                             <div className="flex items-start gap-3 flex-1 min-w-0">
                               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0">
@@ -606,19 +912,15 @@ const CallSetup: React.FC = () => {
                                 </div>
                                 <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs text-slate-500 dark:text-slate-400">
                                   {agent && <span className="flex items-center gap-1"><Bot className="w-3 h-3" />{agent.name}</span>}
-                                  <span className="flex items-center gap-1"><Users className="w-3 h-3" />{total} contacts</span>
-                                  {campaign.callerId && <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{campaign.callerId}</span>}
-                                  {campaign.scheduledAt && (
-                                    <span className="flex items-center gap-1">
-                                      <Calendar className="w-3 h-3" />{new Date(campaign.scheduledAt).toLocaleString()}
-                                    </span>
-                                  )}
+                                  {live && <span className="flex items-center gap-1"><Users className="w-3 h-3" />{total} contacts</span>}
+                                  {campaign.caller_number && <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{campaign.caller_number}</span>}
+                                  <span className="flex items-center gap-1 uppercase">{campaign.language}</span>
                                 </div>
 
-                                {(campaign.status === 'running' || campaign.status === 'paused' || campaign.status === 'completed') && (
+                                {live && total > 0 && (
                                   <div className="mt-3">
                                     <div className="flex items-center justify-between mb-1">
-                                      <span className="text-xs text-slate-500 dark:text-slate-400">{campaign.progress.called} / {total} called</span>
+                                      <span className="text-xs text-slate-500 dark:text-slate-400">{done} / {total} dialed</span>
                                       <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{pct}%</span>
                                     </div>
                                     <div className="h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
@@ -629,12 +931,18 @@ const CallSetup: React.FC = () => {
                                         transition={{ duration: 0.6, ease: 'easeOut' }}
                                       />
                                     </div>
-                                    <div className="flex gap-4 mt-1.5 text-xs">
+                                    <div className="flex flex-wrap gap-4 mt-1.5 text-xs">
+                                      <span className="text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                                        <PhoneCall className="w-3 h-3" />{live.dialing || 0} dialing
+                                      </span>
                                       <span className="text-green-600 dark:text-green-400 flex items-center gap-1">
-                                        <CheckCircle className="w-3 h-3" />{campaign.progress.answered} answered
+                                        <CheckCircle className="w-3 h-3" />{live.completed || 0} completed
+                                      </span>
+                                      <span className="text-slate-500 flex items-center gap-1">
+                                        <Clock className="w-3 h-3" />{live.pending || 0} pending
                                       </span>
                                       <span className="text-red-500 flex items-center gap-1">
-                                        <PhoneMissed className="w-3 h-3" />{campaign.progress.failed} failed
+                                        <PhoneMissed className="w-3 h-3" />{live.no_answer || 0} no answer
                                       </span>
                                     </div>
                                   </div>
@@ -643,31 +951,18 @@ const CallSetup: React.FC = () => {
                             </div>
 
                             <div className="flex items-center gap-1 flex-shrink-0">
-                              {campaign.status === 'running' && (
-                                <button onClick={() => handleCampaignAction(campaign.id, 'pause')} title="Pause"
-                                  className="p-2 rounded-lg text-yellow-600 dark:text-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 transition-colors">
-                                  <Pause className="w-4 h-4" />
+                              {campaign.status === 'running' ? (
+                                <button onClick={() => handleCampaignAction(campaign._id, 'pause')} disabled={busy} title="Pause"
+                                  className="p-2 rounded-lg text-yellow-600 dark:text-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 transition-colors disabled:opacity-50">
+                                  {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Pause className="w-4 h-4" />}
                                 </button>
-                              )}
-                              {campaign.status === 'paused' && (
-                                <button onClick={() => handleCampaignAction(campaign.id, 'resume')} title="Resume"
-                                  className="p-2 rounded-lg text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors">
-                                  <Play className="w-4 h-4" />
+                              ) : (campaign.status === 'paused' || campaign.status === 'draft') ? (
+                                <button onClick={() => handleCampaignAction(campaign._id, 'resume')} disabled={busy}
+                                  title={campaign.status === 'draft' ? 'Start dialing' : 'Resume'}
+                                  className="p-2 rounded-lg text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors disabled:opacity-50">
+                                  {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
                                 </button>
-                              )}
-                              {(campaign.status === 'running' || campaign.status === 'paused') && (
-                                <button onClick={() => handleCampaignAction(campaign.id, 'stop')} title="Stop"
-                                  className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
-                                  <Square className="w-4 h-4" />
-                                </button>
-                              )}
-                              <button
-                                onClick={() => setCampaigns((prev) => prev.filter((c) => c.id !== campaign.id))}
-                                title="Delete"
-                                className="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
+                              ) : null}
                             </div>
                           </div>
                         </div>
@@ -712,19 +1007,6 @@ const CallSetup: React.FC = () => {
                 </p>
 
                 <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {/* Unassign option */}
-                  <button
-                    onClick={() => handleAssignAgent('')}
-                    className="w-full flex items-center gap-3 p-3 rounded-xl common-bg-icons hover:bg-red-50 dark:hover:bg-red-900/20 text-left transition-colors group"
-                  >
-                    <div className="w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
-                      <XCircle className="w-4 h-4 text-slate-400 group-hover:text-red-500" />
-                    </div>
-                    <span className="text-sm text-slate-500 dark:text-slate-400 group-hover:text-red-600 dark:group-hover:text-red-400">
-                      Remove assignment
-                    </span>
-                  </button>
-
                   {/* Loading state */}
                   {agentsLoading && (
                     <div className="flex items-center justify-center py-6 gap-2 text-slate-400">
@@ -746,7 +1028,8 @@ const CallSetup: React.FC = () => {
                     <button
                       key={agent.id}
                       onClick={() => handleAssignAgent(agent.id)}
-                      className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all ${
+                      disabled={!!assigningId}
+                      className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all disabled:opacity-60 ${
                         assignModal.assignedAgentId === agent.id
                           ? 'bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-300 dark:border-emerald-700'
                           : 'common-bg-icons hover:bg-emerald-50 dark:hover:bg-emerald-900/20'
@@ -759,12 +1042,179 @@ const CallSetup: React.FC = () => {
                         <p className="text-sm font-medium text-slate-800 dark:text-white truncate">{agent.name}</p>
                         <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{agent.language}</p>
                       </div>
+                      {assigningId && assignModal.assignedAgentId !== agent.id && (
+                        <Loader2 className="w-4 h-4 text-slate-400 animate-spin flex-shrink-0" />
+                      )}
                       {assignModal.assignedAgentId === agent.id && (
                         <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
                       )}
                     </button>
                   ))}
                 </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          MODAL: Buy & Provision a Number
+         ══════════════════════════════════════════════════════════════════════ */}
+      <AnimatePresence>
+        {showBuyModal && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[99999] flex items-center justify-center p-4"
+            onClick={(e) => e.target === e.currentTarget && !isBuying && setShowBuyModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg shadow-2xl border border-slate-200 dark:border-slate-700 max-h-[90vh] flex flex-col"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+                    <Phone className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-800 dark:text-white">Buy a Phone Number</h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Goes live for inbound calls immediately</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowBuyModal(false)}
+                  disabled={isBuying}
+                  className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-5 space-y-5">
+                {/* Step 1 — pick a DID */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                    Available Numbers <span className="text-red-500">*</span>
+                  </label>
+
+                  {catalogLoading && (
+                    <div className="flex items-center justify-center py-10 gap-2 text-slate-400">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span className="text-sm">Loading catalog…</span>
+                    </div>
+                  )}
+
+                  {!catalogLoading && catalogError && (
+                    <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                      <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                      <p className="text-sm text-red-600 dark:text-red-400">{catalogError}</p>
+                    </div>
+                  )}
+
+                  {!catalogLoading && !catalogError && catalog.length === 0 && (
+                    <div className="text-center py-8 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+                      <Hash className="w-9 h-9 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                      <p className="text-sm text-slate-400">No numbers available right now</p>
+                    </div>
+                  )}
+
+                  {!catalogLoading && catalog.length > 0 && (
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                      {catalog.map((did) => (
+                        <button
+                          key={did.id}
+                          onClick={() => setSelectedDid(did)}
+                          className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all border ${
+                            selectedDid?.id === did.id
+                              ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+                              : 'border-transparent common-bg-icons hover:bg-indigo-50 dark:hover:bg-indigo-900/20'
+                          }`}
+                        >
+                          <div className="w-9 h-9 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+                            <Phone className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-slate-800 dark:text-white font-mono">
+                              {formatDid(did.did_number)}
+                            </p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-xs text-slate-500 dark:text-slate-400">{did.type_label}</span>
+                              <span className="text-xs text-slate-400 dark:text-slate-500">+{did.country_code}</span>
+                            </div>
+                          </div>
+                          {selectedDid?.id === did.id && (
+                            <Check className="w-4 h-4 text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Step 2 — label + agent */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                    Display Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={buyDisplayName}
+                    onChange={(e) => setBuyDisplayName(e.target.value)}
+                    placeholder="e.g., Customer Support"
+                    className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                    Answering Agent <span className="text-red-500">*</span>
+                  </label>
+                  {agentsLoading ? (
+                    <div className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm flex items-center gap-2 text-slate-400">
+                      <Loader2 className="w-4 h-4 animate-spin" /> Loading agents…
+                    </div>
+                  ) : (
+                    <select
+                      value={buyAgentId}
+                      onChange={(e) => setBuyAgentId(e.target.value)}
+                      className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm"
+                    >
+                      <option value="">Select agent…</option>
+                      {agents.map((a) => (
+                        <option key={a.id} value={a.id}>{a.name}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
+                {buyError && (
+                  <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                    <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-red-600 dark:text-red-400">{buyError}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="flex gap-3 p-5 border-t border-slate-200 dark:border-slate-700 flex-shrink-0">
+                <button
+                  onClick={() => setShowBuyModal(false)}
+                  disabled={isBuying}
+                  className="common-button-bg2 flex-1 py-2.5 rounded-xl text-sm disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleBuyNumber}
+                  disabled={isBuying || !selectedDid || !buyAgentId || !buyDisplayName.trim()}
+                  className="common-button-bg flex-1 py-2.5 rounded-xl text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isBuying
+                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Provisioning…</>
+                    : <><Check className="w-4 h-4" /> Buy & Provision</>}
+                </button>
               </div>
             </motion.div>
           </motion.div>
@@ -832,7 +1282,7 @@ const CallSetup: React.FC = () => {
                         }`}>
                           {campaignStep > s ? <Check className="w-3 h-3" /> : s}
                         </div>
-                        <span className="hidden sm:inline">{s === 1 ? 'Setup' : s === 2 ? 'Contacts' : 'Schedule'}</span>
+                        <span className="hidden sm:inline">{s === 1 ? 'Setup' : s === 2 ? 'Contacts' : 'Launch'}</span>
                       </div>
                       {s < 3 && (
                         <div className={`flex-1 h-px ${campaignStep > s ? 'bg-indigo-500' : 'bg-slate-200 dark:bg-slate-700'}`} />
@@ -882,51 +1332,42 @@ const CallSetup: React.FC = () => {
 
                         <div>
                           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                            Caller ID (From Number)
+                            Caller Number <span className="text-red-500">*</span>
                           </label>
-                          <select value={newCampaign.callerId}
-                            onChange={(e) => setNewCampaign((p) => ({ ...p, callerId: e.target.value }))}
+                          <select value={newCampaign.callerNumber}
+                            onChange={(e) => setNewCampaign((p) => ({ ...p, callerNumber: e.target.value }))}
                             className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm">
                             <option value="">Select number…</option>
-                            {voiceNumbers.map((n) => (
+                            {outboundNumbers.map((n) => (
                               <option key={n.id} value={n.number}>{n.number} — {n.friendlyName}</option>
                             ))}
                           </select>
+                          <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                            Only numbers with outbound calling enabled appear here.
+                          </p>
                         </div>
                       </div>
 
                       <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
-                        <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Call Settings</h4>
-                        <div className="grid grid-cols-3 gap-4">
-                          {[
-                            { key: 'maxConcurrent', label: 'Max Concurrent', min: 1, max: 20 },
-                            { key: 'retryAttempts',  label: 'Retry Attempts', min: 0, max: 5 },
-                            { key: 'retryDelay',     label: 'Retry Delay (min)', min: 5, max: 1440 },
-                          ].map(({ key, label, min, max }) => (
-                            <div key={key}>
-                              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1.5">{label}</label>
-                              <input type="number" min={min} max={max}
-                                value={newCampaign[key as keyof typeof newCampaign] as number}
-                                onChange={(e) => setNewCampaign((p) => ({ ...p, [key]: +e.target.value }))}
-                                className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm" />
-                            </div>
-                          ))}
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
-                          {[
-                            { key: 'recordCalls',        label: 'Record Calls',         icon: Mic },
-                            { key: 'voicemailDetection', label: 'Voicemail Detection',  icon: PhoneCall },
-                            { key: 'dncEnabled',         label: 'DNC List Check',       icon: Shield },
-                          ].map(({ key, label, icon: Icon }) => (
-                            <label key={key} className="flex items-center gap-2.5 p-3 common-bg-icons rounded-xl cursor-pointer">
-                              <input type="checkbox"
-                                checked={newCampaign[key as keyof typeof newCampaign] as boolean}
-                                onChange={(e) => setNewCampaign((p) => ({ ...p, [key]: e.target.checked }))}
-                                className="w-4 h-4 accent-indigo-600" />
-                              <Icon className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 flex-shrink-0" />
-                              <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{label}</span>
-                            </label>
-                          ))}
+                        <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Dialer Settings</h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1.5">Max Concurrent Calls</label>
+                            <input type="number" min={1} max={20}
+                              value={newCampaign.maxConcurrent}
+                              onChange={(e) => setNewCampaign((p) => ({ ...p, maxConcurrent: +e.target.value }))}
+                              className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm" />
+                            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Simultaneous calls the dialer places. Default 3.</p>
+                          </div>
+                          <div>
+                            <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1.5">Language</label>
+                            <input type="text"
+                              value={newCampaign.language}
+                              onChange={(e) => setNewCampaign((p) => ({ ...p, language: e.target.value }))}
+                              placeholder="en-in"
+                              className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm" />
+                            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">BCP-47 code the agent speaks. Default en-in.</p>
+                          </div>
                         </div>
                       </div>
                     </motion.div>
@@ -936,15 +1377,44 @@ const CallSetup: React.FC = () => {
                   {campaignStep === 2 && (
                     <motion.div key="s2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }} className="space-y-4">
                       <div className="flex gap-1 common-bg-icons rounded-xl p-1 w-fit">
-                        {(['single', 'bulk'] as const).map((m) => (
+                        {(['single', 'bulk', 'file'] as const).map((m) => (
                           <button key={m} onClick={() => setContactMode(m)}
                             className={`px-4 py-2 rounded-lg text-xs font-medium transition-all ${contactMode === m ? 'common-button-bg2 shadow-sm' : 'text-slate-600 dark:text-slate-400'}`}>
-                            {m === 'single' ? 'Single Number' : 'Bulk Import'}
+                            {m === 'single' ? 'Single Number' : m === 'bulk' ? 'Bulk Paste' : 'Upload File'}
                           </button>
                         ))}
                       </div>
 
-                      {contactMode === 'single' ? (
+                      {contactMode === 'file' ? (
+                        <div>
+                          <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1.5">
+                            Spreadsheet — columns: <code className="font-mono">phone_number</code> (required),{' '}
+                            <code className="font-mono">name</code>, plus any extra columns as custom fields for the agent.
+                          </label>
+                          <label className="flex flex-col items-center justify-center gap-2 py-8 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-600 transition-colors">
+                            <Upload className="w-8 h-8 text-slate-300 dark:text-slate-600" />
+                            {contactFile ? (
+                              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{contactFile.name}</span>
+                            ) : (
+                              <span className="text-sm text-slate-400">Click to choose a .xlsx, .xls or .csv file</span>
+                            )}
+                            <input
+                              type="file"
+                              accept=".xlsx,.xls,.csv"
+                              className="hidden"
+                              onChange={(e) => setContactFile(e.target.files?.[0] || null)}
+                            />
+                          </label>
+                          {contactFile && (
+                            <button onClick={() => setContactFile(null)} className="mt-2 text-xs text-red-500 hover:text-red-600 flex items-center gap-1">
+                              <X className="w-3 h-3" /> Remove file
+                            </button>
+                          )}
+                          <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
+                            Contacts are uploaded to the campaign when you launch. The count is confirmed by the server.
+                          </p>
+                        </div>
+                      ) : contactMode === 'single' ? (
                         <div className="flex flex-col sm:flex-row gap-3 items-end">
                           <div className="flex-1 w-full">
                             <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1.5">Phone Number</label>
@@ -995,57 +1465,60 @@ const CallSetup: React.FC = () => {
                         </div>
                       )}
 
-                      {campaignContacts.length > 0 ? (
-                        <div>
-                          <div className="flex items-center justify-between mb-2">
-                            <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                              {campaignContacts.length} contact{campaignContacts.length !== 1 ? 's' : ''} added
-                            </p>
-                            <button onClick={() => setCampaignContacts([])} className="text-xs text-red-500 hover:text-red-600 flex items-center gap-1">
-                              <Trash2 className="w-3 h-3" /> Clear all
-                            </button>
-                          </div>
-                          <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
-                            {campaignContacts.map((c) => (
-                              <div key={c.id} className="flex items-center justify-between px-3 py-2 common-bg-icons rounded-lg">
-                                <div className="flex items-center gap-2">
-                                  <Phone className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                                  <span className="text-sm text-slate-700 dark:text-slate-300 font-mono">{c.phone}</span>
-                                  {c.name && <span className="text-xs text-slate-500">— {c.name}</span>}
+                      {contactMode !== 'file' && (
+                        campaignContacts.length > 0 ? (
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                                {campaignContacts.length} contact{campaignContacts.length !== 1 ? 's' : ''} added
+                              </p>
+                              <button onClick={() => setCampaignContacts([])} className="text-xs text-red-500 hover:text-red-600 flex items-center gap-1">
+                                <Trash2 className="w-3 h-3" /> Clear all
+                              </button>
+                            </div>
+                            <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
+                              {campaignContacts.map((c) => (
+                                <div key={c.id} className="flex items-center justify-between px-3 py-2 common-bg-icons rounded-lg">
+                                  <div className="flex items-center gap-2">
+                                    <Phone className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                                    <span className="text-sm text-slate-700 dark:text-slate-300 font-mono">{c.phone}</span>
+                                    {c.name && <span className="text-xs text-slate-500">— {c.name}</span>}
+                                  </div>
+                                  <button onClick={() => setCampaignContacts((p) => p.filter((x) => x.id !== c.id))}
+                                    className="text-slate-400 hover:text-red-500 ml-2">
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
                                 </div>
-                                <button onClick={() => setCampaignContacts((p) => p.filter((x) => x.id !== c.id))}
-                                  className="text-slate-400 hover:text-red-500 ml-2">
-                                  <X className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            ))}
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      ) : (
-                        <div className="text-center py-8 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
-                          <Users className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-                          <p className="text-sm text-slate-400">No contacts added yet</p>
-                        </div>
+                        ) : (
+                          <div className="text-center py-8 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+                            <Users className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                            <p className="text-sm text-slate-400">No contacts added yet</p>
+                          </div>
+                        )
                       )}
                     </motion.div>
                   )}
 
-                  {/* ── Step 3: Schedule ── */}
+                  {/* ── Step 3: Review & Launch ── */}
                   {campaignStep === 3 && (
                     <motion.div key="s3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }} className="space-y-5">
+                      {/* Start-now toggle */}
                       <div className="grid grid-cols-2 gap-3">
                         {([
-                          { id: 'now',      label: 'Call Now',  desc: 'Start immediately after saving',    icon: Play     },
-                          { id: 'schedule', label: 'Schedule',  desc: 'Set a specific date and time',      icon: Calendar },
+                          { id: true,  label: 'Start Now',   desc: 'Begin dialing immediately after upload', icon: Play },
+                          { id: false, label: 'Create Only', desc: 'Save the campaign — start it later',      icon: Clock },
                         ] as const).map((opt) => (
-                          <button key={opt.id} onClick={() => setCampaignScheduleMode(opt.id)}
+                          <button key={String(opt.id)} onClick={() => setStartNow(opt.id)}
                             className={`p-4 rounded-2xl border-2 text-left transition-all ${
-                              campaignScheduleMode === opt.id
+                              startNow === opt.id
                                 ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
                                 : 'border-slate-200 dark:border-slate-700 common-bg-icons'
                             }`}>
-                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-2 ${campaignScheduleMode === opt.id ? 'bg-indigo-500' : 'bg-slate-100 dark:bg-slate-700'}`}>
-                              <opt.icon className={`w-4 h-4 ${campaignScheduleMode === opt.id ? 'text-white' : 'text-slate-500 dark:text-slate-400'}`} />
+                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-2 ${startNow === opt.id ? 'bg-indigo-500' : 'bg-slate-100 dark:bg-slate-700'}`}>
+                              <opt.icon className={`w-4 h-4 ${startNow === opt.id ? 'text-white' : 'text-slate-500 dark:text-slate-400'}`} />
                             </div>
                             <p className="font-semibold text-sm text-slate-800 dark:text-white">{opt.label}</p>
                             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{opt.desc}</p>
@@ -1053,47 +1526,41 @@ const CallSetup: React.FC = () => {
                         ))}
                       </div>
 
-                      {campaignScheduleMode === 'schedule' && (
-                        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                              Date & Time <span className="text-red-500">*</span>
-                            </label>
-                            <input type="datetime-local" value={newCampaign.scheduledAt || ''}
-                              onChange={(e) => setNewCampaign((p) => ({ ...p, scheduledAt: e.target.value }))}
-                              min={new Date().toISOString().slice(0, 16)}
-                              className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm" />
-                          </div>
-                          <div>
-                            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Timezone</label>
-                            <select value={newCampaign.timezone}
-                              onChange={(e) => setNewCampaign((p) => ({ ...p, timezone: e.target.value }))}
-                              className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm">
-                              {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
-                            </select>
-                          </div>
-                        </motion.div>
-                      )}
-
                       {/* Summary */}
                       <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700">
                         <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Campaign Summary</h4>
                         <div className="space-y-2 text-sm">
                           {[
-                            { label: 'Name',       value: newCampaign.name },
-                            { label: 'Agent',      value: agents.find((a) => a.id === newCampaign.agentId)?.name || '—' },
-                            { label: 'Contacts',   value: `${campaignContacts.length}` },
-                            { label: 'Caller ID',  value: newCampaign.callerId || 'Not set' },
-                            { label: 'Concurrent', value: `${newCampaign.maxConcurrent} simultaneous` },
-                            { label: 'Retries',    value: `${newCampaign.retryAttempts}× / ${newCampaign.retryDelay} min delay` },
+                            { label: 'Name',           value: newCampaign.name },
+                            { label: 'Agent',          value: agents.find((a) => a.id === newCampaign.agentId)?.name || '—' },
+                            { label: 'Caller Number',  value: newCampaign.callerNumber || 'Not set' },
+                            { label: 'Language',       value: newCampaign.language },
+                            { label: 'Max Concurrent', value: `${newCampaign.maxConcurrent} simultaneous` },
+                            { label: 'Contacts',       value: contactMode === 'file' ? (contactFile?.name || 'file') : `${campaignContacts.length}` },
                           ].map(({ label, value }) => (
                             <div key={label} className="flex justify-between">
                               <span className="text-slate-500 dark:text-slate-400">{label}</span>
-                              <span className="font-medium text-slate-800 dark:text-white text-right ml-4 max-w-[180px] truncate">{value}</span>
+                              <span className="font-medium text-slate-800 dark:text-white text-right ml-4 max-w-[200px] truncate">{value}</span>
                             </div>
                           ))}
                         </div>
                       </div>
+
+                      {/* Ordered-steps explainer */}
+                      <div className="p-4 rounded-2xl bg-indigo-50/60 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-900/40">
+                        <p className="text-xs text-indigo-700 dark:text-indigo-300 leading-relaxed">
+                          On launch we <span className="font-semibold">create the campaign</span>, then{' '}
+                          <span className="font-semibold">upload your contacts</span>
+                          {startNow ? <> and <span className="font-semibold">start dialing</span> immediately.</> : <> and leave it ready to start when you are.</>}
+                        </p>
+                      </div>
+
+                      {wizardError && (
+                        <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                          <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                          <p className="text-sm text-red-600 dark:text-red-400">{wizardError}</p>
+                        </div>
+                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -1121,16 +1588,16 @@ const CallSetup: React.FC = () => {
                   </button>
                 ) : (
                   <button
-                    onClick={handleSaveCampaign}
-                    disabled={isSavingCampaign || (campaignScheduleMode === 'schedule' && !newCampaign.scheduledAt)}
+                    onClick={handleLaunchCampaign}
+                    disabled={isSavingCampaign || !step1Valid || !step2Valid}
                     className="common-button-bg px-6 py-2.5 rounded-xl text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
                     {isSavingCampaign ? (
-                      <><Loader2 className="w-4 h-4 animate-spin" /> Launching…</>
-                    ) : campaignScheduleMode === 'now' ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" /> {wizardStage || 'Launching…'}</>
+                    ) : startNow ? (
                       <><Play className="w-4 h-4" /> Launch Campaign</>
                     ) : (
-                      <><Calendar className="w-4 h-4" /> Schedule Campaign</>
+                      <><Check className="w-4 h-4" /> Create Campaign</>
                     )}
                   </button>
                 )}

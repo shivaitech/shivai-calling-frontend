@@ -88,7 +88,7 @@ export default function AgentPublicPage() {
       document.title = `${agentInfo.name} — AI Employee Test | ShivAI`;
     }
     return () => {
-      document.title = "Call ShivAI - Voice-Powered AI Assistant & No-Code AI Platform";
+      document.title = "Every Business Will Soon Hire an AI Employee. Meet ShivAI, Your First AI Hire.";
     };
   }, [agentInfo?.name]);
 

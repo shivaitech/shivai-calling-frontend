@@ -2,6 +2,66 @@ import axios, { AxiosResponse } from "axios";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
+// ── Single-flight token refresh ──────────────────────────────────────────────
+// When a page mounts it often fires several authenticated requests at once. If
+// the access token is expired they all 401 together. Without coordination each
+// would POST /auth/refresh-token independently — and if the backend rotates
+// (single-use) refresh tokens, only the first succeeds and the rest fail,
+// logging the user out or bubbling up a "Failed to load" error. We serialise the
+// refresh so concurrent 401s await ONE refresh call and then retry.
+let refreshPromise: Promise<string | null> | null = null;
+
+const refreshAccessToken = (): Promise<string | null> => {
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    try {
+      const stored = localStorage.getItem("auth_tokens");
+      if (!stored) return null;
+      const { refreshToken } = JSON.parse(stored);
+      if (!refreshToken) return null;
+
+      const res = await axios.post(
+        `${API_BASE_URL}/auth/refresh-token`,
+        { refreshToken },
+        { headers: { "Content-Type": "application/json" } }
+      );
+      const newTokens = res.data?.data?.tokens ?? res.data?.tokens;
+      if (newTokens?.accessToken) {
+        localStorage.setItem("auth_tokens", JSON.stringify(newTokens));
+        return newTokens.accessToken as string;
+      }
+      return null;
+    } catch {
+      return null;
+    } finally {
+      // Allow the next genuine expiry to trigger a fresh refresh
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+};
+
+// Shared 401 handler: refresh once (deduped) then retry the original request.
+const makeAuthRetryInterceptor = (client: ReturnType<typeof axios.create>) =>
+  async (error: any) => {
+    const originalRequest = error.config;
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
+      originalRequest._retry = true;
+      const newAccessToken = await refreshAccessToken();
+      if (newAccessToken) {
+        originalRequest.headers = originalRequest.headers || {};
+        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+        return client(originalRequest);
+      }
+      // Refresh failed — clear and send the user to sign in
+      localStorage.removeItem("auth_tokens");
+      window.location.href = "/landing";
+    }
+    return Promise.reject(error);
+  };
+
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   timeout: 10000,
@@ -25,41 +85,10 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
-// Response interceptor — try token refresh before logging out
+// Response interceptor — single-flight token refresh before logging out
 apiClient.interceptors.response.use(
   (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
-
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-
-      try {
-        const stored = localStorage.getItem("auth_tokens");
-        if (stored) {
-          const { refreshToken } = JSON.parse(stored);
-          const res = await axios.post(
-            `${API_BASE_URL}/auth/refresh-token`,
-            { refreshToken },
-            { headers: { "Content-Type": "application/json" } }
-          );
-          const newTokens = res.data?.data?.tokens ?? res.data?.tokens;
-          if (newTokens) {
-            localStorage.setItem("auth_tokens", JSON.stringify(newTokens));
-            originalRequest.headers.Authorization = `Bearer ${newTokens.accessToken}`;
-            return apiClient(originalRequest);
-          }
-        }
-      } catch {
-        // refresh failed — clear and redirect
-      }
-
-      localStorage.removeItem("auth_tokens");
-      window.location.href = "/landing";
-    }
-
-    return Promise.reject(error);
-  }
+  makeAuthRetryInterceptor(apiClient)
 );
 
 // Separate client for voice API — env-aware
@@ -89,38 +118,7 @@ voiceApiClient.interceptors.request.use((config) => {
 
 voiceApiClient.interceptors.response.use(
   (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
-
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-
-      try {
-        const stored = localStorage.getItem("auth_tokens");
-        if (stored) {
-          const { refreshToken } = JSON.parse(stored);
-          const res = await axios.post(
-            `${API_BASE_URL}/auth/refresh-token`,
-            { refreshToken },
-            { headers: { "Content-Type": "application/json" } }
-          );
-          const newTokens = res.data?.data?.tokens ?? res.data?.tokens;
-          if (newTokens) {
-            localStorage.setItem("auth_tokens", JSON.stringify(newTokens));
-            originalRequest.headers.Authorization = `Bearer ${newTokens.accessToken}`;
-            return voiceApiClient(originalRequest);
-          }
-        }
-      } catch {
-        // refresh failed — clear and redirect
-      }
-
-      localStorage.removeItem("auth_tokens");
-      window.location.href = "/landing";
-    }
-
-    return Promise.reject(error);
-  }
+  makeAuthRetryInterceptor(voiceApiClient)
 );
 
 export interface ApiAgent {

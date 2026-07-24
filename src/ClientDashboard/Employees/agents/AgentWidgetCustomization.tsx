@@ -1118,6 +1118,14 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
     window.dispatchEvent(event);
   };
 
+  // The form's image boxes must show whatever the widget shows. Derive from the
+  // saved config (source of truth the widget reads) and fall back to the local
+  // preview state — so an uploaded image never appears in the widget but blank
+  // in the form.
+  const logoDisplay = widgetConfig.content.companyLogo || logoPreview || "";
+  const triggerImageDisplay =
+    widgetConfig.content.triggerButtonImage || triggerButtonImagePreview || "";
+
   return (
     <GlassCard>
       <div className="p-4 sm:p-6">
@@ -1207,20 +1215,16 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
 
                           {/* Preview Box with Upload/Remove */}
                           <div className="relative w-full h-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600 overflow-hidden">
-                            {logoPreview ? (
+                            {logoDisplay ? (
                               <>
-                                {console.log("🖼️ Rendering logo with preview:", logoPreview.substring(0, 50) + "...")}
                                 <label
                                   htmlFor="logo-upload"
                                   className="cursor-pointer block w-full h-full"
                                 >
                                   <img
-                                    src={logoPreview}
+                                    src={logoDisplay}
                                     alt="Company Logo"
                                     className="w-full h-full object-contain p-3"
-                                    onLoad={() => {
-                                      console.log("✅ Logo image rendered successfully");
-                                    }}
                                     onError={(e) => {
                                       console.error("❌ Logo image failed to render:", e.currentTarget.src);
                                     }}
@@ -1295,13 +1299,15 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                             className="hidden"
                           />
                           <div className="relative w-full h-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 rounded-full border-2 border-dashed border-slate-300 dark:border-slate-600 overflow-hidden">
-                            {triggerButtonImagePreview ? (
+                            {triggerImageDisplay ? (
                               <label htmlFor="trigger-btn-upload" className="cursor-pointer block w-full h-full">
                                 <img
-                                  src={triggerButtonImagePreview}
+                                  src={triggerImageDisplay}
                                   alt="Trigger Button"
                                   className="w-full h-full object-cover"
-                                  onError={() => setTriggerButtonImagePreview("")}
+                                  onError={(e) => {
+                                    console.error("❌ Trigger image failed to render:", e.currentTarget.src);
+                                  }}
                                 />
                               </label>
                             ) : (
@@ -1314,7 +1320,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                             )}
                           </div>
                           {/* Remove button outside overflow-hidden so it's never clipped */}
-                          {triggerButtonImagePreview && (
+                          {triggerImageDisplay && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -1358,17 +1364,29 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
 
                       {/* Company Name */}
                       <div>
-                        <label className="block text-xs text-slate-600 dark:text-slate-400 mb-2">
-                          AI Employee Name *
-                        </label>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-xs text-slate-600 dark:text-slate-400">
+                            AI Employee Name *
+                          </label>
+                          <span
+                            className={`text-[10px] font-medium ${
+                              (widgetConfig.content.companyName || "").length >= 25
+                                ? "text-amber-500"
+                                : "text-slate-400 dark:text-slate-500"
+                            }`}
+                          >
+                            {(widgetConfig.content.companyName || "").length}/25
+                          </span>
+                        </div>
                         <input
                           type="text"
                           value={widgetConfig.content.companyName}
+                          maxLength={25}
                           onChange={(e) =>
                             updateConfig(
                               "content",
                               "companyName",
-                              e.target.value
+                              e.target.value.slice(0, 25)
                             )
                           }
                           placeholder="Enter your company name"
@@ -1853,7 +1871,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
           widgetStyle: widgetConfig.theme.widgetStyle || "original"
         })};
         var s = document.createElement('script');
-        s.src = '/widget5.js?agentId=${agentId}&userId=${user?.id || ''}&bypass=true&companyName=${encodeURIComponent(
+        s.src = '/widget5.js?agentId=${agentId}&userId=${user?.id || ''}&bypass=true&customizationPreview=true&companyName=${encodeURIComponent(
                         widgetConfig.content.companyName
                       )}&companyDescription=${encodeURIComponent(
                         widgetConfig.content.companyDescription

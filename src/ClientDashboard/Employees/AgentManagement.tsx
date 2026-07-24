@@ -80,9 +80,17 @@ import {
   QrCode,
   Minimize2,
   AlertTriangle,
+  Mail,
+  MessageCircle,
 } from "lucide-react";
 
 const AGENTS_PER_PAGE = 6;
+const LIVE_PUBLISH_ALLOWED_EMAILS = ["demo@callshivai.com", "atharkatheri@gmail.com"];
+const SALES_EMAIL = "hello@shivaitech.com";
+const SALES_WHATSAPP_NUMBER = "919211490707";
+const SALES_WHATSAPP_MESSAGE =
+  "Hi ShivAI sales team, I want to activate live publishing for my ShivAI agent. Please help me get started.";
+const SALES_EMAIL_SUBJECT = "Activate live agent publishing";
 
 // Detailed voice-style descriptions — used both in the system prompt and as voice_instruction
 const VOICE_STYLE_SP_MAP: Record<string, string> = {
@@ -262,6 +270,14 @@ const AgentManagement = () => {
     deleteAgent,
   } = useAgent();
   const { user } = useAuth();
+  const normalizedUserEmail = (user?.email || "").toLowerCase();
+  const canPublishOnLive = LIVE_PUBLISH_ALLOWED_EMAILS.includes(normalizedUserEmail);
+  const isLiveEnvironment =
+    import.meta.env.PROD &&
+    !String(import.meta.env.VITE_API_BASE_URL || "").toLowerCase().includes("staging");
+  const shouldBlockLivePublish = isLiveEnvironment && !canPublishOnLive;
+  const salesWhatsAppHref = `https://wa.me/${SALES_WHATSAPP_NUMBER}?text=${encodeURIComponent(SALES_WHATSAPP_MESSAGE)}`;
+  const salesEmailHref = `mailto:${SALES_EMAIL}?subject=${encodeURIComponent(SALES_EMAIL_SUBJECT)}`;
 
   // Check if current user is developer
   const isDeveloper = true; // Open to all users
@@ -312,6 +328,7 @@ const AgentManagement = () => {
   const [agentToDelete, setAgentToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showPublishConfirm, setShowPublishConfirm] = useState(false);
+  const [showPublishContactModal, setShowPublishContactModal] = useState(false);
   const [agentToPublish, setAgentToPublish] = useState<string | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
   const [showPauseConfirm, setShowPauseConfirm] = useState(false);
@@ -2010,6 +2027,10 @@ const AgentManagement = () => {
 
   const handlePublish = (agentId: string) => {
     setAgentToPublish(agentId);
+    if (shouldBlockLivePublish) {
+      setShowPublishContactModal(true);
+      return;
+    }
     setShowPublishConfirm(true);
   };
 
@@ -2067,6 +2088,7 @@ const AgentManagement = () => {
 
   const handlePublishCancel = () => {
     setShowPublishConfirm(false);
+    setShowPublishContactModal(false);
     setAgentToPublish(null);
   };
 
@@ -4006,6 +4028,51 @@ const AgentManagement = () => {
                           <span>Publish</span>
                         </>
                       )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )}
+
+        {/* Contact Sales Modal */}
+        {showPublishContactModal &&
+          createPortal(
+            <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
+              <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-xl border border-slate-200 dark:border-slate-700">
+                <div className="p-6">
+                  <div className="flex items-center justify-center w-12 h-12 bg-amber-100 dark:bg-amber-900/20 rounded-full mx-auto mb-4">
+                    <AlertTriangle className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-slate-800 dark:text-white text-center mb-2">
+                    Go Live With ShivAI
+                  </h3>
+                  <p className="text-sm text-slate-600 dark:text-slate-400 text-center mb-6">
+                    To activate live publishing for your agent, please contact our sales team. We will help you review your setup and enable go-live access for your account.
+                  </p>
+                  <div className="flex flex-col gap-3">
+                    <a
+                      href={salesWhatsAppHref}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="h-11 px-4 rounded-xl bg-green-600 text-white hover:bg-green-700 transition-all duration-200 font-medium flex items-center justify-center gap-2"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      <span>Contact on WhatsApp</span>
+                    </a>
+                    <a
+                      href={salesEmailHref}
+                      className="h-11 px-4 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 transition-all duration-200 font-medium flex items-center justify-center gap-2"
+                    >
+                      <Mail className="w-4 h-4" />
+                      <span>Send Email</span>
+                    </a>
+                    <button
+                      onClick={handlePublishCancel}
+                      className="h-11 px-4 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all duration-200 font-medium"
+                    >
+                      Close
                     </button>
                   </div>
                 </div>

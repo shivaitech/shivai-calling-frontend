@@ -6,11 +6,13 @@ export function isStagingEnv(): boolean {
   return import.meta.env.VITE_API_BASE_URL?.includes("staging") ?? false;
 }
 
-/** App origin for share links / embed scripts — staging uses current deployment host. */
+/**
+ * App origin for share links / embed scripts. These URLs are handed to
+ * customers (embed snippet, QR, public agent page), so they must always point
+ * at the real production host — never the dashboard's own origin, which on a
+ * dev/staging build is localhost and would give the customer a dead link.
+ */
 export function getAppBaseUrl(): string {
-  if (isStagingEnv() && typeof window !== "undefined") {
-    return window.location.origin;
-  }
   return PRODUCTION_APP_BASE_URL;
 }
 
