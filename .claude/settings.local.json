@@ -35,7 +35,21 @@
       "PowerShell(npm run build 2>&1 | Select-String -Pattern \"WebsiteBuilder|designMd|error|built in\" | Select-Object -First 6; Write-Output \"BUILD_EXIT=$LASTEXITCODE\")",
       "Bash(node -e ' *)",
       "PowerShell(npx tsc --noEmit 2>&1 | Select-Object -First 25; Write-Output \"TSC_EXIT=$LASTEXITCODE\")",
-      "PowerShell(npm run build 2>&1 | Select-String -Pattern \"WebsiteBuilder|error|built in\" | Select-Object -First 4; Write-Output \"BUILD_EXIT=$LASTEXITCODE\")"
+      "PowerShell(npm run build 2>&1 | Select-String -Pattern \"WebsiteBuilder|error|built in\" | Select-Object -First 4; Write-Output \"BUILD_EXIT=$LASTEXITCODE\")",
+      "Bash(npx vite *)",
+      "Bash(node --check public/widget5.js)",
+      "Bash(curl -s \"http://localhost:5174/widget5.js?agentId=test&customizationPreview=true\")",
+      "Bash(curl -s \"http://localhost:5174/widget5.js\")",
+      "Bash(curl -s -I \"http://localhost:5174/widget5.js\")",
+      "Bash(curl -s \"http://localhost:5174/widget5.js?agentId=test&v=1784801260254\")",
+      "Bash(cp public/widget5.js dist/widget5.js)",
+      "Bash(grep -n \"message.user { background: \\\\\" + btnGrad\\\\|function buildThemedButtonOverrides\\\\|agent-retry-btn:hover, .call-error-retry-btn:hover\" public/widget4.js)",
+      "Bash(grep -n \"start-call-btn {\\\\|start-call-btn:hover\\\\|\\\\${.*[Cc]olor}\\\\|\\\\${primaryColor}\\\\|\\\\${gradientStart}\\\\|\\\\${p1}\\\\|primaryColor\\\\b\\\\|gradient\" public/widget4.js)",
+      "Bash(grep -n \"function addWidgetStyles\\\\|getThemeColors\\\\|\\\\${themeColors\\\\|const.*themeColors\\\\|var colors = \\\\|colors.primaryColor\\\\|\\\\${.*primaryColor\" public/widget4.js)",
+      "Bash(awk 'NR>=650 && NR<=670' src/ClientDashboard/Employees/agents/AgentWidgetCustomization.tsx)",
+      "Bash(grep -n \"widget5\\\\|origin\\\\|location\\\\|callshivai\\\\|scriptSrc\\\\|scriptTag\\\\|https://\\\\|http://\" src/ClientDashboard/Employees/AgentManagement.tsx)",
+      "Bash(cp public/widget4.js dist/widget4.js)",
+      "Bash(xargs -I{} awk 'NR>={} && NR<={}+3' public/widget5.js)"
     ]
   }
 }
