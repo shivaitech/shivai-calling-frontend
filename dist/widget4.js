@@ -3160,16 +3160,56 @@
         text-align: left;
         font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Segoe UI', sans-serif;
         box-shadow:
-          0 24px 48px -14px rgba(70, 110, 200, 0.22),
-          0 10px 28px -10px rgba(70, 110, 200, 0.18),
+          0 20px 44px -14px ${theme.primaryColor}55,
+          0 8px 24px -10px ${theme.accentColor}44,
           0 1px 0 rgba(255,255,255,0.95) inset,
-          0 0 0 1px rgba(120, 150, 220, 0.18);
+          0 0 0 1px ${theme.primaryColor}22;
         transition: transform 0.22s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.22s ease;
         min-height: 70px;
         max-height: 72px;
         max-width: 400px;
         width: max-content;
       }
+      /* Moving glowing thin border — the conic gradient's ANGLE animates (via
+         --shivai-angle) so the mask that clips it to a thin ring stays fixed.
+         Rotating with transform instead warps the ring into diagonal streaks. */
+      @property --shivai-angle {
+        syntax: "<angle>";
+        initial-value: 0deg;
+        inherits: false;
+      }
+      .shivai-trigger::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: 999px;
+        padding: 2px; /* ring thickness */
+        background: conic-gradient(
+          from var(--shivai-angle),
+          ${theme.primaryColor}00 0deg,
+          ${theme.primaryColor} 70deg,
+          ${theme.accentColor} 150deg,
+          ${theme.primaryColor} 230deg,
+          ${theme.primaryColor}00 360deg
+        );
+        -webkit-mask:
+          linear-gradient(#fff 0 0) content-box,
+          linear-gradient(#fff 0 0);
+        -webkit-mask-composite: xor;
+        mask:
+          linear-gradient(#fff 0 0) content-box,
+          linear-gradient(#fff 0 0);
+        mask-composite: exclude;
+        animation: shivaiTriggerBorderSpin 3.2s linear infinite;
+        pointer-events: none;
+        z-index: 3;
+        filter: drop-shadow(0 0 4px ${theme.primaryColor}88);
+      }
+      @keyframes shivaiTriggerBorderSpin {
+        to { --shivai-angle: 360deg; }
+      }
+      /* Keep the button's own content above the ring */
+      .shivai-trigger > * { position: relative; z-index: 4; }
       .shivai-trigger:hover:not(.dragging) {
         transform: translateY(-2px);
         box-shadow:

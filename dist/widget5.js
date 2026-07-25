@@ -1230,6 +1230,10 @@
       ".agent-retry-btn:hover, .call-error-retry-btn:hover { background: " + p2 + " !important; }",
       ".shivai-collapse-handle { background: " + btnGrad + " !important; box-shadow: 0 8px 22px -6px " + p1 + "80, 0 0 0 1px rgba(255,255,255,0.12) inset !important; }",
       ".shivai-collapse-handle:hover { background: linear-gradient(135deg, " + p2 + " 0%, " + p1 + " 100%) !important; box-shadow: 0 10px 26px -6px " + p1 + "99, 0 0 0 1px rgba(255,255,255,0.18) inset !important; }",
+      // Themed moving border ring around the trigger pill
+      ".shivai-trigger::before { background: conic-gradient(from var(--shivai-angle), " + p1 + "00 0deg, " + p1 + " 70deg, " + p2 + " 150deg, " + p1 + " 230deg, " + p1 + "00 360deg) !important; filter: drop-shadow(0 0 4px " + p1 + "88) !important; }",
+      // Themed box-shadow on the trigger pill
+      ".shivai-trigger { box-shadow: 0 20px 44px -14px " + p1 + "55, 0 8px 24px -10px " + p2 + "44, 0 1px 0 rgba(255,255,255,0.95) inset, 0 0 0 1px " + p1 + "22 !important; }",
     ];
   }
 
@@ -1348,6 +1352,8 @@
         ".call-view .call-back-btn { background: #f3f4f6 !important; color: #1a1a2e !important; border: 1px solid #e5e7eb !important; box-shadow: none !important; }",
         ".agent-retry-btn, .call-error-retry-btn { background: " + p1 + " !important; }",
         ".agent-retry-btn:hover, .call-error-retry-btn:hover { background: " + p2 + " !important; }",
+        ".shivai-trigger::before { background: conic-gradient(from var(--shivai-angle), " + p1 + "00 0deg, " + p1 + " 70deg, " + p2 + " 150deg, " + p1 + " 230deg, " + p1 + "00 360deg) !important; filter: drop-shadow(0 0 4px " + p1 + "88) !important; }",
+        ".shivai-trigger { box-shadow: 0 20px 44px -14px " + p1 + "55, 0 8px 24px -10px " + p2 + "44, 0 1px 0 rgba(255,255,255,0.95) inset, 0 0 0 1px " + p1 + "22 !important; }",
       ].concat(buildCallChatBoxOverrides()).join('\n');
       document.head.appendChild(overrideEl);
     }
@@ -3678,6 +3684,48 @@
         max-width: 400px;
         width: max-content;
       }
+      /* Moving glowing thin border — the conic gradient's ANGLE animates (via
+         --shivai-angle) so the mask that clips it to a thin ring stays fixed.
+         Rotating with transform instead warps the ring into diagonal streaks. */
+      @property --shivai-angle {
+        syntax: "<angle>";
+        initial-value: 0deg;
+        inherits: false;
+      }
+      .shivai-trigger::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: 999px;
+        padding: 2px; /* ring thickness */
+        background: conic-gradient(
+          from var(--shivai-angle),
+          rgba(99,102,241,0) 0deg,
+          #6366f1 55deg,
+          #a855f7 120deg,
+          #ec4899 185deg,
+          #38bdf8 250deg,
+          #6366f1 310deg,
+          rgba(99,102,241,0) 360deg
+        );
+        -webkit-mask:
+          linear-gradient(#fff 0 0) content-box,
+          linear-gradient(#fff 0 0);
+        -webkit-mask-composite: xor;
+        mask:
+          linear-gradient(#fff 0 0) content-box,
+          linear-gradient(#fff 0 0);
+        mask-composite: exclude;
+        animation: shivaiTriggerBorderSpin 3.2s linear infinite;
+        pointer-events: none;
+        z-index: 3;
+        filter: drop-shadow(0 0 4px rgba(139,92,246,0.55));
+      }
+      @keyframes shivaiTriggerBorderSpin {
+        to { --shivai-angle: 360deg; }
+      }
+      /* Keep the button's own content above the ring */
+      .shivai-trigger > * { position: relative; z-index: 4; }
       .shivai-trigger:hover:not(.dragging) {
         transform: translateY(-2px);
         box-shadow:
