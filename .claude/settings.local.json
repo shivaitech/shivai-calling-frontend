@@ -49,7 +49,9 @@
       "Bash(awk 'NR>=650 && NR<=670' src/ClientDashboard/Employees/agents/AgentWidgetCustomization.tsx)",
       "Bash(grep -n \"widget5\\\\|origin\\\\|location\\\\|callshivai\\\\|scriptSrc\\\\|scriptTag\\\\|https://\\\\|http://\" src/ClientDashboard/Employees/AgentManagement.tsx)",
       "Bash(cp public/widget4.js dist/widget4.js)",
-      "Bash(xargs -I{} awk 'NR>={} && NR<={}+3' public/widget5.js)"
+      "Bash(xargs -I{} awk 'NR>={} && NR<={}+3' public/widget5.js)",
+      "Bash(curl -s \"https://www.callshivai.com/widget4.js\")",
+      "Bash(grep -n \"const trimmed = appendAssistantTranscript\\(text\\)\\\\|addMessage\\(\\\\\"assistant\\\\\", text, { source: \\\\\"chat\\\\\" }\\)\" public/widget4.js)"
     ]
   }
 }
