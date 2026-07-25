@@ -3128,7 +3128,17 @@
       secondaryColor: "#6b7280",
       accentColor: "#374151"
     };
-    
+    // Theme primary as an "r,g,b" triplet for the trigger glow-pulse rgba().
+    const hexToRgbTriplet = (hex) => {
+      let h = String(hex || "").trim().replace("#", "");
+      if (h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+      if (h.length !== 6) return "75,85,99";
+      const n = parseInt(h, 16);
+      if (isNaN(n)) return "75,85,99";
+      return ((n>>16)&255)+","+((n>>8)&255)+","+(n&255);
+    };
+    const themeGlowRgb = hexToRgbTriplet(theme.primaryColor);
+
     const styles = `
       /* =====================================================
          SHIVAI WIDGET — APPLE-INSPIRED DARK PREMIUM THEME
@@ -3149,7 +3159,7 @@
         backdrop-filter: blur(60px) saturate(220%);
         -webkit-backdrop-filter: blur(60px) saturate(220%);
         border-radius: 999px;
-        border: 1px solid rgba(255,255,255,0.72);
+        border: 1.5px solid rgba(${themeGlowRgb}, 0.65);
         overflow: hidden;
         cursor: grab;
         touch-action: none;
@@ -3170,46 +3180,34 @@
         max-width: 400px;
         width: max-content;
       }
-      /* Moving glowing thin border — the conic gradient's ANGLE animates (via
-         --shivai-angle) so the mask that clips it to a thin ring stays fixed.
-         Rotating with transform instead warps the ring into diagonal streaks. */
-      @property --shivai-angle {
-        syntax: "<angle>";
-        initial-value: 0deg;
-        inherits: false;
+      /* Glow pulse around the trigger pill — same expanding-ring style as the
+         call button, themed to the selected preset colour. */
+      .shivai-trigger {
+        animation: shivaiTriggerGlowPulse 2.2s ease-out infinite;
       }
-      .shivai-trigger::before {
-        content: "";
-        position: absolute;
-        inset: 0;
-        border-radius: 999px;
-        padding: 2px; /* ring thickness */
-        background: conic-gradient(
-          from var(--shivai-angle),
-          ${theme.primaryColor}00 0deg,
-          ${theme.primaryColor} 70deg,
-          ${theme.accentColor} 150deg,
-          ${theme.primaryColor} 230deg,
-          ${theme.primaryColor}00 360deg
-        );
-        -webkit-mask:
-          linear-gradient(#fff 0 0) content-box,
-          linear-gradient(#fff 0 0);
-        -webkit-mask-composite: xor;
-        mask:
-          linear-gradient(#fff 0 0) content-box,
-          linear-gradient(#fff 0 0);
-        mask-composite: exclude;
-        animation: shivaiTriggerBorderSpin 3.2s linear infinite;
-        pointer-events: none;
-        z-index: 3;
-        filter: drop-shadow(0 0 4px ${theme.primaryColor}88);
+      @keyframes shivaiTriggerGlowPulse {
+        0% {
+          box-shadow:
+            0 0 0 0 rgba(${themeGlowRgb}, 0.85),
+            0 22px 48px -12px rgba(${themeGlowRgb}, 0.55),
+            0 1px 0 rgba(255,255,255,0.95) inset,
+            0 0 0 1px rgba(${themeGlowRgb}, 0.35);
+        }
+        60% {
+          box-shadow:
+            0 0 0 14px rgba(${themeGlowRgb}, 0),
+            0 22px 48px -12px rgba(${themeGlowRgb}, 0.55),
+            0 1px 0 rgba(255,255,255,0.95) inset,
+            0 0 0 1px rgba(${themeGlowRgb}, 0.35);
+        }
+        100% {
+          box-shadow:
+            0 0 0 0 rgba(${themeGlowRgb}, 0),
+            0 22px 48px -12px rgba(${themeGlowRgb}, 0.55),
+            0 1px 0 rgba(255,255,255,0.95) inset,
+            0 0 0 1px rgba(${themeGlowRgb}, 0.35);
+        }
       }
-      @keyframes shivaiTriggerBorderSpin {
-        to { --shivai-angle: 360deg; }
-      }
-      /* Keep the button's own content above the ring */
-      .shivai-trigger > * { position: relative; z-index: 4; }
       .shivai-trigger:hover:not(.dragging) {
         transform: translateY(-2px);
         box-shadow:

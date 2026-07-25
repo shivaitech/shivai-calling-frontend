@@ -1215,6 +1215,16 @@
     ];
   }
 
+  // "#rrggbb" → "r,g,b" for use inside rgba(); falls back to indigo.
+  function hexToRgbTriplet(hex) {
+    var h = String(hex || "").trim().replace("#", "");
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    if (h.length !== 6) return "99,102,241";
+    var n = parseInt(h, 16);
+    if (isNaN(n)) return "99,102,241";
+    return ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255);
+  }
+
   function buildThemedButtonOverrides(p1, p2) {
     var btnGrad = "linear-gradient(135deg, " + p1 + " 0%, " + p2 + " 100%)";
     var btnShadow =
@@ -1230,10 +1240,8 @@
       ".agent-retry-btn:hover, .call-error-retry-btn:hover { background: " + p2 + " !important; }",
       ".shivai-collapse-handle { background: " + btnGrad + " !important; box-shadow: 0 8px 22px -6px " + p1 + "80, 0 0 0 1px rgba(255,255,255,0.12) inset !important; }",
       ".shivai-collapse-handle:hover { background: linear-gradient(135deg, " + p2 + " 0%, " + p1 + " 100%) !important; box-shadow: 0 10px 26px -6px " + p1 + "99, 0 0 0 1px rgba(255,255,255,0.18) inset !important; }",
-      // Themed moving border ring around the trigger pill
-      ".shivai-trigger::before { background: conic-gradient(from var(--shivai-angle), " + p1 + "00 0deg, " + p1 + " 70deg, " + p2 + " 150deg, " + p1 + " 230deg, " + p1 + "00 360deg) !important; filter: drop-shadow(0 0 4px " + p1 + "88) !important; }",
-      // Themed box-shadow on the trigger pill
-      ".shivai-trigger { box-shadow: 0 20px 44px -14px " + p1 + "55, 0 8px 24px -10px " + p2 + "44, 0 1px 0 rgba(255,255,255,0.95) inset, 0 0 0 1px " + p1 + "22 !important; }",
+      // Themed glow-pulse colour for the trigger pill (drives the pulse keyframes)
+      ".shivai-trigger { --shivai-glow: " + hexToRgbTriplet(p1) + " !important; }",
     ];
   }
 
@@ -1352,8 +1360,7 @@
         ".call-view .call-back-btn { background: #f3f4f6 !important; color: #1a1a2e !important; border: 1px solid #e5e7eb !important; box-shadow: none !important; }",
         ".agent-retry-btn, .call-error-retry-btn { background: " + p1 + " !important; }",
         ".agent-retry-btn:hover, .call-error-retry-btn:hover { background: " + p2 + " !important; }",
-        ".shivai-trigger::before { background: conic-gradient(from var(--shivai-angle), " + p1 + "00 0deg, " + p1 + " 70deg, " + p2 + " 150deg, " + p1 + " 230deg, " + p1 + "00 360deg) !important; filter: drop-shadow(0 0 4px " + p1 + "88) !important; }",
-        ".shivai-trigger { box-shadow: 0 20px 44px -14px " + p1 + "55, 0 8px 24px -10px " + p2 + "44, 0 1px 0 rgba(255,255,255,0.95) inset, 0 0 0 1px " + p1 + "22 !important; }",
+        ".shivai-trigger { --shivai-glow: " + hexToRgbTriplet(p1) + " !important; }",
       ].concat(buildCallChatBoxOverrides()).join('\n');
       document.head.appendChild(overrideEl);
     }
@@ -3663,7 +3670,7 @@
         backdrop-filter: blur(60px) saturate(220%);
         -webkit-backdrop-filter: blur(60px) saturate(220%);
         border-radius: 999px;
-        border: 1px solid rgba(255,255,255,0.72);
+        border: 1.5px solid rgba(var(--shivai-glow, 99,102,241), 0.65);
         overflow: hidden;
         cursor: grab;
         touch-action: none;
@@ -3684,48 +3691,35 @@
         max-width: 400px;
         width: max-content;
       }
-      /* Moving glowing thin border — the conic gradient's ANGLE animates (via
-         --shivai-angle) so the mask that clips it to a thin ring stays fixed.
-         Rotating with transform instead warps the ring into diagonal streaks. */
-      @property --shivai-angle {
-        syntax: "<angle>";
-        initial-value: 0deg;
-        inherits: false;
+      /* Glow pulse around the trigger pill — same expanding-ring style as the
+         call button. --shivai-glow is set to the theme colour via injected CSS. */
+      .shivai-trigger {
+        --shivai-glow: 99,102,241; /* fallback (indigo) until theme applies */
+        animation: shivaiTriggerGlowPulse 2.2s ease-out infinite;
       }
-      .shivai-trigger::before {
-        content: "";
-        position: absolute;
-        inset: 0;
-        border-radius: 999px;
-        padding: 2px; /* ring thickness */
-        background: conic-gradient(
-          from var(--shivai-angle),
-          rgba(99,102,241,0) 0deg,
-          #6366f1 55deg,
-          #a855f7 120deg,
-          #ec4899 185deg,
-          #38bdf8 250deg,
-          #6366f1 310deg,
-          rgba(99,102,241,0) 360deg
-        );
-        -webkit-mask:
-          linear-gradient(#fff 0 0) content-box,
-          linear-gradient(#fff 0 0);
-        -webkit-mask-composite: xor;
-        mask:
-          linear-gradient(#fff 0 0) content-box,
-          linear-gradient(#fff 0 0);
-        mask-composite: exclude;
-        animation: shivaiTriggerBorderSpin 3.2s linear infinite;
-        pointer-events: none;
-        z-index: 3;
-        filter: drop-shadow(0 0 4px rgba(139,92,246,0.55));
+      @keyframes shivaiTriggerGlowPulse {
+        0% {
+          box-shadow:
+            0 0 0 0 rgba(var(--shivai-glow), 0.85),
+            0 22px 48px -12px rgba(var(--shivai-glow), 0.55),
+            0 1px 0 rgba(255,255,255,0.95) inset,
+            0 0 0 1px rgba(var(--shivai-glow), 0.35);
+        }
+        60% {
+          box-shadow:
+            0 0 0 14px rgba(var(--shivai-glow), 0),
+            0 22px 48px -12px rgba(var(--shivai-glow), 0.55),
+            0 1px 0 rgba(255,255,255,0.95) inset,
+            0 0 0 1px rgba(var(--shivai-glow), 0.35);
+        }
+        100% {
+          box-shadow:
+            0 0 0 0 rgba(var(--shivai-glow), 0),
+            0 22px 48px -12px rgba(var(--shivai-glow), 0.55),
+            0 1px 0 rgba(255,255,255,0.95) inset,
+            0 0 0 1px rgba(var(--shivai-glow), 0.35);
+        }
       }
-      @keyframes shivaiTriggerBorderSpin {
-        to { --shivai-angle: 360deg; }
-      }
-      /* Keep the button's own content above the ring */
-      .shivai-trigger > * { position: relative; z-index: 4; }
       .shivai-trigger:hover:not(.dragging) {
         transform: translateY(-2px);
         box-shadow:
