@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import GlassCard from '../../components/GlassCard';
+import appToast from '../../components/AppToast';
 import { useAgent } from '../../contexts/AgentContext';
+import { agentAPI } from '../../services/agentAPI';
 import {
   getNumberCatalog,
   buyPhoneNumber,
@@ -9,10 +12,16 @@ import {
   reassignPhoneNumber,
   deprovisionPhoneNumber,
   enableOutbound,
+  setOutboundAgent,
+  removeOutboundAgent,
+  getDidTypes,
   createCampaign,
   uploadCampaignContacts,
   startCampaign,
   pauseCampaign,
+  resumeCampaign,
+  stopCampaign,
+  deleteCampaign,
   getCampaigns,
   getCampaignStatus,
   contactsToCsvFile,
@@ -21,6 +30,7 @@ import {
   type ProvisionedNumber,
   type Campaign,
   type CampaignLiveStatus,
+  type DidType,
 } from '../../services/phoneNumbersAPI';
 import {
   Phone,
@@ -48,6 +58,9 @@ import {
   Info,
   X,
   Check,
+  ExternalLink,
+  Square,
+  Sparkles,
 } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -56,7 +69,8 @@ interface PhoneNumber {
   id: string;
   number: string;
   friendlyName: string;
-  assignedAgentId: string | null;
+  assignedAgentId: string | null;      // inbound answering agent (agent_id)
+  outboundAgentId: string | null;      // agent that places outbound calls (outbound_agent_id)
   language: string;
   isActive: boolean;
   inboundEnabled: boolean;
@@ -70,6 +84,7 @@ const toPhoneNumber = (n: ProvisionedNumber): PhoneNumber => ({
   number: n.phone_number,
   friendlyName: n.display_name,
   assignedAgentId: n.agent_id || null,
+  outboundAgentId: n.outbound_agent_id || null,
   language: n.language,
   isActive: n.is_active,
   inboundEnabled: n.inbound_enabled,
@@ -93,6 +108,8 @@ interface ContactEntry {
   id: string;
   phone: string;
   name?: string;
+  /** Why we're calling — previous inquiry, follow-up, etc. Sent as a custom field for the agent. */
+  context?: string;
 }
 
 const TIMEZONES = [
@@ -144,6 +161,7 @@ const statusBadge = (status: string) => {
     running:   { label: 'Running',   cls: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' },
     paused:    { label: 'Paused',    cls: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' },
     completed: { label: 'Completed', cls: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300' },
+    stopped:   { label: 'Stopped',   cls: 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300' },
   };
   const s = map[status] || { label: status || 'Unknown', cls: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300' };
   return (
@@ -195,8 +213,14 @@ const Toggle: React.FC<{ checked: boolean; onChange: () => void }> = ({ checked,
 const CallSetup: React.FC = () => {
   // Real agents from API via AgentContext
   const { agents, isLoading: agentsLoading } = useAgent();
+  const navigate = useNavigate();
+  const location = useLocation();
 
-  const [activeSection, setActiveSection] = useState<'inbound' | 'outbound'>('inbound');
+  const [activeSection, setActiveSection] = useState<'inbound' | 'outbound'>(() =>
+    (location.state as { callSetupSection?: string } | null)?.callSetupSection === 'outbound'
+      ? 'outbound'
+      : 'inbound'
+  );
 
   // ── Inbound state ──
   const [numbers, setNumbers] = useState<PhoneNumber[]>([]);
@@ -211,6 +235,8 @@ const CallSetup: React.FC = () => {
 
   // ── Buy-number state ──
   const [showBuyModal, setShowBuyModal] = useState(false);
+  const [didTypes, setDidTypes] = useState<DidType[]>([]);
+  const [selectedDidTypeId, setSelectedDidTypeId] = useState<number | null>(null);
   const [catalog, setCatalog] = useState<CatalogNumber[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState<string | null>(null);
@@ -223,18 +249,22 @@ const CallSetup: React.FC = () => {
   // ── Enable-outbound state (per number) ──
   const [enablingOutboundId, setEnablingOutboundId] = useState<string | null>(null);
 
+  // ── Outbound-agent assignment (inline per-number select) ──
+  const [outboundAgentSavingId, setOutboundAgentSavingId] = useState<string | null>(null);
+
   // ── Outbound / campaign state ──
   const [campaigns, setCampaigns] = useState<CampaignRow[]>([]);
   const [campaignsLoading, setCampaignsLoading] = useState(false);
   const [campaignsError, setCampaignsError] = useState<string | null>(null);
   const [campaignActionId, setCampaignActionId] = useState<string | null>(null);
+  const [deleteCampaignId, setDeleteCampaignId] = useState<string | null>(null);
 
   // ── Create-campaign wizard state ──
   const [showCreateCampaign, setShowCreateCampaign] = useState(false);
   const [campaignStep, setCampaignStep] = useState<1 | 2 | 3>(1);
   const [contactMode, setContactMode] = useState<'single' | 'bulk' | 'file'>('single');
   const [bulkInput, setBulkInput] = useState('');
-  const [singleContact, setSingleContact] = useState({ phone: '', name: '' });
+  const [singleContact, setSingleContact] = useState({ phone: '', name: '', context: '' });
   const [selectedCountryId, setSelectedCountryId] = useState('IN');
   const selectedCountry = COUNTRY_CODES.find((c) => c.id === selectedCountryId) ?? COUNTRY_CODES[0];
   const [campaignContacts, setCampaignContacts] = useState<ContactEntry[]>([]);
@@ -243,12 +273,15 @@ const CallSetup: React.FC = () => {
   const [wizardError, setWizardError] = useState<string | null>(null);
   const [wizardStage, setWizardStage] = useState<string>(''); // progress text while launching
   const [startNow, setStartNow] = useState(true);
+  const [isGeneratingCampaignBrief, setIsGeneratingCampaignBrief] = useState(false);
   const [newCampaign, setNewCampaign] = useState({
     name: '',
     agentId: '',
     callerNumber: '',
     language: 'en-in',
     maxConcurrent: 3,
+    objective: '',
+    goal: '',
   });
 
   // ─── Inbound handlers ─────────────────────────────────────────────────────
@@ -281,18 +314,23 @@ const CallSetup: React.FC = () => {
       setNumbers((prev) =>
         prev.map((n) => (n.id === target.id ? { ...n, assignedAgentId: agentId } : n))
       );
+      const agentName = agents.find((a) => a.id === agentId)?.name || 'agent';
+      appToast.success(`${agentName} assigned to ${target.number}`);
       setAssignModal(null);
     } catch (err: any) {
-      setActionError(err.message || 'Failed to reassign number');
+      const msg = err.message || 'Failed to assign agent';
+      setActionError(msg);
+      appToast.error(msg);
     } finally {
       setAssigningId(null);
     }
   };
 
-  // Deprovision — tears down the trunk + dispatch rule so inbound stops routing
+  // Detach the AI employee & reset the number (deprovision — tears down trunk +
+  // dispatch rule; inbound stops routing and the agent is detached).
   const handleDeprovision = async (num: PhoneNumber) => {
     if (!window.confirm(
-      `Stop routing inbound calls on ${num.number}?\n\nThe number stays on your account but will no longer reach an agent.`
+      `Detach the AI employee from ${num.number}?\n\nThe number stays on your account but inbound calls will no longer reach an agent until you assign one again.`
     )) return;
     setReleasingId(num.id);
     setActionError(null);
@@ -300,11 +338,16 @@ const CallSetup: React.FC = () => {
       await deprovisionPhoneNumber(num.id);
       setNumbers((prev) =>
         prev.map((n) =>
-          n.id === num.id ? { ...n, inboundEnabled: false, isActive: false, assignedAgentId: null } : n
+          n.id === num.id
+            ? { ...n, inboundEnabled: false, isActive: false, assignedAgentId: null, outboundEnabled: false, outboundAgentId: null }
+            : n
         )
       );
+      appToast.success(`AI employee detached from ${num.number}`);
     } catch (err: any) {
-      setActionError(err.message || 'Failed to deprovision number');
+      const msg = err.message || 'Failed to detach number';
+      setActionError(msg);
+      appToast.error(msg);
     } finally {
       setReleasingId(null);
     }
@@ -312,20 +355,48 @@ const CallSetup: React.FC = () => {
 
   // ─── Buy-number handlers ──────────────────────────────────────────────────
 
+  // Load the buyable catalog for a specific DID type (the API requires a type).
+  const loadCatalog = async (didTypeId: number) => {
+    setSelectedDid(null);
+    setSelectedDidTypeId(didTypeId);
+    setCatalogLoading(true);
+    setCatalogError(null);
+    try {
+      setCatalog(await getNumberCatalog(didTypeId));
+    } catch (err: any) {
+      setCatalog([]);
+      setCatalogError(err.message || 'Failed to load available numbers');
+    } finally {
+      setCatalogLoading(false);
+    }
+  };
+
   const openBuyModal = async () => {
     setShowBuyModal(true);
     setSelectedDid(null);
     setBuyDisplayName('');
     setBuyAgentId('');
     setBuyError(null);
-    setCatalogLoading(true);
+    setSelectedDidTypeId(null);
+    setCatalog([]);
     setCatalogError(null);
+    // A DID type is required before the catalog can be browsed. Load the types,
+    // then auto-select the first buyable one and fetch its catalog.
+    setCatalogLoading(true);
     try {
-      setCatalog(await getNumberCatalog());
+      const types = await getDidTypes();
+      setDidTypes(types);
+      const first = types.find((t) => !t.requires_request) || types[0];
+      if (first) {
+        await loadCatalog(first.id);
+      } else {
+        setCatalogLoading(false);
+        setCatalogError('No number types are available right now.');
+      }
     } catch (err: any) {
-      setCatalogError(err.message || 'Failed to load available numbers');
-    } finally {
+      setDidTypes([]);
       setCatalogLoading(false);
+      setCatalogError(err.message || 'Failed to load number types');
     }
   };
 
@@ -334,15 +405,19 @@ const CallSetup: React.FC = () => {
     setIsBuying(true);
     setBuyError(null);
     try {
-      await buyPhoneNumber({
+      const result = await buyPhoneNumber({
         voicelink_did_id: selectedDid.id,
+        did_number: selectedDid.did_number,
         agent_id: buyAgentId,
         display_name: buyDisplayName.trim(),
       });
       setShowBuyModal(false);
+      appToast.success(`${result?.phone_number || 'Number'} purchased & provisioned`);
       await loadNumbers();
     } catch (err: any) {
-      setBuyError(err.message || 'Failed to provision number');
+      const msg = err.message || 'Failed to provision number';
+      setBuyError(msg);
+      appToast.error(msg);
     } finally {
       setIsBuying(false);
     }
@@ -351,6 +426,7 @@ const CallSetup: React.FC = () => {
   const handleSaveRules = (rule: InboundRule) => {
     setInboundRules((prev) => ({ ...prev, [rule.numberId]: rule }));
     setRulesModal(null);
+    appToast.success('Routing rules saved');
   };
 
   // Enable outbound on a number so it can be used as a campaign caller
@@ -362,10 +438,44 @@ const CallSetup: React.FC = () => {
       setNumbers((prev) =>
         prev.map((n) => (n.id === num.id ? { ...n, outboundEnabled: true } : n))
       );
+      appToast.success(`Outbound enabled on ${num.number}`);
     } catch (err: any) {
-      setActionError(err.message || 'Failed to enable outbound calling');
+      const msg = err.message || 'Failed to enable outbound calling';
+      setActionError(msg);
+      appToast.error(msg);
     } finally {
       setEnablingOutboundId(null);
+    }
+  };
+
+  // Inline outbound-agent picker change. Empty value → remove agent (DELETE),
+  // otherwise set/replace (POST /outbound-agent). Requires outbound enabled.
+  const handleOutboundAgentChange = async (num: PhoneNumber, agentId: string) => {
+    setOutboundAgentSavingId(num.id);
+    setActionError(null);
+    try {
+      if (agentId) {
+        const updated = await setOutboundAgent(num.id, agentId);
+        setNumbers((prev) =>
+          prev.map((n) =>
+            n.id === num.id ? { ...n, outboundAgentId: updated.outbound_agent_id || agentId } : n
+          )
+        );
+        const agentName = agents.find((a) => a.id === agentId)?.name || 'agent';
+        appToast.success(`Outbound agent set to ${agentName} for ${num.number}`);
+      } else {
+        await removeOutboundAgent(num.id);
+        setNumbers((prev) =>
+          prev.map((n) => (n.id === num.id ? { ...n, outboundAgentId: null } : n))
+        );
+        appToast.success(`Outbound agent removed from ${num.number}`);
+      }
+    } catch (err: any) {
+      const msg = err.message || 'Failed to update outbound agent';
+      setActionError(msg);
+      appToast.error(msg);
+    } finally {
+      setOutboundAgentSavingId(null);
     }
   };
 
@@ -378,16 +488,27 @@ const CallSetup: React.FC = () => {
     const fullPhone = `${selectedCountry.code}${stripped}`;
     setCampaignContacts((prev) => [
       ...prev,
-      { id: `c_${Date.now()}`, phone: fullPhone, name: singleContact.name.trim() },
+      {
+        id: `c_${Date.now()}`,
+        phone: fullPhone,
+        name: singleContact.name.trim(),
+        context: singleContact.context.trim() || undefined,
+      },
     ]);
-    setSingleContact({ phone: '', name: '' });
+    setSingleContact({ phone: '', name: '', context: '' });
   };
 
   const parseBulkContacts = () => {
     const lines = bulkInput.split('\n').map((l) => l.trim()).filter(Boolean);
     const parsed: ContactEntry[] = lines.map((line, i) => {
-      const [phone, ...nameParts] = line.split(',').map((p) => p.trim());
-      return { id: `c_${Date.now()}_${i}`, phone, name: nameParts.join(' ') };
+      // phone, name, context — name and context optional
+      const [phone, name = '', ...contextParts] = line.split(',').map((p) => p.trim());
+      return {
+        id: `c_${Date.now()}_${i}`,
+        phone,
+        name,
+        context: contextParts.join(', ').trim() || undefined,
+      };
     });
     setCampaignContacts(parsed);
   };
@@ -400,13 +521,13 @@ const CallSetup: React.FC = () => {
     try {
       const list = await getCampaigns();
       setCampaigns(list);
-      // Fetch live stats per campaign; failures are non-fatal (leave live undefined)
+      // Fetch live stats per campaign; fall back to embedded campaign.stats
       const withStats = await Promise.all(
         list.map(async (c) => {
           try {
             return { ...c, live: await getCampaignStatus(c._id) };
           } catch {
-            return c;
+            return { ...c, live: c.stats as CampaignLiveStatus | undefined };
           }
         })
       );
@@ -465,13 +586,21 @@ const CallSetup: React.FC = () => {
         caller_number: newCampaign.callerNumber,
         language: newCampaign.language,
         max_concurrent: newCampaign.maxConcurrent,
+        ...(newCampaign.objective.trim() ? { objective: newCampaign.objective.trim() } : {}),
+        ...(newCampaign.goal.trim() ? { goal: newCampaign.goal.trim() } : {}),
       });
 
       setWizardStage('Uploading contacts…');
       const file =
         contactMode === 'file' && contactFile
           ? contactFile
-          : contactsToCsvFile(campaignContacts.map((c) => ({ phone: c.phone, name: c.name })));
+          : contactsToCsvFile(
+              campaignContacts.map((c) => ({
+                phone: c.phone,
+                name: c.name,
+                call_context: c.context,
+              }))
+            );
       await uploadCampaignContacts(created._id, file);
 
       if (startNow) {
@@ -481,9 +610,16 @@ const CallSetup: React.FC = () => {
 
       setShowCreateCampaign(false);
       resetCampaignForm();
+      appToast.success(
+        startNow
+          ? `Campaign "${created.name}" launched`
+          : `Campaign "${created.name}" created`
+      );
       await loadCampaigns();
     } catch (err: any) {
-      setWizardError(err.message || 'Failed to launch campaign');
+      const msg = err.message || 'Failed to launch campaign';
+      setWizardError(msg);
+      appToast.error(msg);
     } finally {
       setIsSavingCampaign(false);
       setWizardStage('');
@@ -496,10 +632,10 @@ const CallSetup: React.FC = () => {
     setContactFile(null);
     setBulkInput('');
     setContactMode('single');
-    setSingleContact({ phone: '', name: '' });
+    setSingleContact({ phone: '', name: '', context: '' });
     setStartNow(true);
     setWizardError(null);
-    setNewCampaign({ name: '', agentId: '', callerNumber: '', language: 'en-in', maxConcurrent: 3 });
+    setNewCampaign({ name: '', agentId: '', callerNumber: '', language: 'en-in', maxConcurrent: 3, objective: '', goal: '' });
   };
 
   const openCampaignWizard = () => {
@@ -507,20 +643,118 @@ const CallSetup: React.FC = () => {
     setShowCreateCampaign(true);
   };
 
-  // Pause / resume via the phone-service dialer
-  const handleCampaignAction = async (id: string, action: 'pause' | 'resume') => {
+  const generateCampaignBriefWithAI = async () => {
+    const agent = agents.find((a) => a.id === newCampaign.agentId);
+    if (!agent) {
+      appToast.error('Select a caller number (with an outbound agent) first');
+      return;
+    }
+
+    setIsGeneratingCampaignBrief(true);
+    try {
+      const template = agent.template;
+      const promptText = `You write outbound campaign briefs for a voice AI agent. Based on this agent's template and instructions, produce objective and goal text for an outbound call campaign.
+
+AGENT
+- Name: ${agent.name}
+- Persona: ${agent.persona || 'Professional'}
+- Template: ${template?.name || 'General'}
+- Template description: ${template?.description || 'N/A'}
+- Key talking points: ${template?.keyTalkingPoints || 'N/A'}
+- Opening / first message: ${template?.firstMessage || template?.openingScript || 'N/A'}
+- Custom instructions: ${agent.custom_instructions || 'N/A'}
+${newCampaign.name.trim() ? `- Campaign name hint: ${newCampaign.name.trim()}` : ''}
+
+STYLE REQUIREMENTS (match this structure and depth — adapt content to THIS agent/industry, do not copy cinema franchise wording):
+- Goal: one clear paragraph describing what the call should achieve (qualify, answer questions, move to next step). Sound consultative, not pushy.
+- Objective: a bullet list (each line starting with "• ") of concrete call steps — reconnect/confirm interest, gather requirements, explain offering, handle concerns, qualify, schedule next step.
+- Optionally weave in short call-context guidance (warm vs cold, tone) inside the objective bullets or as a short preface line before the bullets.
+
+Return ONLY valid JSON (no markdown fences):
+{"goal":"...","objective":"..."}
+
+goal = the Goal paragraph.
+objective = the Objective bullet list (use \\n between bullets).`;
+
+      const response = await agentAPI.generatePrompt(promptText);
+      const generated =
+        response?.data?.generation?.response ||
+        response?.generation?.response ||
+        response?.response;
+
+      if (!generated || typeof generated !== 'string') {
+        throw new Error('Invalid AI response');
+      }
+
+      let goal = '';
+      let objective = '';
+      try {
+        const jsonMatch = generated.match(/\{[\s\S]*\}/);
+        const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : generated);
+        goal = String(parsed.goal || '').trim();
+        objective = String(parsed.objective || '').trim();
+      } catch {
+        // Fallback: split on ## Goal / ## Objective style headings if JSON parse fails
+        const goalMatch = generated.match(/##\s*Goal\s*([\s\S]*?)(?=##\s*Objective|$)/i);
+        const objMatch = generated.match(/##\s*Objective\s*([\s\S]*?)(?=##\s*Call Context|##\s*AI Personality|$)/i);
+        goal = (goalMatch?.[1] || '').trim();
+        objective = (objMatch?.[1] || generated).trim();
+      }
+
+      if (!goal && !objective) {
+        throw new Error('Could not parse objective/goal from AI response');
+      }
+
+      setNewCampaign((p) => ({
+        ...p,
+        goal: goal || p.goal,
+        objective: objective || p.objective,
+      }));
+      appToast.success('Objective & goal generated from agent template');
+    } catch (err: any) {
+      console.error('Failed to generate campaign brief:', err);
+      appToast.error(err.message || 'Failed to generate with AI. Please try again.');
+    } finally {
+      setIsGeneratingCampaignBrief(false);
+    }
+  };
+
+  // Start (draft) / pause / resume / stop / delete
+  const handleCampaignAction = async (
+    id: string,
+    action: 'pause' | 'resume' | 'start' | 'stop' | 'delete',
+    e?: React.MouseEvent
+  ) => {
+    e?.stopPropagation();
     setCampaignActionId(id);
     setCampaignsError(null);
     try {
       if (action === 'pause') {
         await pauseCampaign(id);
         setCampaigns((prev) => prev.map((c) => (c._id === id ? { ...c, status: 'paused' } : c)));
-      } else {
+        appToast.success('Campaign paused');
+      } else if (action === 'resume') {
+        await resumeCampaign(id);
+        setCampaigns((prev) => prev.map((c) => (c._id === id ? { ...c, status: 'running' } : c)));
+        appToast.success('Campaign resumed');
+      } else if (action === 'start') {
         await startCampaign(id);
         setCampaigns((prev) => prev.map((c) => (c._id === id ? { ...c, status: 'running' } : c)));
+        appToast.success('Campaign started');
+      } else if (action === 'stop') {
+        await stopCampaign(id);
+        setCampaigns((prev) => prev.map((c) => (c._id === id ? { ...c, status: 'stopped' } : c)));
+        appToast.success('Campaign stopped');
+      } else if (action === 'delete') {
+        await deleteCampaign(id);
+        setCampaigns((prev) => prev.filter((c) => c._id !== id));
+        appToast.success('Campaign deleted');
+        setDeleteCampaignId(null);
       }
     } catch (err: any) {
-      setCampaignsError(err.message || `Failed to ${action} campaign`);
+      const msg = err.message || `Failed to ${action} campaign`;
+      setCampaignsError(msg);
+      appToast.error(msg);
     } finally {
       setCampaignActionId(null);
     }
@@ -528,9 +762,16 @@ const CallSetup: React.FC = () => {
 
   // ─── Derived ─────────────────────────────────────────────────────────────
 
-  const outboundNumbers = numbers.filter((n) => n.outboundEnabled && n.isActive);
+  // All active numbers — shown in the outbound tab so users can enable + assign
+  const outboundEligibleNumbers = numbers.filter((n) => n.isActive);
+  // Campaign-ready numbers: outbound enabled AND an outbound agent already set.
+  // The campaign uses that number's outbound agent — no separate agent choice.
+  const campaignCallerNumbers = numbers.filter(
+    (n) => n.outboundEnabled && n.isActive && n.outboundAgentId
+  );
+  const selectedCallerNum = campaignCallerNumbers.find((n) => n.number === newCampaign.callerNumber);
   const assignedCount = numbers.filter((n) => n.assignedAgentId).length;
-  const step1Valid = !!(newCampaign.name.trim() && newCampaign.agentId && newCampaign.callerNumber);
+  const step1Valid = !!(newCampaign.name.trim() && newCampaign.callerNumber && newCampaign.agentId);
   const step2Valid = contactMode === 'file' ? !!contactFile : campaignContacts.length > 0;
 
   // ─── Render ───────────────────────────────────────────────────────────────
@@ -727,25 +968,13 @@ const CallSetup: React.FC = () => {
                             )}
                             <button
                               onClick={() => setAssignModal(num)}
+                              title={agent ? 'Change inbound agent' : 'Assign inbound agent'}
                               className="text-xs common-button-bg2 px-2.5 sm:px-3 py-1.5 rounded-lg flex items-center gap-1 whitespace-nowrap"
                             >
                               <Bot className="w-3 h-3" />
                               <span className="hidden xs:inline sm:inline">{agent ? 'Change' : 'Assign'}</span>
                               <span className="xs:hidden sm:hidden">{agent ? '↺' : '+'}</span>
                             </button>
-                            {num.isActive && !num.outboundEnabled && (
-                              <button
-                                onClick={() => handleEnableOutbound(num)}
-                                disabled={enablingOutboundId === num.id}
-                                title="Enable this number for outbound campaigns"
-                                className="text-xs px-2.5 py-1.5 rounded-lg flex items-center gap-1 whitespace-nowrap bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors disabled:opacity-50"
-                              >
-                                {enablingOutboundId === num.id
-                                  ? <Loader2 className="w-3 h-3 animate-spin" />
-                                  : <PhoneOutgoing className="w-3 h-3" />}
-                                <span className="hidden sm:inline">Enable outbound</span>
-                              </button>
-                            )}
                             <button
                               onClick={() => setRulesModal(num)}
                               title="Configure routing rules"
@@ -757,7 +986,7 @@ const CallSetup: React.FC = () => {
                               <button
                                 onClick={() => handleDeprovision(num)}
                                 disabled={releasingId === num.id}
-                                title="Stop inbound routing"
+                                title="Detach AI employee & reset this number"
                                 className="p-1.5 sm:p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
                               >
                                 {releasingId === num.id
@@ -793,8 +1022,8 @@ const CallSetup: React.FC = () => {
               {[
                 { label: 'Total Campaigns', value: campaigns.length,                                               icon: Zap,       color: 'from-blue-500 to-indigo-600'   },
                 { label: 'Running',         value: campaigns.filter((c) => c.status === 'running').length,         icon: Play,      color: 'from-green-500 to-emerald-600'  },
-                { label: 'Contacts Completed', value: campaigns.reduce((s, c) => s + (c.live?.completed || 0), 0), icon: PhoneCall, color: 'from-purple-500 to-pink-600'   },
-                { label: 'Pending',         value: campaigns.reduce((s, c) => s + (c.live?.pending || 0), 0),      icon: Clock,     color: 'from-orange-500 to-amber-600'  },
+                { label: 'Contacts Completed', value: campaigns.reduce((s, c) => s + (c.live?.completed || c.stats?.completed || 0), 0), icon: PhoneCall, color: 'from-purple-500 to-pink-600'   },
+                { label: 'Pending',         value: campaigns.reduce((s, c) => s + (c.live?.pending || c.stats?.pending || 0), 0),      icon: Clock,     color: 'from-orange-500 to-amber-600'  },
               ].map((stat) => (
                 <GlassCard key={stat.label}>
                   <div className="p-2 sm:p-4 flex flex-col sm:flex-row sm:items-center sm:gap-3">
@@ -812,6 +1041,104 @@ const CallSetup: React.FC = () => {
                 </GlassCard>
               ))}
             </div>
+
+            {/* Outbound Numbers — enable outbound + pick the agent that places calls */}
+            <GlassCard>
+              <div className="p-4 sm:p-6">
+                <SectionHeader
+                  icon={PhoneOutgoing}
+                  title="Outbound Numbers"
+                  subtitle="Enable outbound on a number, then choose the AI agent that places its calls"
+                  color="bg-gradient-to-br from-indigo-500 to-purple-600"
+                />
+
+                {actionError && (
+                  <div className="mt-4 flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+                    <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-red-600 dark:text-red-400 flex-1">{actionError}</p>
+                    <button onClick={() => setActionError(null)} className="text-red-400 hover:text-red-600">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                {outboundEligibleNumbers.length === 0 ? (
+                  <div className="mt-4 text-center py-10 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
+                    <PhoneOutgoing className="w-9 h-9 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                    <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+                      No active numbers yet. Go to the{' '}
+                      <button onClick={() => setActiveSection('inbound')} className="underline font-medium text-indigo-600 dark:text-indigo-400">Inbound</button>{' '}
+                      tab and buy a number first.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="mt-4 space-y-2">
+                    {outboundEligibleNumbers.map((num) => {
+                      const busy = outboundAgentSavingId === num.id || enablingOutboundId === num.id;
+                      return (
+                        <div
+                          key={num.id}
+                          className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-xl common-bg-icons gap-2 sm:gap-3"
+                        >
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center flex-shrink-0">
+                              <PhoneOutgoing className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-slate-800 dark:text-white text-sm">{num.number}</p>
+                              <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                                <span className="text-xs text-slate-500 dark:text-slate-400">{num.friendlyName}</span>
+                                {num.outboundEnabled ? (
+                                  <span className="text-xs bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded-md">Outbound on</span>
+                                ) : (
+                                  <span className="text-xs bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded-md">Outbound off</span>
+                                )}
+                                <span className="text-xs text-slate-400 dark:text-slate-500 uppercase">{num.language}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between sm:justify-end gap-2 border-t border-slate-200/70 dark:border-slate-700/50 sm:border-0 pt-2 sm:pt-0">
+                            {num.outboundEnabled ? (
+                              // Inline agent picker — saves on change; empty = remove agent
+                              <div className="flex items-center gap-2 w-full sm:w-auto">
+                                <label className="text-xs text-slate-400 dark:text-slate-500 hidden sm:inline">Agent</label>
+                                <div className="relative flex-1 sm:flex-none">
+                                  <select
+                                    value={num.outboundAgentId || ''}
+                                    disabled={busy || agentsLoading}
+                                    onChange={(e) => handleOutboundAgentChange(num, e.target.value)}
+                                    className="common-bg-icons w-full sm:w-52 px-3 py-2 rounded-lg text-sm disabled:opacity-60 appearance-none pr-8"
+                                  >
+                                    <option value="">— No agent —</option>
+                                    {agents.map((a) => (
+                                      <option key={a.id} value={a.id}>{a.name}</option>
+                                    ))}
+                                  </select>
+                                  {busy && (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => handleEnableOutbound(num)}
+                                disabled={busy}
+                                title="Enable outbound calling on this number"
+                                className="text-xs px-2.5 py-1.5 rounded-lg flex items-center gap-1 whitespace-nowrap bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors disabled:opacity-50"
+                              >
+                                {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <PhoneOutgoing className="w-3 h-3" />}
+                                Enable outbound
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </GlassCard>
 
             {/* Campaigns */}
             <GlassCard>
@@ -834,7 +1161,9 @@ const CallSetup: React.FC = () => {
                     </button>
                     <button
                       onClick={openCampaignWizard}
-                      className="common-button-bg flex items-center gap-2"
+                      disabled={campaignCallerNumbers.length === 0}
+                      title={campaignCallerNumbers.length === 0 ? 'Set an outbound agent on a number first' : 'Create a new campaign'}
+                      className="common-button-bg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Plus className="w-4 h-4" />
                       New Campaign
@@ -842,16 +1171,16 @@ const CallSetup: React.FC = () => {
                   </div>
                 </div>
 
-                {/* No outbound-enabled numbers → guide the user to enable one first */}
-                {!campaignsLoading && outboundNumbers.length === 0 && campaigns.length === 0 && (
+                {/* No campaign-ready numbers → guide the user to set an outbound agent first */}
+                {!campaignsLoading && campaignCallerNumbers.length === 0 && campaigns.length === 0 && (
                   <div className="mb-4 flex items-start gap-3 p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
                     <Info className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
                     <div className="text-sm text-amber-700 dark:text-amber-300">
-                      <p className="font-medium">Enable outbound on a number first</p>
+                      <p className="font-medium">Set up an outbound number first</p>
                       <p className="text-amber-600 dark:text-amber-400 mt-0.5">
-                        A campaign needs a caller number with outbound calling enabled. Go to the{' '}
-                        <button onClick={() => setActiveSection('inbound')} className="underline font-medium">Inbound</button>{' '}
-                        tab and click <span className="font-medium">Enable outbound</span> on one of your numbers.
+                        A campaign needs a number that is <span className="font-medium">outbound-enabled</span> and has an{' '}
+                        <span className="font-medium">outbound agent</span>. Use the{' '}
+                        <span className="font-medium">Outbound Numbers</span> section above to enable outbound and pick an agent.
                       </p>
                     </div>
                   </div>
@@ -883,7 +1212,7 @@ const CallSetup: React.FC = () => {
                     </p>
                     <button
                       onClick={openCampaignWizard}
-                      disabled={outboundNumbers.length === 0}
+                      disabled={campaignCallerNumbers.length === 0}
                       className="common-button-bg inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Plus className="w-4 h-4" /> Create Campaign
@@ -893,56 +1222,96 @@ const CallSetup: React.FC = () => {
                   <div className="space-y-3">
                     {campaigns.map((campaign) => {
                       const agent = agents.find((a) => a.id === campaign.agent_id);
-                      const live = campaign.live;
+                      const live = campaign.live || (campaign.stats as CampaignLiveStatus | undefined);
                       const total = live?.total || 0;
                       const done = (live?.completed || 0) + (live?.no_answer || 0);
                       const pct = total > 0 ? Math.round((done / total) * 100) : 0;
                       const busy = campaignActionId === campaign._id;
                       return (
-                        <div key={campaign._id} className="common-bg-icons p-4 sm:p-5 rounded-2xl">
+                        <div
+                          key={campaign._id}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => navigate(`/campaigns/${campaign._id}`)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              navigate(`/campaigns/${campaign._id}`);
+                            }
+                          }}
+                          className="group relative bg-white dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 p-4 sm:p-5 rounded-2xl shadow-sm hover:shadow-md hover:border-slate-300 dark:hover:border-slate-600 transition-all cursor-pointer"
+                        >
                           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                            <div className="flex items-start gap-3 flex-1 min-w-0">
-                              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                            <div className="flex items-start gap-3.5 flex-1 min-w-0">
+                              <div className="w-11 h-11 rounded-xl bg-slate-800 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 shadow-sm">
                                 <PhoneOutgoing className="w-5 h-5 text-white" />
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
-                                  <h4 className="font-semibold text-slate-800 dark:text-white text-sm">{campaign.name}</h4>
+                                  <h4 className="font-semibold text-slate-900 dark:text-white text-sm sm:text-base tracking-tight">
+                                    {campaign.name}
+                                  </h4>
                                   {statusBadge(campaign.status)}
+                                  <span className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hidden sm:inline-flex items-center gap-1 text-xs ml-1">
+                                    View details <ExternalLink className="w-3 h-3" />
+                                  </span>
                                 </div>
-                                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs text-slate-500 dark:text-slate-400">
-                                  {agent && <span className="flex items-center gap-1"><Bot className="w-3 h-3" />{agent.name}</span>}
-                                  {live && <span className="flex items-center gap-1"><Users className="w-3 h-3" />{total} contacts</span>}
-                                  {campaign.caller_number && <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{campaign.caller_number}</span>}
-                                  <span className="flex items-center gap-1 uppercase">{campaign.language}</span>
+                                <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-2 text-xs text-slate-500 dark:text-slate-400">
+                                  {agent && (
+                                    <span className="flex items-center gap-1.5">
+                                      <Bot className="w-3.5 h-3.5" />
+                                      {agent.name}
+                                    </span>
+                                  )}
+                                  {campaign.caller_number && (
+                                    <span className="flex items-center gap-1.5 font-mono">
+                                      <Phone className="w-3.5 h-3.5" />
+                                      {campaign.caller_number}
+                                    </span>
+                                  )}
+                                  <span className="uppercase tracking-wide self-center">{campaign.language}</span>
+                                  {live && (
+                                    <span className="flex items-center gap-1.5">
+                                      <Users className="w-3.5 h-3.5" />
+                                      {total} contacts
+                                    </span>
+                                  )}
                                 </div>
 
                                 {live && total > 0 && (
-                                  <div className="mt-3">
-                                    <div className="flex items-center justify-between mb-1">
-                                      <span className="text-xs text-slate-500 dark:text-slate-400">{done} / {total} dialed</span>
-                                      <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{pct}%</span>
+                                  <div className="mt-3.5 max-w-lg">
+                                    <div className="flex items-center justify-between mb-1.5">
+                                      <span className="text-xs text-slate-500 dark:text-slate-400">
+                                        {done} / {total} dialed
+                                      </span>
+                                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 tabular-nums">
+                                        {pct}%
+                                      </span>
                                     </div>
-                                    <div className="h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                                    <div className="h-1.5 bg-slate-100 dark:bg-slate-700/80 rounded-full overflow-hidden">
                                       <motion.div
-                                        className="h-full bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full"
+                                        className="h-full bg-slate-800 dark:bg-slate-300 rounded-full"
                                         initial={{ width: 0 }}
                                         animate={{ width: `${pct}%` }}
                                         transition={{ duration: 0.6, ease: 'easeOut' }}
                                       />
                                     </div>
-                                    <div className="flex flex-wrap gap-4 mt-1.5 text-xs">
+                                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs">
                                       <span className="text-blue-600 dark:text-blue-400 flex items-center gap-1">
-                                        <PhoneCall className="w-3 h-3" />{live.dialing || 0} dialing
+                                        <PhoneCall className="w-3 h-3" />
+                                        {live.dialing || 0} dialing
                                       </span>
-                                      <span className="text-green-600 dark:text-green-400 flex items-center gap-1">
-                                        <CheckCircle className="w-3 h-3" />{live.completed || 0} completed
+                                      <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                        <CheckCircle className="w-3 h-3" />
+                                        {live.completed || 0} done
                                       </span>
                                       <span className="text-slate-500 flex items-center gap-1">
-                                        <Clock className="w-3 h-3" />{live.pending || 0} pending
+                                        <Clock className="w-3 h-3" />
+                                        {live.pending || 0} pending
                                       </span>
-                                      <span className="text-red-500 flex items-center gap-1">
-                                        <PhoneMissed className="w-3 h-3" />{live.no_answer || 0} no answer
+                                      <span className="text-rose-500 flex items-center gap-1">
+                                        <PhoneMissed className="w-3 h-3" />
+                                        {live.no_answer || 0} no answer
                                       </span>
                                     </div>
                                   </div>
@@ -950,19 +1319,61 @@ const CallSetup: React.FC = () => {
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-1 flex-shrink-0">
-                              {campaign.status === 'running' ? (
-                                <button onClick={() => handleCampaignAction(campaign._id, 'pause')} disabled={busy} title="Pause"
-                                  className="p-2 rounded-lg text-yellow-600 dark:text-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 transition-colors disabled:opacity-50">
+                            <div
+                              className="flex items-center gap-1 flex-shrink-0 self-end sm:self-start"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {campaign.status === 'running' && (
+                                <button
+                                  onClick={(e) => handleCampaignAction(campaign._id, 'pause', e)}
+                                  disabled={busy}
+                                  title="Pause"
+                                  className="p-2.5 rounded-xl text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 border border-transparent hover:border-amber-200 dark:hover:border-amber-800 transition-colors disabled:opacity-50"
+                                >
                                   {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Pause className="w-4 h-4" />}
                                 </button>
-                              ) : (campaign.status === 'paused' || campaign.status === 'draft') ? (
-                                <button onClick={() => handleCampaignAction(campaign._id, 'resume')} disabled={busy}
-                                  title={campaign.status === 'draft' ? 'Start dialing' : 'Resume'}
-                                  className="p-2 rounded-lg text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors disabled:opacity-50">
+                              )}
+                              {campaign.status === 'paused' && (
+                                <button
+                                  onClick={(e) => handleCampaignAction(campaign._id, 'resume', e)}
+                                  disabled={busy}
+                                  title="Resume remaining contacts"
+                                  className="p-2.5 rounded-xl text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 border border-transparent hover:border-emerald-200 dark:hover:border-emerald-800 transition-colors disabled:opacity-50"
+                                >
                                   {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
                                 </button>
-                              ) : null}
+                              )}
+                              {campaign.status === 'draft' && (
+                                <button
+                                  onClick={(e) => handleCampaignAction(campaign._id, 'start', e)}
+                                  disabled={busy}
+                                  title="Start dialing"
+                                  className="p-2.5 rounded-xl text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 border border-transparent hover:border-emerald-200 dark:hover:border-emerald-800 transition-colors disabled:opacity-50"
+                                >
+                                  {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                                </button>
+                              )}
+                              {(campaign.status === 'running' || campaign.status === 'paused') && (
+                                <button
+                                  onClick={(e) => handleCampaignAction(campaign._id, 'stop', e)}
+                                  disabled={busy}
+                                  title="Stop (cannot resume)"
+                                  className="p-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/60 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 transition-colors disabled:opacity-50"
+                                >
+                                  <Square className="w-4 h-4" />
+                                </button>
+                              )}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeleteCampaignId(campaign._id);
+                                }}
+                                disabled={busy}
+                                title="Delete"
+                                className="p-2.5 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 border border-transparent hover:border-rose-200 dark:hover:border-rose-800 transition-colors disabled:opacity-50"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -972,6 +1383,55 @@ const CallSetup: React.FC = () => {
                 )}
               </div>
             </GlassCard>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete campaign confirm */}
+      <AnimatePresence>
+        {deleteCampaignId && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[99999] flex items-center justify-center p-4"
+            onClick={(e) => e.target === e.currentTarget && setDeleteCampaignId(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm shadow-2xl border border-slate-200 dark:border-slate-700 p-5 space-y-4"
+            >
+              <h3 className="font-bold text-slate-800 dark:text-white">Delete campaign?</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                This permanently removes{' '}
+                <span className="font-medium text-slate-700 dark:text-slate-200">
+                  {campaigns.find((c) => c._id === deleteCampaignId)?.name || 'this campaign'}
+                </span>{' '}
+                and its contacts.
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setDeleteCampaignId(null)}
+                  className="px-4 py-2 rounded-xl text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleCampaignAction(deleteCampaignId, 'delete')}
+                  disabled={campaignActionId === deleteCampaignId}
+                  className="px-4 py-2 rounded-xl text-sm font-medium bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-50 inline-flex items-center gap-2"
+                >
+                  {campaignActionId === deleteCampaignId ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-4 h-4" />
+                  )}
+                  Delete
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1057,6 +1517,7 @@ const CallSetup: React.FC = () => {
         )}
       </AnimatePresence>
 
+
       {/* ══════════════════════════════════════════════════════════════════════
           MODAL: Buy & Provision a Number
          ══════════════════════════════════════════════════════════════════════ */}
@@ -1093,7 +1554,31 @@ const CallSetup: React.FC = () => {
               </div>
 
               <div className="flex-1 overflow-y-auto p-5 space-y-5">
-                {/* Step 1 — pick a DID */}
+                {/* Step 1 — pick a number type (required), then a DID */}
+                {didTypes.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                      Number Type <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={selectedDidTypeId ?? ''}
+                      onChange={(e) => {
+                        if (e.target.value) loadCatalog(Number(e.target.value));
+                      }}
+                      className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm"
+                    >
+                      {didTypes.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}{t.requires_request ? ' (request required)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                      Choose a number category (e.g. Mobile, Toll-Free) to see available numbers.
+                    </p>
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                     Available Numbers <span className="text-red-500">*</span>
@@ -1312,38 +1797,110 @@ const CallSetup: React.FC = () => {
 
                         <div>
                           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                            AI Agent <span className="text-red-500">*</span>
-                          </label>
-                          {agentsLoading ? (
-                            <div className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm flex items-center gap-2 text-slate-400">
-                              <Loader2 className="w-4 h-4 animate-spin" /> Loading agents…
-                            </div>
-                          ) : (
-                            <select value={newCampaign.agentId}
-                              onChange={(e) => setNewCampaign((p) => ({ ...p, agentId: e.target.value }))}
-                              className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm">
-                              <option value="">Select agent…</option>
-                              {agents.map((a) => (
-                                <option key={a.id} value={a.id}>{a.name}</option>
-                              ))}
-                            </select>
-                          )}
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
                             Caller Number <span className="text-red-500">*</span>
                           </label>
-                          <select value={newCampaign.callerNumber}
-                            onChange={(e) => setNewCampaign((p) => ({ ...p, callerNumber: e.target.value }))}
-                            className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm">
+                          <select
+                            value={newCampaign.callerNumber}
+                            onChange={(e) => {
+                              const num = campaignCallerNumbers.find((n) => n.number === e.target.value);
+                              // Caller number drives the agent — auto-fill from the number's outbound agent
+                              setNewCampaign((p) => ({
+                                ...p,
+                                callerNumber: e.target.value,
+                                agentId: num?.outboundAgentId || '',
+                                language: num?.language || p.language,
+                              }));
+                            }}
+                            className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm"
+                          >
                             <option value="">Select number…</option>
-                            {outboundNumbers.map((n) => (
+                            {campaignCallerNumbers.map((n) => (
                               <option key={n.id} value={n.number}>{n.number} — {n.friendlyName}</option>
                             ))}
                           </select>
                           <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                            Only numbers with outbound calling enabled appear here.
+                            Only outbound-enabled numbers that already have an outbound agent appear here.
+                            {campaignCallerNumbers.length === 0 && ' Set an outbound agent on a number in the Outbound Numbers list above.'}
+                          </p>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                            AI Agent
+                          </label>
+                          {selectedCallerNum ? (
+                            <div className="w-full px-4 py-2.5 rounded-xl text-sm bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 flex items-center gap-2 text-emerald-700 dark:text-emerald-300">
+                              <Bot className="w-4 h-4 flex-shrink-0" />
+                              <span className="font-medium truncate">
+                                {agents.find((a) => a.id === selectedCallerNum.outboundAgentId)?.name || 'Assigned agent'}
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="w-full px-4 py-2.5 rounded-xl text-sm common-bg-icons text-slate-400 dark:text-slate-500">
+                              Determined by the selected number
+                            </div>
+                          )}
+                          <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                            The campaign uses this number's outbound agent.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-slate-200 dark:border-slate-700 pt-4 space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                          <div>
+                            <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Objective &amp; goal</h4>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                              Tell the agent why it is calling and what a successful outcome looks like.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={generateCampaignBriefWithAI}
+                            disabled={isGeneratingCampaignBrief || !newCampaign.agentId}
+                            title={
+                              !newCampaign.agentId
+                                ? 'Select a caller number with an outbound agent first'
+                                : 'Generate from the selected agent’s template'
+                            }
+                            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-medium common-button-bg2 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                          >
+                            {isGeneratingCampaignBrief ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Sparkles className="w-3.5 h-3.5" />
+                            )}
+                            {isGeneratingCampaignBrief ? 'Generating…' : 'Generate using AI'}
+                          </button>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                            Objective
+                          </label>
+                          <textarea
+                            value={newCampaign.objective}
+                            onChange={(e) => setNewCampaign((p) => ({ ...p, objective: e.target.value }))}
+                            rows={6}
+                            placeholder={"• Reconnect with a lead who already expressed interest\n• Confirm interest and preferred location\n• Qualify budget / timeline and schedule next step"}
+                            className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm resize-y min-h-[120px]"
+                          />
+                          <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                            Bullet steps for the call. Example: reconnect → confirm interest → qualify → book meeting with the team.
+                          </p>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                            Goal
+                          </label>
+                          <textarea
+                            value={newCampaign.goal}
+                            onChange={(e) => setNewCampaign((p) => ({ ...p, goal: e.target.value }))}
+                            rows={4}
+                            placeholder="Connect with the prospect, understand their requirements, answer questions, build confidence, and schedule the next step with your team."
+                            className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm resize-y min-h-[96px]"
+                          />
+                          <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                            Overall outcome for a successful call — consultative, not pushy.
                           </p>
                         </div>
                       </div>
@@ -1389,7 +1946,8 @@ const CallSetup: React.FC = () => {
                         <div>
                           <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1.5">
                             Spreadsheet — columns: <code className="font-mono">phone_number</code> (required),{' '}
-                            <code className="font-mono">name</code>, plus any extra columns as custom fields for the agent.
+                            <code className="font-mono">name</code>,{' '}
+                            <code className="font-mono">call_context</code> (why you&apos;re calling), plus any extra columns as custom fields for the agent.
                           </label>
                           <label className="flex flex-col items-center justify-center gap-2 py-8 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-600 transition-colors">
                             <Upload className="w-8 h-8 text-slate-300 dark:text-slate-600" />
@@ -1440,12 +1998,25 @@ const CallSetup: React.FC = () => {
                               />
                             </div>
                           </div>
-                          <div className="flex-1 w-full">
-                            <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1.5">Name (optional)</label>
-                            <input type="text" value={singleContact.name}
-                              onChange={(e) => setSingleContact((p) => ({ ...p, name: e.target.value }))}
-                              placeholder="Contact name"
-                              className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm" />
+                          <div className="flex-1 w-full space-y-3">
+                            <div>
+                              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1.5">Name (optional)</label>
+                              <input type="text" value={singleContact.name}
+                                onChange={(e) => setSingleContact((p) => ({ ...p, name: e.target.value }))}
+                                placeholder="Contact name"
+                                className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm" />
+                            </div>
+                            <div>
+                              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1.5">Call context (optional)</label>
+                              <input
+                                type="text"
+                                value={singleContact.context}
+                                onChange={(e) => setSingleContact((p) => ({ ...p, context: e.target.value }))}
+                                placeholder="e.g. Follow-up, prior inquiry…"
+                                onKeyDown={(e) => e.key === 'Enter' && handleAddSingleContact()}
+                                className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm"
+                              />
+                            </div>
                           </div>
                           <button onClick={handleAddSingleContact} className="common-button-bg px-4 py-2.5 rounded-xl flex-shrink-0">
                             <Plus className="w-4 h-4" />
@@ -1454,10 +2025,11 @@ const CallSetup: React.FC = () => {
                       ) : (
                         <div>
                           <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1.5">
-                            One number per line — optionally: <code className="font-mono">+1234567890, Name</code>
+                            One number per line — optionally:{' '}
+                            <code className="font-mono">+1234567890, Name, Call context</code>
                           </label>
                           <textarea value={bulkInput} onChange={(e) => setBulkInput(e.target.value)} rows={6}
-                            placeholder={"+14155550123, John Doe\n+14155550124, Jane Smith\n+14155550125"}
+                            placeholder={"+14155550123, John Doe, Follow-up on demo request\n+14155550124, Jane Smith\n+14155550125"}
                             className="common-bg-icons w-full px-4 py-3 rounded-xl text-sm font-mono resize-none" />
                           <button onClick={parseBulkContacts} className="mt-2 common-button-bg2 flex items-center gap-2 text-sm px-4 py-2 rounded-xl">
                             <Upload className="w-4 h-4" /> Parse & Preview
@@ -1479,13 +2051,20 @@ const CallSetup: React.FC = () => {
                             <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
                               {campaignContacts.map((c) => (
                                 <div key={c.id} className="flex items-center justify-between px-3 py-2 common-bg-icons rounded-lg">
-                                  <div className="flex items-center gap-2">
-                                    <Phone className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
-                                    <span className="text-sm text-slate-700 dark:text-slate-300 font-mono">{c.phone}</span>
-                                    {c.name && <span className="text-xs text-slate-500">— {c.name}</span>}
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <Phone className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                                      <span className="text-sm text-slate-700 dark:text-slate-300 font-mono">{c.phone}</span>
+                                      {c.name && <span className="text-xs text-slate-500">— {c.name}</span>}
+                                    </div>
+                                    {c.context && (
+                                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 pl-6 truncate" title={c.context}>
+                                        {c.context}
+                                      </p>
+                                    )}
                                   </div>
                                   <button onClick={() => setCampaignContacts((p) => p.filter((x) => x.id !== c.id))}
-                                    className="text-slate-400 hover:text-red-500 ml-2">
+                                    className="text-slate-400 hover:text-red-500 ml-2 flex-shrink-0">
                                     <X className="w-3.5 h-3.5" />
                                   </button>
                                 </div>
@@ -1534,6 +2113,8 @@ const CallSetup: React.FC = () => {
                             { label: 'Name',           value: newCampaign.name },
                             { label: 'Agent',          value: agents.find((a) => a.id === newCampaign.agentId)?.name || '—' },
                             { label: 'Caller Number',  value: newCampaign.callerNumber || 'Not set' },
+                            { label: 'Objective',      value: newCampaign.objective.trim() || '—' },
+                            { label: 'Goal',           value: newCampaign.goal.trim() || '—' },
                             { label: 'Language',       value: newCampaign.language },
                             { label: 'Max Concurrent', value: `${newCampaign.maxConcurrent} simultaneous` },
                             { label: 'Contacts',       value: contactMode === 'file' ? (contactFile?.name || 'file') : `${campaignContacts.length}` },

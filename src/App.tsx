@@ -49,6 +49,7 @@ const Marketplace = lazy(() => import("./ClientDashboard/Marketplace/Marketplace
 const AppDetail = lazy(() => import("./ClientDashboard/Marketplace/AppDetail"));
 const WebsitePreview = lazy(() => import("./pages/WebsitePreview"));
 const AppWorkspace = lazy(() => import("./pages/AppWorkspace"));
+const CampaignDetail = lazy(() => import("./ClientDashboard/Workflows/CampaignDetail"));
 const Analytics = lazy(() => import("./ClientDashboard/Analytics/Analytics"));
 const Monitoring = lazy(() => import("./ClientDashboard/Monitoring/Monitoring"));
 const Billing = lazy(() => import("./ClientDashboard/Billing/Billing"));
@@ -205,6 +206,7 @@ function AppContent() {
                       <Route path="/agents/:id/train" element={<Training />} />
                       <Route path="/training" element={<Training />} />
                       <Route path="/workflows" element={<Workflows />} />
+                      <Route path="/campaigns/:campaignId" element={<CampaignDetail />} />
                       <Route path="/marketplace" element={<Marketplace />} />
                       <Route path="/marketplace/:appId" element={<AppDetail />} />
                       {/* Website Builder now lives in its standalone workspace — redirect legacy route */}

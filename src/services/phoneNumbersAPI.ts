@@ -9,8 +9,19 @@ const PHONE_SERVICE_URL = _isStaging
   ? "https://staging.voice.callshivai.com/phone"
   : "https://voice.callshivai.com/phone";
 
-// Get auth token from localStorage
+// Get the access token from localStorage. The app stores tokens as a JSON
+// object under "auth_tokens" (same as agentAPI); read accessToken from there.
 const getAuthToken = () => {
+  try {
+    const stored = localStorage.getItem("auth_tokens");
+    if (stored) {
+      const { accessToken } = JSON.parse(stored);
+      if (accessToken) return accessToken;
+    }
+  } catch (e) {
+    console.warn("Failed to parse auth tokens:", e);
+  }
+  // Fallback for any legacy plain-string token
   return localStorage.getItem("authToken");
 };
 
@@ -33,6 +44,12 @@ const createUploadRequest = () => {
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+export interface DidType {
+  id: number;
+  name: string;
+  requires_request: number; // 0 = buyable directly, 1 = needs a request
+}
+
 export interface CatalogNumber {
   id: number;
   did_number: number;
@@ -47,6 +64,7 @@ export interface ProvisionedNumber {
   display_name: string;
   provider: string;
   agent_id: string | null;
+  outbound_agent_id?: string | null;
   tenant_id: string;
   language: string;
   inbound_enabled: boolean;
@@ -63,6 +81,7 @@ export interface ProvisionedNumber {
 
 export interface BuyNumberRequest {
   voicelink_did_id: number;
+  did_number: number | string;
   agent_id: string;
   display_name: string;
   language?: string;
@@ -108,7 +127,20 @@ export type CampaignStatus =
   | "running"
   | "paused"
   | "completed"
+  | "stopped"
   | string;
+
+export interface CampaignStats {
+  total: number;
+  pending: number;
+  dialing: number;
+  answered?: number;
+  completed: number;
+  failed?: number;
+  no_answer: number;
+  voicemail?: number;
+  [key: string]: number | undefined;
+}
 
 export interface Campaign {
   _id: string;
@@ -118,9 +150,18 @@ export interface Campaign {
   language: string;
   max_concurrent: number;
   status: CampaignStatus;
+  /** Why the campaign is calling — guides the agent. */
+  objective?: string;
+  /** Measurable outcome the agent should aim for. */
+  goal?: string;
   tenant_id?: string;
   created_at?: string;
   updated_at?: string;
+  started_at?: string;
+  completed_at?: string | null;
+  livekit_outbound_trunk_id?: string;
+  /** Embedded stats from list/get responses (prefer live status when polling). */
+  stats?: CampaignStats;
 }
 
 export interface CreateCampaignRequest {
@@ -129,6 +170,8 @@ export interface CreateCampaignRequest {
   caller_number: string;
   language?: string;
   max_concurrent?: number;
+  objective?: string;
+  goal?: string;
 }
 
 // Live dialer stats from GET /campaigns/:id/status
@@ -138,7 +181,10 @@ export interface CampaignLiveStatus {
   dialing: number;
   completed: number;
   no_answer: number;
-  [key: string]: number;
+  answered?: number;
+  failed?: number;
+  voicemail?: number;
+  [key: string]: number | undefined;
 }
 
 export interface CampaignContact {
@@ -157,11 +203,15 @@ const errMessage = (error: any, fallback: string) =>
 
 // ─── Endpoints ───────────────────────────────────────────────────────────────
 
-// Browse unassigned DIDs available for purchase
-export const getNumberCatalog = async (): Promise<CatalogNumber[]> => {
+// Browse unassigned DIDs available for purchase for a given DID type.
+// The backend REQUIRES a type (`type` query param) — see GET /phone-numbers/did-types.
+export const getNumberCatalog = async (didTypeId: number): Promise<CatalogNumber[]> => {
   try {
     const response: AxiosResponse<{ success: boolean; data: CatalogNumber[] }> =
-      await axios.get(`${API_BASE_URL}/phone-numbers/catalog`, createAuthenticatedRequest());
+      await axios.get(`${API_BASE_URL}/phone-numbers/catalog`, {
+        ...createAuthenticatedRequest(),
+        params: { type: didTypeId },
+      });
     return response.data.data || [];
   } catch (error: any) {
     console.error("Error fetching number catalog:", error);
@@ -246,7 +296,7 @@ export const deprovisionPhoneNumber = async (id: string): Promise<string> => {
 };
 
 // Flip VoiceLink routing so this number can be used as an outbound campaign caller.
-// Must be called before the number is usable as a campaign caller_number.
+// Must be called before an outbound agent can be set.
 export const enableOutbound = async (phoneNumberId: string): Promise<string> => {
   try {
     const response: AxiosResponse<{ success: boolean; message: string }> = await axios.post(
@@ -258,6 +308,59 @@ export const enableOutbound = async (phoneNumberId: string): Promise<string> => 
   } catch (error: any) {
     console.error("Error enabling outbound:", error);
     throw new Error(errMessage(error, "Failed to enable outbound calling"));
+  }
+};
+
+// Set/replace the agent that places OUTBOUND calls on this number.
+// Number must be outbound-enabled first (else the API returns 409).
+export const setOutboundAgent = async (
+  phoneNumberId: string,
+  agentId: string
+): Promise<ProvisionedNumber> => {
+  try {
+    const response: AxiosResponse<{ success: boolean; data: ProvisionedNumber }> = await axios.post(
+      `${API_BASE_URL}/phone-numbers/${phoneNumberId}/outbound-agent`,
+      { agent_id: agentId },
+      createAuthenticatedRequest()
+    );
+    return response.data.data;
+  } catch (error: any) {
+    console.error("Error setting outbound agent:", error);
+    // 409 = outbound not enabled yet — surface a clear message
+    if (error.response?.status === 409) {
+      throw new Error("Enable outbound on this number before assigning an outbound agent.");
+    }
+    throw new Error(errMessage(error, "Failed to set outbound agent"));
+  }
+};
+
+// Remove the outbound agent (outbound_agent_id → null).
+export const removeOutboundAgent = async (
+  phoneNumberId: string
+): Promise<string> => {
+  try {
+    const response: AxiosResponse<{ success: boolean; message: string }> = await axios.delete(
+      `${API_BASE_URL}/phone-numbers/${phoneNumberId}/outbound-agent`,
+      createAuthenticatedRequest()
+    );
+    return response.data.message;
+  } catch (error: any) {
+    console.error("Error removing outbound agent:", error);
+    throw new Error(errMessage(error, "Failed to remove outbound agent"));
+  }
+};
+
+// List DID categories (shown in the dropdown before browsing the buy catalog).
+export const getDidTypes = async (): Promise<DidType[]> => {
+  try {
+    const response: AxiosResponse<{ success: boolean; data: DidType[] }> = await axios.get(
+      `${API_BASE_URL}/phone-numbers/did-types`,
+      createAuthenticatedRequest()
+    );
+    return response.data.data || [];
+  } catch (error: any) {
+    console.error("Error fetching DID types:", error);
+    throw new Error(errMessage(error, "Failed to load number types"));
   }
 };
 
@@ -323,7 +426,7 @@ export const uploadCampaignContacts = async (
   }
 };
 
-// Start (or resume) the dialer loop. Lives on the phone-service, not the backend.
+// Start the dialer (draft → running). Phone-service.
 export const startCampaign = async (
   campaignId: string
 ): Promise<{ message: string; pending?: number }> => {
@@ -341,7 +444,7 @@ export const startCampaign = async (
   }
 };
 
-// Pause the dialer — active calls finish, no new calls placed. Phone-service.
+// Pause — running → paused (resumable). Phone-service.
 export const pauseCampaign = async (campaignId: string): Promise<{ message: string }> => {
   try {
     const response: AxiosResponse<{ message: string }> = await axios.post(
@@ -353,6 +456,68 @@ export const pauseCampaign = async (campaignId: string): Promise<{ message: stri
   } catch (error: any) {
     console.error("Error pausing campaign:", error);
     throw new Error(errMessage(error, "Failed to pause campaign"));
+  }
+};
+
+// Resume — paused → running, continues remaining contacts. Phone-service.
+export const resumeCampaign = async (campaignId: string): Promise<{ message: string }> => {
+  try {
+    const response: AxiosResponse<{ message: string }> = await axios.post(
+      `${PHONE_SERVICE_URL}/campaigns/${campaignId}/resume`,
+      {},
+      createAuthenticatedRequest()
+    );
+    return { message: response.data.message };
+  } catch (error: any) {
+    console.error("Error resuming campaign:", error);
+    throw new Error(errMessage(error, "Failed to resume campaign"));
+  }
+};
+
+// Stop — running/paused → stopped (terminal). Phone-service.
+export const stopCampaign = async (campaignId: string): Promise<{ message: string }> => {
+  try {
+    const response: AxiosResponse<{ message: string }> = await axios.post(
+      `${PHONE_SERVICE_URL}/campaigns/${campaignId}/stop`,
+      {},
+      createAuthenticatedRequest()
+    );
+    return { message: response.data.message };
+  } catch (error: any) {
+    console.error("Error stopping campaign:", error);
+    throw new Error(errMessage(error, "Failed to stop campaign"));
+  }
+};
+
+/** @deprecated Prefer resumeCampaign for paused campaigns; kept for older dialers. */
+export const restartCampaign = async (
+  campaignId: string
+): Promise<{ message: string }> => {
+  try {
+    const response: AxiosResponse<{ message: string }> = await axios.post(
+      `${PHONE_SERVICE_URL}/campaigns/${campaignId}/restart`,
+      {},
+      createAuthenticatedRequest()
+    );
+    return { message: response.data.message };
+  } catch (error: any) {
+    console.error("Error restarting campaign:", error);
+    throw new Error(errMessage(error, "Failed to restart campaign"));
+  }
+};
+
+// Delete a campaign and its contacts.
+export const deleteCampaign = async (campaignId: string): Promise<string> => {
+  try {
+    const response: AxiosResponse<{ success: boolean; message?: string }> =
+      await axios.delete(
+        `${API_BASE_URL}/campaigns/${campaignId}`,
+        createAuthenticatedRequest()
+      );
+    return response.data.message || "Campaign deleted";
+  } catch (error: any) {
+    console.error("Error deleting campaign:", error);
+    throw new Error(errMessage(error, "Failed to delete campaign"));
   }
 };
 
@@ -384,14 +549,50 @@ export const getCampaign = async (campaignId: string): Promise<Campaign> => {
   }
 };
 
-// Live dialer stats (total/pending/dialing/completed/no_answer)
+export interface CampaignStatusResponse {
+  campaign_id: string;
+  name: string;
+  status: CampaignStatus;
+  started_at?: string;
+  completed_at?: string | null;
+  stats: CampaignLiveStatus;
+}
+
+// Live dialer stats from GET /campaigns/:id/status
+// Response shape: { success, data: { campaign_id, name, status, started_at, completed_at, stats: {...} } }
 export const getCampaignStatus = async (campaignId: string): Promise<CampaignLiveStatus> => {
+  const detail = await getCampaignStatusDetail(campaignId);
+  return detail.stats;
+};
+
+export const getCampaignStatusDetail = async (
+  campaignId: string
+): Promise<CampaignStatusResponse> => {
   try {
-    const response: AxiosResponse<{ success: boolean; data: CampaignLiveStatus }> = await axios.get(
+    const response: AxiosResponse<{ success: boolean; data: any }> = await axios.get(
       `${API_BASE_URL}/campaigns/${campaignId}/status`,
       createAuthenticatedRequest()
     );
-    return response.data.data;
+    const data = response.data?.data ?? {};
+    const statsRaw = data.stats && typeof data.stats === "object" ? data.stats : data;
+    const stats: CampaignLiveStatus = {
+      total: Number(statsRaw.total) || 0,
+      pending: Number(statsRaw.pending) || 0,
+      dialing: Number(statsRaw.dialing) || 0,
+      completed: Number(statsRaw.completed) || 0,
+      no_answer: Number(statsRaw.no_answer) || 0,
+      answered: Number(statsRaw.answered) || 0,
+      failed: Number(statsRaw.failed) || 0,
+      voicemail: Number(statsRaw.voicemail) || 0,
+    };
+    return {
+      campaign_id: data.campaign_id || campaignId,
+      name: data.name || "",
+      status: data.status || "draft",
+      started_at: data.started_at,
+      completed_at: data.completed_at ?? null,
+      stats,
+    };
   } catch (error: any) {
     console.error("Error fetching campaign status:", error);
     throw new Error(errMessage(error, "Failed to load campaign status"));
@@ -405,11 +606,30 @@ export const getCampaignContacts = async (
 ): Promise<{ data: CampaignContact[]; total: number }> => {
   try {
     const { page = 1, limit = 50, status } = params;
-    const response: AxiosResponse<ListResponse<CampaignContact>> = await axios.get(
+    const response: AxiosResponse<any> = await axios.get(
       `${API_BASE_URL}/campaigns/${campaignId}/contacts`,
       { ...createAuthenticatedRequest(), params: { page, limit, ...(status ? { status } : {}) } }
     );
-    return { data: response.data.data || [], total: response.data.total || 0 };
+    const body = response.data;
+    // Backend may return data as an array, or nest it (data.contacts / data.items)
+    const raw =
+      body?.data?.contacts ??
+      body?.data?.items ??
+      body?.contacts ??
+      body?.data ??
+      body;
+    const list: CampaignContact[] = Array.isArray(raw)
+      ? raw
+      : Array.isArray(raw?.contacts)
+        ? raw.contacts
+        : [];
+    const total =
+      typeof body?.total === "number"
+        ? body.total
+        : typeof body?.data?.total === "number"
+          ? body.data.total
+          : list.length;
+    return { data: list, total };
   } catch (error: any) {
     console.error("Error fetching campaign contacts:", error);
     throw new Error(errMessage(error, "Failed to load campaign contacts"));
@@ -422,18 +642,29 @@ export const getCampaignContacts = async (
 export const formatDid = (did: number | string): string => `+${String(did).replace(/^\+/, "")}`;
 
 // Turn manually-entered contacts into a CSV File the upload endpoint accepts.
-// Header matches the sheet spec: phone_number, name.
+// Header: phone_number, name, plus any extra keys (e.g. call_context) as custom_fields for the agent.
 export const contactsToCsvFile = (
-  contacts: { phone: string; name?: string }[],
+  contacts: { phone: string; name?: string; [key: string]: string | undefined }[],
   filename = "contacts.csv"
 ): File => {
   const esc = (v: string) => {
     const s = String(v ?? "");
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
+  // Collect extra custom-field keys beyond phone/name (stable order: call_context first if present)
+  const extraKeys = Array.from(
+    new Set(contacts.flatMap((c) => Object.keys(c).filter((k) => k !== "phone" && k !== "name")))
+  ).sort((a, b) => {
+    if (a === "call_context") return -1;
+    if (b === "call_context") return 1;
+    return a.localeCompare(b);
+  });
+  const header = ["phone_number", "name", ...extraKeys].join(",");
   const rows = [
-    "phone_number,name",
-    ...contacts.map((c) => `${esc(c.phone)},${esc(c.name || "")}`),
+    header,
+    ...contacts.map((c) =>
+      [esc(c.phone), esc(c.name || ""), ...extraKeys.map((k) => esc(c[k] || ""))].join(",")
+    ),
   ];
   const blob = new Blob([rows.join("\n")], { type: "text/csv" });
   return new File([blob], filename, { type: "text/csv" });
@@ -447,14 +678,22 @@ export default {
   reassignPhoneNumber,
   deprovisionPhoneNumber,
   enableOutbound,
+  setOutboundAgent,
+  removeOutboundAgent,
+  getDidTypes,
   getCallLogs,
   createCampaign,
   uploadCampaignContacts,
   startCampaign,
   pauseCampaign,
+  resumeCampaign,
+  stopCampaign,
+  restartCampaign,
+  deleteCampaign,
   getCampaigns,
   getCampaign,
   getCampaignStatus,
+  getCampaignStatusDetail,
   getCampaignContacts,
   formatDid,
   contactsToCsvFile,
