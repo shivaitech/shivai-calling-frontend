@@ -59,7 +59,16 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
         setTranscripts(data.transcripts || []);
       } catch (err: any) {
         console.error('Failed to fetch transcripts:', err);
-        setError(err.message || 'Failed to load transcripts');
+        const status = err?.response?.status ?? err?.status;
+        const raw = String(err?.message || err?.response?.data?.message || '');
+        const isUnavailable =
+          status === 404 ||
+          /404|not found|does not exist/i.test(raw);
+        setError(
+          isUnavailable
+            ? 'This call has not been generated or completed properly. Please check after some time.'
+            : raw || 'Failed to load transcripts'
+        );
       } finally {
         setLoading(false);
       }
@@ -432,9 +441,12 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
                   <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 text-blue-500 animate-spin" />
                 </div>
               ) : error ? (
-                <div className="text-center py-8">
-                  <FileText className="w-10 h-10 sm:w-12 sm:h-12 text-red-300 dark:text-red-600 mx-auto mb-3" />
-                  <p className="text-xs sm:text-sm text-red-500 dark:text-red-400">
+                <div className="text-center py-8 px-4">
+                  <FileText className="w-10 h-10 sm:w-12 sm:h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+                  <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Transcript not available
+                  </p>
+                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
                     {error}
                   </p>
                 </div>
@@ -488,10 +500,13 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
                   </p>
                 </>
               ) : (
-                <div className="text-center py-8">
+                <div className="text-center py-8 px-4">
                   <FileText className="w-10 h-10 sm:w-12 sm:h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
-                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-                    No transcripts available for this session
+                  <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                    Transcript not available
+                  </p>
+                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+                    This call has not been generated or completed properly. Please check after some time.
                   </p>
                 </div>
               )}

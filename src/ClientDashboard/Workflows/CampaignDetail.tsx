@@ -102,9 +102,21 @@ const contactSessionId = (c: CampaignContact): string | null => {
   return id ? String(id) : null;
 };
 
+/** Outbound sessions are named like `outbound-{contactId}` — match on contact _id. */
+const sessionMatchesContact = (session: any, contactId: string) => {
+  if (!contactId) return false;
+  const sid = String(session?.session_id || session?.id || session?.call_id || '');
+  if (!sid) return false;
+  return (
+    sid === contactId ||
+    sid === `outbound-${contactId}` ||
+    sid.includes(contactId)
+  );
+};
+
 const canViewCallDetails = (c: CampaignContact) => {
   if (contactSessionId(c)) return true;
-  // Dialed contacts may still resolve via agent session search by phone
+  // Dialed contacts may link to an agent session via outbound-{contactId}
   return !['pending', 'upcoming'].includes(String(c.status || '').toLowerCase());
 };
 
@@ -230,45 +242,49 @@ const CampaignDetail: React.FC = () => {
 
     setOpeningContactId(contact._id);
     try {
-      let sessionId = contactSessionId(contact);
-      let sessionFromApi: any = null;
+      let matched: any = null;
 
-      // Fallback: find the agent session by phone number (same search as Analytics)
-      if (!sessionId) {
-        const digits = String(contact.phone_number || '').replace(/\D/g, '');
-        const q = digits || contact.phone_number || '';
-        if (!q) throw new Error('No phone number to look up');
+      // Prefer an explicit session id on the contact when present
+      const explicitId = contactSessionId(contact);
+      if (explicitId) {
+        matched = { session_id: explicitId, id: explicitId, call_id: contact.call_id || explicitId };
+      } else {
+        // Load agent sessions (no search query) and match where session id contains contact _id
+        // e.g. Analytics session ids look like `outbound-{contactId}`
         const response = await agentAPI.getAgentSessions(
-          `page=1&limit=10&q=${encodeURIComponent(q)}`,
+          'page=1&limit=100',
           campaign.agent_id
         );
         const sessions: any[] = response?.sessions || [];
-        const match =
-          sessions.find((s) => {
-            const sid = s.session_id || s.id || s.call_id;
-            const phone =
-              s.phone_number || s.caller_number || s.to_number || s.user_phone || '';
-            const phoneDigits = String(phone).replace(/\D/g, '');
-            return (
-              (digits && phoneDigits && (phoneDigits.endsWith(digits) || digits.endsWith(phoneDigits))) ||
-              sid
-            );
-          }) || sessions[0];
-        if (!match) throw new Error('No call session found for this contact');
-        sessionFromApi = match;
-        sessionId = match.session_id || match.id || match.call_id;
+        matched = sessions.find((s) => sessionMatchesContact(s, contact._id)) || null;
+
+        if (!matched) {
+          // Fall back to the conventional outbound session id pattern
+          const constructed = `outbound-${contact._id}`;
+          matched = { session_id: constructed, id: constructed, call_id: constructed };
+        }
+      }
+
+      const sessionId = String(matched.session_id || matched.id || matched.call_id || '');
+      if (!sessionId || (!explicitId && !sessionMatchesContact({ session_id: sessionId }, contact._id))) {
+        throw new Error('No matching call session for this contact');
       }
 
       setSelectedSession({
-        ...(sessionFromApi || {}),
+        ...matched,
         session_id: sessionId,
         id: sessionId,
-        call_id: sessionFromApi?.call_id || contact.call_id || sessionId,
+        call_id: matched.call_id || sessionId,
         agent_id: campaign.agent_id,
         agent: agent ? { id: agent.id, name: agent.name } : { id: campaign.agent_id },
         phone_number: contact.phone_number,
         name: contact.name,
-        created_at: contact.completed_at || contact.called_at || contact.updated_at || contact.created_at,
+        created_at:
+          matched.created_at ||
+          contact.completed_at ||
+          contact.called_at ||
+          contact.updated_at ||
+          contact.created_at,
       });
     } catch (err: any) {
       appToast.error(err.message || 'Failed to open call details');
