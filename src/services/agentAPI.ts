@@ -126,7 +126,7 @@ export interface ApiAgent {
   name: string;
   status: "Pending" | "Published";
   personality: string;
-  language: string;
+  language?: string | string[];
   voice: string;
   createdAt: string;
   updatedAt?: string;

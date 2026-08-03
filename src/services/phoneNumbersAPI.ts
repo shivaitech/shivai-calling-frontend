@@ -154,6 +154,8 @@ export interface Campaign {
   objective?: string;
   /** Measurable outcome the agent should aim for. */
   goal?: string;
+  /** When set, dialer starts at this time instead of immediately. */
+  scheduled_at?: string | null;
   tenant_id?: string;
   created_at?: string;
   updated_at?: string;
@@ -172,6 +174,7 @@ export interface CreateCampaignRequest {
   max_concurrent?: number;
   objective?: string;
   goal?: string;
+  scheduled_at?: string;
 }
 
 // Live dialer stats from GET /campaigns/:id/status
@@ -195,6 +198,15 @@ export interface CampaignContact {
   status: "pending" | "dialing" | "completed" | "no_answer" | string;
   custom_fields?: Record<string, string>;
   created_at?: string;
+  /** Linked agent session when the dial completed (field names vary by backend). */
+  session_id?: string;
+  call_id?: string;
+  room_name?: string;
+  room_id?: string;
+  agent_session_id?: string;
+  updated_at?: string;
+  called_at?: string;
+  completed_at?: string;
 }
 
 // Backend errors come back as { success: false, error: "..." }

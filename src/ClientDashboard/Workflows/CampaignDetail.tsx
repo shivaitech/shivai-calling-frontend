@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import GlassCard from '../../components/GlassCard';
 import Pagination from '../../components/Pagination';
 import appToast from '../../components/AppToast';
 import { useAgent } from '../../contexts/AgentContext';
+import SessionTranscriptModal from '../Employees/agents/SessionTranscriptModal';
+import { agentAPI } from '../../services/agentAPI';
 import {
   getCampaign,
   getCampaignStatusDetail,
@@ -23,6 +25,7 @@ import {
   Bot,
   CheckCircle,
   Clock,
+  Eye,
   Loader2,
   Pause,
   Phone,
@@ -37,7 +40,7 @@ import {
   X,
 } from 'lucide-react';
 
-type ContactTab = 'completed' | 'pending' | 'all';
+type ContactTab = 'completed' | 'pending' | 'no_answer' | 'all';
 
 const statusBadge = (status: string) => {
   const map: Record<string, { label: string; cls: string }> = {
@@ -85,6 +88,26 @@ const formatWhen = (timestamp?: string) => {
   });
 };
 
+/** Prefer explicit session/call ids from the contact payload. */
+const contactSessionId = (c: CampaignContact): string | null => {
+  const id =
+    c.session_id ||
+    c.agent_session_id ||
+    c.call_id ||
+    c.room_name ||
+    c.room_id ||
+    c.custom_fields?.session_id ||
+    c.custom_fields?.call_id ||
+    c.custom_fields?.room_name;
+  return id ? String(id) : null;
+};
+
+const canViewCallDetails = (c: CampaignContact) => {
+  if (contactSessionId(c)) return true;
+  // Dialed contacts may still resolve via agent session search by phone
+  return !['pending', 'upcoming'].includes(String(c.status || '').toLowerCase());
+};
+
 const CampaignDetail: React.FC = () => {
   const { campaignId } = useParams<{ campaignId: string }>();
   const navigate = useNavigate();
@@ -97,13 +120,15 @@ const CampaignDetail: React.FC = () => {
   const [actionBusy, setActionBusy] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const [tab, setTab] = useState<ContactTab>('completed');
+  const [tab, setTab] = useState<ContactTab>('all');
   const [contacts, setContacts] = useState<CampaignContact[]>([]);
   const [contactsLoading, setContactsLoading] = useState(false);
   const [contactsError, setContactsError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [totalContacts, setTotalContacts] = useState(0);
   const pageSize = 20;
+  const [selectedSession, setSelectedSession] = useState<any | null>(null);
+  const [openingContactId, setOpeningContactId] = useState<string | null>(null);
 
   const agent = campaign ? agents.find((a) => a.id === campaign.agent_id) : undefined;
   const stats = live || campaign?.stats || null;
@@ -147,7 +172,13 @@ const CampaignDetail: React.FC = () => {
     setContactsError(null);
     try {
       const statusParam =
-        tab === 'completed' ? 'completed' : tab === 'pending' ? 'pending' : undefined;
+        tab === 'completed'
+          ? 'completed'
+          : tab === 'pending'
+            ? 'pending'
+            : tab === 'no_answer'
+              ? 'no_answer'
+              : undefined;
       const result = await getCampaignContacts(campaignId, {
         status: statusParam,
         page,
@@ -190,6 +221,61 @@ const CampaignDetail: React.FC = () => {
     }, 5000);
     return () => clearInterval(t);
   }, [campaignId, campaign?.status]);
+
+  const openCallDetails = async (contact: CampaignContact) => {
+    if (!campaign?.agent_id) {
+      appToast.error('Campaign agent is missing');
+      return;
+    }
+
+    setOpeningContactId(contact._id);
+    try {
+      let sessionId = contactSessionId(contact);
+      let sessionFromApi: any = null;
+
+      // Fallback: find the agent session by phone number (same search as Analytics)
+      if (!sessionId) {
+        const digits = String(contact.phone_number || '').replace(/\D/g, '');
+        const q = digits || contact.phone_number || '';
+        if (!q) throw new Error('No phone number to look up');
+        const response = await agentAPI.getAgentSessions(
+          `page=1&limit=10&q=${encodeURIComponent(q)}`,
+          campaign.agent_id
+        );
+        const sessions: any[] = response?.sessions || [];
+        const match =
+          sessions.find((s) => {
+            const sid = s.session_id || s.id || s.call_id;
+            const phone =
+              s.phone_number || s.caller_number || s.to_number || s.user_phone || '';
+            const phoneDigits = String(phone).replace(/\D/g, '');
+            return (
+              (digits && phoneDigits && (phoneDigits.endsWith(digits) || digits.endsWith(phoneDigits))) ||
+              sid
+            );
+          }) || sessions[0];
+        if (!match) throw new Error('No call session found for this contact');
+        sessionFromApi = match;
+        sessionId = match.session_id || match.id || match.call_id;
+      }
+
+      setSelectedSession({
+        ...(sessionFromApi || {}),
+        session_id: sessionId,
+        id: sessionId,
+        call_id: sessionFromApi?.call_id || contact.call_id || sessionId,
+        agent_id: campaign.agent_id,
+        agent: agent ? { id: agent.id, name: agent.name } : { id: campaign.agent_id },
+        phone_number: contact.phone_number,
+        name: contact.name,
+        created_at: contact.completed_at || contact.called_at || contact.updated_at || contact.created_at,
+      });
+    } catch (err: any) {
+      appToast.error(err.message || 'Failed to open call details');
+    } finally {
+      setOpeningContactId(null);
+    }
+  };
 
   const runAction = async (action: 'start' | 'pause' | 'resume' | 'stop' | 'delete') => {
     if (!campaignId || !campaign) return;
@@ -257,9 +343,9 @@ const CampaignDetail: React.FC = () => {
   }
 
   const statCards = [
-    { label: 'Total', value: stats?.total ?? 0, icon: Users, tone: 'text-slate-600 dark:text-slate-300' },
-    { label: 'Completed', value: stats?.completed ?? 0, icon: CheckCircle, tone: 'text-emerald-600 dark:text-emerald-400' },
-    { label: 'Pending', value: stats?.pending ?? 0, icon: Clock, tone: 'text-amber-600 dark:text-amber-400' },
+    { label: 'Total Calls', value: stats?.total ?? 0, icon: Users, tone: 'text-slate-600 dark:text-slate-300' },
+    { label: 'Completed Calls', value: stats?.completed ?? 0, icon: CheckCircle, tone: 'text-emerald-600 dark:text-emerald-400' },
+    { label: 'Pending Calls', value: stats?.pending ?? 0, icon: Clock, tone: 'text-amber-600 dark:text-amber-400' },
     { label: 'Dialing', value: stats?.dialing ?? 0, icon: PhoneCall, tone: 'text-blue-600 dark:text-blue-400' },
     { label: 'No answer', value: stats?.no_answer ?? 0, icon: PhoneMissed, tone: 'text-rose-600 dark:text-rose-400' },
   ];
@@ -399,9 +485,10 @@ const CampaignDetail: React.FC = () => {
             <div className="flex gap-1 common-bg-icons rounded-xl p-1 w-fit">
               {(
                 [
-                  { id: 'completed' as const, label: 'Completed' },
-                  { id: 'pending' as const, label: 'Upcoming' },
                   { id: 'all' as const, label: 'All' },
+                  { id: 'pending' as const, label: 'Upcoming' },
+                  { id: 'completed' as const, label: 'Completed' },
+                  { id: 'no_answer' as const, label: 'Not answered' },
                 ]
               ).map((t) => (
                 <button
@@ -440,7 +527,9 @@ const CampaignDetail: React.FC = () => {
                   ? 'No completed calls yet'
                   : tab === 'pending'
                     ? 'No upcoming numbers'
-                    : 'No contacts in this campaign'}
+                    : tab === 'no_answer'
+                      ? 'No unanswered calls'
+                      : 'No contacts in this campaign'}
               </p>
               <p className="text-xs text-slate-400 mt-1">
                 Contacts appear here from the numbers you added when creating the campaign.
@@ -484,6 +573,22 @@ const CampaignDetail: React.FC = () => {
                           <p className="text-xs text-slate-400">{formatWhen(c.created_at)}</p>
                         </div>
                       </div>
+
+                      {canViewCallDetails(c) && (
+                        <button
+                          type="button"
+                          onClick={() => openCallDetails(c)}
+                          disabled={openingContactId === c._id}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg transition-all duration-200 text-xs font-medium flex-shrink-0 disabled:opacity-50"
+                        >
+                          {openingContactId === c._id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Eye className="w-3.5 h-3.5" />
+                          )}
+                          <span className="hidden sm:inline">View call details</span>
+                        </button>
+                      )}
                     </div>
                   </motion.div>
                 );
@@ -501,33 +606,57 @@ const CampaignDetail: React.FC = () => {
         </div>
       </GlassCard>
 
-      {/* Delete confirm */}
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 z-[99999] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm shadow-2xl border border-slate-200 dark:border-slate-700 p-5 space-y-4">
-            <h3 className="font-bold text-slate-800 dark:text-white">Delete campaign?</h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              This permanently removes <span className="font-medium text-slate-700 dark:text-slate-200">{campaign.name}</span> and its contacts. This cannot be undone.
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                className="px-4 py-2 rounded-xl text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => runAction('delete')}
-                disabled={actionBusy}
-                className="px-4 py-2 rounded-xl text-sm font-medium bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-50 inline-flex items-center gap-2"
-              >
-                {actionBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Same session / call-summary modal as Analytics */}
+      {selectedSession && (
+        <SessionTranscriptModal
+          session={selectedSession}
+          onClose={() => setSelectedSession(null)}
+        />
       )}
+
+      {/* Delete confirm */}
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[99999] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={(e) => e.target === e.currentTarget && setShowDeleteConfirm(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm shadow-2xl border border-slate-200 dark:border-slate-700 p-5 space-y-4"
+            >
+              <h3 className="font-bold text-slate-800 dark:text-white">Delete campaign?</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                This permanently removes{' '}
+                <span className="font-medium text-slate-700 dark:text-slate-200">{campaign.name}</span> and its
+                contacts. This cannot be undone.
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={actionBusy}
+                  className="px-4 py-2 rounded-xl text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => runAction('delete')}
+                  disabled={actionBusy}
+                  className="px-4 py-2 rounded-xl text-sm font-medium bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-50 inline-flex items-center gap-2"
+                >
+                  {actionBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                  Delete
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

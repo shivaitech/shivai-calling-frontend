@@ -5,6 +5,7 @@ import GlassCard from '../../components/GlassCard';
 import appToast from '../../components/AppToast';
 import { useAgent } from '../../contexts/AgentContext';
 import { agentAPI } from '../../services/agentAPI';
+import AgentPickerField from '../GoogleSheets/AgentPickerField';
 import {
   getNumberCatalog,
   buyPhoneNumber,
@@ -61,7 +62,86 @@ import {
   ExternalLink,
   Square,
   Sparkles,
+  FileSpreadsheet,
+  Eye,
+  Download,
 } from 'lucide-react';
+
+// Common BCP-47 / agent language codes → display labels
+const LANGUAGE_LABELS: Record<string, string> = {
+  'en-US': 'English (US)',
+  'en-GB': 'English (UK)',
+  'en-AU': 'English (Australia)',
+  'en-CA': 'English (Canada)',
+  'en-IN': 'English (India)',
+  'en-in': 'English (India)',
+  en: 'English',
+  hi: 'Hindi',
+  ta: 'Tamil',
+  te: 'Telugu',
+  mr: 'Marathi',
+  bn: 'Bengali',
+  gu: 'Gujarati',
+  kn: 'Kannada',
+  ml: 'Malayalam',
+  pa: 'Punjabi',
+  es: 'Spanish',
+  fr: 'French',
+  de: 'German',
+  it: 'Italian',
+  pt: 'Portuguese',
+  nl: 'Dutch',
+  pl: 'Polish',
+  ru: 'Russian',
+  ja: 'Japanese',
+  ko: 'Korean',
+  zh: 'Chinese',
+  ar: 'Arabic',
+};
+
+const normalizeLangCode = (code: string) => {
+  const t = code.trim();
+  if (!t || t.toLowerCase() === 'multilingual' || t === 'text') return null;
+  // Prefer canonical casing used by agents (en-IN, en-US)
+  const m = t.match(/^([a-z]{2})-([a-z]{2})$/i);
+  if (m) return `${m[1].toLowerCase()}-${m[2].toUpperCase()}`;
+  return t.toLowerCase().length === 2 ? t.toLowerCase() : t;
+};
+
+const languageLabel = (code: string) =>
+  LANGUAGE_LABELS[code] || LANGUAGE_LABELS[code.toLowerCase()] || code;
+
+/** Pull available language codes from an agents API payload. */
+const extractAgentLanguageOptions = (agent: {
+  language?: string | string[];
+  greeting_message?: Record<string, unknown>;
+}): { value: string; label: string }[] => {
+  const codes = new Set<string>();
+  const raw = agent.language;
+  if (Array.isArray(raw)) {
+    raw.forEach((c) => {
+      const n = typeof c === 'string' ? normalizeLangCode(c) : null;
+      if (n) codes.add(n);
+    });
+  } else if (typeof raw === 'string' && raw.trim()) {
+    // May be a single code or comma-separated
+    raw.split(/[,|]/).forEach((c) => {
+      const n = normalizeLangCode(c);
+      if (n) codes.add(n);
+    });
+  }
+  if (agent.greeting_message && typeof agent.greeting_message === 'object') {
+    Object.keys(agent.greeting_message).forEach((k) => {
+      const n = normalizeLangCode(k);
+      if (n) codes.add(n);
+    });
+  }
+  const list = Array.from(codes).map((value) => ({ value, label: languageLabel(value) }));
+  if (list.length === 0) {
+    return [{ value: 'en-IN', label: 'English (India)' }];
+  }
+  return list;
+};
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -120,37 +200,46 @@ const TIMEZONES = [
 ];
 
 const COUNTRY_CODES = [
-  { id: 'IN',  code: '+91',  flag: '🇮🇳', name: 'India'           },
-  { id: 'US',  code: '+1',   flag: '🇺🇸', name: 'United States'   },
-  { id: 'CA',  code: '+1',   flag: '🇨🇦', name: 'Canada'          },
-  { id: 'GB',  code: '+44',  flag: '🇬🇧', name: 'United Kingdom'  },
-  { id: 'AU',  code: '+61',  flag: '🇦🇺', name: 'Australia'       },
-  { id: 'AE',  code: '+971', flag: '🇦🇪', name: 'UAE'             },
-  { id: 'SA',  code: '+966', flag: '🇸🇦', name: 'Saudi Arabia'    },
-  { id: 'SG',  code: '+65',  flag: '🇸🇬', name: 'Singapore'       },
-  { id: 'MY',  code: '+60',  flag: '🇲🇾', name: 'Malaysia'        },
-  { id: 'PH',  code: '+63',  flag: '🇵🇭', name: 'Philippines'     },
-  { id: 'PK',  code: '+92',  flag: '🇵🇰', name: 'Pakistan'        },
-  { id: 'BD',  code: '+880', flag: '🇧🇩', name: 'Bangladesh'      },
-  { id: 'LK',  code: '+94',  flag: '🇱🇰', name: 'Sri Lanka'       },
-  { id: 'NP',  code: '+977', flag: '🇳🇵', name: 'Nepal'           },
-  { id: 'DE',  code: '+49',  flag: '🇩🇪', name: 'Germany'         },
-  { id: 'FR',  code: '+33',  flag: '🇫🇷', name: 'France'          },
-  { id: 'IT',  code: '+39',  flag: '🇮🇹', name: 'Italy'           },
-  { id: 'ES',  code: '+34',  flag: '🇪🇸', name: 'Spain'           },
-  { id: 'NL',  code: '+31',  flag: '🇳🇱', name: 'Netherlands'     },
-  { id: 'JP',  code: '+81',  flag: '🇯🇵', name: 'Japan'           },
-  { id: 'KR',  code: '+82',  flag: '🇰🇷', name: 'South Korea'     },
-  { id: 'CN',  code: '+86',  flag: '🇨🇳', name: 'China'           },
-  { id: 'BR',  code: '+55',  flag: '🇧🇷', name: 'Brazil'          },
-  { id: 'MX',  code: '+52',  flag: '🇲🇽', name: 'Mexico'          },
-  { id: 'ZA',  code: '+27',  flag: '🇿🇦', name: 'South Africa'    },
-  { id: 'NG',  code: '+234', flag: '🇳🇬', name: 'Nigeria'         },
-  { id: 'KE',  code: '+254', flag: '🇰🇪', name: 'Kenya'           },
-  { id: 'EG',  code: '+20',  flag: '🇪🇬', name: 'Egypt'           },
-  { id: 'TR',  code: '+90',  flag: '🇹🇷', name: 'Turkey'          },
-  { id: 'RU',  code: '+7',   flag: '🇷🇺', name: 'Russia'          },
+  { id: 'IN',  code: '+91',  flag: '🇮🇳', name: 'India',           maxLen: 10 },
+  { id: 'US',  code: '+1',   flag: '🇺🇸', name: 'United States',   maxLen: 10 },
+  { id: 'CA',  code: '+1',   flag: '🇨🇦', name: 'Canada',          maxLen: 10 },
+  { id: 'GB',  code: '+44',  flag: '🇬🇧', name: 'United Kingdom',  maxLen: 10 },
+  { id: 'AU',  code: '+61',  flag: '🇦🇺', name: 'Australia',       maxLen: 9 },
+  { id: 'AE',  code: '+971', flag: '🇦🇪', name: 'UAE',             maxLen: 9 },
+  { id: 'SA',  code: '+966', flag: '🇸🇦', name: 'Saudi Arabia',    maxLen: 9 },
+  { id: 'SG',  code: '+65',  flag: '🇸🇬', name: 'Singapore',       maxLen: 8 },
+  { id: 'MY',  code: '+60',  flag: '🇲🇾', name: 'Malaysia',        maxLen: 10 },
+  { id: 'PH',  code: '+63',  flag: '🇵🇭', name: 'Philippines',     maxLen: 10 },
+  { id: 'PK',  code: '+92',  flag: '🇵🇰', name: 'Pakistan',        maxLen: 10 },
+  { id: 'BD',  code: '+880', flag: '🇧🇩', name: 'Bangladesh',      maxLen: 10 },
+  { id: 'LK',  code: '+94',  flag: '🇱🇰', name: 'Sri Lanka',       maxLen: 9 },
+  { id: 'NP',  code: '+977', flag: '🇳🇵', name: 'Nepal',           maxLen: 10 },
+  { id: 'DE',  code: '+49',  flag: '🇩🇪', name: 'Germany',         maxLen: 11 },
+  { id: 'FR',  code: '+33',  flag: '🇫🇷', name: 'France',          maxLen: 9 },
+  { id: 'IT',  code: '+39',  flag: '🇮🇹', name: 'Italy',           maxLen: 10 },
+  { id: 'ES',  code: '+34',  flag: '🇪🇸', name: 'Spain',           maxLen: 9 },
+  { id: 'NL',  code: '+31',  flag: '🇳🇱', name: 'Netherlands',     maxLen: 9 },
+  { id: 'JP',  code: '+81',  flag: '🇯🇵', name: 'Japan',           maxLen: 10 },
+  { id: 'KR',  code: '+82',  flag: '🇰🇷', name: 'South Korea',     maxLen: 10 },
+  { id: 'CN',  code: '+86',  flag: '🇨🇳', name: 'China',           maxLen: 11 },
+  { id: 'BR',  code: '+55',  flag: '🇧🇷', name: 'Brazil',          maxLen: 11 },
+  { id: 'MX',  code: '+52',  flag: '🇲🇽', name: 'Mexico',          maxLen: 10 },
+  { id: 'ZA',  code: '+27',  flag: '🇿🇦', name: 'South Africa',    maxLen: 9 },
+  { id: 'NG',  code: '+234', flag: '🇳🇬', name: 'Nigeria',         maxLen: 10 },
+  { id: 'KE',  code: '+254', flag: '🇰🇪', name: 'Kenya',           maxLen: 9 },
+  { id: 'EG',  code: '+20',  flag: '🇪🇬', name: 'Egypt',           maxLen: 10 },
+  { id: 'TR',  code: '+90',  flag: '🇹🇷', name: 'Turkey',          maxLen: 10 },
+  { id: 'RU',  code: '+7',   flag: '🇷🇺', name: 'Russia',          maxLen: 10 },
 ];
+
+/** Digits-only national number; strips pasted country code / leading 0s; enforces max length. */
+const sanitizeNationalNumber = (raw: string, country: (typeof COUNTRY_CODES)[number]) => {
+  let digits = String(raw || '').replace(/\D/g, '');
+  const cc = country.code.replace('+', '');
+  if (digits.startsWith(cc)) digits = digits.slice(cc.length);
+  digits = digits.replace(/^0+/, '');
+  return digits.slice(0, country.maxLen);
+};
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -231,6 +320,7 @@ const CallSetup: React.FC = () => {
   const [inboundRules, setInboundRules] = useState<Record<string, InboundRule>>({});
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [releasingId, setReleasingId] = useState<string | null>(null);
+  const [deprovisionTarget, setDeprovisionTarget] = useState<PhoneNumber | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   // ── Buy-number state ──
@@ -249,7 +339,8 @@ const CallSetup: React.FC = () => {
   // ── Enable-outbound state (per number) ──
   const [enablingOutboundId, setEnablingOutboundId] = useState<string | null>(null);
 
-  // ── Outbound-agent assignment (inline per-number select) ──
+  // ── Outbound-agent assignment (modal, same UX as inbound assign) ──
+  const [outboundAssignModal, setOutboundAssignModal] = useState<PhoneNumber | null>(null);
   const [outboundAgentSavingId, setOutboundAgentSavingId] = useState<string | null>(null);
 
   // ── Outbound / campaign state ──
@@ -273,13 +364,21 @@ const CallSetup: React.FC = () => {
   const [wizardError, setWizardError] = useState<string | null>(null);
   const [wizardStage, setWizardStage] = useState<string>(''); // progress text while launching
   const [startNow, setStartNow] = useState(true);
+  const [scheduledAt, setScheduledAt] = useState(''); // datetime-local value
+  const [phoneInputError, setPhoneInputError] = useState<string | null>(null);
   const [isGeneratingCampaignBrief, setIsGeneratingCampaignBrief] = useState(false);
+  const [agentLanguageOptions, setAgentLanguageOptions] = useState<{ value: string; label: string }[]>([
+    { value: 'en-IN', label: 'English (India)' },
+  ]);
+  const [agentLanguagesLoading, setAgentLanguagesLoading] = useState(false);
+  const [showContactFileEditor, setShowContactFileEditor] = useState(false);
+  const [contactFileEditText, setContactFileEditText] = useState('');
+  const [contactFileEditLoading, setContactFileEditLoading] = useState(false);
   const [newCampaign, setNewCampaign] = useState({
     name: '',
     agentId: '',
     callerNumber: '',
-    language: 'en-in',
-    maxConcurrent: 3,
+    language: 'en-IN',
     objective: '',
     goal: '',
   });
@@ -329,9 +428,6 @@ const CallSetup: React.FC = () => {
   // Detach the AI employee & reset the number (deprovision — tears down trunk +
   // dispatch rule; inbound stops routing and the agent is detached).
   const handleDeprovision = async (num: PhoneNumber) => {
-    if (!window.confirm(
-      `Detach the AI employee from ${num.number}?\n\nThe number stays on your account but inbound calls will no longer reach an agent until you assign one again.`
-    )) return;
     setReleasingId(num.id);
     setActionError(null);
     try {
@@ -344,6 +440,7 @@ const CallSetup: React.FC = () => {
         )
       );
       appToast.success(`AI employee detached from ${num.number}`);
+      setDeprovisionTarget(null);
     } catch (err: any) {
       const msg = err.message || 'Failed to detach number';
       setActionError(msg);
@@ -448,9 +545,10 @@ const CallSetup: React.FC = () => {
     }
   };
 
-  // Inline outbound-agent picker change. Empty value → remove agent (DELETE),
-  // otherwise set/replace (POST /outbound-agent). Requires outbound enabled.
-  const handleOutboundAgentChange = async (num: PhoneNumber, agentId: string) => {
+  // Outbound-agent modal: empty value → remove agent (DELETE), otherwise set/replace.
+  const handleOutboundAgentChange = async (agentId: string) => {
+    if (!outboundAssignModal) return;
+    const num = outboundAssignModal;
     setOutboundAgentSavingId(num.id);
     setActionError(null);
     try {
@@ -463,12 +561,14 @@ const CallSetup: React.FC = () => {
         );
         const agentName = agents.find((a) => a.id === agentId)?.name || 'agent';
         appToast.success(`Outbound agent set to ${agentName} for ${num.number}`);
+        setOutboundAssignModal(null);
       } else {
         await removeOutboundAgent(num.id);
         setNumbers((prev) =>
           prev.map((n) => (n.id === num.id ? { ...n, outboundAgentId: null } : n))
         );
         appToast.success(`Outbound agent removed from ${num.number}`);
+        setOutboundAssignModal(null);
       }
     } catch (err: any) {
       const msg = err.message || 'Failed to update outbound agent';
@@ -482,10 +582,23 @@ const CallSetup: React.FC = () => {
   // ─── Outbound handlers ────────────────────────────────────────────────────
 
   const handleAddSingleContact = () => {
-    const raw = singleContact.phone.trim();
-    if (!raw) return;
-    const stripped = raw.startsWith('+') ? raw.slice(1) : raw;
-    const fullPhone = `${selectedCountry.code}${stripped}`;
+    const digits = sanitizeNationalNumber(singleContact.phone, selectedCountry);
+    if (!digits) {
+      setPhoneInputError('Enter a phone number');
+      return;
+    }
+    // Require full national length for the selected country
+    if (digits.length !== selectedCountry.maxLen) {
+      setPhoneInputError(`Enter a ${selectedCountry.maxLen}-digit number for ${selectedCountry.name}`);
+      return;
+    }
+    setPhoneInputError(null);
+    const fullPhone = `${selectedCountry.code}${digits}`;
+    // Avoid duplicate adds
+    if (campaignContacts.some((c) => c.phone === fullPhone)) {
+      setPhoneInputError('This number is already in the list');
+      return;
+    }
     setCampaignContacts((prev) => [
       ...prev,
       {
@@ -573,9 +686,20 @@ const CallSetup: React.FC = () => {
     return () => clearInterval(t);
   }, [activeSection, campaigns]);
 
-  // Create → upload contacts → optionally start. Matches the required API order.
+  // Create → upload contacts → start now or schedule. Matches the required API order.
   const handleLaunchCampaign = async () => {
     if (!step1Valid || !step2Valid) return;
+    if (!startNow) {
+      if (!scheduledAt) {
+        setWizardError('Pick a date and time to schedule this campaign');
+        return;
+      }
+      const when = new Date(scheduledAt);
+      if (Number.isNaN(when.getTime()) || when.getTime() <= Date.now()) {
+        setWizardError('Scheduled time must be in the future');
+        return;
+      }
+    }
     setIsSavingCampaign(true);
     setWizardError(null);
     try {
@@ -585,9 +709,11 @@ const CallSetup: React.FC = () => {
         name: newCampaign.name.trim(),
         caller_number: newCampaign.callerNumber,
         language: newCampaign.language,
-        max_concurrent: newCampaign.maxConcurrent,
         ...(newCampaign.objective.trim() ? { objective: newCampaign.objective.trim() } : {}),
         ...(newCampaign.goal.trim() ? { goal: newCampaign.goal.trim() } : {}),
+        ...(!startNow && scheduledAt
+          ? { scheduled_at: new Date(scheduledAt).toISOString() }
+          : {}),
       });
 
       setWizardStage('Uploading contacts…');
@@ -613,7 +739,7 @@ const CallSetup: React.FC = () => {
       appToast.success(
         startNow
           ? `Campaign "${created.name}" launched`
-          : `Campaign "${created.name}" created`
+          : `Campaign "${created.name}" scheduled`
       );
       await loadCampaigns();
     } catch (err: any) {
@@ -634,8 +760,13 @@ const CallSetup: React.FC = () => {
     setContactMode('single');
     setSingleContact({ phone: '', name: '', context: '' });
     setStartNow(true);
+    setScheduledAt('');
+    setPhoneInputError(null);
     setWizardError(null);
-    setNewCampaign({ name: '', agentId: '', callerNumber: '', language: 'en-in', maxConcurrent: 3, objective: '', goal: '' });
+    setNewCampaign({ name: '', agentId: '', callerNumber: '', language: 'en-IN', objective: '', goal: '' });
+    setAgentLanguageOptions([{ value: 'en-IN', label: 'English (India)' }]);
+    setShowContactFileEditor(false);
+    setContactFileEditText('');
   };
 
   const openCampaignWizard = () => {
@@ -643,10 +774,86 @@ const CallSetup: React.FC = () => {
     setShowCreateCampaign(true);
   };
 
+  // Load languages available on the selected outbound agent
+  useEffect(() => {
+    if (!newCampaign.agentId) {
+      setAgentLanguageOptions([{ value: 'en-IN', label: 'English (India)' }]);
+      setAgentLanguagesLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setAgentLanguagesLoading(true);
+    (async () => {
+      try {
+        const { agent } = await agentAPI.getAgent(newCampaign.agentId);
+        if (cancelled) return;
+        const opts = extractAgentLanguageOptions(agent);
+        setAgentLanguageOptions(opts);
+        setNewCampaign((p) => {
+          const match = opts.find(
+            (o) => o.value.toLowerCase() === (p.language || '').toLowerCase()
+          );
+          return { ...p, language: match?.value || opts[0].value };
+        });
+      } catch (err) {
+        console.warn('Failed to load agent languages:', err);
+        if (!cancelled) {
+          setAgentLanguageOptions([{ value: 'en-IN', label: 'English (India)' }]);
+        }
+      } finally {
+        if (!cancelled) setAgentLanguagesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [newCampaign.agentId]);
+
+  const isContactFileCsv = !!contactFile && /\.csv$/i.test(contactFile.name);
+
+  const openContactFileEditor = async () => {
+    if (!contactFile) return;
+    setShowContactFileEditor(true);
+    if (!isContactFileCsv) {
+      setContactFileEditText('');
+      return;
+    }
+    setContactFileEditLoading(true);
+    try {
+      const text = await contactFile.text();
+      setContactFileEditText(text);
+    } catch {
+      appToast.error('Could not read file contents');
+      setShowContactFileEditor(false);
+    } finally {
+      setContactFileEditLoading(false);
+    }
+  };
+
+  const saveContactFileEdits = () => {
+    if (!contactFile || !isContactFileCsv) return;
+    const updated = new File([contactFileEditText], contactFile.name, {
+      type: contactFile.type || 'text/csv',
+    });
+    setContactFile(updated);
+    setShowContactFileEditor(false);
+    appToast.success('File updated');
+  };
+
+  const downloadContactFile = () => {
+    if (!contactFile) return;
+    const url = URL.createObjectURL(contactFile);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = contactFile.name;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const generateCampaignBriefWithAI = async () => {
     const agent = agents.find((a) => a.id === newCampaign.agentId);
     if (!agent) {
-      appToast.error('Select a caller number (with an outbound agent) first');
+      appToast.error('Select an agent number (with an outbound agent) first');
       return;
     }
 
@@ -984,7 +1191,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
                             </button>
                             {num.inboundEnabled && (
                               <button
-                                onClick={() => handleDeprovision(num)}
+                                onClick={() => setDeprovisionTarget(num)}
                                 disabled={releasingId === num.id}
                                 title="Detach AI employee & reset this number"
                                 className="p-1.5 sm:p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
@@ -1100,26 +1307,28 @@ objective = the Objective bullet list (use \\n between bullets).`;
 
                           <div className="flex items-center justify-between sm:justify-end gap-2 border-t border-slate-200/70 dark:border-slate-700/50 sm:border-0 pt-2 sm:pt-0">
                             {num.outboundEnabled ? (
-                              // Inline agent picker — saves on change; empty = remove agent
-                              <div className="flex items-center gap-2 w-full sm:w-auto">
-                                <label className="text-xs text-slate-400 dark:text-slate-500 hidden sm:inline">Agent</label>
-                                <div className="relative flex-1 sm:flex-none">
-                                  <select
-                                    value={num.outboundAgentId || ''}
-                                    disabled={busy || agentsLoading}
-                                    onChange={(e) => handleOutboundAgentChange(num, e.target.value)}
-                                    className="common-bg-icons w-full sm:w-52 px-3 py-2 rounded-lg text-sm disabled:opacity-60 appearance-none pr-8"
-                                  >
-                                    <option value="">— No agent —</option>
-                                    {agents.map((a) => (
-                                      <option key={a.id} value={a.id}>{a.name}</option>
-                                    ))}
-                                  </select>
-                                  {busy && (
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                                  )}
-                                </div>
-                              </div>
+                              <>
+                                {(() => {
+                                  const outAgent = agents.find((a) => a.id === num.outboundAgentId);
+                                  return outAgent ? (
+                                    <div className="flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 px-2.5 py-1.5 rounded-lg text-xs font-medium truncate max-w-[140px]">
+                                      <Bot className="w-3.5 h-3.5 flex-shrink-0" />
+                                      <span className="truncate">{outAgent.name}</span>
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs text-slate-400 dark:text-slate-500 italic">No agent</span>
+                                  );
+                                })()}
+                                <button
+                                  onClick={() => setOutboundAssignModal(num)}
+                                  disabled={busy}
+                                  title={num.outboundAgentId ? 'Change outbound agent' : 'Assign outbound agent'}
+                                  className="text-xs common-button-bg2 px-2.5 sm:px-3 py-1.5 rounded-lg flex items-center gap-1 whitespace-nowrap disabled:opacity-50"
+                                >
+                                  {busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Bot className="w-3 h-3" />}
+                                  {num.outboundAgentId ? 'Change' : 'Assign'}
+                                </button>
+                              </>
                             ) : (
                               <button
                                 onClick={() => handleEnableOutbound(num)}
@@ -1436,8 +1645,58 @@ objective = the Objective bullet list (use \\n between bullets).`;
         )}
       </AnimatePresence>
 
+      {/* Deprovision / detach number confirm */}
+      <AnimatePresence>
+        {deprovisionTarget && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[99999] flex items-center justify-center p-4"
+            onClick={(e) => e.target === e.currentTarget && setDeprovisionTarget(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm shadow-2xl border border-slate-200 dark:border-slate-700 p-5 space-y-4"
+            >
+              <h3 className="font-bold text-slate-800 dark:text-white">Detach AI employee?</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Detach the AI employee from{' '}
+                <span className="font-mono font-medium text-slate-700 dark:text-slate-200">
+                  {deprovisionTarget.number}
+                </span>
+                ? The number stays on your account, but inbound calls will no longer reach an agent until you assign one again.
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setDeprovisionTarget(null)}
+                  disabled={releasingId === deprovisionTarget.id}
+                  className="px-4 py-2 rounded-xl text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleDeprovision(deprovisionTarget)}
+                  disabled={releasingId === deprovisionTarget.id}
+                  className="px-4 py-2 rounded-xl text-sm font-medium bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-50 inline-flex items-center gap-2"
+                >
+                  {releasingId === deprovisionTarget.id ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-4 h-4" />
+                  )}
+                  Detach
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ══════════════════════════════════════════════════════════════════════
-          MODAL: Assign Agent to Number
+          MODAL: Assign Agent to Number (inbound)
          ══════════════════════════════════════════════════════════════════════ */}
       <AnimatePresence>
         {assignModal && (
@@ -1449,9 +1708,9 @@ objective = the Objective bullet list (use \\n between bullets).`;
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm shadow-2xl border border-slate-200 dark:border-slate-700"
+              className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg shadow-2xl border border-slate-200 dark:border-slate-700 max-h-[90vh] flex flex-col"
             >
-              <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
                 <div>
                   <h3 className="font-bold text-slate-800 dark:text-white">Assign AI Agent</h3>
                   <p className="text-xs font-mono text-slate-500 dark:text-slate-400 mt-0.5">{assignModal.number}</p>
@@ -1461,56 +1720,85 @@ objective = the Objective bullet list (use \\n between bullets).`;
                 </button>
               </div>
 
-              <div className="p-5">
-                <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+              <div className="p-5 space-y-4 flex-1 overflow-y-auto">
+                <p className="text-sm text-slate-600 dark:text-slate-400">
                   Select an agent to handle inbound calls on this number.
                 </p>
 
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {/* Loading state */}
-                  {agentsLoading && (
-                    <div className="flex items-center justify-center py-6 gap-2 text-slate-400">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span className="text-sm">Loading agents…</span>
-                    </div>
-                  )}
+                <AgentPickerField
+                  value={assignModal.assignedAgentId || ''}
+                  onChange={(id) => {
+                    if (id) handleAssignAgent(id);
+                  }}
+                  label="AI Agent"
+                  required
+                  placeholder="Search & select agent…"
+                  active={!!assignModal}
+                  disabled={!!assigningId}
+                  variant="panel"
+                />
 
-                  {/* Empty state */}
-                  {!agentsLoading && agents.length === 0 && (
-                    <div className="text-center py-6">
-                      <Bot className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-                      <p className="text-sm text-slate-400">No agents found. Create an agent first.</p>
-                    </div>
-                  )}
+                {assigningId && (
+                  <div className="flex items-center gap-2 text-sm text-slate-400">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Assigning…
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-                  {/* Agent list from real API */}
-                  {agents.map((agent) => (
-                    <button
-                      key={agent.id}
-                      onClick={() => handleAssignAgent(agent.id)}
-                      disabled={!!assigningId}
-                      className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all disabled:opacity-60 ${
-                        assignModal.assignedAgentId === agent.id
-                          ? 'bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-300 dark:border-emerald-700'
-                          : 'common-bg-icons hover:bg-emerald-50 dark:hover:bg-emerald-900/20'
-                      }`}
-                    >
-                      <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
-                        <Bot className="w-4 h-4 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-800 dark:text-white truncate">{agent.name}</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{agent.language}</p>
-                      </div>
-                      {assigningId && assignModal.assignedAgentId !== agent.id && (
-                        <Loader2 className="w-4 h-4 text-slate-400 animate-spin flex-shrink-0" />
-                      )}
-                      {assignModal.assignedAgentId === agent.id && (
-                        <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
-                      )}
-                    </button>
-                  ))}
+      {/* ══════════════════════════════════════════════════════════════════════
+          MODAL: Assign Outbound Agent to Number
+         ══════════════════════════════════════════════════════════════════════ */}
+      <AnimatePresence>
+        {outboundAssignModal && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[99999] flex items-center justify-center p-4"
+            onClick={(e) => e.target === e.currentTarget && !outboundAgentSavingId && setOutboundAssignModal(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg shadow-2xl border border-slate-200 dark:border-slate-700 max-h-[90vh] flex flex-col"
+            >
+              <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+                <div>
+                  <h3 className="font-bold text-slate-800 dark:text-white">Assign Outbound Agent</h3>
+                  <p className="text-xs font-mono text-slate-500 dark:text-slate-400 mt-0.5">{outboundAssignModal.number}</p>
                 </div>
+                <button
+                  onClick={() => !outboundAgentSavingId && setOutboundAssignModal(null)}
+                  className="p-2 text-slate-400 hover:text-slate-600 rounded-lg"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4 flex-1 overflow-y-auto">
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  Select the AI agent that places outbound calls on this number.
+                </p>
+
+                <AgentPickerField
+                  value={outboundAssignModal.outboundAgentId || ''}
+                  onChange={handleOutboundAgentChange}
+                  label="Outbound Agent"
+                  placeholder="Search & select agent…"
+                  active={!!outboundAssignModal}
+                  disabled={!!outboundAgentSavingId}
+                  allowClear
+                  clearLabel="— No agent —"
+                  variant="panel"
+                />
+
+                {outboundAgentSavingId && (
+                  <div className="flex items-center gap-2 text-sm text-slate-400">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Saving…
+                  </div>
+                )}
               </div>
             </motion.div>
           </motion.div>
@@ -1653,25 +1941,14 @@ objective = the Objective bullet list (use \\n between bullets).`;
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                    Answering Agent <span className="text-red-500">*</span>
-                  </label>
-                  {agentsLoading ? (
-                    <div className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm flex items-center gap-2 text-slate-400">
-                      <Loader2 className="w-4 h-4 animate-spin" /> Loading agents…
-                    </div>
-                  ) : (
-                    <select
-                      value={buyAgentId}
-                      onChange={(e) => setBuyAgentId(e.target.value)}
-                      className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm"
-                    >
-                      <option value="">Select agent…</option>
-                      {agents.map((a) => (
-                        <option key={a.id} value={a.id}>{a.name}</option>
-                      ))}
-                    </select>
-                  )}
+                  <AgentPickerField
+                    value={buyAgentId}
+                    onChange={setBuyAgentId}
+                    label="Answering Agent"
+                    required
+                    placeholder="Search & select agent…"
+                    active={showBuyModal}
+                  />
                 </div>
 
                 {buyError && (
@@ -1733,7 +2010,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-2xl shadow-2xl border border-slate-200 dark:border-slate-700 max-h-[90vh] flex flex-col"
+              className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-2xl lg:max-w-4xl shadow-2xl border border-slate-200 dark:border-slate-700 max-h-[90vh] flex flex-col"
             >
               {/* Header */}
               <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
@@ -1797,18 +2074,17 @@ objective = the Objective bullet list (use \\n between bullets).`;
 
                         <div>
                           <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                            Caller Number <span className="text-red-500">*</span>
+                            Agent Number <span className="text-red-500">*</span>
                           </label>
                           <select
                             value={newCampaign.callerNumber}
                             onChange={(e) => {
                               const num = campaignCallerNumbers.find((n) => n.number === e.target.value);
-                              // Caller number drives the agent — auto-fill from the number's outbound agent
+                              // Agent number drives the agent — auto-fill from the number's outbound agent
                               setNewCampaign((p) => ({
                                 ...p,
                                 callerNumber: e.target.value,
                                 agentId: num?.outboundAgentId || '',
-                                language: num?.language || p.language,
                               }));
                             }}
                             className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm"
@@ -1860,7 +2136,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
                             disabled={isGeneratingCampaignBrief || !newCampaign.agentId}
                             title={
                               !newCampaign.agentId
-                                ? 'Select a caller number with an outbound agent first'
+                                ? 'Select an agent number with an outbound agent first'
                                 : 'Generate from the selected agent’s template'
                             }
                             className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-medium common-button-bg2 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
@@ -1906,25 +2182,26 @@ objective = the Objective bullet list (use \\n between bullets).`;
                       </div>
 
                       <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
-                        <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Dialer Settings</h4>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1.5">Max Concurrent Calls</label>
-                            <input type="number" min={1} max={20}
-                              value={newCampaign.maxConcurrent}
-                              onChange={(e) => setNewCampaign((p) => ({ ...p, maxConcurrent: +e.target.value }))}
-                              className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm" />
-                            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Simultaneous calls the dialer places. Default 3.</p>
-                          </div>
-                          <div>
-                            <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1.5">Language</label>
-                            <input type="text"
-                              value={newCampaign.language}
-                              onChange={(e) => setNewCampaign((p) => ({ ...p, language: e.target.value }))}
-                              placeholder="en-in"
-                              className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm" />
-                            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">BCP-47 code the agent speaks. Default en-in.</p>
-                          </div>
+                        <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Language</h4>
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                            Campaign language
+                          </label>
+                          <select
+                            value={newCampaign.language}
+                            onChange={(e) => setNewCampaign((p) => ({ ...p, language: e.target.value }))}
+                            disabled={!newCampaign.agentId || agentLanguagesLoading || agentLanguageOptions.length === 0}
+                            className="common-bg-icons w-full sm:max-w-sm px-4 py-2.5 rounded-xl text-sm disabled:opacity-60"
+                          >
+                            {!newCampaign.agentId && <option value="">Select an agent number first…</option>}
+                            {agentLanguagesLoading && <option value={newCampaign.language}>Loading languages…</option>}
+                            {!agentLanguagesLoading &&
+                              agentLanguageOptions.map((lang) => (
+                                <option key={lang.value} value={lang.value}>
+                                  {lang.label} ({lang.value})
+                                </option>
+                              ))}
+                          </select>
                         </div>
                       </div>
                     </motion.div>
@@ -1932,125 +2209,270 @@ objective = the Objective bullet list (use \\n between bullets).`;
 
                   {/* ── Step 2: Contacts ── */}
                   {campaignStep === 2 && (
-                    <motion.div key="s2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }} className="space-y-4">
-                      <div className="flex gap-1 common-bg-icons rounded-xl p-1 w-fit">
-                        {(['single', 'bulk', 'file'] as const).map((m) => (
-                          <button key={m} onClick={() => setContactMode(m)}
-                            className={`px-4 py-2 rounded-lg text-xs font-medium transition-all ${contactMode === m ? 'common-button-bg2 shadow-sm' : 'text-slate-600 dark:text-slate-400'}`}>
-                            {m === 'single' ? 'Single Number' : m === 'bulk' ? 'Bulk Paste' : 'Upload File'}
-                          </button>
-                        ))}
+                    <motion.div key="s2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }} className="space-y-5">
+                      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                        <div>
+                          <h4 className="text-sm font-semibold text-slate-800 dark:text-white">Add contacts</h4>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                            Add one number at a time, paste a list, or upload a spreadsheet.
+                          </p>
+                        </div>
+                        <div className="flex gap-1 common-bg-icons rounded-xl p-1 w-full sm:w-fit">
+                          {([
+                            { id: 'single' as const, label: 'Single Number' },
+                            { id: 'bulk' as const, label: 'Bulk Paste' },
+                            { id: 'file' as const, label: 'Upload File' },
+                          ]).map((m) => (
+                            <button
+                              key={m.id}
+                              onClick={() => setContactMode(m.id)}
+                              className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-medium transition-all ${
+                                contactMode === m.id ? 'common-button-bg2 shadow-sm' : 'text-slate-600 dark:text-slate-400'
+                              }`}
+                            >
+                              {m.label}
+                            </button>
+                          ))}
+                        </div>
                       </div>
 
                       {contactMode === 'file' ? (
-                        <div>
-                          <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1.5">
-                            Spreadsheet — columns: <code className="font-mono">phone_number</code> (required),{' '}
-                            <code className="font-mono">name</code>,{' '}
-                            <code className="font-mono">call_context</code> (why you&apos;re calling), plus any extra columns as custom fields for the agent.
-                          </label>
-                          <label className="flex flex-col items-center justify-center gap-2 py-8 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-600 transition-colors">
-                            <Upload className="w-8 h-8 text-slate-300 dark:text-slate-600" />
-                            {contactFile ? (
-                              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{contactFile.name}</span>
-                            ) : (
-                              <span className="text-sm text-slate-400">Click to choose a .xlsx, .xls or .csv file</span>
-                            )}
-                            <input
-                              type="file"
-                              accept=".xlsx,.xls,.csv"
-                              className="hidden"
-                              onChange={(e) => setContactFile(e.target.files?.[0] || null)}
-                            />
-                          </label>
-                          {contactFile && (
-                            <button onClick={() => setContactFile(null)} className="mt-2 text-xs text-red-500 hover:text-red-600 flex items-center gap-1">
-                              <X className="w-3 h-3" /> Remove file
-                            </button>
+                        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 p-4 sm:p-5 space-y-4">
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            Spreadsheet columns:{' '}
+                            <code className="font-mono text-slate-700 dark:text-slate-300">phone_number</code> (required),{' '}
+                            <code className="font-mono text-slate-700 dark:text-slate-300">name</code>,{' '}
+                            <code className="font-mono text-slate-700 dark:text-slate-300">call_context</code>, plus any extra columns as custom fields.
+                          </p>
+                          {!contactFile ? (
+                            <label className="flex flex-col items-center justify-center gap-2 py-12 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-600 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                              <Upload className="w-8 h-8 text-slate-300 dark:text-slate-600" />
+                              <span className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                                Click to choose a .xlsx, .xls or .csv file
+                              </span>
+                              <span className="text-xs text-slate-400">Uploaded files can be opened and edited before launch</span>
+                              <input
+                                type="file"
+                                accept=".xlsx,.xls,.csv"
+                                className="hidden"
+                                onChange={(e) => setContactFile(e.target.files?.[0] || null)}
+                              />
+                            </label>
+                          ) : (
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                              <button
+                                type="button"
+                                onClick={openContactFileEditor}
+                                className="flex items-center gap-3 flex-1 min-w-0 text-left group"
+                                title="Open and edit file"
+                              >
+                                <div className="w-11 h-11 rounded-xl bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center flex-shrink-0 group-hover:border-indigo-400 transition-colors">
+                                  <FileSpreadsheet className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-semibold text-indigo-600 dark:text-indigo-400 truncate underline-offset-2 group-hover:underline">
+                                    {contactFile.name}
+                                  </p>
+                                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                    {(contactFile.size / 1024).toFixed(1)} KB · Click to open &amp; edit
+                                  </p>
+                                </div>
+                              </button>
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={openContactFileEditor}
+                                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium common-button-bg2"
+                                >
+                                  <Eye className="w-3.5 h-3.5" /> Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={downloadContactFile}
+                                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700"
+                                >
+                                  <Download className="w-3.5 h-3.5" /> Download
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setContactFile(null)}
+                                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20"
+                                >
+                                  <X className="w-3.5 h-3.5" /> Remove
+                                </button>
+                              </div>
+                            </div>
                           )}
-                          <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
+                          <p className="text-xs text-slate-400 dark:text-slate-500">
                             Contacts are uploaded to the campaign when you launch. The count is confirmed by the server.
                           </p>
                         </div>
                       ) : contactMode === 'single' ? (
-                        <div className="flex flex-col sm:flex-row gap-3 items-end">
-                          <div className="flex-1 w-full">
-                            <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1.5">Phone Number</label>
-                            <div className="flex common-bg-icons rounded-xl overflow-hidden">
-                              <select
-                                value={selectedCountryId}
-                                onChange={(e) => setSelectedCountryId(e.target.value)}
-                                className="bg-transparent pl-3 pr-1 py-2.5 text-sm border-r border-slate-200 dark:border-slate-700 focus:outline-none text-slate-700 dark:text-slate-300 cursor-pointer flex-shrink-0"
-                              >
-                                {COUNTRY_CODES.map((c) => (
-                                  <option key={c.id} value={c.id}>
-                                    {c.flag} {c.code} ({c.name})
-                                  </option>
-                                ))}
-                              </select>
-                              <input
-                                type="tel"
-                                value={singleContact.phone}
-                                onChange={(e) => setSingleContact((p) => ({ ...p, phone: e.target.value }))}
-                                placeholder="Phone number"
-                                onKeyDown={(e) => e.key === 'Enter' && handleAddSingleContact()}
-                                className="flex-1 bg-transparent px-3 py-2.5 text-sm focus:outline-none text-slate-800 dark:text-white placeholder-slate-400 min-w-0"
-                              />
+                        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 p-4 sm:p-5 space-y-4">
+                          <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
+                            <div className="flex-1 w-full min-w-0">
+                              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1.5">Phone Number</label>
+                              <div className={`flex common-bg-icons rounded-xl overflow-hidden ${phoneInputError ? 'ring-2 ring-rose-400/40 border-rose-300' : ''}`}>
+                                <select
+                                  value={selectedCountryId}
+                                  onChange={(e) => {
+                                    setSelectedCountryId(e.target.value);
+                                    setPhoneInputError(null);
+                                    setSingleContact((p) => ({
+                                      ...p,
+                                      phone: sanitizeNationalNumber(
+                                        p.phone,
+                                        COUNTRY_CODES.find((c) => c.id === e.target.value) ?? COUNTRY_CODES[0]
+                                      ),
+                                    }));
+                                  }}
+                                  className="bg-transparent w-[5.5rem] sm:w-[6.25rem] pl-2 pr-1 py-2.5 text-sm border-r border-slate-200 dark:border-slate-700 focus:outline-none text-slate-700 dark:text-slate-300 cursor-pointer flex-shrink-0"
+                                  title={selectedCountry.name}
+                                >
+                                  {COUNTRY_CODES.map((c) => (
+                                    <option key={c.id} value={c.id}>
+                                      {c.flag} {c.code}
+                                    </option>
+                                  ))}
+                                </select>
+                                <input
+                                  type="tel"
+                                  inputMode="numeric"
+                                  value={singleContact.phone}
+                                  maxLength={selectedCountry.maxLen}
+                                  onChange={(e) => {
+                                    setPhoneInputError(null);
+                                    setSingleContact((p) => ({
+                                      ...p,
+                                      phone: sanitizeNationalNumber(e.target.value, selectedCountry),
+                                    }));
+                                  }}
+                                  placeholder={`${selectedCountry.maxLen}-digit number`}
+                                  onKeyDown={(e) => e.key === 'Enter' && handleAddSingleContact()}
+                                  className="flex-1 bg-transparent px-3 py-2.5 text-sm focus:outline-none text-slate-800 dark:text-white placeholder-slate-400 min-w-0"
+                                />
+                              </div>
+                              {phoneInputError ? (
+                                <p className="text-xs text-rose-500 mt-1">{phoneInputError}</p>
+                              ) : (
+                                <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                                  Max {selectedCountry.maxLen} digits · {selectedCountry.flag} {selectedCountry.name}
+                                </p>
+                              )}
                             </div>
-                          </div>
-                          <div className="flex-1 w-full space-y-3">
-                            <div>
+                            <div className="flex-1 w-full min-w-0">
                               <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1.5">Name (optional)</label>
-                              <input type="text" value={singleContact.name}
-                                onChange={(e) => setSingleContact((p) => ({ ...p, name: e.target.value }))}
-                                placeholder="Contact name"
-                                className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm" />
-                            </div>
-                            <div>
-                              <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1.5">Call context (optional)</label>
                               <input
                                 type="text"
-                                value={singleContact.context}
-                                onChange={(e) => setSingleContact((p) => ({ ...p, context: e.target.value }))}
-                                placeholder="e.g. Follow-up, prior inquiry…"
-                                onKeyDown={(e) => e.key === 'Enter' && handleAddSingleContact()}
+                                value={singleContact.name}
+                                onChange={(e) => setSingleContact((p) => ({ ...p, name: e.target.value }))}
+                                placeholder="Contact name"
                                 className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm"
                               />
                             </div>
+                            <button
+                              type="button"
+                              onClick={handleAddSingleContact}
+                              className="common-button-bg !px-3.5 !py-2.5 !min-w-[44px] rounded-xl flex-shrink-0 self-end inline-flex items-center justify-center"
+                              title="Add contact"
+                              aria-label="Add contact"
+                            >
+                              <Plus className="w-5 h-5 text-white shrink-0" strokeWidth={2.5} />
+                            </button>
                           </div>
-                          <button onClick={handleAddSingleContact} className="common-button-bg px-4 py-2.5 rounded-xl flex-shrink-0">
-                            <Plus className="w-4 h-4" />
-                          </button>
+                          <div>
+                            <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1.5">Call context (optional)</label>
+                            <textarea
+                              value={singleContact.context}
+                              onChange={(e) => setSingleContact((p) => ({ ...p, context: e.target.value }))}
+                              placeholder="e.g. Follow-up on pricing inquiry, previous demo request, interested in franchise in Mumbai…"
+                              rows={3}
+                              className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm resize-y min-h-[80px]"
+                            />
+                            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                              Notes for the agent about why you&apos;re calling this contact.
+                            </p>
+                          </div>
                         </div>
                       ) : (
-                        <div>
-                          <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1.5">
+                        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 p-4 sm:p-5 space-y-3">
+                          <label className="block text-xs text-slate-500 dark:text-slate-400">
                             One number per line — optionally:{' '}
                             <code className="font-mono">+1234567890, Name, Call context</code>
                           </label>
-                          <textarea value={bulkInput} onChange={(e) => setBulkInput(e.target.value)} rows={6}
+                          <textarea
+                            value={bulkInput}
+                            onChange={(e) => setBulkInput(e.target.value)}
+                            rows={8}
                             placeholder={"+14155550123, John Doe, Follow-up on demo request\n+14155550124, Jane Smith\n+14155550125"}
-                            className="common-bg-icons w-full px-4 py-3 rounded-xl text-sm font-mono resize-none" />
-                          <button onClick={parseBulkContacts} className="mt-2 common-button-bg2 flex items-center gap-2 text-sm px-4 py-2 rounded-xl">
-                            <Upload className="w-4 h-4" /> Parse & Preview
+                            className="common-bg-icons w-full px-4 py-3 rounded-xl text-sm font-mono resize-y min-h-[160px]"
+                          />
+                          <button
+                            onClick={parseBulkContacts}
+                            className="common-button-bg2 inline-flex items-center gap-2 text-sm px-4 py-2 rounded-xl"
+                          >
+                            <Upload className="w-4 h-4" /> Parse &amp; Preview
                           </button>
                         </div>
                       )}
 
                       {contactMode !== 'file' && (
                         campaignContacts.length > 0 ? (
-                          <div>
-                            <div className="flex items-center justify-between mb-2">
+                          <div className="rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40">
                               <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                                 {campaignContacts.length} contact{campaignContacts.length !== 1 ? 's' : ''} added
                               </p>
-                              <button onClick={() => setCampaignContacts([])} className="text-xs text-red-500 hover:text-red-600 flex items-center gap-1">
+                              <button
+                                onClick={() => setCampaignContacts([])}
+                                className="text-xs text-red-500 hover:text-red-600 flex items-center gap-1"
+                              >
                                 <Trash2 className="w-3 h-3" /> Clear all
                               </button>
                             </div>
-                            <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
+                            {/* Desktop table */}
+                            <div className="hidden lg:block max-h-64 overflow-auto">
+                              <table className="w-full text-sm">
+                                <thead className="sticky top-0 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">
+                                  <tr className="text-left text-xs text-slate-500 dark:text-slate-400">
+                                    <th className="px-4 py-2.5 font-medium">Phone</th>
+                                    <th className="px-4 py-2.5 font-medium">Name</th>
+                                    <th className="px-4 py-2.5 font-medium">Call context</th>
+                                    <th className="px-4 py-2.5 font-medium w-12" />
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {campaignContacts.map((c) => (
+                                    <tr
+                                      key={c.id}
+                                      className="border-b border-slate-100 dark:border-slate-800 last:border-0 hover:bg-slate-50/70 dark:hover:bg-slate-800/40"
+                                    >
+                                      <td className="px-4 py-2.5 font-mono text-slate-800 dark:text-slate-200 whitespace-nowrap">
+                                        {c.phone}
+                                      </td>
+                                      <td className="px-4 py-2.5 text-slate-600 dark:text-slate-300">
+                                        {c.name || '—'}
+                                      </td>
+                                      <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400 max-w-xs truncate" title={c.context}>
+                                        {c.context || '—'}
+                                      </td>
+                                      <td className="px-4 py-2.5 text-right">
+                                        <button
+                                          onClick={() => setCampaignContacts((p) => p.filter((x) => x.id !== c.id))}
+                                          className="text-slate-400 hover:text-red-500"
+                                        >
+                                          <X className="w-3.5 h-3.5" />
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                            {/* Mobile list */}
+                            <div className="lg:hidden max-h-56 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
                               {campaignContacts.map((c) => (
-                                <div key={c.id} className="flex items-center justify-between px-3 py-2 common-bg-icons rounded-lg">
+                                <div key={c.id} className="flex items-center justify-between px-4 py-3">
                                   <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-2">
                                       <Phone className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
@@ -2063,8 +2485,10 @@ objective = the Objective bullet list (use \\n between bullets).`;
                                       </p>
                                     )}
                                   </div>
-                                  <button onClick={() => setCampaignContacts((p) => p.filter((x) => x.id !== c.id))}
-                                    className="text-slate-400 hover:text-red-500 ml-2 flex-shrink-0">
+                                  <button
+                                    onClick={() => setCampaignContacts((p) => p.filter((x) => x.id !== c.id))}
+                                    className="text-slate-400 hover:text-red-500 ml-2 flex-shrink-0"
+                                  >
                                     <X className="w-3.5 h-3.5" />
                                   </button>
                                 </div>
@@ -2072,9 +2496,10 @@ objective = the Objective bullet list (use \\n between bullets).`;
                             </div>
                           </div>
                         ) : (
-                          <div className="text-center py-8 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+                          <div className="text-center py-12 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
                             <Users className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-                            <p className="text-sm text-slate-400">No contacts added yet</p>
+                            <p className="text-sm font-medium text-slate-500 dark:text-slate-400">No contacts added yet</p>
+                            <p className="text-xs text-slate-400 mt-1">Add at least one contact to continue</p>
                           </div>
                         )
                       )}
@@ -2084,13 +2509,13 @@ objective = the Objective bullet list (use \\n between bullets).`;
                   {/* ── Step 3: Review & Launch ── */}
                   {campaignStep === 3 && (
                     <motion.div key="s3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }} className="space-y-5">
-                      {/* Start-now toggle */}
+                      {/* Start now / Schedule */}
                       <div className="grid grid-cols-2 gap-3">
                         {([
-                          { id: true,  label: 'Start Now',   desc: 'Begin dialing immediately after upload', icon: Play },
-                          { id: false, label: 'Create Only', desc: 'Save the campaign — start it later',      icon: Clock },
+                          { id: true,  label: 'Start Now',          desc: 'Begin dialing immediately after upload', icon: Play },
+                          { id: false, label: 'Schedule campaign',  desc: 'Pick a date & time to start dialing',     icon: Clock },
                         ] as const).map((opt) => (
-                          <button key={String(opt.id)} onClick={() => setStartNow(opt.id)}
+                          <button key={String(opt.id)} type="button" onClick={() => setStartNow(opt.id)}
                             className={`p-4 rounded-2xl border-2 text-left transition-all ${
                               startNow === opt.id
                                 ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
@@ -2105,23 +2530,51 @@ objective = the Objective bullet list (use \\n between bullets).`;
                         ))}
                       </div>
 
+                      {!startNow && (
+                        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 p-4 space-y-3">
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                            Start dialing at <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="datetime-local"
+                            value={scheduledAt}
+                            min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)}
+                            onChange={(e) => {
+                              setScheduledAt(e.target.value);
+                              setWizardError(null);
+                            }}
+                            className="common-bg-icons w-full sm:max-w-sm px-4 py-2.5 rounded-xl text-sm"
+                          />
+                          <p className="text-xs text-slate-400 dark:text-slate-500">
+                            Uses your local timezone ({Intl.DateTimeFormat().resolvedOptions().timeZone}).
+                          </p>
+                        </div>
+                      )}
+
                       {/* Summary */}
                       <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700">
                         <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Campaign Summary</h4>
                         <div className="space-y-2 text-sm">
                           {[
-                            { label: 'Name',           value: newCampaign.name },
-                            { label: 'Agent',          value: agents.find((a) => a.id === newCampaign.agentId)?.name || '—' },
-                            { label: 'Caller Number',  value: newCampaign.callerNumber || 'Not set' },
-                            { label: 'Objective',      value: newCampaign.objective.trim() || '—' },
-                            { label: 'Goal',           value: newCampaign.goal.trim() || '—' },
-                            { label: 'Language',       value: newCampaign.language },
-                            { label: 'Max Concurrent', value: `${newCampaign.maxConcurrent} simultaneous` },
-                            { label: 'Contacts',       value: contactMode === 'file' ? (contactFile?.name || 'file') : `${campaignContacts.length}` },
+                            { label: 'Name', value: newCampaign.name },
+                            { label: 'Agent Name', value: agents.find((a) => a.id === newCampaign.agentId)?.name || '—' },
+                            { label: 'Agent Number', value: newCampaign.callerNumber || 'Not set' },
+                            { label: 'Objective', value: newCampaign.objective.trim() || '—' },
+                            { label: 'Goal', value: newCampaign.goal.trim() || '—' },
+                            { label: 'Language', value: languageLabel(newCampaign.language) },
+                            { label: 'Contacts', value: contactMode === 'file' ? (contactFile?.name || 'file') : `${campaignContacts.length}` },
+                            {
+                              label: 'Launch',
+                              value: startNow
+                                ? 'Start now'
+                                : scheduledAt
+                                  ? `Scheduled · ${new Date(scheduledAt).toLocaleString()}`
+                                  : 'Pick a schedule',
+                            },
                           ].map(({ label, value }) => (
                             <div key={label} className="flex justify-between">
                               <span className="text-slate-500 dark:text-slate-400">{label}</span>
-                              <span className="font-medium text-slate-800 dark:text-white text-right ml-4 max-w-[200px] truncate">{value}</span>
+                              <span className="font-medium text-slate-800 dark:text-white text-right ml-4 max-w-[220px] truncate">{value}</span>
                             </div>
                           ))}
                         </div>
@@ -2132,7 +2585,11 @@ objective = the Objective bullet list (use \\n between bullets).`;
                         <p className="text-xs text-indigo-700 dark:text-indigo-300 leading-relaxed">
                           On launch we <span className="font-semibold">create the campaign</span>, then{' '}
                           <span className="font-semibold">upload your contacts</span>
-                          {startNow ? <> and <span className="font-semibold">start dialing</span> immediately.</> : <> and leave it ready to start when you are.</>}
+                          {startNow ? (
+                            <> and <span className="font-semibold">start dialing</span> immediately.</>
+                          ) : (
+                            <> and <span className="font-semibold">schedule dialing</span> for the selected time.</>
+                          )}
                         </p>
                       </div>
 
@@ -2170,7 +2627,12 @@ objective = the Objective bullet list (use \\n between bullets).`;
                 ) : (
                   <button
                     onClick={handleLaunchCampaign}
-                    disabled={isSavingCampaign || !step1Valid || !step2Valid}
+                    disabled={
+                      isSavingCampaign ||
+                      !step1Valid ||
+                      !step2Valid ||
+                      (!startNow && !scheduledAt)
+                    }
                     className="common-button-bg px-6 py-2.5 rounded-xl text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
                     {isSavingCampaign ? (
@@ -2178,8 +2640,107 @@ objective = the Objective bullet list (use \\n between bullets).`;
                     ) : startNow ? (
                       <><Play className="w-4 h-4" /> Launch Campaign</>
                     ) : (
-                      <><Check className="w-4 h-4" /> Create Campaign</>
+                      <><Clock className="w-4 h-4" /> Schedule Campaign</>
                     )}
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Contact file editor */}
+      <AnimatePresence>
+        {showContactFileEditor && contactFile && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[100000] flex items-center justify-center p-4"
+            onClick={(e) => e.target === e.currentTarget && setShowContactFileEditor(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-3xl shadow-2xl border border-slate-200 dark:border-slate-700 max-h-[90vh] flex flex-col"
+            >
+              <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+                <div className="min-w-0">
+                  <h3 className="font-bold text-slate-800 dark:text-white truncate">{contactFile.name}</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    {isContactFileCsv ? 'Edit CSV contents, then save' : 'Excel files can be downloaded, edited externally, then re-uploaded'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowContactFileEditor(false)}
+                  className="p-2 text-slate-400 hover:text-slate-600 rounded-lg"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-5">
+                {contactFileEditLoading ? (
+                  <div className="flex items-center justify-center py-16 gap-2 text-slate-400">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span className="text-sm">Loading file…</span>
+                  </div>
+                ) : isContactFileCsv ? (
+                  <textarea
+                    value={contactFileEditText}
+                    onChange={(e) => setContactFileEditText(e.target.value)}
+                    rows={18}
+                    spellCheck={false}
+                    className="common-bg-icons w-full px-4 py-3 rounded-xl text-sm font-mono resize-y min-h-[320px]"
+                  />
+                ) : (
+                  <div className="text-center py-10 space-y-4">
+                    <FileSpreadsheet className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto" />
+                    <p className="text-sm text-slate-600 dark:text-slate-300 max-w-md mx-auto">
+                      In-browser editing is available for CSV. Download this spreadsheet, edit it, then replace the upload on the Contacts step.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={downloadContactFile}
+                      className="common-button-bg2 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm"
+                    >
+                      <Download className="w-4 h-4" /> Download file
+                    </button>
+                    <div>
+                      <label className="inline-flex items-center gap-2 text-sm text-indigo-600 dark:text-indigo-400 cursor-pointer hover:underline">
+                        <Upload className="w-4 h-4" /> Replace with edited file
+                        <input
+                          type="file"
+                          accept=".xlsx,.xls,.csv"
+                          className="hidden"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) {
+                              setContactFile(f);
+                              setShowContactFileEditor(false);
+                              appToast.success('File replaced');
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="flex justify-end gap-2 p-5 border-t border-slate-200 dark:border-slate-700 flex-shrink-0">
+                <button
+                  onClick={() => setShowContactFileEditor(false)}
+                  className="px-4 py-2 rounded-xl text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  Close
+                </button>
+                {isContactFileCsv && (
+                  <button
+                    onClick={saveContactFileEdits}
+                    className="common-button-bg px-4 py-2 rounded-xl text-sm inline-flex items-center gap-2"
+                  >
+                    <Check className="w-4 h-4" /> Save changes
                   </button>
                 )}
               </div>
