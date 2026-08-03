@@ -1,8 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, FileText, Clock, MapPin, Calendar, Users, MessageSquare, Loader2, Bot, Play, Pause, Download, Volume2, VolumeX, SkipBack, SkipForward, TrendingUp, CheckCircle, XCircle, Phone, Mail, Share2 } from "lucide-react";
+import { X, FileText, Clock, Calendar, Users, MessageSquare, Loader2, Bot, Play, Pause, Download, Volume2, VolumeX, SkipBack, SkipForward, TrendingUp, CheckCircle, XCircle, Phone, PhoneIncoming, PhoneOutgoing, Mail, Share2 } from "lucide-react";
 import { agentAPI } from '../../../services/agentAPI';
 import appToast from '../../../components/AppToast';
 import { resolveIPLocation } from '../../../lib/ipGeolocation';
+import {
+  callTypeBadgeClass,
+  formatCallTypeLabel,
+  resolveSessionCallType,
+  resolveSessionLeadNumber,
+} from '../../../lib/sessionDirection';
 
 interface SessionTranscriptModalProps {
   session: any;
@@ -294,6 +300,12 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
 
   if (!session) return null;
 
+  const callType = resolveSessionCallType(session);
+  const callTypeLabel = formatCallTypeLabel(callType);
+  const leadNumber = resolveSessionLeadNumber(session);
+  const CallTypeIcon =
+    callType === 'inbound' ? PhoneIncoming : callType === 'outbound' ? PhoneOutgoing : Phone;
+
   // Format duration
   const formatDuration = (seconds: number) => {
     if (!seconds) return '0m 0s';
@@ -340,6 +352,23 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
                 <p className="text-xs text-slate-500 dark:text-slate-400 truncate font-mono">
                   {session.session_id || session.id}
                 </p>
+                {(callTypeLabel || leadNumber) && (
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                    {callTypeLabel && (
+                      <span
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-semibold capitalize ${callTypeBadgeClass(callType)}`}
+                      >
+                        <CallTypeIcon className="w-3 h-3" />
+                        {callTypeLabel}
+                      </span>
+                    )}
+                    {leadNumber && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] sm:text-xs font-mono font-medium bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200">
+                        {leadNumber}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
             <button
@@ -351,7 +380,7 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
           </div>
 
           {/* Session Info in Header */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 sm:gap-2 mb-2 sm:mb-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2 mb-2 sm:mb-3">
             <div className="flex items-center gap-1.5 min-w-0 bg-slate-50 dark:bg-slate-900/30 px-1.5 sm:px-2 py-1.5 rounded-md">
               <Clock className="w-3 h-3 text-slate-500 dark:text-slate-400 flex-shrink-0" />
               <div className="min-w-0 flex-1">
@@ -366,35 +395,33 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
                 </span>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-1.5 min-w-0 bg-slate-50 dark:bg-slate-900/30 px-1.5 sm:px-2 py-1.5 rounded-md">
-              <MapPin className="w-3 h-3 text-slate-500 dark:text-slate-400 flex-shrink-0" />
+              <CallTypeIcon className="w-3 h-3 text-slate-500 dark:text-slate-400 flex-shrink-0" />
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 hidden sm:block">Location</p>
-                <span className="text-[10px] sm:text-xs font-medium text-slate-700 dark:text-slate-300 truncate block">
-                  {(() => {
-                    // First try resolved location data
-                    if (locationData?.city && locationData.city !== 'Unknown') {
-                      const city = locationData.city;
-                      const country = locationData.country;
-                      return [city, country].filter((x: string) => x && x !== 'Unknown').join(', ') || 'Unknown';
-                    }
-                    // Fallback to session location
-                    const city = session?.location?.city?.toLowerCase() !== 'unknown' ? session?.location?.city : '';
-                    const country = session?.location?.country?.toLowerCase() !== 'unknown' ? session?.location?.country : '';
-                    const locationLabel = [city, country].filter(Boolean).join(', ');
-                    return locationLabel || 'Unknown';
-                  })()}
+                <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 hidden sm:block">Call type</p>
+                <span className="text-[10px] sm:text-xs font-medium text-slate-700 dark:text-slate-300 truncate block capitalize">
+                  {callTypeLabel || 'Unknown'}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 min-w-0 bg-slate-50 dark:bg-slate-900/30 px-1.5 sm:px-2 py-1.5 rounded-md">
+              <Users className="w-3 h-3 text-slate-500 dark:text-slate-400 flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 hidden sm:block">Lead number</p>
+                <span className="text-[10px] sm:text-xs font-medium font-mono text-slate-700 dark:text-slate-300 truncate block">
+                  {leadNumber || 'Unknown'}
                 </span>
               </div>
             </div>
             
-            <div className="flex items-center gap-1.5 min-w-0 col-span-2 sm:col-span-1 bg-slate-50 dark:bg-slate-900/30 px-1.5 sm:px-2 py-1.5 rounded-md">
-              <Phone className="w-3 h-3 text-slate-500 dark:text-slate-400 flex-shrink-0" />
+            <div className="flex items-center gap-1.5 min-w-0 bg-slate-50 dark:bg-slate-900/30 px-1.5 sm:px-2 py-1.5 rounded-md">
+              <Clock className="w-3 h-3 text-slate-500 dark:text-slate-400 flex-shrink-0" />
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 hidden sm:block">Device • Duration</p>
+                <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 hidden sm:block">Duration</p>
                 <span className="text-[10px] sm:text-xs font-medium text-slate-700 dark:text-slate-300 truncate block">
-                  {session.device?.deviceType || session.device?.device_type || session.device?.browser || 'Unknown'} • {formatDuration(session.duration_seconds)}
+                  {formatDuration(session.duration_seconds)}
                 </span>
               </div>
             </div>

@@ -648,6 +648,89 @@ export const getCampaignContacts = async (
   }
 };
 
+/** Tenant-wide contacts from past campaigns — GET /campaigns/contacts (all-contact API). */
+export const getAllCampaignContacts = async (
+  params: { page?: number; limit?: number; status?: string; q?: string } = {}
+): Promise<{ data: CampaignContact[]; total: number }> => {
+  try {
+    const { page = 1, limit = 100, status, q } = params;
+    const response: AxiosResponse<any> = await axios.get(
+      `${API_BASE_URL}/campaigns/contacts`,
+      {
+        ...createAuthenticatedRequest(),
+        params: {
+          page,
+          limit,
+          ...(status ? { status } : {}),
+          ...(q ? { q } : {}),
+        },
+      }
+    );
+    const body = response.data;
+    const raw =
+      body?.data?.contacts ??
+      body?.data?.items ??
+      body?.contacts ??
+      body?.data ??
+      body;
+    const list: CampaignContact[] = Array.isArray(raw)
+      ? raw
+      : Array.isArray(raw?.contacts)
+        ? raw.contacts
+        : [];
+    const total =
+      typeof body?.total === "number"
+        ? body.total
+        : typeof body?.data?.total === "number"
+          ? body.data.total
+          : list.length;
+    return { data: list, total };
+  } catch (error: any) {
+    // Some deployments expose the same list at /campaigns/all-contacts
+    if (error?.response?.status === 404) {
+      try {
+        const { page = 1, limit = 100, status, q } = params;
+        const response: AxiosResponse<any> = await axios.get(
+          `${API_BASE_URL}/campaigns/all-contacts`,
+          {
+            ...createAuthenticatedRequest(),
+            params: {
+              page,
+              limit,
+              ...(status ? { status } : {}),
+              ...(q ? { q } : {}),
+            },
+          }
+        );
+        const body = response.data;
+        const raw =
+          body?.data?.contacts ??
+          body?.data?.items ??
+          body?.contacts ??
+          body?.data ??
+          body;
+        const list: CampaignContact[] = Array.isArray(raw)
+          ? raw
+          : Array.isArray(raw?.contacts)
+            ? raw.contacts
+            : [];
+        const total =
+          typeof body?.total === "number"
+            ? body.total
+            : typeof body?.data?.total === "number"
+              ? body.data.total
+              : list.length;
+        return { data: list, total };
+      } catch (fallbackErr: any) {
+        console.error("Error fetching all campaign contacts:", fallbackErr);
+        throw new Error(errMessage(fallbackErr, "Failed to load previous contacts"));
+      }
+    }
+    console.error("Error fetching all campaign contacts:", error);
+    throw new Error(errMessage(error, "Failed to load previous contacts"));
+  }
+};
+
 // ─── Display helpers ─────────────────────────────────────────────────────────
 
 // Catalog DIDs come back as raw digits (919876543210) — render them dial-ready
@@ -707,6 +790,7 @@ export default {
   getCampaignStatus,
   getCampaignStatusDetail,
   getCampaignContacts,
+  getAllCampaignContacts,
   formatDid,
   contactsToCsvFile,
 };

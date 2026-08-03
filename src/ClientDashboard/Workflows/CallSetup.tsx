@@ -25,12 +25,14 @@ import {
   deleteCampaign,
   getCampaigns,
   getCampaignStatus,
+  getAllCampaignContacts,
   contactsToCsvFile,
   formatDid,
   type CatalogNumber,
   type ProvisionedNumber,
   type Campaign,
   type CampaignLiveStatus,
+  type CampaignContact,
   type DidType,
 } from '../../services/phoneNumbersAPI';
 import {
@@ -65,6 +67,7 @@ import {
   FileSpreadsheet,
   Eye,
   Download,
+  History,
 } from 'lucide-react';
 
 // Common BCP-47 / agent language codes → display labels
@@ -353,13 +356,18 @@ const CallSetup: React.FC = () => {
   // ── Create-campaign wizard state ──
   const [showCreateCampaign, setShowCreateCampaign] = useState(false);
   const [campaignStep, setCampaignStep] = useState<1 | 2 | 3>(1);
-  const [contactMode, setContactMode] = useState<'single' | 'bulk' | 'file'>('single');
+  const [contactMode, setContactMode] = useState<'single' | 'bulk' | 'file' | 'previous'>('single');
   const [bulkInput, setBulkInput] = useState('');
   const [singleContact, setSingleContact] = useState({ phone: '', name: '', context: '' });
   const [selectedCountryId, setSelectedCountryId] = useState('IN');
   const selectedCountry = COUNTRY_CODES.find((c) => c.id === selectedCountryId) ?? COUNTRY_CODES[0];
   const [campaignContacts, setCampaignContacts] = useState<ContactEntry[]>([]);
   const [contactFile, setContactFile] = useState<File | null>(null);
+  const [previousContacts, setPreviousContacts] = useState<CampaignContact[]>([]);
+  const [previousContactsLoading, setPreviousContactsLoading] = useState(false);
+  const [previousContactsError, setPreviousContactsError] = useState<string | null>(null);
+  const [previousContactSearch, setPreviousContactSearch] = useState('');
+  const [selectedPreviousIds, setSelectedPreviousIds] = useState<Set<string>>(new Set());
   const [isSavingCampaign, setIsSavingCampaign] = useState(false);
   const [wizardError, setWizardError] = useState<string | null>(null);
   const [wizardStage, setWizardStage] = useState<string>(''); // progress text while launching
@@ -626,6 +634,99 @@ const CallSetup: React.FC = () => {
     setCampaignContacts(parsed);
   };
 
+  const loadPreviousContacts = useCallback(async () => {
+    setPreviousContactsLoading(true);
+    setPreviousContactsError(null);
+    try {
+      const result = await getAllCampaignContacts({ page: 1, limit: 200 });
+      // Deduplicate by phone so the same number from multiple campaigns appears once
+      const seen = new Set<string>();
+      const unique: CampaignContact[] = [];
+      for (const c of result.data || []) {
+        const key = String(c.phone_number || '').replace(/\D/g, '');
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        unique.push(c);
+      }
+      setPreviousContacts(unique);
+    } catch (err: any) {
+      setPreviousContacts([]);
+      setPreviousContactsError(err.message || 'Failed to load previous contacts');
+    } finally {
+      setPreviousContactsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (showCreateCampaign && campaignStep === 2 && contactMode === 'previous') {
+      loadPreviousContacts();
+    }
+  }, [showCreateCampaign, campaignStep, contactMode, loadPreviousContacts]);
+
+  const filteredPreviousContacts = previousContacts.filter((c) => {
+    const q = previousContactSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      String(c.phone_number || '').toLowerCase().includes(q) ||
+      String(c.name || '').toLowerCase().includes(q)
+    );
+  });
+
+  const togglePreviousContact = (id: string) => {
+    setSelectedPreviousIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllVisiblePrevious = () => {
+    const ids = filteredPreviousContacts.map((c) => c._id);
+    const allSelected = ids.length > 0 && ids.every((id) => selectedPreviousIds.has(id));
+    setSelectedPreviousIds((prev) => {
+      const next = new Set(prev);
+      if (allSelected) ids.forEach((id) => next.delete(id));
+      else ids.forEach((id) => next.add(id));
+      return next;
+    });
+  };
+
+  const addSelectedPreviousContacts = () => {
+    const picked = previousContacts.filter((c) => selectedPreviousIds.has(c._id));
+    if (picked.length === 0) {
+      appToast.error('Select at least one previous contact');
+      return;
+    }
+    setCampaignContacts((prev) => {
+      const existing = new Set(prev.map((c) => c.phone.replace(/\D/g, '')));
+      const additions: ContactEntry[] = [];
+      for (const c of picked) {
+        const phone = String(c.phone_number || '').trim();
+        const key = phone.replace(/\D/g, '');
+        if (!key || existing.has(key)) continue;
+        existing.add(key);
+        const context =
+          c.custom_fields?.call_context ||
+          c.custom_fields?.context ||
+          c.custom_fields?.reason;
+        additions.push({
+          id: `prev_${c._id}`,
+          phone,
+          name: c.name || '',
+          context: context || undefined,
+        });
+      }
+      if (additions.length === 0) {
+        appToast.error('Selected contacts are already in this campaign list');
+        return prev;
+      }
+      appToast.success(`Added ${additions.length} previous contact${additions.length !== 1 ? 's' : ''}`);
+      return [...prev, ...additions];
+    });
+    setSelectedPreviousIds(new Set());
+  };
+
   // ─── Campaign list ────────────────────────────────────────────────────────
 
   const loadCampaigns = useCallback(async () => {
@@ -759,6 +860,10 @@ const CallSetup: React.FC = () => {
     setBulkInput('');
     setContactMode('single');
     setSingleContact({ phone: '', name: '', context: '' });
+    setPreviousContacts([]);
+    setPreviousContactsError(null);
+    setPreviousContactSearch('');
+    setSelectedPreviousIds(new Set());
     setStartNow(true);
     setScheduledAt('');
     setPhoneInputError(null);
@@ -2214,19 +2319,20 @@ objective = the Objective bullet list (use \\n between bullets).`;
                         <div>
                           <h4 className="text-sm font-semibold text-slate-800 dark:text-white">Add contacts</h4>
                           <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                            Add one number at a time, paste a list, or upload a spreadsheet.
+                            Add one number, paste a list, upload a file, or reuse contacts from past campaigns.
                           </p>
                         </div>
-                        <div className="flex gap-1 common-bg-icons rounded-xl p-1 w-full sm:w-fit">
+                        <div className="flex flex-wrap gap-1 common-bg-icons rounded-xl p-1 w-full sm:w-fit">
                           {([
                             { id: 'single' as const, label: 'Single Number' },
                             { id: 'bulk' as const, label: 'Bulk Paste' },
                             { id: 'file' as const, label: 'Upload File' },
+                            { id: 'previous' as const, label: 'Previous Contacts' },
                           ]).map((m) => (
                             <button
                               key={m.id}
                               onClick={() => setContactMode(m.id)}
-                              className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-medium transition-all ${
+                              className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg text-xs font-medium transition-all ${
                                 contactMode === m.id ? 'common-button-bg2 shadow-sm' : 'text-slate-600 dark:text-slate-400'
                               }`}
                             >
@@ -2393,6 +2499,137 @@ objective = the Objective bullet list (use \\n between bullets).`;
                               Notes for the agent about why you&apos;re calling this contact.
                             </p>
                           </div>
+                        </div>
+                      ) : contactMode === 'previous' ? (
+                        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 p-4 sm:p-5 space-y-4">
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                            <div className="flex items-start gap-2 min-w-0">
+                              <div className="w-9 h-9 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center flex-shrink-0">
+                                <History className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                              </div>
+                              <div>
+                                <p className="text-sm font-semibold text-slate-800 dark:text-white">Previous campaign contacts</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">
+                                  Reuse numbers you&apos;ve already dialed in past campaigns.
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="search"
+                                value={previousContactSearch}
+                                onChange={(e) => setPreviousContactSearch(e.target.value)}
+                                placeholder="Search phone or name…"
+                                className="common-bg-icons px-3 py-2 rounded-xl text-sm w-full sm:w-56"
+                              />
+                              <button
+                                type="button"
+                                onClick={loadPreviousContacts}
+                                disabled={previousContactsLoading}
+                                className="text-xs px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 whitespace-nowrap"
+                              >
+                                Refresh
+                              </button>
+                            </div>
+                          </div>
+
+                          {previousContactsError && (
+                            <div className="flex items-start gap-2 p-3 rounded-xl bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800">
+                              <AlertCircle className="w-4 h-4 text-rose-500 flex-shrink-0 mt-0.5" />
+                              <p className="text-sm text-rose-600 dark:text-rose-400 flex-1">{previousContactsError}</p>
+                              <button type="button" onClick={loadPreviousContacts} className="text-xs text-rose-600 underline">
+                                Retry
+                              </button>
+                            </div>
+                          )}
+
+                          {previousContactsLoading ? (
+                            <div className="flex items-center justify-center py-12 gap-2 text-slate-400">
+                              <Loader2 className="w-5 h-5 animate-spin" />
+                              <span className="text-sm">Loading previous contacts…</span>
+                            </div>
+                          ) : filteredPreviousContacts.length === 0 ? (
+                            <div className="text-center py-10 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+                              <Users className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                              <p className="text-sm text-slate-500 dark:text-slate-400">
+                                {previousContactSearch.trim()
+                                  ? 'No contacts match your search'
+                                  : 'No previous campaign contacts found yet'}
+                              </p>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex items-center justify-between gap-2">
+                                <label className="inline-flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={
+                                      filteredPreviousContacts.length > 0 &&
+                                      filteredPreviousContacts.every((c) => selectedPreviousIds.has(c._id))
+                                    }
+                                    onChange={toggleAllVisiblePrevious}
+                                    className="rounded border-slate-300"
+                                  />
+                                  Select all visible ({filteredPreviousContacts.length})
+                                </label>
+                                <span className="text-xs text-slate-400">
+                                  {selectedPreviousIds.size} selected
+                                </span>
+                              </div>
+                              <div className="max-h-64 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-800">
+                                {filteredPreviousContacts.map((c) => {
+                                  const already =
+                                    campaignContacts.some(
+                                      (x) => x.phone.replace(/\D/g, '') === String(c.phone_number || '').replace(/\D/g, '')
+                                    );
+                                  return (
+                                    <label
+                                      key={c._id}
+                                      className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 ${
+                                        already ? 'opacity-60' : ''
+                                      }`}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={selectedPreviousIds.has(c._id)}
+                                        onChange={() => togglePreviousContact(c._id)}
+                                        className="rounded border-slate-300"
+                                      />
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className="text-sm font-mono font-medium text-slate-800 dark:text-white">
+                                            {c.phone_number}
+                                          </span>
+                                          {c.name && (
+                                            <span className="text-xs text-slate-500 dark:text-slate-400">{c.name}</span>
+                                          )}
+                                          {already && (
+                                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400">
+                                              Already added
+                                            </span>
+                                          )}
+                                        </div>
+                                        {c.status && (
+                                          <p className="text-[11px] text-slate-400 mt-0.5 capitalize">
+                                            Last status: {String(c.status).replace(/_/g, ' ')}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={addSelectedPreviousContacts}
+                                disabled={selectedPreviousIds.size === 0}
+                                className="common-button-bg inline-flex items-center gap-2 text-sm px-4 py-2.5 rounded-xl disabled:opacity-50"
+                              >
+                                <Plus className="w-4 h-4" />
+                                Add selected to campaign
+                              </button>
+                            </>
+                          )}
                         </div>
                       ) : (
                         <div className="rounded-2xl border border-slate-200 dark:border-slate-700 p-4 sm:p-5 space-y-3">

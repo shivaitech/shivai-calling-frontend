@@ -16,6 +16,8 @@ import {
   Search,
   ChevronDown,
   Phone,
+  PhoneIncoming,
+  PhoneOutgoing,
   MapPin,
   XCircle,
   Smartphone,
@@ -33,6 +35,12 @@ import {
   isUsableLocation,
   type IPLocationResult,
 } from "../../lib/ipGeolocation";
+import {
+  callTypeBadgeClass,
+  formatCallTypeLabel,
+  resolveSessionCallType,
+  resolveSessionLeadNumber,
+} from "../../lib/sessionDirection";
 
 const Analytics = () => {
   const { user } = useAuth();
@@ -894,8 +902,40 @@ const Analytics = () => {
                           </div>
                         </div>
 
-                        {/* Device and Location Info */}
+                        {/* Call type + lead number */}
                         <div className="flex flex-wrap items-center gap-2">
+                          {(() => {
+                            const type = resolveSessionCallType(session);
+                            const number = resolveSessionLeadNumber(session);
+                            const label = formatCallTypeLabel(type);
+                            if (!type && !number) return null;
+                            const TypeIcon =
+                              type === "inbound"
+                                ? PhoneIncoming
+                                : type === "outbound"
+                                  ? PhoneOutgoing
+                                  : Phone;
+                            return (
+                              <>
+                                {label && (
+                                  <div
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold capitalize ${callTypeBadgeClass(type)}`}
+                                  >
+                                    <TypeIcon className="w-3.5 h-3.5" />
+                                    {label}
+                                  </div>
+                                )}
+                                {number && (
+                                  <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900/30 px-3 py-1.5 rounded-lg text-xs">
+                                    <span className="font-mono font-medium text-slate-700 dark:text-slate-300">
+                                      {number}
+                                    </span>
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
+
                           {/* Device Type Badge */}
                           <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900/30 px-3 py-1.5 rounded-lg text-xs">
                             <DeviceIcon className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />

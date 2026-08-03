@@ -277,7 +277,11 @@ const CampaignDetail: React.FC = () => {
         call_id: matched.call_id || sessionId,
         agent_id: campaign.agent_id,
         agent: agent ? { id: agent.id, name: agent.name } : { id: campaign.agent_id },
-        phone_number: contact.phone_number,
+        phone_number: matched?.direction?.number || contact.phone_number,
+        direction: matched?.direction || {
+          type: 'outbound',
+          number: contact.phone_number,
+        },
         name: contact.name,
         created_at:
           matched.created_at ||
