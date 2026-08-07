@@ -47,7 +47,6 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import type { WorkflowDocument } from '../../services/workflowAPI';
-import CallSetup from './CallSetup';
 
 interface WorkflowNode {
   id: string;
@@ -81,16 +80,21 @@ const Workflows = () => {
   const { agents, isLoading: agentsLoading } = useAgent();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'canvas' | 'workflows' | 'runs' | 'documents' | 'callsetup'>('canvas');
+  const [activeTab, setActiveTab] = useState<'canvas' | 'workflows' | 'runs' | 'documents'>('canvas');
   const location = useLocation();
 
   // Detect hash fragment and set active tab — re-runs on every hash change
   useEffect(() => {
     const hash = location.hash.slice(1);
-    if (hash && ['canvas', 'workflows', 'runs', 'documents', 'callsetup'].includes(hash)) {
-      setActiveTab(hash as 'canvas' | 'workflows' | 'runs' | 'documents' | 'callsetup');
+    // Call Setup moved to its own route
+    if (hash === 'callsetup') {
+      navigate('/call-setup', { replace: true, state: location.state });
+      return;
     }
-  }, [location.hash]);
+    if (hash && ['canvas', 'workflows', 'runs', 'documents'].includes(hash)) {
+      setActiveTab(hash as 'canvas' | 'workflows' | 'runs' | 'documents');
+    }
+  }, [location.hash, location.state, navigate]);
 
   // Open documents tab when navigated here with state { tab: 'documents' }
   const [fromAgent, setFromAgent] = useState<{ id: string; name: string } | null>(null);
@@ -389,7 +393,6 @@ const Workflows = () => {
     { id: 'workflows' as const, label: 'My Workflows', icon: Settings },
     { id: 'documents' as const, label: 'AI Documents', icon: BookOpen },
     { id: 'runs' as const, label: 'Execution Log', icon: Play },
-    { id: 'callsetup' as const, label: 'Call Setup', icon: Phone },
   ];
 
   const handleDragStart = (e: React.DragEvent, item: any, type: 'trigger' | 'action' | 'condition') => {
@@ -2633,11 +2636,8 @@ const Workflows = () => {
         </div>
       )}
 
-      {/* ── Call Setup Tab ── */}
-      {activeTab === 'callsetup' && <CallSetup />}
-
       {/* Create Custom Trigger Modal */}
-      {isCreatingTrigger && (
+      {isCreatingTrigger && createPortal(
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[99999] p-4">
           <div className="bg-white dark:bg-slate-800 rounded-xl p-6 w-full max-w-md">
             <div className="flex items-center justify-between mb-4">
@@ -2698,7 +2698,8 @@ const Workflows = () => {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
       
       {/* Doc Delete Confirmation Modal */}

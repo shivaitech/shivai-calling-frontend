@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import GlassCard from '../../components/GlassCard';
@@ -17,6 +18,9 @@ import {
   removeOutboundAgent,
   getDidTypes,
   createCampaign,
+  updateCampaign,
+  archiveCampaign,
+  cloneCampaign,
   uploadCampaignContacts,
   startCampaign,
   pauseCampaign,
@@ -34,7 +38,13 @@ import {
   type CampaignLiveStatus,
   type CampaignContact,
   type DidType,
+  type CreateCampaignRequest,
 } from '../../services/phoneNumbersAPI';
+import CampaignScheduleForm, {
+  defaultCampaignSchedule,
+  type CampaignScheduleState,
+} from './CampaignScheduleForm';
+import RestartCampaignModal from './RestartCampaignModal';
 import {
   Phone,
   PhoneIncoming,
@@ -68,7 +78,162 @@ import {
   Eye,
   Download,
   History,
+  CopyPlus,
+  Archive,
+  Pencil,
+  RotateCcw,
+  MoreHorizontal,
+  Mail,
+  MessageCircle,
+  Plug,
+  BookUser,
+  Search,
+  BarChart3,
+  CalendarClock,
+  FileDown,
 } from 'lucide-react';
+import zohoIcon from '../../resources/Icon/zoho.svg';
+import hubspotIcon from '../../resources/Icon/hubspot.svg';
+import freshworkIcon from '../../resources/Icon/freshwork.svg';
+import zendeskIcon from '../../resources/Icon/zendesk.svg';
+
+const MAX_FREE_PHONE_NUMBERS = 1;
+const SALES_EMAIL = 'hello@shivaitech.com';
+const SALES_WHATSAPP_NUMBER = '919211490707';
+const SALES_WHATSAPP_MESSAGE =
+  'Hi ShivAI sales team, I want to purchase additional phone numbers on a premium plan. Please help me get started.';
+const SALES_EMAIL_SUBJECT = 'Premium plan — additional phone numbers';
+
+const LEAD_CONNECTORS = [
+  {
+    id: 'zoho',
+    name: 'Zoho CRM',
+    description: 'Sync leads and contacts from Zoho for outbound campaigns',
+    icon: zohoIcon,
+  },
+  {
+    id: 'hubspot',
+    name: 'HubSpot',
+    description: 'Pull qualified leads from HubSpot into your contact list',
+    icon: hubspotIcon,
+  },
+  {
+    id: 'freshworks',
+    name: 'Freshworks',
+    description: 'Import CRM contacts from Freshworks for calling',
+    icon: freshworkIcon,
+  },
+  {
+    id: 'zendesk',
+    name: 'Zendesk Sell',
+    description: 'Connect Zendesk Sell leads to AI outbound calls',
+    icon: zendeskIcon,
+  },
+] as const;
+
+interface FollowUpItem {
+  id: string;
+  agentId: string;
+  agentName: string;
+  phone: string;
+  name: string;
+  type: 'callback' | 'follow_up';
+  summary: string;
+  urgency?: string;
+  createdAt?: string;
+  callId?: string;
+  source: 'lead' | 'contact';
+}
+
+const FOLLOW_UP_RE =
+  /follow[\s-]?up|call[\s-]?back|callback|requested?\s+call|schedule(d)?\s+(a\s+)?call|ring[\s-]?back|call\s+again|return\s+call/i;
+
+const isFollowUpSignal = (value: unknown): boolean => {
+  if (value === true) return true;
+  if (value == null) return false;
+  if (typeof value === 'string' || typeof value === 'number') {
+    return FOLLOW_UP_RE.test(String(value));
+  }
+  if (Array.isArray(value)) return value.some(isFollowUpSignal);
+  if (typeof value === 'object') {
+    return Object.entries(value as Record<string, unknown>).some(([k, v]) => {
+      if (/callback|follow.?up|call.?back/i.test(k)) {
+        if (v === true || v === 'true' || v === 1 || v === '1') return true;
+        if (v != null && String(v).trim()) return true;
+      }
+      return isFollowUpSignal(v);
+    });
+  }
+  return false;
+};
+
+const classifyFollowUpType = (text: string): 'callback' | 'follow_up' =>
+  /call[\s-]?back|callback|ring[\s-]?back|return\s+call/i.test(text) ? 'callback' : 'follow_up';
+
+const extractLeadField = (lead: any, patterns: RegExp[]): string => {
+  const data = lead?.leadData;
+  if (data && typeof data === 'object') {
+    for (const [key, value] of Object.entries(data)) {
+      if (patterns.some((re) => re.test(key)) && value != null && String(value).trim()) {
+        return String(value).trim();
+      }
+    }
+  }
+  return '';
+};
+
+const leadToFollowUp = (lead: any, agentId: string, agentName: string): FollowUpItem | null => {
+  const blob = [
+    lead?.intent?.primary,
+    lead?.intent?.details,
+    ...(Array.isArray(lead?.intent?.tags) ? lead.intent.tags : []),
+    lead?.leadData ? JSON.stringify(lead.leadData) : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  if (!isFollowUpSignal(blob) && !isFollowUpSignal(lead?.leadData) && !isFollowUpSignal(lead?.intent)) {
+    return null;
+  }
+  const phone =
+    extractLeadField(lead, [/phone/, /mobile/, /contact/, /number/]) ||
+    String(lead?.phone || lead?.phone_number || '').trim() ||
+    '—';
+  const name =
+    extractLeadField(lead, [/^name$/, /full.?name/, /customer/, /contact.?name/]) ||
+    'Unknown';
+  const summary =
+    String(lead?.intent?.primary || lead?.intent?.details || '').trim() ||
+    'Follow-up or callback requested';
+  return {
+    id: String(lead?.id || lead?.callId || `${agentId}_${phone}_${lead?.createdAt || Date.now()}`),
+    agentId,
+    agentName,
+    phone,
+    name,
+    type: classifyFollowUpType(blob),
+    summary,
+    urgency: lead?.intent?.urgency ? String(lead.intent.urgency) : undefined,
+    createdAt: lead?.createdAt ? String(lead.createdAt) : undefined,
+    callId: lead?.callId ? String(lead.callId) : undefined,
+    source: 'lead',
+  };
+};
+
+const downloadTextFile = (filename: string, content: string, mime = 'text/csv;charset=utf-8') => {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+const csvEscape = (value: unknown) => {
+  const s = String(value ?? '');
+  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+};
 
 // Common BCP-47 / agent language codes → display labels
 const LANGUAGE_LABELS: Record<string, string> = {
@@ -249,10 +414,11 @@ const sanitizeNationalNumber = (raw: string, country: (typeof COUNTRY_CODES)[num
 const statusBadge = (status: string) => {
   const map: Record<string, { label: string; cls: string }> = {
     draft:     { label: 'Draft',     cls: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300' },
-    scheduled: { label: 'Scheduled', cls: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' },
+    scheduled: { label: 'Scheduled', cls: 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300' },
     running:   { label: 'Running',   cls: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' },
     paused:    { label: 'Paused',    cls: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' },
     completed: { label: 'Completed', cls: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300' },
+    archived:  { label: 'Archived',  cls: 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300' },
     stopped:   { label: 'Stopped',   cls: 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300' },
   };
   const s = map[status] || { label: status || 'Unknown', cls: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300' };
@@ -308,7 +474,9 @@ const CallSetup: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const [activeSection, setActiveSection] = useState<'inbound' | 'outbound'>(() =>
+  const [activeSection, setActiveSection] = useState<
+    'inbound' | 'outbound' | 'contacts' | 'connectors' | 'analytics' | 'followups'
+  >(() =>
     (location.state as { callSetupSection?: string } | null)?.callSetupSection === 'outbound'
       ? 'outbound'
       : 'inbound'
@@ -328,6 +496,7 @@ const CallSetup: React.FC = () => {
 
   // ── Buy-number state ──
   const [showBuyModal, setShowBuyModal] = useState(false);
+  const [showPremiumContactModal, setShowPremiumContactModal] = useState(false);
   const [didTypes, setDidTypes] = useState<DidType[]>([]);
   const [selectedDidTypeId, setSelectedDidTypeId] = useState<number | null>(null);
   const [catalog, setCatalog] = useState<CatalogNumber[]>([]);
@@ -371,8 +540,10 @@ const CallSetup: React.FC = () => {
   const [isSavingCampaign, setIsSavingCampaign] = useState(false);
   const [wizardError, setWizardError] = useState<string | null>(null);
   const [wizardStage, setWizardStage] = useState<string>(''); // progress text while launching
-  const [startNow, setStartNow] = useState(true);
-  const [scheduledAt, setScheduledAt] = useState(''); // datetime-local value
+  const [schedule, setSchedule] = useState<CampaignScheduleState>(defaultCampaignSchedule);
+  const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
+  const [restartCampaignTarget, setRestartCampaignTarget] = useState<CampaignRow | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [phoneInputError, setPhoneInputError] = useState<string | null>(null);
   const [isGeneratingCampaignBrief, setIsGeneratingCampaignBrief] = useState(false);
   const [agentLanguageOptions, setAgentLanguageOptions] = useState<{ value: string; label: string }[]>([
@@ -382,6 +553,13 @@ const CallSetup: React.FC = () => {
   const [showContactFileEditor, setShowContactFileEditor] = useState(false);
   const [contactFileEditText, setContactFileEditText] = useState('');
   const [contactFileEditLoading, setContactFileEditLoading] = useState(false);
+  const [followUps, setFollowUps] = useState<FollowUpItem[]>([]);
+  const [followUpsLoading, setFollowUpsLoading] = useState(false);
+  const [followUpsError, setFollowUpsError] = useState<string | null>(null);
+  const [followUpSearch, setFollowUpSearch] = useState('');
+  const [followUpFilter, setFollowUpFilter] = useState<'all' | 'callback' | 'follow_up'>('all');
+  const [agentPerfLoading, setAgentPerfLoading] = useState(false);
+  const [agentSessionTotals, setAgentSessionTotals] = useState<Record<string, number>>({});
   const [newCampaign, setNewCampaign] = useState({
     name: '',
     agentId: '',
@@ -477,6 +655,11 @@ const CallSetup: React.FC = () => {
   };
 
   const openBuyModal = async () => {
+    // Free plan: one number only — more requires contacting sales for premium.
+    if (numbers.length >= MAX_FREE_PHONE_NUMBERS) {
+      setShowPremiumContactModal(true);
+      return;
+    }
     setShowBuyModal(true);
     setSelectedDid(null);
     setBuyDisplayName('');
@@ -506,6 +689,11 @@ const CallSetup: React.FC = () => {
   };
 
   const handleBuyNumber = async () => {
+    if (numbers.length >= MAX_FREE_PHONE_NUMBERS) {
+      setShowBuyModal(false);
+      setShowPremiumContactModal(true);
+      return;
+    }
     if (!selectedDid || !buyAgentId || !buyDisplayName.trim()) return;
     setIsBuying(true);
     setBuyError(null);
@@ -663,6 +851,236 @@ const CallSetup: React.FC = () => {
     }
   }, [showCreateCampaign, campaignStep, contactMode, loadPreviousContacts]);
 
+  useEffect(() => {
+    if (activeSection === 'contacts' || activeSection === 'analytics') {
+      loadPreviousContacts();
+    }
+  }, [activeSection, loadPreviousContacts]);
+
+  const loadFollowUps = useCallback(async () => {
+    setFollowUpsLoading(true);
+    setFollowUpsError(null);
+    try {
+      const fromLeads = await Promise.all(
+        agents.map(async (agent) => {
+          try {
+            const data = await agentAPI.getCallSummary(agent.id);
+            const leads = Array.isArray(data?.leads) ? data.leads : Array.isArray(data) ? data : [];
+            return leads
+              .map((lead: any) => leadToFollowUp(lead, agent.id, agent.name))
+              .filter(Boolean) as FollowUpItem[];
+          } catch {
+            return [] as FollowUpItem[];
+          }
+        })
+      );
+
+      // Also surface campaign contacts tagged as follow-up / callback in call_context
+      let contactFollowUps: FollowUpItem[] = [];
+      try {
+        const result = await getAllCampaignContacts({ page: 1, limit: 200 });
+        contactFollowUps = (result.data || [])
+          .filter((c) => isFollowUpSignal(c.custom_fields?.call_context) || isFollowUpSignal(c.name))
+          .map((c) => {
+            const ctx = String(c.custom_fields?.call_context || '').trim();
+            return {
+              id: `contact_${c._id}`,
+              agentId: '',
+              agentName: 'Campaign contact',
+              phone: c.phone_number || '—',
+              name: c.name?.trim() || 'Unknown',
+              type: classifyFollowUpType(ctx || c.name || ''),
+              summary: ctx || 'Marked for follow-up in campaign contacts',
+              createdAt: c.created_at || c.updated_at,
+              source: 'contact' as const,
+            };
+          });
+      } catch {
+        // ignore — leads list alone is still useful
+      }
+
+      const merged = [...fromLeads.flat(), ...contactFollowUps];
+      const seen = new Set<string>();
+      const unique = merged.filter((item) => {
+        const key = `${item.phone.replace(/\D/g, '')}|${item.type}|${item.summary.slice(0, 40)}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      unique.sort((a, b) => {
+        const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return tb - ta;
+      });
+      setFollowUps(unique);
+    } catch (err: any) {
+      setFollowUps([]);
+      setFollowUpsError(err.message || 'Failed to load follow-ups');
+    } finally {
+      setFollowUpsLoading(false);
+    }
+  }, [agents]);
+
+  const loadAgentSessionTotals = useCallback(async () => {
+    if (agents.length === 0) {
+      setAgentSessionTotals({});
+      return;
+    }
+    setAgentPerfLoading(true);
+    try {
+      const entries = await Promise.all(
+        agents.map(async (agent) => {
+          try {
+            const data = await agentAPI.getAgentSessions('page=1&limit=1', agent.id);
+            const total = Number(data?.pagination?.total) || Number(data?.sessions?.length) || 0;
+            return [agent.id, total] as const;
+          } catch {
+            return [agent.id, agent.stats?.conversations || 0] as const;
+          }
+        })
+      );
+      setAgentSessionTotals(Object.fromEntries(entries));
+    } finally {
+      setAgentPerfLoading(false);
+    }
+  }, [agents]);
+
+  useEffect(() => {
+    if (activeSection === 'followups') {
+      loadFollowUps();
+    }
+  }, [activeSection, loadFollowUps]);
+
+  useEffect(() => {
+    if (activeSection === 'analytics') {
+      loadAgentSessionTotals();
+    }
+  }, [activeSection, loadAgentSessionTotals]);
+
+  const filteredFollowUps = followUps.filter((item) => {
+    if (followUpFilter !== 'all' && item.type !== followUpFilter) return false;
+    const q = followUpSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      item.phone.toLowerCase().includes(q) ||
+      item.name.toLowerCase().includes(q) ||
+      item.agentName.toLowerCase().includes(q) ||
+      item.summary.toLowerCase().includes(q)
+    );
+  });
+
+  const buildAgentPerformanceRows = () =>
+    agents.map((agent) => {
+      const agentCampaigns = campaigns.filter((c) => c.agent_id === agent.id);
+      const completed = agentCampaigns.reduce(
+        (s, c) => s + (c.live?.completed || c.stats?.completed || 0),
+        0
+      );
+      const pending = agentCampaigns.reduce(
+        (s, c) => s + (c.live?.pending || c.stats?.pending || 0),
+        0
+      );
+      const noAnswer = agentCampaigns.reduce(
+        (s, c) => s + (c.live?.no_answer || c.stats?.no_answer || 0),
+        0
+      );
+      const sessions = agentSessionTotals[agent.id] ?? agent.stats?.conversations ?? 0;
+      const successRate = agent.stats?.successRate ?? 0;
+      const attempted = completed + pending + noAnswer;
+      const connectRate = attempted > 0 ? Math.round((completed / attempted) * 100) : 0;
+      return {
+        agent,
+        sessions,
+        successRate,
+        avgResponseTime: agent.stats?.avgResponseTime ?? 0,
+        campaigns: agentCampaigns.length,
+        completed,
+        pending,
+        noAnswer,
+        connectRate,
+      };
+    });
+
+  const generateAnalyticsReport = () => {
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    const agentRows = buildAgentPerformanceRows();
+    const completedCalls = campaigns.reduce(
+      (s, c) => s + (c.live?.completed || c.stats?.completed || 0),
+      0
+    );
+    const pendingCalls = campaigns.reduce(
+      (s, c) => s + (c.live?.pending || c.stats?.pending || 0),
+      0
+    );
+    const noAnswerCalls = campaigns.reduce(
+      (s, c) => s + (c.live?.no_answer || c.stats?.no_answer || 0),
+      0
+    );
+
+    const lines: string[] = [
+      ['Report', 'Call Setup Analytics'].map(csvEscape).join(','),
+      ['Generated at', new Date().toLocaleString()].map(csvEscape).join(','),
+      '',
+      'Overview',
+      ['Metric', 'Value'].join(','),
+      ['Campaigns', campaigns.length].join(','),
+      ['Phone numbers', numbers.length].join(','),
+      ['Saved contacts', previousContacts.length].join(','),
+      ['Completed calls', completedCalls].join(','),
+      ['Pending calls', pendingCalls].join(','),
+      ['Not answered', noAnswerCalls].join(','),
+      ['Follow-ups listed', followUps.length].join(','),
+      '',
+      'Campaign breakdown',
+      ['Name', 'Status', 'Completed', 'Pending', 'No answer', 'Agent ID'].map(csvEscape).join(','),
+      ...campaigns.map((c) =>
+        [
+          c.name,
+          c.status,
+          c.live?.completed || c.stats?.completed || 0,
+          c.live?.pending || c.stats?.pending || 0,
+          c.live?.no_answer || c.stats?.no_answer || 0,
+          c.agent_id || '',
+        ]
+          .map(csvEscape)
+          .join(',')
+      ),
+      '',
+      'Agent-wise performance',
+      [
+        'Agent',
+        'Sessions',
+        'Success rate %',
+        'Avg response',
+        'Campaigns',
+        'Completed',
+        'Pending',
+        'No answer',
+        'Connect rate %',
+      ]
+        .map(csvEscape)
+        .join(','),
+      ...agentRows.map((row) =>
+        [
+          row.agent.name,
+          row.sessions,
+          row.successRate,
+          row.avgResponseTime,
+          row.campaigns,
+          row.completed,
+          row.pending,
+          row.noAnswer,
+          row.connectRate,
+        ]
+          .map(csvEscape)
+          .join(',')
+      ),
+    ];
+
+    downloadTextFile(`call-setup-report-${stamp}.csv`, lines.join('\n'));
+    appToast.success('Report downloaded');
+  };
+
   const filteredPreviousContacts = previousContacts.filter((c) => {
     const q = previousContactSearch.trim().toLowerCase();
     if (!q) return true;
@@ -753,17 +1171,21 @@ const CallSetup: React.FC = () => {
     }
   }, []);
 
-  // Load campaigns the first time the user opens the Outbound tab
+  // Load campaigns the first time the user opens Outbound or Analytics
   useEffect(() => {
-    if (activeSection === 'outbound' && campaigns.length === 0 && !campaignsLoading) {
+    if (
+      (activeSection === 'outbound' || activeSection === 'analytics') &&
+      campaigns.length === 0 &&
+      !campaignsLoading
+    ) {
       loadCampaigns();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSection]);
 
-  // Poll live status while any campaign is running
+  // Poll live status while any campaign is running (outbound or analytics view)
   useEffect(() => {
-    if (activeSection !== 'outbound') return;
+    if (activeSection !== 'outbound' && activeSection !== 'analytics') return;
     const anyRunning = campaigns.some((c) => c.status === 'running');
     if (!anyRunning) return;
     const t = setInterval(async () => {
@@ -787,15 +1209,33 @@ const CallSetup: React.FC = () => {
     return () => clearInterval(t);
   }, [activeSection, campaigns]);
 
-  // Create → upload contacts → start now or schedule. Matches the required API order.
+  const schedulePayload = (): Partial<CreateCampaignRequest> => ({
+    max_concurrent: schedule.maxConcurrent,
+    calls_per_minute: schedule.callsPerMinute,
+    daily_limit: schedule.dailyLimit,
+    priority: schedule.priority,
+    timezone: schedule.timezone,
+    recurrence: schedule.recurrence,
+    window_start: schedule.windowStart,
+    window_end: schedule.windowEnd,
+    business_hours_start: schedule.windowStart,
+    business_hours_end: schedule.windowEnd,
+    working_days: schedule.workingDays,
+    ...(schedule.endDate ? { end_date: schedule.endDate } : {}),
+    ...(!schedule.startNow && schedule.scheduledAt
+      ? { scheduled_at: new Date(schedule.scheduledAt).toISOString() }
+      : {}),
+  });
+
+  // Create / update → upload contacts → start now or schedule.
   const handleLaunchCampaign = async () => {
-    if (!step1Valid || !step2Valid) return;
-    if (!startNow) {
-      if (!scheduledAt) {
+    if (!step1Valid || (!editingCampaignId && !step2Valid)) return;
+    if (!schedule.startNow) {
+      if (!schedule.scheduledAt) {
         setWizardError('Pick a date and time to schedule this campaign');
         return;
       }
-      const when = new Date(scheduledAt);
+      const when = new Date(schedule.scheduledAt);
       if (Number.isNaN(when.getTime()) || when.getTime() <= Date.now()) {
         setWizardError('Scheduled time must be in the future');
         return;
@@ -804,43 +1244,57 @@ const CallSetup: React.FC = () => {
     setIsSavingCampaign(true);
     setWizardError(null);
     try {
-      setWizardStage('Creating campaign…');
-      const created = await createCampaign({
+      const basePayload: CreateCampaignRequest = {
         agent_id: newCampaign.agentId,
         name: newCampaign.name.trim(),
         caller_number: newCampaign.callerNumber,
         language: newCampaign.language,
         ...(newCampaign.objective.trim() ? { objective: newCampaign.objective.trim() } : {}),
         ...(newCampaign.goal.trim() ? { goal: newCampaign.goal.trim() } : {}),
-        ...(!startNow && scheduledAt
-          ? { scheduled_at: new Date(scheduledAt).toISOString() }
-          : {}),
-      });
+        ...schedulePayload(),
+      };
 
-      setWizardStage('Uploading contacts…');
-      const file =
-        contactMode === 'file' && contactFile
-          ? contactFile
-          : contactsToCsvFile(
-              campaignContacts.map((c) => ({
-                phone: c.phone,
-                name: c.name,
-                call_context: c.context,
-              }))
-            );
-      await uploadCampaignContacts(created._id, file);
-
-      if (startNow) {
-        setWizardStage('Starting dialer…');
-        await startCampaign(created._id);
+      let campaignId = editingCampaignId;
+      if (editingCampaignId) {
+        setWizardStage('Saving campaign…');
+        await updateCampaign(editingCampaignId, basePayload);
+      } else {
+        setWizardStage('Creating campaign…');
+        const created = await createCampaign(basePayload);
+        campaignId = created._id;
       }
 
+      const shouldUpload =
+        contactMode === 'file' ? !!contactFile : campaignContacts.length > 0;
+      if (campaignId && shouldUpload) {
+        setWizardStage('Uploading contacts…');
+        const file =
+          contactMode === 'file' && contactFile
+            ? contactFile
+            : contactsToCsvFile(
+                campaignContacts.map((c) => ({
+                  phone: c.phone,
+                  name: c.name,
+                  call_context: c.context,
+                }))
+              );
+        await uploadCampaignContacts(campaignId, file);
+      }
+
+      if (!editingCampaignId && schedule.startNow && campaignId) {
+        setWizardStage('Starting dialer…');
+        await startCampaign(campaignId);
+      }
+
+      const name = newCampaign.name.trim();
       setShowCreateCampaign(false);
       resetCampaignForm();
       appToast.success(
-        startNow
-          ? `Campaign "${created.name}" launched`
-          : `Campaign "${created.name}" scheduled`
+        editingCampaignId
+          ? `Campaign "${name}" updated`
+          : schedule.startNow
+            ? `Campaign "${name}" launched`
+            : `Campaign "${name}" scheduled`
       );
       await loadCampaigns();
     } catch (err: any) {
@@ -864,8 +1318,8 @@ const CallSetup: React.FC = () => {
     setPreviousContactsError(null);
     setPreviousContactSearch('');
     setSelectedPreviousIds(new Set());
-    setStartNow(true);
-    setScheduledAt('');
+    setSchedule(defaultCampaignSchedule());
+    setEditingCampaignId(null);
     setPhoneInputError(null);
     setWizardError(null);
     setNewCampaign({ name: '', agentId: '', callerNumber: '', language: 'en-IN', objective: '', goal: '' });
@@ -876,6 +1330,45 @@ const CallSetup: React.FC = () => {
 
   const openCampaignWizard = () => {
     resetCampaignForm();
+    setShowCreateCampaign(true);
+  };
+
+  const toLocalDateTimeValue = (iso?: string | null) => {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  const openEditWizard = (campaign: CampaignRow, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setOpenMenuId(null);
+    setEditingCampaignId(campaign._id);
+    setCampaignStep(1);
+    setNewCampaign({
+      name: campaign.name,
+      agentId: campaign.agent_id,
+      callerNumber: campaign.caller_number,
+      language: campaign.language || 'en-IN',
+      objective: campaign.objective || '',
+      goal: campaign.goal || '',
+    });
+    setSchedule({
+      ...defaultCampaignSchedule(),
+      startNow: !campaign.scheduled_at,
+      scheduledAt: toLocalDateTimeValue(campaign.scheduled_at),
+      endDate: campaign.end_date ? String(campaign.end_date).slice(0, 10) : '',
+      timezone: campaign.timezone || defaultCampaignSchedule().timezone,
+      recurrence: (campaign.recurrence as CampaignScheduleState['recurrence']) || 'none',
+      windowStart: campaign.window_start || campaign.business_hours_start || '09:00',
+      windowEnd: campaign.window_end || campaign.business_hours_end || '18:00',
+      workingDays: campaign.working_days?.length ? campaign.working_days : defaultCampaignSchedule().workingDays,
+      maxConcurrent: campaign.max_concurrent || 3,
+      callsPerMinute: campaign.calls_per_minute || 10,
+      dailyLimit: campaign.daily_limit || 100,
+      priority: (campaign.priority as CampaignScheduleState['priority']) || 'medium',
+    });
     setShowCreateCampaign(true);
   };
 
@@ -1031,13 +1524,14 @@ objective = the Objective bullet list (use \\n between bullets).`;
     }
   };
 
-  // Start (draft) / pause / resume / stop / delete
+  // Start (draft) / pause / resume / stop / restart / archive / delete / duplicate / clone
   const handleCampaignAction = async (
     id: string,
-    action: 'pause' | 'resume' | 'start' | 'stop' | 'delete',
+    action: 'pause' | 'resume' | 'start' | 'stop' | 'delete' | 'archive' | 'clone',
     e?: React.MouseEvent
   ) => {
     e?.stopPropagation();
+    setOpenMenuId(null);
     setCampaignActionId(id);
     setCampaignsError(null);
     try {
@@ -1057,6 +1551,14 @@ objective = the Objective bullet list (use \\n between bullets).`;
         await stopCampaign(id);
         setCampaigns((prev) => prev.map((c) => (c._id === id ? { ...c, status: 'stopped' } : c)));
         appToast.success('Campaign stopped');
+      } else if (action === 'archive') {
+        await archiveCampaign(id);
+        setCampaigns((prev) => prev.map((c) => (c._id === id ? { ...c, status: 'archived' } : c)));
+        appToast.success('Campaign archived');
+      } else if (action === 'clone') {
+        const copy = await cloneCampaign(id);
+        appToast.success(`Cloned settings as "${copy.name}"`);
+        await loadCampaigns();
       } else if (action === 'delete') {
         await deleteCampaign(id);
         setCampaigns((prev) => prev.filter((c) => c._id !== id));
@@ -1084,7 +1586,11 @@ objective = the Objective bullet list (use \\n between bullets).`;
   const selectedCallerNum = campaignCallerNumbers.find((n) => n.number === newCampaign.callerNumber);
   const assignedCount = numbers.filter((n) => n.assignedAgentId).length;
   const step1Valid = !!(newCampaign.name.trim() && newCampaign.callerNumber && newCampaign.agentId);
-  const step2Valid = contactMode === 'file' ? !!contactFile : campaignContacts.length > 0;
+  const step2Valid = editingCampaignId
+    ? true
+    : contactMode === 'file'
+      ? !!contactFile
+      : campaignContacts.length > 0;
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
@@ -1095,27 +1601,31 @@ objective = the Objective bullet list (use \\n between bullets).`;
       <GlassCard>
         <div className="p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h2 className="text-xl font-bold text-slate-800 dark:text-white">Call Setup</h2>
+            <h2 className="text-xl font-bold text-slate-800 dark:text-white">Call Setup - In/Outbound</h2>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-              Manage inbound routing and outbound calling campaigns for your AI agents
+              Manage inbound routing, outbound campaigns, contacts, lead connectors, follow-ups, and analytics
             </p>
           </div>
-          <div className="flex gap-1 common-bg-icons rounded-xl p-1 self-start sm:self-auto">
+          <div className="flex flex-wrap gap-1 common-bg-icons rounded-xl p-1 self-start sm:self-auto">
             {([
-              { id: 'inbound',  label: 'Inbound',  icon: PhoneIncoming  },
+              { id: 'inbound', label: 'Inbound', icon: PhoneIncoming },
               { id: 'outbound', label: 'Outbound', icon: PhoneOutgoing },
+              { id: 'contacts', label: 'Contact List', icon: BookUser },
+              { id: 'connectors', label: 'Lead Connector', icon: Plug },
+              { id: 'followups', label: 'Follow-ups', icon: CalendarClock },
+              { id: 'analytics', label: 'Analytics', icon: BarChart3 },
             ] as const).map((s) => (
               <button
                 key={s.id}
                 onClick={() => setActiveSection(s.id)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                className={`flex items-center gap-2 px-3 sm:px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
                   activeSection === s.id
                     ? 'common-button-bg2 shadow-sm'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                 }`}
               >
                 <s.icon className="w-4 h-4" />
-                {s.label}
+                <span className="whitespace-nowrap">{s.label}</span>
               </button>
             ))}
           </div>
@@ -1176,7 +1686,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
                     className="common-button-bg flex items-center gap-2 flex-shrink-0"
                   >
                     <Plus className="w-4 h-4" />
-                    Buy Number
+                    {numbers.length >= MAX_FREE_PHONE_NUMBERS ? 'Buy More Numbers' : 'Buy Number'}
                   </button>
                 </div>
 
@@ -1634,7 +2144,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
                             </div>
 
                             <div
-                              className="flex items-center gap-1 flex-shrink-0 self-end sm:self-start"
+                              className="flex items-center gap-1 flex-shrink-0 self-end sm:self-start relative"
                               onClick={(e) => e.stopPropagation()}
                             >
                               {campaign.status === 'running' && (
@@ -1657,7 +2167,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
                                   {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
                                 </button>
                               )}
-                              {campaign.status === 'draft' && (
+                              {(campaign.status === 'draft' || campaign.status === 'scheduled') && (
                                 <button
                                   onClick={(e) => handleCampaignAction(campaign._id, 'start', e)}
                                   disabled={busy}
@@ -1680,14 +2190,62 @@ objective = the Objective bullet list (use \\n between bullets).`;
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setDeleteCampaignId(campaign._id);
+                                  setOpenMenuId((prev) => (prev === campaign._id ? null : campaign._id));
                                 }}
                                 disabled={busy}
-                                title="Delete"
-                                className="p-2.5 rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 border border-transparent hover:border-rose-200 dark:hover:border-rose-800 transition-colors disabled:opacity-50"
+                                title="More campaign actions"
+                                className="p-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/60 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 transition-colors disabled:opacity-50"
                               >
-                                <Trash2 className="w-4 h-4" />
+                                <MoreHorizontal className="w-4 h-4" />
                               </button>
+                              {openMenuId === campaign._id && (
+                                <div className="absolute right-0 top-12 z-20 w-48 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl py-1">
+                                  {campaign.status !== 'running' && campaign.status !== 'archived' && (
+                                    <button
+                                      onClick={(e) => openEditWizard(campaign, e)}
+                                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" /> Edit
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={(e) => handleCampaignAction(campaign._id, 'clone', e)}
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                                  >
+                                    <CopyPlus className="w-3.5 h-3.5" /> Clone settings
+                                  </button>
+                                  {(campaign.status === 'stopped' || campaign.status === 'completed' || campaign.status === 'paused') && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setOpenMenuId(null);
+                                        setRestartCampaignTarget(campaign);
+                                      }}
+                                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                                    >
+                                      <RotateCcw className="w-3.5 h-3.5" /> Restart
+                                    </button>
+                                  )}
+                                  {campaign.status !== 'archived' && (
+                                    <button
+                                      onClick={(e) => handleCampaignAction(campaign._id, 'archive', e)}
+                                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                                    >
+                                      <Archive className="w-3.5 h-3.5" /> Archive
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setOpenMenuId(null);
+                                      setDeleteCampaignId(campaign._id);
+                                    }}
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" /> Delete
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -1698,6 +2256,696 @@ objective = the Objective bullet list (use \\n between bullets).`;
               </div>
             </GlassCard>
           </motion.div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════
+            CONTACT LIST
+           ══════════════════════════════════════════════════════════════════ */}
+        {activeSection === 'contacts' && (
+          <motion.div
+            key="contacts"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-4 sm:space-y-6"
+          >
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4">
+              {[
+                { label: 'Total Contacts', value: previousContacts.length, icon: Users, color: 'from-blue-500 to-indigo-600' },
+                {
+                  label: 'With Name',
+                  value: previousContacts.filter((c) => String(c.name || '').trim()).length,
+                  icon: BookUser,
+                  color: 'from-emerald-500 to-teal-600',
+                },
+                {
+                  label: 'Showing',
+                  value: filteredPreviousContacts.length,
+                  icon: Search,
+                  color: 'from-violet-500 to-purple-600',
+                },
+              ].map((stat) => (
+                <GlassCard key={stat.label}>
+                  <div className="p-2 sm:p-4 flex flex-col sm:flex-row sm:items-center sm:gap-3">
+                    <div className={`hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br ${stat.color} items-center justify-center flex-shrink-0`}>
+                      <stat.icon className="w-5 h-5 text-white" />
+                    </div>
+                    <div className={`sm:hidden w-6 h-6 rounded-lg bg-gradient-to-br ${stat.color} flex items-center justify-center mb-1`}>
+                      <stat.icon className="w-3 h-3 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-lg sm:text-xl font-bold text-slate-800 dark:text-white leading-tight">{stat.value}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 leading-tight">{stat.label}</p>
+                    </div>
+                  </div>
+                </GlassCard>
+              ))}
+            </div>
+
+            <GlassCard>
+              <div className="p-4 sm:p-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+                  <SectionHeader
+                    icon={BookUser}
+                    title="Contact List"
+                    subtitle="Contacts collected across your outbound campaigns"
+                    color="bg-gradient-to-br from-indigo-500 to-violet-600"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => loadPreviousContacts()}
+                    disabled={previousContactsLoading}
+                    className="common-button-bg2 inline-flex items-center gap-2 text-sm px-4 py-2 rounded-xl disabled:opacity-50"
+                  >
+                    {previousContactsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <History className="w-4 h-4" />}
+                    Refresh
+                  </button>
+                </div>
+
+                <div className="relative mb-4">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="search"
+                    value={previousContactSearch}
+                    onChange={(e) => setPreviousContactSearch(e.target.value)}
+                    placeholder="Search by name or phone…"
+                    className="common-bg-icons w-full pl-10 pr-4 py-2.5 rounded-xl text-sm"
+                  />
+                </div>
+
+                {previousContactsLoading && (
+                  <div className="flex items-center justify-center py-14 gap-2 text-slate-400">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span className="text-sm">Loading contacts…</span>
+                  </div>
+                )}
+
+                {!previousContactsLoading && previousContactsError && (
+                  <div className="text-center py-12 border-2 border-dashed border-red-200 dark:border-red-800 rounded-2xl">
+                    <AlertCircle className="w-6 h-6 text-red-500 mx-auto mb-3" />
+                    <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">{previousContactsError}</p>
+                    <button onClick={loadPreviousContacts} className="common-button-bg2 inline-flex items-center gap-2 text-sm px-4 py-2 rounded-xl">
+                      Try again
+                    </button>
+                  </div>
+                )}
+
+                {!previousContactsLoading && !previousContactsError && filteredPreviousContacts.length === 0 && (
+                  <div className="text-center py-14 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
+                    <Users className="w-7 h-7 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+                    <h3 className="text-base font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                      {previousContactSearch.trim() ? 'No matching contacts' : 'No contacts yet'}
+                    </h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto mb-6">
+                      {previousContactSearch.trim()
+                        ? 'Try a different name or phone number.'
+                        : 'Contacts from your outbound campaigns will appear here. You can also import leads via Lead Connector.'}
+                    </p>
+                    {!previousContactSearch.trim() && (
+                      <button
+                        type="button"
+                        onClick={() => setActiveSection('connectors')}
+                        className="common-button-bg inline-flex items-center gap-2"
+                      >
+                        <Plug className="w-4 h-4" /> Browse Lead Connector
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {!previousContactsLoading && !previousContactsError && filteredPreviousContacts.length > 0 && (
+                  <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                    <div className="max-h-[28rem] overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                      {filteredPreviousContacts.map((c) => (
+                        <div key={c._id} className="flex items-center justify-between gap-3 px-4 py-3">
+                          <div className="min-w-0 flex items-start gap-3">
+                            <div className="w-9 h-9 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center flex-shrink-0">
+                              <Phone className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">
+                                {c.name?.trim() || 'Unknown'}
+                              </p>
+                              <p className="text-sm font-mono text-slate-600 dark:text-slate-300 truncate">{c.phone_number}</p>
+                            </div>
+                          </div>
+                          {c.status && (
+                            <span className="text-xs px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 capitalize flex-shrink-0">
+                              {c.status.replace(/_/g, ' ')}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </GlassCard>
+          </motion.div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════
+            CONNECTORS
+           ══════════════════════════════════════════════════════════════════ */}
+        {activeSection === 'connectors' && (
+          <motion.div
+            key="connectors"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-4 sm:space-y-6"
+          >
+            <GlassCard>
+              <div className="p-4 sm:p-6">
+                <SectionHeader
+                  icon={Plug}
+                  title="Lead Connector"
+                  subtitle="Connect Zoho and other lead generation tools to sync contacts for outbound calling"
+                  color="bg-gradient-to-br from-amber-500 to-orange-600"
+                />
+
+                <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                  {LEAD_CONNECTORS.map((connector) => (
+                    <div
+                      key={connector.id}
+                      className="flex flex-col gap-4 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 common-bg-icons"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="w-12 h-12 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center flex-shrink-0 overflow-hidden p-2">
+                          <img src={connector.icon} alt="" className="w-full h-full object-contain" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="text-sm font-semibold text-slate-800 dark:text-white">{connector.name}</h3>
+                            <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300">
+                              Soon
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                            {connector.description}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          appToast.info(`Contact us to enable ${connector.name} lead sync on your plan.`);
+                          setShowPremiumContactModal(true);
+                        }}
+                        className="common-button-bg2 w-full py-2.5 rounded-xl text-sm font-medium inline-flex items-center justify-center gap-2"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                        Request access
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-5 flex items-start gap-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                  <Info className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                    Need a connector we don’t list yet? Request access and tell us which lead generation tool you use — we’ll help wire it into your Contact List.
+                  </p>
+                </div>
+              </div>
+            </GlassCard>
+          </motion.div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════
+            ANALYTICS
+           ══════════════════════════════════════════════════════════════════ */}
+        {activeSection === 'analytics' && (
+          <motion.div
+            key="analytics"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-4 sm:space-y-6"
+          >
+            {(() => {
+              const completedCalls = campaigns.reduce(
+                (s, c) => s + (c.live?.completed || c.stats?.completed || 0),
+                0
+              );
+              const pendingCalls = campaigns.reduce(
+                (s, c) => s + (c.live?.pending || c.stats?.pending || 0),
+                0
+              );
+              const noAnswerCalls = campaigns.reduce(
+                (s, c) => s + (c.live?.no_answer || c.stats?.no_answer || 0),
+                0
+              );
+              const dialedCalls = campaigns.reduce(
+                (s, c) => s + (c.live?.dialing || c.stats?.dialing || 0),
+                0
+              );
+              const runningCampaigns = campaigns.filter((c) => c.status === 'running').length;
+              const totalAttempted = completedCalls + pendingCalls + noAnswerCalls + dialedCalls;
+              const connectRate =
+                totalAttempted > 0 ? Math.round((completedCalls / totalAttempted) * 100) : 0;
+
+              return (
+                <>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
+                    {[
+                      { label: 'Campaigns', value: campaigns.length, icon: Zap, color: 'from-blue-500 to-indigo-600' },
+                      { label: 'Running', value: runningCampaigns, icon: Play, color: 'from-green-500 to-emerald-600' },
+                      { label: 'Completed Calls', value: completedCalls, icon: PhoneCall, color: 'from-purple-500 to-pink-600' },
+                      { label: 'Connect Rate', value: `${connectRate}%`, icon: BarChart3, color: 'from-cyan-500 to-blue-600' },
+                    ].map((stat) => (
+                      <GlassCard key={stat.label}>
+                        <div className="p-2 sm:p-4 flex flex-col sm:flex-row sm:items-center sm:gap-3">
+                          <div className={`hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br ${stat.color} items-center justify-center flex-shrink-0`}>
+                            <stat.icon className="w-5 h-5 text-white" />
+                          </div>
+                          <div className={`sm:hidden w-6 h-6 rounded-lg bg-gradient-to-br ${stat.color} flex items-center justify-center mb-1`}>
+                            <stat.icon className="w-3 h-3 text-white" />
+                          </div>
+                          <div>
+                            <p className="text-lg sm:text-xl font-bold text-slate-800 dark:text-white leading-tight">{stat.value}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 leading-tight">{stat.label}</p>
+                          </div>
+                        </div>
+                      </GlassCard>
+                    ))}
+                  </div>
+
+                  <GlassCard>
+                    <div className="p-4 sm:p-6">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+                        <SectionHeader
+                          icon={BarChart3}
+                          title="Call Setup Analytics"
+                          subtitle="Outbound campaign performance, agent metrics, and downloadable reports"
+                          color="bg-gradient-to-br from-cyan-500 to-blue-600"
+                        />
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={generateAnalyticsReport}
+                            disabled={campaignsLoading && agents.length === 0}
+                            className="common-button-bg2 inline-flex items-center gap-2 text-sm px-4 py-2 rounded-xl disabled:opacity-50"
+                          >
+                            <FileDown className="w-4 h-4" />
+                            Generate report
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => navigate('/analytics')}
+                            className="common-button-bg inline-flex items-center gap-2 text-sm"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                            Full call history
+                          </button>
+                        </div>
+                      </div>
+
+                      {campaignsLoading && (
+                        <div className="flex items-center justify-center py-10 gap-2 text-slate-400">
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          <span className="text-sm">Loading analytics…</span>
+                        </div>
+                      )}
+
+                      {!campaignsLoading && (
+                        <div className="space-y-4">
+                          {campaigns.length === 0 ? (
+                            <div className="text-center py-10 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
+                              <BarChart3 className="w-7 h-7 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+                              <h3 className="text-base font-semibold text-slate-700 dark:text-slate-300 mb-2">No campaign data yet</h3>
+                              <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto mb-4">
+                                Create an outbound campaign to track dial outcomes. Agent performance below still reflects session metrics.
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => setActiveSection('outbound')}
+                                className="common-button-bg inline-flex items-center gap-2"
+                              >
+                                <PhoneOutgoing className="w-4 h-4" /> Go to Outbound
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                {[
+                                  { label: 'Pending', value: pendingCalls, icon: Clock, tone: 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20' },
+                                  { label: 'Not answered', value: noAnswerCalls, icon: PhoneMissed, tone: 'text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/20' },
+                                  { label: 'Dialing now', value: dialedCalls, icon: PhoneOutgoing, tone: 'text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20' },
+                                ].map((item) => (
+                                  <div key={item.label} className={`rounded-xl p-4 flex items-center gap-3 ${item.tone}`}>
+                                    <item.icon className="w-5 h-5 flex-shrink-0" />
+                                    <div>
+                                      <p className="text-xl font-bold leading-tight">{item.value}</p>
+                                      <p className="text-xs opacity-80">{item.label}</p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+
+                              <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                                <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
+                                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Campaign breakdown</p>
+                                </div>
+                                <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-80 overflow-y-auto">
+                                  {campaigns.map((c) => {
+                                    const completed = c.live?.completed || c.stats?.completed || 0;
+                                    const pending = c.live?.pending || c.stats?.pending || 0;
+                                    const noAnswer = c.live?.no_answer || c.stats?.no_answer || 0;
+                                    const total = completed + pending + noAnswer || 1;
+                                    const pct = Math.round((completed / total) * 100);
+                                    return (
+                                      <button
+                                        key={c._id}
+                                        type="button"
+                                        onClick={() => navigate(`/campaigns/${c._id}`)}
+                                        className="w-full text-left px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
+                                      >
+                                        <div className="flex items-center justify-between gap-3 mb-2">
+                                          <div className="min-w-0">
+                                            <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">{c.name}</p>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400 capitalize">{c.status}</p>
+                                          </div>
+                                          <span className="text-xs font-medium text-slate-600 dark:text-slate-300 flex-shrink-0">
+                                            {completed} completed · {pct}%
+                                          </span>
+                                        </div>
+                                        <div className="h-1.5 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
+                                          <div
+                                            className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-500"
+                                            style={{ width: `${Math.min(100, pct)}%` }}
+                                          />
+                                        </div>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </>
+                          )}
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Phone numbers</p>
+                              <p className="text-lg font-bold text-slate-800 dark:text-white">{numbers.length}</p>
+                            </div>
+                            <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                              <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Saved contacts</p>
+                              <p className="text-lg font-bold text-slate-800 dark:text-white">{previousContacts.length}</p>
+                            </div>
+                          </div>
+
+                          <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                            <div className="px-4 py-3 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2">
+                              <div>
+                                <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Agent-wise performance</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">Sessions, success rate, and outbound dial outcomes per AI employee</p>
+                              </div>
+                              {agentPerfLoading && <Loader2 className="w-4 h-4 animate-spin text-slate-400" />}
+                            </div>
+                            {agents.length === 0 ? (
+                              <p className="text-sm text-slate-400 text-center py-8">No AI employees yet</p>
+                            ) : (
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                  <thead>
+                                    <tr className="text-left text-xs text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                                      <th className="px-4 py-2.5 font-medium">Agent</th>
+                                      <th className="px-4 py-2.5 font-medium">Sessions</th>
+                                      <th className="px-4 py-2.5 font-medium">Success</th>
+                                      <th className="px-4 py-2.5 font-medium">Campaigns</th>
+                                      <th className="px-4 py-2.5 font-medium">Completed</th>
+                                      <th className="px-4 py-2.5 font-medium">Connect</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                    {buildAgentPerformanceRows().map((row) => (
+                                      <tr key={row.agent.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                                        <td className="px-4 py-3">
+                                          <div className="flex items-center gap-2 min-w-0">
+                                            <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center flex-shrink-0">
+                                              <Bot className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                                            </div>
+                                            <div className="min-w-0">
+                                              <p className="font-medium text-slate-800 dark:text-white truncate">{row.agent.name}</p>
+                                              <p className="text-xs text-slate-400 truncate">{row.agent.status}</p>
+                                            </div>
+                                          </div>
+                                        </td>
+                                        <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{row.sessions}</td>
+                                        <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{row.successRate}%</td>
+                                        <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{row.campaigns}</td>
+                                        <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{row.completed}</td>
+                                        <td className="px-4 py-3">
+                                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-cyan-50 dark:bg-cyan-900/20 text-cyan-700 dark:text-cyan-300">
+                                            {row.connectRate}%
+                                          </span>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </GlassCard>
+                </>
+              );
+            })()}
+          </motion.div>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════
+            FOLLOW-UPS / REQUESTED CALLBACKS
+           ══════════════════════════════════════════════════════════════════ */}
+        {activeSection === 'followups' && (
+          <motion.div
+            key="followups"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-4 sm:space-y-6"
+          >
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
+              {[
+                { label: 'Total', value: followUps.length, icon: CalendarClock, color: 'from-violet-500 to-purple-600' },
+                {
+                  label: 'Callbacks',
+                  value: followUps.filter((f) => f.type === 'callback').length,
+                  icon: PhoneIncoming,
+                  color: 'from-amber-500 to-orange-600',
+                },
+                {
+                  label: 'Follow-ups',
+                  value: followUps.filter((f) => f.type === 'follow_up').length,
+                  icon: PhoneOutgoing,
+                  color: 'from-blue-500 to-indigo-600',
+                },
+                {
+                  label: 'High urgency',
+                  value: followUps.filter((f) => String(f.urgency || '').toLowerCase() === 'high').length,
+                  icon: AlertCircle,
+                  color: 'from-rose-500 to-red-600',
+                },
+              ].map((stat) => (
+                <GlassCard key={stat.label}>
+                  <div className="p-2 sm:p-4 flex flex-col sm:flex-row sm:items-center sm:gap-3">
+                    <div className={`hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br ${stat.color} items-center justify-center flex-shrink-0`}>
+                      <stat.icon className="w-5 h-5 text-white" />
+                    </div>
+                    <div className={`sm:hidden w-6 h-6 rounded-lg bg-gradient-to-br ${stat.color} flex items-center justify-center mb-1`}>
+                      <stat.icon className="w-3 h-3 text-white" />
+                    </div>
+                    <div>
+                      <p className="text-lg sm:text-xl font-bold text-slate-800 dark:text-white leading-tight">{stat.value}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 leading-tight">{stat.label}</p>
+                    </div>
+                  </div>
+                </GlassCard>
+              ))}
+            </div>
+
+            <GlassCard>
+              <div className="p-4 sm:p-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+                  <SectionHeader
+                    icon={CalendarClock}
+                    title="Follow-ups & Callbacks"
+                    subtitle="Requested callbacks and follow-ups captured from AI conversations and campaign contacts"
+                    color="bg-gradient-to-br from-violet-500 to-purple-600"
+                  />
+                  <button
+                    type="button"
+                    onClick={loadFollowUps}
+                    disabled={followUpsLoading}
+                    className="common-button-bg2 inline-flex items-center gap-2 text-sm px-4 py-2 rounded-xl disabled:opacity-50"
+                  >
+                    {followUpsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <History className="w-4 h-4" />}
+                    Refresh
+                  </button>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-2 mb-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input
+                      type="search"
+                      value={followUpSearch}
+                      onChange={(e) => setFollowUpSearch(e.target.value)}
+                      placeholder="Search name, phone, agent, or notes…"
+                      className="common-bg-icons w-full pl-10 pr-4 py-2.5 rounded-xl text-sm"
+                    />
+                  </div>
+                  <div className="flex gap-1 common-bg-icons rounded-xl p-1 self-start">
+                    {([
+                      { id: 'all', label: 'All' },
+                      { id: 'callback', label: 'Callbacks' },
+                      { id: 'follow_up', label: 'Follow-ups' },
+                    ] as const).map((f) => (
+                      <button
+                        key={f.id}
+                        type="button"
+                        onClick={() => setFollowUpFilter(f.id)}
+                        className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                          followUpFilter === f.id
+                            ? 'common-button-bg2 shadow-sm'
+                            : 'text-slate-600 dark:text-slate-400'
+                        }`}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {followUpsLoading && (
+                  <div className="flex items-center justify-center py-14 gap-2 text-slate-400">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span className="text-sm">Loading follow-ups…</span>
+                  </div>
+                )}
+
+                {!followUpsLoading && followUpsError && (
+                  <div className="text-center py-12 border-2 border-dashed border-red-200 dark:border-red-800 rounded-2xl">
+                    <AlertCircle className="w-6 h-6 text-red-500 mx-auto mb-3" />
+                    <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">{followUpsError}</p>
+                    <button onClick={loadFollowUps} className="common-button-bg2 inline-flex items-center gap-2 text-sm px-4 py-2 rounded-xl">
+                      Try again
+                    </button>
+                  </div>
+                )}
+
+                {!followUpsLoading && !followUpsError && filteredFollowUps.length === 0 && (
+                  <div className="text-center py-14 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
+                    <CalendarClock className="w-7 h-7 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+                    <h3 className="text-base font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                      {followUpSearch.trim() || followUpFilter !== 'all' ? 'No matching items' : 'No follow-ups yet'}
+                    </h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+                      When callers request a callback or follow-up, they will appear here from call summaries and campaign contact context.
+                    </p>
+                  </div>
+                )}
+
+                {!followUpsLoading && !followUpsError && filteredFollowUps.length > 0 && (
+                  <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                    <div className="max-h-[32rem] overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                      {filteredFollowUps.map((item) => (
+                        <div key={item.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3">
+                          <div className="flex items-start gap-3 min-w-0">
+                            <div
+                              className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                                item.type === 'callback'
+                                  ? 'bg-amber-50 dark:bg-amber-900/30'
+                                  : 'bg-violet-50 dark:bg-violet-900/30'
+                              }`}
+                            >
+                              {item.type === 'callback' ? (
+                                <PhoneIncoming className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                              ) : (
+                                <CalendarClock className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2 mb-0.5">
+                                <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">
+                                  {item.name}
+                                </p>
+                                <span
+                                  className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-md ${
+                                    item.type === 'callback'
+                                      ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'
+                                      : 'bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300'
+                                  }`}
+                                >
+                                  {item.type === 'callback' ? 'Callback' : 'Follow-up'}
+                                </span>
+                                {item.urgency && (
+                                  <span
+                                    className={`text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-md ${
+                                      String(item.urgency).toLowerCase() === 'high'
+                                        ? 'bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-300'
+                                        : String(item.urgency).toLowerCase() === 'medium'
+                                          ? 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300'
+                                          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                                    }`}
+                                  >
+                                    {item.urgency}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-sm font-mono text-slate-600 dark:text-slate-300">{item.phone}</p>
+                              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">{item.summary}</p>
+                              <p className="text-[11px] text-slate-400 mt-1">
+                                {item.agentName}
+                                {item.createdAt
+                                  ? ` · ${new Date(item.createdAt).toLocaleString()}`
+                                  : ''}
+                                {item.source === 'contact' ? ' · Campaign contact' : ''}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveSection('outbound');
+                              appToast.info(`Use Outbound to call back ${item.phone}`);
+                            }}
+                            className="common-button-bg2 self-start sm:self-center inline-flex items-center gap-1.5 text-xs px-3 py-2 rounded-xl flex-shrink-0"
+                          >
+                            <PhoneOutgoing className="w-3.5 h-3.5" />
+                            Call back
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </GlassCard>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {createPortal(
+        <>
+      <AnimatePresence>
+        {restartCampaignTarget && (
+          <RestartCampaignModal
+            campaign={restartCampaignTarget}
+            onClose={() => setRestartCampaignTarget(null)}
+            onDone={async () => {
+              setRestartCampaignTarget(null);
+              await loadCampaigns();
+            }}
+          />
         )}
       </AnimatePresence>
 
@@ -1912,6 +3160,61 @@ objective = the Objective bullet list (use \\n between bullets).`;
 
 
       {/* ══════════════════════════════════════════════════════════════════════
+          MODAL: Premium plan required for additional numbers
+         ══════════════════════════════════════════════════════════════════════ */}
+      <AnimatePresence>
+        {showPremiumContactModal && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[99999] flex items-center justify-center p-4"
+            onClick={(e) => e.target === e.currentTarget && setShowPremiumContactModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-700"
+            >
+              <div className="p-6">
+                <div className="flex items-center justify-center w-12 h-12 bg-amber-100 dark:bg-amber-900/20 rounded-full mx-auto mb-4">
+                  <Phone className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+                </div>
+                <h3 className="text-xl font-semibold text-slate-800 dark:text-white text-center mb-2">
+                  Premium plan required
+                </h3>
+                <p className="text-sm text-slate-600 dark:text-slate-400 text-center mb-6">
+                  You can buy only one phone number on your current plan. Contact us for a premium plan to purchase additional numbers.
+                </p>
+                <div className="flex flex-col gap-3">
+                  <a
+                    href={`https://wa.me/${SALES_WHATSAPP_NUMBER}?text=${encodeURIComponent(SALES_WHATSAPP_MESSAGE)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="h-11 px-4 rounded-xl bg-green-600 text-white hover:bg-green-700 transition-all duration-200 font-medium flex items-center justify-center gap-2"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    Contact on WhatsApp
+                  </a>
+                  <a
+                    href={`mailto:${SALES_EMAIL}?subject=${encodeURIComponent(SALES_EMAIL_SUBJECT)}`}
+                    className="h-11 px-4 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 transition-all duration-200 font-medium flex items-center justify-center gap-2"
+                  >
+                    <Mail className="w-4 h-4" />
+                    Send Email
+                  </a>
+                  <button
+                    onClick={() => setShowPremiumContactModal(false)}
+                    className="h-11 px-4 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all duration-200 font-medium"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ══════════════════════════════════════════════════════════════════════
           MODAL: Buy & Provision a Number
          ══════════════════════════════════════════════════════════════════════ */}
       <AnimatePresence>
@@ -2053,6 +3356,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
                     required
                     placeholder="Search & select agent…"
                     active={showBuyModal}
+                    variant="panel"
                   />
                 </div>
 
@@ -2124,7 +3428,9 @@ objective = the Objective bullet list (use \\n between bullets).`;
                     <PhoneOutgoing className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-slate-800 dark:text-white">New Outbound Campaign</h3>
+                    <h3 className="font-bold text-slate-800 dark:text-white">
+                      {editingCampaignId ? 'Edit Campaign' : 'Create Campaign'}
+                    </h3>
                     <p className="text-xs text-slate-500 dark:text-slate-400">Step {campaignStep} of 3</p>
                   </div>
                 </div>
@@ -2149,7 +3455,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
                         }`}>
                           {campaignStep > s ? <Check className="w-3 h-3" /> : s}
                         </div>
-                        <span className="hidden sm:inline">{s === 1 ? 'Setup' : s === 2 ? 'Contacts' : 'Launch'}</span>
+                        <span className="hidden sm:inline">{s === 1 ? 'Setup' : s === 2 ? 'Contacts' : 'Schedule'}</span>
                       </div>
                       {s < 3 && (
                         <div className={`flex-1 h-px ${campaignStep > s ? 'bg-indigo-500' : 'bg-slate-200 dark:bg-slate-700'}`} />
@@ -2476,15 +3782,6 @@ objective = the Objective bullet list (use \\n between bullets).`;
                                 className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm"
                               />
                             </div>
-                            <button
-                              type="button"
-                              onClick={handleAddSingleContact}
-                              className="common-button-bg !px-3.5 !py-2.5 !min-w-[44px] rounded-xl flex-shrink-0 self-end inline-flex items-center justify-center"
-                              title="Add contact"
-                              aria-label="Add contact"
-                            >
-                              <Plus className="w-5 h-5 text-white shrink-0" strokeWidth={2.5} />
-                            </button>
                           </div>
                           <div>
                             <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1.5">Call context (optional)</label>
@@ -2498,6 +3795,17 @@ objective = the Objective bullet list (use \\n between bullets).`;
                             <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
                               Notes for the agent about why you&apos;re calling this contact.
                             </p>
+                          </div>
+                          <div className="flex justify-end">
+                            <button
+                              type="button"
+                              onClick={handleAddSingleContact}
+                              className="common-button-bg !px-3.5 !py-2.5 !min-w-[44px] rounded-xl inline-flex items-center justify-center"
+                              title="Add contact"
+                              aria-label="Add contact"
+                            >
+                              <Plus className="w-5 h-5 text-white shrink-0" strokeWidth={2.5} />
+                            </button>
                           </div>
                         </div>
                       ) : contactMode === 'previous' ? (
@@ -2743,50 +4051,10 @@ objective = the Objective bullet list (use \\n between bullets).`;
                     </motion.div>
                   )}
 
-                  {/* ── Step 3: Review & Launch ── */}
+                  {/* ── Step 3: Schedule, controls & review ── */}
                   {campaignStep === 3 && (
                     <motion.div key="s3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }} className="space-y-5">
-                      {/* Start now / Schedule */}
-                      <div className="grid grid-cols-2 gap-3">
-                        {([
-                          { id: true,  label: 'Start Now',          desc: 'Begin dialing immediately after upload', icon: Play },
-                          { id: false, label: 'Schedule campaign',  desc: 'Pick a date & time to start dialing',     icon: Clock },
-                        ] as const).map((opt) => (
-                          <button key={String(opt.id)} type="button" onClick={() => setStartNow(opt.id)}
-                            className={`p-4 rounded-2xl border-2 text-left transition-all ${
-                              startNow === opt.id
-                                ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
-                                : 'border-slate-200 dark:border-slate-700 common-bg-icons'
-                            }`}>
-                            <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-2 ${startNow === opt.id ? 'bg-indigo-500' : 'bg-slate-100 dark:bg-slate-700'}`}>
-                              <opt.icon className={`w-4 h-4 ${startNow === opt.id ? 'text-white' : 'text-slate-500 dark:text-slate-400'}`} />
-                            </div>
-                            <p className="font-semibold text-sm text-slate-800 dark:text-white">{opt.label}</p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{opt.desc}</p>
-                          </button>
-                        ))}
-                      </div>
-
-                      {!startNow && (
-                        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 p-4 space-y-3">
-                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                            Start dialing at <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            type="datetime-local"
-                            value={scheduledAt}
-                            min={new Date(Date.now() + 60_000).toISOString().slice(0, 16)}
-                            onChange={(e) => {
-                              setScheduledAt(e.target.value);
-                              setWizardError(null);
-                            }}
-                            className="common-bg-icons w-full sm:max-w-sm px-4 py-2.5 rounded-xl text-sm"
-                          />
-                          <p className="text-xs text-slate-400 dark:text-slate-500">
-                            Uses your local timezone ({Intl.DateTimeFormat().resolvedOptions().timeZone}).
-                          </p>
-                        </div>
-                      )}
+                      <CampaignScheduleForm value={schedule} onChange={setSchedule} />
 
                       {/* Summary */}
                       <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700">
@@ -2799,35 +4067,26 @@ objective = the Objective bullet list (use \\n between bullets).`;
                             { label: 'Objective', value: newCampaign.objective.trim() || '—' },
                             { label: 'Goal', value: newCampaign.goal.trim() || '—' },
                             { label: 'Language', value: languageLabel(newCampaign.language) },
-                            { label: 'Contacts', value: contactMode === 'file' ? (contactFile?.name || 'file') : `${campaignContacts.length}` },
+                            { label: 'Contacts', value: contactMode === 'file' ? (contactFile?.name || (editingCampaignId ? 'Unchanged' : 'file')) : `${campaignContacts.length || (editingCampaignId ? 'Unchanged' : 0)}` },
                             {
                               label: 'Launch',
-                              value: startNow
+                              value: schedule.startNow
                                 ? 'Start now'
-                                : scheduledAt
-                                  ? `Scheduled · ${new Date(scheduledAt).toLocaleString()}`
+                                : schedule.scheduledAt
+                                  ? `Scheduled · ${new Date(schedule.scheduledAt).toLocaleString()}`
                                   : 'Pick a schedule',
                             },
+                            { label: 'Timezone', value: schedule.timezone },
+                            { label: 'Window', value: `${schedule.windowStart} – ${schedule.windowEnd}` },
+                            { label: 'Working days', value: schedule.workingDays.join(', ') || '—' },
+                            { label: 'Pacing', value: `${schedule.maxConcurrent} concurrent · ${schedule.callsPerMinute}/min · ${schedule.dailyLimit}/day · ${schedule.priority}` },
                           ].map(({ label, value }) => (
                             <div key={label} className="flex justify-between">
                               <span className="text-slate-500 dark:text-slate-400">{label}</span>
-                              <span className="font-medium text-slate-800 dark:text-white text-right ml-4 max-w-[220px] truncate">{value}</span>
+                              <span className="font-medium text-slate-800 dark:text-white text-right ml-4 max-w-[260px] truncate">{value}</span>
                             </div>
                           ))}
                         </div>
-                      </div>
-
-                      {/* Ordered-steps explainer */}
-                      <div className="p-4 rounded-2xl bg-indigo-50/60 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-900/40">
-                        <p className="text-xs text-indigo-700 dark:text-indigo-300 leading-relaxed">
-                          On launch we <span className="font-semibold">create the campaign</span>, then{' '}
-                          <span className="font-semibold">upload your contacts</span>
-                          {startNow ? (
-                            <> and <span className="font-semibold">start dialing</span> immediately.</>
-                          ) : (
-                            <> and <span className="font-semibold">schedule dialing</span> for the selected time.</>
-                          )}
-                        </p>
                       </div>
 
                       {wizardError && (
@@ -2868,13 +4127,15 @@ objective = the Objective bullet list (use \\n between bullets).`;
                       isSavingCampaign ||
                       !step1Valid ||
                       !step2Valid ||
-                      (!startNow && !scheduledAt)
+                      (!schedule.startNow && !schedule.scheduledAt)
                     }
                     className="common-button-bg px-6 py-2.5 rounded-xl text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
                     {isSavingCampaign ? (
-                      <><Loader2 className="w-4 h-4 animate-spin" /> {wizardStage || 'Launching…'}</>
-                    ) : startNow ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" /> {wizardStage || 'Saving…'}</>
+                    ) : editingCampaignId ? (
+                      <><Check className="w-4 h-4" /> Save Campaign</>
+                    ) : schedule.startNow ? (
                       <><Play className="w-4 h-4" /> Launch Campaign</>
                     ) : (
                       <><Clock className="w-4 h-4" /> Schedule Campaign</>
@@ -2985,6 +4246,9 @@ objective = the Objective bullet list (use \\n between bullets).`;
           </motion.div>
         )}
       </AnimatePresence>
+        </>,
+        document.body
+      )}
     </div>
   );
 };
@@ -3010,7 +4274,7 @@ const InboundRulesModal: React.FC<InboundRulesModalProps> = ({ number, existingR
     }
   );
 
-  return (
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
       className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[99999] flex items-center justify-center p-4"
@@ -3131,7 +4395,8 @@ const InboundRulesModal: React.FC<InboundRulesModalProps> = ({ number, existingR
           </button>
         </div>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 };
 

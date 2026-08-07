@@ -120,6 +120,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMod
     { path: "/dashboard", icon: Home, label: "Dashboard" },
     { path: "/agents", icon: Bot, label: "AI Employees" },
     { path: "/training", icon: Brain, label: "Training" },
+    { path: "/call-setup", icon: Phone, label: "Call Setup - In/Outbound" },
     {
       path: "/workflows",
       icon: Workflow,
@@ -128,7 +129,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMod
         { path: "/workflows#canvas", icon: Grid, label: "Canvas Builder" },
         { path: "/workflows#workflows", icon: Workflow, label: "My Workflows" },
         { path: "/workflows#documents", icon: FileText, label: "AI Docs" },
-        { path: "/workflows#callsetup", icon: Phone, label: "Call Setup" },
       ],
     },
     { path: "/marketplace", icon: Sparkles, label: "Feature Marketplace", highlight: true },

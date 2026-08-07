@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X, FileText, Clock, Calendar, Users, MessageSquare, Loader2, Bot, Play, Pause, Download, Volume2, VolumeX, SkipBack, SkipForward, TrendingUp, CheckCircle, XCircle, Phone, PhoneIncoming, PhoneOutgoing, Mail, Share2 } from "lucide-react";
 import { agentAPI } from '../../../services/agentAPI';
 import appToast from '../../../components/AppToast';
@@ -335,8 +336,8 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
     });
   };
 
-  return (
-    <div className="fixed inset-0 -top-8 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4 overflow-y-auto">
+  return createPortal(
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[99999] p-2 sm:p-4 overflow-y-auto">
       <div className="bg-white dark:bg-slate-800 rounded-xl sm:rounded-2xl shadow-2xl w-full max-w-3xl max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col my-auto">
         {/* Modal Header */}
         <div className="p-3 sm:p-4 border-b border-slate-200 dark:border-slate-700">
@@ -982,7 +983,8 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

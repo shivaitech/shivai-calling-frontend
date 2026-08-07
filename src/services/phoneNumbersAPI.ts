@@ -128,7 +128,22 @@ export type CampaignStatus =
   | "paused"
   | "completed"
   | "stopped"
+  | "archived"
+  | "scheduled"
   | string;
+
+export type CampaignPriority = "low" | "medium" | "high";
+export type CampaignRecurrence = "none" | "daily" | "weekly";
+
+export const WEEKDAY_OPTIONS = [
+  { id: "mon", label: "Mon" },
+  { id: "tue", label: "Tue" },
+  { id: "wed", label: "Wed" },
+  { id: "thu", label: "Thu" },
+  { id: "fri", label: "Fri" },
+  { id: "sat", label: "Sat" },
+  { id: "sun", label: "Sun" },
+] as const;
 
 export interface CampaignStats {
   total: number;
@@ -156,11 +171,23 @@ export interface Campaign {
   goal?: string;
   /** When set, dialer starts at this time instead of immediately. */
   scheduled_at?: string | null;
+  end_date?: string | null;
+  timezone?: string;
+  recurrence?: CampaignRecurrence | string;
+  window_start?: string;
+  window_end?: string;
+  business_hours_start?: string;
+  business_hours_end?: string;
+  working_days?: string[];
+  calls_per_minute?: number;
+  daily_limit?: number;
+  priority?: CampaignPriority | string;
   tenant_id?: string;
   created_at?: string;
   updated_at?: string;
   started_at?: string;
   completed_at?: string | null;
+  archived_at?: string | null;
   livekit_outbound_trunk_id?: string;
   /** Embedded stats from list/get responses (prefer live status when polling). */
   stats?: CampaignStats;
@@ -175,7 +202,20 @@ export interface CreateCampaignRequest {
   objective?: string;
   goal?: string;
   scheduled_at?: string;
+  end_date?: string;
+  timezone?: string;
+  recurrence?: CampaignRecurrence | string;
+  window_start?: string;
+  window_end?: string;
+  business_hours_start?: string;
+  business_hours_end?: string;
+  working_days?: string[];
+  calls_per_minute?: number;
+  daily_limit?: number;
+  priority?: CampaignPriority | string;
 }
+
+export type UpdateCampaignRequest = Partial<CreateCampaignRequest>;
 
 // Live dialer stats from GET /campaigns/:id/status
 export interface CampaignLiveStatus {
@@ -415,6 +455,106 @@ export const createCampaign = async (payload: CreateCampaignRequest): Promise<Ca
     throw new Error(errMessage(error, "Failed to create campaign"));
   }
 };
+
+export const updateCampaign = async (
+  campaignId: string,
+  payload: UpdateCampaignRequest
+): Promise<Campaign> => {
+  try {
+    const response: AxiosResponse<{ success: boolean; data: Campaign }> = await axios.patch(
+      `${API_BASE_URL}/campaigns/${campaignId}`,
+      payload,
+      createAuthenticatedRequest()
+    );
+    return response.data.data;
+  } catch (error: any) {
+    console.error("Error updating campaign:", error);
+    throw new Error(errMessage(error, "Failed to update campaign"));
+  }
+};
+
+export const archiveCampaign = async (campaignId: string): Promise<Campaign | string> => {
+  try {
+    const response: AxiosResponse<{ success: boolean; data?: Campaign; message?: string }> =
+      await axios.post(
+        `${API_BASE_URL}/campaigns/${campaignId}/archive`,
+        {},
+        createAuthenticatedRequest()
+      );
+    return response.data.data || response.data.message || "Campaign archived";
+  } catch (error: any) {
+    try {
+      const response: AxiosResponse<{ success: boolean; data?: Campaign; message?: string }> =
+        await axios.patch(
+          `${API_BASE_URL}/campaigns/${campaignId}`,
+          { status: "archived" },
+          createAuthenticatedRequest()
+        );
+      return response.data.data || response.data.message || "Campaign archived";
+    } catch (fallbackErr: any) {
+      console.error("Error archiving campaign:", fallbackErr);
+      throw new Error(errMessage(fallbackErr, "Failed to archive campaign"));
+    }
+  }
+};
+
+export const duplicateCampaign = async (
+  campaignId: string,
+  opts: { include_contacts?: boolean; name?: string } = {}
+): Promise<Campaign> => {
+  const includeContacts = opts.include_contacts !== false;
+  try {
+    const response: AxiosResponse<{ success: boolean; data: Campaign }> = await axios.post(
+      `${API_BASE_URL}/campaigns/${campaignId}/${includeContacts ? "duplicate" : "clone"}`,
+      { name: opts.name, include_contacts: includeContacts },
+      createAuthenticatedRequest()
+    );
+    if (response.data?.data) return response.data.data;
+  } catch {
+    /* fall through to client-side copy */
+  }
+
+  const source = await getCampaign(campaignId);
+  const created = await createCampaign({
+    agent_id: source.agent_id,
+    name: opts.name || `${source.name} ${includeContacts ? "(copy)" : "(clone)"}`,
+    caller_number: source.caller_number,
+    language: source.language,
+    max_concurrent: source.max_concurrent,
+    objective: source.objective,
+    goal: source.goal,
+    timezone: source.timezone,
+    recurrence: source.recurrence === "none" ? undefined : source.recurrence,
+    window_start: source.window_start || source.business_hours_start,
+    window_end: source.window_end || source.business_hours_end,
+    business_hours_start: source.business_hours_start || source.window_start,
+    business_hours_end: source.business_hours_end || source.window_end,
+    working_days: source.working_days,
+    calls_per_minute: source.calls_per_minute,
+    daily_limit: source.daily_limit,
+    priority: source.priority,
+  });
+
+  if (includeContacts) {
+    const contacts = await getCampaignContacts(campaignId, { page: 1, limit: 500 });
+    if (contacts.data.length > 0) {
+      const file = contactsToCsvFile(
+        contacts.data.map((c) => ({
+          phone: c.phone_number,
+          name: c.name,
+          call_context:
+            c.custom_fields?.call_context || c.custom_fields?.context || c.custom_fields?.reason,
+        }))
+      );
+      await uploadCampaignContacts(created._id, file);
+    }
+  }
+
+  return created;
+};
+
+export const cloneCampaign = async (campaignId: string, name?: string): Promise<Campaign> =>
+  duplicateCampaign(campaignId, { include_contacts: false, name });
 
 // Upload contacts spreadsheet (.xlsx/.xls/.csv). Columns: phone_number (required),
 // name (optional), any extra columns become custom_fields for the agent.
@@ -778,6 +918,10 @@ export default {
   getDidTypes,
   getCallLogs,
   createCampaign,
+  updateCampaign,
+  archiveCampaign,
+  duplicateCampaign,
+  cloneCampaign,
   uploadCampaignContacts,
   startCampaign,
   pauseCampaign,

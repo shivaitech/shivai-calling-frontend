@@ -45,6 +45,7 @@ const CreateAgent = lazy(() => import("./ClientDashboard/Employees/CreateAgent")
 const EditAgent = lazy(() => import("./ClientDashboard/Employees/EditAgent"));
 const Training = lazy(() => import("./ClientDashboard/Training/Training"));
 const Workflows = lazy(() => import("./ClientDashboard/Workflows/Workflows"));
+const CallSetup = lazy(() => import("./ClientDashboard/Workflows/CallSetup"));
 const Marketplace = lazy(() => import("./ClientDashboard/Marketplace/Marketplace"));
 const AppDetail = lazy(() => import("./ClientDashboard/Marketplace/AppDetail"));
 const WebsitePreview = lazy(() => import("./pages/WebsitePreview"));
@@ -205,6 +206,7 @@ function AppContent() {
                       />
                       <Route path="/agents/:id/train" element={<Training />} />
                       <Route path="/training" element={<Training />} />
+                      <Route path="/call-setup" element={<CallSetup />} />
                       <Route path="/workflows" element={<Workflows />} />
                       <Route path="/campaigns/:campaignId" element={<CampaignDetail />} />
                       <Route path="/marketplace" element={<Marketplace />} />

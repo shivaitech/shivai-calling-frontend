@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import GlassCard from '../../components/GlassCard';
@@ -6,6 +7,7 @@ import Pagination from '../../components/Pagination';
 import appToast from '../../components/AppToast';
 import { useAgent } from '../../contexts/AgentContext';
 import SessionTranscriptModal from '../Employees/agents/SessionTranscriptModal';
+import RestartCampaignModal from './RestartCampaignModal';
 import { agentAPI } from '../../services/agentAPI';
 import {
   getCampaign,
@@ -15,6 +17,8 @@ import {
   pauseCampaign,
   resumeCampaign,
   stopCampaign,
+  archiveCampaign,
+  cloneCampaign,
   deleteCampaign,
   type Campaign,
   type CampaignLiveStatus,
@@ -38,6 +42,10 @@ import {
   Users,
   AlertCircle,
   X,
+  CopyPlus,
+  Archive,
+  RotateCcw,
+  FileText,
 } from 'lucide-react';
 
 type ContactTab = 'completed' | 'pending' | 'no_answer' | 'all';
@@ -49,6 +57,8 @@ const statusBadge = (status: string) => {
     paused: { label: 'Paused', cls: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300' },
     completed: { label: 'Completed', cls: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300' },
     stopped: { label: 'Stopped', cls: 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300' },
+    archived: { label: 'Archived', cls: 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300' },
+    scheduled: { label: 'Scheduled', cls: 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300' },
   };
   const s = map[status] || { label: status || 'Unknown', cls: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300' };
   return (
@@ -141,6 +151,8 @@ const CampaignDetail: React.FC = () => {
   const pageSize = 20;
   const [selectedSession, setSelectedSession] = useState<any | null>(null);
   const [openingContactId, setOpeningContactId] = useState<string | null>(null);
+  const [showObjectiveModal, setShowObjectiveModal] = useState(false);
+  const [showRestartModal, setShowRestartModal] = useState(false);
 
   const agent = campaign ? agents.find((a) => a.id === campaign.agent_id) : undefined;
   const stats = live || campaign?.stats || null;
@@ -297,7 +309,9 @@ const CampaignDetail: React.FC = () => {
     }
   };
 
-  const runAction = async (action: 'start' | 'pause' | 'resume' | 'stop' | 'delete') => {
+  const runAction = async (
+    action: 'start' | 'pause' | 'resume' | 'stop' | 'delete' | 'archive' | 'clone'
+  ) => {
     if (!campaignId || !campaign) return;
     setActionBusy(true);
     try {
@@ -317,10 +331,19 @@ const CampaignDetail: React.FC = () => {
         await stopCampaign(campaignId);
         setCampaign((c) => (c ? { ...c, status: 'stopped' } : c));
         appToast.success('Campaign stopped');
+      } else if (action === 'archive') {
+        await archiveCampaign(campaignId);
+        setCampaign((c) => (c ? { ...c, status: 'archived' } : c));
+        appToast.success('Campaign archived');
+      } else if (action === 'clone') {
+        const copy = await cloneCampaign(campaignId);
+        appToast.success(`Cloned settings as "${copy.name}"`);
+        navigate(`/campaigns/${copy._id}`);
+        return;
       } else if (action === 'delete') {
         await deleteCampaign(campaignId);
         appToast.success('Campaign deleted');
-        navigate('/workflows#callsetup', { state: { callSetupSection: 'outbound' } });
+        navigate('/call-setup', { state: { callSetupSection: 'outbound' } });
         return;
       }
       try {
@@ -353,7 +376,7 @@ const CampaignDetail: React.FC = () => {
         <AlertCircle className="w-10 h-10 text-rose-400 mx-auto" />
         <p className="text-slate-700 dark:text-slate-300">{error || 'Campaign not found'}</p>
         <button
-          onClick={() => navigate('/workflows#callsetup', { state: { callSetupSection: 'outbound' } })}
+          onClick={() => navigate('/call-setup', { state: { callSetupSection: 'outbound' } })}
           className="common-button-bg2 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm"
         >
           <ArrowLeft className="w-4 h-4" /> Back to campaigns
@@ -376,7 +399,7 @@ const CampaignDetail: React.FC = () => {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-3 min-w-0">
           <button
-            onClick={() => navigate('/workflows#callsetup', { state: { callSetupSection: 'outbound' } })}
+            onClick={() => navigate('/call-setup', { state: { callSetupSection: 'outbound' } })}
             className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" /> Campaigns
@@ -406,20 +429,14 @@ const CampaignDetail: React.FC = () => {
                 <span className="uppercase tracking-wide text-xs self-center">{campaign.language}</span>
               </div>
               {(campaign.objective || campaign.goal) && (
-                <div className="mt-3 space-y-1.5 text-sm">
-                  {campaign.objective && (
-                    <p className="text-slate-600 dark:text-slate-300">
-                      <span className="font-medium text-slate-800 dark:text-slate-200">Objective:</span>{' '}
-                      {campaign.objective}
-                    </p>
-                  )}
-                  {campaign.goal && (
-                    <p className="text-slate-600 dark:text-slate-300">
-                      <span className="font-medium text-slate-800 dark:text-slate-200">Goal:</span>{' '}
-                      {campaign.goal}
-                    </p>
-                  )}
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowObjectiveModal(true)}
+                  className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium common-button-bg2"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  View Objective and Goal
+                </button>
               )}
             </div>
           </div>
@@ -446,7 +463,7 @@ const CampaignDetail: React.FC = () => {
               Resume
             </button>
           )}
-          {campaign.status === 'draft' && (
+          {(campaign.status === 'draft' || campaign.status === 'scheduled') && (
             <button
               onClick={() => runAction('start')}
               disabled={actionBusy}
@@ -466,6 +483,34 @@ const CampaignDetail: React.FC = () => {
               Stop
             </button>
           )}
+          {(campaign.status === 'stopped' || campaign.status === 'completed' || campaign.status === 'paused') && (
+            <button
+              onClick={() => setShowRestartModal(true)}
+              disabled={actionBusy}
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50"
+            >
+              <RotateCcw className="w-4 h-4" />
+              Restart
+            </button>
+          )}
+          <button
+            onClick={() => runAction('clone')}
+            disabled={actionBusy}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50"
+          >
+            <CopyPlus className="w-4 h-4" />
+            Clone
+          </button>
+          {campaign.status !== 'archived' && (
+            <button
+              onClick={() => runAction('archive')}
+              disabled={actionBusy}
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50"
+            >
+              <Archive className="w-4 h-4" />
+              Archive
+            </button>
+          )}
           <button
             onClick={() => setShowDeleteConfirm(true)}
             disabled={actionBusy}
@@ -476,6 +521,35 @@ const CampaignDetail: React.FC = () => {
           </button>
         </div>
       </div>
+
+      <GlassCard>
+        <div className="p-4 sm:p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+          <div>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Schedule</p>
+            <p className="font-medium text-slate-800 dark:text-white mt-0.5">
+              {campaign.scheduled_at ? new Date(campaign.scheduled_at).toLocaleString() : 'Start now / running'}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Timezone / window</p>
+            <p className="font-medium text-slate-800 dark:text-white mt-0.5">
+              {(campaign.timezone || '—') + ' · ' + (campaign.window_start || campaign.business_hours_start || '—') + '–' + (campaign.window_end || campaign.business_hours_end || '—')}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Working days</p>
+            <p className="font-medium text-slate-800 dark:text-white mt-0.5 capitalize">
+              {campaign.working_days?.length ? campaign.working_days.join(', ') : '—'}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Pacing</p>
+            <p className="font-medium text-slate-800 dark:text-white mt-0.5">
+              {campaign.max_concurrent || 0} concurrent · {campaign.calls_per_minute || '—'} /min · {campaign.daily_limit || '—'} /day · {campaign.priority || 'medium'}
+            </p>
+          </div>
+        </div>
+      </GlassCard>
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -626,6 +700,22 @@ const CampaignDetail: React.FC = () => {
         </div>
       </GlassCard>
 
+      {createPortal(
+        <>
+      <AnimatePresence>
+        {showRestartModal && (
+          <RestartCampaignModal
+            campaign={campaign}
+            onClose={() => setShowRestartModal(false)}
+            onDone={async () => {
+              setShowRestartModal(false);
+              await loadCampaign();
+              await loadContacts();
+            }}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Same session / call-summary modal as Analytics */}
       {selectedSession && (
         <SessionTranscriptModal
@@ -633,6 +723,60 @@ const CampaignDetail: React.FC = () => {
           onClose={() => setSelectedSession(null)}
         />
       )}
+
+      <AnimatePresence>
+        {showObjectiveModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[99999] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={(e) => e.target === e.currentTarget && setShowObjectiveModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg shadow-2xl border border-slate-200 dark:border-slate-700 max-h-[85vh] flex flex-col"
+            >
+              <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+                <h3 className="font-bold text-slate-800 dark:text-white">Objective and Goal</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowObjectiveModal(false)}
+                  className="p-2 text-slate-400 hover:text-slate-600 rounded-lg"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="p-5 overflow-y-auto space-y-5 text-sm">
+                {campaign.objective && (
+                  <div>
+                    <p className="font-semibold text-slate-800 dark:text-white mb-2">Objective</p>
+                    <ul className="space-y-1.5 text-slate-600 dark:text-slate-300 list-disc pl-5">
+                      {campaign.objective
+                        .split(/\n+/)
+                        .map((line) => line.replace(/^[\s•\-\*]+/, '').trim())
+                        .filter(Boolean)
+                        .map((line, i) => (
+                          <li key={i}>{line}</li>
+                        ))}
+                    </ul>
+                  </div>
+                )}
+                {campaign.goal && (
+                  <div>
+                    <p className="font-semibold text-slate-800 dark:text-white mb-2">Goal</p>
+                    <p className="text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+                      {campaign.goal}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Delete confirm */}
       <AnimatePresence>
@@ -677,6 +821,9 @@ const CampaignDetail: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+        </>,
+        document.body
+      )}
     </div>
   );
 };
