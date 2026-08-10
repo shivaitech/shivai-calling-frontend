@@ -5,8 +5,12 @@ import {
   updateCampaign,
   uploadCampaignContacts,
   restartCampaign,
+  scheduleCampaign,
   getCampaignContacts,
   contactsToCsvFile,
+  buildCampaignScheduleConfig,
+  priorityFromApi,
+  workingDaysFromApi,
   type Campaign,
 } from '../../services/phoneNumbersAPI';
 import CampaignScheduleForm, {
@@ -31,21 +35,31 @@ const toLocalDateTimeValue = (iso?: string | null) => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-const scheduleFromCampaign = (campaign: Campaign): CampaignScheduleState => ({
-  ...defaultCampaignSchedule(),
-  startNow: !campaign.scheduled_at,
-  scheduledAt: toLocalDateTimeValue(campaign.scheduled_at),
-  endDate: campaign.end_date ? String(campaign.end_date).slice(0, 10) : '',
-  timezone: campaign.timezone || defaultCampaignSchedule().timezone,
-  recurrence: (campaign.recurrence as CampaignScheduleState['recurrence']) || 'none',
-  windowStart: campaign.window_start || campaign.business_hours_start || '09:00',
-  windowEnd: campaign.window_end || campaign.business_hours_end || '18:00',
-  workingDays: campaign.working_days?.length ? campaign.working_days : defaultCampaignSchedule().workingDays,
-  maxConcurrent: campaign.max_concurrent || 3,
-  callsPerMinute: campaign.calls_per_minute || 10,
-  dailyLimit: campaign.daily_limit || 100,
-  priority: (campaign.priority as CampaignScheduleState['priority']) || 'medium',
-});
+const scheduleFromCampaign = (campaign: Campaign): CampaignScheduleState => {
+  const sched = campaign.schedule;
+  const startAt = sched?.start_at || campaign.scheduled_at;
+  return {
+    ...defaultCampaignSchedule(),
+    startNow: !(startAt || campaign.status === 'scheduled'),
+    scheduledAt: toLocalDateTimeValue(startAt),
+    endDate: (sched?.end_at || campaign.end_date)
+      ? String(sched?.end_at || campaign.end_date).slice(0, 10)
+      : '',
+    timezone: sched?.timezone || campaign.timezone || defaultCampaignSchedule().timezone,
+    recurrence:
+      ((sched?.recurrence || campaign.recurrence) as CampaignScheduleState['recurrence']) || 'none',
+    windowStart:
+      sched?.daily_start || campaign.window_start || campaign.business_hours_start || '09:00',
+    windowEnd: sched?.daily_end || campaign.window_end || campaign.business_hours_end || '18:00',
+    workingDays: workingDaysFromApi(
+      (sched?.working_days || campaign.working_days) as Array<string | number> | undefined
+    ),
+    maxConcurrent: campaign.max_concurrent || 3,
+    callsPerMinute: campaign.calls_per_minute || 10,
+    dailyLimit: campaign.daily_limit || 100,
+    priority: priorityFromApi(campaign.priority),
+  };
+};
 
 interface Props {
   campaign: Campaign;
@@ -142,10 +156,9 @@ const RestartCampaignModal: React.FC<Props> = ({ campaign, onClose, onDone }) =>
         business_hours_end: schedule.windowEnd,
         working_days: schedule.workingDays,
         ...(schedule.endDate ? { end_date: schedule.endDate } : {}),
-        scheduled_at: schedule.startNow ? undefined : new Date(schedule.scheduledAt).toISOString(),
       });
 
-      await uploadCampaignContacts(
+      const uploadResult = await uploadCampaignContacts(
         campaign._id,
         contactsToCsvFile(
           contacts.map((c) => ({
@@ -155,11 +168,29 @@ const RestartCampaignModal: React.FC<Props> = ({ campaign, onClose, onDone }) =>
           }))
         )
       );
+      if (uploadResult.uploaded > 0) {
+        appToast.success(
+          `Uploaded ${uploadResult.uploaded} contact${uploadResult.uploaded === 1 ? '' : 's'}`
+        );
+      }
 
       if (schedule.startNow) {
-        await restartCampaign(campaign._id);
-        appToast.success(`Campaign "${campaign.name}" restarted`);
+        const result = await restartCampaign(campaign._id);
+        appToast.success(result.message || `Campaign "${campaign.name}" restarted`);
       } else {
+        await scheduleCampaign(
+          campaign._id,
+          buildCampaignScheduleConfig({
+            startNow: false,
+            scheduledAt: schedule.scheduledAt,
+            endDate: schedule.endDate,
+            timezone: schedule.timezone,
+            recurrence: schedule.recurrence,
+            windowStart: schedule.windowStart,
+            windowEnd: schedule.windowEnd,
+            workingDays: schedule.workingDays,
+          })
+        );
         appToast.success(`Campaign "${campaign.name}" scheduled to restart`);
       }
       onDone();

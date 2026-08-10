@@ -2,8 +2,7 @@ import axios, { AxiosResponse } from "axios";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-// Campaign dialer (start/pause) lives on the phone-service, not the main backend.
-// Mirror the staging/prod split used by agentAPI's voiceApiClient.
+// Legacy dialer host — kept only as a 404 fallback while routes move to the main API.
 const _isStaging = import.meta.env.VITE_API_BASE_URL?.includes("staging");
 const PHONE_SERVICE_URL = _isStaging
   ? "https://staging.voice.callshivai.com/phone"
@@ -134,6 +133,7 @@ export type CampaignStatus =
 
 export type CampaignPriority = "low" | "medium" | "high";
 export type CampaignRecurrence = "none" | "daily" | "weekly";
+export type CampaignScheduleMode = "now" | "once" | "recurring" | string;
 
 export const WEEKDAY_OPTIONS = [
   { id: "mon", label: "Mon" },
@@ -144,6 +144,131 @@ export const WEEKDAY_OPTIONS = [
   { id: "sat", label: "Sat" },
   { id: "sun", label: "Sun" },
 ] as const;
+
+/** JS-style weekday numbers used by the campaign schedule API (Sun=0 … Sat=6). */
+export const WEEKDAY_ID_TO_NUMBER: Record<string, number> = {
+  sun: 0,
+  mon: 1,
+  tue: 2,
+  wed: 3,
+  thu: 4,
+  fri: 5,
+  sat: 6,
+};
+
+export const WEEKDAY_NUMBER_TO_ID: Record<number, string> = {
+  0: "sun",
+  1: "mon",
+  2: "tue",
+  3: "wed",
+  4: "thu",
+  5: "fri",
+  6: "sat",
+};
+
+/** Map UI priority labels to the numeric priority the campaign API expects. */
+export const priorityToApiNumber = (priority: CampaignPriority | string | number | undefined): number => {
+  if (typeof priority === "number" && Number.isFinite(priority)) return priority;
+  const key = String(priority || "medium").toLowerCase();
+  if (key === "high" || key === "20") return 20;
+  if (key === "low" || key === "1") return 1;
+  return 10;
+};
+
+export const priorityFromApi = (priority: unknown): CampaignPriority => {
+  const n = typeof priority === "number" ? priority : Number(priority);
+  if (!Number.isNaN(n)) {
+    if (n >= 15) return "high";
+    if (n <= 5) return "low";
+    return "medium";
+  }
+  const key = String(priority || "medium").toLowerCase();
+  if (key === "high" || key === "low") return key;
+  return "medium";
+};
+
+export const workingDaysToApi = (days: string[] | number[] | undefined): number[] => {
+  if (!days?.length) return [0, 1, 2, 3, 4, 5, 6];
+  return Array.from(
+    new Set(
+      days
+        .map((d) => {
+          if (typeof d === "number") return d;
+          const key = String(d).toLowerCase().slice(0, 3);
+          return WEEKDAY_ID_TO_NUMBER[key];
+        })
+        .filter((n): n is number => typeof n === "number" && n >= 0 && n <= 6)
+    )
+  ).sort((a, b) => a - b);
+};
+
+export const workingDaysFromApi = (days: Array<string | number> | undefined): string[] => {
+  if (!days?.length) return ["mon", "tue", "wed", "thu", "fri"];
+  return days
+    .map((d) => {
+      if (typeof d === "number") return WEEKDAY_NUMBER_TO_ID[d];
+      const key = String(d).toLowerCase();
+      if (WEEKDAY_ID_TO_NUMBER[key] != null) return key;
+      const n = Number(d);
+      return Number.isFinite(n) ? WEEKDAY_NUMBER_TO_ID[n] : undefined;
+    })
+    .filter((d): d is string => !!d);
+};
+
+export interface CampaignScheduleConfig {
+  mode: CampaignScheduleMode;
+  timezone: string;
+  start_at?: string | null;
+  end_at?: string | null;
+  daily_start?: string;
+  daily_end?: string;
+  working_days?: number[];
+  recurrence?: CampaignRecurrence | string;
+  recurrence_interval?: number;
+}
+
+export interface CampaignScheduleInput {
+  startNow: boolean;
+  scheduledAt?: string;
+  endDate?: string;
+  timezone: string;
+  recurrence: CampaignRecurrence | string;
+  windowStart: string;
+  windowEnd: string;
+  workingDays: string[];
+  recurrenceInterval?: number;
+}
+
+/** Build the nested `schedule` object for POST /campaigns/:id/schedule. */
+export const buildCampaignScheduleConfig = (
+  input: CampaignScheduleInput
+): CampaignScheduleConfig => {
+  const recurrence = input.recurrence || "none";
+  const mode: CampaignScheduleMode = input.startNow
+    ? "now"
+    : recurrence !== "none"
+      ? "recurring"
+      : "once";
+  const startAt =
+    !input.startNow && input.scheduledAt
+      ? new Date(input.scheduledAt).toISOString()
+      : null;
+  const endAt = input.endDate
+    ? new Date(`${input.endDate}T23:59:59`).toISOString()
+    : null;
+
+  return {
+    mode,
+    timezone: input.timezone || "Asia/Kolkata",
+    start_at: startAt,
+    end_at: endAt,
+    daily_start: input.windowStart || "09:00",
+    daily_end: input.windowEnd || "18:00",
+    working_days: workingDaysToApi(input.workingDays),
+    recurrence: recurrence === "none" ? "none" : recurrence,
+    recurrence_interval: input.recurrenceInterval || 1,
+  };
+};
 
 export interface CampaignStats {
   total: number;
@@ -178,10 +303,13 @@ export interface Campaign {
   window_end?: string;
   business_hours_start?: string;
   business_hours_end?: string;
-  working_days?: string[];
+  working_days?: Array<string | number>;
   calls_per_minute?: number;
   daily_limit?: number;
-  priority?: CampaignPriority | string;
+  /** Numeric (preferred) or legacy label priority from the API. */
+  priority?: CampaignPriority | number | string;
+  /** Nested schedule object returned by create/get/schedule. */
+  schedule?: CampaignScheduleConfig;
   tenant_id?: string;
   created_at?: string;
   updated_at?: string;
@@ -189,6 +317,9 @@ export interface Campaign {
   completed_at?: string | null;
   archived_at?: string | null;
   livekit_outbound_trunk_id?: string;
+  preflight_status?: "passed" | "blocked" | "pending" | string;
+  preflight_blockers?: string[];
+  last_preflight_at?: string | null;
   /** Embedded stats from list/get responses (prefer live status when polling). */
   stats?: CampaignStats;
 }
@@ -209,10 +340,10 @@ export interface CreateCampaignRequest {
   window_end?: string;
   business_hours_start?: string;
   business_hours_end?: string;
-  working_days?: string[];
+  working_days?: Array<string | number>;
   calls_per_minute?: number;
   daily_limit?: number;
-  priority?: CampaignPriority | string;
+  priority?: CampaignPriority | number | string;
 }
 
 export type UpdateCampaignRequest = Partial<CreateCampaignRequest>;
@@ -247,6 +378,22 @@ export interface CampaignContact {
   updated_at?: string;
   called_at?: string;
   completed_at?: string;
+}
+
+export interface UploadContactsResult {
+  uploaded: number;
+  sample?: Array<{
+    phone_number: string;
+    name?: string;
+    custom_fields?: Record<string, string>;
+  }>;
+}
+
+export interface CampaignActionResult {
+  message: string;
+  campaign_id?: string;
+  pending?: number;
+  data?: Campaign;
 }
 
 // Backend errors come back as { success: false, error: "..." }
@@ -441,12 +588,63 @@ export const getCallLogs = async (
 
 // ─── Campaigns ───────────────────────────────────────────────────────────────
 
+const unwrapData = <T = any>(body: any): T => (body?.data !== undefined ? body.data : body);
+
+const normalizeCampaignWritePayload = <T extends CreateCampaignRequest | UpdateCampaignRequest>(
+  payload: T
+): T => {
+  const next: any = { ...payload };
+  if (next.priority !== undefined) {
+    next.priority = priorityToApiNumber(next.priority);
+  }
+  if (Array.isArray(next.working_days)) {
+    next.working_days = workingDaysToApi(next.working_days as Array<string | number>);
+  }
+  return next as T;
+};
+
+/** POST campaign lifecycle actions on the main API, with legacy phone-service fallback. */
+const postCampaignAction = async (
+  campaignId: string,
+  action: string,
+  body: Record<string, unknown> = {}
+): Promise<any> => {
+  try {
+    const response: AxiosResponse<any> = await axios.post(
+      `${API_BASE_URL}/campaigns/${campaignId}/${action}`,
+      body,
+      createAuthenticatedRequest()
+    );
+    return response.data;
+  } catch (error: any) {
+    if (error?.response?.status === 404) {
+      const response: AxiosResponse<any> = await axios.post(
+        `${PHONE_SERVICE_URL}/campaigns/${campaignId}/${action}`,
+        body,
+        createAuthenticatedRequest()
+      );
+      return response.data;
+    }
+    throw error;
+  }
+};
+
+const toActionResult = (body: any, fallbackMessage: string): CampaignActionResult => {
+  const data = unwrapData<any>(body) || {};
+  return {
+    message: data.message || body?.message || fallbackMessage,
+    campaign_id: data.campaign_id,
+    pending: typeof data.pending === "number" ? data.pending : undefined,
+    data: data._id ? (data as Campaign) : data.campaign,
+  };
+};
+
 // Create a campaign. caller_number must be a number with outbound already enabled.
 export const createCampaign = async (payload: CreateCampaignRequest): Promise<Campaign> => {
   try {
     const response: AxiosResponse<{ success: boolean; data: Campaign }> = await axios.post(
       `${API_BASE_URL}/campaigns`,
-      { language: "en-in", max_concurrent: 3, ...payload },
+      normalizeCampaignWritePayload({ language: "en-in", max_concurrent: 3, ...payload }),
       createAuthenticatedRequest()
     );
     return response.data.data;
@@ -463,7 +661,7 @@ export const updateCampaign = async (
   try {
     const response: AxiosResponse<{ success: boolean; data: Campaign }> = await axios.patch(
       `${API_BASE_URL}/campaigns/${campaignId}`,
-      payload,
+      normalizeCampaignWritePayload(payload),
       createAuthenticatedRequest()
     );
     return response.data.data;
@@ -561,97 +759,106 @@ export const cloneCampaign = async (campaignId: string, name?: string): Promise<
 export const uploadCampaignContacts = async (
   campaignId: string,
   file: File
-): Promise<{ uploaded: number }> => {
+): Promise<UploadContactsResult> => {
   try {
     const form = new FormData();
     form.append("file", file);
-    const response: AxiosResponse<{ success: boolean; data: { uploaded: number } }> =
+    const response: AxiosResponse<{ success: boolean; data: UploadContactsResult }> =
       await axios.post(
         `${API_BASE_URL}/campaigns/${campaignId}/contacts/upload`,
         form,
         createUploadRequest()
       );
-    return response.data.data;
+    const data = unwrapData<UploadContactsResult>(response.data) || { uploaded: 0 };
+    return {
+      uploaded: Number(data.uploaded) || 0,
+      sample: Array.isArray(data.sample) ? data.sample : undefined,
+    };
   } catch (error: any) {
     console.error("Error uploading contacts:", error);
     throw new Error(errMessage(error, "Failed to upload contacts"));
   }
 };
 
-// Start the dialer (draft → running). Phone-service.
-export const startCampaign = async (
-  campaignId: string
-): Promise<{ message: string; pending?: number }> => {
+/** Start dialing immediately — POST /campaigns/:id/start */
+export const startCampaign = async (campaignId: string): Promise<CampaignActionResult> => {
   try {
-    const response: AxiosResponse<{ message: string; campaign_id: string; pending: number }> =
-      await axios.post(
-        `${PHONE_SERVICE_URL}/campaigns/${campaignId}/start`,
-        {},
-        createAuthenticatedRequest()
-      );
-    return { message: response.data.message, pending: response.data.pending };
+    const body = await postCampaignAction(campaignId, "start");
+    return toActionResult(body, "Campaign started");
   } catch (error: any) {
     console.error("Error starting campaign:", error);
     throw new Error(errMessage(error, "Failed to start campaign"));
   }
 };
 
-// Pause — running → paused (resumable). Phone-service.
-export const pauseCampaign = async (campaignId: string): Promise<{ message: string }> => {
+/**
+ * Schedule a future or recurring run — POST /campaigns/:id/schedule
+ * Body: { schedule: CampaignScheduleConfig }
+ */
+export const scheduleCampaign = async (
+  campaignId: string,
+  schedule: CampaignScheduleConfig | CampaignScheduleInput
+): Promise<Campaign> => {
   try {
-    const response: AxiosResponse<{ message: string }> = await axios.post(
-      `${PHONE_SERVICE_URL}/campaigns/${campaignId}/pause`,
-      {},
+    const scheduleBody =
+      "mode" in schedule && "timezone" in schedule && !("startNow" in schedule)
+        ? (schedule as CampaignScheduleConfig)
+        : buildCampaignScheduleConfig(schedule as CampaignScheduleInput);
+
+    const body = await postCampaignAction(campaignId, "schedule", { schedule: scheduleBody });
+    const data = unwrapData<any>(body);
+    if (data?._id) return data as Campaign;
+    if (data?.campaign?._id) return data.campaign as Campaign;
+
+    const response: AxiosResponse<{ success: boolean; data: Campaign }> = await axios.get(
+      `${API_BASE_URL}/campaigns/${campaignId}`,
       createAuthenticatedRequest()
     );
-    return { message: response.data.message };
+    return response.data.data;
+  } catch (error: any) {
+    console.error("Error scheduling campaign:", error);
+    throw new Error(errMessage(error, "Failed to schedule campaign"));
+  }
+};
+
+/** Pause new dialing; active calls continue — POST /campaigns/:id/pause */
+export const pauseCampaign = async (campaignId: string): Promise<CampaignActionResult> => {
+  try {
+    const body = await postCampaignAction(campaignId, "pause");
+    return toActionResult(body, "Campaign paused");
   } catch (error: any) {
     console.error("Error pausing campaign:", error);
     throw new Error(errMessage(error, "Failed to pause campaign"));
   }
 };
 
-// Resume — paused → running, continues remaining contacts. Phone-service.
-export const resumeCampaign = async (campaignId: string): Promise<{ message: string }> => {
+/** Resume a paused campaign — POST /campaigns/:id/resume */
+export const resumeCampaign = async (campaignId: string): Promise<CampaignActionResult> => {
   try {
-    const response: AxiosResponse<{ message: string }> = await axios.post(
-      `${PHONE_SERVICE_URL}/campaigns/${campaignId}/resume`,
-      {},
-      createAuthenticatedRequest()
-    );
-    return { message: response.data.message };
+    const body = await postCampaignAction(campaignId, "resume");
+    return toActionResult(body, "Campaign resumed");
   } catch (error: any) {
     console.error("Error resuming campaign:", error);
     throw new Error(errMessage(error, "Failed to resume campaign"));
   }
 };
 
-// Stop — running/paused → stopped (terminal). Phone-service.
-export const stopCampaign = async (campaignId: string): Promise<{ message: string }> => {
+/** Stop new dialing and cancel active calls — POST /campaigns/:id/stop */
+export const stopCampaign = async (campaignId: string): Promise<CampaignActionResult> => {
   try {
-    const response: AxiosResponse<{ message: string }> = await axios.post(
-      `${PHONE_SERVICE_URL}/campaigns/${campaignId}/stop`,
-      {},
-      createAuthenticatedRequest()
-    );
-    return { message: response.data.message };
+    const body = await postCampaignAction(campaignId, "stop");
+    return toActionResult(body, "Campaign stopped");
   } catch (error: any) {
     console.error("Error stopping campaign:", error);
     throw new Error(errMessage(error, "Failed to stop campaign"));
   }
 };
 
-/** @deprecated Prefer resumeCampaign for paused campaigns; kept for older dialers. */
-export const restartCampaign = async (
-  campaignId: string
-): Promise<{ message: string }> => {
+/** Reset contacts and start a fresh run — POST /campaigns/:id/restart */
+export const restartCampaign = async (campaignId: string): Promise<CampaignActionResult> => {
   try {
-    const response: AxiosResponse<{ message: string }> = await axios.post(
-      `${PHONE_SERVICE_URL}/campaigns/${campaignId}/restart`,
-      {},
-      createAuthenticatedRequest()
-    );
-    return { message: response.data.message };
+    const body = await postCampaignAction(campaignId, "restart");
+    return toActionResult(body, "Campaign restarted");
   } catch (error: any) {
     console.error("Error restarting campaign:", error);
     throw new Error(errMessage(error, "Failed to restart campaign"));
@@ -705,13 +912,20 @@ export interface CampaignStatusResponse {
   campaign_id: string;
   name: string;
   status: CampaignStatus;
+  is_running?: boolean;
+  active_calls?: number;
   started_at?: string;
   completed_at?: string | null;
+  calls_per_minute?: number;
+  daily_limit?: number;
+  priority?: number | string;
+  preflight_status?: "passed" | "blocked" | "pending" | string;
+  preflight_blockers?: string[];
+  last_preflight_at?: string | null;
   stats: CampaignLiveStatus;
 }
 
 // Live dialer stats from GET /campaigns/:id/status
-// Response shape: { success, data: { campaign_id, name, status, started_at, completed_at, stats: {...} } }
 export const getCampaignStatus = async (campaignId: string): Promise<CampaignLiveStatus> => {
   const detail = await getCampaignStatusDetail(campaignId);
   return detail.stats;
@@ -725,8 +939,11 @@ export const getCampaignStatusDetail = async (
       `${API_BASE_URL}/campaigns/${campaignId}/status`,
       createAuthenticatedRequest()
     );
-    const data = response.data?.data ?? {};
+    const data = unwrapData<any>(response.data) ?? {};
     const statsRaw = data.stats && typeof data.stats === "object" ? data.stats : data;
+    const blockers = Array.isArray(data.preflight_blockers)
+      ? data.preflight_blockers.map((b: unknown) => String(b))
+      : [];
     const stats: CampaignLiveStatus = {
       total: Number(statsRaw.total) || 0,
       pending: Number(statsRaw.pending) || 0,
@@ -741,8 +958,16 @@ export const getCampaignStatusDetail = async (
       campaign_id: data.campaign_id || campaignId,
       name: data.name || "",
       status: data.status || "draft",
+      is_running: Boolean(data.is_running),
+      active_calls: Number(data.active_calls) || 0,
       started_at: data.started_at,
       completed_at: data.completed_at ?? null,
+      calls_per_minute: data.calls_per_minute,
+      daily_limit: data.daily_limit,
+      priority: data.priority,
+      preflight_status: data.preflight_status,
+      preflight_blockers: blockers,
+      last_preflight_at: data.last_preflight_at ?? null,
       stats,
     };
   } catch (error: any) {
@@ -924,6 +1149,7 @@ export default {
   cloneCampaign,
   uploadCampaignContacts,
   startCampaign,
+  scheduleCampaign,
   pauseCampaign,
   resumeCampaign,
   stopCampaign,
@@ -937,4 +1163,9 @@ export default {
   getAllCampaignContacts,
   formatDid,
   contactsToCsvFile,
+  buildCampaignScheduleConfig,
+  priorityToApiNumber,
+  priorityFromApi,
+  workingDaysToApi,
+  workingDaysFromApi,
 };

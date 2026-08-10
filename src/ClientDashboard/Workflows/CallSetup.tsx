@@ -23,15 +23,20 @@ import {
   cloneCampaign,
   uploadCampaignContacts,
   startCampaign,
+  scheduleCampaign,
   pauseCampaign,
   resumeCampaign,
   stopCampaign,
   deleteCampaign,
   getCampaigns,
   getCampaignStatus,
+  getCampaignStatusDetail,
   getAllCampaignContacts,
   contactsToCsvFile,
   formatDid,
+  buildCampaignScheduleConfig,
+  priorityFromApi,
+  workingDaysFromApi,
   type CatalogNumber,
   type ProvisionedNumber,
   type Campaign,
@@ -470,7 +475,7 @@ const Toggle: React.FC<{ checked: boolean; onChange: () => void }> = ({ checked,
 
 const CallSetup: React.FC = () => {
   // Real agents from API via AgentContext
-  const { agents, isLoading: agentsLoading } = useAgent();
+  const { agents, isLoading: agentsLoading, refreshAgents } = useAgent();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -481,6 +486,9 @@ const CallSetup: React.FC = () => {
       ? 'outbound'
       : 'inbound'
   );
+
+  // Names for assigned agents missing from the context list (pagination / late load).
+  const [resolvedAgentNames, setResolvedAgentNames] = useState<Record<string, string>>({});
 
   // ── Inbound state ──
   const [numbers, setNumbers] = useState<PhoneNumber[]>([]);
@@ -587,6 +595,57 @@ const CallSetup: React.FC = () => {
   useEffect(() => {
     loadNumbers();
   }, [loadNumbers]);
+
+  // Ensure AgentContext loads on this page (also covered by pathname allowlist).
+  useEffect(() => {
+    if (agents.length === 0 && !agentsLoading) {
+      refreshAgents().catch(() => {
+        /* ignore — local resolve below still covers assigned IDs */
+      });
+    }
+  }, [agents.length, agentsLoading, refreshAgents]);
+
+  // Resolve inbound/outbound agent names when they are assigned but missing from context.
+  useEffect(() => {
+    const known = new Set(agents.map((a) => a.id));
+    const missing = Array.from(
+      new Set(
+        numbers
+          .flatMap((n) => [n.assignedAgentId, n.outboundAgentId])
+          .filter((id): id is string => !!id && !known.has(id) && !resolvedAgentNames[id])
+      )
+    );
+    if (missing.length === 0) return;
+
+    let cancelled = false;
+    (async () => {
+      const entries = await Promise.all(
+        missing.map(async (id) => {
+          try {
+            const { agent } = await agentAPI.getAgent(id);
+            return [id, agent?.name || 'Assigned agent'] as const;
+          } catch {
+            return [id, 'Assigned agent'] as const;
+          }
+        })
+      );
+      if (cancelled) return;
+      setResolvedAgentNames((prev) => {
+        const next = { ...prev };
+        for (const [id, name] of entries) next[id] = name;
+        return next;
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [numbers, agents, resolvedAgentNames]);
+
+  const agentLabel = (agentId: string | null | undefined): string | null => {
+    if (!agentId) return null;
+    return agents.find((a) => a.id === agentId)?.name || resolvedAgentNames[agentId] || null;
+  };
 
   // Reassignment rebuilds the LiveKit dispatch rule server-side
   const handleAssignAgent = async (agentId: string) => {
@@ -1222,12 +1281,9 @@ const CallSetup: React.FC = () => {
     business_hours_end: schedule.windowEnd,
     working_days: schedule.workingDays,
     ...(schedule.endDate ? { end_date: schedule.endDate } : {}),
-    ...(!schedule.startNow && schedule.scheduledAt
-      ? { scheduled_at: new Date(schedule.scheduledAt).toISOString() }
-      : {}),
   });
 
-  // Create / update → upload contacts → start now or schedule.
+  // Create / update → upload contacts → start now or schedule via dedicated APIs.
   const handleLaunchCampaign = async () => {
     if (!step1Valid || (!editingCampaignId && !step2Valid)) return;
     if (!schedule.startNow) {
@@ -1278,24 +1334,79 @@ const CallSetup: React.FC = () => {
                   call_context: c.context,
                 }))
               );
-        await uploadCampaignContacts(campaignId, file);
+        const uploadResult = await uploadCampaignContacts(campaignId, file);
+        if (uploadResult.uploaded > 0) {
+          const sampleHint = uploadResult.sample?.[0]?.custom_fields
+            ? ` · fields: ${Object.keys(uploadResult.sample[0].custom_fields).slice(0, 4).join(', ')}`
+            : '';
+          appToast.success(
+            `Uploaded ${uploadResult.uploaded} contact${uploadResult.uploaded === 1 ? '' : 's'}${sampleHint}`
+          );
+        }
       }
 
-      if (!editingCampaignId && schedule.startNow && campaignId) {
-        setWizardStage('Starting dialer…');
-        await startCampaign(campaignId);
+      if (!editingCampaignId && campaignId) {
+        if (schedule.startNow) {
+          setWizardStage('Starting dialer…');
+          const startResult = await startCampaign(campaignId);
+          const pendingHint =
+            typeof startResult.pending === 'number' ? ` · ${startResult.pending} pending` : '';
+          appToast.success(`${startResult.message || 'Campaign started'}${pendingHint}`);
+
+          try {
+            const detail = await getCampaignStatusDetail(campaignId);
+            if (detail.preflight_status === 'blocked' && detail.preflight_blockers?.length) {
+              appToast.error(
+                `Preflight blocked: ${detail.preflight_blockers.slice(0, 3).join(' · ')}`
+              );
+            }
+          } catch {
+            /* status poll is best-effort after start */
+          }
+        } else {
+          setWizardStage('Scheduling campaign…');
+          await scheduleCampaign(
+            campaignId,
+            buildCampaignScheduleConfig({
+              startNow: false,
+              scheduledAt: schedule.scheduledAt,
+              endDate: schedule.endDate,
+              timezone: schedule.timezone,
+              recurrence: schedule.recurrence,
+              windowStart: schedule.windowStart,
+              windowEnd: schedule.windowEnd,
+              workingDays: schedule.workingDays,
+            })
+          );
+          appToast.success(`Campaign "${newCampaign.name.trim()}" scheduled`);
+        }
+      } else if (editingCampaignId && !schedule.startNow && campaignId) {
+        setWizardStage('Updating schedule…');
+        await scheduleCampaign(
+          campaignId,
+          buildCampaignScheduleConfig({
+            startNow: false,
+            scheduledAt: schedule.scheduledAt,
+            endDate: schedule.endDate,
+            timezone: schedule.timezone,
+            recurrence: schedule.recurrence,
+            windowStart: schedule.windowStart,
+            windowEnd: schedule.windowEnd,
+            workingDays: schedule.workingDays,
+          })
+        );
       }
 
       const name = newCampaign.name.trim();
       setShowCreateCampaign(false);
       resetCampaignForm();
-      appToast.success(
-        editingCampaignId
-          ? `Campaign "${name}" updated`
-          : schedule.startNow
-            ? `Campaign "${name}" launched`
-            : `Campaign "${name}" scheduled`
-      );
+      if (editingCampaignId) {
+        appToast.success(`Campaign "${name}" updated`);
+      } else if (schedule.startNow) {
+        /* start toast already shown */
+      } else {
+        /* schedule toast already shown */
+      }
       await loadCampaigns();
     } catch (err: any) {
       const msg = err.message || 'Failed to launch campaign';
@@ -1354,20 +1465,32 @@ const CallSetup: React.FC = () => {
       objective: campaign.objective || '',
       goal: campaign.goal || '',
     });
+    const sched = campaign.schedule;
+    const startAt = sched?.start_at || campaign.scheduled_at;
     setSchedule({
       ...defaultCampaignSchedule(),
-      startNow: !campaign.scheduled_at,
-      scheduledAt: toLocalDateTimeValue(campaign.scheduled_at),
-      endDate: campaign.end_date ? String(campaign.end_date).slice(0, 10) : '',
-      timezone: campaign.timezone || defaultCampaignSchedule().timezone,
-      recurrence: (campaign.recurrence as CampaignScheduleState['recurrence']) || 'none',
-      windowStart: campaign.window_start || campaign.business_hours_start || '09:00',
-      windowEnd: campaign.window_end || campaign.business_hours_end || '18:00',
-      workingDays: campaign.working_days?.length ? campaign.working_days : defaultCampaignSchedule().workingDays,
+      startNow: !(startAt || campaign.status === 'scheduled'),
+      scheduledAt: toLocalDateTimeValue(startAt),
+      endDate: (sched?.end_at || campaign.end_date)
+        ? String(sched?.end_at || campaign.end_date).slice(0, 10)
+        : '',
+      timezone: sched?.timezone || campaign.timezone || defaultCampaignSchedule().timezone,
+      recurrence:
+        ((sched?.recurrence || campaign.recurrence) as CampaignScheduleState['recurrence']) || 'none',
+      windowStart:
+        sched?.daily_start ||
+        campaign.window_start ||
+        campaign.business_hours_start ||
+        '09:00',
+      windowEnd:
+        sched?.daily_end || campaign.window_end || campaign.business_hours_end || '18:00',
+      workingDays: workingDaysFromApi(
+        (sched?.working_days || campaign.working_days) as Array<string | number> | undefined
+      ),
       maxConcurrent: campaign.max_concurrent || 3,
       callsPerMinute: campaign.calls_per_minute || 10,
       dailyLimit: campaign.daily_limit || 100,
-      priority: (campaign.priority as CampaignScheduleState['priority']) || 'medium',
+      priority: priorityFromApi(campaign.priority),
     });
     setShowCreateCampaign(true);
   };
@@ -1536,21 +1659,31 @@ objective = the Objective bullet list (use \\n between bullets).`;
     setCampaignsError(null);
     try {
       if (action === 'pause') {
-        await pauseCampaign(id);
+        const result = await pauseCampaign(id);
         setCampaigns((prev) => prev.map((c) => (c._id === id ? { ...c, status: 'paused' } : c)));
-        appToast.success('Campaign paused');
+        appToast.success(result.message || 'Campaign paused');
       } else if (action === 'resume') {
-        await resumeCampaign(id);
+        const result = await resumeCampaign(id);
         setCampaigns((prev) => prev.map((c) => (c._id === id ? { ...c, status: 'running' } : c)));
-        appToast.success('Campaign resumed');
+        appToast.success(result.message || 'Campaign resumed');
       } else if (action === 'start') {
-        await startCampaign(id);
+        const result = await startCampaign(id);
         setCampaigns((prev) => prev.map((c) => (c._id === id ? { ...c, status: 'running' } : c)));
-        appToast.success('Campaign started');
+        const pendingHint =
+          typeof result.pending === 'number' ? ` · ${result.pending} pending` : '';
+        appToast.success(`${result.message || 'Campaign started'}${pendingHint}`);
+        try {
+          const detail = await getCampaignStatusDetail(id);
+          if (detail.preflight_status === 'blocked' && detail.preflight_blockers?.length) {
+            appToast.error(`Preflight blocked: ${detail.preflight_blockers.slice(0, 3).join(' · ')}`);
+          }
+        } catch {
+          /* ignore */
+        }
       } else if (action === 'stop') {
-        await stopCampaign(id);
+        const result = await stopCampaign(id);
         setCampaigns((prev) => prev.map((c) => (c._id === id ? { ...c, status: 'stopped' } : c)));
-        appToast.success('Campaign stopped');
+        appToast.success(result.message || 'Campaign stopped');
       } else if (action === 'archive') {
         await archiveCampaign(id);
         setCampaigns((prev) => prev.map((c) => (c._id === id ? { ...c, status: 'archived' } : c)));
@@ -1739,7 +1872,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
 
                 <div className="space-y-2">
                   {!numbersLoading && !numbersError && numbers.map((num) => {
-                    const agent = agents.find((a) => a.id === num.assignedAgentId);
+                    const agentName = agentLabel(num.assignedAgentId);
                     const rules = inboundRules[num.id];
                     return (
                       <div
@@ -1772,10 +1905,10 @@ objective = the Objective bullet list (use \\n between bullets).`;
 
                         {/* Assignment + rules — full-width on mobile */}
                         <div className="flex items-center justify-between sm:justify-end gap-2 border-t border-slate-200/70 dark:border-slate-700/50 sm:border-0 pt-2 sm:pt-0">
-                          {agent ? (
+                          {num.assignedAgentId ? (
                             <div className="flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 px-2.5 py-1.5 rounded-lg text-xs font-medium truncate max-w-[140px]">
                               <Bot className="w-3.5 h-3.5 flex-shrink-0" />
-                              <span className="truncate">{agent.name}</span>
+                              <span className="truncate">{agentName || 'Assigned agent'}</span>
                             </div>
                           ) : (
                             <span className="text-xs text-slate-400 dark:text-slate-500 italic">Unassigned</span>
@@ -1790,12 +1923,12 @@ objective = the Objective bullet list (use \\n between bullets).`;
                             )}
                             <button
                               onClick={() => setAssignModal(num)}
-                              title={agent ? 'Change inbound agent' : 'Assign inbound agent'}
+                              title={num.assignedAgentId ? 'Change inbound agent' : 'Assign inbound agent'}
                               className="text-xs common-button-bg2 px-2.5 sm:px-3 py-1.5 rounded-lg flex items-center gap-1 whitespace-nowrap"
                             >
                               <Bot className="w-3 h-3" />
-                              <span className="hidden xs:inline sm:inline">{agent ? 'Change' : 'Assign'}</span>
-                              <span className="xs:hidden sm:hidden">{agent ? '↺' : '+'}</span>
+                              <span className="hidden xs:inline sm:inline">{num.assignedAgentId ? 'Change' : 'Assign'}</span>
+                              <span className="xs:hidden sm:hidden">{num.assignedAgentId ? '↺' : '+'}</span>
                             </button>
                             <button
                               onClick={() => setRulesModal(num)}
@@ -1924,11 +2057,11 @@ objective = the Objective bullet list (use \\n between bullets).`;
                             {num.outboundEnabled ? (
                               <>
                                 {(() => {
-                                  const outAgent = agents.find((a) => a.id === num.outboundAgentId);
-                                  return outAgent ? (
+                                  const outName = agentLabel(num.outboundAgentId);
+                                  return num.outboundAgentId ? (
                                     <div className="flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 px-2.5 py-1.5 rounded-lg text-xs font-medium truncate max-w-[140px]">
                                       <Bot className="w-3.5 h-3.5 flex-shrink-0" />
-                                      <span className="truncate">{outAgent.name}</span>
+                                      <span className="truncate">{outName || 'Assigned agent'}</span>
                                     </div>
                                   ) : (
                                     <span className="text-xs text-slate-400 dark:text-slate-500 italic">No agent</span>

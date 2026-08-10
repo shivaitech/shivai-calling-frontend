@@ -325,7 +325,8 @@ function App() {
             <Toaster
               position="top-right"
               toastOptions={{ duration: 4000 }}
-              containerStyle={{ zIndex: 99999 }}
+              containerStyle={{ zIndex: 2147483646 }}
+              containerClassName="!z-[2147483646]"
             />
           </AgentProvider>
         </Router>

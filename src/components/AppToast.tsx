@@ -72,26 +72,26 @@ const appToast = {
   success: (message: string, opts?: { duration?: number }) =>
     toast.custom(
       (t) => <AppToastUI message={message} type="success" t={t} />,
-      { duration: opts?.duration ?? 3000 }
+      { duration: opts?.duration ?? 3000, style: { zIndex: 2147483646 } }
     ),
 
   error: (message: string, opts?: { duration?: number }) =>
     toast.custom(
       (t) => <AppToastUI message={message} type="error" t={t} />,
-      { duration: opts?.duration ?? 5000 }
+      { duration: opts?.duration ?? 5000, style: { zIndex: 2147483646 } }
     ),
 
   info: (message: string, opts?: { duration?: number }) =>
     toast.custom(
       (t) => <AppToastUI message={message} type="info" t={t} />,
-      { duration: opts?.duration ?? 4000 }
+      { duration: opts?.duration ?? 4000, style: { zIndex: 2147483646 } }
     ),
 
   /** Returns a toast ID — pass to `appToast.dismiss(id)` to remove it. */
   loading: (message: string) =>
     toast.custom(
       (t) => <AppToastUI message={message} type="loading" t={t} />,
-      { duration: Infinity }
+      { duration: Infinity, style: { zIndex: 2147483646 } }
     ),
 
   dismiss: (id?: string) => toast.dismiss(id),

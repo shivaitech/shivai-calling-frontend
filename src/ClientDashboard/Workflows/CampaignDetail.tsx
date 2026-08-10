@@ -20,6 +20,8 @@ import {
   archiveCampaign,
   cloneCampaign,
   deleteCampaign,
+  priorityFromApi,
+  workingDaysFromApi,
   type Campaign,
   type CampaignLiveStatus,
   type CampaignContact,
@@ -137,6 +139,9 @@ const CampaignDetail: React.FC = () => {
 
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [live, setLive] = useState<CampaignLiveStatus | null>(null);
+  const [preflightStatus, setPreflightStatus] = useState<string | undefined>();
+  const [preflightBlockers, setPreflightBlockers] = useState<string[]>([]);
+  const [activeCalls, setActiveCalls] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
@@ -168,6 +173,9 @@ const CampaignDetail: React.FC = () => {
       try {
         const detail = await getCampaignStatusDetail(campaignId);
         setLive(detail.stats);
+        setPreflightStatus(detail.preflight_status);
+        setPreflightBlockers(detail.preflight_blockers || []);
+        setActiveCalls(detail.active_calls || 0);
         setCampaign((c) =>
           c
             ? {
@@ -177,6 +185,8 @@ const CampaignDetail: React.FC = () => {
                 started_at: detail.started_at ?? c.started_at,
                 completed_at: detail.completed_at ?? c.completed_at,
                 stats: detail.stats,
+                preflight_status: detail.preflight_status,
+                preflight_blockers: detail.preflight_blockers,
               }
             : c
         );
@@ -238,7 +248,20 @@ const CampaignDetail: React.FC = () => {
       try {
         const detail = await getCampaignStatusDetail(campaignId);
         setLive(detail.stats);
-        setCampaign((c) => (c ? { ...c, status: detail.status || c.status, stats: detail.stats } : c));
+        setPreflightStatus(detail.preflight_status);
+        setPreflightBlockers(detail.preflight_blockers || []);
+        setActiveCalls(detail.active_calls || 0);
+        setCampaign((c) =>
+          c
+            ? {
+                ...c,
+                status: detail.status || c.status,
+                stats: detail.stats,
+                preflight_status: detail.preflight_status,
+                preflight_blockers: detail.preflight_blockers,
+              }
+            : c
+        );
       } catch {
         /* ignore poll errors */
       }
@@ -316,21 +339,23 @@ const CampaignDetail: React.FC = () => {
     setActionBusy(true);
     try {
       if (action === 'pause') {
-        await pauseCampaign(campaignId);
+        const result = await pauseCampaign(campaignId);
         setCampaign((c) => (c ? { ...c, status: 'paused' } : c));
-        appToast.success('Campaign paused');
+        appToast.success(result.message || 'Campaign paused');
       } else if (action === 'resume') {
-        await resumeCampaign(campaignId);
+        const result = await resumeCampaign(campaignId);
         setCampaign((c) => (c ? { ...c, status: 'running' } : c));
-        appToast.success('Campaign resumed');
+        appToast.success(result.message || 'Campaign resumed');
       } else if (action === 'start') {
-        await startCampaign(campaignId);
+        const result = await startCampaign(campaignId);
         setCampaign((c) => (c ? { ...c, status: 'running' } : c));
-        appToast.success('Campaign started');
+        const pendingHint =
+          typeof result.pending === 'number' ? ` · ${result.pending} pending` : '';
+        appToast.success(`${result.message || 'Campaign started'}${pendingHint}`);
       } else if (action === 'stop') {
-        await stopCampaign(campaignId);
+        const result = await stopCampaign(campaignId);
         setCampaign((c) => (c ? { ...c, status: 'stopped' } : c));
-        appToast.success('Campaign stopped');
+        appToast.success(result.message || 'Campaign stopped');
       } else if (action === 'archive') {
         await archiveCampaign(campaignId);
         setCampaign((c) => (c ? { ...c, status: 'archived' } : c));
@@ -349,7 +374,13 @@ const CampaignDetail: React.FC = () => {
       try {
         const detail = await getCampaignStatusDetail(campaignId);
         setLive(detail.stats);
+        setPreflightStatus(detail.preflight_status);
+        setPreflightBlockers(detail.preflight_blockers || []);
+        setActiveCalls(detail.active_calls || 0);
         setCampaign((c) => (c ? { ...c, status: detail.status || c.status, stats: detail.stats } : c));
+        if (detail.preflight_status === 'blocked' && detail.preflight_blockers?.length) {
+          appToast.error(`Preflight blocked: ${detail.preflight_blockers.slice(0, 3).join(' · ')}`);
+        }
       } catch {
         /* ignore */
       }
@@ -522,12 +553,45 @@ const CampaignDetail: React.FC = () => {
         </div>
       </div>
 
+      {preflightStatus === 'blocked' && preflightBlockers.length > 0 && (
+        <div className="flex items-start gap-3 p-4 rounded-2xl border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/20">
+          <AlertCircle className="w-5 h-5 text-rose-500 flex-shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-rose-700 dark:text-rose-300">
+              Preflight blocked — fix these issues before dialing
+            </p>
+            <ul className="mt-2 space-y-1 text-sm text-rose-600 dark:text-rose-400 list-disc pl-5">
+              {preflightBlockers.map((blocker, i) => (
+                <li key={`${blocker}-${i}`}>{blocker}</li>
+              ))}
+            </ul>
+            <p className="text-xs text-rose-500/80 mt-2">
+              Update configuration or contacts, then use Restart or Start to create a new run.
+            </p>
+          </div>
+        </div>
+      )}
+
       <GlassCard>
         <div className="p-4 sm:p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
           <div>
             <p className="text-xs text-slate-500 dark:text-slate-400">Schedule</p>
             <p className="font-medium text-slate-800 dark:text-white mt-0.5">
-              {campaign.scheduled_at ? new Date(campaign.scheduled_at).toLocaleString() : 'Start now / running'}
+              {campaign.schedule?.start_at
+                ? new Date(campaign.schedule.start_at).toLocaleString()
+                : campaign.scheduled_at
+                  ? new Date(campaign.scheduled_at).toLocaleString()
+                  : 'Start now / running'}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Active calls</p>
+            <p className="font-medium text-slate-800 dark:text-white mt-0.5">{activeCalls}</p>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Preflight</p>
+            <p className="font-medium text-slate-800 dark:text-white mt-0.5 capitalize">
+              {preflightStatus || campaign.preflight_status || '—'}
             </p>
           </div>
           <div>
@@ -539,13 +603,20 @@ const CampaignDetail: React.FC = () => {
           <div>
             <p className="text-xs text-slate-500 dark:text-slate-400">Working days</p>
             <p className="font-medium text-slate-800 dark:text-white mt-0.5 capitalize">
-              {campaign.working_days?.length ? campaign.working_days.join(', ') : '—'}
+              {campaign.working_days?.length || campaign.schedule?.working_days?.length
+                ? workingDaysFromApi(
+                    (campaign.schedule?.working_days || campaign.working_days) as Array<
+                      string | number
+                    >
+                  ).join(', ')
+                : '—'}
             </p>
           </div>
           <div>
             <p className="text-xs text-slate-500 dark:text-slate-400">Pacing</p>
             <p className="font-medium text-slate-800 dark:text-white mt-0.5">
-              {campaign.max_concurrent || 0} concurrent · {campaign.calls_per_minute || '—'} /min · {campaign.daily_limit || '—'} /day · {campaign.priority || 'medium'}
+              {campaign.max_concurrent || 0} concurrent · {campaign.calls_per_minute || '—'} /min ·{' '}
+              {campaign.daily_limit || '—'} /day · {priorityFromApi(campaign.priority)}
             </p>
           </div>
         </div>
