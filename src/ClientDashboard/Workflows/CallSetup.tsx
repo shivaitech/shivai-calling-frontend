@@ -37,6 +37,8 @@ import {
   buildCampaignScheduleConfig,
   priorityFromApi,
   workingDaysFromApi,
+  placeDirectOutboundCall,
+  isDirectCallCampaign,
   type CatalogNumber,
   type ProvisionedNumber,
   type Campaign,
@@ -45,6 +47,13 @@ import {
   type DidType,
   type CreateCampaignRequest,
 } from '../../services/phoneNumbersAPI';
+import {
+  listContacts,
+  createContact,
+  updateContact,
+  archiveContact,
+  type TenantContact,
+} from '../../services/contactsAPI';
 import CampaignScheduleForm, {
   defaultCampaignSchedule,
   type CampaignScheduleState,
@@ -109,7 +118,7 @@ const SALES_WHATSAPP_MESSAGE =
   'Hi ShivAI sales team, I want to purchase additional phone numbers on a premium plan. Please help me get started.';
 const SALES_EMAIL_SUBJECT = 'Premium plan — additional phone numbers';
 
-const LEAD_CONNECTORS = [
+const CRM_CONNECTORS = [
   {
     id: 'zoho',
     name: 'Zoho CRM',
@@ -363,6 +372,8 @@ interface ContactEntry {
   name?: string;
   /** Why we're calling — previous inquiry, follow-up, etc. Sent as a custom field for the agent. */
   context?: string;
+  /** Tenant contact id when selected from Contact List / API. */
+  contactId?: string;
 }
 
 const TIMEZONES = [
@@ -481,11 +492,19 @@ const CallSetup: React.FC = () => {
 
   const [activeSection, setActiveSection] = useState<
     'inbound' | 'outbound' | 'contacts' | 'connectors' | 'analytics' | 'followups'
-  >(() =>
-    (location.state as { callSetupSection?: string } | null)?.callSetupSection === 'outbound'
-      ? 'outbound'
-      : 'inbound'
-  );
+  >(() => {
+    const section = (location.state as { callSetupSection?: string } | null)?.callSetupSection;
+    if (
+      section === 'outbound' ||
+      section === 'contacts' ||
+      section === 'connectors' ||
+      section === 'analytics' ||
+      section === 'followups'
+    ) {
+      return section;
+    }
+    return 'inbound';
+  });
 
   // Names for assigned agents missing from the context list (pagination / late load).
   const [resolvedAgentNames, setResolvedAgentNames] = useState<Record<string, string>>({});
@@ -545,6 +564,20 @@ const CallSetup: React.FC = () => {
   const [previousContactsError, setPreviousContactsError] = useState<string | null>(null);
   const [previousContactSearch, setPreviousContactSearch] = useState('');
   const [selectedPreviousIds, setSelectedPreviousIds] = useState<Set<string>>(new Set());
+  const [showContactFormModal, setShowContactFormModal] = useState(false);
+  const [editingContact, setEditingContact] = useState<TenantContact | null>(null);
+  const [contactFormBusy, setContactFormBusy] = useState(false);
+  const [contactFormError, setContactFormError] = useState<string | null>(null);
+  const [contactForm, setContactForm] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    context: '',
+    countryId: 'IN',
+  });
+  const [archiveContactTarget, setArchiveContactTarget] = useState<TenantContact | null>(null);
+  const contactFormCountry =
+    COUNTRY_CODES.find((c) => c.id === contactForm.countryId) ?? COUNTRY_CODES[0];
   const [isSavingCampaign, setIsSavingCampaign] = useState(false);
   const [wizardError, setWizardError] = useState<string | null>(null);
   const [wizardStage, setWizardStage] = useState<string>(''); // progress text while launching
@@ -552,6 +585,21 @@ const CallSetup: React.FC = () => {
   const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
   const [restartCampaignTarget, setRestartCampaignTarget] = useState<CampaignRow | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [showDirectCallModal, setShowDirectCallModal] = useState(false);
+  const [outboundListTab, setOutboundListTab] = useState<'campaigns' | 'direct'>('campaigns');
+  const [directCallMode, setDirectCallMode] = useState<'new' | 'list'>('new');
+  const [directCallerNumberId, setDirectCallerNumberId] = useState('');
+  const [directCountryId, setDirectCountryId] = useState('IN');
+  const directCountry = COUNTRY_CODES.find((c) => c.id === directCountryId) ?? COUNTRY_CODES[0];
+  const [directPhone, setDirectPhone] = useState('');
+  const [directName, setDirectName] = useState('');
+  const [directContext, setDirectContext] = useState('');
+  const [directPhoneError, setDirectPhoneError] = useState<string | null>(null);
+  const [directRecipients, setDirectRecipients] = useState<ContactEntry[]>([]);
+  const [directSelectedIds, setDirectSelectedIds] = useState<Set<string>>(new Set());
+  const [directContactSearch, setDirectContactSearch] = useState('');
+  const [directCallBusy, setDirectCallBusy] = useState(false);
+  const [directCallError, setDirectCallError] = useState<string | null>(null);
   const [phoneInputError, setPhoneInputError] = useState<string | null>(null);
   const [isGeneratingCampaignBrief, setIsGeneratingCampaignBrief] = useState(false);
   const [agentLanguageOptions, setAgentLanguageOptions] = useState<{ value: string; label: string }[]>([
@@ -881,24 +929,31 @@ const CallSetup: React.FC = () => {
     setCampaignContacts(parsed);
   };
 
-  const loadPreviousContacts = useCallback(async () => {
+  const loadPreviousContacts = useCallback(async (search?: string) => {
     setPreviousContactsLoading(true);
     setPreviousContactsError(null);
     try {
-      const result = await getAllCampaignContacts({ page: 1, limit: 200 });
-      // Deduplicate by phone so the same number from multiple campaigns appears once
-      const seen = new Set<string>();
-      const unique: CampaignContact[] = [];
-      for (const c of result.data || []) {
-        const key = String(c.phone_number || '').replace(/\D/g, '');
-        if (!key || seen.has(key)) continue;
-        seen.add(key);
-        unique.push(c);
-      }
-      setPreviousContacts(unique);
+      const result = await listContacts({
+        page: 1,
+        limit: 200,
+        search: search?.trim() || undefined,
+        include_inactive: false,
+      });
+      // Map tenant contacts into the CampaignContact-shaped list used by Direct Call / wizard.
+      const mapped: CampaignContact[] = (result.data || []).map((c) => ({
+        _id: c.id,
+        campaign_id: '',
+        phone_number: c.phone_number,
+        name: c.name,
+        status: c.is_active === false ? 'inactive' : 'active',
+        custom_fields: c.custom_fields,
+        created_at: c.created_at,
+        updated_at: c.updated_at,
+      }));
+      setPreviousContacts(mapped);
     } catch (err: any) {
       setPreviousContacts([]);
-      setPreviousContactsError(err.message || 'Failed to load previous contacts');
+      setPreviousContactsError(err.message || 'Failed to load contacts');
     } finally {
       setPreviousContactsLoading(false);
     }
@@ -912,9 +967,27 @@ const CallSetup: React.FC = () => {
 
   useEffect(() => {
     if (activeSection === 'contacts' || activeSection === 'analytics') {
-      loadPreviousContacts();
+      loadPreviousContacts(activeSection === 'contacts' ? previousContactSearch : undefined);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- search debounced separately
   }, [activeSection, loadPreviousContacts]);
+
+  useEffect(() => {
+    if (activeSection !== 'contacts') return;
+    const t = window.setTimeout(() => {
+      loadPreviousContacts(previousContactSearch);
+    }, 300);
+    return () => window.clearTimeout(t);
+  }, [previousContactSearch, activeSection, loadPreviousContacts]);
+
+  useEffect(() => {
+    if (!showDirectCallModal) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [showDirectCallModal]);
 
   const loadFollowUps = useCallback(async () => {
     setFollowUpsLoading(true);
@@ -1725,6 +1798,335 @@ objective = the Objective bullet list (use \\n between bullets).`;
       ? !!contactFile
       : campaignContacts.length > 0;
 
+  const regularCampaigns = campaigns.filter((c) => !isDirectCallCampaign(c));
+  const directCallCampaigns = campaigns.filter((c) => isDirectCallCampaign(c));
+  const outboundDisplayedCampaigns =
+    outboundListTab === 'direct' ? directCallCampaigns : regularCampaigns;
+
+  const resetDirectCallForm = () => {
+    setDirectCallMode('new');
+    setDirectCallerNumberId(campaignCallerNumbers[0]?.id || '');
+    setDirectCountryId('IN');
+    setDirectPhone('');
+    setDirectName('');
+    setDirectContext('');
+    setDirectPhoneError(null);
+    setDirectRecipients([]);
+    setDirectSelectedIds(new Set());
+    setDirectContactSearch('');
+    setDirectCallError(null);
+  };
+
+  const openDirectCallModal = () => {
+    resetDirectCallForm();
+    setShowDirectCallModal(true);
+    loadPreviousContacts();
+  };
+
+  const filteredDirectContacts = previousContacts.filter((c) => {
+    const q = directContactSearch.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      String(c.phone_number || '').toLowerCase().includes(q) ||
+      String(c.name || '').toLowerCase().includes(q)
+    );
+  });
+
+  const addDirectRecipient = (entry: Omit<ContactEntry, 'id'> & { id?: string }) => {
+    const phone = String(entry.phone || '').trim();
+    if (!phone) return false;
+    if (
+      directRecipients.some(
+        (r) => r.phone === phone || (entry.contactId && r.contactId === entry.contactId)
+      )
+    ) {
+      setDirectCallError('This number is already in the call list');
+      return false;
+    }
+    setDirectRecipients((prev) => [
+      ...prev,
+      {
+        id: entry.id || `dc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        phone,
+        name: entry.name?.trim() || undefined,
+        context: entry.context?.trim() || undefined,
+        contactId: entry.contactId,
+      },
+    ]);
+    setDirectCallError(null);
+    return true;
+  };
+
+  const handleAddDirectNewContact = () => {
+    const digits = sanitizeNationalNumber(directPhone, directCountry);
+    if (!digits) {
+      setDirectPhoneError('Enter a phone number');
+      return;
+    }
+    if (digits.length !== directCountry.maxLen) {
+      setDirectPhoneError(`Enter a ${directCountry.maxLen}-digit number for ${directCountry.name}`);
+      return;
+    }
+    setDirectPhoneError(null);
+    const ok = addDirectRecipient({
+      phone: `${directCountry.code}${digits}`,
+      name: directName.trim() || undefined,
+      context: directContext.trim() || undefined,
+    });
+    if (ok) {
+      setDirectPhone('');
+      setDirectName('');
+      setDirectContext('');
+    }
+  };
+
+  const handleToggleDirectListContact = (contact: CampaignContact) => {
+    const phone = String(contact.phone_number || '').trim();
+    if (!phone) return;
+
+    const alreadyQueued = directRecipients.some(
+      (r) => r.phone === phone || r.id === contact._id || r.contactId === contact._id
+    );
+    if (alreadyQueued) {
+      setDirectRecipients((prev) =>
+        prev.filter((r) => r.phone !== phone && r.id !== contact._id && r.contactId !== contact._id)
+      );
+      setDirectSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(contact._id);
+        return next;
+      });
+      return;
+    }
+
+    addDirectRecipient({
+      id: contact._id,
+      contactId: contact._id,
+      phone,
+      name: String(contact.name || '').trim() || undefined,
+      context:
+        String(contact.custom_fields?.call_context || contact.custom_fields?.context || '').trim() ||
+        undefined,
+    });
+    setDirectSelectedIds((prev) => new Set(prev).add(contact._id));
+  };
+
+  const updateDirectRecipient = (id: string, patch: Partial<Pick<ContactEntry, 'name' | 'context'>>) => {
+    setDirectRecipients((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, ...patch } : r))
+    );
+  };
+
+  const removeDirectRecipient = (id: string) => {
+    setDirectRecipients((prev) => {
+      const removed = prev.find((r) => r.id === id);
+      if (removed) {
+        setDirectSelectedIds((sel) => {
+          const next = new Set(sel);
+          next.delete(removed.id);
+          // also clear if matched by list id stored as id
+          return next;
+        });
+      }
+      return prev.filter((r) => r.id !== id);
+    });
+  };
+
+  const handlePlaceDirectCall = async () => {
+    const caller = campaignCallerNumbers.find((n) => n.id === directCallerNumberId);
+    if (!caller?.outboundAgentId) {
+      setDirectCallError('Select an outbound-ready number with an assigned agent');
+      return;
+    }
+
+    // Allow placing with draft fields filled if queue is empty (single quick add)
+    let recipients = [...directRecipients];
+    if (recipients.length === 0 && directCallMode === 'new' && directPhone.trim()) {
+      const digits = sanitizeNationalNumber(directPhone, directCountry);
+      if (!digits) {
+        setDirectPhoneError('Enter a phone number');
+        setDirectCallError('Enter a phone number');
+        return;
+      }
+      if (digits.length !== directCountry.maxLen) {
+        const msg = `Enter a ${directCountry.maxLen}-digit number for ${directCountry.name}`;
+        setDirectPhoneError(msg);
+        setDirectCallError(msg);
+        return;
+      }
+      recipients = [
+        {
+          id: `dc_draft`,
+          phone: `${directCountry.code}${digits}`,
+          name: directName.trim() || undefined,
+          context: directContext.trim() || undefined,
+        },
+      ];
+    }
+
+    if (recipients.length === 0) {
+      setDirectCallError(
+        directCallMode === 'list'
+          ? 'Select at least one contact from the list'
+          : 'Add at least one phone number'
+      );
+      return;
+    }
+
+    setDirectCallBusy(true);
+    setDirectCallError(null);
+    try {
+      const result = await placeDirectOutboundCall({
+        phone_number_id: caller.id,
+        caller_number: caller.number,
+        agent_id: caller.outboundAgentId,
+        language: caller.language || 'en-in',
+        recipients: recipients.map((r) => ({
+          to: r.phone,
+          name: r.name,
+          call_context: r.context,
+          contact_id: r.contactId,
+        })),
+      });
+      const count = result.recipient_count || recipients.length;
+      appToast.success(
+        result.message || (count > 1 ? `Calling ${count} contacts…` : `Calling ${recipients[0].phone}…`)
+      );
+      setShowDirectCallModal(false);
+      resetDirectCallForm();
+      setOutboundListTab('direct');
+      if (result.campaign_id || result.batch_id) {
+        await loadCampaigns();
+      }
+      await loadPreviousContacts();
+    } catch (err: any) {
+      const msg = err.message || 'Failed to place direct call';
+      setDirectCallError(msg);
+      appToast.error(msg);
+    } finally {
+      setDirectCallBusy(false);
+    }
+  };
+
+  const openCreateContactModal = () => {
+    setEditingContact(null);
+    setContactForm({ name: '', phone: '', email: '', context: '', countryId: 'IN' });
+    setContactFormError(null);
+    setShowContactFormModal(true);
+  };
+
+  const openEditContactModal = (c: CampaignContact) => {
+    const phone = String(c.phone_number || '');
+    const match = COUNTRY_CODES.find((cc) => phone.startsWith(cc.code));
+    const national = match ? phone.slice(match.code.length) : phone.replace(/^\+/, '');
+    setEditingContact({
+      id: c._id,
+      name: c.name || '',
+      phone_number: c.phone_number,
+      custom_fields: c.custom_fields,
+      is_active: c.status !== 'inactive',
+    });
+    setContactForm({
+      name: c.name || '',
+      phone: national,
+      email: '',
+      context: String(c.custom_fields?.call_context || c.custom_fields?.context || ''),
+      countryId: match?.id || 'IN',
+    });
+    setContactFormError(null);
+    setShowContactFormModal(true);
+  };
+
+  const handleSaveContactForm = async () => {
+    const name = contactForm.name.trim();
+    if (!name) {
+      setContactFormError('Name is required');
+      return;
+    }
+
+    let phoneE164 = editingContact?.phone_number || '';
+    if (!editingContact) {
+      const digits = sanitizeNationalNumber(contactForm.phone, contactFormCountry);
+      if (!digits) {
+        setContactFormError('Enter a phone number');
+        return;
+      }
+      if (digits.length !== contactFormCountry.maxLen) {
+        setContactFormError(
+          `Enter a ${contactFormCountry.maxLen}-digit number for ${contactFormCountry.name}`
+        );
+        return;
+      }
+      phoneE164 = `${contactFormCountry.code}${digits}`;
+    }
+
+    const custom_fields: Record<string, string> = {};
+    if (contactForm.context.trim()) custom_fields.call_context = contactForm.context.trim();
+
+    setContactFormBusy(true);
+    setContactFormError(null);
+    try {
+      if (editingContact) {
+        await updateContact(editingContact.id, {
+          name,
+          ...(contactForm.email.trim() ? { email: contactForm.email.trim() } : {}),
+          ...(Object.keys(custom_fields).length ? { custom_fields } : {}),
+        });
+        appToast.success('Contact updated');
+      } else {
+        const caller = campaignCallerNumbers[0];
+        await createContact({
+          name,
+          phone_number: phoneE164,
+          direction: 'both',
+          ...(contactForm.email.trim() ? { email: contactForm.email.trim() } : {}),
+          ...(caller?.outboundAgentId ? { agent_id: caller.outboundAgentId } : {}),
+          ...(caller?.id ? { phone_number_id: caller.id } : {}),
+          ...(Object.keys(custom_fields).length ? { custom_fields } : {}),
+        });
+        appToast.success('Contact created');
+      }
+      setShowContactFormModal(false);
+      await loadPreviousContacts(previousContactSearch);
+    } catch (err: any) {
+      setContactFormError(err.message || 'Failed to save contact');
+    } finally {
+      setContactFormBusy(false);
+    }
+  };
+
+  const handleArchiveContact = async () => {
+    if (!archiveContactTarget) return;
+    setContactFormBusy(true);
+    try {
+      await archiveContact(archiveContactTarget.id);
+      appToast.success('Contact archived');
+      setArchiveContactTarget(null);
+      await loadPreviousContacts(previousContactSearch);
+    } catch (err: any) {
+      appToast.error(err.message || 'Failed to archive contact');
+    } finally {
+      setContactFormBusy(false);
+    }
+  };
+
+  const queueContactForDirectCall = (c: CampaignContact) => {
+    resetDirectCallForm();
+    setDirectCallMode('list');
+    setDirectRecipients([
+      {
+        id: c._id,
+        contactId: c._id,
+        phone: c.phone_number,
+        name: c.name,
+        context: String(c.custom_fields?.call_context || c.custom_fields?.context || ''),
+      },
+    ]);
+    setDirectSelectedIds(new Set([c._id]));
+    setShowDirectCallModal(true);
+    loadPreviousContacts();
+  };
+
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
@@ -1736,7 +2138,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
           <div>
             <h2 className="text-xl font-bold text-slate-800 dark:text-white">Call Setup - In/Outbound</h2>
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-              Manage inbound routing, outbound campaigns, contacts, lead connectors, follow-ups, and analytics
+              Manage inbound routing, outbound campaigns, contacts, CRM connectors, follow-ups, and analytics
             </p>
           </div>
           <div className="flex flex-wrap gap-1 common-bg-icons rounded-xl p-1 self-start sm:self-auto">
@@ -1744,7 +2146,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
               { id: 'inbound', label: 'Inbound', icon: PhoneIncoming },
               { id: 'outbound', label: 'Outbound', icon: PhoneOutgoing },
               { id: 'contacts', label: 'Contact List', icon: BookUser },
-              { id: 'connectors', label: 'Lead Connector', icon: Plug },
+              { id: 'connectors', label: 'CRM Connector', icon: Plug },
               { id: 'followups', label: 'Follow-ups', icon: CalendarClock },
               { id: 'analytics', label: 'Analytics', icon: BarChart3 },
             ] as const).map((s) => (
@@ -1975,10 +2377,10 @@ objective = the Objective bullet list (use \\n between bullets).`;
             {/* Stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
               {[
-                { label: 'Total Campaigns', value: campaigns.length,                                               icon: Zap,       color: 'from-blue-500 to-indigo-600'   },
-                { label: 'Running',         value: campaigns.filter((c) => c.status === 'running').length,         icon: Play,      color: 'from-green-500 to-emerald-600'  },
-                { label: 'Contacts Completed', value: campaigns.reduce((s, c) => s + (c.live?.completed || c.stats?.completed || 0), 0), icon: PhoneCall, color: 'from-purple-500 to-pink-600'   },
-                { label: 'Pending',         value: campaigns.reduce((s, c) => s + (c.live?.pending || c.stats?.pending || 0), 0),      icon: Clock,     color: 'from-orange-500 to-amber-600'  },
+                { label: 'Campaigns', value: regularCampaigns.length, icon: PhoneOutgoing, color: 'from-blue-500 to-indigo-600' },
+                { label: 'Direct Calls', value: directCallCampaigns.length, icon: PhoneCall, color: 'from-sky-500 to-cyan-600' },
+                { label: 'Running', value: campaigns.filter((c) => c.status === 'running').length, icon: Play, color: 'from-green-500 to-emerald-600' },
+                { label: 'Contacts Completed', value: campaigns.reduce((s, c) => s + (c.live?.completed || c.stats?.completed || 0), 0), icon: CheckCircle, color: 'from-purple-500 to-pink-600' },
               ].map((stat) => (
                 <GlassCard key={stat.label}>
                   <div className="p-2 sm:p-4 flex flex-col sm:flex-row sm:items-center sm:gap-3">
@@ -2097,14 +2499,18 @@ objective = the Objective bullet list (use \\n between bullets).`;
               </div>
             </GlassCard>
 
-            {/* Campaigns */}
+            {/* Campaigns / Direct Calls */}
             <GlassCard>
               <div className="p-4 sm:p-6">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
                   <SectionHeader
-                    icon={PhoneOutgoing}
-                    title="Outbound Campaigns"
-                    subtitle="Create AI-powered outbound call campaigns"
+                    icon={outboundListTab === 'direct' ? PhoneCall : PhoneOutgoing}
+                    title={outboundListTab === 'direct' ? 'Direct Calls' : 'Outbound Campaigns'}
+                    subtitle={
+                      outboundListTab === 'direct'
+                        ? 'Contact-list batches placed without a campaign wizard'
+                        : 'Create AI-powered outbound call campaigns'
+                    }
                     color="bg-gradient-to-br from-indigo-500 to-purple-600"
                   />
                   <div className="flex items-center gap-2 flex-shrink-0">
@@ -2116,26 +2522,89 @@ objective = the Objective bullet list (use \\n between bullets).`;
                     >
                       <Loader2 className={`w-4 h-4 ${campaignsLoading ? 'animate-spin' : ''}`} />
                     </button>
-                    <button
-                      onClick={openCampaignWizard}
-                      disabled={campaignCallerNumbers.length === 0}
-                      title={campaignCallerNumbers.length === 0 ? 'Set an outbound agent on a number first' : 'Create a new campaign'}
-                      className="common-button-bg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Plus className="w-4 h-4" />
-                      New Campaign
-                    </button>
+                    {outboundListTab === 'direct' ? (
+                      <button
+                        onClick={openDirectCallModal}
+                        disabled={campaignCallerNumbers.length === 0}
+                        title={
+                          campaignCallerNumbers.length === 0
+                            ? 'Set an outbound agent on a number first'
+                            : 'Place a direct call without a campaign'
+                        }
+                        className="common-button-bg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <PhoneCall className="w-4 h-4" />
+                        Direct Call
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={openDirectCallModal}
+                          disabled={campaignCallerNumbers.length === 0}
+                          title={
+                            campaignCallerNumbers.length === 0
+                              ? 'Set an outbound agent on a number first'
+                              : 'Place a direct call without a campaign'
+                          }
+                          className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-sm font-medium border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <PhoneCall className="w-4 h-4" />
+                          Direct Call
+                        </button>
+                        <button
+                          onClick={openCampaignWizard}
+                          disabled={campaignCallerNumbers.length === 0}
+                          title={campaignCallerNumbers.length === 0 ? 'Set an outbound agent on a number first' : 'Create a new campaign'}
+                          className="common-button-bg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <Plus className="w-4 h-4" />
+                          New Campaign
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
 
+                <div className="flex gap-1 p-1 rounded-xl common-bg-icons mb-5 self-start w-full sm:w-auto">
+                  {(
+                    [
+                      { id: 'campaigns' as const, label: 'Campaigns List', count: regularCampaigns.length, icon: PhoneOutgoing },
+                      { id: 'direct' as const, label: 'Direct Calls List', count: directCallCampaigns.length, icon: PhoneCall },
+                    ] as const
+                  ).map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setOutboundListTab(tab.id)}
+                      className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        outboundListTab === tab.id
+                          ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm'
+                          : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      <tab.icon className="w-3.5 h-3.5" />
+                      {tab.label}
+                      <span
+                        className={`text-[11px] px-1.5 py-0.5 rounded-md tabular-nums ${
+                          outboundListTab === tab.id
+                            ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300'
+                            : 'bg-slate-200/70 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+                        }`}
+                      >
+                        {tab.count}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
                 {/* No campaign-ready numbers → guide the user to set an outbound agent first */}
-                {!campaignsLoading && campaignCallerNumbers.length === 0 && campaigns.length === 0 && (
+                {!campaignsLoading && campaignCallerNumbers.length === 0 && outboundDisplayedCampaigns.length === 0 && (
                   <div className="mb-4 flex items-start gap-3 p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
                     <Info className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
                     <div className="text-sm text-amber-700 dark:text-amber-300">
                       <p className="font-medium">Set up an outbound number first</p>
                       <p className="text-amber-600 dark:text-amber-400 mt-0.5">
-                        A campaign needs a number that is <span className="font-medium">outbound-enabled</span> and has an{' '}
+                        Outbound calling needs a number that is <span className="font-medium">outbound-enabled</span> and has an{' '}
                         <span className="font-medium">outbound agent</span>. Use the{' '}
                         <span className="font-medium">Outbound Numbers</span> section above to enable outbound and pick an agent.
                       </p>
@@ -2153,37 +2622,58 @@ objective = the Objective bullet list (use \\n between bullets).`;
                   </div>
                 )}
 
-                {campaignsLoading && campaigns.length === 0 ? (
+                {campaignsLoading && outboundDisplayedCampaigns.length === 0 ? (
                   <div className="flex items-center justify-center py-14 gap-2 text-slate-400">
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    <span className="text-sm">Loading campaigns…</span>
+                    <span className="text-sm">
+                      {outboundListTab === 'direct' ? 'Loading direct calls…' : 'Loading campaigns…'}
+                    </span>
                   </div>
-                ) : campaigns.length === 0 ? (
+                ) : outboundDisplayedCampaigns.length === 0 ? (
                   <div className="text-center py-14 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
                     <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-900/20 dark:to-purple-900/20 flex items-center justify-center mx-auto mb-4">
-                      <PhoneOutgoing className="w-7 h-7 text-indigo-500" />
+                      {outboundListTab === 'direct' ? (
+                        <PhoneCall className="w-7 h-7 text-indigo-500" />
+                      ) : (
+                        <PhoneOutgoing className="w-7 h-7 text-indigo-500" />
+                      )}
                     </div>
-                    <h3 className="text-base font-semibold text-slate-700 dark:text-slate-300 mb-2">No campaigns yet</h3>
+                    <h3 className="text-base font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                      {outboundListTab === 'direct' ? 'No direct calls yet' : 'No campaigns yet'}
+                    </h3>
                     <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto mb-6">
-                      Create a campaign to start making AI-powered outbound calls to your contacts.
+                      {outboundListTab === 'direct'
+                        ? 'Add contacts and place a Direct Call — batches appear here and use the same dialer as campaigns.'
+                        : 'Create a campaign to start making AI-powered outbound calls to your contacts.'}
                     </p>
-                    <button
-                      onClick={openCampaignWizard}
-                      disabled={campaignCallerNumbers.length === 0}
-                      className="common-button-bg inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Plus className="w-4 h-4" /> Create Campaign
-                    </button>
+                    {outboundListTab === 'direct' ? (
+                      <button
+                        onClick={openDirectCallModal}
+                        disabled={campaignCallerNumbers.length === 0}
+                        className="common-button-bg inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <PhoneCall className="w-4 h-4" /> Place Direct Call
+                      </button>
+                    ) : (
+                      <button
+                        onClick={openCampaignWizard}
+                        disabled={campaignCallerNumbers.length === 0}
+                        className="common-button-bg inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Plus className="w-4 h-4" /> Create Campaign
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {campaigns.map((campaign) => {
+                    {outboundDisplayedCampaigns.map((campaign) => {
                       const agent = agents.find((a) => a.id === campaign.agent_id);
                       const live = campaign.live || (campaign.stats as CampaignLiveStatus | undefined);
                       const total = live?.total || 0;
                       const done = (live?.completed || 0) + (live?.no_answer || 0);
                       const pct = total > 0 ? Math.round((done / total) * 100) : 0;
                       const busy = campaignActionId === campaign._id;
+                      const isDirect = isDirectCallCampaign(campaign);
                       return (
                         <div
                           key={campaign._id}
@@ -2201,7 +2691,11 @@ objective = the Objective bullet list (use \\n between bullets).`;
                           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                             <div className="flex items-start gap-3.5 flex-1 min-w-0">
                               <div className="w-11 h-11 rounded-xl bg-slate-800 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 shadow-sm">
-                                <PhoneOutgoing className="w-5 h-5 text-white" />
+                                {isDirect ? (
+                                  <PhoneCall className="w-5 h-5 text-white" />
+                                ) : (
+                                  <PhoneOutgoing className="w-5 h-5 text-white" />
+                                )}
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 flex-wrap">
@@ -2209,6 +2703,11 @@ objective = the Objective bullet list (use \\n between bullets).`;
                                     {campaign.name}
                                   </h4>
                                   {statusBadge(campaign.status)}
+                                  {isDirect && (
+                                    <span className="text-[11px] px-2 py-0.5 rounded-md bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300">
+                                      Direct
+                                    </span>
+                                  )}
                                   <span className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hidden sm:inline-flex items-center gap-1 text-xs ml-1">
                                     View details <ExternalLink className="w-3 h-3" />
                                   </span>
@@ -2326,14 +2825,14 @@ objective = the Objective bullet list (use \\n between bullets).`;
                                   setOpenMenuId((prev) => (prev === campaign._id ? null : campaign._id));
                                 }}
                                 disabled={busy}
-                                title="More campaign actions"
+                                title="More actions"
                                 className="p-2.5 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/60 border border-transparent hover:border-slate-200 dark:hover:border-slate-600 transition-colors disabled:opacity-50"
                               >
                                 <MoreHorizontal className="w-4 h-4" />
                               </button>
                               {openMenuId === campaign._id && (
                                 <div className="absolute right-0 top-12 z-20 w-48 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl py-1">
-                                  {campaign.status !== 'running' && campaign.status !== 'archived' && (
+                                  {!isDirect && campaign.status !== 'running' && campaign.status !== 'archived' && (
                                     <button
                                       onClick={(e) => openEditWizard(campaign, e)}
                                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
@@ -2341,13 +2840,15 @@ objective = the Objective bullet list (use \\n between bullets).`;
                                       <Pencil className="w-3.5 h-3.5" /> Edit
                                     </button>
                                   )}
-                                  <button
-                                    onClick={(e) => handleCampaignAction(campaign._id, 'clone', e)}
-                                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
-                                  >
-                                    <CopyPlus className="w-3.5 h-3.5" /> Clone settings
-                                  </button>
-                                  {(campaign.status === 'stopped' || campaign.status === 'completed' || campaign.status === 'paused') && (
+                                  {!isDirect && (
+                                    <button
+                                      onClick={(e) => handleCampaignAction(campaign._id, 'clone', e)}
+                                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                                    >
+                                      <CopyPlus className="w-3.5 h-3.5" /> Clone settings
+                                    </button>
+                                  )}
+                                  {!isDirect && (campaign.status === 'stopped' || campaign.status === 'paused') && (
                                     <button
                                       onClick={(e) => {
                                         e.stopPropagation();
@@ -2442,18 +2943,28 @@ objective = the Objective bullet list (use \\n between bullets).`;
                   <SectionHeader
                     icon={BookUser}
                     title="Contact List"
-                    subtitle="Contacts collected across your outbound campaigns"
+                    subtitle="Tenant contacts for direct calling and campaigns"
                     color="bg-gradient-to-br from-indigo-500 to-violet-600"
                   />
-                  <button
-                    type="button"
-                    onClick={() => loadPreviousContacts()}
-                    disabled={previousContactsLoading}
-                    className="common-button-bg2 inline-flex items-center gap-2 text-sm px-4 py-2 rounded-xl disabled:opacity-50"
-                  >
-                    {previousContactsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <History className="w-4 h-4" />}
-                    Refresh
-                  </button>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => loadPreviousContacts(previousContactSearch)}
+                      disabled={previousContactsLoading}
+                      className="common-button-bg2 inline-flex items-center gap-2 text-sm px-4 py-2 rounded-xl disabled:opacity-50"
+                    >
+                      {previousContactsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <History className="w-4 h-4" />}
+                      Refresh
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openCreateContactModal}
+                      className="common-button-bg inline-flex items-center gap-2 text-sm"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add Contact
+                    </button>
+                  </div>
                 </div>
 
                 <div className="relative mb-4">
@@ -2478,7 +2989,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
                   <div className="text-center py-12 border-2 border-dashed border-red-200 dark:border-red-800 rounded-2xl">
                     <AlertCircle className="w-6 h-6 text-red-500 mx-auto mb-3" />
                     <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">{previousContactsError}</p>
-                    <button onClick={loadPreviousContacts} className="common-button-bg2 inline-flex items-center gap-2 text-sm px-4 py-2 rounded-xl">
+                    <button onClick={() => loadPreviousContacts()} className="common-button-bg2 inline-flex items-center gap-2 text-sm px-4 py-2 rounded-xl">
                       Try again
                     </button>
                   </div>
@@ -2493,15 +3004,15 @@ objective = the Objective bullet list (use \\n between bullets).`;
                     <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto mb-6">
                       {previousContactSearch.trim()
                         ? 'Try a different name or phone number.'
-                        : 'Contacts from your outbound campaigns will appear here. You can also import leads via Lead Connector.'}
+                        : 'Create contacts here, then use Direct Call or campaigns to dial them.'}
                     </p>
                     {!previousContactSearch.trim() && (
                       <button
                         type="button"
-                        onClick={() => setActiveSection('connectors')}
+                        onClick={openCreateContactModal}
                         className="common-button-bg inline-flex items-center gap-2"
                       >
-                        <Plug className="w-4 h-4" /> Browse Lead Connector
+                        <Plus className="w-4 h-4" /> Add Contact
                       </button>
                     )}
                   </div>
@@ -2521,13 +3032,54 @@ objective = the Objective bullet list (use \\n between bullets).`;
                                 {c.name?.trim() || 'Unknown'}
                               </p>
                               <p className="text-sm font-mono text-slate-600 dark:text-slate-300 truncate">{c.phone_number}</p>
+                              {c.custom_fields?.call_context && (
+                                <p className="text-xs text-slate-400 dark:text-slate-500 truncate mt-0.5">
+                                  {c.custom_fields.call_context}
+                                </p>
+                              )}
                             </div>
                           </div>
-                          {c.status && (
-                            <span className="text-xs px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 capitalize flex-shrink-0">
-                              {c.status.replace(/_/g, ' ')}
-                            </span>
-                          )}
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <button
+                              type="button"
+                              title="Call history"
+                              onClick={() => navigate(`/contacts/${c._id}/call-history`)}
+                              className="p-2 rounded-lg text-slate-500 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/20"
+                            >
+                              <History className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              title="Direct call"
+                              onClick={() => queueContactForDirectCall(c)}
+                              disabled={campaignCallerNumbers.length === 0}
+                              className="p-2 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 disabled:opacity-40"
+                            >
+                              <PhoneCall className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              title="Edit"
+                              onClick={() => openEditContactModal(c)}
+                              className="p-2 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              title="Archive"
+                              onClick={() =>
+                                setArchiveContactTarget({
+                                  id: c._id,
+                                  name: c.name || '',
+                                  phone_number: c.phone_number,
+                                })
+                              }
+                              className="p-2 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20"
+                            >
+                              <Archive className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -2554,13 +3106,13 @@ objective = the Objective bullet list (use \\n between bullets).`;
               <div className="p-4 sm:p-6">
                 <SectionHeader
                   icon={Plug}
-                  title="Lead Connector"
-                  subtitle="Connect Zoho and other lead generation tools to sync contacts for outbound calling"
+                  title="CRM Connector"
+                  subtitle="Connect Zoho and other CRM tools to sync contacts for outbound calling"
                   color="bg-gradient-to-br from-amber-500 to-orange-600"
                 />
 
                 <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                  {LEAD_CONNECTORS.map((connector) => (
+                  {CRM_CONNECTORS.map((connector) => (
                     <div
                       key={connector.id}
                       className="flex flex-col gap-4 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 common-bg-icons"
@@ -3079,6 +3631,594 @@ objective = the Objective bullet list (use \\n between bullets).`;
               await loadCampaigns();
             }}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Direct Call — no campaign wizard */}
+      <AnimatePresence>
+        {showDirectCallModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[99999] flex items-center justify-center p-4 overflow-hidden"
+            onClick={(e) => {
+              if (e.target === e.currentTarget && !directCallBusy) {
+                setShowDirectCallModal(false);
+              }
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg shadow-2xl border border-slate-200 dark:border-slate-700 max-h-[90vh] flex flex-col overflow-hidden"
+            >
+              <div className="flex items-start justify-between gap-3 p-5 sm:p-6 pb-4 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                    <PhoneCall className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-slate-800 dark:text-white">Direct Call</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+                      Call one or more numbers — each can have its own call context
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => !directCallBusy && setShowDirectCallModal(false)}
+                  className="p-2 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  aria-label="Close"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-5 sm:p-6 space-y-5 flex-1 min-h-0 overflow-y-auto overscroll-contain">
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+                    Caller number
+                  </label>
+                  <select
+                    value={directCallerNumberId}
+                    onChange={(e) => setDirectCallerNumberId(e.target.value)}
+                    disabled={directCallBusy}
+                    className="common-bg-icons w-full px-3 py-2.5 rounded-xl text-sm"
+                  >
+                    {campaignCallerNumbers.length === 0 ? (
+                      <option value="">No outbound-ready numbers</option>
+                    ) : (
+                      campaignCallerNumbers.map((n) => (
+                        <option key={n.id} value={n.id}>
+                          {formatDid(n.number)}
+                          {agentLabel(n.outboundAgentId) ? ` · ${agentLabel(n.outboundAgentId)}` : ''}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+
+                <div className="flex gap-1 p-1 rounded-xl common-bg-icons">
+                  {(
+                    [
+                      { id: 'new' as const, label: 'New contact', icon: Plus },
+                      { id: 'list' as const, label: 'From list', icon: BookUser },
+                    ] as const
+                  ).map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => {
+                        setDirectCallMode(tab.id);
+                        setDirectCallError(null);
+                        setDirectPhoneError(null);
+                      }}
+                      disabled={directCallBusy}
+                      className={`flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        directCallMode === tab.id
+                          ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm'
+                          : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                      }`}
+                    >
+                      <tab.icon className="w-3.5 h-3.5" />
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {directCallMode === 'new' ? (
+                  <div className="space-y-3 rounded-xl border border-slate-200 dark:border-slate-700 p-3.5">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+                        Phone number
+                      </label>
+                      <div className="flex rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden common-bg-icons">
+                        <select
+                          value={directCountryId}
+                          onChange={(e) => {
+                            setDirectCountryId(e.target.value);
+                            setDirectPhone('');
+                            setDirectPhoneError(null);
+                          }}
+                          disabled={directCallBusy}
+                          className="bg-transparent border-r border-slate-200 dark:border-slate-700 px-2 py-2.5 text-sm focus:outline-none text-slate-800 dark:text-white"
+                        >
+                          {COUNTRY_CODES.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.flag} {c.code}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          type="tel"
+                          inputMode="numeric"
+                          value={directPhone}
+                          maxLength={directCountry.maxLen}
+                          onChange={(e) => {
+                            setDirectPhoneError(null);
+                            setDirectPhone(sanitizeNationalNumber(e.target.value, directCountry));
+                          }}
+                          onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddDirectNewContact())}
+                          placeholder={`${directCountry.maxLen}-digit number`}
+                          disabled={directCallBusy}
+                          className="flex-1 bg-transparent px-3 py-2.5 text-sm focus:outline-none text-slate-800 dark:text-white placeholder-slate-400 min-w-0"
+                        />
+                      </div>
+                      {directPhoneError ? (
+                        <p className="text-xs text-rose-500 mt-1">{directPhoneError}</p>
+                      ) : (
+                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                          Max {directCountry.maxLen} digits · {directCountry.flag} {directCountry.name}
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+                        Name (optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={directName}
+                        onChange={(e) => setDirectName(e.target.value)}
+                        placeholder="Contact name"
+                        disabled={directCallBusy}
+                        className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+                        Call context for this number
+                      </label>
+                      <textarea
+                        value={directContext}
+                        onChange={(e) => setDirectContext(e.target.value)}
+                        placeholder="Why you're calling this contact…"
+                        rows={2}
+                        disabled={directCallBusy}
+                        className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm resize-none"
+                      />
+                    </div>
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={handleAddDirectNewContact}
+                        disabled={directCallBusy || !directPhone.trim()}
+                        className="common-button-bg !px-3.5 !py-2.5 !min-w-[44px] rounded-xl inline-flex items-center justify-center gap-1.5 disabled:opacity-50"
+                        title="Add number to call list"
+                      >
+                        <Plus className="w-4 h-4 text-white" strokeWidth={2.5} />
+                        <span className="text-sm text-white">Add</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                          type="search"
+                          value={directContactSearch}
+                          onChange={(e) => setDirectContactSearch(e.target.value)}
+                          placeholder="Search phone or name…"
+                          disabled={directCallBusy}
+                          className="common-bg-icons w-full pl-9 pr-3 py-2 rounded-xl text-sm"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={loadPreviousContacts}
+                        disabled={previousContactsLoading || directCallBusy}
+                        className="text-xs px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 whitespace-nowrap"
+                      >
+                        Refresh
+                      </button>
+                    </div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Tap contacts to add or remove them. Edit each call context in the list below.
+                    </p>
+
+                    {previousContactsLoading ? (
+                      <div className="flex items-center justify-center py-10 gap-2 text-slate-400">
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span className="text-sm">Loading contacts…</span>
+                      </div>
+                    ) : filteredDirectContacts.length === 0 ? (
+                      <div className="text-center py-8 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+                        <Users className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                          {directContactSearch.trim()
+                            ? 'No contacts match your search'
+                            : 'No contacts found yet'}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="max-h-40 overflow-y-auto overscroll-contain rounded-xl border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-800">
+                        {filteredDirectContacts.map((c) => {
+                          const phone = String(c.phone_number || '').trim();
+                          const selected =
+                            directSelectedIds.has(c._id) ||
+                            directRecipients.some((r) => r.id === c._id || r.phone === phone);
+                          return (
+                            <button
+                              key={c._id}
+                              type="button"
+                              onClick={() => handleToggleDirectListContact(c)}
+                              disabled={directCallBusy}
+                              className={`w-full text-left px-3 py-2.5 flex items-center gap-3 transition-colors ${
+                                selected
+                                  ? 'bg-indigo-50 dark:bg-indigo-900/30'
+                                  : 'hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                              }`}
+                            >
+                              <div
+                                className={`w-4 h-4 rounded-md border-2 flex items-center justify-center flex-shrink-0 ${
+                                  selected
+                                    ? 'border-indigo-500 bg-indigo-500'
+                                    : 'border-slate-300 dark:border-slate-600'
+                                }`}
+                              >
+                                {selected && <Check className="w-2.5 h-2.5 text-white" />}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium text-slate-800 dark:text-white truncate">
+                                  {c.name || 'Unnamed'}
+                                </p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                                  {c.phone_number}
+                                </p>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                      Call list ({directRecipients.length})
+                    </label>
+                    {directRecipients.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDirectRecipients([]);
+                          setDirectSelectedIds(new Set());
+                        }}
+                        disabled={directCallBusy}
+                        className="text-xs text-slate-500 hover:text-rose-600 disabled:opacity-50"
+                      >
+                        Clear all
+                      </button>
+                    )}
+                  </div>
+
+                  {directRecipients.length === 0 ? (
+                    <div className="text-center py-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+                      <PhoneCall className="w-6 h-6 text-slate-300 dark:text-slate-600 mx-auto mb-1.5" />
+                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                        No numbers added yet
+                      </p>
+                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                        Add new contacts or pick from your list
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {directRecipients.map((r, idx) => (
+                        <div
+                          key={r.id}
+                          className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-2 bg-slate-50/60 dark:bg-slate-800/40"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-slate-800 dark:text-white truncate">
+                                {idx + 1}. {r.name || 'Unnamed'}
+                              </p>
+                              <p className="text-xs font-mono text-slate-500 dark:text-slate-400 truncate">
+                                {r.phone}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeDirectRecipient(r.id)}
+                              disabled={directCallBusy}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 disabled:opacity-50"
+                              title="Remove"
+                              aria-label="Remove number"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <div>
+                            <label className="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">
+                              Call context
+                            </label>
+                            <textarea
+                              value={r.context || ''}
+                              onChange={(e) =>
+                                updateDirectRecipient(r.id, { context: e.target.value })
+                              }
+                              placeholder="Context for this number only…"
+                              rows={2}
+                              disabled={directCallBusy}
+                              className="common-bg-icons w-full px-3 py-2 rounded-lg text-sm resize-none"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {directCallError && (
+                  <div className="flex items-start gap-2 p-3 rounded-xl bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800">
+                    <AlertCircle className="w-4 h-4 text-rose-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-rose-600 dark:text-rose-400">{directCallError}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-2 p-5 sm:p-6 pt-4 border-t border-slate-200 dark:border-slate-700 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowDirectCallModal(false)}
+                  disabled={directCallBusy}
+                  className="px-4 py-2 rounded-xl text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePlaceDirectCall}
+                  disabled={
+                    directCallBusy ||
+                    campaignCallerNumbers.length === 0 ||
+                    (directRecipients.length === 0 && !(directCallMode === 'new' && directPhone.trim()))
+                  }
+                  className="common-button-bg inline-flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {directCallBusy ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <PhoneCall className="w-4 h-4" />
+                  )}
+                  {directRecipients.length > 1
+                    ? `Place ${directRecipients.length} Calls`
+                    : 'Place Call'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Contact create / edit */}
+      <AnimatePresence>
+        {showContactFormModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[99999] flex items-center justify-center p-4 overflow-hidden"
+            onClick={(e) => {
+              if (e.target === e.currentTarget && !contactFormBusy) setShowContactFormModal(false);
+            }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-2xl border border-slate-200 dark:border-slate-700 max-h-[90vh] flex flex-col overflow-hidden"
+            >
+              <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
+                <div>
+                  <h3 className="font-bold text-slate-800 dark:text-white">
+                    {editingContact ? 'Edit contact' : 'Add contact'}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Saved to your tenant contact list
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => !contactFormBusy && setShowContactFormModal(false)}
+                  className="p-2 text-slate-400 hover:text-slate-600 rounded-lg"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4 flex-1 overflow-y-auto">
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+                    Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={contactForm.name}
+                    onChange={(e) => setContactForm((p) => ({ ...p, name: e.target.value }))}
+                    disabled={contactFormBusy}
+                    className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm"
+                    placeholder="Contact name"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+                    Phone number *
+                  </label>
+                  {editingContact ? (
+                    <input
+                      type="text"
+                      value={editingContact.phone_number}
+                      disabled
+                      className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm opacity-70 font-mono"
+                    />
+                  ) : (
+                    <div className="flex rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden common-bg-icons">
+                      <select
+                        value={contactForm.countryId}
+                        onChange={(e) =>
+                          setContactForm((p) => ({ ...p, countryId: e.target.value, phone: '' }))
+                        }
+                        disabled={contactFormBusy}
+                        className="bg-transparent border-r border-slate-200 dark:border-slate-700 px-2 py-2.5 text-sm"
+                      >
+                        {COUNTRY_CODES.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.flag} {c.code}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="tel"
+                        inputMode="numeric"
+                        value={contactForm.phone}
+                        maxLength={contactFormCountry.maxLen}
+                        onChange={(e) =>
+                          setContactForm((p) => ({
+                            ...p,
+                            phone: sanitizeNationalNumber(e.target.value, contactFormCountry),
+                          }))
+                        }
+                        disabled={contactFormBusy}
+                        placeholder={`${contactFormCountry.maxLen}-digit number`}
+                        className="flex-1 bg-transparent px-3 py-2.5 text-sm focus:outline-none min-w-0"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+                    Email (optional)
+                  </label>
+                  <input
+                    type="email"
+                    value={contactForm.email}
+                    onChange={(e) => setContactForm((p) => ({ ...p, email: e.target.value }))}
+                    disabled={contactFormBusy}
+                    className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm"
+                    placeholder="optional@example.com"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+                    Call context (optional)
+                  </label>
+                  <textarea
+                    value={contactForm.context}
+                    onChange={(e) => setContactForm((p) => ({ ...p, context: e.target.value }))}
+                    disabled={contactFormBusy}
+                    rows={3}
+                    className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm resize-none"
+                    placeholder="Notes for the agent when calling this contact…"
+                  />
+                </div>
+
+                {contactFormError && (
+                  <div className="flex items-start gap-2 p-3 rounded-xl bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800">
+                    <AlertCircle className="w-4 h-4 text-rose-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-sm text-rose-600 dark:text-rose-400">{contactFormError}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-2 p-5 border-t border-slate-200 dark:border-slate-700 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowContactFormModal(false)}
+                  disabled={contactFormBusy}
+                  className="px-4 py-2 rounded-xl text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveContactForm}
+                  disabled={contactFormBusy}
+                  className="common-button-bg inline-flex items-center gap-2 disabled:opacity-50"
+                >
+                  {contactFormBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  {editingContact ? 'Save' : 'Create'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Archive contact confirm */}
+      <AnimatePresence>
+        {archiveContactTarget && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[99999] flex items-center justify-center p-4"
+            onClick={(e) => e.target === e.currentTarget && !contactFormBusy && setArchiveContactTarget(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm shadow-2xl border border-slate-200 dark:border-slate-700 p-5 space-y-4"
+            >
+              <h3 className="font-bold text-slate-800 dark:text-white">Archive contact?</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                <span className="font-medium text-slate-700 dark:text-slate-200">
+                  {archiveContactTarget.name || archiveContactTarget.phone_number}
+                </span>{' '}
+                will be deactivated. Call history is kept.
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setArchiveContactTarget(null)}
+                  disabled={contactFormBusy}
+                  className="px-4 py-2 rounded-xl text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleArchiveContact}
+                  disabled={contactFormBusy}
+                  className="px-4 py-2 rounded-xl text-sm font-medium bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-50 inline-flex items-center gap-2"
+                >
+                  {contactFormBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Archive className="w-4 h-4" />}
+                  Archive
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
         )}
       </AnimatePresence>
 
@@ -3949,9 +5089,9 @@ objective = the Objective bullet list (use \\n between bullets).`;
                                 <History className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                               </div>
                               <div>
-                                <p className="text-sm font-semibold text-slate-800 dark:text-white">Previous campaign contacts</p>
+                                <p className="text-sm font-semibold text-slate-800 dark:text-white">From contact list</p>
                                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                                  Reuse numbers you&apos;ve already dialed in past campaigns.
+                                  Reuse saved tenant contacts for this campaign.
                                 </p>
                               </div>
                             </div>

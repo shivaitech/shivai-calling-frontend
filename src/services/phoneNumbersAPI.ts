@@ -1,4 +1,11 @@
 import axios, { AxiosResponse } from "axios";
+import { placeDirectOutboundCall } from "./contactsAPI";
+export { placeDirectOutboundCall };
+export type {
+  DirectOutboundRecipient,
+  DirectOutboundCallRequest,
+  DirectOutboundCallResult,
+} from "./contactsAPI";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -322,7 +329,36 @@ export interface Campaign {
   last_preflight_at?: string | null;
   /** Embedded stats from list/get responses (prefer live status when polling). */
   stats?: CampaignStats;
+  /** Present when created via POST /contact-batches. */
+  source?: string;
+  origin?: string;
+  kind?: string;
+  batch_id?: string;
+  is_direct?: boolean;
 }
+
+/** Direct contact-batch runs share campaign storage; detect them for UI tabs. */
+export const isDirectCallCampaign = (c: {
+  name?: string;
+  source?: string;
+  origin?: string;
+  kind?: string;
+  batch_id?: string;
+  is_direct?: boolean;
+}): boolean => {
+  if (c.is_direct === true) return true;
+  if (c.batch_id) return true;
+  const src = String(c.source || c.origin || c.kind || "").toLowerCase();
+  if (
+    src.includes("direct") ||
+    src.includes("contact_batch") ||
+    src.includes("contact-batch") ||
+    src === "batch"
+  ) {
+    return true;
+  }
+  return /^direct(\s*[·•\-]|\s+)/i.test(String(c.name || "").trim());
+};
 
 export interface CreateCampaignRequest {
   agent_id: string;
@@ -1142,6 +1178,7 @@ export default {
   removeOutboundAgent,
   getDidTypes,
   getCallLogs,
+  placeDirectOutboundCall,
   createCampaign,
   updateCampaign,
   archiveCampaign,

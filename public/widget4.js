@@ -340,6 +340,15 @@
     "/website-preview",
     "/auth/",
     "/reset-password",
+    "/analytics",
+    "/workflows",
+    "/campaigns",
+    "/settings",
+    "/training",
+    "/marketplace",
+    "/overview",
+    "/monitoring",
+    "/apps",
   ];
 
   function getLandingWidgetScriptParams() {
@@ -361,24 +370,30 @@
       h === "callshivai.com" ||
       h === "www.callshivai.com" ||
       h === "localhost" ||
-      h === "127.0.0.1"
+      h === "127.0.0.1" ||
+      h.endsWith(".callshivai.com") ||
+      h.indexOf("shivai-calling-frontend") !== -1
     );
   }
 
   // Kept the name isLandingRoute() so the rest of the file (applyRouteVisibility)
   // needs no changes — it now means "should widget4 run on this page".
   function isLandingRoute() {
+    var full = window.location.pathname || "/";
+    var p = full.replace(/\/+$/, "") || "/";
+
+    // Always hide on dashboard / app routes (covers Vercel previews whose host
+    // is not listed as a ShivAI app domain).
+    for (var i = 0; i < LANDING_WIDGET_BLOCKED_PREFIXES.length; i++) {
+      if (full.indexOf(LANDING_WIDGET_BLOCKED_PREFIXES[i]) === 0) return false;
+    }
+
     // Client websites (not the ShivAI app) — always allow; the domain/visibility
     // check in checkAgentStatusOnLoad() decides whether it actually renders.
     if (!isShivaiHostedApp4()) return true;
 
     // On the ShivAI host, restrict to the public landing page only.
-    var full = window.location.pathname || "/";
-    var p = full.replace(/\/+$/, "") || "/";
     if (p !== "" && p !== "/" && p !== "/landing") return false;
-    for (var i = 0; i < LANDING_WIDGET_BLOCKED_PREFIXES.length; i++) {
-      if (full.indexOf(LANDING_WIDGET_BLOCKED_PREFIXES[i]) === 0) return false;
-    }
     // Test/preview embeds on the host use widget5 instead.
     var params = getLandingWidgetScriptParams();
     if (params && (params.get("bypass") === "true" || params.get("novaPage") === "1")) {
@@ -386,6 +401,88 @@
     }
     return true;
   }
+
+  function normalizeWidgetHost4(host) {
+    return String(host || "").toLowerCase().replace(/\.$/, "");
+  }
+
+  function widgetHostsMatch4(allowedHost, currentHost) {
+    var a = normalizeWidgetHost4(allowedHost);
+    var c = normalizeWidgetHost4(currentHost);
+    if (!a || !c) return false;
+    if (a === c) return true;
+    if (c.endsWith("." + a)) return true;
+    if (a.indexOf("www.") === 0 && c === a.slice(4)) return true;
+    if (c === "www." + a) return true;
+    return false;
+  }
+
+  function getWidgetPageContext4() {
+    var origin = window.location.origin.toLowerCase();
+    var host = window.location.hostname.toLowerCase();
+    var href = window.location.href.split("#")[0].toLowerCase().replace(/\/+$/, "");
+    var pathname = window.location.pathname.toLowerCase().replace(/\/+$/, "") || "";
+    return { origin: origin, host: host, href: href, pathname: pathname };
+  }
+
+  function matchesAllowedWidgetUrl4(entry, page) {
+    var raw = String(entry || "").trim().toLowerCase();
+    if (!raw) return false;
+    raw = raw.replace(/\/+$/, "");
+
+    if (/^https?:\/\//.test(raw)) {
+      try {
+        var allowed = new URL(raw);
+        var current = new URL(page.href);
+        if (!widgetHostsMatch4(allowed.hostname, current.hostname) && allowed.origin.toLowerCase() !== current.origin) {
+          return false;
+        }
+        var allowedPath = allowed.pathname.replace(/\/+$/, "") || "";
+        if (!allowedPath || allowedPath === "/") return true;
+        var currentPath = current.pathname.replace(/\/+$/, "") || "";
+        return currentPath === allowedPath || currentPath.indexOf(allowedPath + "/") === 0;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    var withoutProto = raw.replace(/^https?:\/\//, "");
+    var slash = withoutProto.indexOf("/");
+    var hostPart = slash === -1 ? withoutProto : withoutProto.slice(0, slash);
+    var pathPart = slash === -1 ? "" : withoutProto.slice(slash).replace(/\/+$/, "");
+
+    if (
+      !widgetHostsMatch4(hostPart, page.host) &&
+      page.origin !== "https://" + hostPart &&
+      page.origin !== "http://" + hostPart
+    ) {
+      return false;
+    }
+
+    if (!pathPart || pathPart === "/") return true;
+    var normPath = pathPart.charAt(0) === "/" ? pathPart : "/" + pathPart;
+    normPath = normPath.replace(/\/+$/, "");
+    return page.pathname === normPath || page.pathname.indexOf(normPath + "/") === 0;
+  }
+
+  // visibility=public → no domain/URL restriction
+  // visibility=private → only allowed_domains (empty list = nowhere)
+  function isWidgetVisibilityAllowed4(visibility, allowedDomains, skipCheck) {
+    if (skipCheck) return true;
+    var mode = String(visibility || "public").toLowerCase();
+    if (mode !== "private") {
+      _wlog("✅ Widget visibility is public — no domain restriction");
+      return true;
+    }
+    var list = Array.isArray(allowedDomains) ? allowedDomains : [];
+    var cleaned = list.map(function (d) { return String(d || "").trim(); }).filter(Boolean);
+    if (cleaned.length === 0) return false;
+    var page = getWidgetPageContext4();
+    return cleaned.some(function (entry) {
+      return matchesAllowedWidgetUrl4(entry, page);
+    });
+  }
+
   // Show/hide the widget based on the current route. Initialises lazily the
   // first time the user lands on an allowed route.
   function applyRouteVisibility() {
@@ -718,36 +815,24 @@
           // Note: Widget UI will be created after this function completes in initWidget()
           // refreshWidgetContent() will be called there after createWidgetUI()
 
-          // ✅ Domain restriction check
+          // visibility key: public = no restriction; private = allowed_domains only
           const widgetVisibility = agentRes.widget.visibility || 'public';
           const allowedDomains = agentRes.widget.allowed_domains || [];
-          
-          // Skip domain check if bypass is enabled (for preview/testing/QR pages)
+          window.SHIVAI_WIDGET_CONFIG.visibility = widgetVisibility;
+          window.SHIVAI_WIDGET_CONFIG.allowed_domains = allowedDomains;
+
           if (bypassDomainCheck) {
             _wlog('✅ Domain check skipped - bypass mode enabled');
-          } else if (widgetVisibility === 'private' && allowedDomains.length > 0) {
-            const currentOrigin = window.location.origin.toLowerCase();
-            const currentHost = window.location.hostname.toLowerCase();
-            const isAllowed = allowedDomains.some(function(domain) {
-              if (!domain) return false;
-              const d = domain.toLowerCase().replace(/\/+$/, '');
-              // Match full origin or hostname with/without protocol
-              return currentOrigin === d ||
-                     currentHost === d ||
-                     currentOrigin.endsWith('://' + d) ||
-                     currentHost.endsWith('.' + d) ||
-                     d.replace(/^https?:\/\//, '') === currentHost;
-            });
-            if (!isAllowed) {
-              console.warn('🚫 ShivAI Widget: this domain is not authorised to load this widget. Aborting.');
-              agentStatus.active = false;
-              agentStatus.blocked = true;
-              agentStatus.canRetry = false;
-              agentStatus.errorType = 'domain';
-              agentStatus.message = 'Widget not available on this domain.';
-              return; // Abort — do not render widget
-            }
-            _wlog('✅ Domain authorisation passed for:', currentHost);
+          } else if (!isWidgetVisibilityAllowed4(widgetVisibility, allowedDomains, false)) {
+            console.warn('🚫 ShivAI Widget: visibility is private and this page is not in allowed_domains. Aborting.');
+            agentStatus.active = false;
+            agentStatus.blocked = true;
+            agentStatus.canRetry = false;
+            agentStatus.errorType = 'domain';
+            agentStatus.message = 'Widget not available on this domain.';
+            return;
+          } else {
+            _wlog('✅ Visibility check passed:', widgetVisibility, allowedDomains);
           }
         } else {
           _wlog('ℹ️ No widget configuration found in agent response - getCompanyInfo() will use URL parameters or defaults');

@@ -514,7 +514,7 @@ const CampaignDetail: React.FC = () => {
               Stop
             </button>
           )}
-          {(campaign.status === 'stopped' || campaign.status === 'completed' || campaign.status === 'paused') && (
+          {(campaign.status === 'stopped' || campaign.status === 'paused') && (
             <button
               onClick={() => setShowRestartModal(true)}
               disabled={actionBusy}

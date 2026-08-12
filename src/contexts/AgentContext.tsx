@@ -187,7 +187,8 @@ export const AgentProvider: React.FC<{ children: React.ReactNode }> = ({
     location.pathname.includes("/dashboard") ||
     location.pathname.includes("/workflows") ||
     location.pathname.includes("/call-setup") ||
-    location.pathname.includes("/campaigns");
+    location.pathname.includes("/campaigns") ||
+    location.pathname.includes("/contacts");
 
   // Load agents from API
   const loadAgents = async () => {
