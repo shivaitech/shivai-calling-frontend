@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -20,7 +20,6 @@ import {
   createCampaign,
   updateCampaign,
   archiveCampaign,
-  cloneCampaign,
   uploadCampaignContacts,
   startCampaign,
   scheduleCampaign,
@@ -29,6 +28,7 @@ import {
   stopCampaign,
   deleteCampaign,
   getCampaigns,
+  getCampaign,
   getCampaignStatus,
   getCampaignStatusDetail,
   getAllCampaignContacts,
@@ -39,6 +39,7 @@ import {
   workingDaysFromApi,
   placeDirectOutboundCall,
   isDirectCallCampaign,
+  isValidCampaignId,
   type CatalogNumber,
   type ProvisionedNumber,
   type Campaign,
@@ -52,8 +53,12 @@ import {
   createContact,
   updateContact,
   archiveContact,
+  listCallHistory,
   type TenantContact,
+  type CallHistoryItem,
 } from '../../services/contactsAPI';
+import Pagination from '../../components/Pagination';
+import SessionTranscriptModal from '../Employees/agents/SessionTranscriptModal';
 import CampaignScheduleForm, {
   defaultCampaignSchedule,
   type CampaignScheduleState,
@@ -451,10 +456,11 @@ const SectionHeader: React.FC<{
   icon: React.ElementType;
   title: string;
   subtitle: string;
-  color: string;
-}> = ({ icon: Icon, title, subtitle, color }) => (
+  /** @deprecated icon badge is a fixed slate/gray theme now — this prop is ignored */
+  color?: string;
+}> = ({ icon: Icon, title, subtitle }) => (
   <div className="flex items-center gap-4">
-    <div className={`w-12 h-12 rounded-2xl ${color} flex items-center justify-center shadow-lg flex-shrink-0`}>
+    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-slate-600 to-slate-800 dark:from-slate-500 dark:to-slate-700 flex items-center justify-center shadow-sm flex-shrink-0">
       <Icon className="w-6 h-6 text-white" />
     </div>
     <div>
@@ -481,6 +487,116 @@ const Toggle: React.FC<{ checked: boolean; onChange: () => void }> = ({ checked,
     />
   </button>
 );
+
+// ─── Agent-session resolution (call-history row → real agent session) ─────────
+// Call-history rows are lightweight (no recording/transcripts/summary). The
+// modal needs the actual agent-session record, resolved the same way
+// ContactCallHistory / CampaignDetail do it.
+
+const phoneDigits = (value?: string) => String(value || '').replace(/\D/g, '');
+
+const explicitAgentSessionId = (row: any): string | null => {
+  const candidates = [
+    row?.session_id,
+    row?.agent_session_id,
+    row?.room_name,
+    row?.room_id,
+    row?.custom_fields?.session_id,
+    row?.custom_fields?.agent_session_id,
+    row?.custom_fields?.room_name,
+  ]
+    .map((v) => String(v || '').trim())
+    .filter(Boolean);
+  const callId = String(row?.call_id || '').trim();
+  if (callId && (/^(outbound|inbound)[-_]/i.test(callId) || callId.includes('-'))) {
+    candidates.push(callId);
+  }
+  return candidates[0] || null;
+};
+
+const sessionPhoneDigits = (session: any) =>
+  phoneDigits(
+    session?.direction?.number ||
+      session?.phone_number ||
+      session?.to_number ||
+      session?.from_number ||
+      session?.caller_number ||
+      session?.lead_number
+  );
+
+const sessionMatchesCall = (
+  session: any,
+  opts: { sessionIds: string[]; contactId?: string; phone?: string }
+) => {
+  const sid = String(session?.session_id || session?.id || session?.call_id || '');
+  if (!sid) return false;
+
+  if (opts.sessionIds.some((id) => sid === id || sid.includes(id) || id.includes(sid))) {
+    return true;
+  }
+
+  const contactId = String(opts.contactId || '').trim();
+  if (contactId) {
+    if (
+      sid === contactId ||
+      sid === `outbound-${contactId}` ||
+      sid === `inbound-${contactId}` ||
+      sid.includes(contactId)
+    ) {
+      return true;
+    }
+  }
+
+  const want = phoneDigits(opts.phone);
+  if (want.length >= 8) {
+    const got = sessionPhoneDigits(session);
+    if (got && (got === want || got.endsWith(want.slice(-10)) || want.endsWith(got.slice(-10)))) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+const loadAgentSessionsFor = async (agentId: string, phone?: string): Promise<any[]> => {
+  const queries = [
+    'page=1&limit=100',
+    phone ? `page=1&limit=100&q=${encodeURIComponent(phone)}` : '',
+  ].filter(Boolean);
+
+  const seen = new Set<string>();
+  const out: any[] = [];
+  for (const q of queries) {
+    try {
+      const response = await agentAPI.getAgentSessions(q, agentId);
+      const sessions: any[] = response?.sessions || [];
+      for (const s of sessions) {
+        const key = String(s.session_id || s.id || s.call_id || '');
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        out.push(s);
+      }
+    } catch {
+      /* try next query */
+    }
+  }
+  return out;
+};
+
+const CAMPAIGN_NAME_MAX_LEN = 80;
+// Letters/digits from any language, plus common punctuation people actually use in names.
+const CAMPAIGN_NAME_PATTERN = /^[\p{L}\p{N} .,'&()/_-]+$/u;
+
+const validateCampaignName = (raw: string): string | null => {
+  const value = raw.trim();
+  if (!value) return 'Campaign name is required';
+  if (value.length < 3) return 'Campaign name must be at least 3 characters';
+  if (value.length > CAMPAIGN_NAME_MAX_LEN) return `Campaign name must be ${CAMPAIGN_NAME_MAX_LEN} characters or fewer`;
+  // eslint-disable-next-line no-control-regex
+  if (/[\x00-\x1f\x7f]/.test(value)) return 'Campaign name contains invalid characters';
+  if (!CAMPAIGN_NAME_PATTERN.test(value)) return 'Use letters, numbers, spaces, and basic punctuation only';
+  return null;
+};
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
@@ -587,6 +703,15 @@ const CallSetup: React.FC = () => {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [showDirectCallModal, setShowDirectCallModal] = useState(false);
   const [outboundListTab, setOutboundListTab] = useState<'campaigns' | 'direct'>('campaigns');
+  const [inboundCalls, setInboundCalls] = useState<CallHistoryItem[]>([]);
+  const [inboundCallsPage, setInboundCallsPage] = useState(1);
+  const [inboundCallsTotal, setInboundCallsTotal] = useState(0);
+  const [inboundCallsTotalPages, setInboundCallsTotalPages] = useState(1);
+  const [inboundCallsLoading, setInboundCallsLoading] = useState(false);
+  const [inboundCallsError, setInboundCallsError] = useState<string | null>(null);
+  const [inboundSession, setInboundSession] = useState<any | null>(null);
+  const [openingInboundCallId, setOpeningInboundCallId] = useState<string | null>(null);
+  const INBOUND_PAGE_SIZE = 20;
   const [directCallMode, setDirectCallMode] = useState<'new' | 'list'>('new');
   const [directCallerNumberId, setDirectCallerNumberId] = useState('');
   const [directCountryId, setDirectCountryId] = useState('IN');
@@ -624,6 +749,7 @@ const CallSetup: React.FC = () => {
     objective: '',
     goal: '',
   });
+  const [campaignNameTouched, setCampaignNameTouched] = useState(false);
 
   // ─── Inbound handlers ─────────────────────────────────────────────────────
 
@@ -936,7 +1062,7 @@ const CallSetup: React.FC = () => {
       const result = await listContacts({
         page: 1,
         limit: 200,
-        search: search?.trim() || undefined,
+        search: typeof search === 'string' ? search.trim() || undefined : undefined,
         include_inactive: false,
       });
       // Map tenant contacts into the CampaignContact-shaped list used by Direct Call / wizard.
@@ -1507,6 +1633,7 @@ const CallSetup: React.FC = () => {
     setPhoneInputError(null);
     setWizardError(null);
     setNewCampaign({ name: '', agentId: '', callerNumber: '', language: 'en-IN', objective: '', goal: '' });
+    setCampaignNameTouched(false);
     setAgentLanguageOptions([{ value: 'en-IN', label: 'English (India)' }]);
     setShowContactFileEditor(false);
     setContactFileEditText('');
@@ -1529,9 +1656,45 @@ const CallSetup: React.FC = () => {
     e?.stopPropagation();
     setOpenMenuId(null);
     setEditingCampaignId(campaign._id);
+    const sched = campaign.schedule;
+    const startAt = sched?.start_at || campaign.scheduled_at;
+    fillCampaignWizardFromSource(campaign, {
+      name: campaign.name,
+      startNow: !(startAt || campaign.status === 'scheduled'),
+    });
+    setCampaignNameTouched(false);
+    setShowCreateCampaign(true);
+  };
+
+  /** Clone = open Create Campaign modal with settings copied (no server clone yet). */
+  const openCloneWizard = (campaign: CampaignRow | Campaign, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setOpenMenuId(null);
+    if (!isValidCampaignId(campaign._id) && !isValidCampaignId((campaign as any).id)) {
+      appToast.error('Cannot clone — campaign id is missing');
+      return;
+    }
+    fillCampaignWizardFromSource(campaign, {
+      name: `${campaign.name || 'Campaign'} (clone)`.slice(0, 80),
+      startNow: true,
+    });
+    // New campaign — user reviews fields and creates
+    setEditingCampaignId(null);
+    setContactMode('manual');
+    setCampaignContacts([]);
+    setContactFile(null);
+    setSelectedPreviousIds(new Set());
+    setCampaignNameTouched(false);
+    setShowCreateCampaign(true);
+  };
+
+  const fillCampaignWizardFromSource = (
+    campaign: CampaignRow | Campaign,
+    opts: { name: string; startNow?: boolean }
+  ) => {
     setCampaignStep(1);
     setNewCampaign({
-      name: campaign.name,
+      name: opts.name,
       agentId: campaign.agent_id,
       callerNumber: campaign.caller_number,
       language: campaign.language || 'en-IN',
@@ -1542,7 +1705,7 @@ const CallSetup: React.FC = () => {
     const startAt = sched?.start_at || campaign.scheduled_at;
     setSchedule({
       ...defaultCampaignSchedule(),
-      startNow: !(startAt || campaign.status === 'scheduled'),
+      startNow: opts.startNow ?? true,
       scheduledAt: toLocalDateTimeValue(startAt),
       endDate: (sched?.end_at || campaign.end_date)
         ? String(sched?.end_at || campaign.end_date).slice(0, 10)
@@ -1565,8 +1728,44 @@ const CallSetup: React.FC = () => {
       dailyLimit: campaign.daily_limit || 100,
       priority: priorityFromApi(campaign.priority),
     });
-    setShowCreateCampaign(true);
+    setWizardError(null);
+    setPhoneInputError(null);
   };
+
+  // Open create modal prefilled when arriving from Campaign Detail → Clone
+  useEffect(() => {
+    const cloneId = String(
+      (location.state as { cloneCampaignId?: string } | null)?.cloneCampaignId || ''
+    ).trim();
+    if (!isValidCampaignId(cloneId)) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        setActiveSection('outbound');
+        const source = await getCampaign(cloneId);
+        if (cancelled) return;
+        openCloneWizard(source);
+      } catch (err: any) {
+        if (!cancelled) {
+          appToast.error(err.message || 'Failed to load campaign to clone');
+        }
+      } finally {
+        if (!cancelled) {
+          navigate(location.pathname, {
+            replace: true,
+            state: { callSetupSection: 'outbound' },
+          });
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // Intentionally only when cloneCampaignId is present in navigation state
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
 
   // Load languages available on the selected outbound agent
   useEffect(() => {
@@ -1762,9 +1961,14 @@ objective = the Objective bullet list (use \\n between bullets).`;
         setCampaigns((prev) => prev.map((c) => (c._id === id ? { ...c, status: 'archived' } : c)));
         appToast.success('Campaign archived');
       } else if (action === 'clone') {
-        const copy = await cloneCampaign(id);
-        appToast.success(`Cloned settings as "${copy.name}"`);
-        await loadCampaigns();
+        const source = campaigns.find((c) => c._id === id);
+        if (source) {
+          openCloneWizard(source, e);
+        } else {
+          const fetched = await getCampaign(id);
+          openCloneWizard(fetched, e);
+        }
+        return;
       } else if (action === 'delete') {
         await deleteCampaign(id);
         setCampaigns((prev) => prev.filter((c) => c._id !== id));
@@ -1791,7 +1995,9 @@ objective = the Objective bullet list (use \\n between bullets).`;
   );
   const selectedCallerNum = campaignCallerNumbers.find((n) => n.number === newCampaign.callerNumber);
   const assignedCount = numbers.filter((n) => n.assignedAgentId).length;
-  const step1Valid = !!(newCampaign.name.trim() && newCampaign.callerNumber && newCampaign.agentId);
+  const step1Valid = !!(
+    !validateCampaignName(newCampaign.name) && newCampaign.callerNumber && newCampaign.agentId
+  );
   const step2Valid = editingCampaignId
     ? true
     : contactMode === 'file'
@@ -1802,6 +2008,101 @@ objective = the Objective bullet list (use \\n between bullets).`;
   const directCallCampaigns = campaigns.filter((c) => isDirectCallCampaign(c));
   const outboundDisplayedCampaigns =
     outboundListTab === 'direct' ? directCallCampaigns : regularCampaigns;
+
+  const loadInboundCallHistory = useCallback(async (page = 1) => {
+    setInboundCallsLoading(true);
+    setInboundCallsError(null);
+    try {
+      const result = await listCallHistory({
+        direction: 'inbound',
+        page,
+        limit: INBOUND_PAGE_SIZE,
+      });
+      setInboundCalls(result.calls || []);
+      setInboundCallsTotal(result.pagination?.total || result.calls?.length || 0);
+      setInboundCallsTotalPages(Math.max(1, result.pagination?.total_pages || 1));
+      setInboundCallsPage(result.pagination?.page || page);
+    } catch (err: any) {
+      setInboundCalls([]);
+      setInboundCallsError(err.message || 'Failed to load inbound call history');
+    } finally {
+      setInboundCallsLoading(false);
+    }
+  }, []);
+
+  // Resolve the real agent-session (recording/transcripts/summary live there,
+  // not on the lightweight call-history row) before opening the modal.
+  const openInboundSession = async (call: CallHistoryItem) => {
+    const callKey = String(call.id || call.call_id || '');
+    setOpeningInboundCallId(callKey);
+    try {
+      const phone = call.phone_number || call.source_number || '';
+      const explicitId = explicitAgentSessionId(call);
+      const candidateIds = [explicitId].map((v) => String(v || '').trim()).filter(Boolean);
+
+      let matched: any = null;
+      const agentIdsToTry = [
+        call.agent_id,
+        ...agents.map((a) => a.id).filter((id) => id && id !== call.agent_id),
+      ].filter(Boolean) as string[];
+
+      for (const aid of agentIdsToTry) {
+        const sessions = await loadAgentSessionsFor(aid, phone);
+        matched =
+          sessions.find((s) =>
+            sessionMatchesCall(s, { sessionIds: candidateIds, phone: '' })
+          ) ||
+          sessions.find((s) => sessionMatchesCall(s, { sessionIds: [], phone })) ||
+          null;
+        if (matched) break;
+        if (call.agent_id) break; // had a specific agent, don't fan out unless nothing matched
+      }
+
+      if (!matched && explicitId) {
+        matched = { session_id: explicitId, id: explicitId, call_id: explicitId };
+      }
+
+      const sid = String(matched?.session_id || matched?.id || matched?.call_id || '');
+      if (!sid) {
+        appToast.error('No session linked to this call yet');
+        return;
+      }
+
+      setInboundSession({
+        ...matched,
+        session_id: sid,
+        id: String(matched?.id || sid),
+        // Keep the real telephony call id from the call-history row — leads are
+        // keyed by this (call_1786184020515-style), not by the agent-session id.
+        call_id: String(call.call_id || matched?.call_id || sid),
+        agent_id: call.agent_id || matched?.agent_id,
+        agent:
+          matched?.agent ||
+          (call.agent_id
+            ? {
+                id: call.agent_id,
+                name: call.agent_name || agents.find((a) => a.id === call.agent_id)?.name,
+              }
+            : undefined),
+        phone_number: matched?.phone_number || matched?.direction?.number || phone,
+        name: matched?.name || call.contact_name,
+        direction: matched?.direction || { type: 'inbound', number: phone },
+        duration_seconds: matched?.duration_seconds ?? call.duration_seconds,
+        created_at: matched?.created_at || call.start_time,
+        status: matched?.status || call.status,
+      });
+    } catch (err: any) {
+      appToast.error(err.message || 'Failed to open call details');
+    } finally {
+      setOpeningInboundCallId(null);
+    }
+  };
+
+  useEffect(() => {
+    if (activeSection === 'inbound') {
+      loadInboundCallHistory(inboundCallsPage);
+    }
+  }, [activeSection, inboundCallsPage, loadInboundCallHistory]);
 
   const resetDirectCallForm = () => {
     setDirectCallMode('new');
@@ -2184,18 +2485,18 @@ objective = the Objective bullet list (use \\n between bullets).`;
             {/* Stats */}
             <div className="grid grid-cols-3 gap-2 sm:gap-4">
               {[
-                { label: 'Phone Numbers', value: numbers.length,                    icon: Hash,         color: 'from-blue-500 to-indigo-600'   },
-                { label: 'Assigned',      value: assignedCount,                     icon: Bot,          color: 'from-emerald-500 to-teal-600'  },
-                { label: 'Unassigned',    value: numbers.length - assignedCount,    icon: AlertCircle,  color: 'from-amber-500 to-orange-600'  },
+                { label: 'Phone Numbers', value: numbers.length,                    icon: Hash,         tint: 'text-blue-600 dark:text-blue-400'       },
+                { label: 'Assigned',      value: assignedCount,                     icon: Bot,          tint: 'text-emerald-600 dark:text-emerald-400' },
+                { label: 'Unassigned',    value: numbers.length - assignedCount,    icon: AlertCircle,  tint: 'text-amber-600 dark:text-amber-400'   },
               ].map((stat) => (
                 <GlassCard key={stat.label}>
                   <div className="p-2 sm:p-4 flex flex-col sm:flex-row sm:items-center sm:gap-3">
-                    <div className={`hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br ${stat.color} items-center justify-center flex-shrink-0`}>
-                      <stat.icon className="w-5 h-5 text-white" />
+                    <div className={`hidden sm:flex w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 items-center justify-center flex-shrink-0 ${stat.tint}`}>
+                      <stat.icon className="w-5 h-5" />
                     </div>
                     {/* Mobile: coloured dot + number + label stacked */}
-                    <div className={`sm:hidden w-6 h-6 rounded-lg bg-gradient-to-br ${stat.color} flex items-center justify-center mb-1`}>
-                      <stat.icon className="w-3 h-3 text-white" />
+                    <div className={`sm:hidden w-6 h-6 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center mb-1 ${stat.tint}`}>
+                      <stat.icon className="w-3 h-3" />
                     </div>
                     <div>
                       <p className="text-lg sm:text-xl font-bold text-slate-800 dark:text-white leading-tight">{stat.value}</p>
@@ -2214,7 +2515,6 @@ objective = the Objective bullet list (use \\n between bullets).`;
                     icon={PhoneIncoming}
                     title="Phone Numbers"
                     subtitle="Assign AI agents to handle inbound calls on each number"
-                    color="bg-gradient-to-br from-blue-500 to-indigo-600"
                   />
                   <button
                     onClick={openBuyModal}
@@ -2259,7 +2559,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
                 {/* Empty */}
                 {!numbersLoading && !numbersError && numbers.length === 0 && (
                   <div className="text-center py-14 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
-                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/20 dark:to-indigo-900/20 flex items-center justify-center mx-auto mb-4">
+                    <div className="w-16 h-16 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center mx-auto mb-4">
                       <Phone className="w-7 h-7 text-blue-500" />
                     </div>
                     <h3 className="text-base font-semibold text-slate-700 dark:text-slate-300 mb-2">No phone numbers yet</h3>
@@ -2283,7 +2583,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
                       >
                         {/* Number info */}
                         <div className="flex items-center gap-3 flex-1 min-w-0">
-                          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+                          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center flex-shrink-0">
                             <Phone className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                           </div>
                           <div className="min-w-0">
@@ -2359,6 +2659,147 @@ objective = the Objective bullet list (use \\n between bullets).`;
                 </div>
               </div>
             </GlassCard>
+
+            {/* Inbound Calls */}
+            <GlassCard>
+              <div className="p-4 sm:p-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+                  <SectionHeader
+                    icon={PhoneIncoming}
+                    title="Inbound Calls"
+                    subtitle="Incoming call history across your numbers"
+                  />
+                  <button
+                    onClick={() => loadInboundCallHistory(inboundCallsPage)}
+                    disabled={inboundCallsLoading}
+                    title="Refresh inbound calls"
+                    className="p-2.5 rounded-xl common-bg-icons text-slate-500 dark:text-slate-400 hover:opacity-90 transition-opacity disabled:opacity-50 flex-shrink-0"
+                  >
+                    <Loader2 className={`w-4 h-4 ${inboundCallsLoading ? 'animate-spin' : ''}`} />
+                  </button>
+                </div>
+
+                {inboundCallsLoading && inboundCalls.length === 0 ? (
+                  <div className="flex items-center justify-center py-14 gap-2 text-slate-400">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span className="text-sm">Loading inbound calls…</span>
+                  </div>
+                ) : inboundCallsError ? (
+                  <div className="text-center py-12 border-2 border-dashed border-rose-200 dark:border-rose-800 rounded-2xl">
+                    <AlertCircle className="w-6 h-6 text-rose-500 mx-auto mb-3" />
+                    <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">{inboundCallsError}</p>
+                    <button
+                      type="button"
+                      onClick={() => loadInboundCallHistory(inboundCallsPage)}
+                      className="common-button-bg2 inline-flex items-center gap-2 text-sm px-4 py-2 rounded-xl"
+                    >
+                      Try again
+                    </button>
+                  </div>
+                ) : inboundCalls.length === 0 ? (
+                  <div className="text-center py-14 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
+                    <PhoneIncoming className="w-7 h-7 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+                    <h3 className="text-base font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                      No inbound calls yet
+                    </h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+                      Incoming calls to your numbers will appear here.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {inboundCalls.map((call) => {
+                      const key = String(call.id || call.call_id);
+                      const started = call.start_time
+                        ? new Date(call.start_time).toLocaleString()
+                        : '—';
+                      const dur = Number(call.duration_seconds) || 0;
+                      const durLabel =
+                        dur < 60 ? `${dur}s` : `${Math.floor(dur / 60)}m${dur % 60 ? ` ${dur % 60}s` : ''}`;
+                      return (
+                        <div
+                          key={key}
+                          className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/50"
+                        >
+                          <div className="flex items-start gap-3 min-w-0">
+                            <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center flex-shrink-0">
+                              <PhoneIncoming className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-sm font-semibold text-slate-800 dark:text-white font-mono">
+                                  {call.phone_number || call.source_number || 'Unknown number'}
+                                </p>
+                                <span className="text-[11px] px-2 py-0.5 rounded-md capitalize bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300">
+                                  inbound
+                                </span>
+                                <span className="text-[11px] px-2 py-0.5 rounded-md capitalize bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                                  {String(call.status || 'unknown').replace(/_/g, ' ')}
+                                </span>
+                              </div>
+                              <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+                                {call.contact_name && <span>{call.contact_name}</span>}
+                                <span>{started}</span>
+                                <span>{durLabel}</span>
+                                {(call.agent_name || call.agent_id) && (
+                                  <span>
+                                    Agent:{' '}
+                                    {call.agent_name ||
+                                      agents.find((a) => a.id === call.agent_id)?.name ||
+                                      String(call.agent_id).slice(0, 8)}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {call.contact_id && (
+                              <button
+                                type="button"
+                                onClick={() => navigate(`/contacts/${call.contact_id}/call-history`)}
+                                className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                              >
+                                <History className="w-4 h-4" />
+                                Contact history
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              disabled={openingInboundCallId === String(call.id || call.call_id)}
+                              onClick={() => openInboundSession(call)}
+                              className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium common-button-bg2 disabled:opacity-50"
+                            >
+                              {openingInboundCallId === String(call.id || call.call_id) ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Eye className="w-4 h-4" />
+                              )}
+                              Session
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {inboundCallsTotalPages > 1 && (
+                      <Pagination
+                        currentPage={inboundCallsPage}
+                        totalPages={inboundCallsTotalPages}
+                        totalItems={inboundCallsTotal}
+                        itemsPerPage={INBOUND_PAGE_SIZE}
+                        onPageChange={setInboundCallsPage}
+                        className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700"
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+            </GlassCard>
+            {inboundSession && (
+              <SessionTranscriptModal
+                session={inboundSession}
+                onClose={() => setInboundSession(null)}
+              />
+            )}
           </motion.div>
         )}
 
@@ -2377,18 +2818,18 @@ objective = the Objective bullet list (use \\n between bullets).`;
             {/* Stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
               {[
-                { label: 'Campaigns', value: regularCampaigns.length, icon: PhoneOutgoing, color: 'from-blue-500 to-indigo-600' },
-                { label: 'Direct Calls', value: directCallCampaigns.length, icon: PhoneCall, color: 'from-sky-500 to-cyan-600' },
-                { label: 'Running', value: campaigns.filter((c) => c.status === 'running').length, icon: Play, color: 'from-green-500 to-emerald-600' },
-                { label: 'Contacts Completed', value: campaigns.reduce((s, c) => s + (c.live?.completed || c.stats?.completed || 0), 0), icon: CheckCircle, color: 'from-purple-500 to-pink-600' },
+                { label: 'Campaigns', value: regularCampaigns.length, icon: PhoneOutgoing, tint: 'text-blue-600 dark:text-blue-400' },
+                { label: 'Direct Calls', value: directCallCampaigns.length, icon: PhoneCall, tint: 'text-cyan-600 dark:text-cyan-400' },
+                { label: 'Running', value: campaigns.filter((c) => c.status === 'running').length, icon: Play, tint: 'text-emerald-600 dark:text-emerald-400' },
+                { label: 'Contacts Completed', value: campaigns.reduce((s, c) => s + (c.live?.completed || c.stats?.completed || 0), 0), icon: CheckCircle, tint: 'text-purple-600 dark:text-purple-400' },
               ].map((stat) => (
                 <GlassCard key={stat.label}>
                   <div className="p-2 sm:p-4 flex flex-col sm:flex-row sm:items-center sm:gap-3">
-                    <div className={`hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br ${stat.color} items-center justify-center flex-shrink-0`}>
-                      <stat.icon className="w-5 h-5 text-white" />
+                    <div className={`hidden sm:flex w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 items-center justify-center flex-shrink-0 ${stat.tint}`}>
+                      <stat.icon className="w-5 h-5" />
                     </div>
-                    <div className={`sm:hidden w-6 h-6 rounded-lg bg-gradient-to-br ${stat.color} flex items-center justify-center mb-1`}>
-                      <stat.icon className="w-3 h-3 text-white" />
+                    <div className={`sm:hidden w-6 h-6 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center mb-1 ${stat.tint}`}>
+                      <stat.icon className="w-3 h-3" />
                     </div>
                     <div>
                       <p className="text-lg sm:text-xl font-bold text-slate-800 dark:text-white leading-tight">{stat.value}</p>
@@ -2406,7 +2847,6 @@ objective = the Objective bullet list (use \\n between bullets).`;
                   icon={PhoneOutgoing}
                   title="Outbound Numbers"
                   subtitle="Enable outbound on a number, then choose the AI agent that places its calls"
-                  color="bg-gradient-to-br from-indigo-500 to-purple-600"
                 />
 
                 {actionError && (
@@ -2438,7 +2878,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
                           className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-xl common-bg-icons gap-2 sm:gap-3"
                         >
                           <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center flex-shrink-0">
+                            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center flex-shrink-0">
                               <PhoneOutgoing className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                             </div>
                             <div className="min-w-0">
@@ -2511,7 +2951,6 @@ objective = the Objective bullet list (use \\n between bullets).`;
                         ? 'Contact-list batches placed without a campaign wizard'
                         : 'Create AI-powered outbound call campaigns'
                     }
-                    color="bg-gradient-to-br from-indigo-500 to-purple-600"
                   />
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <button
@@ -2565,36 +3004,40 @@ objective = the Objective bullet list (use \\n between bullets).`;
                   </div>
                 </div>
 
-                <div className="flex gap-1 p-1 rounded-xl common-bg-icons mb-5 self-start w-full sm:w-auto">
+                <div className="flex gap-1.5 p-1.5 rounded-xl bg-slate-200/80 dark:bg-slate-800/80 border border-slate-300/70 dark:border-slate-700 mb-5 self-start w-full sm:w-auto">
                   {(
                     [
                       { id: 'campaigns' as const, label: 'Campaigns List', count: regularCampaigns.length, icon: PhoneOutgoing },
                       { id: 'direct' as const, label: 'Direct Calls List', count: directCallCampaigns.length, icon: PhoneCall },
                     ] as const
-                  ).map((tab) => (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      onClick={() => setOutboundListTab(tab.id)}
-                      className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        outboundListTab === tab.id
-                          ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-sm'
-                          : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-                      }`}
-                    >
-                      <tab.icon className="w-3.5 h-3.5" />
-                      {tab.label}
-                      <span
-                        className={`text-[11px] px-1.5 py-0.5 rounded-md tabular-nums ${
-                          outboundListTab === tab.id
-                            ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300'
-                            : 'bg-slate-200/70 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+                  ).map((tab) => {
+                    const active = outboundListTab === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setOutboundListTab(tab.id)}
+                        aria-pressed={active}
+                        className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+                          active
+                            ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-md ring-1 ring-slate-900/10 dark:ring-white/20'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-white/60 dark:hover:bg-slate-700/60'
                         }`}
                       >
-                        {tab.count}
-                      </span>
-                    </button>
-                  ))}
+                        <tab.icon className={`w-3.5 h-3.5 ${active ? 'opacity-100' : 'opacity-70'}`} />
+                        {tab.label}
+                        <span
+                          className={`text-[11px] px-1.5 py-0.5 rounded-md tabular-nums font-semibold ${
+                            active
+                              ? 'bg-white/20 dark:bg-slate-900/15 text-white dark:text-slate-900'
+                              : 'bg-slate-300/80 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                          }`}
+                        >
+                          {tab.count}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {/* No campaign-ready numbers → guide the user to set an outbound agent first */}
@@ -2631,7 +3074,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
                   </div>
                 ) : outboundDisplayedCampaigns.length === 0 ? (
                   <div className="text-center py-14 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
-                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-900/20 dark:to-purple-900/20 flex items-center justify-center mx-auto mb-4">
+                    <div className="w-16 h-16 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center mx-auto mb-4">
                       {outboundListTab === 'direct' ? (
                         <PhoneCall className="w-7 h-7 text-indigo-500" />
                       ) : (
@@ -2679,10 +3122,20 @@ objective = the Objective bullet list (use \\n between bullets).`;
                           key={campaign._id}
                           role="button"
                           tabIndex={0}
-                          onClick={() => navigate(`/campaigns/${campaign._id}`)}
+                          onClick={() => {
+                            if (!isValidCampaignId(campaign._id)) {
+                              appToast.error('Campaign id is missing');
+                              return;
+                            }
+                            navigate(`/campaigns/${campaign._id}`);
+                          }}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' || e.key === ' ') {
                               e.preventDefault();
+                              if (!isValidCampaignId(campaign._id)) {
+                                appToast.error('Campaign id is missing');
+                                return;
+                              }
                               navigate(`/campaigns/${campaign._id}`);
                             }
                           }}
@@ -2690,11 +3143,11 @@ objective = the Objective bullet list (use \\n between bullets).`;
                         >
                           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                             <div className="flex items-start gap-3.5 flex-1 min-w-0">
-                              <div className="w-11 h-11 rounded-xl bg-slate-800 dark:bg-slate-700 flex items-center justify-center flex-shrink-0 shadow-sm">
+                              <div className="w-11 h-11 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center flex-shrink-0">
                                 {isDirect ? (
-                                  <PhoneCall className="w-5 h-5 text-white" />
+                                  <PhoneCall className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
                                 ) : (
-                                  <PhoneOutgoing className="w-5 h-5 text-white" />
+                                  <PhoneOutgoing className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
                                 )}
                               </div>
                               <div className="flex-1 min-w-0">
@@ -2906,27 +3359,27 @@ objective = the Objective bullet list (use \\n between bullets).`;
           >
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4">
               {[
-                { label: 'Total Contacts', value: previousContacts.length, icon: Users, color: 'from-blue-500 to-indigo-600' },
+                { label: 'Total Contacts', value: previousContacts.length, icon: Users, tint: 'text-blue-600 dark:text-blue-400' },
                 {
                   label: 'With Name',
                   value: previousContacts.filter((c) => String(c.name || '').trim()).length,
                   icon: BookUser,
-                  color: 'from-emerald-500 to-teal-600',
+                  tint: 'text-emerald-600 dark:text-emerald-400',
                 },
                 {
                   label: 'Showing',
                   value: filteredPreviousContacts.length,
                   icon: Search,
-                  color: 'from-violet-500 to-purple-600',
+                  tint: 'text-violet-600 dark:text-violet-400',
                 },
               ].map((stat) => (
                 <GlassCard key={stat.label}>
                   <div className="p-2 sm:p-4 flex flex-col sm:flex-row sm:items-center sm:gap-3">
-                    <div className={`hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br ${stat.color} items-center justify-center flex-shrink-0`}>
-                      <stat.icon className="w-5 h-5 text-white" />
+                    <div className={`hidden sm:flex w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 items-center justify-center flex-shrink-0 ${stat.tint}`}>
+                      <stat.icon className="w-5 h-5" />
                     </div>
-                    <div className={`sm:hidden w-6 h-6 rounded-lg bg-gradient-to-br ${stat.color} flex items-center justify-center mb-1`}>
-                      <stat.icon className="w-3 h-3 text-white" />
+                    <div className={`sm:hidden w-6 h-6 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center mb-1 ${stat.tint}`}>
+                      <stat.icon className="w-3 h-3" />
                     </div>
                     <div>
                       <p className="text-lg sm:text-xl font-bold text-slate-800 dark:text-white leading-tight">{stat.value}</p>
@@ -2944,7 +3397,6 @@ objective = the Objective bullet list (use \\n between bullets).`;
                     icon={BookUser}
                     title="Contact List"
                     subtitle="Tenant contacts for direct calling and campaigns"
-                    color="bg-gradient-to-br from-indigo-500 to-violet-600"
                   />
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <button
@@ -3024,7 +3476,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
                       {filteredPreviousContacts.map((c) => (
                         <div key={c._id} className="flex items-center justify-between gap-3 px-4 py-3">
                           <div className="min-w-0 flex items-start gap-3">
-                            <div className="w-9 h-9 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center flex-shrink-0">
+                            <div className="w-9 h-9 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center flex-shrink-0">
                               <Phone className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                             </div>
                             <div className="min-w-0">
@@ -3108,7 +3560,6 @@ objective = the Objective bullet list (use \\n between bullets).`;
                   icon={Plug}
                   title="CRM Connector"
                   subtitle="Connect Zoho and other CRM tools to sync contacts for outbound calling"
-                  color="bg-gradient-to-br from-amber-500 to-orange-600"
                 />
 
                 <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
@@ -3197,18 +3648,18 @@ objective = the Objective bullet list (use \\n between bullets).`;
                 <>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
                     {[
-                      { label: 'Campaigns', value: campaigns.length, icon: Zap, color: 'from-blue-500 to-indigo-600' },
-                      { label: 'Running', value: runningCampaigns, icon: Play, color: 'from-green-500 to-emerald-600' },
-                      { label: 'Completed Calls', value: completedCalls, icon: PhoneCall, color: 'from-purple-500 to-pink-600' },
-                      { label: 'Connect Rate', value: `${connectRate}%`, icon: BarChart3, color: 'from-cyan-500 to-blue-600' },
+                      { label: 'Campaigns', value: campaigns.length, icon: Zap, tint: 'text-blue-600 dark:text-blue-400' },
+                      { label: 'Running', value: runningCampaigns, icon: Play, tint: 'text-emerald-600 dark:text-emerald-400' },
+                      { label: 'Completed Calls', value: completedCalls, icon: PhoneCall, tint: 'text-purple-600 dark:text-purple-400' },
+                      { label: 'Connect Rate', value: `${connectRate}%`, icon: BarChart3, tint: 'text-cyan-600 dark:text-cyan-400' },
                     ].map((stat) => (
                       <GlassCard key={stat.label}>
                         <div className="p-2 sm:p-4 flex flex-col sm:flex-row sm:items-center sm:gap-3">
-                          <div className={`hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br ${stat.color} items-center justify-center flex-shrink-0`}>
-                            <stat.icon className="w-5 h-5 text-white" />
+                          <div className={`hidden sm:flex w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 items-center justify-center flex-shrink-0 ${stat.tint}`}>
+                            <stat.icon className="w-5 h-5" />
                           </div>
-                          <div className={`sm:hidden w-6 h-6 rounded-lg bg-gradient-to-br ${stat.color} flex items-center justify-center mb-1`}>
-                            <stat.icon className="w-3 h-3 text-white" />
+                          <div className={`sm:hidden w-6 h-6 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center mb-1 ${stat.tint}`}>
+                            <stat.icon className="w-3 h-3" />
                           </div>
                           <div>
                             <p className="text-lg sm:text-xl font-bold text-slate-800 dark:text-white leading-tight">{stat.value}</p>
@@ -3226,7 +3677,6 @@ objective = the Objective bullet list (use \\n between bullets).`;
                           icon={BarChart3}
                           title="Call Setup Analytics"
                           subtitle="Outbound campaign performance, agent metrics, and downloadable reports"
-                          color="bg-gradient-to-br from-cyan-500 to-blue-600"
                         />
                         <div className="flex flex-wrap items-center gap-2">
                           <button
@@ -3371,7 +3821,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
                                       <tr key={row.agent.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                                         <td className="px-4 py-3">
                                           <div className="flex items-center gap-2 min-w-0">
-                                            <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center flex-shrink-0">
+                                            <div className="w-8 h-8 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center flex-shrink-0">
                                               <Bot className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                                             </div>
                                             <div className="min-w-0">
@@ -3420,33 +3870,33 @@ objective = the Objective bullet list (use \\n between bullets).`;
           >
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4">
               {[
-                { label: 'Total', value: followUps.length, icon: CalendarClock, color: 'from-violet-500 to-purple-600' },
+                { label: 'Total', value: followUps.length, icon: CalendarClock, tint: 'text-violet-600 dark:text-violet-400' },
                 {
                   label: 'Callbacks',
                   value: followUps.filter((f) => f.type === 'callback').length,
                   icon: PhoneIncoming,
-                  color: 'from-amber-500 to-orange-600',
+                  tint: 'text-amber-600 dark:text-amber-400',
                 },
                 {
                   label: 'Follow-ups',
                   value: followUps.filter((f) => f.type === 'follow_up').length,
                   icon: PhoneOutgoing,
-                  color: 'from-blue-500 to-indigo-600',
+                  tint: 'text-blue-600 dark:text-blue-400',
                 },
                 {
                   label: 'High urgency',
                   value: followUps.filter((f) => String(f.urgency || '').toLowerCase() === 'high').length,
                   icon: AlertCircle,
-                  color: 'from-rose-500 to-red-600',
+                  tint: 'text-rose-600 dark:text-rose-400',
                 },
               ].map((stat) => (
                 <GlassCard key={stat.label}>
                   <div className="p-2 sm:p-4 flex flex-col sm:flex-row sm:items-center sm:gap-3">
-                    <div className={`hidden sm:flex w-10 h-10 rounded-xl bg-gradient-to-br ${stat.color} items-center justify-center flex-shrink-0`}>
-                      <stat.icon className="w-5 h-5 text-white" />
+                    <div className={`hidden sm:flex w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 items-center justify-center flex-shrink-0 ${stat.tint}`}>
+                      <stat.icon className="w-5 h-5" />
                     </div>
-                    <div className={`sm:hidden w-6 h-6 rounded-lg bg-gradient-to-br ${stat.color} flex items-center justify-center mb-1`}>
-                      <stat.icon className="w-3 h-3 text-white" />
+                    <div className={`sm:hidden w-6 h-6 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center mb-1 ${stat.tint}`}>
+                      <stat.icon className="w-3 h-3" />
                     </div>
                     <div>
                       <p className="text-lg sm:text-xl font-bold text-slate-800 dark:text-white leading-tight">{stat.value}</p>
@@ -3464,7 +3914,6 @@ objective = the Objective bullet list (use \\n between bullets).`;
                     icon={CalendarClock}
                     title="Follow-ups & Callbacks"
                     subtitle="Requested callbacks and follow-ups captured from AI conversations and campaign contacts"
-                    color="bg-gradient-to-br from-violet-500 to-purple-600"
                   />
                   <button
                     type="button"
@@ -3656,7 +4105,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
             >
               <div className="flex items-start justify-between gap-3 p-5 sm:p-6 pb-4 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
                 <div className="flex items-start gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-600 to-slate-800 dark:from-slate-500 dark:to-slate-700 flex items-center justify-center flex-shrink-0">
                     <PhoneCall className="w-5 h-5 text-white" />
                   </div>
                   <div className="min-w-0">
@@ -3829,7 +4278,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
                       </div>
                       <button
                         type="button"
-                        onClick={loadPreviousContacts}
+                        onClick={() => loadPreviousContacts()}
                         disabled={previousContactsLoading || directCallBusy}
                         className="text-xs px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 whitespace-nowrap"
                       >
@@ -4505,7 +4954,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
               {/* Header */}
               <div className="flex items-center justify-between p-5 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-600 to-slate-800 dark:from-slate-500 dark:to-slate-700 flex items-center justify-center">
                     <Phone className="w-5 h-5 text-white" />
                   </div>
                   <div>
@@ -4586,7 +5035,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
                               : 'border-transparent common-bg-icons hover:bg-indigo-50 dark:hover:bg-indigo-900/20'
                           }`}
                         >
-                          <div className="w-9 h-9 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+                          <div className="w-9 h-9 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center flex-shrink-0">
                             <Phone className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                           </div>
                           <div className="flex-1 min-w-0">
@@ -4697,7 +5146,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
               {/* Header */}
               <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-600 to-slate-800 dark:from-slate-500 dark:to-slate-700 flex items-center justify-center">
                     <PhoneOutgoing className="w-5 h-5 text-white" />
                   </div>
                   <div>
@@ -4752,8 +5201,25 @@ objective = the Objective bullet list (use \\n between bullets).`;
                           </label>
                           <input type="text" value={newCampaign.name}
                             onChange={(e) => setNewCampaign((p) => ({ ...p, name: e.target.value }))}
+                            onBlur={() => setCampaignNameTouched(true)}
+                            maxLength={CAMPAIGN_NAME_MAX_LEN}
                             placeholder="e.g., Q3 Lead Follow-up"
-                            className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm" />
+                            aria-invalid={campaignNameTouched && !!validateCampaignName(newCampaign.name)}
+                            className={`common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm ${
+                              campaignNameTouched && validateCampaignName(newCampaign.name)
+                                ? 'ring-1 ring-rose-400 dark:ring-rose-600'
+                                : ''
+                            }`} />
+                          <div className="flex items-center justify-between mt-1">
+                            {campaignNameTouched && validateCampaignName(newCampaign.name) ? (
+                              <p className="text-xs text-rose-500">{validateCampaignName(newCampaign.name)}</p>
+                            ) : (
+                              <span />
+                            )}
+                            <span className="text-xs text-slate-400 dark:text-slate-500 flex-shrink-0">
+                              {newCampaign.name.length}/{CAMPAIGN_NAME_MAX_LEN}
+                            </span>
+                          </div>
                         </div>
 
                         <div>
@@ -5085,7 +5551,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
                         <div className="rounded-2xl border border-slate-200 dark:border-slate-700 p-4 sm:p-5 space-y-4">
                           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                             <div className="flex items-start gap-2 min-w-0">
-                              <div className="w-9 h-9 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center flex-shrink-0">
+                              <div className="w-9 h-9 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center flex-shrink-0">
                                 <History className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                               </div>
                               <div>
@@ -5105,7 +5571,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
                               />
                               <button
                                 type="button"
-                                onClick={loadPreviousContacts}
+                                onClick={() => loadPreviousContacts(previousContactSearch)}
                                 disabled={previousContactsLoading}
                                 className="text-xs px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 whitespace-nowrap"
                               >
@@ -5118,7 +5584,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
                             <div className="flex items-start gap-2 p-3 rounded-xl bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800">
                               <AlertCircle className="w-4 h-4 text-rose-500 flex-shrink-0 mt-0.5" />
                               <p className="text-sm text-rose-600 dark:text-rose-400 flex-1">{previousContactsError}</p>
-                              <button type="button" onClick={loadPreviousContacts} className="text-xs text-rose-600 underline">
+                              <button type="button" onClick={() => loadPreviousContacts(previousContactSearch)} className="text-xs text-rose-600 underline">
                                 Retry
                               </button>
                             </div>

@@ -70,6 +70,98 @@ const statusTone = (status?: string) => {
   return 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300';
 };
 
+const phoneDigits = (value?: string) => String(value || '').replace(/\D/g, '');
+
+/** Prefer real agent-session identifiers from call-history payloads (not Mongo call-history ids). */
+const explicitAgentSessionId = (row: any): string | null => {
+  const candidates = [
+    row?.session_id,
+    row?.agent_session_id,
+    row?.room_name,
+    row?.room_id,
+    row?.custom_fields?.session_id,
+    row?.custom_fields?.agent_session_id,
+    row?.custom_fields?.room_name,
+  ]
+    .map((v) => String(v || '').trim())
+    .filter(Boolean);
+  // call_id is sometimes the agent session id (outbound-… / inbound-…)
+  const callId = String(row?.call_id || '').trim();
+  if (callId && (/^(outbound|inbound)[-_]/i.test(callId) || callId.includes('-'))) {
+    candidates.push(callId);
+  }
+  return candidates[0] || null;
+};
+
+const sessionPhoneDigits = (session: any) =>
+  phoneDigits(
+    session?.direction?.number ||
+      session?.phone_number ||
+      session?.to_number ||
+      session?.from_number ||
+      session?.caller_number ||
+      session?.lead_number
+  );
+
+const sessionMatchesCall = (
+  session: any,
+  opts: { sessionIds: string[]; contactId?: string; phone?: string }
+) => {
+  const sid = String(session?.session_id || session?.id || session?.call_id || '');
+  if (!sid) return false;
+
+  if (opts.sessionIds.some((id) => sid === id || sid.includes(id) || id.includes(sid))) {
+    return true;
+  }
+
+  const contactId = String(opts.contactId || '').trim();
+  if (contactId) {
+    if (
+      sid === contactId ||
+      sid === `outbound-${contactId}` ||
+      sid === `inbound-${contactId}` ||
+      sid.includes(contactId)
+    ) {
+      return true;
+    }
+  }
+
+  const want = phoneDigits(opts.phone);
+  if (want.length >= 8) {
+    const got = sessionPhoneDigits(session);
+    if (got && (got === want || got.endsWith(want.slice(-10)) || want.endsWith(got.slice(-10)))) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+const loadAgentSessions = async (agentId: string, phone?: string): Promise<any[]> => {
+  const queries = [
+    'page=1&limit=100',
+    phone ? `page=1&limit=100&q=${encodeURIComponent(phone)}` : '',
+  ].filter(Boolean);
+
+  const seen = new Set<string>();
+  const out: any[] = [];
+  for (const q of queries) {
+    try {
+      const response = await agentAPI.getAgentSessions(q, agentId);
+      const sessions: any[] = response?.sessions || [];
+      for (const s of sessions) {
+        const key = String(s.session_id || s.id || s.call_id || '');
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        out.push(s);
+      }
+    } catch {
+      /* try next query */
+    }
+  }
+  return out;
+};
+
 const ContactCallHistory: React.FC = () => {
   const { contactId = '' } = useParams<{ contactId: string }>();
   const navigate = useNavigate();
@@ -214,58 +306,118 @@ const ContactCallHistory: React.FC = () => {
         /* use list row */
       }
 
-      const sessionId =
-        detail.session_id ||
-        detail.agent_session_id ||
-        detail.room_name ||
-        detail.call_id ||
-        detail.id ||
-        call.call_id ||
-        call.id;
+      const phone = detail.phone_number || contact?.phone_number || '';
+      const linkedContactId = String(detail.contact_id || contactId || '').trim();
+      const agentId = String(detail.agent_id || call.agent_id || '').trim();
 
+      const candidateIds = [
+        explicitAgentSessionId(detail),
+        explicitAgentSessionId(call),
+        linkedContactId ? `outbound-${linkedContactId}` : null,
+        linkedContactId ? `inbound-${linkedContactId}` : null,
+      ]
+        .map((v) => String(v || '').trim())
+        .filter(Boolean);
+
+      // Same path as Analytics / Campaign detail: resolve a real agent-session record.
+      let matched: any = null;
+      const agentIdsToTry = [
+        agentId,
+        ...agents.map((a) => a.id).filter((id) => id && id !== agentId),
+      ].filter(Boolean) as string[];
+
+      for (const aid of agentIdsToTry) {
+        const sessions = await loadAgentSessions(aid, phone);
+        const idOrContactMatch = sessions.find((s) =>
+          sessionMatchesCall(s, {
+            sessionIds: candidateIds,
+            contactId: linkedContactId,
+            phone: '', // id/contact only first
+          })
+        );
+        if (idOrContactMatch) {
+          matched = idOrContactMatch;
+        } else {
+          const phoneMatches = sessions.filter((s) =>
+            sessionMatchesCall(s, {
+              sessionIds: [],
+              contactId: '',
+              phone,
+            })
+          );
+          if (phoneMatches.length === 1) {
+            matched = phoneMatches[0];
+          } else if (phoneMatches.length > 1) {
+            const targetTs = new Date(detail.start_time || call.start_time || 0).getTime();
+            matched = phoneMatches
+              .slice()
+              .sort((a, b) => {
+                const ta = new Date(a.created_at || a.start_time || 0).getTime();
+                const tb = new Date(b.created_at || b.start_time || 0).getTime();
+                return Math.abs(ta - targetTs) - Math.abs(tb - targetTs);
+              })[0];
+          }
+        }
+        if (matched) {
+          if (!agentId) {
+            detail = { ...detail, agent_id: aid };
+          }
+          break;
+        }
+        // If we already had a specific agent, don't fan out unless nothing matched.
+        if (agentId) break;
+      }
+
+      // Explicit agent-session id is enough even if list match missed (transcripts API uses it).
+      const explicitId = explicitAgentSessionId(detail) || explicitAgentSessionId(call);
+      if (!matched && explicitId) {
+        matched = { session_id: explicitId, id: explicitId, call_id: explicitId };
+      }
+
+      if (!matched) {
+        throw new Error(
+          'No matching agent session for this call yet. Try again from Analytics once the session appears.'
+        );
+      }
+
+      const resolvedAgentId = String(
+        matched.agent_id || detail.agent_id || call.agent_id || agentId || ''
+      ).trim();
+      const sessionId = String(matched.session_id || matched.id || matched.call_id || '');
       if (!sessionId) {
         throw new Error('No session linked to this call yet');
       }
 
-      // Prefer a real agent session record when available
-      let matched: any = null;
-      const agentId = detail.agent_id || call.agent_id;
-      if (agentId) {
-        try {
-          const response = await agentAPI.getAgentSessions('page=1&limit=100', agentId);
-          const sessions: any[] = response?.sessions || [];
-          matched =
-            sessions.find((s) => {
-              const sid = String(s.session_id || s.id || s.call_id || '');
-              return (
-                sid === String(sessionId) ||
-                sid.includes(String(sessionId)) ||
-                String(sessionId).includes(sid)
-              );
-            }) || null;
-        } catch {
-          /* ignore — fall back to constructed session */
-        }
-      }
-
+      // Pass the full agent-session object (same as Analytics) so summary/transcripts resolve.
       setSelectedSession({
-        ...(matched || {}),
-        session_id: String(matched?.session_id || sessionId),
-        id: String(matched?.id || sessionId),
-        call_id: String(matched?.call_id || detail.call_id || sessionId),
-        agent_id: agentId,
-        agent: agentId
-          ? { id: agentId, name: detail.agent_name || agentName(agentId) }
-          : undefined,
-        phone_number: detail.phone_number || contact?.phone_number,
-        name: detail.contact_name || contact?.name,
-        direction: {
+        ...matched,
+        session_id: sessionId,
+        id: String(matched.id || sessionId),
+        // Keep the real telephony call id from the call-history row — leads are
+        // keyed by this, not by the agent-session id.
+        call_id: String(detail.call_id || call.call_id || matched.call_id || sessionId),
+        agent_id: resolvedAgentId || matched.agent_id,
+        agent:
+          matched.agent ||
+          (resolvedAgentId
+            ? {
+                id: resolvedAgentId,
+                name: detail.agent_name || agentName(resolvedAgentId),
+              }
+            : undefined),
+        phone_number:
+          matched.phone_number ||
+          matched?.direction?.number ||
+          phone,
+        name: matched.name || detail.contact_name || contact?.name,
+        direction: matched.direction || {
           type: detail.direction || 'outbound',
-          number: detail.phone_number || contact?.phone_number,
+          number: phone,
         },
-        duration_seconds: detail.duration_seconds ?? call.duration_seconds,
-        created_at: detail.start_time || call.start_time,
-        status: detail.status || call.status,
+        duration_seconds:
+          matched.duration_seconds ?? detail.duration_seconds ?? call.duration_seconds,
+        created_at: matched.created_at || detail.start_time || call.start_time,
+        status: matched.status || detail.status || call.status,
       });
     } catch (err: any) {
       appToast.error(err.message || 'Failed to open session history');

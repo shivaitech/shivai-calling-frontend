@@ -16,6 +16,78 @@ interface SessionTranscriptModalProps {
   onClose: () => void;
 }
 
+// Leads (from /leads/agent/:agentId) and agent-sessions live in different id
+// spaces — a lead's callId is a telephony call SID, while a session's id is a
+// synthetic room/session id. There is no field they reliably share, so after
+// trying an exact id match we fall back to phone number + closest timestamp.
+const phoneDigits = (value?: string) => String(value || '').replace(/\D/g, '');
+
+const leadPhoneDigits = (lead: any) =>
+  phoneDigits(
+    lead?.leadData?.phone ||
+      lead?.leadData?.phoneNumber ||
+      lead?.leadData?.mobile ||
+      lead?.leadData?.contact ||
+      lead?.phone ||
+      lead?.phone_number
+  );
+
+const sessionPhoneDigits = (session: any) =>
+  phoneDigits(
+    session?.direction?.number ||
+      session?.phone_number ||
+      session?.to_number ||
+      session?.from_number ||
+      session?.caller_number ||
+      session?.lead_number
+  );
+
+const matchLeadsToSession = (leads: any[], session: any): any[] => {
+  if (!Array.isArray(leads) || leads.length === 0) return [];
+
+  const sessionKeys = [session?.session_id, session?.id, session?.call_id]
+    .map((v) => String(v || '').trim())
+    .filter(Boolean);
+
+  const byId = leads.filter((lead) => {
+    const leadCallId = String(lead.callId || lead.call_id || lead.session_id || '').trim();
+    if (!leadCallId) return false;
+    return sessionKeys.some(
+      (key) => leadCallId === key || leadCallId.includes(key) || key.includes(leadCallId)
+    );
+  });
+  if (byId.length > 0) return byId;
+
+  // Fall back to phone + nearest timestamp — leads and sessions don't share an id.
+  const wantPhone = sessionPhoneDigits(session);
+  const sessionTime = new Date(
+    session?.created_at || session?.start_time || session?.createdAt || 0
+  ).getTime();
+  if (!wantPhone || !sessionTime) return [];
+
+  const phoneMatches = leads.filter((lead) => {
+    const got = leadPhoneDigits(lead);
+    return got && (got === wantPhone || got.endsWith(wantPhone.slice(-10)) || wantPhone.endsWith(got.slice(-10)));
+  });
+  if (phoneMatches.length === 0) return [];
+  if (phoneMatches.length === 1) return phoneMatches;
+
+  // Multiple leads for this number — pick the one closest in time to the session,
+  // as long as it's within a reasonable window (30 min) so we don't show a
+  // wrong/unrelated call for a repeat caller.
+  const withDelta = phoneMatches
+    .map((lead) => ({
+      lead,
+      delta: Math.abs(new Date(lead.createdAt || lead.created_at || 0).getTime() - sessionTime),
+    }))
+    .filter((x) => Number.isFinite(x.delta))
+    .sort((a, b) => a.delta - b.delta);
+
+  const closest = withDelta[0];
+  if (!closest || closest.delta > 30 * 60 * 1000) return [];
+  return [closest.lead];
+};
+
 const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProps) => {
   const [transcripts, setTranscripts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,10 +155,10 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
 
     const fetchCallSummary = async () => {
       if (!session?.agent?.id && !session?.agent_id) return;
-      
+
       setSummaryLoading(true);
       setSummaryError(null);
-      
+
       try {
         const agentId = session.agent?.id || session.agent_id;
         const data = await agentAPI.getCallSummary(agentId);
@@ -723,9 +795,16 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
                 </p>
               </div>
             ) : callSummary?.leads && callSummary.leads.length > 0 ? (
+              matchLeadsToSession(callSummary.leads, session).length === 0 ? (
+                <div className="text-center py-6">
+                  <FileText className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+                    No call summary available
+                  </p>
+                </div>
+              ) : (
               <div className="space-y-4">
-                {callSummary.leads
-                  .filter((lead: any) => lead.callId === (session.session_id || session.id))
+                {matchLeadsToSession(callSummary.leads, session)
                   .map((lead: any, leadIndex: number) => (
                   <div key={lead.id || leadIndex} className="border border-slate-200 dark:border-slate-700 rounded-lg p-3 sm:p-4 space-y-3">
                     {/* Call ID and Date */}
@@ -970,6 +1049,7 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
                   </div>
                 ))}
               </div>
+              )
             ) : (
               <div className="text-center py-6">
                 <FileText className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />

@@ -626,6 +626,25 @@ export const getCallLogs = async (
 
 const unwrapData = <T = any>(body: any): T => (body?.data !== undefined ? body.data : body);
 
+/** Backend may return `id` instead of `_id` — normalize so UI never navigates to /campaigns/undefined. */
+export const normalizeCampaign = (raw: any): Campaign => {
+  if (!raw || typeof raw !== "object") return raw;
+  const id = String(raw._id || raw.id || raw.campaign_id || "").trim();
+  return {
+    ...raw,
+    _id: id,
+    agent_id: String(raw.agent_id || raw.agentId || "").trim(),
+    name: String(raw.name || "").trim() || "Untitled",
+    caller_number: String(raw.caller_number || raw.callerNumber || "").trim(),
+    language: String(raw.language || "en-IN"),
+  } as Campaign;
+};
+
+export const isValidCampaignId = (id?: string | null): boolean => {
+  const v = String(id || "").trim();
+  return !!v && v !== "undefined" && v !== "null";
+};
+
 const normalizeCampaignWritePayload = <T extends CreateCampaignRequest | UpdateCampaignRequest>(
   payload: T
 ): T => {
@@ -683,7 +702,7 @@ export const createCampaign = async (payload: CreateCampaignRequest): Promise<Ca
       normalizeCampaignWritePayload({ language: "en-in", max_concurrent: 3, ...payload }),
       createAuthenticatedRequest()
     );
-    return response.data.data;
+    return normalizeCampaign(response.data.data);
   } catch (error: any) {
     console.error("Error creating campaign:", error);
     throw new Error(errMessage(error, "Failed to create campaign"));
@@ -736,6 +755,9 @@ export const duplicateCampaign = async (
   campaignId: string,
   opts: { include_contacts?: boolean; name?: string } = {}
 ): Promise<Campaign> => {
+  if (!isValidCampaignId(campaignId)) {
+    throw new Error("Campaign id is missing");
+  }
   const includeContacts = opts.include_contacts !== false;
   try {
     const response: AxiosResponse<{ success: boolean; data: Campaign }> = await axios.post(
@@ -743,7 +765,8 @@ export const duplicateCampaign = async (
       { name: opts.name, include_contacts: includeContacts },
       createAuthenticatedRequest()
     );
-    if (response.data?.data) return response.data.data;
+    const cloned = normalizeCampaign(unwrapData(response.data) || response.data?.data);
+    if (isValidCampaignId(cloned?._id)) return cloned;
   } catch {
     /* fall through to client-side copy */
   }
@@ -923,7 +946,8 @@ export const getCampaigns = async (): Promise<Campaign[]> => {
       `${API_BASE_URL}/campaigns`,
       createAuthenticatedRequest()
     );
-    return response.data.data || [];
+    const list = response.data.data || [];
+    return list.map(normalizeCampaign).filter((c) => isValidCampaignId(c._id));
   } catch (error: any) {
     console.error("Error fetching campaigns:", error);
     throw new Error(errMessage(error, "Failed to load campaigns"));
@@ -932,12 +956,15 @@ export const getCampaigns = async (): Promise<Campaign[]> => {
 
 // Get a single campaign
 export const getCampaign = async (campaignId: string): Promise<Campaign> => {
+  if (!isValidCampaignId(campaignId)) {
+    throw new Error("Campaign id is missing");
+  }
   try {
     const response: AxiosResponse<{ success: boolean; data: Campaign }> = await axios.get(
       `${API_BASE_URL}/campaigns/${campaignId}`,
       createAuthenticatedRequest()
     );
-    return response.data.data;
+    return normalizeCampaign(response.data.data);
   } catch (error: any) {
     console.error("Error fetching campaign:", error);
     throw new Error(errMessage(error, "Failed to load campaign"));
@@ -970,6 +997,9 @@ export const getCampaignStatus = async (campaignId: string): Promise<CampaignLiv
 export const getCampaignStatusDetail = async (
   campaignId: string
 ): Promise<CampaignStatusResponse> => {
+  if (!isValidCampaignId(campaignId)) {
+    throw new Error("Campaign id is missing");
+  }
   try {
     const response: AxiosResponse<{ success: boolean; data: any }> = await axios.get(
       `${API_BASE_URL}/campaigns/${campaignId}/status`,
@@ -1017,6 +1047,9 @@ export const getCampaignContacts = async (
   campaignId: string,
   params: { status?: string; page?: number; limit?: number } = {}
 ): Promise<{ data: CampaignContact[]; total: number }> => {
+  if (!isValidCampaignId(campaignId)) {
+    throw new Error("Campaign id is missing");
+  }
   try {
     const { page = 1, limit = 50, status } = params;
     const response: AxiosResponse<any> = await axios.get(

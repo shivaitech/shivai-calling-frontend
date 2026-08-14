@@ -18,10 +18,11 @@ import {
   resumeCampaign,
   stopCampaign,
   archiveCampaign,
-  cloneCampaign,
   deleteCampaign,
   priorityFromApi,
   workingDaysFromApi,
+  isDirectCallCampaign,
+  isValidCampaignId,
   type Campaign,
   type CampaignLiveStatus,
   type CampaignContact,
@@ -164,11 +165,15 @@ const CampaignDetail: React.FC = () => {
   const totalPages = Math.max(1, Math.ceil(totalContacts / pageSize));
 
   const loadCampaign = useCallback(async () => {
-    if (!campaignId) return;
+    if (!isValidCampaignId(campaignId)) {
+      setLoading(false);
+      setError('Campaign id is missing');
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const data = await getCampaign(campaignId);
+      const data = await getCampaign(campaignId!);
       setCampaign(data);
       try {
         const detail = await getCampaignStatusDetail(campaignId);
@@ -201,7 +206,7 @@ const CampaignDetail: React.FC = () => {
   }, [campaignId]);
 
   const loadContacts = useCallback(async () => {
-    if (!campaignId) return;
+    if (!isValidCampaignId(campaignId)) return;
     setContactsLoading(true);
     setContactsError(null);
     try {
@@ -213,7 +218,7 @@ const CampaignDetail: React.FC = () => {
             : tab === 'no_answer'
               ? 'no_answer'
               : undefined;
-      const result = await getCampaignContacts(campaignId, {
+      const result = await getCampaignContacts(campaignId!, {
         status: statusParam,
         page,
         limit: pageSize,
@@ -243,10 +248,10 @@ const CampaignDetail: React.FC = () => {
 
   // Poll live stats while running
   useEffect(() => {
-    if (!campaignId || campaign?.status !== 'running') return;
+    if (!isValidCampaignId(campaignId) || campaign?.status !== 'running') return;
     const t = setInterval(async () => {
       try {
-        const detail = await getCampaignStatusDetail(campaignId);
+        const detail = await getCampaignStatusDetail(campaignId!);
         setLive(detail.stats);
         setPreflightStatus(detail.preflight_status);
         setPreflightBlockers(detail.preflight_blockers || []);
@@ -309,7 +314,9 @@ const CampaignDetail: React.FC = () => {
         ...matched,
         session_id: sessionId,
         id: sessionId,
-        call_id: matched.call_id || sessionId,
+        // Keep the real telephony call id from the contact record — leads are
+        // keyed by this, not by the agent-session id.
+        call_id: contact.call_id || matched.call_id || sessionId,
         agent_id: campaign.agent_id,
         agent: agent ? { id: agent.id, name: agent.name } : { id: campaign.agent_id },
         phone_number: matched?.direction?.number || contact.phone_number,
@@ -361,9 +368,12 @@ const CampaignDetail: React.FC = () => {
         setCampaign((c) => (c ? { ...c, status: 'archived' } : c));
         appToast.success('Campaign archived');
       } else if (action === 'clone') {
-        const copy = await cloneCampaign(campaignId);
-        appToast.success(`Cloned settings as "${copy.name}"`);
-        navigate(`/campaigns/${copy._id}`);
+        if (!isValidCampaignId(campaignId)) {
+          throw new Error('Campaign id is missing');
+        }
+        navigate('/call-setup', {
+          state: { callSetupSection: 'outbound', cloneCampaignId: campaignId },
+        });
         return;
       } else if (action === 'delete') {
         await deleteCampaign(campaignId);
@@ -459,16 +469,14 @@ const CampaignDetail: React.FC = () => {
                 </span>
                 <span className="uppercase tracking-wide text-xs self-center">{campaign.language}</span>
               </div>
-              {(campaign.objective || campaign.goal) && (
-                <button
-                  type="button"
-                  onClick={() => setShowObjectiveModal(true)}
-                  className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium common-button-bg2"
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  View Objective and Goal
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => setShowObjectiveModal(true)}
+                className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium common-button-bg2"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                View Objective and Goal
+              </button>
             </div>
           </div>
         </div>
@@ -821,28 +829,42 @@ const CampaignDetail: React.FC = () => {
                 </button>
               </div>
               <div className="p-5 overflow-y-auto space-y-5 text-sm">
-                {campaign.objective && (
-                  <div>
-                    <p className="font-semibold text-slate-800 dark:text-white mb-2">Objective</p>
-                    <ul className="space-y-1.5 text-slate-600 dark:text-slate-300 list-disc pl-5">
-                      {campaign.objective
-                        .split(/\n+/)
-                        .map((line) => line.replace(/^[\s•\-\*]+/, '').trim())
-                        .filter(Boolean)
-                        .map((line, i) => (
-                          <li key={i}>{line}</li>
-                        ))}
-                    </ul>
-                  </div>
-                )}
-                {campaign.goal && (
-                  <div>
-                    <p className="font-semibold text-slate-800 dark:text-white mb-2">Goal</p>
-                    <p className="text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
-                      {campaign.goal}
-                    </p>
-                  </div>
-                )}
+                {(() => {
+                  // Direct batches store per-contact call_context on contacts — never surface it as campaign objective/goal.
+                  const isDirect = isDirectCallCampaign(campaign);
+                  const objectiveText = isDirect ? '' : String(campaign.objective || '').trim();
+                  const goalText = isDirect ? '' : String(campaign.goal || '').trim();
+                  const objectiveLines = objectiveText
+                    .split(/\n+/)
+                    .map((line) => line.replace(/^[\s•\-\*]+/, '').trim())
+                    .filter(Boolean);
+                  return (
+                    <>
+                      <div>
+                        <p className="font-semibold text-slate-800 dark:text-white mb-2">Objective</p>
+                        {objectiveLines.length > 0 ? (
+                          <ul className="space-y-1.5 text-slate-600 dark:text-slate-300 list-disc pl-5">
+                            {objectiveLines.map((line, i) => (
+                              <li key={i}>{line}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="text-slate-500 dark:text-slate-400">NA</p>
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-slate-800 dark:text-white mb-2">Goal</p>
+                        {goalText ? (
+                          <p className="text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+                            {goalText}
+                          </p>
+                        ) : (
+                          <p className="text-slate-500 dark:text-slate-400">NA</p>
+                        )}
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             </motion.div>
           </motion.div>

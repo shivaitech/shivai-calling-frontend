@@ -28,6 +28,10 @@ import {
   aiTemplateService,
   GeneratedTemplate,
 } from "../../services/aiTemplateService";
+import {
+  BUSINESS_PROCESS_BY_CHANNEL,
+  CHANNEL_STEP3_COPY,
+} from "../../constants/outboundPromptShell";
 import { isDeveloperUser, formatAgentLanguages } from "../../lib/utils";
 import { buildWidgetEmbedScript } from "../../lib/widgetConfig";
 import {
@@ -82,6 +86,8 @@ import {
   AlertTriangle,
   Mail,
   MessageCircle,
+  PhoneIncoming,
+  PhoneOutgoing,
 } from "lucide-react";
 
 const AGENTS_PER_PAGE = 6;
@@ -378,6 +384,7 @@ const AgentManagement = () => {
     companyName: "",
     useCompanyNameForTemplate: true,
     aiEmployeeName: "",
+    deploymentMode: "web" as "web" | "inbound" | "outbound",
     countries: [] as string[],
     languages: ["en-US"] as string[],
     voice: "Achernar",
@@ -619,17 +626,42 @@ const AgentManagement = () => {
       .replace(/\[Agent Name\]/g, quickCreateData.aiEmployeeName || "AI Assistant");
   };
 
-  // Business Process Options
-  const businessProcessOptions = [
-    { value: "customer-support", label: "Customer Support", icon: "🎧" },
-    { value: "sales-marketing", label: "Sales & Marketing", icon: "💼" },
-    { value: "appointment-setting", label: "Appointment Setting", icon: "📅" },
-    { value: "lead-qualification", label: "Lead Qualification", icon: "🎯" },
-    { value: "technical-support", label: "Technical Support", icon: "🔧" },
-    { value: "order-processing", label: "Order Processing", icon: "📦" },
-    { value: "billing-inquiries", label: "Billing Inquiries", icon: "💳" },
-    { value: "onboarding", label: "Customer Onboarding", icon: "🚀" },
-  ];
+  // Business Process Options — filtered by Primary channel (Web / Inbound / Outbound)
+  const businessProcessOptions =
+    BUSINESS_PROCESS_BY_CHANNEL[quickCreateData.deploymentMode] ||
+    BUSINESS_PROCESS_BY_CHANNEL.web;
+
+  // If user goes back and switches channel (e.g. Outbound → Inbound), drop invalid use cases
+  // and reset channel-specific template state so Step 3 always shows the filtered list.
+  useEffect(() => {
+    const allowed =
+      BUSINESS_PROCESS_BY_CHANNEL[quickCreateData.deploymentMode] ||
+      BUSINESS_PROCESS_BY_CHANNEL.web;
+    const allowedValues = new Set(allowed.map((o) => o.value));
+
+    setQuickCreateData((prev) => {
+      if (!prev.businessProcess || allowedValues.has(prev.businessProcess)) {
+        return prev;
+      }
+      return {
+        ...prev,
+        businessProcess: "",
+        selectedTemplate: null,
+      };
+    });
+
+    // Only clear generated templates when the selected process is no longer valid for this channel
+    setAIGeneratedTemplates((prev) => {
+      // Keep if empty; wipe when channel changed out from under a prior generation
+      if (!prev.length) return prev;
+      // Always clear when channel changes — templates are channel-specific
+      return [];
+    });
+    setSpReadyTemplates(new Set());
+    setIsGeneratingSystemPrompts(false);
+    setTemplateGenerationError(null);
+    setBusinessProcessSlideIndex(0);
+  }, [quickCreateData.deploymentMode]);
 
   // Voice Options by Gender
   const voiceOptions = {
@@ -934,10 +966,33 @@ const AgentManagement = () => {
   // Handle quick create wizard navigation
   const handleQuickCreateNext = async () => {
     if (quickCreateStep < 7) {
-      // Validate Step 2: Voice & Language are required
+      // Validate Step 2: Voice & Language are required; sanitize use case for channel filter
       if (quickCreateStep === 2) {
         if (!quickCreateData.languages?.length || !quickCreateData.voice) {
           appToast.error('Please select at least one language and a voice before proceeding.');
+          return;
+        }
+        const allowed =
+          BUSINESS_PROCESS_BY_CHANNEL[quickCreateData.deploymentMode] ||
+          BUSINESS_PROCESS_BY_CHANNEL.web;
+        if (
+          quickCreateData.businessProcess &&
+          !allowed.some((o) => o.value === quickCreateData.businessProcess)
+        ) {
+          setQuickCreateData((prev) => ({ ...prev, businessProcess: "" }));
+        }
+        setBusinessProcessSlideIndex(0);
+      }
+
+      // Validate Step 3: use case must be in the filtered list for this channel
+      if (quickCreateStep === 3) {
+        const allowed =
+          BUSINESS_PROCESS_BY_CHANNEL[quickCreateData.deploymentMode] ||
+          BUSINESS_PROCESS_BY_CHANNEL.web;
+        if (!allowed.some((o) => o.value === quickCreateData.businessProcess)) {
+          appToast.error('Please select a use case for the current channel.');
+          setQuickCreateData((prev) => ({ ...prev, businessProcess: "" }));
+          setBusinessProcessSlideIndex(0);
           return;
         }
       }
@@ -979,6 +1034,11 @@ const AgentManagement = () => {
       let additionalContext = quickCreateData.aiEmployeeName
         ? `The AI employee will be named: ${quickCreateData.aiEmployeeName}`
         : '';
+      additionalContext += `\nPrimary channel / deployment mode: ${quickCreateData.deploymentMode}`;
+      if (quickCreateData.deploymentMode === 'outbound') {
+        additionalContext +=
+          '\nThis agent is PURE OUTBOUND voice — it places the call. Templates and prompts must follow the Universal Outbound Voice Agent shell. First message must impress: warm purpose + ask for a couple of minutes.';
+      }
       
       // Add extracted file content to context
       if (quickCreateData.extractedFileContent) {
@@ -1010,6 +1070,7 @@ const AgentManagement = () => {
           additionalContext: additionalContext || undefined,
           extractedContent: quickCreateData.extractedFileContent || undefined,
           voiceStyle: quickCreateData.voiceStyle || undefined,
+          deploymentMode: quickCreateData.deploymentMode,
         },
         // Background callback: system prompts trickle in after loading is done
         (updatedTemplates) => {
@@ -1108,6 +1169,7 @@ const AgentManagement = () => {
       companyName: "",
       useCompanyNameForTemplate: true,
       aiEmployeeName: "",
+      deploymentMode: "web",
       countries: [],
       languages: ["en-US"],
       voice: "Achernar",
@@ -1465,6 +1527,7 @@ const AgentManagement = () => {
         context_window: "Standard (8K tokens)",
         temperature: 0.5, // Must be <= 1 (temperature scale is 0-1, not 0-100)
         company_name: quickCreateData.companyName || undefined,
+        deployment_mode: quickCreateData.deploymentMode,
         // Template object with all details - replace placeholders with actual values
         template: selectedTemplateData
           ? {
@@ -1561,7 +1624,9 @@ const AgentManagement = () => {
       case 2:
         return quickCreateData.languages.length > 0 && quickCreateData.voice.length > 0; // Voice configuration
       case 3:
-        return quickCreateData.businessProcess.length > 0;
+        return businessProcessOptions.some(
+          (o) => o.value === quickCreateData.businessProcess
+        );
       case 4:
         return quickCreateData.industry.length > 0;
       case 5:
@@ -4685,6 +4750,78 @@ const AgentManagement = () => {
                           callers
                         </p>
                       </div>
+
+                      {/* Primary channel — sliding segmented control */}
+                      <div className="space-y-1.5 sm:space-y-2">
+                        <label className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                          <Layers className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          Primary channel
+                        </label>
+                        {(() => {
+                          const modes = [
+                            { id: 'web' as const, label: 'Web', icon: Globe, hint: 'Chat on your website or widget' },
+                            { id: 'inbound' as const, label: 'Inbound', icon: PhoneIncoming, hint: 'Answer customer phone calls' },
+                            { id: 'outbound' as const, label: 'Outbound', icon: PhoneOutgoing, hint: 'Make outbound phone campaigns' },
+                          ];
+                          const activeIndex = Math.max(
+                            0,
+                            modes.findIndex((m) => m.id === quickCreateData.deploymentMode)
+                          );
+                          const activeHint = modes[activeIndex]?.hint;
+                          return (
+                            <>
+                              <div
+                                role="radiogroup"
+                                aria-label="Primary channel"
+                                className="relative grid grid-cols-3 gap-0 p-1 rounded-xl common-bg-icons"
+                              >
+                                <span
+                                  aria-hidden
+                                  className="absolute top-1 bottom-1 left-1 w-[calc((100%-0.5rem)/3)] rounded-lg common-button-bg !px-0 !py-0 shadow-md transition-transform duration-300 ease-out pointer-events-none"
+                                  style={{ transform: `translateX(${activeIndex * 100}%)` }}
+                                />
+                                {modes.map((mode) => {
+                                  const active = quickCreateData.deploymentMode === mode.id;
+                                  return (
+                                    <button
+                                      key={mode.id}
+                                      type="button"
+                                      role="radio"
+                                      aria-checked={active}
+                                      onClick={() => {
+                                        if (mode.id === quickCreateData.deploymentMode) return;
+                                        setBusinessProcessSlideIndex(0);
+                                        setQuickCreateData((prev) => ({
+                                          ...prev,
+                                          deploymentMode: mode.id,
+                                          // Clear process so Step 3 re-selects from channel-specific list
+                                          businessProcess: "",
+                                          selectedTemplate: null,
+                                        }));
+                                        setAIGeneratedTemplates([]);
+                                        setSpReadyTemplates(new Set());
+                                        setIsGeneratingSystemPrompts(false);
+                                        setTemplateGenerationError(null);
+                                      }}
+                                      className={`relative z-10 inline-flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition-colors duration-200 bg-transparent border-0 ${
+                                        active
+                                          ? 'text-white'
+                                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                      }`}
+                                    >
+                                      <mode.icon className="w-3.5 h-3.5" />
+                                      {mode.label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500">
+                                {activeHint}
+                              </p>
+                            </>
+                          );
+                        })()}
+                      </div>
                     </div>
                   )}
 
@@ -5330,13 +5467,17 @@ const AgentManagement = () => {
                           <Briefcase className="w-6 h-6 sm:w-8 sm:h-8 text-purple-600 dark:text-purple-400" />
                         </div>
                         <h3 className="text-lg sm:text-xl font-semibold text-slate-800 dark:text-white mb-1 sm:mb-2">
-                          What should your AI Employee do?
+                          {CHANNEL_STEP3_COPY[quickCreateData.deploymentMode].title}
                         </h3>
                         <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto px-2">
-                          Select the main task your AI will handle. This
-                          determines how it responds and what skills it
-                          prioritizes.
+                          {CHANNEL_STEP3_COPY[quickCreateData.deploymentMode].subtitle}
                         </p>
+                        {quickCreateData.deploymentMode === 'outbound' && (
+                          <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                            <PhoneOutgoing className="w-3 h-3" />
+                            Pure outbound templates · first greeting asks for a couple of minutes
+                          </p>
+                        )}
                       </div>
 
                       {/* Business Process Slider */}

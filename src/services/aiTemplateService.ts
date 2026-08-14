@@ -1,4 +1,9 @@
 import axios from "axios";
+import {
+  buildOutboundMetadataInstructions,
+  buildOutboundSystemPromptBrief,
+  businessProcessToOutboundVariant,
+} from "../constants/outboundPromptShell";
 
 const PROMPT_GENERATION_API =
   import.meta.env.VITE_API_BASE_URL + "/generate-prompt/generate";
@@ -84,6 +89,8 @@ export interface GenerateTemplateRequest {
   additionalContext?: string;
   extractedContent?: string; // Extracted text from uploaded files (PDFs, docs, etc.)
   voiceStyle?: string; // e.g. friendly, professional, casual, authoritative, empathetic, enthusiastic
+  /** Primary channel from create wizard — outbound uses the universal outbound prompt shell. */
+  deploymentMode?: "web" | "inbound" | "outbound";
 }
 
 interface PromptGenerationData {
@@ -156,6 +163,7 @@ class AITemplateService {
             template.manualKnowledge,
             request.subIndustry,
             request.voiceStyle,
+            request.deploymentMode,
           ).then((sysPrompt) => {
             if (sysPrompt.trim().length > 100) {
               bgTemplates[i] = { ...bgTemplates[i], systemPrompt: sysPrompt };
@@ -182,6 +190,27 @@ class AITemplateService {
 
     const subIndustryContent = request.subIndustry
       ? `\nSub-industry: ${request.subIndustry}`
+      : "";
+
+    const employeeNameMatchEarly = request.additionalContext?.match(
+      /The AI employee will be named:\s*(.+)/i
+    );
+    const earlyEmployeeName = employeeNameMatchEarly
+      ? employeeNameMatchEarly[1].trim()
+      : request.companyName
+        ? `${request.companyName} Assistant`
+        : "[AI Employee Name]";
+    const earlyCompanyName = request.companyName || "[Company Name]";
+    const isOutbound = request.deploymentMode === "outbound";
+    const outboundVariant = businessProcessToOutboundVariant(request.businessProcess);
+    const outboundBlock = isOutbound
+      ? `\n\n${buildOutboundMetadataInstructions({
+          employeeName: earlyEmployeeName,
+          companyName: earlyCompanyName,
+          businessProcess: request.businessProcess,
+          industry: request.industry,
+          variant: outboundVariant,
+        })}\n`
       : "";
 
     // High-quality example demonstrating voice-AI optimized system prompt format
@@ -251,15 +280,16 @@ FALLBACK VALUES (only if truly not in document):
 - Business Process: ${request.businessProcess}
 - Industry: ${request.industry}${subIndustryContent}${urlContent}
 ${request.additionalContext ? `- Additional Context: ${request.additionalContext}` : ''}
-
+${outboundBlock}
 STEP 3: GENERATE EXACTLY 2 DISTINCT TEMPLATES
 
 Both templates MUST:
 - Use the EXACT AI employee name "${employeeName}" (not a placeholder)
 - Use the ACTUAL company name extracted from the document
 - Be based on REAL services/products from the document
-- Have different focuses (e.g., Template 1: primary customer service, Template 2: sales/lead-gen or specialized support)
+- Have different focuses${isOutbound ? " within pure OUTBOUND calling (never inbound/web chat)" : " (e.g., Template 1: primary customer service, Template 2: sales/lead-gen or specialized support)"}
 - Include comprehensive system prompts with REAL company-specific knowledge
+${isOutbound ? `- firstMessage MUST be an impressive outbound opener that asks for a couple of minutes (never "Thank you for calling")` : ""}
 
 Each template MUST have ALL of these fields:
 - name: Unique professional name for the AI Employee role
@@ -299,15 +329,17 @@ Business Information:
 - Business Process: ${request.businessProcess}
 - Industry: ${request.industry}${subIndustryContent}${urlContent}
 ${request.additionalContext ? `- Additional Context: ${request.additionalContext}` : ''}
-
+${outboundBlock}
 Generate EXACTLY 2 DISTINCT AI Employee templates in JSON format.
 
 CRITICAL INSTRUCTIONS:
 1. ALWAYS use the exact AI Employee Name "${stdEmployeeName}" in firstMessage and all scripts.
 2. ALWAYS use the exact Company Name "${stdCompanyName}" everywhere — never use [Company Name] placeholder.
-3. Both templates must be DIFFERENT in focus (e.g., Template 1: customer service, Template 2: sales/appointment-setting).
-4. For systemPrompt: write a SHORT 2-3 sentence role summary ONLY (e.g. "You are ${stdEmployeeName}, a customer service specialist for ${stdCompanyName}. You handle customer inquiries, resolve issues, and book appointments."). The full detailed system prompt is generated in a separate step — do NOT write a long system prompt here.
+3. Both templates must be DIFFERENT in focus${isOutbound ? " within pure OUTBOUND calling for this business process" : " (e.g., Template 1: customer service, Template 2: sales/appointment-setting)"}.
+4. For systemPrompt: write a SHORT 2-3 sentence role summary ONLY (e.g. "You are ${stdEmployeeName}, a ${isOutbound ? "outbound" : "customer service"} specialist for ${stdCompanyName}. You ${isOutbound ? "place outbound calls to qualify leads and route next steps" : "handle customer inquiries, resolve issues, and book appointments"}."). The full detailed system prompt is generated in a separate step — do NOT write a long system prompt here.
 5. Do NOT use generic placeholders anywhere — all content must be specific and realistic.
+${isOutbound ? `6. firstMessage MUST impress on first test: outbound opener with purpose + ask for a couple of minutes. Never use inbound "Thank you for calling".
+7. conversationExamples must be agent-initiated outbound dialogues.` : ""}
 
 For each template provide these JSON fields:
 - name, description, icon, features (array)
@@ -363,13 +395,29 @@ Example format: ${exampleTemplates}`;
     manualKnowledge?: string,
     subIndustry?: string,
     _voiceStyle?: string, // reserved — Voice Instructions are injected externally
+    deploymentMode?: "web" | "inbound" | "outbound",
   ): Promise<string> {
-    const subLine = subIndustry ? `\nSub-industry: ${subIndustry}` : "";
-    const kbSection = manualKnowledge?.trim()
-      ? `\n\nCompany-specific knowledge to incorporate:\n${manualKnowledge.substring(0, 3000)}`
-      : "";
+    const isOutbound = deploymentMode === "outbound";
+    const variant = businessProcessToOutboundVariant(businessProcess);
 
-    const prompt = `You are an expert AI voice agent prompt engineer. Generate a comprehensive, production-quality system prompt for a voice-based AI employee.
+    const prompt = isOutbound
+      ? buildOutboundSystemPromptBrief({
+          employeeName,
+          companyName,
+          templateName,
+          description,
+          industry,
+          businessProcess,
+          subIndustry,
+          manualKnowledge,
+          variant,
+        })
+      : (() => {
+          const subLine = subIndustry ? `\nSub-industry: ${subIndustry}` : "";
+          const kbSection = manualKnowledge?.trim()
+            ? `\n\nCompany-specific knowledge to incorporate:\n${manualKnowledge.substring(0, 3000)}`
+            : "";
+          return `You are an expert AI voice agent prompt engineer. Generate a comprehensive, production-quality system prompt for a voice-based AI employee.
 
 Agent Details:
 - AI Employee Name: "${employeeName}" (use this exact name, never a placeholder)
@@ -419,6 +467,7 @@ Communication Rules
 [Dos and don'ts for how to communicate on every call]
 
 Return ONLY the system prompt text. No JSON, no markdown code blocks, no explanation.`;
+        })();
 
     const response = await promptClient.post<PromptGenerationResponse>(
       PROMPT_GENERATION_API,

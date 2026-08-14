@@ -410,12 +410,9 @@ export const placeDirectOutboundCall = async (
     name: (payload.name || `Direct · ${label}`).slice(0, 80),
     max_concurrent: Math.min(Math.max(uniqueIds.length, 1), 5),
     calls_per_minute: Math.min(10, Math.max(uniqueIds.length, 1)),
-    objective:
-      payload.objective ||
-      (uniqueIds.length === 1 && recipients[0]?.call_context
-        ? recipients[0].call_context
-        : `Direct outbound call${uniqueIds.length > 1 ? "s" : ""} to ${label}`),
-    goal: payload.goal,
+    // Do not put per-contact call_context into campaign objective — that belongs on the contact.
+    ...(payload.objective?.trim() ? { objective: payload.objective.trim() } : {}),
+    ...(payload.goal?.trim() ? { goal: payload.goal.trim() } : {}),
     idempotency_key: payload.idempotency_key,
   });
 
@@ -437,6 +434,10 @@ export const placeDirectOutboundCall = async (
 export interface CallHistoryItem {
   id: string;
   call_id?: string;
+  session_id?: string;
+  agent_session_id?: string;
+  room_name?: string;
+  room_id?: string;
   direction: "inbound" | "outbound" | string;
   status: string;
   agent_id?: string;
