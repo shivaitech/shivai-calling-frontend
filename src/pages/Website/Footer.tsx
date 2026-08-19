@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import Shivlogo from "../../resources/images/LogoFooter.svg";
 import ShivAi from "../../resources/images/ShivaiLogo.svg";
 import instaIcon from "../../resources/Icon/insta.svg";
@@ -6,8 +6,10 @@ import linkedinIcon from "../../resources/Icon/linkin.svg";
 import uaeFlag from "../../resources/Icon/uae-flag.svg";
 import indiaFlag from "../../resources/Icon/india-flag.svg";
 import usaFlag from "../../resources/Icon/usa-flag.svg";
+import QuoteModal from "../../components/QuoteModal";
 
 const Footer = () => {
+  const [showQuoteModal, setShowQuoteModal] = useState(false);
   // Enhanced smooth scroll function (same as navbar)
   const smoothScrollToSection = (sectionId: string) => {
     try {
@@ -78,6 +80,7 @@ const Footer = () => {
   };
 
   return (
+    <>
     <footer className="relative bg-black text-white py-8 md:py-12 px-6 lg:px-20 xl:px-24 overflow-hidden h-auto ">
       {/* Main Content */}
       <div className="w-full mx-auto relative z-10 pr-4 md:pr-6 ">
@@ -145,28 +148,13 @@ const Footer = () => {
                   </a>
                 </li>
                 <li>
-                  <a
-                    href="#pricing"
-                    className="hover:text-white transition-colors cursor-pointer"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      smoothScrollToSection("pricing");
-                    }}
-                  >
+                  <a href="/pricing" className="hover:text-white transition-colors">
                     Pricing
                   </a>
                 </li>
                 <li>
-                  <a href="/api" className="hover:text-white transition-colors">
-                    API
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href="/documentation"
-                    className="hover:text-white transition-colors"
-                  >
-                    Documentation
+                  <a href="/solutions" className="hover:text-white transition-colors">
+                    Solutions
                   </a>
                 </li>
               </ul>
@@ -220,36 +208,17 @@ const Footer = () => {
               </h4>
               <ul className="space-y-1 md:space-y-2 font-[400] text-[14px] md:text-[16px] lg:text-sm text-[#FFFFFF99]/60">
                 <li>
-                  <a
-                    href="/help"
-                    className="hover:text-white transition-colors"
-                  >
-                    Help Center
+                  <a href="/faq" className="hover:text-white transition-colors">
+                    FAQ
                   </a>
                 </li>
                 <li>
-                  <a
-                    href="/community"
-                    className="hover:text-white transition-colors"
+                  <button
+                    onClick={() => setShowQuoteModal(true)}
+                    className="hover:text-white transition-colors text-left"
                   >
-                    Community
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href="/privacy"
-                    className="hover:text-white transition-colors"
-                  >
-                    Privacy
-                  </a>
-                </li>
-                <li>
-                  <a
-                    href="/terms"
-                    className="hover:text-white transition-colors"
-                  >
-                    Terms
-                  </a>
+                    Contact
+                  </button>
                 </li>
               </ul>
             </div>
@@ -389,6 +358,8 @@ const Footer = () => {
         />
       </div>
     </footer>
+    <QuoteModal isOpen={showQuoteModal} onClose={() => setShowQuoteModal(false)} />
+    </>
   );
 };
 

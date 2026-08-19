@@ -28,6 +28,7 @@ import {
   Zap,
   Phone,
   PhoneCall,
+  Layers,
   Settings,
   X,
   Send,
@@ -595,6 +596,23 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
                 {(agent as any).personality || agent.persona}
               </p>
             </div>
+
+            {(agent as any).agent_type && (
+              <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Layers className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-600 dark:text-slate-400 flex-shrink-0" />
+                  <span className="text-[10px] sm:text-xs font-medium text-slate-600 dark:text-slate-400">
+                    Channel
+                  </span>
+                </div>
+                <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-white truncate">
+                  {(() => {
+                    const t = (agent as any).agent_type;
+                    return t === 'webrtc' ? 'Web' : t === 'inbound' ? 'Inbound' : t === 'outbound' ? 'Outbound' : String(t).replace(/_/g, ' ');
+                  })()}
+                </p>
+              </div>
+            )}
 
             <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
               <div className="flex items-center gap-1.5 mb-1">

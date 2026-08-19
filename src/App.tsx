@@ -7,6 +7,7 @@ import {
   useLocation,
 } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
+import { HelmetProvider } from "react-helmet-async";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { AgentProvider } from "./contexts/AgentContext";
@@ -36,6 +37,9 @@ const OrbFallback = lazy(() =>
 );
 
 const Landing = lazy(() => import("./pages/Website/Landing"));
+const Pricing = lazy(() => import("./pages/Website/PricingPage"));
+const FAQPage = lazy(() => import("./pages/Website/FAQPage"));
+const SolutionsPage = lazy(() => import("./pages/Website/SolutionsPage"));
 const Sidebar = lazy(() => import("./components/Sidebar"));
 const TopBar = lazy(() => import("./components/TopBar"));
 const Overview = lazy(() => import("./ClientDashboard/Dashboard/Overview"));
@@ -87,6 +91,11 @@ function AppContent() {
   const isWebsitePreview = location.pathname.startsWith("/website-preview");
   // Standalone app workspace — auth-protected but rendered without dashboard chrome.
   const isAppWorkspace = location.pathname.startsWith("/app/");
+  // Public marketing pages — SEO-indexable, no dashboard chrome, no auth required.
+  const isMarketingPage =
+    location.pathname === "/pricing" ||
+    location.pathname === "/faq" ||
+    location.pathname === "/solutions";
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
@@ -97,16 +106,17 @@ function AppContent() {
       isAgentPublicPage ||
       isDoctorCalendarPage ||
       isWebsitePreview ||
-      isAppWorkspace
+      isAppWorkspace ||
+      isMarketingPage
     ) {
       return;
     }
     saveLastRoute(`${location.pathname}${location.search}`);
-  }, [location.pathname, location.search, isLandingPage, isAuthCallback, isResetPassword, isAgentPublicPage, isDoctorCalendarPage, isWebsitePreview, isAppWorkspace]);
+  }, [location.pathname, location.search, isLandingPage, isAuthCallback, isResetPassword, isAgentPublicPage, isDoctorCalendarPage, isWebsitePreview, isAppWorkspace, isMarketingPage]);
 
   return (
     <div className="min-h-screen">
-      {isLandingPage || isAuthCallback || isResetPassword || isAgentPublicPage || isDoctorCalendarPage || isWebsitePreview || isAppWorkspace ? (
+      {isLandingPage || isAuthCallback || isResetPassword || isAgentPublicPage || isDoctorCalendarPage || isWebsitePreview || isAppWorkspace || isMarketingPage ? (
         <Suspense fallback={<LoadingFallback />}>
           <Routes>
             <Route
@@ -144,6 +154,11 @@ function AppContent() {
 
             {/* Website preview - no auth required, opens in new tab */}
             <Route path="/website-preview" element={<WebsitePreview />} />
+
+            {/* Public marketing pages — dedicated routes for SEO/AI-answer indexing */}
+            <Route path="/pricing" element={<Pricing />} />
+            <Route path="/faq" element={<FAQPage />} />
+            <Route path="/solutions" element={<SolutionsPage />} />
 
             {/* Standalone app workspace — auth required, opens in new tab, no dashboard chrome */}
             <Route
@@ -231,10 +246,6 @@ function AppContent() {
                         element={<Navigate to="/dashboard" replace />}
                       />
                       <Route
-                        path="/pricing"
-                        element={<Navigate to="/dashboard" replace />}
-                      />
-                      <Route
                         path="/about"
                         element={<Navigate to="/dashboard" replace />}
                       />
@@ -316,24 +327,26 @@ function useVersionCheck() {
 function App() {
   useVersionCheck();
   return (
-    <AuthProvider>
-      {" "}
-      {/* Wrap with AuthProvider */}
-      <ThemeProvider>
-        <Router>
-          <AgentProvider>
-            <ScrollToTop />
-            <AppContent />
-            <Toaster
-              position="top-right"
-              toastOptions={{ duration: 4000 }}
-              containerStyle={{ zIndex: 2147483646 }}
-              containerClassName="!z-[2147483646]"
-            />
-          </AgentProvider>
-        </Router>
-      </ThemeProvider>
-    </AuthProvider>
+    <HelmetProvider>
+      <AuthProvider>
+        {" "}
+        {/* Wrap with AuthProvider */}
+        <ThemeProvider>
+          <Router>
+            <AgentProvider>
+              <ScrollToTop />
+              <AppContent />
+              <Toaster
+                position="top-right"
+                toastOptions={{ duration: 4000 }}
+                containerStyle={{ zIndex: 2147483646 }}
+                containerClassName="!z-[2147483646]"
+              />
+            </AgentProvider>
+          </Router>
+        </ThemeProvider>
+      </AuthProvider>
+    </HelmetProvider>
   );
 }
 

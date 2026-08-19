@@ -18,6 +18,10 @@ import {
   CheckCircle,
   ChevronLeft,
   ChevronRight,
+  Globe,
+  PhoneIncoming,
+  PhoneOutgoing,
+  Layers,
 } from "lucide-react";
 import { 
   aiEmployeeTemplates as AGENT_TEMPLATES, 
@@ -66,6 +70,9 @@ const CreateAgent = () => {
     contextWindow: "Standard (8K tokens)",
     temperature: 0.7,
   });
+
+  // Primary channel — how this agent communicates (Web widget / Inbound calls / Outbound calls)
+  const [agentType, setAgentType] = useState<"webrtc" | "inbound" | "outbound">("webrtc");
 
   // Store knowledge base URLs from quick create
   const [knowledgeBaseUrls] = useState<string[]>(prefilledUrls);
@@ -465,6 +472,7 @@ const CreateAgent = () => {
         max_response_length: formData.maxResponseLength.split(' ')[0].toLowerCase(),
         context_window: formData.contextWindow.toLowerCase().replace(/\s/g, '_').replace(/\(|\)/g, ''),
         temperature: formData.temperature,
+        agent_type: agentType,
         // Store template key and training data for Training page
         template_key: appliedTemplateKey,
         knowledge_base_urls: knowledgeBaseUrls.length > 0 ? knowledgeBaseUrls : undefined,
@@ -619,6 +627,61 @@ const CreateAgent = () => {
                     placeholder="e.g., Sarah - Customer Support"
                     className="common-bg-icons w-full px-4 py-3 rounded-xl text-sm sm:text-base"
                   />
+                </div>
+
+                {/* Primary channel — sliding segmented control */}
+                <div>
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2">
+                    <Layers className="w-4 h-4" />
+                    Primary channel
+                  </label>
+                  {(() => {
+                    const modes = [
+                      { id: 'webrtc' as const, label: 'Web', icon: Globe, hint: 'AI floating widget on your site — chats with customers, answers questions, and shares documents' },
+                      { id: 'inbound' as const, label: 'Inbound', icon: PhoneIncoming, hint: 'Customers call your number — the AI picks up and talks to them' },
+                      { id: 'outbound' as const, label: 'Outbound', icon: PhoneOutgoing, hint: 'The AI calls your customers — for follow-ups, reminders, or sales' },
+                    ];
+                    const activeIndex = Math.max(0, modes.findIndex((m) => m.id === agentType));
+                    const activeHint = modes[activeIndex]?.hint;
+                    return (
+                      <>
+                        <div
+                          role="radiogroup"
+                          aria-label="Primary channel"
+                          className="relative grid grid-cols-3 gap-0 p-1 rounded-xl common-bg-icons"
+                        >
+                          <span
+                            aria-hidden
+                            className="absolute top-1 bottom-1 left-1 w-[calc((100%-0.5rem)/3)] rounded-lg common-button-bg !px-0 !py-0 shadow-md transition-transform duration-300 ease-out pointer-events-none"
+                            style={{ transform: `translateX(${activeIndex * 100}%)` }}
+                          />
+                          {modes.map((mode) => {
+                            const active = agentType === mode.id;
+                            return (
+                              <button
+                                key={mode.id}
+                                type="button"
+                                role="radio"
+                                aria-checked={active}
+                                onClick={() => setAgentType(mode.id)}
+                                className={`relative z-10 inline-flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition-colors duration-200 bg-transparent border-0 ${
+                                  active
+                                    ? 'text-white'
+                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                }`}
+                              >
+                                <mode.icon className="w-3.5 h-3.5" />
+                                {mode.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                          {activeHint}
+                        </p>
+                      </>
+                    );
+                  })()}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 overflow-visible">

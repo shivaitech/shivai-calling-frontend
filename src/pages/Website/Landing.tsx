@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { useAuth } from "../../contexts/AuthContext";
 import { getHomeRoute } from "../../utils/homeRoute";
 import AuthModel from "../../components/AuthModel";
+import SEO from "../../components/SEO";
 import Hero from "./Hero";
 import Navbar from "./Navbar";
 
@@ -152,6 +153,11 @@ const Landing: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#F0F0F0] overflow-x-hidden">
+      <SEO
+        title="Every Business Will Soon Hire an AI Employee. Meet ShivAI, Your First AI Hire."
+        description="Deploy AI employees that answer calls, qualify leads, book appointments, support customers and engage website visitors 24/7 using natural voice conversations—without writing code."
+        path="/"
+      />
       <Navbar
         setAuthMode={setAuthMode}
         setShowAuthModal={setShowAuthModal}

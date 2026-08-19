@@ -140,6 +140,8 @@ export interface ApiAgent {
   max_response_length?: string;
   context_window?: string;
   temperature?: number;
+  /** Primary channel the agent communicates on. */
+  agent_type?: "webrtc" | "inbound" | "outbound";
   greeting_message?: {
     [key: string]: string;
   };
@@ -199,6 +201,8 @@ interface CreateAgentRequest {
   max_response_length: string;
   context_window: string;
   temperature: number;
+  /** Primary channel the agent communicates on. */
+  agent_type?: "webrtc" | "inbound" | "outbound";
 }
 
 interface UpdateAgentRequest {
@@ -218,6 +222,8 @@ interface UpdateAgentRequest {
   context_window?: string;
   temperature?: number;
   status?: "Pending" | "Published";
+  /** Primary channel the agent communicates on. */
+  agent_type?: "webrtc" | "inbound" | "outbound";
   template?: {
     name: string;
     description: string;

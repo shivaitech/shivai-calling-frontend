@@ -3,6 +3,9 @@ import {
   buildOutboundMetadataInstructions,
   buildOutboundSystemPromptBrief,
   businessProcessToOutboundVariant,
+  buildInboundMetadataInstructions,
+  buildInboundSystemPromptBrief,
+  businessProcessToInboundVariant,
 } from "../constants/outboundPromptShell";
 
 const PROMPT_GENERATION_API =
@@ -90,7 +93,7 @@ export interface GenerateTemplateRequest {
   extractedContent?: string; // Extracted text from uploaded files (PDFs, docs, etc.)
   voiceStyle?: string; // e.g. friendly, professional, casual, authoritative, empathetic, enthusiastic
   /** Primary channel from create wizard — outbound uses the universal outbound prompt shell. */
-  deploymentMode?: "web" | "inbound" | "outbound";
+  deploymentMode?: "webrtc" | "inbound" | "outbound";
 }
 
 interface PromptGenerationData {
@@ -135,9 +138,10 @@ class AITemplateService {
     let templates = this.parseGeneratedTemplates(generatedText);
     if (templates.length === 0) throw new Error("Failed to parse templates from API response");
 
-    if (templates.length > 2) templates = templates.slice(0, 2);
-    if (templates.length < 2) {
-      templates.push(this.generateComplementaryTemplate(templates[0], request));
+    const TARGET_TEMPLATE_COUNT = 3;
+    if (templates.length > TARGET_TEMPLATE_COUNT) templates = templates.slice(0, TARGET_TEMPLATE_COUNT);
+    while (templates.length < TARGET_TEMPLATE_COUNT) {
+      templates.push(this.generateComplementaryTemplate(templates[templates.length - 1], request));
     }
 
     console.log("✅ Metadata ready:", templates.map((t) => t.name));
@@ -202,8 +206,10 @@ class AITemplateService {
         : "[AI Employee Name]";
     const earlyCompanyName = request.companyName || "[Company Name]";
     const isOutbound = request.deploymentMode === "outbound";
+    const isInbound = request.deploymentMode === "inbound";
     const outboundVariant = businessProcessToOutboundVariant(request.businessProcess);
-    const outboundBlock = isOutbound
+    const inboundVariant = businessProcessToInboundVariant(request.businessProcess);
+    const channelBlock = isOutbound
       ? `\n\n${buildOutboundMetadataInstructions({
           employeeName: earlyEmployeeName,
           companyName: earlyCompanyName,
@@ -211,7 +217,15 @@ class AITemplateService {
           industry: request.industry,
           variant: outboundVariant,
         })}\n`
-      : "";
+      : isInbound
+        ? `\n\n${buildInboundMetadataInstructions({
+            employeeName: earlyEmployeeName,
+            companyName: earlyCompanyName,
+            businessProcess: request.businessProcess,
+            industry: request.industry,
+            variant: inboundVariant,
+          })}\n`
+        : "";
 
     // High-quality example demonstrating voice-AI optimized system prompt format
     const exampleTemplates = `[
@@ -280,16 +294,17 @@ FALLBACK VALUES (only if truly not in document):
 - Business Process: ${request.businessProcess}
 - Industry: ${request.industry}${subIndustryContent}${urlContent}
 ${request.additionalContext ? `- Additional Context: ${request.additionalContext}` : ''}
-${outboundBlock}
-STEP 3: GENERATE EXACTLY 2 DISTINCT TEMPLATES
+${channelBlock}
+STEP 3: GENERATE EXACTLY 3 DISTINCT TEMPLATES
 
-Both templates MUST:
+All three templates MUST:
 - Use the EXACT AI employee name "${employeeName}" (not a placeholder)
 - Use the ACTUAL company name extracted from the document
-- Be based on REAL services/products from the document
-- Have different focuses${isOutbound ? " within pure OUTBOUND calling (never inbound/web chat)" : " (e.g., Template 1: primary customer service, Template 2: sales/lead-gen or specialized support)"}
-- Include comprehensive system prompts with REAL company-specific knowledge
-${isOutbound ? `- firstMessage MUST be an impressive outbound opener that asks for a couple of minutes (never "Thank you for calling")` : ""}
+- Be based on REAL services/products/policies from the document — pull specific names, numbers, ranges, and terminology straight from the text, not generic industry filler
+- Represent 3 genuinely different real-world use cases for this specific business${isOutbound ? " within pure OUTBOUND calling (never inbound/web chat)" : isInbound ? " within pure INBOUND call-answering (never outbound/web chat)" : ""} — different call objectives, different stages of the customer/prospect journey, or different segments of who they'd be talking to. Do not produce 3 variations of the same generic conversation with a different label.
+- Include comprehensive system prompts with REAL company-specific knowledge — specific enough that someone reading it could tell exactly which company this is, not a template that could apply to any business in the industry
+${isOutbound ? `- firstMessage MUST be an impressive outbound opener that asks for a couple of minutes, e.g. "Hi, this is ${employeeName} from ${request.companyName || companyFallback}. {{one-line reason}}. Do you have a couple of minutes?" (never "Thank you for calling")` : ""}
+${isInbound ? `- firstMessage MUST be a call-answering greeting, e.g. "Thank you for calling ${request.companyName || companyFallback}, this is ${employeeName}. How can I help you today?" (never an outbound opener asking "do you have a couple of minutes")` : ""}
 
 Each template MUST have ALL of these fields:
 - name: Unique professional name for the AI Employee role
@@ -307,8 +322,9 @@ Each template MUST have ALL of these fields:
 - conversationExamples: 2-3 examples using REAL services/products
 - intents: 2-3 intents relevant to actual company offerings
 
-Return ONLY a valid JSON array with EXACTLY 2 template objects. No markdown, no explanation.
+Return ONLY a valid JSON array with EXACTLY 3 template objects. No markdown, no explanation.
 
+The example below shows the REQUIRED JSON structure and field format only — it is for an unrelated limo business and exists purely to show shape and level of detail. Do not reuse its industry, tone, phrasing, or content. Every field in your output must be built from the document above.
 Example format: ${exampleTemplates}`;
     }
     
@@ -329,17 +345,19 @@ Business Information:
 - Business Process: ${request.businessProcess}
 - Industry: ${request.industry}${subIndustryContent}${urlContent}
 ${request.additionalContext ? `- Additional Context: ${request.additionalContext}` : ''}
-${outboundBlock}
-Generate EXACTLY 2 DISTINCT AI Employee templates in JSON format.
+${channelBlock}
+Generate EXACTLY 3 DISTINCT AI Employee templates in JSON format.
 
 CRITICAL INSTRUCTIONS:
 1. ALWAYS use the exact AI Employee Name "${stdEmployeeName}" in firstMessage and all scripts.
 2. ALWAYS use the exact Company Name "${stdCompanyName}" everywhere — never use [Company Name] placeholder.
-3. Both templates must be DIFFERENT in focus${isOutbound ? " within pure OUTBOUND calling for this business process" : " (e.g., Template 1: customer service, Template 2: sales/appointment-setting)"}.
-4. For systemPrompt: write a SHORT 2-3 sentence role summary ONLY (e.g. "You are ${stdEmployeeName}, a ${isOutbound ? "outbound" : "customer service"} specialist for ${stdCompanyName}. You ${isOutbound ? "place outbound calls to qualify leads and route next steps" : "handle customer inquiries, resolve issues, and book appointments"}."). The full detailed system prompt is generated in a separate step — do NOT write a long system prompt here.
-5. Do NOT use generic placeholders anywhere — all content must be specific and realistic.
-${isOutbound ? `6. firstMessage MUST impress on first test: outbound opener with purpose + ask for a couple of minutes. Never use inbound "Thank you for calling".
+3. All three templates must represent genuinely different real-world use cases for this business${isOutbound ? " within pure OUTBOUND calling for this business process" : isInbound ? " within pure INBOUND call-answering for this business process" : ""} — different call objectives, different stages of the customer journey, or different customer segments. Not three versions of the same generic conversation.
+4. For systemPrompt: write a SHORT 2-3 sentence role summary ONLY (e.g. "You are ${stdEmployeeName}, a${isOutbound ? "n outbound" : isInbound ? "n inbound" : ""} customer service specialist for ${stdCompanyName}. You ${isOutbound ? "place outbound calls to qualify leads and route next steps" : isInbound ? "answer incoming calls to resolve issues and book appointments" : "handle customer inquiries, resolve issues, and book appointments"}."). The full detailed system prompt is generated in a separate step — do NOT write a long system prompt here.
+5. Do NOT use generic placeholders or generic industry boilerplate anywhere — every detail (services, policies, objections, talking points) must be specific enough to this exact business that it wouldn't fit a competitor.
+${isOutbound ? `6. firstMessage MUST impress on first test: outbound opener with purpose + ask for a couple of minutes, e.g. "Hi, this is ${stdEmployeeName} from ${stdCompanyName}. {{one-line reason}}. Do you have a couple of minutes?" Never use inbound "Thank you for calling".
 7. conversationExamples must be agent-initiated outbound dialogues.` : ""}
+${isInbound ? `6. firstMessage MUST sound like answering a ringing phone, e.g. "Thank you for calling ${stdCompanyName}, this is ${stdEmployeeName}. How can I help you today?" Never use an outbound opener asking permission to continue.
+7. conversationExamples must be customer-initiated inbound dialogues (the caller states their need; the agent responds).` : ""}
 
 For each template provide these JSON fields:
 - name, description, icon, features (array)
@@ -352,8 +370,9 @@ For each template provide these JSON fields:
 - conversationExamples (array of {customerInput, expectedResponse})
 - intents (array of {name, phrases, response})
 
-Return ONLY a valid JSON array with EXACTLY 2 objects. No markdown, no explanation.
+Return ONLY a valid JSON array with EXACTLY 3 objects. No markdown, no explanation.
 
+The example below shows the REQUIRED JSON structure and field format only — it is for an unrelated limo business and exists purely to show shape and level of detail. Do not reuse its industry, tone, phrasing, or content.
 Example format: ${exampleTemplates}`;
 
     return prompt;
@@ -395,10 +414,12 @@ Example format: ${exampleTemplates}`;
     manualKnowledge?: string,
     subIndustry?: string,
     _voiceStyle?: string, // reserved — Voice Instructions are injected externally
-    deploymentMode?: "web" | "inbound" | "outbound",
+    deploymentMode?: "webrtc" | "inbound" | "outbound",
   ): Promise<string> {
     const isOutbound = deploymentMode === "outbound";
-    const variant = businessProcessToOutboundVariant(businessProcess);
+    const isInbound = deploymentMode === "inbound";
+    const outboundVariant = businessProcessToOutboundVariant(businessProcess);
+    const inboundVariant = businessProcessToInboundVariant(businessProcess);
 
     const prompt = isOutbound
       ? buildOutboundSystemPromptBrief({
@@ -410,9 +431,21 @@ Example format: ${exampleTemplates}`;
           businessProcess,
           subIndustry,
           manualKnowledge,
-          variant,
+          variant: outboundVariant,
         })
-      : (() => {
+      : isInbound
+        ? buildInboundSystemPromptBrief({
+            employeeName,
+            companyName,
+            templateName,
+            description,
+            industry,
+            businessProcess,
+            subIndustry,
+            manualKnowledge,
+            variant: inboundVariant,
+          })
+        : (() => {
           const subLine = subIndustry ? `\nSub-industry: ${subIndustry}` : "";
           const kbSection = manualKnowledge?.trim()
             ? `\n\nCompany-specific knowledge to incorporate:\n${manualKnowledge.substring(0, 3000)}`
@@ -966,16 +999,42 @@ Return ONLY the system prompt text. No JSON, no markdown code blocks, no explana
     const complementaryName = `${employeeName} — ${roleFocus}`;
     const complementaryDescription = `${employeeName} is a dedicated ${roleFocus.toLowerCase()} for ${companyName}, specializing in ${request.industry} with a ${complementaryTone.toLowerCase()} approach. Fully trained on ${companyName}'s services and policies to deliver accurate, helpful responses.`;
 
+    // Channel shapes the greeting, conversation flow, and closing — an outbound
+    // agent placed the call and must ask permission to continue; an inbound
+    // agent answered a ringing phone and should get straight to helping;
+    // web/webrtc is a chat widget, not a phone call.
+    const isOutboundFallback = request.deploymentMode === "outbound";
+    const isInboundFallback = request.deploymentMode === "inbound";
+
+    const complementaryFirstMessage = isOutboundFallback
+      ? `Hi, this is ${employeeName} from ${companyName}. I'm following up regarding ${request.businessProcess.replace(/-/g, ' ')} — do you have a couple of minutes?`
+      : isInboundFallback
+        ? `Thank you for calling ${companyName}, this is ${employeeName}. How can I help you today?`
+        : `Hello! I'm ${employeeName} from ${companyName}. How can I assist you today?`;
+
+    const conversationFlowStep = isOutboundFallback
+      ? `1. Open with a warm, concise reason for the call and ask permission to continue (never "Thank you for calling")\n2. If busy — offer a callback time. If voicemail — leave a short professional message\n3. If they opt out or say not interested — end politely, no re-asking\n4. Ask discovery questions one at a time\n5. Confirm next steps and close`
+      : isInboundFallback
+        ? `1. Answer with a warm, immediate greeting as ${employeeName} from ${companyName}\n2. Identify what the caller needs — get straight to it, don't ask permission to continue\n3. Resolve, route, or book — whichever the request calls for\n4. Confirm key details back to the caller\n5. Close professionally, offering further help`
+        : `1. Greet the visitor warmly as ${employeeName} from ${companyName}\n2. Identify their need or question\n3. Provide accurate information from company knowledge\n4. Address any objections or concerns\n5. Confirm next steps and close professionally`;
+
+    const closingLine = isOutboundFallback
+      ? `\'Thanks for your time — I'll follow up as discussed.\'`
+      : isInboundFallback
+        ? `\'Thank you for calling ${companyName}. Is there anything else I can help you with?\'`
+        : `\'Thank you for contacting ${companyName}.\'`;
+
     const complementarySystemPrompt =
       `## Identity & Purpose\n\nYou are ${employeeName}, a ${roleFocus.toLowerCase()} for ${companyName}. ` +
-      `Your role is to assist customers professionally and efficiently in the context of ${request.businessProcess} within the ${request.industry} industry.\n\n` +
-      `## Voice & Persona\n\n### Personality\n- ${complementaryPersonality}\n- Knowledgeable about ${companyName}\'s services\n- Clear and accurate\n\n` +
-      `### Speech Characteristics\n- ${complementaryTone} tone\n- Listen actively before responding\n- Confirm key information\n\n` +
-      `## Conversation Flow\n\n1. Greet the caller warmly as ${employeeName} from ${companyName}\n2. Identify their need or question\n3. Provide accurate information from company knowledge\n4. Address any objections or concerns\n5. Confirm next steps and close professionally\n\n` +
+      `Your role is to ${isOutboundFallback ? 'place outbound calls and represent the company professionally' : isInboundFallback ? 'answer incoming calls and assist customers professionally and efficiently' : 'assist customers professionally and efficiently'} in the context of ${request.businessProcess} within the ${request.industry} industry.` +
+      (isOutboundFallback ? ` You are NOT an inbound support line — the customer did not call in; you initiated contact.` : isInboundFallback ? ` You are NOT an outbound caller — the customer initiated this call.` : '') +
+      `\n\n## Voice & Persona\n\n### Personality\n- ${complementaryPersonality}\n- Knowledgeable about ${companyName}\'s services\n- Clear and accurate\n\n` +
+      `### Speech Characteristics\n- ${complementaryTone} tone\n- Listen actively before responding\n- Confirm key information\n${isOutboundFallback ? '- Acknowledge they didn\'t ask for this call\n' : ''}` +
+      `\n## Conversation Flow\n\n${conversationFlowStep}\n\n` +
       `## Response Guidelines\n- Always identify yourself as ${employeeName}\n- Be concise and accurate\n- Never guess — use company knowledge\n- Escalate when needed\n\n` +
       `## Scenario Handling\n\n### General Inquiry\n1. Listen to the customer's question\n2. Reference company knowledge to answer accurately\n3. Offer additional help if needed\n\n### Complaint or Issue\n1. Acknowledge the issue empathetically\n2. Apologize for the inconvenience\n3. Provide a resolution or escalate\n\n### Request for Services\n1. Clarify what the customer needs\n2. Explain relevant services from company knowledge\n3. Guide them to next steps\n` +
       kbKnowledgeSection +
-      `\n\n## Call Management\n- If on hold: \'One moment, please.\'\n- For transfers: \'I will connect you with the right team.\'\n- Always end professionally: \'Thank you for contacting ${companyName}.\'`;
+      `\n\n## Call Management\n- If on hold: \'One moment, please.\'\n- For transfers: \'I will connect you with the right team.\'\n- Always end professionally: ${closingLine}`;
 
     return {
       name: complementaryName,
@@ -983,7 +1042,7 @@ Return ONLY the system prompt text. No JSON, no markdown code blocks, no explana
       icon: complementaryIcon,
       features: complementaryFeatures,
       systemPrompt: complementarySystemPrompt,
-      firstMessage: `Hello! I'm ${employeeName} from ${companyName}. How can I assist you today?`,
+      firstMessage: complementaryFirstMessage,
       industryFocus: request.industry || '',
       tone: complementaryTone,
       gender: existingTemplate.gender === 'Female' ? 'Male' : 'Female',
@@ -993,7 +1052,11 @@ Return ONLY the system prompt text. No JSON, no markdown code blocks, no explana
       websiteUrls: request.websiteUrls || [],
       keyTalkingPoints: existingTemplate.keyTalkingPoints ||
         `• ${companyName} is committed to excellent service\n• Accurate information from company knowledge\n• Professional and timely assistance`,
-      closingScript: `Thank you for contacting ${companyName}. Is there anything else I can help you with today?`,
+      closingScript: isOutboundFallback
+        ? `Thanks again for your time — I'll be in touch as discussed. Have a great day!`
+        : isInboundFallback
+          ? `Thank you for calling ${companyName}. Is there anything else I can help you with today?`
+          : `Thank you for contacting ${companyName}. Is there anything else I can help you with today?`,
       objections: existingTemplate.objections || [],
       conversationExamples: existingTemplate.conversationExamples || [],
       intents: existingTemplate.intents || [],

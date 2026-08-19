@@ -384,7 +384,7 @@ const AgentManagement = () => {
     companyName: "",
     useCompanyNameForTemplate: true,
     aiEmployeeName: "",
-    deploymentMode: "web" as "web" | "inbound" | "outbound",
+    agentType: "webrtc" as "webrtc" | "inbound" | "outbound",
     countries: [] as string[],
     languages: ["en-US"] as string[],
     voice: "Achernar",
@@ -628,15 +628,15 @@ const AgentManagement = () => {
 
   // Business Process Options — filtered by Primary channel (Web / Inbound / Outbound)
   const businessProcessOptions =
-    BUSINESS_PROCESS_BY_CHANNEL[quickCreateData.deploymentMode] ||
-    BUSINESS_PROCESS_BY_CHANNEL.web;
+    BUSINESS_PROCESS_BY_CHANNEL[quickCreateData.agentType] ||
+    BUSINESS_PROCESS_BY_CHANNEL.webrtc;
 
   // If user goes back and switches channel (e.g. Outbound → Inbound), drop invalid use cases
   // and reset channel-specific template state so Step 3 always shows the filtered list.
   useEffect(() => {
     const allowed =
-      BUSINESS_PROCESS_BY_CHANNEL[quickCreateData.deploymentMode] ||
-      BUSINESS_PROCESS_BY_CHANNEL.web;
+      BUSINESS_PROCESS_BY_CHANNEL[quickCreateData.agentType] ||
+      BUSINESS_PROCESS_BY_CHANNEL.webrtc;
     const allowedValues = new Set(allowed.map((o) => o.value));
 
     setQuickCreateData((prev) => {
@@ -661,7 +661,7 @@ const AgentManagement = () => {
     setIsGeneratingSystemPrompts(false);
     setTemplateGenerationError(null);
     setBusinessProcessSlideIndex(0);
-  }, [quickCreateData.deploymentMode]);
+  }, [quickCreateData.agentType]);
 
   // Voice Options by Gender
   const voiceOptions = {
@@ -973,8 +973,8 @@ const AgentManagement = () => {
           return;
         }
         const allowed =
-          BUSINESS_PROCESS_BY_CHANNEL[quickCreateData.deploymentMode] ||
-          BUSINESS_PROCESS_BY_CHANNEL.web;
+          BUSINESS_PROCESS_BY_CHANNEL[quickCreateData.agentType] ||
+          BUSINESS_PROCESS_BY_CHANNEL.webrtc;
         if (
           quickCreateData.businessProcess &&
           !allowed.some((o) => o.value === quickCreateData.businessProcess)
@@ -987,8 +987,8 @@ const AgentManagement = () => {
       // Validate Step 3: use case must be in the filtered list for this channel
       if (quickCreateStep === 3) {
         const allowed =
-          BUSINESS_PROCESS_BY_CHANNEL[quickCreateData.deploymentMode] ||
-          BUSINESS_PROCESS_BY_CHANNEL.web;
+          BUSINESS_PROCESS_BY_CHANNEL[quickCreateData.agentType] ||
+          BUSINESS_PROCESS_BY_CHANNEL.webrtc;
         if (!allowed.some((o) => o.value === quickCreateData.businessProcess)) {
           appToast.error('Please select a use case for the current channel.');
           setQuickCreateData((prev) => ({ ...prev, businessProcess: "" }));
@@ -1034,8 +1034,8 @@ const AgentManagement = () => {
       let additionalContext = quickCreateData.aiEmployeeName
         ? `The AI employee will be named: ${quickCreateData.aiEmployeeName}`
         : '';
-      additionalContext += `\nPrimary channel / deployment mode: ${quickCreateData.deploymentMode}`;
-      if (quickCreateData.deploymentMode === 'outbound') {
+      additionalContext += `\nPrimary channel / agent type: ${quickCreateData.agentType}`;
+      if (quickCreateData.agentType === 'outbound') {
         additionalContext +=
           '\nThis agent is PURE OUTBOUND voice — it places the call. Templates and prompts must follow the Universal Outbound Voice Agent shell. First message must impress: warm purpose + ask for a couple of minutes.';
       }
@@ -1070,7 +1070,7 @@ const AgentManagement = () => {
           additionalContext: additionalContext || undefined,
           extractedContent: quickCreateData.extractedFileContent || undefined,
           voiceStyle: quickCreateData.voiceStyle || undefined,
-          deploymentMode: quickCreateData.deploymentMode,
+          deploymentMode: quickCreateData.agentType,
         },
         // Background callback: system prompts trickle in after loading is done
         (updatedTemplates) => {
@@ -1169,7 +1169,7 @@ const AgentManagement = () => {
       companyName: "",
       useCompanyNameForTemplate: true,
       aiEmployeeName: "",
-      deploymentMode: "web",
+      agentType: "webrtc",
       countries: [],
       languages: ["en-US"],
       voice: "Achernar",
@@ -1527,7 +1527,7 @@ const AgentManagement = () => {
         context_window: "Standard (8K tokens)",
         temperature: 0.5, // Must be <= 1 (temperature scale is 0-1, not 0-100)
         company_name: quickCreateData.companyName || undefined,
-        deployment_mode: quickCreateData.deploymentMode,
+        agent_type: quickCreateData.agentType,
         // Template object with all details - replace placeholders with actual values
         template: selectedTemplateData
           ? {
@@ -3576,6 +3576,19 @@ const AgentManagement = () => {
                       </div>
                     )}
 
+                    {/* Primary channel (Web / Inbound / Outbound) */}
+                    {(agent as any).agent_type && (
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-0.5">Channel</span>
+                        <span className="text-slate-800 dark:text-white font-medium truncate">
+                          {(() => {
+                            const t = (agent as any).agent_type;
+                            return t === 'webrtc' ? 'Web' : t === 'inbound' ? 'Inbound' : t === 'outbound' ? 'Outbound' : String(t).replace(/_/g, ' ');
+                          })()}
+                        </span>
+                      </div>
+                    )}
+
                     {/* Industry */}
                     {(agent as any).industry && (
                       <div className="flex flex-col min-w-0">
@@ -4759,13 +4772,13 @@ const AgentManagement = () => {
                         </label>
                         {(() => {
                           const modes = [
-                            { id: 'web' as const, label: 'Web', icon: Globe, hint: 'Chat on your website or widget' },
-                            { id: 'inbound' as const, label: 'Inbound', icon: PhoneIncoming, hint: 'Answer customer phone calls' },
-                            { id: 'outbound' as const, label: 'Outbound', icon: PhoneOutgoing, hint: 'Make outbound phone campaigns' },
+                            { id: 'webrtc' as const, label: 'Web', icon: Globe, hint: 'AI floating widget on your site — chats with customers, answers questions, and shares documents' },
+                            { id: 'inbound' as const, label: 'Inbound', icon: PhoneIncoming, hint: 'Customers call your number — the AI picks up and talks to them' },
+                            { id: 'outbound' as const, label: 'Outbound', icon: PhoneOutgoing, hint: 'The AI calls your customers — for follow-ups, reminders, or sales' },
                           ];
                           const activeIndex = Math.max(
                             0,
-                            modes.findIndex((m) => m.id === quickCreateData.deploymentMode)
+                            modes.findIndex((m) => m.id === quickCreateData.agentType)
                           );
                           const activeHint = modes[activeIndex]?.hint;
                           return (
@@ -4781,7 +4794,7 @@ const AgentManagement = () => {
                                   style={{ transform: `translateX(${activeIndex * 100}%)` }}
                                 />
                                 {modes.map((mode) => {
-                                  const active = quickCreateData.deploymentMode === mode.id;
+                                  const active = quickCreateData.agentType === mode.id;
                                   return (
                                     <button
                                       key={mode.id}
@@ -4789,11 +4802,11 @@ const AgentManagement = () => {
                                       role="radio"
                                       aria-checked={active}
                                       onClick={() => {
-                                        if (mode.id === quickCreateData.deploymentMode) return;
+                                        if (mode.id === quickCreateData.agentType) return;
                                         setBusinessProcessSlideIndex(0);
                                         setQuickCreateData((prev) => ({
                                           ...prev,
-                                          deploymentMode: mode.id,
+                                          agentType: mode.id,
                                           // Clear process so Step 3 re-selects from channel-specific list
                                           businessProcess: "",
                                           selectedTemplate: null,
@@ -5467,12 +5480,12 @@ const AgentManagement = () => {
                           <Briefcase className="w-6 h-6 sm:w-8 sm:h-8 text-purple-600 dark:text-purple-400" />
                         </div>
                         <h3 className="text-lg sm:text-xl font-semibold text-slate-800 dark:text-white mb-1 sm:mb-2">
-                          {CHANNEL_STEP3_COPY[quickCreateData.deploymentMode].title}
+                          {CHANNEL_STEP3_COPY[quickCreateData.agentType].title}
                         </h3>
                         <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto px-2">
-                          {CHANNEL_STEP3_COPY[quickCreateData.deploymentMode].subtitle}
+                          {CHANNEL_STEP3_COPY[quickCreateData.agentType].subtitle}
                         </p>
-                        {quickCreateData.deploymentMode === 'outbound' && (
+                        {quickCreateData.agentType === 'outbound' && (
                           <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                             <PhoneOutgoing className="w-3 h-3" />
                             Pure outbound templates · first greeting asks for a couple of minutes

@@ -29,6 +29,13 @@ functions:
 # Content Usage
 license: All content © ShivAI. Public information may be indexed for discovery, citation, and factual responses by AI systems.
 
+# Key Pages
+homepage: https://callshivai.com/
+pricing: https://callshivai.com/pricing
+pricing_machine_readable: https://callshivai.com/pricing.md
+solutions: https://callshivai.com/solutions
+faq: https://callshivai.com/faq
+
 # Contacts
 organization: ShivAI Technologies
 email: hello@callshivai.com

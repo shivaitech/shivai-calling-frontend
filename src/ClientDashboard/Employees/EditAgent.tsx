@@ -334,7 +334,7 @@ function reconstructKbJson(originalJson: any, editedText: string): string {
 
 import { useParams, useNavigate } from 'react-router-dom';
 import appToast from '../../components/AppToast';
-import { ArrowLeft, Save, X, Bot, Globe, Settings, Sparkles, Info, Upload, Link, Share2, FileText, File, Image, Plus, BookOpen, Volume2, Play, Square, Pencil, Check, Loader2, Eye, Code2, Search, ChevronUp, ChevronDown, Trash2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Save, X, Bot, Globe, Settings, Sparkles, Info, Upload, Link, Share2, FileText, File, Image, Plus, BookOpen, Volume2, Play, Square, Pencil, Check, Loader2, Eye, Code2, Search, ChevronUp, ChevronDown, Trash2, RefreshCw, PhoneIncoming, PhoneOutgoing } from 'lucide-react';
 import { useAgent } from '../../contexts/AgentContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { agentAPI } from '../../services/agentAPI';
@@ -514,13 +514,21 @@ const EditAgent = () => {
     realtimeVoice: "alloy",
   });
 
+  // Primary channel — how this agent communicates (Web widget / Inbound calls / Outbound calls)
+  const [agentType, setAgentType] = useState<"webrtc" | "inbound" | "outbound">("webrtc");
+
   const [templateData, setTemplateData] = useState<any>(null);
   const [isRegeneratingTemplate, setIsRegeneratingTemplate] = useState(false);
   const [isSpGenerating, setIsSpGenerating] = useState(false);
   const [templateRegenNeeded, setTemplateRegenNeeded] = useState(false);
+  // True only when the Primary channel changed — the system prompt shell is
+  // fundamentally different per channel (see outboundPromptShell.ts), so a
+  // stale prompt here is actively wrong, not just suboptimal. Blocks save
+  // and can't be dismissed until the template is regenerated.
+  const [channelRegenRequired, setChannelRegenRequired] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   // Stores the baseline key fields as loaded from API — used to detect meaningful changes
-  const baselineTemplateFieldsRef = useRef<{ businessProcess: string; industry: string; subIndustry: string; voiceStyle: string } | null>(null);
+  const baselineTemplateFieldsRef = useRef<{ businessProcess: string; industry: string; subIndustry: string; voiceStyle: string; agentType: string } | null>(null);
   // Tracks the original company name loaded from the API to detect user changes
   const originalCompanyNameRef = useRef<string>('');
   const originalAgentNameRef = useRef<string>('');
@@ -556,21 +564,24 @@ const EditAgent = () => {
   useEffect(() => {
     if (!isLoadedRef.current) return;
     setIsDirty(true);
-  }, [formData, templateData]);
+  }, [formData, templateData, agentType]);
 
   // Detect when key template-driving fields drift from their loaded baseline
   useEffect(() => {
     if (!templateData || !baselineTemplateFieldsRef.current) return;
     const baseline = baselineTemplateFieldsRef.current;
+    const channelChanged = agentType !== baseline.agentType;
     const changed =
       formData.businessProcess !== baseline.businessProcess ||
       formData.industry !== baseline.industry ||
       formData.subIndustry !== baseline.subIndustry ||
       formData.voiceStyle !== baseline.voiceStyle ||
+      channelChanged ||
       (originalCompanyNameRef.current !== '' && formData.companyName !== originalCompanyNameRef.current) ||
       (originalAgentNameRef.current !== '' && formData.name !== originalAgentNameRef.current);
     setTemplateRegenNeeded(changed);
-  }, [formData.businessProcess, formData.industry, formData.subIndustry, formData.voiceStyle, formData.companyName, formData.name, templateData]);
+    setChannelRegenRequired(channelChanged);
+  }, [formData.businessProcess, formData.industry, formData.subIndustry, formData.voiceStyle, formData.companyName, formData.name, agentType, templateData]);
 
   // When the user explicitly changes Voice Style, patch the Voice Instructions
   // section of the system prompt with the new static content.
@@ -760,6 +771,7 @@ const EditAgent = () => {
           countries: Array.isArray((agentData as any).countries) ? (agentData as any).countries : [],
           realtimeVoice: (agentData as any).multilingual_voice || "alloy",
         });
+        setAgentType((agentData as any).agent_type || "webrtc");
 
         // Load template data if available.
         // Normalize: if the AI chose a different name (e.g. "Cler") than the
@@ -813,6 +825,7 @@ const EditAgent = () => {
           subIndustry: mapSubIndustry(agentData.sub_industry),
           voiceStyle: (agentData as any).voice_style ||
             detectVoiceStyleFromInstruction((agentData as any).voice_config?.voice_instruction),
+          agentType: (agentData as any).agent_type || "webrtc",
         };
 
         // Mark as loaded so subsequent formData/templateData changes set isDirty
@@ -1755,6 +1768,11 @@ const EditAgent = () => {
       return;
     }
 
+    if (channelRegenRequired) {
+      appToast.error("Primary channel changed — regenerate the template before saving.");
+      return;
+    }
+
     if (currentAgent) {
       const loadingToast = appToast.loading("Updating agent...");
       try {
@@ -1809,6 +1827,7 @@ const EditAgent = () => {
         const updateData = {
           name: formData.name,
           company_name: formData.companyName,
+          agent_type: agentType,
           personality: personalityToApi(formData.persona),
           language: formData.languages?.length ? formData.languages : ["en-US"],
           voice: formData.voice,
@@ -1892,6 +1911,7 @@ const EditAgent = () => {
         subIndustry: formData.subIndustry || undefined,
         voiceStyle: formData.voiceStyle,
         additionalContext: `The AI employee will be named: ${agentName}`,
+        deploymentMode: agentType,
       };
 
       console.log('🔄 Regenerating template with request:', request);
@@ -1959,8 +1979,10 @@ const EditAgent = () => {
         industry: formData.industry,
         subIndustry: formData.subIndustry,
         voiceStyle: formData.voiceStyle,
+        agentType,
       };
       setTemplateRegenNeeded(false);
+      setChannelRegenRequired(false);
       // Update company name and agent name baselines so the amber warning banners are dismissed
       originalCompanyNameRef.current = formData.companyName;
       originalAgentNameRef.current = formData.name;
@@ -2050,7 +2072,9 @@ const EditAgent = () => {
 
               <button
                 onClick={handleSave}
-                className="common-button-bg flex items-center justify-center gap-1 sm:gap-2 px-2.5 sm:px-3 lg:px-4 py-1.5 sm:py-2 lg:py-2.5 rounded-lg sm:rounded-xl touch-manipulation min-h-[36px] sm:min-h-[40px]"
+                disabled={channelRegenRequired}
+                title={channelRegenRequired ? "Regenerate the template before saving — the Primary channel changed" : undefined}
+                className="common-button-bg flex items-center justify-center gap-1 sm:gap-2 px-2.5 sm:px-3 lg:px-4 py-1.5 sm:py-2 lg:py-2.5 rounded-lg sm:rounded-xl touch-manipulation min-h-[36px] sm:min-h-[40px] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Save className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 <span className="text-xs sm:text-sm font-medium">
@@ -2096,22 +2120,43 @@ const EditAgent = () => {
         </div>
       </GlassCard>
 
-      {/* Regenerate template banner — shown whenever key fields drift from their loaded baseline */}
+      {/* Regenerate template banner — shown whenever key fields drift from their loaded baseline.
+          When the Primary channel itself changed, regeneration is mandatory (not dismissible):
+          the system prompt shell is fundamentally different per channel (see outboundPromptShell.ts),
+          so an unregenerated prompt would be actively wrong, not just stale. */}
       {templateRegenNeeded && templateData && (
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-700/50 rounded-xl">
+        <div
+          className={`flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border ${
+            channelRegenRequired
+              ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700/50'
+              : 'bg-violet-50 dark:bg-violet-900/20 border-violet-200 dark:border-violet-700/50'
+          }`}
+        >
           <div className="flex items-start sm:items-center gap-2 flex-1 min-w-0">
-            <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-violet-600 dark:text-violet-400 flex-shrink-0 mt-0.5 sm:mt-0" />
-            <p className="text-[11px] sm:text-xs text-violet-800 dark:text-violet-300 leading-snug">
-              <strong>Settings changed.</strong>{' '}
-              <span className="hidden sm:inline">Regenerate the template so the system prompt, first message, scripts and examples all match your new configuration — no duplication.</span>
-              <span className="sm:hidden">Regenerate the template to match your new configuration.</span>
+            <Sparkles className={`w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0 mt-0.5 sm:mt-0 ${channelRegenRequired ? 'text-amber-600 dark:text-amber-400' : 'text-violet-600 dark:text-violet-400'}`} />
+            <p className={`text-[11px] sm:text-xs leading-snug ${channelRegenRequired ? 'text-amber-800 dark:text-amber-300' : 'text-violet-800 dark:text-violet-300'}`}>
+              {channelRegenRequired ? (
+                <>
+                  <strong>Primary channel changed.</strong>{' '}
+                  <span className="hidden sm:inline">The system prompt, first message, and scripts are written for the old channel and must be regenerated before saving.</span>
+                  <span className="sm:hidden">Regenerate the template before saving.</span>
+                </>
+              ) : (
+                <>
+                  <strong>Settings changed.</strong>{' '}
+                  <span className="hidden sm:inline">Regenerate the template so the system prompt, first message, scripts and examples all match your new configuration — no duplication.</span>
+                  <span className="sm:hidden">Regenerate the template to match your new configuration.</span>
+                </>
+              )}
             </p>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
             <button
               onClick={handleRegenerateTemplate}
               disabled={isRegeneratingTemplate}
-              className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white text-[11px] sm:text-xs font-medium rounded-lg transition-colors"
+              className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 disabled:opacity-60 text-white text-[11px] sm:text-xs font-medium rounded-lg transition-colors ${
+                channelRegenRequired ? 'bg-amber-600 hover:bg-amber-700' : 'bg-violet-600 hover:bg-violet-700'
+              }`}
             >
               {isRegeneratingTemplate ? (
                 <Loader2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 animate-spin" />
@@ -2120,13 +2165,15 @@ const EditAgent = () => {
               )}
               {isRegeneratingTemplate ? 'Regenerating…' : 'Regenerate'}
             </button>
-            <button
-              onClick={() => setTemplateRegenNeeded(false)}
-              className="p-1 text-violet-500 hover:text-violet-700 dark:hover:text-violet-300 flex-shrink-0"
-              title="Dismiss"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
+            {!channelRegenRequired && (
+              <button
+                onClick={() => setTemplateRegenNeeded(false)}
+                className="p-1 text-violet-500 hover:text-violet-700 dark:hover:text-violet-300 flex-shrink-0"
+                title="Dismiss"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -2185,6 +2232,60 @@ const EditAgent = () => {
                     <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-1.5">
                       This name will be visible to your customers
                     </p>
+                  </div>
+
+                  {/* Primary channel — sliding segmented control */}
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
+                      Primary channel
+                    </label>
+                    {(() => {
+                      const modes = [
+                        { id: 'webrtc' as const, label: 'Web', icon: Globe, hint: 'AI floating widget on your site — chats with customers, answers questions, and shares documents' },
+                        { id: 'inbound' as const, label: 'Inbound', icon: PhoneIncoming, hint: 'Customers call your number — the AI picks up and talks to them' },
+                        { id: 'outbound' as const, label: 'Outbound', icon: PhoneOutgoing, hint: 'The AI calls your customers — for follow-ups, reminders, or sales' },
+                      ];
+                      const activeIndex = Math.max(0, modes.findIndex((m) => m.id === agentType));
+                      const activeHint = modes[activeIndex]?.hint;
+                      return (
+                        <>
+                          <div
+                            role="radiogroup"
+                            aria-label="Primary channel"
+                            className="relative grid grid-cols-3 gap-0 p-1 rounded-lg sm:rounded-xl common-bg-icons"
+                          >
+                            <span
+                              aria-hidden
+                              className="absolute top-1 bottom-1 left-1 w-[calc((100%-0.5rem)/3)] rounded-lg common-button-bg !px-0 !py-0 shadow-md transition-transform duration-300 ease-out pointer-events-none"
+                              style={{ transform: `translateX(${activeIndex * 100}%)` }}
+                            />
+                            {modes.map((mode) => {
+                              const active = agentType === mode.id;
+                              return (
+                                <button
+                                  key={mode.id}
+                                  type="button"
+                                  role="radio"
+                                  aria-checked={active}
+                                  onClick={() => setAgentType(mode.id)}
+                                  className={`relative z-10 inline-flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition-colors duration-200 bg-transparent border-0 ${
+                                    active
+                                      ? 'text-white'
+                                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                  }`}
+                                >
+                                  <mode.icon className="w-3.5 h-3.5" />
+                                  {mode.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-1.5">
+                            {activeHint}
+                          </p>
+                        </>
+                      );
+                    })()}
                   </div>
 
                   {/* Business Process and Industry */}
