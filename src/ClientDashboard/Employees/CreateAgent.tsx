@@ -4,6 +4,7 @@ import appToast from "../../components/AppToast";
 import { agentAPI } from "../../services/agentAPI";
 import GlassCard from "../../components/GlassCard";
 import SearchableSelect from "../../components/SearchableSelect";
+import TTSVoiceSelector, { TTSVoiceSelectorValue, toTtsConfig } from "../../components/TTSVoiceSelector";
 import { useAgent } from "../../contexts/AgentContext";
 import {
   ArrowLeft,
@@ -73,6 +74,17 @@ const CreateAgent = () => {
 
   // Primary channel — how this agent communicates (Web widget / Inbound calls / Outbound calls)
   const [agentType, setAgentType] = useState<"webrtc" | "inbound" | "outbound">("webrtc");
+
+  // TTS provider/model/voice selection — see TTS Provider Catalog API
+  const [ttsConfig, setTtsConfig] = useState<TTSVoiceSelectorValue>({
+    provider: "google_chirp",
+    model: "",
+    voice_id: "",
+    language: "en-IN",
+    speed: 1,
+    emotion_enabled: false,
+    emotion_profile: "neutral",
+  });
 
   // Store knowledge base URLs from quick create
   const [knowledgeBaseUrls] = useState<string[]>(prefilledUrls);
@@ -447,6 +459,11 @@ const CreateAgent = () => {
       return;
     }
 
+    if (!ttsConfig.voice_id) {
+      appToast.error("Please select a voice for your agent.");
+      return;
+    }
+
     setIsSubmitting(true);
     const loadingToast = appToast.loading("Creating AI agent...");
 
@@ -465,7 +482,7 @@ const CreateAgent = () => {
         sub_industry: formData.subIndustry || undefined,
         personality: formData.persona.toLowerCase().replace(/\s*\(.*?\)/g, ''),
         language: formData.language === "English (US)" ? "en-US" : formData.language,
-        voice: formData.voice,
+        voice: ttsConfig.voice_id || formData.voice,
         custom_instructions: formData.customInstructions,
         guardrails_level: formData.guardrailsLevel.toLowerCase(),
         response_style: formData.responseStyle.toLowerCase(),
@@ -473,6 +490,7 @@ const CreateAgent = () => {
         context_window: formData.contextWindow.toLowerCase().replace(/\s/g, '_').replace(/\(|\)/g, ''),
         temperature: formData.temperature,
         agent_type: agentType,
+        tts: ttsConfig.voice_id ? toTtsConfig(ttsConfig) : undefined,
         // Store template key and training data for Training page
         template_key: appliedTemplateKey,
         knowledge_base_urls: knowledgeBaseUrls.length > 0 ? knowledgeBaseUrls : undefined,
@@ -815,56 +833,49 @@ const CreateAgent = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 overflow-visible">
-                  <div className="overflow-visible relative z-10">
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                      Language
-                    </label>
-                    <SearchableSelect
-                      options={[
-                        { value: "multilingual", label: "🌐 Multilingual" },
-                        { value: "ar", label: "🇸🇦 Arabic" },
-                        { value: "zh", label: "🇨🇳 Chinese" },
-                        { value: "nl", label: "🇳🇱 Dutch" },
-                        { value: "en-GB", label: "🇬🇧 English (UK)" },
-                        { value: "en-US", label: "🇺🇸 English (US)" },
-                        { value: "en-IN", label: "🇮🇳 English (India)" },
-                        { value: "fr", label: "🇫🇷 French" },
-                        { value: "de", label: "🇩🇪 German" },
-                        { value: "hi", label: "🇮🇳 Hindi" },
-                        { value: "it", label: "🇮🇹 Italian" },
-                        { value: "ja", label: "🇯🇵 Japanese" },
-                        { value: "ko", label: "🇰🇷 Korean" },
-                        { value: "pt", label: "🇵🇹 Portuguese" },
-                        { value: "pl", label: "🇵🇱 Polish" },
-                        { value: "ru", label: "🇷🇺 Russian" },
-                        { value: "es", label: "🇪🇸 Spanish" },
-                        { value: "tr", label: "🇹🇷 Turkish" },
-                      ]}
-                      value={formData.language}
-                      onChange={(value) => setFormData({ ...formData, language: value })}
-                      placeholder="Select language..."
-                    />
-                  </div>
+                <div className="overflow-visible relative z-10">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                    Language
+                  </label>
+                  <SearchableSelect
+                    options={[
+                      { value: "multilingual", label: "🌐 Multilingual" },
+                      { value: "ar", label: "🇸🇦 Arabic" },
+                      { value: "zh", label: "🇨🇳 Chinese" },
+                      { value: "nl", label: "🇳🇱 Dutch" },
+                      { value: "en-GB", label: "🇬🇧 English (UK)" },
+                      { value: "en-US", label: "🇺🇸 English (US)" },
+                      { value: "en-IN", label: "🇮🇳 English (India)" },
+                      { value: "fr", label: "🇫🇷 French" },
+                      { value: "de", label: "🇩🇪 German" },
+                      { value: "hi", label: "🇮🇳 Hindi" },
+                      { value: "it", label: "🇮🇹 Italian" },
+                      { value: "ja", label: "🇯🇵 Japanese" },
+                      { value: "ko", label: "🇰🇷 Korean" },
+                      { value: "pt", label: "🇵🇹 Portuguese" },
+                      { value: "pl", label: "🇵🇱 Polish" },
+                      { value: "ru", label: "🇷🇺 Russian" },
+                      { value: "es", label: "🇪🇸 Spanish" },
+                      { value: "tr", label: "🇹🇷 Turkish" },
+                    ]}
+                    value={formData.language}
+                    onChange={(value) => setFormData({ ...formData, language: value })}
+                    placeholder="Select language..."
+                  />
+                </div>
 
-                  <div className="overflow-visible relative z-10">
-                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                <div className="overflow-visible relative z-10 common-bg-icons rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Sparkles className="w-4 h-4 text-purple-500" />
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
                       Voice
                     </label>
-                    <SearchableSelect
-                      options={[
-                        { value: "alloy", label: "Alloy - Neutral" },
-                        { value: "echo", label: "Echo - Male" },
-                        { value: "fable", label: "Fable - British Male" },
-                        { value: "onyx", label: "Onyx - Deep Male" },
-                        { value: "nova", label: "Nova - Female" },
-                        { value: "shimmer", label: "Shimmer - Soft Female" },
-                      ]}
-                      value={formData.voice}
-                      onChange={(value) => setFormData({ ...formData, voice: value })}
-                      placeholder="Select voice..."
-                    />
                   </div>
+                  <TTSVoiceSelector
+                    value={ttsConfig}
+                    onChange={setTtsConfig}
+                    genderFilter={formData.gender}
+                  />
                 </div>
 
                 <div>

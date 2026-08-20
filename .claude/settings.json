@@ -53,7 +53,10 @@
       "Bash(node \"C:\\\\Users\\\\admin\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-admin-Desktop-ShivAI-shivai-calling-frontend\\\\0d5d42c4-47b8-48c4-85a7-0ce42b4fc99e\\\\scratchpad\\\\screenshot.mjs\")",
       "Bash(node --check \"c:\\\\Users\\\\admin\\\\Desktop\\\\ShivAI\\\\shivai-calling-frontend\\\\public\\\\widget4.js\")",
       "Bash(node --check \"c:\\\\Users\\\\admin\\\\Desktop\\\\ShivAI\\\\shivai-calling-frontend\\\\public\\\\widget.js\")",
-      "Bash(git fetch *)"
+      "Bash(git fetch *)",
+      "Bash(node test-tts-selector.mjs)",
+      "Bash(node test-quickcreate-tts.mjs)",
+      "Bash(node find-create-button.mjs)"
     ]
   }
 }

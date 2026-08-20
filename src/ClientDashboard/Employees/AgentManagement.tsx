@@ -12,6 +12,7 @@ import {
 } from "react-router-dom";
 import GlassCard from "../../components/GlassCard";
 import SearchableSelect from "../../components/SearchableSelect";
+import TTSVoiceSelector, { TTSVoiceSelectorValue, toTtsConfig } from "../../components/TTSVoiceSelector";
 import Pagination from "../../components/Pagination";
 import {
   AgentQRModal,
@@ -391,6 +392,15 @@ const AgentManagement = () => {
     realtimeVoice: "alloy",
     voiceSpeed: 1.0,
     voiceStyle: "friendly",
+    tts: {
+      provider: "google_chirp",
+      model: "",
+      voice_id: "",
+      language: "en-IN",
+      speed: 1,
+      emotion_enabled: false,
+      emotion_profile: "neutral",
+    } as TTSVoiceSelectorValue,
     gender: "female",
     businessProcess: "",
     industry: "",
@@ -605,6 +615,14 @@ const AgentManagement = () => {
   >([]);
   const [isGeneratingTemplates, setIsGeneratingTemplates] = useState(false);
   const [isGeneratingSystemPrompts, setIsGeneratingSystemPrompts] = useState(false);
+  // Bumped on every generateAITemplates() call and every channel switch. A
+  // response (metadata or the background system-prompt callback) is only
+  // applied if it matches the token that was current when its request was
+  // fired — otherwise it's a stale response from a channel the user has
+  // since navigated away from, and applying it would silently show e.g. an
+  // outbound-flavored template while "Web" is selected. See the "why is our
+  // system generating outbound templates when I picked Web" bug.
+  const templateGenerationTokenRef = useRef(0);
   // Tracks which template names have received their final system prompt from the BG callback
   const [spReadyTemplates, setSpReadyTemplates] = useState<Set<string>>(new Set());
   const [generationProgress, setGenerationProgress] = useState(0);
@@ -968,7 +986,7 @@ const AgentManagement = () => {
     if (quickCreateStep < 7) {
       // Validate Step 2: Voice & Language are required; sanitize use case for channel filter
       if (quickCreateStep === 2) {
-        if (!quickCreateData.languages?.length || !quickCreateData.voice) {
+        if (!quickCreateData.languages?.length || !quickCreateData.tts.voice_id) {
           appToast.error('Please select at least one language and a voice before proceeding.');
           return;
         }
@@ -1018,6 +1036,10 @@ const AgentManagement = () => {
   };
 
   const generateAITemplates = async () => {
+    // Snapshot the token for this specific request. If the user switches
+    // Primary channel (or otherwise resets templates) before this resolves,
+    // the token is bumped and every apply-point below becomes a no-op.
+    const requestToken = ++templateGenerationTokenRef.current;
     setIsGeneratingTemplates(true);
     setTemplateGenerationError(null);
     setGenerationProgress(0);
@@ -1074,6 +1096,10 @@ const AgentManagement = () => {
         },
         // Background callback: system prompts trickle in after loading is done
         (updatedTemplates) => {
+          // Discard if the user switched channel (or otherwise reset) since
+          // this request was fired — applying it would show a template
+          // generated for a different Primary channel than what's selected now.
+          if (templateGenerationTokenRef.current !== requestToken) return;
           // Overwrite the Voice Instructions section in every generated system prompt
           // so the user always sees our predefined instructions in the preview.
           const patchedTemplates = updatedTemplates.map((t) =>
@@ -1097,6 +1123,10 @@ const AgentManagement = () => {
         },
       );
 
+      // Discard if the user switched channel (or otherwise reset) since this
+      // request was fired — same staleness guard as the background callback above.
+      if (templateGenerationTokenRef.current !== requestToken) return;
+
       // ✅ Metadata is ready — stop loading immediately, show templates
       clearInterval(progressInterval);
       setGenerationProgress(100);
@@ -1104,6 +1134,7 @@ const AgentManagement = () => {
       // isGeneratingSystemPrompts already true — background callbacks will flip it false
       console.log("✅ AI template metadata ready — system prompts generating in background");
     } catch (error) {
+      if (templateGenerationTokenRef.current !== requestToken) return;
       clearInterval(progressInterval);
       console.error("❌ Error generating AI templates:", error);
       setTemplateGenerationError(
@@ -1176,6 +1207,15 @@ const AgentManagement = () => {
       realtimeVoice: "alloy",
       voiceSpeed: 1.0,
       voiceStyle: "friendly",
+      tts: {
+        provider: "google_chirp",
+        model: "",
+        voice_id: "",
+        language: "en-IN",
+        speed: 1,
+        emotion_enabled: false,
+        emotion_profile: "neutral",
+      },
       gender: "female",
       businessProcess: "",
       industry: "",
@@ -1500,7 +1540,7 @@ const AgentManagement = () => {
       // Always use Step 2 voice configuration — use module-level VOICE_STYLE_SP_MAP
       const selectedStyle = (quickCreateData.voiceStyle || "friendly").trim().toLowerCase();
       const voiceInstruction = VOICE_STYLE_SP_MAP[selectedStyle] || VOICE_STYLE_SP_MAP['friendly'];
-      const clampedVoiceSpeed = Math.min(2.0, Math.max(0.5, quickCreateData.voiceSpeed ?? 1.0));
+      const clampedVoiceSpeed = Math.min(2.0, Math.max(0.5, quickCreateData.tts.speed ?? 1.0));
 
       const agentPayload = {
         name: quickCreateData.aiEmployeeName,
@@ -1511,7 +1551,8 @@ const AgentManagement = () => {
         personality: selectedTemplateData?.personality || "Professional",
         language: quickCreateData.languages?.length ? quickCreateData.languages : ["en-US"],
         countries: quickCreateData.countries?.length ? quickCreateData.countries : undefined,
-        voice: quickCreateData.voice || "Achernar",
+        voice: quickCreateData.tts.voice_id || quickCreateData.voice || "Achernar",
+        tts: quickCreateData.tts.voice_id ? toTtsConfig(quickCreateData.tts) : undefined,
         multilingual_voice: quickCreateData.languages.includes("multilingual") ? (quickCreateData.realtimeVoice || "alloy") : undefined,
         voice_config: {
           voice_instruction: voiceInstruction,
@@ -1622,7 +1663,7 @@ const AgentManagement = () => {
           quickCreateData.aiEmployeeName.trim().length > 0
         );
       case 2:
-        return quickCreateData.languages.length > 0 && quickCreateData.voice.length > 0; // Voice configuration
+        return quickCreateData.languages.length > 0 && quickCreateData.tts.voice_id.length > 0; // Voice configuration
       case 3:
         return businessProcessOptions.some(
           (o) => o.value === quickCreateData.businessProcess
@@ -3526,19 +3567,35 @@ const AgentManagement = () => {
                             {formatAgentLanguages((agent as any).language)} • {agent.persona}
                           </p>
                         </div>
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs font-medium flex-shrink-0 ${
-                            agent.status === "Published" ||
+                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs font-bold text-white shadow-sm ${
+                              agent.status === "Published" ||
+                              (agent as any).is_active
+                                ? "bg-green-600 dark:bg-green-500"
+                                : "bg-orange-500 dark:bg-orange-500"
+                            }`}
+                          >
+                            {agent.status === "Published" ||
                             (agent as any).is_active
-                              ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
-                              : "bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400"
-                          }`}
-                        >
-                          {agent.status === "Published" ||
-                          (agent as any).is_active
-                            ? "Live"
-                            : "Unpublished"}
-                        </span>
+                              ? "Live"
+                              : "Unpublished"}
+                          </span>
+                          {(agent as any).agent_type && (() => {
+                            const t = (agent as any).agent_type;
+                            const meta = t === 'inbound'
+                              ? { label: 'Inbound', Icon: PhoneIncoming, cls: 'bg-emerald-600 dark:bg-emerald-500' }
+                              : t === 'outbound'
+                              ? { label: 'Outbound', Icon: PhoneOutgoing, cls: 'bg-purple-600 dark:bg-purple-500' }
+                              : { label: 'Web', Icon: Globe, cls: 'bg-blue-600 dark:bg-blue-500' };
+                            return (
+                              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold text-white shadow-sm ${meta.cls}`}>
+                                <meta.Icon className="w-3 h-3" />
+                                {meta.label}
+                              </span>
+                            );
+                          })()}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -3572,19 +3629,6 @@ const AgentManagement = () => {
                         <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-0.5">Process</span>
                         <span className="text-slate-800 dark:text-white font-medium capitalize truncate">
                           {String((agent as any).business_process).replace(/_/g, ' ')}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Primary channel (Web / Inbound / Outbound) */}
-                    {(agent as any).agent_type && (
-                      <div className="flex flex-col min-w-0">
-                        <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-0.5">Channel</span>
-                        <span className="text-slate-800 dark:text-white font-medium truncate">
-                          {(() => {
-                            const t = (agent as any).agent_type;
-                            return t === 'webrtc' ? 'Web' : t === 'inbound' ? 'Inbound' : t === 'outbound' ? 'Outbound' : String(t).replace(/_/g, ' ');
-                          })()}
                         </span>
                       </div>
                     )}
@@ -4815,6 +4859,9 @@ const AgentManagement = () => {
                                         setSpReadyTemplates(new Set());
                                         setIsGeneratingSystemPrompts(false);
                                         setTemplateGenerationError(null);
+                                        // Invalidate any in-flight generation request/callback
+                                        // for the previous channel so it can't overwrite this reset.
+                                        templateGenerationTokenRef.current += 1;
                                       }}
                                       className={`relative z-10 inline-flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition-colors duration-200 bg-transparent border-0 ${
                                         active
@@ -5337,73 +5384,31 @@ const AgentManagement = () => {
                           </div>
                         </div>
 
-                        {/* Voice Selection — Language Voice */}
-                        <div>
-                          <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                            Voice <span className="text-red-500">*</span>
-                            <span className="ml-1 text-[10px] text-slate-400 font-normal">— for selected languages</span>
-                          </label>
-                          <div className="flex gap-2">
-                            <select
-                              value={quickCreateData.voice}
-                              onChange={(e) =>
-                                setQuickCreateData((prev) => ({
-                                  ...prev,
-                                  voice: e.target.value,
-                                }))
-                              }
-                              onFocus={() => setVoiceSelectOpen(true)}
-                              onBlur={() => setVoiceSelectOpen(false)}
-                              className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm sm:text-base text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all"
-                            >
-                              {getFilteredVoiceOptions(quickCreateData.gender as 'female' | 'male').map(v => (
-                                <option key={v.value} value={v.value}>{v.label}</option>
-                              ))}
-                            </select>
-                            <button
-                              type="button"
-                              disabled={isLoadingVoicePreview}
-                              onClick={() => {
-                                if (isTestingVoice) {
-                                  stopVoicePreview();
-                                } else {
-                                  previewGeminiVoice(
-                                    quickCreateData.voice,
-                                    quickCreateData.voiceSpeed,
-                                    `Hello! I'm ${quickCreateData.aiEmployeeName || 'your AI assistant'}. How can I help you today?`
-                                  );
-                                }
-                              }}
-                              className={`px-4 py-2.5 sm:py-3 rounded-xl font-medium transition-all flex items-center gap-2 ${
-                                isLoadingVoicePreview
-                                  ? 'bg-slate-400 dark:bg-slate-600 text-white cursor-not-allowed'
-                                  : isTestingVoice
-                                  ? 'bg-red-500 hover:bg-red-600 text-white hover:scale-[1.02] active:scale-[0.98]'
-                                  : 'common-button-bg hover:scale-[1.02] active:scale-[0.98]'
-                              }`}
-                            >
-                              {isLoadingVoicePreview ? (
-                                <>
-                                  <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                                  </svg>
-                                  <span className="hidden sm:inline">Loading</span>
-                                </>
-                              ) : isTestingVoice ? (
-                                <>
-                                  <Square className="w-4 h-4" />
-                                  <span className="hidden sm:inline">Stop</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Play className="w-4 h-4" />
-                                  <span className="hidden sm:inline">Test</span>
-                                </>
-                              )}
-                            </button>
+                        {/* TTS Provider / Model / Voice */}
+                        <div className="common-bg-icons rounded-xl p-4">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Sparkles className="w-4 h-4 text-purple-500" />
+                            <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">
+                              Voice <span className="text-red-500">*</span>
+                            </label>
                           </div>
-                          <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-1">
+                          <TTSVoiceSelector
+                            value={quickCreateData.tts}
+                            onChange={(tts) => setQuickCreateData((prev) => ({ ...prev, tts, voice: tts.voice_id || prev.voice, voiceSpeed: tts.speed }))}
+                            genderFilter={quickCreateData.gender}
+                            onTestVoice={(voiceId) =>
+                              previewGeminiVoice(
+                                voiceId,
+                                quickCreateData.tts.speed,
+                                `Hello! I'm ${quickCreateData.aiEmployeeName || 'your AI assistant'}. How can I help you today?`
+                              )
+                            }
+                            onStopTestVoice={stopVoicePreview}
+                            isTesting={isTestingVoice}
+                            isLoadingTest={isLoadingVoicePreview}
+                            testSupportedProviders={["google_chirp"]}
+                          />
+                          <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-2">
                             Choose a voice that matches your brand personality
                           </p>
                         </div>
@@ -5433,40 +5438,6 @@ const AgentManagement = () => {
                           <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-1">
                             Set the personality tone for your AI assistant
                           </p>
-                        </div>
-
-                        {/* Voice Speed Slider */}
-                        <div>
-                          <div className="flex items-center justify-between mb-2">
-                            <label className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">
-                              Voice Speed
-                            </label>
-                            <span className="text-xs sm:text-sm font-medium text-blue-600 dark:text-blue-400">
-                              {quickCreateData.voiceSpeed.toFixed(1)}x
-                            </span>
-                          </div>
-                          <input
-                            type="range"
-                            min="0.5"
-                            max="2.0"
-                            step="0.1"
-                            value={quickCreateData.voiceSpeed}
-                            onChange={(e) =>
-                              setQuickCreateData((prev) => ({
-                                ...prev,
-                                voiceSpeed: parseFloat(e.target.value),
-                              }))
-                            }
-                            className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                            style={{
-                              background: `linear-gradient(to right, #2563eb ${((quickCreateData.voiceSpeed - 0.5) / (2.0 - 0.5)) * 100}%, #e2e8f0 ${((quickCreateData.voiceSpeed - 0.5) / (2.0 - 0.5)) * 100}%)`,
-                            }}
-                          />
-                          <div className="flex justify-between text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-1">
-                            <span>Slower (0.5x)</span>
-                            <span>Normal (1.0x)</span>
-                            <span>Faster (2.0x)</span>
-                          </div>
                         </div>
                       </div>
                     </div>
@@ -6891,7 +6862,7 @@ const AgentManagement = () => {
                           <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                             <p className="text-xs text-blue-500 dark:text-blue-400 mb-1 font-medium">Voice</p>
                             <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                              {quickCreateData.voice || "Achernar"}
+                              {quickCreateData.tts.voice_id || quickCreateData.voice || "—"}
                             </p>
                           </div>
                           <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">

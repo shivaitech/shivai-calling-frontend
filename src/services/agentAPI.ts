@@ -121,6 +121,51 @@ voiceApiClient.interceptors.response.use(
   makeAuthRetryInterceptor(voiceApiClient)
 );
 
+// ── TTS voice catalog ────────────────────────────────────────────────────────
+// GET /api/v1/voice/catalog — control-plane only, never called during a live
+// call. See docs: TTS Provider Catalog API.
+
+export type TtsProviderId = "google_chirp" | "cartesia" | "openai";
+
+export interface VoiceCatalogVoice {
+  id: string;
+  name: string;
+  gender?: string;
+}
+
+export interface VoiceCatalogModel {
+  id: string;
+  name: string;
+  streaming: boolean;
+  voice_id_format?: string;
+  voices: VoiceCatalogVoice[];
+}
+
+export interface VoiceCatalogProvider {
+  id: TtsProviderId;
+  name: string;
+  configured: boolean;
+  supports_emotions: boolean;
+  emotion_profiles: string[];
+  models: VoiceCatalogModel[];
+}
+
+export interface VoiceCatalog {
+  languages: string[];
+  providers: VoiceCatalogProvider[];
+}
+
+/** Persisted on the agent document and sent back from create/get/update. */
+export interface TtsConfig {
+  provider: TtsProviderId;
+  model: string;
+  voice_id: string;
+  language: string;
+  speed: number;
+  emotion_enabled: boolean;
+  emotion_profile: string;
+}
+
 export interface ApiAgent {
   id: string;
   name: string;
@@ -142,6 +187,8 @@ export interface ApiAgent {
   temperature?: number;
   /** Primary channel the agent communicates on. */
   agent_type?: "webrtc" | "inbound" | "outbound";
+  /** TTS provider/model/voice selection — see TTS Provider Catalog API. */
+  tts?: TtsConfig;
   greeting_message?: {
     [key: string]: string;
   };
@@ -203,6 +250,8 @@ interface CreateAgentRequest {
   temperature: number;
   /** Primary channel the agent communicates on. */
   agent_type?: "webrtc" | "inbound" | "outbound";
+  /** TTS provider/model/voice selection — see TTS Provider Catalog API. */
+  tts?: TtsConfig;
 }
 
 interface UpdateAgentRequest {
@@ -224,6 +273,8 @@ interface UpdateAgentRequest {
   status?: "Pending" | "Published";
   /** Primary channel the agent communicates on. */
   agent_type?: "webrtc" | "inbound" | "outbound";
+  /** TTS provider/model/voice selection — see TTS Provider Catalog API. */
+  tts?: TtsConfig;
   template?: {
     name: string;
     description: string;
@@ -693,6 +744,46 @@ class AgentAPI {
       console.error("Error creating agent (full):", error);
       throw error;
     }
+  }
+
+  // ── TTS voice catalog ────────────────────────────────────────────────────
+  // Control-plane only — call once after login and cache the result. Never
+  // call this during token issuance or a live call.
+  private voiceCatalogPromise: Promise<VoiceCatalog> | null = null;
+
+  async getVoiceCatalog(options?: { provider?: TtsProviderId; forceRefresh?: boolean }): Promise<VoiceCatalog> {
+    // Only cache the unfiltered (all-providers) fetch — a provider-scoped
+    // fetch always hits the network fresh.
+    if (!options?.provider && !options?.forceRefresh && this.voiceCatalogPromise) {
+      return this.voiceCatalogPromise;
+    }
+
+    const request = (async () => {
+      try {
+        const response: AxiosResponse<{
+          success: boolean;
+          data: VoiceCatalog;
+        }> = await apiClient.get("/voice/catalog", {
+          params: options?.provider ? { provider: options.provider } : undefined,
+        });
+
+        if (response.data.success && response.data.data) {
+          return response.data.data;
+        }
+        throw new Error("Failed to load voice catalog");
+      } catch (error: any) {
+        console.error("Error fetching voice catalog:", error);
+        throw error;
+      }
+    })();
+
+    if (!options?.provider) {
+      this.voiceCatalogPromise = request;
+      // Don't cache a rejected promise — let the next call retry.
+      request.catch(() => { this.voiceCatalogPromise = null; });
+    }
+
+    return request;
   }
 
   // Generate AI Prompt API - with extended timeout for AI generation

@@ -342,6 +342,7 @@ import { aiTemplateService } from '../../services/aiTemplateService';
 import GlassCard from '../../components/GlassCard';
 import { formatAgentLanguages } from '../../lib/utils';
 import SearchableSelect from '../../components/SearchableSelect';
+import TTSVoiceSelector, { TTSVoiceSelectorValue, toTtsConfig } from '../../components/TTSVoiceSelector';
 
 // Voice style → short instruction for voice_config.voice_instruction
 const VOICE_STYLE_SHORT_MAP: Record<string, string> = {
@@ -517,6 +518,21 @@ const EditAgent = () => {
   // Primary channel — how this agent communicates (Web widget / Inbound calls / Outbound calls)
   const [agentType, setAgentType] = useState<"webrtc" | "inbound" | "outbound">("webrtc");
 
+  // TTS provider/model/voice selection — see TTS Provider Catalog API.
+  // Agents saved before this feature have no tts object; default to
+  // Google Chirp with no voice pre-selected rather than showing a broken picker.
+  // Voice/provider is an audio concern, not a script-content concern, so unlike
+  // Primary channel it does not trigger the mandatory template-regeneration flow.
+  const [ttsConfig, setTtsConfig] = useState<TTSVoiceSelectorValue>({
+    provider: "google_chirp",
+    model: "",
+    voice_id: "",
+    language: "en-IN",
+    speed: 1,
+    emotion_enabled: false,
+    emotion_profile: "neutral",
+  });
+
   const [templateData, setTemplateData] = useState<any>(null);
   const [isRegeneratingTemplate, setIsRegeneratingTemplate] = useState(false);
   const [isSpGenerating, setIsSpGenerating] = useState(false);
@@ -564,7 +580,7 @@ const EditAgent = () => {
   useEffect(() => {
     if (!isLoadedRef.current) return;
     setIsDirty(true);
-  }, [formData, templateData, agentType]);
+  }, [formData, templateData, agentType, ttsConfig]);
 
   // Detect when key template-driving fields drift from their loaded baseline
   useEffect(() => {
@@ -772,6 +788,31 @@ const EditAgent = () => {
           realtimeVoice: (agentData as any).multilingual_voice || "alloy",
         });
         setAgentType((agentData as any).agent_type || "webrtc");
+
+        // Legacy agents (created before this feature) have no tts object —
+        // default to Google Chirp with no voice pre-selected rather than
+        // showing a broken/empty picker built from the old flat voice field.
+        const loadedTts = (agentData as any).tts as TTSVoiceSelectorValue | undefined;
+        const initialTts: TTSVoiceSelectorValue = loadedTts
+          ? {
+              provider: loadedTts.provider || "google_chirp",
+              model: loadedTts.model || "",
+              voice_id: loadedTts.voice_id || "",
+              language: loadedTts.language || "en-IN",
+              speed: loadedTts.speed ?? (agentData as any).voice_speed ?? 1,
+              emotion_enabled: loadedTts.emotion_enabled ?? false,
+              emotion_profile: loadedTts.emotion_profile || "neutral",
+            }
+          : {
+              provider: "google_chirp",
+              model: "",
+              voice_id: "",
+              language: "en-IN",
+              speed: (agentData as any).voice_speed ?? 1,
+              emotion_enabled: false,
+              emotion_profile: "neutral",
+            };
+        setTtsConfig(initialTts);
 
         // Load template data if available.
         // Normalize: if the AI chose a different name (e.g. "Cler") than the
@@ -1773,6 +1814,11 @@ const EditAgent = () => {
       return;
     }
 
+    if (!ttsConfig.voice_id) {
+      appToast.error("Please select a voice for your agent.");
+      return;
+    }
+
     if (currentAgent) {
       const loadingToast = appToast.loading("Updating agent...");
       try {
@@ -1830,11 +1876,12 @@ const EditAgent = () => {
           agent_type: agentType,
           personality: personalityToApi(formData.persona),
           language: formData.languages?.length ? formData.languages : ["en-US"],
-          voice: formData.voice,
-          voice_speed: formData.voiceSpeed,
+          voice: ttsConfig.voice_id || formData.voice,
+          voice_speed: ttsConfig.speed,
           voice_style: formData.voiceStyle,
           voice_instruction: VOICE_STYLE_SP_MAP[formData.voiceStyle] || VOICE_STYLE_SP_MAP['friendly'],
           gender: formData.gender,
+          tts: ttsConfig.voice_id ? toTtsConfig(ttsConfig) : undefined,
           countries: formData.countries?.length ? formData.countries : undefined,
           multilingual_voice: isMultilingualMode ? formData.realtimeVoice : undefined,
           business_process: formData.businessProcess.replace(/-/g, '_'),
@@ -3498,61 +3545,25 @@ const EditAgent = () => {
                     </div>
                   </div>
 
-                  {/* Voice Type */}
-                  <div>
-                    <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
-                      Voice Type
-                    </label>
-                    <div className="flex gap-2">
-                      <select
-                        value={formData.voice}
-                        onChange={(e) => setFormData({ ...formData, voice: e.target.value })}
-                        className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm sm:text-base text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all"
-                      >
-                        {getFilteredVoiceOptions(formData.gender).map((voice) => (
-                          <option key={voice.value} value={voice.value}>{voice.label}</option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        disabled={isLoadingVoicePreview}
-                        onClick={() => {
-                          if (isTestingVoice) {
-                            stopVoicePreview();
-                          } else {
-                            previewGeminiVoice(formData.voice);
-                          }
-                        }}
-                        className={`px-4 py-2.5 sm:py-3 rounded-xl font-medium transition-all flex items-center gap-2 ${
-                          isLoadingVoicePreview
-                            ? 'bg-slate-400 dark:bg-slate-600 text-white cursor-not-allowed'
-                            : isTestingVoice
-                            ? 'bg-red-500 hover:bg-red-600 text-white hover:scale-[1.02] active:scale-[0.98]'
-                            : 'common-button-bg hover:scale-[1.02] active:scale-[0.98]'
-                        }`}
-                      >
-                        {isLoadingVoicePreview ? (
-                          <>
-                            <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                            </svg>
-                            <span className="hidden sm:inline">Loading</span>
-                          </>
-                        ) : isTestingVoice ? (
-                          <>
-                            <Square className="w-4 h-4" />
-                            <span className="hidden sm:inline">Stop</span>
-                          </>
-                        ) : (
-                          <>
-                            <Play className="w-4 h-4" />
-                            <span className="hidden sm:inline">Test</span>
-                          </>
-                        )}
-                      </button>
+                  {/* TTS Provider / Model / Voice */}
+                  <div className="common-bg-icons rounded-xl p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Sparkles className="w-4 h-4 text-purple-500" />
+                      <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">
+                        Voice
+                      </label>
                     </div>
-                    <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-1">
+                    <TTSVoiceSelector
+                      value={ttsConfig}
+                      onChange={setTtsConfig}
+                      genderFilter={formData.gender}
+                      onTestVoice={(voiceId) => previewGeminiVoice(voiceId)}
+                      onStopTestVoice={stopVoicePreview}
+                      isTesting={isTestingVoice}
+                      isLoadingTest={isLoadingVoicePreview}
+                      testSupportedProviders={["google_chirp"]}
+                    />
+                    <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-2">
                       Choose a voice that matches your brand personality
                     </p>
                   </div>
@@ -3580,37 +3591,6 @@ const EditAgent = () => {
                     <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-1">
                       Set the personality tone for your AI assistant
                     </p>
-                  </div>
-
-                  {/* Voice Speed */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">
-                        Voice Speed
-                      </label>
-                      <span className="text-xs sm:text-sm font-medium text-blue-600 dark:text-blue-400">
-                        {formData.voiceSpeed.toFixed(1)}x
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0.5"
-                      max="2.0"
-                      step="0.1"
-                      value={formData.voiceSpeed}
-                      onChange={(e) =>
-                        setFormData({ ...formData, voiceSpeed: parseFloat(e.target.value) })
-                      }
-                      className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                      style={{
-                        background: `linear-gradient(to right, #2563eb ${((formData.voiceSpeed - 0.5) / (2.0 - 0.5)) * 100}%, #e2e8f0 ${((formData.voiceSpeed - 0.5) / (2.0 - 0.5)) * 100}%)`,
-                      }}
-                    />
-                    <div className="flex justify-between text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-1">
-                      <span>Slower (0.5x)</span>
-                      <span>Normal (1.0x)</span>
-                      <span>Faster (2.0x)</span>
-                    </div>
                   </div>
                 </div>
               </div>

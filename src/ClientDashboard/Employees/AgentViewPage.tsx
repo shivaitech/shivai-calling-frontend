@@ -28,7 +28,8 @@ import {
   Zap,
   Phone,
   PhoneCall,
-  Layers,
+  PhoneIncoming,
+  PhoneOutgoing,
   Settings,
   X,
   Send,
@@ -354,6 +355,16 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
   const isActive =
     agent?.status === "Published" || (agent as any)?.is_active;
 
+  // Primary channel tag — shown next to the Live/Unpublished status badge.
+  const agentChannelType = (agent as any)?.agent_type as string | undefined;
+  const channelTagMeta = agentChannelType
+    ? agentChannelType === "inbound"
+      ? { label: "Inbound", Icon: PhoneIncoming, cls: "bg-emerald-600 dark:bg-emerald-500" }
+      : agentChannelType === "outbound"
+        ? { label: "Outbound", Icon: PhoneOutgoing, cls: "bg-purple-600 dark:bg-purple-500" }
+        : { label: "Web", Icon: Globe, cls: "bg-blue-600 dark:bg-blue-500" }
+    : null;
+
   return (
     <div className="space-y-3 sm:space-y-4 lg:space-y-6 w-full">
       <GlassCard>
@@ -377,15 +388,23 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
                 <h1 className="text-sm font-bold text-slate-800 dark:text-white leading-tight truncate">
                   {agent.name}
                 </h1>
-                <span
-                  className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${
-                    isActive
-                      ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
-                      : "bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400"
-                  }`}
-                >
-                  {isActive ? "Live" : "Unpublished"}
-                </span>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span
+                    className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold text-white shadow-sm ${
+                      isActive
+                        ? "bg-green-600 dark:bg-green-500"
+                        : "bg-orange-500 dark:bg-orange-500"
+                    }`}
+                  >
+                    {isActive ? "Live" : "Unpublished"}
+                  </span>
+                  {channelTagMeta && (
+                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold text-white shadow-sm ${channelTagMeta.cls}`}>
+                      <channelTagMeta.Icon className="w-2.5 h-2.5" />
+                      {channelTagMeta.label}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -475,15 +494,23 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
                 <h1 className="text-xl lg:text-2xl font-bold text-slate-800 dark:text-white leading-tight truncate">
                   {agent.name}
                 </h1>
-                <span
-                  className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium mt-1 ${
-                    isActive
-                      ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
-                      : "bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400"
-                  }`}
-                >
-                  {isActive ? "Live" : "Unpublished"}
-                </span>
+                <div className="flex items-center gap-2 mt-1">
+                  <span
+                    className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold text-white shadow-sm ${
+                      isActive
+                        ? "bg-green-600 dark:bg-green-500"
+                        : "bg-orange-500 dark:bg-orange-500"
+                    }`}
+                  >
+                    {isActive ? "Live" : "Unpublished"}
+                  </span>
+                  {channelTagMeta && (
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold text-white shadow-sm ${channelTagMeta.cls}`}>
+                      <channelTagMeta.Icon className="w-3.5 h-3.5" />
+                      {channelTagMeta.label}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -597,22 +624,6 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
               </p>
             </div>
 
-            {(agent as any).agent_type && (
-              <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <Layers className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-600 dark:text-slate-400 flex-shrink-0" />
-                  <span className="text-[10px] sm:text-xs font-medium text-slate-600 dark:text-slate-400">
-                    Channel
-                  </span>
-                </div>
-                <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-white truncate">
-                  {(() => {
-                    const t = (agent as any).agent_type;
-                    return t === 'webrtc' ? 'Web' : t === 'inbound' ? 'Inbound' : t === 'outbound' ? 'Outbound' : String(t).replace(/_/g, ' ');
-                  })()}
-                </p>
-              </div>
-            )}
 
             <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
               <div className="flex items-center gap-1.5 mb-1">
