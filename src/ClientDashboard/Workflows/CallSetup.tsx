@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import GlassCard from '../../components/GlassCard';
 import appToast from '../../components/AppToast';
 import { useAgent } from '../../contexts/AgentContext';
-import { agentAPI } from '../../services/agentAPI';
+import { agentAPI, type CallSummary } from '../../services/agentAPI';
+import { authAPI, ZohoConnection } from '../../services/authAPI';
 import AgentPickerField from '../GoogleSheets/AgentPickerField';
 import {
   getNumberCatalog,
@@ -110,6 +111,8 @@ import {
   BarChart3,
   CalendarClock,
   FileDown,
+  Link2,
+  Unlink,
 } from 'lucide-react';
 import zohoIcon from '../../resources/Icon/zoho.svg';
 import hubspotIcon from '../../resources/Icon/hubspot.svg';
@@ -161,80 +164,42 @@ interface FollowUpItem {
   urgency?: string;
   createdAt?: string;
   callId?: string;
-  source: 'lead' | 'contact';
+  source: 'summary' | 'contact';
 }
 
-const FOLLOW_UP_RE =
-  /follow[\s-]?up|call[\s-]?back|callback|requested?\s+call|schedule(d)?\s+(a\s+)?call|ring[\s-]?back|call\s+again|return\s+call/i;
+// Callback vs. generic follow-up is just a wording heuristic on the reason text —
+// followUpRequired itself is the real signal now, no more regex-sniffing leadData blobs.
+const classifyFollowUpType = (text: string): 'callback' | 'follow_up' =>
+  /call[\s-]?back|callback|ring[\s-]?back|return\s+call/i.test(text) ? 'callback' : 'follow_up';
 
 const isFollowUpSignal = (value: unknown): boolean => {
   if (value === true) return true;
   if (value == null) return false;
-  if (typeof value === 'string' || typeof value === 'number') {
-    return FOLLOW_UP_RE.test(String(value));
-  }
-  if (Array.isArray(value)) return value.some(isFollowUpSignal);
-  if (typeof value === 'object') {
-    return Object.entries(value as Record<string, unknown>).some(([k, v]) => {
-      if (/callback|follow.?up|call.?back/i.test(k)) {
-        if (v === true || v === 'true' || v === 1 || v === '1') return true;
-        if (v != null && String(v).trim()) return true;
-      }
-      return isFollowUpSignal(v);
-    });
-  }
-  return false;
+  return /follow[\s-]?up|call[\s-]?back|callback/i.test(String(value));
 };
 
-const classifyFollowUpType = (text: string): 'callback' | 'follow_up' =>
-  /call[\s-]?back|callback|ring[\s-]?back|return\s+call/i.test(text) ? 'callback' : 'follow_up';
-
-const extractLeadField = (lead: any, patterns: RegExp[]): string => {
-  const data = lead?.leadData;
-  if (data && typeof data === 'object') {
-    for (const [key, value] of Object.entries(data)) {
-      if (patterns.some((re) => re.test(key)) && value != null && String(value).trim()) {
-        return String(value).trim();
-      }
-    }
-  }
-  return '';
-};
-
-const leadToFollowUp = (lead: any, agentId: string, agentName: string): FollowUpItem | null => {
-  const blob = [
-    lead?.intent?.primary,
-    lead?.intent?.details,
-    ...(Array.isArray(lead?.intent?.tags) ? lead.intent.tags : []),
-    lead?.leadData ? JSON.stringify(lead.leadData) : '',
-  ]
-    .filter(Boolean)
-    .join(' ');
-  if (!isFollowUpSignal(blob) && !isFollowUpSignal(lead?.leadData) && !isFollowUpSignal(lead?.intent)) {
-    return null;
-  }
-  const phone =
-    extractLeadField(lead, [/phone/, /mobile/, /contact/, /number/]) ||
-    String(lead?.phone || lead?.phone_number || '').trim() ||
-    '—';
-  const name =
-    extractLeadField(lead, [/^name$/, /full.?name/, /customer/, /contact.?name/]) ||
-    'Unknown';
+const summaryToFollowUp = (
+  item: CallSummary,
+  agentId: string,
+  agentName: string
+): FollowUpItem | null => {
+  if (!item.followUpRequired) return null;
+  const phone = item.lead?.phone || item.callerNumber || item.contactPhone || '—';
+  const name = item.lead?.name || 'Unknown';
   const summary =
-    String(lead?.intent?.primary || lead?.intent?.details || '').trim() ||
-    'Follow-up or callback requested';
+    item.followUpReason || item.callerIntent || item.summary || 'Follow-up requested';
   return {
-    id: String(lead?.id || lead?.callId || `${agentId}_${phone}_${lead?.createdAt || Date.now()}`),
+    id: String(item.id || item.callId),
     agentId,
     agentName,
     phone,
     name,
-    type: classifyFollowUpType(blob),
+    type: classifyFollowUpType(summary),
     summary,
-    urgency: lead?.intent?.urgency ? String(lead.intent.urgency) : undefined,
-    createdAt: lead?.createdAt ? String(lead.createdAt) : undefined,
-    callId: lead?.callId ? String(lead.callId) : undefined,
-    source: 'lead',
+    urgency: item.urgency,
+    createdAt: item.createdAt,
+    callId: item.callId,
+    source: 'summary',
   };
 };
 
@@ -640,6 +605,9 @@ const CallSetup: React.FC = () => {
   // ── Buy-number state ──
   const [showBuyModal, setShowBuyModal] = useState(false);
   const [showPremiumContactModal, setShowPremiumContactModal] = useState(false);
+  const [zohoConnection, setZohoConnection] = useState<ZohoConnection | null>(null);
+  const [zohoStatusLoading, setZohoStatusLoading] = useState(true);
+  const [zohoConnecting, setZohoConnecting] = useState(false);
   const [didTypes, setDidTypes] = useState<DidType[]>([]);
   const [selectedDidTypeId, setSelectedDidTypeId] = useState<number | null>(null);
   const [catalog, setCatalog] = useState<CatalogNumber[]>([]);
@@ -769,6 +737,18 @@ const CallSetup: React.FC = () => {
   useEffect(() => {
     loadNumbers();
   }, [loadNumbers]);
+
+  const refreshZohoStatus = useCallback(() => {
+    setZohoStatusLoading(true);
+    authAPI.getZohoStatus()
+      .then(setZohoConnection)
+      .catch(() => setZohoConnection(null))
+      .finally(() => setZohoStatusLoading(false));
+  }, []);
+
+  useEffect(() => {
+    refreshZohoStatus();
+  }, [refreshZohoStatus]);
 
   // Ensure AgentContext loads on this page (also covered by pathname allowlist).
   useEffect(() => {
@@ -1119,13 +1099,16 @@ const CallSetup: React.FC = () => {
     setFollowUpsLoading(true);
     setFollowUpsError(null);
     try {
-      const fromLeads = await Promise.all(
+      const fromSummaries = await Promise.all(
         agents.map(async (agent) => {
           try {
-            const data = await agentAPI.getCallSummary(agent.id);
-            const leads = Array.isArray(data?.leads) ? data.leads : Array.isArray(data) ? data : [];
-            return leads
-              .map((lead: any) => leadToFollowUp(lead, agent.id, agent.name))
+            const { summaries } = await agentAPI.getCallSummariesForAgent(agent.id, {
+              page: 1,
+              limit: 50,
+              sortOrder: 'desc',
+            });
+            return summaries
+              .map((item) => summaryToFollowUp(item, agent.id, agent.name))
               .filter(Boolean) as FollowUpItem[];
           } catch {
             return [] as FollowUpItem[];
@@ -1157,7 +1140,7 @@ const CallSetup: React.FC = () => {
         // ignore — leads list alone is still useful
       }
 
-      const merged = [...fromLeads.flat(), ...contactFollowUps];
+      const merged = [...fromSummaries.flat(), ...contactFollowUps];
       const seen = new Set<string>();
       const unique = merged.filter((item) => {
         const key = `${item.phone.replace(/\D/g, '')}|${item.type}|${item.summary.slice(0, 40)}`;
@@ -3563,40 +3546,105 @@ objective = the Objective bullet list (use \\n between bullets).`;
                 />
 
                 <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                  {CRM_CONNECTORS.map((connector) => (
-                    <div
-                      key={connector.id}
-                      className="flex flex-col gap-4 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 common-bg-icons"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="w-12 h-12 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center flex-shrink-0 overflow-hidden p-2">
-                          <img src={connector.icon} alt="" className="w-full h-full object-contain" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="text-sm font-semibold text-slate-800 dark:text-white">{connector.name}</h3>
-                            <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300">
-                              Soon
-                            </span>
-                          </div>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                            {connector.description}
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          appToast.info(`Contact us to enable ${connector.name} lead sync on your plan.`);
-                          setShowPremiumContactModal(true);
-                        }}
-                        className="common-button-bg2 w-full py-2.5 rounded-xl text-sm font-medium inline-flex items-center justify-center gap-2"
+                  {CRM_CONNECTORS.map((connector) => {
+                    const isZoho = connector.id === 'zoho';
+                    const zohoConnected = isZoho && !!zohoConnection?.connected;
+
+                    return (
+                      <div
+                        key={connector.id}
+                        className="flex flex-col gap-4 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 common-bg-icons"
                       >
-                        <ExternalLink className="w-4 h-4" />
-                        Request access
-                      </button>
-                    </div>
-                  ))}
+                        <div className="flex items-start gap-3">
+                          <div className="w-12 h-12 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center flex-shrink-0 overflow-hidden p-2">
+                            <img src={connector.icon} alt="" className="w-full h-full object-contain" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="text-sm font-semibold text-slate-800 dark:text-white">{connector.name}</h3>
+                              {isZoho ? (
+                                zohoConnected ? (
+                                  <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-md bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400">
+                                    <Check className="w-2.5 h-2.5" /> Connected
+                                  </span>
+                                ) : !zohoStatusLoading ? (
+                                  <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                                    Not connected
+                                  </span>
+                                ) : null
+                              ) : (
+                                <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300">
+                                  Soon
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                              {connector.description}
+                            </p>
+                          </div>
+                        </div>
+
+                        {isZoho ? (
+                          zohoConnected ? (
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => navigate('/zoho')}
+                                className="common-button-bg flex-1 py-2.5 rounded-xl text-sm font-medium inline-flex items-center justify-center gap-2"
+                              >
+                                <Settings className="w-4 h-4" />
+                                Manage
+                              </button>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  try {
+                                    await authAPI.disconnectZoho();
+                                    refreshZohoStatus();
+                                    appToast.success('Zoho CRM disconnected.');
+                                  } catch {
+                                    appToast.error('Could not disconnect Zoho CRM. Please try again.');
+                                  }
+                                }}
+                                title="Disconnect"
+                                className="p-2.5 rounded-xl border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex-shrink-0"
+                              >
+                                <Unlink className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={zohoConnecting}
+                              onClick={() => {
+                                setZohoConnecting(true);
+                                authAPI.connectZoho('in').catch(() => {
+                                  setZohoConnecting(false);
+                                  appToast.error('Could not start the Zoho connection. Please try again.');
+                                });
+                              }}
+                              className="common-button-bg w-full py-2.5 rounded-xl text-sm font-medium inline-flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                              {zohoConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
+                              {zohoConnecting ? 'Redirecting…' : 'Connect Zoho CRM'}
+                            </button>
+                          )
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              appToast.info(`Contact us to enable ${connector.name} lead sync on your plan.`);
+                              setShowPremiumContactModal(true);
+                            }}
+                            className="common-button-bg2 w-full py-2.5 rounded-xl text-sm font-medium inline-flex items-center justify-center gap-2"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                            Request access
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
 
                 <div className="mt-5 flex items-start gap-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">

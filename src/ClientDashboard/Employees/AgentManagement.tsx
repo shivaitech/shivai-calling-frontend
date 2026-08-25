@@ -92,7 +92,7 @@ import {
 } from "lucide-react";
 
 const AGENTS_PER_PAGE = 6;
-const LIVE_PUBLISH_ALLOWED_EMAILS = ["demo@callshivai.com", "atharkatheri@gmail.com"];
+const PUBLISH_ALLOWED_EMAILS = ["demo@callshivai.com", "atharkatheri@gmail.com"];
 const SALES_EMAIL = "hello@shivaitech.com";
 const SALES_WHATSAPP_NUMBER = "919211490707";
 const SALES_WHATSAPP_MESSAGE =
@@ -278,11 +278,8 @@ const AgentManagement = () => {
   } = useAgent();
   const { user } = useAuth();
   const normalizedUserEmail = (user?.email || "").toLowerCase();
-  const canPublishOnLive = LIVE_PUBLISH_ALLOWED_EMAILS.includes(normalizedUserEmail);
-  const isLiveEnvironment =
-    import.meta.env.PROD &&
-    !String(import.meta.env.VITE_API_BASE_URL || "").toLowerCase().includes("staging");
-  const shouldBlockLivePublish = isLiveEnvironment && !canPublishOnLive;
+  const canPublishAgent = PUBLISH_ALLOWED_EMAILS.includes(normalizedUserEmail);
+  const shouldBlockPublish = !canPublishAgent;
   const salesWhatsAppHref = `https://wa.me/${SALES_WHATSAPP_NUMBER}?text=${encodeURIComponent(SALES_WHATSAPP_MESSAGE)}`;
   const salesEmailHref = `mailto:${SALES_EMAIL}?subject=${encodeURIComponent(SALES_EMAIL_SUBJECT)}`;
 
@@ -2133,7 +2130,7 @@ const AgentManagement = () => {
 
   const handlePublish = (agentId: string) => {
     setAgentToPublish(agentId);
-    if (shouldBlockLivePublish) {
+    if (shouldBlockPublish) {
       setShowPublishContactModal(true);
       return;
     }
@@ -3238,7 +3235,7 @@ const AgentManagement = () => {
     // If currentAgent is not yet loaded, show a loading state
     if (!currentAgent) {
       return (
-        <div className="flex items-center justify-center h-screen">
+        <div className="flex items-center justify-center h-dvh">
           <div className="text-center">
             <Bot className="w-16 h-16 text-slate-300 dark:text-slate-600 mx-auto mb-4 animate-pulse" />
             <p className="text-slate-600 dark:text-slate-400">Loading agent...</p>
@@ -3259,6 +3256,9 @@ const AgentManagement = () => {
         handlePublishCancel={handlePublishCancel}
         handlePublishConfirm={handlePublishConfirm}
         isPublishing={isPublishing}
+        showPublishContactModal={showPublishContactModal}
+        salesWhatsAppHref={salesWhatsAppHref}
+        salesEmailHref={salesEmailHref}
         handlePause={handlePause}
         showPauseConfirm={showPauseConfirm}
         handlePauseCancel={handlePauseCancel}
@@ -3568,26 +3568,13 @@ const AgentManagement = () => {
                           </p>
                         </div>
                         <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                          <span
-                            className={`px-2 py-1 rounded-full text-xs font-bold text-white shadow-sm ${
-                              agent.status === "Published" ||
-                              (agent as any).is_active
-                                ? "bg-green-600 dark:bg-green-500"
-                                : "bg-orange-500 dark:bg-orange-500"
-                            }`}
-                          >
-                            {agent.status === "Published" ||
-                            (agent as any).is_active
-                              ? "Live"
-                              : "Unpublished"}
-                          </span>
                           {(agent as any).agent_type && (() => {
                             const t = (agent as any).agent_type;
                             const meta = t === 'inbound'
-                              ? { label: 'Inbound', Icon: PhoneIncoming, cls: 'bg-emerald-600 dark:bg-emerald-500' }
+                              ? { label: 'Inbound', Icon: PhoneIncoming, cls: 'bg-black' }
                               : t === 'outbound'
-                              ? { label: 'Outbound', Icon: PhoneOutgoing, cls: 'bg-purple-600 dark:bg-purple-500' }
-                              : { label: 'Web', Icon: Globe, cls: 'bg-blue-600 dark:bg-blue-500' };
+                              ? { label: 'Outbound', Icon: PhoneOutgoing, cls: 'bg-black' }
+                              : { label: 'Web', Icon: Globe, cls: 'bg-black' };
                             return (
                               <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold text-white shadow-sm ${meta.cls}`}>
                                 <meta.Icon className="w-3 h-3" />
@@ -4168,10 +4155,10 @@ const AgentManagement = () => {
                     <AlertTriangle className="w-6 h-6 text-amber-600 dark:text-amber-400" />
                   </div>
                   <h3 className="text-xl font-semibold text-slate-800 dark:text-white text-center mb-2">
-                    Go Live With ShivAI
+                    Upgrade to Publish Live
                   </h3>
                   <p className="text-sm text-slate-600 dark:text-slate-400 text-center mb-6">
-                    To activate live publishing for your agent, please contact our sales team. We will help you review your setup and enable go-live access for your account.
+                    Publishing an agent live is available on a paid subscription. Upgrade your plan or contact our sales team to enable go-live access for your account.
                   </p>
                   <div className="flex flex-col gap-3">
                     <a

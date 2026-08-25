@@ -47,12 +47,12 @@ import {
 const getChannelTagMeta = (agentType?: string) => {
   if (!agentType) return null;
   if (agentType === "inbound") {
-    return { label: "Inbound", Icon: PhoneIncoming, cls: "bg-emerald-600 dark:bg-emerald-500" };
+    return { label: "Inbound", Icon: PhoneIncoming, cls: "bg-black" };
   }
   if (agentType === "outbound") {
-    return { label: "Outbound", Icon: PhoneOutgoing, cls: "bg-purple-600 dark:bg-purple-500" };
+    return { label: "Outbound", Icon: PhoneOutgoing, cls: "bg-black" };
   }
-  return { label: "Web", Icon: Globe, cls: "bg-blue-600 dark:bg-blue-500" };
+  return { label: "Web", Icon: Globe, cls: "bg-black" };
 };
 
 const Analytics = () => {

@@ -166,6 +166,68 @@ export interface TtsConfig {
   emotion_profile: string;
 }
 
+// ── Call summary (/api/v1/summaries/*) ──────────────────────────────────────
+// The analytics service owns this shape and can add fields without notice, so
+// every field below the "always present" block is treated as optional at the
+// call site — never assume presence, default with `?? ''` / `?? []`.
+
+export type CallSummaryUrgency = "high" | "medium" | "low" | "unknown";
+export type CallSummaryOutcome =
+  | "resolved"
+  | "partially_resolved"
+  | "unresolved"
+  | "callback_required"
+  | "no_action_needed";
+export type CallSummarySentiment = "positive" | "neutral" | "negative";
+
+export interface CallSummaryLead {
+  name?: string;
+  organisation?: string;
+  requirement?: string;
+  eventDate?: string;
+  location?: string;
+  budget?: string;
+  timeline?: string;
+  quantity?: string;
+  email?: string;
+  phone?: string;
+  qualified?: boolean;
+  missingInfo?: string[];
+}
+
+export interface CallSummary {
+  id: string;
+  agentId: string;
+  callId: string;
+  direction: "inbound" | "outbound" | null;
+  callerNumber: string | null;
+  createdAt: string;
+  updatedAt: string;
+  summaryUrl?: string | null;
+
+  urgency?: CallSummaryUrgency;
+  urgencyReason?: string;
+  callerIntent?: string;
+  summary?: string;
+  outcome?: CallSummaryOutcome;
+  sentiment?: CallSummarySentiment;
+  followUpRequired?: boolean;
+  followUpReason?: string;
+
+  keyPoints?: string[];
+  questionsAsked?: string[];
+  questionsUnanswered?: string[];
+  actionItems?: string[];
+
+  lead?: CallSummaryLead;
+
+  requestedData?: string;
+  responseData?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  deliveryChannels?: string[];
+}
+
 export interface ApiAgent {
   id: string;
   name: string;
@@ -658,8 +720,57 @@ class AgentAPI {
     }
   }
 
-  // Get call summary for an agent
-  async getCallSummary(agentId: string): Promise<any> {
+  // Call summary keyed by the same call id the recording/transcript use — direct lookup, no matching needed.
+  async getCallSummaryByCallId(callId: string): Promise<CallSummary | null> {
+    try {
+      const response: AxiosResponse<{
+        success: boolean;
+        data: { summary: CallSummary };
+        message?: string;
+      }> = await apiClient.get(`/summaries/call/${encodeURIComponent(callId)}`);
+
+      if (response.data.success && response.data.data?.summary) {
+        return response.data.data.summary;
+      }
+      return null;
+    } catch (error: any) {
+      if (error?.response?.status === 404) return null;
+      console.error("Error fetching call summary:", error);
+      throw error;
+    }
+  }
+
+  // Paginated, newest-first summaries for an agent — used as a fallback when a call id isn't known yet.
+  async getCallSummariesForAgent(
+    agentId: string,
+    params: { page?: number; limit?: number; sortOrder?: "asc" | "desc" } = {}
+  ): Promise<{ summaries: CallSummary[]; pagination?: any }> {
+    try {
+      const { page = 1, limit = 10, sortOrder = "desc" } = params;
+      const response: AxiosResponse<{
+        success: boolean;
+        data: { summaries: CallSummary[] };
+        meta?: { pagination?: any };
+      }> = await apiClient.get(`/summaries/agent/${agentId}`, {
+        params: { page, limit, sortOrder },
+      });
+
+      if (response.data.success) {
+        return {
+          summaries: response.data.data?.summaries || [],
+          pagination: response.data.meta?.pagination,
+        };
+      }
+      return { summaries: [] };
+    } catch (error: any) {
+      console.error("Error fetching agent call summaries:", error);
+      throw error;
+    }
+  }
+
+  // Leads captured for an agent — separate from /summaries: this is lead-management data
+  // (status, tags, qualification), not the AI-generated per-call summary.
+  async getLeadsForAgent(agentId: string): Promise<any> {
     try {
       const response: AxiosResponse<{
         success: boolean;
@@ -671,9 +782,9 @@ class AgentAPI {
         return response.data.data;
       }
 
-      throw new Error(response.data.message || "Failed to fetch call summary");
+      throw new Error(response.data.message || "Failed to fetch leads");
     } catch (error: any) {
-      console.error("Error fetching call summary:", error);
+      console.error("Error fetching leads:", error);
       throw error;
     }
   }

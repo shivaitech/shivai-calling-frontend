@@ -62,6 +62,8 @@ const Billing = lazy(() => import("./ClientDashboard/Billing/Billing"));
 const Settings = lazy(() => import("./ClientDashboard/Settings/Settings"));
 const GoogleSheetsManager = lazy(() => import("./ClientDashboard/GoogleSheets/GoogleSheetsManager"));
 const GoogleSheetView = lazy(() => import("./ClientDashboard/GoogleSheets/GoogleSheetView"));
+const ZohoManager = lazy(() => import("./ClientDashboard/Zoho/ZohoManager"));
+const GoogleCalendarManager = lazy(() => import("./ClientDashboard/Zoho/GoogleCalendarManager"));
 const ResetPassword = lazy(() => import("./components/ResetPassword"));
 const AgentPublicPage = lazy(() => import("./pages/AgentPublicPage"));
 const DoctorCalendarPublicPage = lazy(() => import("./pages/DoctorCalendarPublicPage"));
@@ -115,7 +117,7 @@ function AppContent() {
   }, [location.pathname, location.search, isLandingPage, isAuthCallback, isResetPassword, isAgentPublicPage, isDoctorCalendarPage, isWebsitePreview, isAppWorkspace, isMarketingPage]);
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-dvh">
       {isLandingPage || isAuthCallback || isResetPassword || isAgentPublicPage || isDoctorCalendarPage || isWebsitePreview || isAppWorkspace || isMarketingPage ? (
         <Suspense fallback={<LoadingFallback />}>
           <Routes>
@@ -189,7 +191,7 @@ function AppContent() {
       ) : (
         <ProtectedRoute>
           <Suspense fallback={<LoadingFallback />}>
-            <div className="bg-gradient-to-br from-slate-100 via-slate-200 to-slate-300 dark:from-slate-900 dark:via-slate-800 dark:to-slate-700 transition-colors duration-300 min-h-screen">
+            <div className="bg-gradient-to-br from-slate-100 via-slate-200 to-slate-300 dark:from-slate-900 dark:via-slate-800 dark:to-slate-700 transition-colors duration-300 min-h-dvh">
               <div className="flex">
                 <Sidebar
                   isOpen={sidebarOpen}
@@ -236,6 +238,8 @@ function AppContent() {
                       <Route path="/settings" element={<Settings />} />
                       <Route path="/google-sheets" element={<GoogleSheetsManager />} />
                       <Route path="/google-sheets/:id/view" element={<GoogleSheetView />} />
+                      <Route path="/zoho" element={<ZohoManager />} />
+                      <Route path="/google-calendar" element={<GoogleCalendarManager />} />
 
                       {/* Default route for authenticated users */}
                       <Route path="/" element={<HomeRedirect />} />

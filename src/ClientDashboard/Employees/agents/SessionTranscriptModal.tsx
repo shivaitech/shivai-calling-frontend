@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X, FileText, Clock, Calendar, Users, MessageSquare, Loader2, Bot, Play, Pause, Download, Volume2, VolumeX, SkipBack, SkipForward, TrendingUp, CheckCircle, XCircle, Phone, PhoneIncoming, PhoneOutgoing, Mail, Share2 } from "lucide-react";
-import { agentAPI } from '../../../services/agentAPI';
+import { X, FileText, Clock, Calendar, Users, MessageSquare, Loader2, Bot, Play, Pause, Download, Volume2, VolumeX, SkipBack, SkipForward, CheckCircle, XCircle, Phone, PhoneIncoming, PhoneOutgoing, Mail, Share2, AlertTriangle, HelpCircle, ListChecks, Smile, Meh, Frown } from "lucide-react";
+import { agentAPI, type CallSummary, type CallSummaryUrgency, type CallSummarySentiment, type CallSummaryOutcome } from '../../../services/agentAPI';
 import appToast from '../../../components/AppToast';
 import { resolveIPLocation } from '../../../lib/ipGeolocation';
 import {
@@ -16,10 +16,65 @@ interface SessionTranscriptModalProps {
   onClose: () => void;
 }
 
-// Leads (from /leads/agent/:agentId) and agent-sessions live in different id
-// spaces — a lead's callId is a telephony call SID, while a session's id is a
-// synthetic room/session id. There is no field they reliably share, so after
-// trying an exact id match we fall back to phone number + closest timestamp.
+const URGENCY_STYLES: Record<CallSummaryUrgency, string> = {
+  high: 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400',
+  medium: 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400',
+  low: 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400',
+  unknown: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
+};
+
+const OUTCOME_LABELS: Record<CallSummaryOutcome, string> = {
+  resolved: 'Resolved',
+  partially_resolved: 'Partially resolved',
+  unresolved: 'Unresolved',
+  callback_required: 'Callback required',
+  no_action_needed: 'No action needed',
+};
+
+const OUTCOME_STYLES: Record<CallSummaryOutcome, string> = {
+  resolved: 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400',
+  partially_resolved: 'bg-amber-100 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400',
+  unresolved: 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400',
+  callback_required: 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400',
+  no_action_needed: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
+};
+
+const SENTIMENT_ICON: Record<CallSummarySentiment, typeof Smile> = {
+  positive: Smile,
+  neutral: Meh,
+  negative: Frown,
+};
+
+const SENTIMENT_STYLES: Record<CallSummarySentiment, string> = {
+  positive: 'text-green-600 dark:text-green-400',
+  neutral: 'text-slate-500 dark:text-slate-400',
+  negative: 'text-red-600 dark:text-red-400',
+};
+
+/** Lead fields the API can populate — rendered only when non-empty. */
+const LEAD_FIELD_LABELS: Array<{ key: keyof NonNullable<CallSummary['lead']>; label: string; icon: typeof Users }> = [
+  { key: 'name', label: 'Name', icon: Users },
+  { key: 'organisation', label: 'Organisation', icon: Users },
+  { key: 'requirement', label: 'Requirement', icon: FileText },
+  { key: 'eventDate', label: 'Event date', icon: Calendar },
+  { key: 'location', label: 'Location', icon: Users },
+  { key: 'budget', label: 'Budget', icon: FileText },
+  { key: 'timeline', label: 'Timeline', icon: Clock },
+  { key: 'quantity', label: 'Quantity', icon: FileText },
+  { key: 'email', label: 'Email', icon: Mail },
+  { key: 'phone', label: 'Phone', icon: Phone },
+];
+
+/** The backend sometimes sends the literal string "Unknown"/"N/A" instead of omitting the field. */
+const meaningful = (value?: string | null): string | null => {
+  const v = String(value ?? '').trim();
+  if (!v || /^(unknown|n\/a|na|none|null)$/i.test(v)) return null;
+  return v;
+};
+
+// Leads (from /leads/agent/:agentId) are lead-management records, not keyed by
+// call id — match by explicit id first, then fall back to phone + nearest
+// timestamp since that's the only reliable link to a session.
 const phoneDigits = (value?: string) => String(value || '').replace(/\D/g, '');
 
 const leadPhoneDigits = (lead: any) =>
@@ -42,39 +97,35 @@ const sessionPhoneDigits = (session: any) =>
       session?.lead_number
   );
 
-const matchLeadsToSession = (leads: any[], session: any): any[] => {
-  if (!Array.isArray(leads) || leads.length === 0) return [];
+const matchLeadToSession = (leads: any[], session: any): any | null => {
+  if (!Array.isArray(leads) || leads.length === 0) return null;
 
   const sessionKeys = [session?.session_id, session?.id, session?.call_id]
     .map((v) => String(v || '').trim())
     .filter(Boolean);
 
-  const byId = leads.filter((lead) => {
+  const byId = leads.find((lead) => {
     const leadCallId = String(lead.callId || lead.call_id || lead.session_id || '').trim();
     if (!leadCallId) return false;
     return sessionKeys.some(
       (key) => leadCallId === key || leadCallId.includes(key) || key.includes(leadCallId)
     );
   });
-  if (byId.length > 0) return byId;
+  if (byId) return byId;
 
-  // Fall back to phone + nearest timestamp — leads and sessions don't share an id.
   const wantPhone = sessionPhoneDigits(session);
   const sessionTime = new Date(
     session?.created_at || session?.start_time || session?.createdAt || 0
   ).getTime();
-  if (!wantPhone || !sessionTime) return [];
+  if (!wantPhone || !sessionTime) return null;
 
   const phoneMatches = leads.filter((lead) => {
     const got = leadPhoneDigits(lead);
     return got && (got === wantPhone || got.endsWith(wantPhone.slice(-10)) || wantPhone.endsWith(got.slice(-10)));
   });
-  if (phoneMatches.length === 0) return [];
-  if (phoneMatches.length === 1) return phoneMatches;
+  if (phoneMatches.length === 0) return null;
+  if (phoneMatches.length === 1) return phoneMatches[0];
 
-  // Multiple leads for this number — pick the one closest in time to the session,
-  // as long as it's within a reasonable window (30 min) so we don't show a
-  // wrong/unrelated call for a repeat caller.
   const withDelta = phoneMatches
     .map((lead) => ({
       lead,
@@ -84,8 +135,8 @@ const matchLeadsToSession = (leads: any[], session: any): any[] => {
     .sort((a, b) => a.delta - b.delta);
 
   const closest = withDelta[0];
-  if (!closest || closest.delta > 30 * 60 * 1000) return [];
-  return [closest.lead];
+  if (!closest || closest.delta > 30 * 60 * 1000) return null;
+  return closest.lead;
 };
 
 const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProps) => {
@@ -97,10 +148,16 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
   const [activeTab, setActiveTab] = useState<'transcripts' | 'recording'>('transcripts');
   
   // Call summary state
-  const [callSummary, setCallSummary] = useState<any>(null);
+  const [callSummary, setCallSummary] = useState<CallSummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
-  
+
+  // Lead state — separate from call summary: lead-management data (status, tags,
+  // qualification) captured by /leads/agent/:agentId, not the AI call summary.
+  const [leadData, setLeadDataState] = useState<any>(null);
+  const [leadLoading, setLeadLoading] = useState(false);
+  const [leadError, setLeadError] = useState<string | null>(null);
+
   // Location state
   const [locationData, setLocationData] = useState<any>(null);
   
@@ -154,20 +211,41 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
     };
 
     const fetchCallSummary = async () => {
-      if (!session?.agent?.id && !session?.agent_id) return;
+      const callId = session?.call_id || session?.session_id || session?.id;
+      if (!callId) return;
 
       setSummaryLoading(true);
       setSummaryError(null);
+      setCallSummary(null);
 
       try {
-        const agentId = session.agent?.id || session.agent_id;
-        const data = await agentAPI.getCallSummary(agentId);
-        setCallSummary(data);
+        const summary = await agentAPI.getCallSummaryByCallId(String(callId));
+        setCallSummary(summary);
       } catch (err: any) {
         console.error('Failed to fetch call summary:', err);
         setSummaryError(err.message || 'Failed to load call summary');
       } finally {
         setSummaryLoading(false);
+      }
+    };
+
+    const fetchLead = async () => {
+      const agentId = session?.agent?.id || session?.agent_id;
+      if (!agentId) return;
+
+      setLeadLoading(true);
+      setLeadError(null);
+      setLeadDataState(null);
+
+      try {
+        const data = await agentAPI.getLeadsForAgent(agentId);
+        const leads = Array.isArray(data?.leads) ? data.leads : Array.isArray(data) ? data : [];
+        setLeadDataState(matchLeadToSession(leads, session));
+      } catch (err: any) {
+        console.error('Failed to fetch lead:', err);
+        setLeadError(err.message || 'Failed to load lead');
+      } finally {
+        setLeadLoading(false);
       }
     };
 
@@ -182,6 +260,7 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
 
     fetchTranscripts();
     fetchCallSummary();
+    fetchLead();
 
     // 🧹 Cleanup: Restore scrolling on modal close
     return () => {
@@ -776,13 +855,240 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
             </div>
           </div>
 
-          {/* Call Summary Section */}
+          {/* Lead Section — separate from Call Summary: lead-management data (status, tags, qualification) */}
           <div className="common-bg-icons p-3 sm:p-4 rounded-lg sm:rounded-xl">
+            <h3 className="text-sm sm:text-base font-semibold text-slate-800 dark:text-white mb-3 flex items-center gap-2">
+              <Users className="w-4 h-4 sm:w-5 sm:h-5" />
+              Lead
+            </h3>
+
+            {leadLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
+              </div>
+            ) : leadError ? (
+              <div className="text-center py-6">
+                <XCircle className="w-10 h-10 text-red-300 dark:text-red-600 mx-auto mb-2" />
+                <p className="text-xs sm:text-sm text-red-500 dark:text-red-400">{leadError}</p>
+              </div>
+            ) : !leadData ? (
+              <div className="text-center py-6">
+                <Users className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+                  No lead captured for this call
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {/* Intent */}
+                {leadData.intent && (
+                  <div className="space-y-2">
+                    {leadData.intent.primary && (
+                      <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-700">
+                        <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-1">Primary Intent</p>
+                        <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                          {leadData.intent.primary}
+                        </p>
+                      </div>
+                    )}
+
+                    {leadData.intent.details && (
+                      <div className="bg-slate-50 dark:bg-slate-900/30 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
+                        <p className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Details</p>
+                        <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                          {leadData.intent.details}
+                        </p>
+                      </div>
+                    )}
+
+                    {leadData.intent.urgency && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-slate-500 dark:text-slate-400">Urgency:</span>
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                          leadData.intent.urgency === 'high'
+                            ? 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400'
+                            : leadData.intent.urgency === 'medium'
+                            ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400'
+                            : 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400'
+                        }`}>
+                          {leadData.intent.urgency}
+                        </span>
+                      </div>
+                    )}
+
+                    {leadData.intent.tags && leadData.intent.tags.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">Tags</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {leadData.intent.tags.map((tag: string, tagIndex: number) => (
+                            <span
+                              key={tagIndex}
+                              className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-full text-xs border border-slate-200 dark:border-slate-700"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Lead data — fully dynamic, works for any industry */}
+                {leadData.leadData && Object.keys(leadData.leadData).length > 0 && (() => {
+                  const formatLabel = (key: string) =>
+                    key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').trim().replace(/^\w/, (c) => c.toUpperCase());
+
+                  const iconForKey = (key: string) => {
+                    const k = key.toLowerCase();
+                    if (k.includes('email')) return Mail;
+                    if (k.includes('phone') || k.includes('mobile') || k.includes('contact') || k.includes('number')) return Phone;
+                    if (k.includes('date') || k.includes('travel') || k.includes('schedule')) return Calendar;
+                    if (k.includes('time') || k.includes('duration') || k.includes('hour')) return Clock;
+                    if (k.includes('name') || k.includes('person') || k.includes('group') || k.includes('size') || k.includes('count') || k.includes('people')) return Users;
+                    return FileText;
+                  };
+
+                  const statusColors: Record<string, string> = {
+                    qualified: 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400 border border-green-200 dark:border-green-800',
+                    interested: 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400 border border-blue-200 dark:border-blue-800',
+                    new: 'bg-purple-100 text-purple-700 dark:bg-purple-900/20 dark:text-purple-400 border border-purple-200 dark:border-purple-800',
+                    hot: 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400 border border-red-200 dark:border-red-800',
+                    warm: 'bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400 border border-orange-200 dark:border-orange-800',
+                    cold: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700',
+                  };
+
+                  const renderScalar = (v: any): React.ReactNode => {
+                    if (v === null || v === undefined || v === '') return null;
+                    if (typeof v === 'boolean') {
+                      return (
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${v ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
+                          {v ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                          {v ? 'Yes' : 'No'}
+                        </span>
+                      );
+                    }
+                    const str = String(v);
+                    if (statusColors[str.toLowerCase()]) {
+                      return (
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${statusColors[str.toLowerCase()]}`}>
+                          {str.toLowerCase() === 'qualified' && <CheckCircle className="w-3 h-3" />}
+                          {str}
+                        </span>
+                      );
+                    }
+                    return <span className="text-sm font-medium text-slate-800 dark:text-white">{str}</span>;
+                  };
+
+                  const renderObjectCard = (obj: Record<string, any>, index: number) => {
+                    const objEntries = Object.entries(obj).filter(([, v]) => v !== null && v !== undefined && v !== '' && v !== false);
+                    if (objEntries.length === 0) return null;
+                    return (
+                      <div key={index} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg p-2.5 space-y-1.5">
+                        {objEntries.map(([k, v]) => (
+                          <div key={k} className="flex items-start justify-between gap-2">
+                            <span className="text-xs text-slate-500 dark:text-slate-400 shrink-0">{formatLabel(k)}</span>
+                            <span className="text-xs font-medium text-slate-800 dark:text-white text-right">{typeof v === 'boolean' ? (v ? '✓ Yes' : '✗ No') : String(v)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  };
+
+                  const renderValue = (value: any): React.ReactNode => {
+                    if (value === null || value === undefined || value === '') return null;
+
+                    if (Array.isArray(value)) {
+                      if (value.length === 0) return null;
+                      const hasObjects = value.some((i) => typeof i === 'object' && i !== null);
+                      if (hasObjects) {
+                        return (
+                          <div className="space-y-2 mt-1">
+                            {value.map((item, i) =>
+                              typeof item === 'object' && item !== null
+                                ? renderObjectCard(item, i)
+                                : <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300">{String(item)}</span>
+                            )}
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {value.map((item, i) => (
+                            <span key={i} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800">
+                              {String(item)}
+                            </span>
+                          ))}
+                        </div>
+                      );
+                    }
+
+                    if (typeof value === 'object') {
+                      return <div className="mt-1">{renderObjectCard(value, 0)}</div>;
+                    }
+
+                    return renderScalar(value);
+                  };
+
+                  const entries = Object.entries(leadData.leadData).filter(([, v]) => {
+                    if (v === null || v === undefined || v === '') return false;
+                    if (typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0) return false;
+                    if (Array.isArray(v) && v.length === 0) return false;
+                    return true;
+                  });
+
+                  if (entries.length === 0) return null;
+
+                  const simpleEntries = entries.filter(([, v]) => !Array.isArray(v) && typeof v !== 'object');
+                  const complexEntries = entries.filter(([, v]) => Array.isArray(v) || (typeof v === 'object' && v !== null));
+
+                  return (
+                    <div>
+                      {simpleEntries.length > 0 && (
+                        <div className="grid grid-cols-2 gap-2 mb-2">
+                          {simpleEntries.map(([key, value]) => {
+                            const Icon = iconForKey(key);
+                            const label = formatLabel(key);
+                            const rendered = renderValue(value);
+                            if (!rendered) return null;
+                            return (
+                              <div key={key} className="bg-slate-50 dark:bg-slate-800/60 rounded-lg p-2.5 border border-slate-100 dark:border-slate-700">
+                                <div className="flex items-center gap-1.5 mb-1">
+                                  <Icon className="w-3 h-3 text-slate-400 dark:text-slate-500 flex-shrink-0" />
+                                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate">{label}</p>
+                                </div>
+                                <div className="pl-0.5">{rendered}</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {complexEntries.map(([key, value]) => {
+                        const label = formatLabel(key);
+                        const rendered = renderValue(value);
+                        if (!rendered) return null;
+                        return (
+                          <div key={key} className="mb-2 bg-slate-50 dark:bg-slate-800/60 rounded-lg p-3 border border-slate-100 dark:border-slate-700">
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mb-1.5">{label}</p>
+                            {rendered}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+
+          {/* Call Summary Section */}
+          <div className="common-bg-icons p-3 sm:p-4 rounded-lg sm:rounded-xl mt-3 sm:mt-4">
             <h3 className="text-sm sm:text-base font-semibold text-slate-800 dark:text-white mb-3 flex items-center gap-2">
               <FileText className="w-4 h-4 sm:w-5 sm:h-5" />
               Call Summary
             </h3>
-            
+
             {summaryLoading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
@@ -794,268 +1100,246 @@ const SessionTranscriptModal = ({ session, onClose }: SessionTranscriptModalProp
                   {summaryError}
                 </p>
               </div>
-            ) : callSummary?.leads && callSummary.leads.length > 0 ? (
-              matchLeadsToSession(callSummary.leads, session).length === 0 ? (
-                <div className="text-center py-6">
-                  <FileText className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-                  <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-                    No call summary available
-                  </p>
-                </div>
-              ) : (
-              <div className="space-y-4">
-                {matchLeadsToSession(callSummary.leads, session)
-                  .map((lead: any, leadIndex: number) => (
-                  <div key={lead.id || leadIndex} className="border border-slate-200 dark:border-slate-700 rounded-lg p-3 sm:p-4 space-y-3">
-                    {/* Call ID and Date */}
-                    <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-700">
-                      <div className="flex items-center gap-2">
-                        <Phone className="w-3.5 h-3.5 text-blue-500" />
-                        <span className="text-xs font-mono text-slate-600 dark:text-slate-400">
-                          {lead.callId || 'N/A'}
-                        </span>
-                      </div>
-                      {lead.createdAt && (
-                        <span className="text-xs text-slate-500 dark:text-slate-400">
-                          {new Date(lead.createdAt).toLocaleString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Intent Details */}
-                    {lead.intent && (
-                      <div className="space-y-2">
-                        {lead.intent.primary && (
-                          <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-700">
-                            <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-1">Primary Intent</p>
-                            <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-                              {lead.intent.primary}
-                            </p>
-                          </div>
-                        )}
-
-                        {lead.intent.details && (
-                          <div className="bg-slate-50 dark:bg-slate-900/30 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
-                            <p className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Details</p>
-                            <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-                              {lead.intent.details}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Urgency Badge */}
-                        {lead.intent.urgency && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-slate-500 dark:text-slate-400">Urgency:</span>
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                              lead.intent.urgency === 'high' 
-                                ? 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400'
-                                : lead.intent.urgency === 'medium'
-                                ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400'
-                                : 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400'
-                            }`}>
-                              {lead.intent.urgency}
-                            </span>
-                          </div>
-                        )}
-
-                        {/* Tags */}
-                        {lead.intent.tags && lead.intent.tags.length > 0 && (
-                          <div>
-                            <p className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">Tags</p>
-                            <div className="flex flex-wrap gap-1.5">
-                              {lead.intent.tags.map((tag: string, tagIndex: number) => (
-                                <span
-                                  key={tagIndex}
-                                  className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-full text-xs border border-slate-200 dark:border-slate-700"
-                                >
-                                  {tag}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Lead Information — fully dynamic, works for any industry */}
-                    {lead.leadData && Object.keys(lead.leadData).length > 0 && (() => {
-                      const formatLabel = (key: string) =>
-                        key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').trim().replace(/^\w/, c => c.toUpperCase());
-
-                      const iconForKey = (key: string) => {
-                        const k = key.toLowerCase();
-                        if (k.includes('email')) return Mail;
-                        if (k.includes('phone') || k.includes('mobile') || k.includes('contact') || k.includes('number')) return Phone;
-                        if (k.includes('date') || k.includes('travel') || k.includes('schedule')) return Calendar;
-                        if (k.includes('time') || k.includes('duration') || k.includes('hour')) return Clock;
-                        if (k.includes('status') || k.includes('stage') || k.includes('priority')) return TrendingUp;
-                        if (k.includes('name') || k.includes('person') || k.includes('group') || k.includes('size') || k.includes('count') || k.includes('people')) return Users;
-                        return FileText;
-                      };
-
-                      const statusColors: Record<string, string> = {
-                        qualified: 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400 border border-green-200 dark:border-green-800',
-                        interested: 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400 border border-blue-200 dark:border-blue-800',
-                        new: 'bg-purple-100 text-purple-700 dark:bg-purple-900/20 dark:text-purple-400 border border-purple-200 dark:border-purple-800',
-                        hot: 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-400 border border-red-200 dark:border-red-800',
-                        warm: 'bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400 border border-orange-200 dark:border-orange-800',
-                        cold: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-200 dark:border-slate-700',
-                      };
-
-                      // Render a single scalar value
-                      const renderScalar = (v: any): React.ReactNode => {
-                        if (v === null || v === undefined || v === '') return null;
-                        if (typeof v === 'boolean') {
-                          return (
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${v ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'}`}>
-                              {v ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
-                              {v ? 'Yes' : 'No'}
-                            </span>
-                          );
-                        }
-                        const str = String(v);
-                        if (statusColors[str.toLowerCase()]) {
-                          return (
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${statusColors[str.toLowerCase()]}`}>
-                              {str.toLowerCase() === 'qualified' && <CheckCircle className="w-3 h-3" />}
-                              {str}
-                            </span>
-                          );
-                        }
-                        return <span className="text-sm font-medium text-slate-800 dark:text-white">{str}</span>;
-                      };
-
-                      // Render an object as a mini card with key-value rows
-                      const renderObjectCard = (obj: Record<string, any>, index: number) => {
-                        const objEntries = Object.entries(obj).filter(([, v]) => v !== null && v !== undefined && v !== '' && v !== false);
-                        if (objEntries.length === 0) return null;
-                        return (
-                          <div key={index} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg p-2.5 space-y-1.5">
-                            {objEntries.map(([k, v]) => (
-                              <div key={k} className="flex items-start justify-between gap-2">
-                                <span className="text-xs text-slate-500 dark:text-slate-400 shrink-0">{formatLabel(k)}</span>
-                                <span className="text-xs font-medium text-slate-800 dark:text-white text-right">{typeof v === 'boolean' ? (v ? '✓ Yes' : '✗ No') : String(v)}</span>
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      };
-
-                      // Main value renderer
-                      const renderValue = (value: any): React.ReactNode => {
-                        if (value === null || value === undefined || value === '') return null;
-
-                        // Array
-                        if (Array.isArray(value)) {
-                          if (value.length === 0) return null;
-                          const hasObjects = value.some(i => typeof i === 'object' && i !== null);
-                          if (hasObjects) {
-                            // Array of objects → mini cards (full width)
-                            return (
-                              <div className="space-y-2 mt-1">
-                                {value.map((item, i) =>
-                                  typeof item === 'object' && item !== null
-                                    ? renderObjectCard(item, i)
-                                    : <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300">{String(item)}</span>
-                                )}
-                              </div>
-                            );
-                          }
-                          // Array of scalars → pill tags
-                          return (
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {value.map((item, i) => (
-                                <span key={i} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800">
-                                  {String(item)}
-                                </span>
-                              ))}
-                            </div>
-                          );
-                        }
-
-                        // Plain object → key-value mini card
-                        if (typeof value === 'object') {
-                          return <div className="mt-1">{renderObjectCard(value, 0)}</div>;
-                        }
-
-                        // Scalar
-                        return renderScalar(value);
-                      };
-
-                      const entries = Object.entries(lead.leadData).filter(([, v]) => {
-                        if (v === null || v === undefined || v === '') return false;
-                        if (typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0) return false;
-                        if (Array.isArray(v) && v.length === 0) return false;
-                        return true;
-                      });
-
-                      if (entries.length === 0) return null;
-
-                      // Separate simple scalars from complex (array/object) fields
-                      const simpleEntries = entries.filter(([, v]) => !Array.isArray(v) && typeof v !== 'object');
-                      const complexEntries = entries.filter(([, v]) => Array.isArray(v) || (typeof v === 'object' && v !== null));
-
-                      return (
-                        <div className="mt-1">
-                          <div className="flex items-center gap-2 mb-3">
-                            <div className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
-                              <Users className="w-3 h-3 text-blue-600 dark:text-blue-400" />
-                            </div>
-                            <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Lead Information</p>
-                          </div>
-
-                          {/* Simple fields grid */}
-                          {simpleEntries.length > 0 && (
-                            <div className="grid grid-cols-2 gap-2 mb-3">
-                              {simpleEntries.map(([key, value]) => {
-                                const Icon = iconForKey(key);
-                                const label = formatLabel(key);
-                                const rendered = renderValue(value);
-                                if (!rendered) return null;
-                                return (
-                                  <div key={key} className="bg-slate-50 dark:bg-slate-800/60 rounded-lg p-2.5 border border-slate-100 dark:border-slate-700">
-                                    <div className="flex items-center gap-1.5 mb-1">
-                                      <Icon className="w-3 h-3 text-slate-400 dark:text-slate-500 flex-shrink-0" />
-                                      <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate">{label}</p>
-                                    </div>
-                                    <div className="pl-0.5">{rendered}</div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-
-                          {/* Complex fields (arrays / nested objects) — full width */}
-                          {complexEntries.map(([key, value]) => {
-                            const label = formatLabel(key);
-                            const rendered = renderValue(value);
-                            if (!rendered) return null;
-                            return (
-                              <div key={key} className="mb-2 bg-slate-50 dark:bg-slate-800/60 rounded-lg p-3 border border-slate-100 dark:border-slate-700">
-                                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium mb-1.5">{label}</p>
-                                {rendered}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                ))}
-              </div>
-              )
-            ) : (
+            ) : !callSummary ? (
               <div className="text-center py-6">
                 <FileText className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
                 <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
                   No call summary available
                 </p>
+              </div>
+            ) : !meaningful(callSummary.summary) &&
+              !meaningful(callSummary.callerIntent) &&
+              !callSummary.lead &&
+              !meaningful(callSummary.requestedData) &&
+              !meaningful(callSummary.responseData) &&
+              !(callSummary.keyPoints?.length) &&
+              !(callSummary.actionItems?.length) ? (
+              // Pre-migration summaries only have summaryUrl — nothing else resolves.
+              <div className="text-center py-6">
+                <FileText className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+                  This call predates AI summaries — no details were captured.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {/* Status badges: urgency, outcome, sentiment, follow-up */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {callSummary.urgency && (
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${URGENCY_STYLES[callSummary.urgency]}`}>
+                      <AlertTriangle className="w-3 h-3" />
+                      {callSummary.urgency === 'unknown' ? 'Unknown urgency' : `${callSummary.urgency} urgency`}
+                    </span>
+                  )}
+                  {callSummary.outcome && (
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${OUTCOME_STYLES[callSummary.outcome]}`}>
+                      <ListChecks className="w-3 h-3" />
+                      {OUTCOME_LABELS[callSummary.outcome]}
+                    </span>
+                  )}
+                  {callSummary.sentiment && (() => {
+                    const SentimentIcon = SENTIMENT_ICON[callSummary.sentiment];
+                    return (
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 ${SENTIMENT_STYLES[callSummary.sentiment]}`}>
+                        <SentimentIcon className="w-3 h-3" />
+                        {callSummary.sentiment}
+                      </span>
+                    );
+                  })()}
+                  {callSummary.followUpRequired && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-400">
+                      <Clock className="w-3 h-3" />
+                      Follow-up required
+                    </span>
+                  )}
+                </div>
+
+                {/* Caller intent + urgency reason (falling back to the older requestedData field) */}
+                {meaningful(callSummary.callerIntent) ? (
+                  <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-700">
+                    <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-1">What the caller wanted</p>
+                    <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                      {callSummary.callerIntent}
+                    </p>
+                  </div>
+                ) : meaningful(callSummary.requestedData) ? (
+                  <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-200 dark:border-blue-700">
+                    <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-1">What the caller wanted</p>
+                    <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                      {callSummary.requestedData}
+                    </p>
+                  </div>
+                ) : null}
+
+                {meaningful(callSummary.urgencyReason) && (
+                  <div className="bg-slate-50 dark:bg-slate-900/30 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <p className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">In their own words</p>
+                    <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed italic">
+                      "{callSummary.urgencyReason}"
+                    </p>
+                  </div>
+                )}
+
+                {/* Narrative summary (falling back to the older responseData field) */}
+                {meaningful(callSummary.summary) ? (
+                  <div className="bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-600">
+                    <p className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Summary</p>
+                    <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                      {callSummary.summary}
+                    </p>
+                  </div>
+                ) : meaningful(callSummary.responseData) ? (
+                  <div className="bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-600">
+                    <p className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">How it was handled</p>
+                    <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                      {callSummary.responseData}
+                    </p>
+                  </div>
+                ) : null}
+
+                {callSummary.followUpRequired && callSummary.followUpReason && (
+                  <div className="bg-indigo-50 dark:bg-indigo-900/20 p-3 rounded-lg border border-indigo-200 dark:border-indigo-700">
+                    <p className="text-xs font-medium text-indigo-700 dark:text-indigo-300 mb-1">Why a follow-up is needed</p>
+                    <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                      {callSummary.followUpReason}
+                    </p>
+                  </div>
+                )}
+
+                {/* Key points */}
+                {callSummary.keyPoints && callSummary.keyPoints.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide mb-1.5">Key points</p>
+                    <ul className="space-y-1">
+                      {callSummary.keyPoints.map((point, i) => (
+                        <li key={i} className="flex items-start gap-1.5 text-xs sm:text-sm text-slate-700 dark:text-slate-300">
+                          <span className="text-slate-400 dark:text-slate-500 mt-0.5">•</span>
+                          <span>{point}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Questions asked / unanswered */}
+                {((callSummary.questionsAsked?.length ?? 0) > 0 || (callSummary.questionsUnanswered?.length ?? 0) > 0) && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {callSummary.questionsAsked && callSummary.questionsAsked.length > 0 && (
+                      <div className="bg-slate-50 dark:bg-slate-800/60 rounded-lg p-2.5 border border-slate-100 dark:border-slate-700">
+                        <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1">
+                          <HelpCircle className="w-3 h-3" /> Questions asked
+                        </p>
+                        <ul className="space-y-1">
+                          {callSummary.questionsAsked.map((q, i) => (
+                            <li key={i} className="text-xs text-slate-700 dark:text-slate-300">{q}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {callSummary.questionsUnanswered && callSummary.questionsUnanswered.length > 0 && (
+                      <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-2.5 border border-amber-100 dark:border-amber-800">
+                        <p className="text-[11px] font-medium text-amber-700 dark:text-amber-400 mb-1.5 flex items-center gap-1">
+                          <HelpCircle className="w-3 h-3" /> Left unanswered
+                        </p>
+                        <ul className="space-y-1">
+                          {callSummary.questionsUnanswered.map((q, i) => (
+                            <li key={i} className="text-xs text-slate-700 dark:text-slate-300">{q}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Action items */}
+                {callSummary.actionItems && callSummary.actionItems.length > 0 && (
+                  <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-2.5 border border-emerald-100 dark:border-emerald-800">
+                    <p className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400 mb-1.5 flex items-center gap-1">
+                      <ListChecks className="w-3 h-3" /> Action items
+                    </p>
+                    <ul className="space-y-1">
+                      {callSummary.actionItems.map((item, i) => (
+                        <li key={i} className="text-xs text-slate-700 dark:text-slate-300">{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Lead details — fully dynamic per the API's lead object */}
+                {callSummary.lead && (() => {
+                  const lead = callSummary.lead!;
+                  const fields = LEAD_FIELD_LABELS
+                    .map(({ key, label, icon: Icon }) => ({ key, label, Icon, value: lead[key] }))
+                    .filter((f) => f.value !== undefined && f.value !== null && String(f.value).trim() !== '');
+                  if (fields.length === 0 && lead.qualified === undefined && !lead.missingInfo?.length) return null;
+
+                  return (
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+                          <Users className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide">Lead details</p>
+                        {lead.qualified !== undefined && (
+                          <span className={`ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                            lead.qualified
+                              ? 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400'
+                              : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                          }`}>
+                            {lead.qualified ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+                            {lead.qualified ? 'Qualified' : 'Not qualified'}
+                          </span>
+                        )}
+                      </div>
+
+                      {fields.length > 0 && (
+                        <div className="grid grid-cols-2 gap-2 mb-2">
+                          {fields.map(({ key, label, Icon, value }) => (
+                            <div key={key} className="bg-slate-50 dark:bg-slate-800/60 rounded-lg p-2.5 border border-slate-100 dark:border-slate-700">
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <Icon className="w-3 h-3 text-slate-400 dark:text-slate-500 flex-shrink-0" />
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate">{label}</p>
+                              </div>
+                              <p className="text-sm font-medium text-slate-800 dark:text-white pl-0.5 break-words">{String(value)}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {lead.missingInfo && lead.missingInfo.length > 0 && (
+                        <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-2.5 border border-amber-100 dark:border-amber-800">
+                          <p className="text-[11px] font-medium text-amber-700 dark:text-amber-400 mb-1.5">Still missing</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {lead.missingInfo.map((item, i) => (
+                              <span key={i} className="px-2 py-0.5 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-full text-xs border border-amber-200 dark:border-amber-700">
+                                {item}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Delivery channels + contact details */}
+                {(() => {
+                  const email = meaningful(callSummary.contactEmail);
+                  const phone = meaningful(callSummary.contactPhone);
+                  if (!(callSummary.deliveryChannels?.length ?? 0) && !email && !phone) return null;
+                  return (
+                    <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-200 dark:border-slate-700">
+                      {callSummary.deliveryChannels?.map((ch, i) => (
+                        <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                          {ch === 'email' ? <Mail className="w-3 h-3" /> : <MessageSquare className="w-3 h-3" />}
+                          {ch}
+                        </span>
+                      ))}
+                      {email && <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">{email}</span>}
+                      {phone && <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">{phone}</span>}
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>

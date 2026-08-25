@@ -8067,19 +8067,27 @@
         console.warn("⚠️ No userId found, tenant_id will not be sent");
       }
 
+      // widget_key comes from the widget config already fetched earlier
+      // (see agent-configs API response — widget.widget_key), stored on
+      // window.SHIVAI_WIDGET_CONFIG.
+      const widgetKey = (window.SHIVAI_WIDGET_CONFIG && window.SHIVAI_WIDGET_CONFIG.widget_key) || null;
+      if (!widgetKey) {
+        console.warn("⚠️ No widget_key found on SHIVAI_WIDGET_CONFIG — /widget-token call will likely be rejected");
+      }
+
       const response = await fetchWithTimeout(
-        "https://staging.voice.callshivai.com/token",
+        "https://staging.voice.callshivai.com/widget-token",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             agent_id: agentId,
+            widget_key: widgetKey,
             language: selectedLanguage,
-            room: roomName,
             device: deviceType,
-            user_agent: navigator.userAgent,
-            ip: await getClientIP(),
-            ...(userId && { tenant_id: userId })
+            client_info: {
+              user_agent: navigator.userAgent,
+            },
           }),
         },
         CONNECTION_TIMEOUT
@@ -8090,7 +8098,9 @@
       }
 
       const data = await response.json();
-      window.currentCallId = roomName;
+      // Server now assigns the room — trust its room_name rather than the
+      // client-generated placeholder. end-call keeps using room_name.
+      window.currentCallId = data.room_name || roomName;
       if (!isConnecting) {
         _wlog("❌ Connection cancelled after token received");
         return;
