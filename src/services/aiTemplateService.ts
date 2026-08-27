@@ -515,6 +515,126 @@ Return ONLY the system prompt text. No JSON, no markdown code blocks, no explana
   }
 
   /**
+   * Merges a freshly-generated system prompt into the user's existing (possibly
+   * manually edited) one, updating only the content tied to the fields that
+   * actually changed and leaving every other section exactly as the user wrote it.
+   *
+   * Used by "Regenerate template" so a business-process/industry/voice-style
+   * change doesn't silently wipe out manual prompt edits.
+   */
+  async mergeSystemPrompt(params: {
+    currentPrompt: string;
+    freshPrompt: string;
+    changedFields: string[]; // e.g. ["businessProcess", "industry"]
+    employeeName: string;
+    companyName: string;
+  }): Promise<string> {
+    const { currentPrompt, freshPrompt, changedFields, employeeName, companyName } = params;
+
+    // Nothing to preserve — just use the fresh generation.
+    if (!currentPrompt?.trim()) return freshPrompt;
+    // Nothing changed — keep the current prompt untouched.
+    if (changedFields.length === 0) return currentPrompt;
+
+    const mergePrompt = `You are merging two versions of a voice AI agent's system prompt for "${employeeName}" at "${companyName}".
+
+CURRENT PROMPT (in production — contains manual edits made by the user that must be preserved):
+"""
+${currentPrompt}
+"""
+
+FRESH PROMPT (newly regenerated because these fields changed: ${changedFields.join(", ")}):
+"""
+${freshPrompt}
+"""
+
+Task: produce ONE merged system prompt that:
+1. Keeps every section, instruction, wording, and detail from the CURRENT PROMPT that is NOT specifically about ${changedFields.join(" or ")}.
+2. Only updates the parts of the prompt that are directly about ${changedFields.join(" or ")} — pull that updated content from the FRESH PROMPT.
+3. Does NOT revert, rewrite, or "improve" any other section — if the user manually tightened wording, added a rule, or added a custom section in CURRENT PROMPT, keep it verbatim.
+4. Does NOT duplicate sections. If both prompts cover the same topic, merge into a single section using the rule above (keep current unless it's about ${changedFields.join(" or ")}).
+5. Keeps the agent name "${employeeName}" and company name "${companyName}" exactly as they already appear — never invent a different name.
+
+Return ONLY the merged system prompt text. No JSON, no markdown code fences, no explanation, no commentary about what you changed.`;
+
+    const response = await promptClient.post<PromptGenerationResponse>(
+      PROMPT_GENERATION_API,
+      {
+        prompt: mergePrompt,
+        max_tokens: 4000,
+        temperature: 0.3, // low — this is an editing task, not creative generation
+      },
+    );
+
+    const merged = this.extractGeneratedText(response.data);
+    return merged && merged.trim().length > 100 ? merged : currentPrompt;
+  }
+
+  /**
+   * Targeted fix: given a plain-English description of a behavior problem
+   * ("agent isn't asking for the caller's name first", "keeps repeating the
+   * caller's name"), locates the relevant part of the current system prompt
+   * and edits just that — leaving everything else untouched. Used by the
+   * "Fix with AI" editor on the Template tab.
+   */
+  async fixSystemPromptIssue(params: {
+    currentPrompt: string;
+    issueDescription: string;
+    employeeName: string;
+    companyName: string;
+  }): Promise<string> {
+    const { currentPrompt, issueDescription, employeeName, companyName } = params;
+    if (!currentPrompt?.trim()) {
+      throw new Error("No system prompt to fix yet — write one first.");
+    }
+    if (!issueDescription?.trim()) {
+      throw new Error("Describe the issue first.");
+    }
+
+    const fixPrompt = `You are an expert voice AI prompt engineer fixing a specific behavior problem in a live system prompt for "${employeeName}" at "${companyName}".
+
+CURRENT SYSTEM PROMPT (in production):
+"""
+${currentPrompt}
+"""
+
+REPORTED ISSUE / REQUESTED CHANGE (from the person who owns this agent):
+"""
+${issueDescription}
+"""
+
+First, understand what the user actually wants — read the request the way a person would, not literally word-for-word. Figure out their real intent and what outcome they're asking for, then make the prompt produce that outcome.
+
+Then produce ONE corrected system prompt that:
+1. Finds the section(s) of the CURRENT SYSTEM PROMPT that are actually causing the reported behavior (e.g. a call-flow step, a data-collection rule, a restriction, an escalation condition) and edits exactly those — nothing else.
+2. If the request means an existing rule should be REMOVED, LOOSENED, or REVERSED (e.g. "stop restricting X", "it's fine to share Y now", "don't require Z anymore"), replace that rule outright with what the user asked for. Do NOT keep the old restriction and wrap the new behavior in a new conditional, exception, or hedge (like "unless policy allows it" or "if approved") — the user's instruction is the new rule, full stop, unless they explicitly asked for a condition.
+3. Do not invent conditions, policies, approval steps, or caveats that the user did not mention. If they said "always do X", the prompt should say to always do X — not "do X in most cases" or "do X unless Y" where Y was never mentioned.
+4. If no matching section exists yet, add a small, precisely-scoped instruction that produces the requested outcome — don't invent unrelated content around it.
+5. Leaves every other section, instruction, and wording EXACTLY as it is in the CURRENT SYSTEM PROMPT. Do not rewrite, reorder, "clean up", or shorten anything unrelated to the request.
+6. Does not duplicate or contradict instructions — if a rule already exists but is wrong or being followed incorrectly, correct that existing rule in place (per point 2) rather than adding a second, conflicting one elsewhere in the prompt.
+7. Keeps the agent name "${employeeName}" and company name "${companyName}" exactly as they already appear — never invent a different name.
+
+Before returning, re-read the CURRENT SYSTEM PROMPT once more and confirm no other rule still contradicts what the user just asked for — if one does, fix that one too, in place.
+
+Return ONLY the corrected system prompt text. No JSON, no markdown code fences, no explanation, no summary of what you changed.`;
+
+    const response = await promptClient.post<PromptGenerationResponse>(
+      PROMPT_GENERATION_API,
+      {
+        prompt: fixPrompt,
+        max_tokens: 4000,
+        temperature: 0.3, // low — targeted edit, not creative generation
+      },
+    );
+
+    const fixed = this.extractGeneratedText(response.data);
+    if (!fixed || fixed.trim().length < 100) {
+      throw new Error("The AI didn't return a usable prompt. Please try again.");
+    }
+    return fixed;
+  }
+
+  /**
    * Extract generated text from various response formats with logging
    */
   private extractGeneratedText(responseData: PromptGenerationResponse): string {

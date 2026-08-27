@@ -1859,6 +1859,22 @@ const AgentManagement = () => {
               setAgentListRefreshToken((t) => t + 1);
               navigate('/agents');
             }, 1500);
+          } else if (isFailed) {
+            ws.close();
+            kbWsRef.current = null;
+            localStorage.removeItem('kb_progress_agentId');
+            localStorage.removeItem('kb_progress_agentName');
+            appToast.error(data.error || `Knowledge base training failed for ${agentName}. Re-upload the files to retry.`, { duration: 6000 });
+            setTimeout(() => {
+              setIsCreatingAgent(false);
+              setIsModalMinimized(false);
+              setCreatingAgentId(null);
+              setKbCreationProgress(null);
+              setKbFileProgress([]);
+              setShowQuickCreateModal(false);
+              refreshAgents();
+              setAgentListRefreshToken((t) => t + 1);
+            }, 1500);
           }
         } catch {
           console.warn('KB WS: could not parse message');
@@ -1872,7 +1888,10 @@ const AgentManagement = () => {
         kbWsRef.current = null;
       };
 
-      // Fallback: 2-minute timeout
+      // Fallback: 2-minute timeout — the WS never delivered a final done/error
+      // message. Don't assume success: a still-processing state is genuinely
+      // unknown (treat as a soft success so the UI doesn't hang forever), but
+      // an already-failed state must stay failed.
       setTimeout(() => {
         if (kbWsRef.current) {
           kbWsRef.current.close();
@@ -1881,6 +1900,20 @@ const AgentManagement = () => {
         localStorage.removeItem('kb_progress_agentId');
         localStorage.removeItem('kb_progress_agentName');
         setKbCreationProgress((prev) => {
+          if (prev && prev.status === 'failed') {
+            appToast.error(prev.message || `Knowledge base training failed for ${agentName}. Re-upload the files to retry.`, { duration: 6000 });
+            setTimeout(() => {
+              setIsCreatingAgent(false);
+              setIsModalMinimized(false);
+              setCreatingAgentId(null);
+              setKbCreationProgress(null);
+              setKbFileProgress([]);
+              setShowQuickCreateModal(false);
+              refreshAgents();
+              setAgentListRefreshToken((t) => t + 1);
+            }, 500);
+            return prev;
+          }
           if (prev && prev.status !== 'completed') {
             appToast.success(`${agentName} has been created successfully!`, { duration: 4000 });
             setTimeout(() => {
@@ -1904,23 +1937,60 @@ const AgentManagement = () => {
   );
 
   // ── Reload reconnect: restore in-progress KB session from localStorage ───────
+  // The saved session only tells us training was in progress when the page was
+  // last open — it says nothing about whether it has since finished or failed.
+  // Check the agent's real knowledge_base_status before resurrecting the
+  // spinner, otherwise a KB that already failed gets stuck showing "processing"
+  // forever (the WS won't re-emit a message the client already missed).
   useEffect(() => {
     const savedAgentId = localStorage.getItem('kb_progress_agentId');
     const savedAgentName = localStorage.getItem('kb_progress_agentName');
-    if (savedAgentId) {
-      console.log('🔄 Restoring KB progress session for agent:', savedAgentId);
-      setCreatingAgentId(savedAgentId);
-      setIsCreatingAgent(true);
-      setIsModalMinimized(true);
-      setShowQuickCreateModal(true);
-      setKbCreationProgress({
-        agentId: savedAgentId,
-        status: 'processing',
-        progress: 10,
-        message: 'Reconnecting to knowledge base processing...',
+    if (!savedAgentId) return;
+
+    agentAPI
+      .getAgentConfig(savedAgentId)
+      .then(({ agent }) => {
+        const status = (agent as any)?.knowledge_base_status;
+        if (status === 'completed' || status === 'ready') {
+          localStorage.removeItem('kb_progress_agentId');
+          localStorage.removeItem('kb_progress_agentName');
+          refreshAgents();
+          setAgentListRefreshToken((t) => t + 1);
+          return;
+        }
+        if (status === 'failed') {
+          localStorage.removeItem('kb_progress_agentId');
+          localStorage.removeItem('kb_progress_agentName');
+          appToast.error(
+            (agent as any)?.knowledge_base_error ||
+              `Knowledge base training failed for ${savedAgentName || 'this AI employee'}. Re-upload the files to retry.`,
+            { duration: 6000 }
+          );
+          refreshAgents();
+          setAgentListRefreshToken((t) => t + 1);
+          return;
+        }
+
+        // Still genuinely processing — safe to reconnect and show the spinner.
+        console.log('🔄 Restoring KB progress session for agent:', savedAgentId);
+        setCreatingAgentId(savedAgentId);
+        setIsCreatingAgent(true);
+        setIsModalMinimized(true);
+        setShowQuickCreateModal(true);
+        setKbCreationProgress({
+          agentId: savedAgentId,
+          status: 'processing',
+          progress: 10,
+          message: 'Reconnecting to knowledge base processing...',
+        });
+        connectKbWebSocket(savedAgentId, savedAgentName || 'AI Employee');
+      })
+      .catch(() => {
+        // Couldn't verify — clear the stale session rather than show an
+        // indefinite spinner for an agent we can't confirm is still training.
+        localStorage.removeItem('kb_progress_agentId');
+        localStorage.removeItem('kb_progress_agentName');
       });
-      connectKbWebSocket(savedAgentId, savedAgentName || 'AI Employee');
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // ─────────────────────────────────────────────────────────────────────────────
@@ -3526,31 +3596,51 @@ const AgentManagement = () => {
                 <div className="p-4 sm:p-5 lg:p-6 relative">
                   {/* KB Processing Overlay — shown when modal is minimized */}
                   {creatingAgentId && agent.id === creatingAgentId && isCreatingAgent && isModalMinimized && (
-                    <div
-                      className="absolute inset-0 z-10 rounded-xl sm:rounded-2xl bg-blue-50/95 dark:bg-slate-900/95 flex flex-col items-center justify-center gap-3 cursor-pointer"
-                      onClick={() => {
-                        setIsModalMinimized(false);
-                        setShowQuickCreateModal(true);
-                      }}
-                    >
-                      <div className="w-10 h-10 border-[3px] border-blue-500 border-t-transparent rounded-full animate-spin" />
-                      <div className="text-center px-4">
-                        <p className="text-sm font-semibold text-slate-800 dark:text-white">
-                          Training Knowledge Base
-                        </p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                          Click to view progress
-                        </p>
-                      </div>
-                      {kbCreationProgress?.progress !== undefined && (
-                        <div className="w-32 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-blue-500 rounded-full transition-all duration-500"
-                            style={{ width: `${kbCreationProgress.progress}%` }}
-                          />
+                    kbCreationProgress?.status === 'failed' ? (
+                      <div
+                        className="absolute inset-0 z-10 rounded-xl sm:rounded-2xl bg-red-50/95 dark:bg-red-950/90 flex flex-col items-center justify-center gap-2 cursor-pointer"
+                        onClick={() => {
+                          setIsModalMinimized(false);
+                          setShowQuickCreateModal(true);
+                        }}
+                      >
+                        <AlertTriangle className="w-8 h-8 text-red-500 dark:text-red-400" />
+                        <div className="text-center px-4">
+                          <p className="text-sm font-semibold text-red-700 dark:text-red-300">
+                            Knowledge Base Training Failed
+                          </p>
+                          <p className="text-xs text-red-600/80 dark:text-red-400/80 mt-0.5">
+                            Click to view details
+                          </p>
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    ) : (
+                      <div
+                        className="absolute inset-0 z-10 rounded-xl sm:rounded-2xl bg-blue-50/95 dark:bg-slate-900/95 flex flex-col items-center justify-center gap-3 cursor-pointer"
+                        onClick={() => {
+                          setIsModalMinimized(false);
+                          setShowQuickCreateModal(true);
+                        }}
+                      >
+                        <div className="w-10 h-10 border-[3px] border-blue-500 border-t-transparent rounded-full animate-spin" />
+                        <div className="text-center px-4">
+                          <p className="text-sm font-semibold text-slate-800 dark:text-white">
+                            Training Knowledge Base
+                          </p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                            Click to view progress
+                          </p>
+                        </div>
+                        {kbCreationProgress?.progress !== undefined && (
+                          <div className="w-32 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                              style={{ width: `${kbCreationProgress.progress}%` }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )
                   )}
                   {/* Agent Header - Mobile Optimized */}
                   <div className="flex items-start gap-3 mb-4">
