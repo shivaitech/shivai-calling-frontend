@@ -561,13 +561,23 @@ Return ONLY the merged system prompt text. No JSON, no markdown code fences, no 
       PROMPT_GENERATION_API,
       {
         prompt: mergePrompt,
-        max_tokens: 4000,
+        // The model has to echo back the entire (potentially long) prompt in its
+        // output, not just the changed part — 4000 tokens was cutting off longer
+        // prompts mid-generation. Match the ceiling used for full template gen.
+        max_tokens: 16000,
         temperature: 0.3, // low — this is an editing task, not creative generation
       },
     );
 
     const merged = this.extractGeneratedText(response.data);
-    return merged && merged.trim().length > 100 ? merged : currentPrompt;
+    // Reject a merge that came back dramatically shorter than the current prompt —
+    // that means the response got cut off rather than actually merging both
+    // versions — and fall back to the current prompt untouched instead of
+    // silently saving a truncated one.
+    if (merged && merged.trim().length >= currentPrompt.trim().length * 0.6) {
+      return merged;
+    }
+    return currentPrompt;
   }
 
   /**
@@ -622,7 +632,10 @@ Return ONLY the corrected system prompt text. No JSON, no markdown code fences, 
       PROMPT_GENERATION_API,
       {
         prompt: fixPrompt,
-        max_tokens: 4000,
+        // The model must return the FULL corrected prompt, not a diff — for longer
+        // prompts 4000 tokens truncated the response mid-generation. Match the
+        // ceiling used for full template gen.
+        max_tokens: 16000,
         temperature: 0.3, // low — targeted edit, not creative generation
       },
     );
@@ -630,6 +643,15 @@ Return ONLY the corrected system prompt text. No JSON, no markdown code fences, 
     const fixed = this.extractGeneratedText(response.data);
     if (!fixed || fixed.trim().length < 100) {
       throw new Error("The AI didn't return a usable prompt. Please try again.");
+    }
+    // The output should be the whole prompt back, not a fragment — if it came back
+    // dramatically shorter than the original, something got cut off or dropped
+    // content rather than making a targeted edit. Fail loudly instead of silently
+    // handing back a truncated prompt for the user to apply.
+    if (fixed.trim().length < currentPrompt.trim().length * 0.6) {
+      throw new Error(
+        "The AI's response looked incomplete (much shorter than your current prompt). Please try again.",
+      );
     }
     return fixed;
   }

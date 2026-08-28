@@ -3,21 +3,16 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 /**
- * Word-level diff (LCS-based) used to highlight what an AI edit actually changed.
- * Tokenizes on whitespace boundaries (keeping the whitespace as its own token so
- * spacing/newlines round-trip exactly) and returns the `next` text as a sequence
- * of tokens each tagged added/unchanged — inserted words render highlighted,
- * removed words are simply omitted (this is a preview of the new text, not a
- * classic two-sided diff view).
+ * Word-level diff (LCS-based) between two single lines. Tokenizes on
+ * whitespace and punctuation boundaries (each kept as its own token so
+ * spacing round-trips exactly and an inserted comma doesn't glue onto the
+ * adjacent word) and returns `next`'s tokens tagged added/unchanged.
  */
-function diffHighlightTokens(prev: string, next: string): Array<{ text: string; added: boolean }> {
-  const tokenize = (s: string) => s.match(/\s+|[^\s]+/g) || [];
+function diffLineTokens(prev: string, next: string): Array<{ text: string; added: boolean }> {
+  const tokenize = (s: string) => s.match(/\s+|[A-Za-z0-9_']+|[^\sA-Za-z0-9_']/g) || [];
   const a = tokenize(prev);
   const b = tokenize(next);
 
-  // Guard against pathological sizes — a full LCS table is O(n*m); these are
-  // system prompts (a few thousand words), so this is comfortably bounded,
-  // but bail to "everything added" if it's ever unexpectedly huge.
   if (a.length * b.length > 4_000_000) {
     return [{ text: next, added: false }];
   }
@@ -50,8 +45,6 @@ function diffHighlightTokens(prev: string, next: string): Array<{ text: string; 
     j++;
   }
 
-  // Merge adjacent same-tag tokens so whitespace doesn't split a run into
-  // many <mark> elements.
   const merged: Array<{ text: string; added: boolean }> = [];
   for (const t of tokens) {
     const last = merged[merged.length - 1];
@@ -60,6 +53,118 @@ function diffHighlightTokens(prev: string, next: string): Array<{ text: string; 
   }
   return merged;
 }
+
+/** Token-set similarity (Jaccard over words) — used to decide whether two
+ * non-identical lines are "the same line, reworded" (worth a word-level diff)
+ * or genuinely different lines (the whole next-line should just show as added). */
+function lineSimilarity(a: string, b: string): number {
+  const words = (s: string) => new Set((s.toLowerCase().match(/[a-z0-9']+/g) || []));
+  const wa = words(a);
+  const wb = words(b);
+  if (wa.size === 0 && wb.size === 0) return 1;
+  if (wa.size === 0 || wb.size === 0) return 0;
+  let shared = 0;
+  for (const w of wa) if (wb.has(w)) shared++;
+  return shared / (wa.size + wb.size - shared);
+}
+
+/**
+ * Diff used to highlight what an AI edit actually changed, run at the LINE
+ * level first (an LCS over whole lines is unambiguous for a wholly new/removed
+ * line — unlike word-level LCS, it can't mistake a brand-new sentence for a
+ * "match" just because it happens to reuse common words scattered elsewhere
+ * in a long document). Lines that don't match exactly but are similar enough
+ * to be "the same line reworded" get a word-level diff for precise inline
+ * highlighting; lines with no reasonable match are shown as fully added.
+ */
+function diffHighlightTokens(prev: string, next: string): Array<{ text: string; added: boolean }> {
+  // Split into lines, keeping the newline with each line so it round-trips.
+  const splitLines = (s: string) => {
+    const out: string[] = [];
+    let start = 0;
+    for (let i = 0; i < s.length; i++) {
+      if (s[i] === '\n') { out.push(s.slice(start, i + 1)); start = i + 1; }
+    }
+    out.push(s.slice(start));
+    return out;
+  };
+  const a = splitLines(prev);
+  const b = splitLines(next);
+  const stripNl = (l: string) => (l.endsWith('\n') ? l.slice(0, -1) : l);
+
+  const n = a.length;
+  const m = b.length;
+  if (n * m > 4_000_000) {
+    return [{ text: next, added: false }];
+  }
+  const dp: Uint16Array[] = new Array(n + 1);
+  for (let i = 0; i <= n; i++) dp[i] = new Uint16Array(m + 1);
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+
+  const tokens: Array<{ text: string; added: boolean }> = [];
+  let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (a[i] === b[j]) {
+      tokens.push({ text: b[j], added: false });
+      i++; j++;
+    } else if (lineSimilarity(stripNl(a[i]), stripNl(b[j])) >= 0.4) {
+      // Treat as "same line, reworded" whenever the two lines directly facing
+      // each other are similar enough — checked BEFORE falling back to the
+      // line-LCS remove/insert tie-break, otherwise a single reworded line
+      // (n=1, m=1, so dp ties at 0 either way) gets resolved as "old line
+      // removed, new line inserted" and word-level highlighting is lost —
+      // the whole line renders as added instead of just what changed.
+      tokens.push(...diffLineTokens(stripNl(a[i]), stripNl(b[j])));
+      if (b[j].endsWith('\n')) tokens.push({ text: '\n', added: false });
+      i++; j++;
+    } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+      i++; // line only in prev (removed) — skip
+    } else {
+      tokens.push({ text: b[j], added: true });
+      j++;
+    }
+  }
+  while (j < m) {
+    tokens.push({ text: b[j], added: true });
+    j++;
+  }
+
+  const merged: Array<{ text: string; added: boolean }> = [];
+  for (const t of tokens) {
+    const last = merged[merged.length - 1];
+    if (last && last.added === t.added) last.text += t.text;
+    else merged.push({ ...t });
+  }
+  return merged;
+}
+
+/**
+ * Reduces diffHighlightTokens' output down to just the lines of `next` that
+ * contain at least one added token — a quick "what's new" summary separate
+ * from the full inline-highlighted prompt.
+ */
+function extractAddedLines(tokens: Array<{ text: string; added: boolean }>): string[] {
+  // Rebuild line-by-line, tracking whether each line has any added token.
+  const lines: Array<{ text: string; hasAdded: boolean }> = [{ text: '', hasAdded: false }];
+  for (const tok of tokens) {
+    const parts = tok.text.split('\n');
+    parts.forEach((part, idx) => {
+      if (idx > 0) lines.push({ text: '', hasAdded: false });
+      const current = lines[lines.length - 1];
+      current.text += part;
+      if (tok.added && part.length > 0) current.hasAdded = true;
+    });
+  }
+  return lines
+    .filter((l) => l.hasAdded && l.text.trim().length > 0)
+    .map((l) => l.text.trim());
+}
+
+const NO_NEW_LINES_MESSAGE = 'No new lines detected — only wording within existing lines changed.';
 
 /** Renders text content with search match highlights for the overlay div */
 function renderHighlightedContent(
@@ -605,6 +710,13 @@ const EditAgent = () => {
   // Snapshot of the prompt as it was when the fix request was sent — the diff
   // baseline stays stable even if formData changes while the modal is open.
   const [fixPromptOriginal, setFixPromptOriginal] = useState<string>('');
+
+  // "Regenerate Template" diff preview — shown once the (possibly two-phase,
+  // background-callback-driven) regeneration settles, before it's written
+  // into formData.customInstructions.
+  const [showRegenPreviewModal, setShowRegenPreviewModal] = useState(false);
+  const [regenPreviewOriginal, setRegenPreviewOriginal] = useState<string>('');
+  const [regenPreviewResult, setRegenPreviewResult] = useState<string>('');
   const [templateRegenNeeded, setTemplateRegenNeeded] = useState(false);
   // True only when the Primary channel changed — the system prompt shell is
   // fundamentally different per channel (see outboundPromptShell.ts), so a
@@ -2022,8 +2134,10 @@ const EditAgent = () => {
 
       // Snapshot what's actually in production right now — this is the prompt
       // whose manual edits must survive the regeneration (unless the channel
-      // itself changed, which rewrites the whole shell by design).
+      // itself changed, which rewrites the whole shell by design). Also the
+      // diff baseline for the preview modal shown once regeneration settles.
       const currentPromptSnapshot = formData.customInstructions;
+      setRegenPreviewOriginal(currentPromptSnapshot);
       const baseline = baselineTemplateFieldsRef.current;
       const changedFields: string[] = [];
       if (baseline) {
@@ -2082,9 +2196,17 @@ const EditAgent = () => {
 
       console.log('🔄 Regenerating template with request:', request, { shouldMerge, changedFields });
 
+      // Stages the merged/regenerated prompt for review instead of writing it
+      // straight into formData — the diff-preview modal applies it on confirm.
+      const stagePromptForPreview = (merged: string) => {
+        setTemplateData((prev: any) => ({ ...(prev || {}), systemPrompt: merged }));
+        setRegenPreviewResult(merged);
+        setShowRegenPreviewModal(true);
+      };
+
       let freshTemplates = await aiTemplateService.generateTemplates(
         request,
-        // When system prompt comes back from background call (call 2), patch customInstructions
+        // When system prompt comes back from background call (call 2), stage it for preview
         (templates) => {
           // Always clear SP loading when this callback fires — this is the signal that call 2 is done
           setIsSpGenerating(false);
@@ -2094,7 +2216,7 @@ const EditAgent = () => {
             const voiceContent = VOICE_STYLE_SP_MAP[formData.voiceStyle] || VOICE_STYLE_SP_MAP['friendly'];
             const withVoice = updateVoiceInstructionsSection(sysPrompt, voiceContent) || sysPrompt;
             mergeOrReplace(withVoice).then((merged) => {
-              setFormData((prev) => ({ ...prev, customInstructions: forceAgentName(merged) }));
+              stagePromptForPreview(forceAgentName(merged));
             });
           }
         },
@@ -2106,26 +2228,26 @@ const EditAgent = () => {
       // Advance prevNameRef so subsequent renames propagate correctly
       prevNameRef.current = agentName;
 
-      // If system prompt was already in the first batch (some APIs return it synchronously), apply it now.
+      // If system prompt was already in the first batch (some APIs return it synchronously), stage it now.
       // NOTE: We do NOT clear isSpGenerating here — we always wait for the background call 2 callback.
       let mergedSystemPrompt: string | undefined;
       if (fresh.systemPrompt && fresh.systemPrompt.trim().length > 100) {
         const voiceContent = VOICE_STYLE_SP_MAP[formData.voiceStyle] || VOICE_STYLE_SP_MAP['friendly'];
         const withVoice = updateVoiceInstructionsSection(fresh.systemPrompt, voiceContent) || fresh.systemPrompt;
         mergedSystemPrompt = forceAgentName(await mergeOrReplace(withVoice));
-        setFormData((prev) => ({ ...prev, customInstructions: mergedSystemPrompt! }));
+        stagePromptForPreview(mergedSystemPrompt);
         // isSpGenerating stays true — background call 2 will still run and clear it
       }
 
-      // Update templateData with all freshly generated fields — systemPrompt here
-      // mirrors whatever we just put in customInstructions (merged, not raw-fresh)
-      // since that's what actually gets saved as custom_instructions.
+      // Update templateData with all freshly generated fields EXCEPT systemPrompt —
+      // that's staged above and only applied to formData/templateData once the
+      // user confirms the preview (see handleConfirmRegenPreview).
       setTemplateData((prev: any) => ({
         ...(prev || {}),
         ...fresh,
         firstMessage: forceAgentName(fresh.firstMessage) || prev?.firstMessage,
         closingScript: forceAgentName(fresh.closingScript) || prev?.closingScript,
-        systemPrompt: mergedSystemPrompt ?? forceAgentName(fresh.systemPrompt),
+        systemPrompt: mergedSystemPrompt ?? prev?.systemPrompt,
       }));
 
       // Reset baseline so the dirty banner goes away
@@ -2143,7 +2265,7 @@ const EditAgent = () => {
       originalAgentNameRef.current = formData.name;
 
       appToast.dismiss(regenToast);
-      appToast.success('Template regenerated! Review the changes and save when ready.');
+      appToast.success('Template regenerated! Review the system prompt changes to apply them.');
     } catch (err) {
       console.error('Regenerate template error:', err);
       appToast.dismiss(regenToast);
@@ -2214,6 +2336,21 @@ const EditAgent = () => {
     setFormData((prev) => ({ ...prev, customInstructions: fixPromptResult }));
     setShowFixPromptModal(false);
     appToast.success('Prompt updated — remember to Save.');
+  };
+
+  const handleConfirmRegenPreview = () => {
+    if (!regenPreviewResult) return;
+    setFormData((prev) => ({ ...prev, customInstructions: regenPreviewResult }));
+    setShowRegenPreviewModal(false);
+    appToast.success('System prompt updated — remember to Save.');
+  };
+
+  const handleDiscardRegenPreview = () => {
+    // Revert templateData's systemPrompt back to what's actually still in
+    // formData.customInstructions — the regenerated prompt was only staged,
+    // never applied, so there's nothing to undo on the form itself.
+    setTemplateData((prev: any) => ({ ...(prev || {}), systemPrompt: regenPreviewOriginal }));
+    setShowRegenPreviewModal(false);
   };
 
   if (isLoadingAgent || !currentAgent) {
@@ -3894,7 +4031,12 @@ const EditAgent = () => {
                   </div>
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <p className="text-xs font-medium text-slate-600 dark:text-slate-400">Updated System Prompt</p>
+                      <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                        Updated System Prompt
+                        <span className="ml-1.5 font-normal text-slate-400 dark:text-slate-500">
+                          ({fixPromptResult.length} chars)
+                        </span>
+                      </p>
                       <span className="flex items-center gap-1 text-[11px] text-blue-600 dark:text-blue-400">
                         <span className="w-2 h-2 rounded-sm bg-blue-500" /> New / changed text
                       </span>
@@ -3909,6 +4051,27 @@ const EditAgent = () => {
                           )
                         )}
                       </pre>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
+                      New Lines Added
+                    </p>
+                    <div className="rounded-lg border border-blue-200 dark:border-blue-800/60 bg-blue-50/50 dark:bg-blue-900/10 p-3 max-h-48 overflow-y-auto">
+                      {(() => {
+                        const addedLines = extractAddedLines(diffHighlightTokens(fixPromptOriginal, fixPromptResult));
+                        return addedLines.length > 0 ? (
+                          <ul className="space-y-1.5">
+                            {addedLines.map((line, i) => (
+                              <li key={i} className="text-xs font-bold text-blue-600 dark:text-blue-400 whitespace-pre-wrap break-words">
+                                {line}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="text-xs text-slate-400 dark:text-slate-500">{NO_NEW_LINES_MESSAGE}</p>
+                        );
+                      })()}
                     </div>
                   </div>
                   <button
@@ -3962,6 +4125,105 @@ const EditAgent = () => {
                   </button>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Regenerate Template — system prompt diff preview before applying */}
+      {showRegenPreviewModal && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999] p-4"
+          onClick={handleDiscardRegenPreview}
+        >
+          <div
+            className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-200/80 dark:border-slate-700 overflow-hidden max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800 flex items-center justify-center flex-shrink-0">
+                  <Sparkles className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-base font-semibold text-slate-800 dark:text-white">Regenerated System Prompt</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Review what changed before applying it to your saved prompt.
+                  </p>
+                </div>
+              </div>
+              <button onClick={handleDiscardRegenPreview} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg flex-shrink-0">
+                <X className="w-4 h-4 text-slate-500" />
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto flex-1 space-y-3">
+              <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg">
+                <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+                <p className="text-xs text-emerald-700 dark:text-emerald-300">
+                  Manual edits unrelated to the regenerated fields were preserved where possible.
+                </p>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                    Updated System Prompt
+                    <span className="ml-1.5 font-normal text-slate-400 dark:text-slate-500">
+                      ({regenPreviewResult.length} chars)
+                    </span>
+                  </p>
+                  <span className="flex items-center gap-1 text-[11px] text-blue-600 dark:text-blue-400">
+                    <span className="w-2 h-2 rounded-sm bg-blue-500" /> New / changed text
+                  </span>
+                </div>
+                <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3 max-h-72 overflow-y-auto">
+                  <pre className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap break-words font-sans">
+                    {diffHighlightTokens(regenPreviewOriginal, regenPreviewResult).map((tok, i) =>
+                      tok.added ? (
+                        <span key={i} className="font-bold text-blue-600 dark:text-blue-400">{tok.text}</span>
+                      ) : (
+                        <span key={i}>{tok.text}</span>
+                      )
+                    )}
+                  </pre>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
+                  New Lines Added
+                </p>
+                <div className="rounded-lg border border-blue-200 dark:border-blue-800/60 bg-blue-50/50 dark:bg-blue-900/10 p-3 max-h-48 overflow-y-auto">
+                  {(() => {
+                    const addedLines = extractAddedLines(diffHighlightTokens(regenPreviewOriginal, regenPreviewResult));
+                    return addedLines.length > 0 ? (
+                      <ul className="space-y-1.5">
+                        {addedLines.map((line, i) => (
+                          <li key={i} className="text-xs font-bold text-blue-600 dark:text-blue-400 whitespace-pre-wrap break-words">
+                            {line}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-slate-400 dark:text-slate-500">{NO_NEW_LINES_MESSAGE}</p>
+                    );
+                  })()}
+                </div>
+              </div>
+            </div>
+
+            <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700 flex gap-2.5">
+              <button
+                onClick={handleDiscardRegenPreview}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-colors"
+              >
+                Discard
+              </button>
+              <button
+                onClick={handleConfirmRegenPreview}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-violet-600 hover:bg-violet-700 text-white flex items-center justify-center gap-2 transition-colors"
+              >
+                <ArrowRight className="w-4 h-4" /> Apply This Update
+              </button>
             </div>
           </div>
         </div>
