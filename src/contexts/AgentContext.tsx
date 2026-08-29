@@ -144,7 +144,7 @@ const formatSingleLanguage = (language: string): string => {
 };
 
 // Helper function to convert API agent to local agent format
-const convertApiAgentToAgent = (apiAgent: ApiAgent): Agent => ({
+export const convertApiAgentToAgent = (apiAgent: ApiAgent): Agent => ({
   ...apiAgent,
   // Normalise status from is_active flag (API may return is_active=true without status="Published")
   status: (apiAgent as any).is_active ? 'Published' : (apiAgent.status || 'Pending'),

@@ -70,6 +70,8 @@ const ZohoManager = lazy(() => import("./ClientDashboard/Zoho/ZohoManager"));
 const GoogleCalendarManager = lazy(() => import("./ClientDashboard/Zoho/GoogleCalendarManager"));
 const SubTenantsList = lazy(() => import("./ClientDashboard/SubTenants/SubTenantsList"));
 const SubTenantDetail = lazy(() => import("./ClientDashboard/SubTenants/SubTenantDetail"));
+const SubTenantAgentViewPage = lazy(() => import("./ClientDashboard/SubTenants/SubTenantAgentViewPage"));
+const SubTenantEditAgentPage = lazy(() => import("./ClientDashboard/SubTenants/SubTenantEditAgentPage"));
 const InviteAcceptPage = lazy(() => import("./pages/InviteAcceptPage"));
 const ResetPassword = lazy(() => import("./components/ResetPassword"));
 const AgentPublicPage = lazy(() => import("./pages/AgentPublicPage"));
@@ -256,6 +258,8 @@ function AppContent() {
                       <Route path="/google-calendar" element={<PermissionRoute requires="module:google-calendar"><GoogleCalendarManager /></PermissionRoute>} />
                       <Route path="/sub-tenants" element={<SubTenantsList />} />
                       <Route path="/sub-tenants/:tenantId" element={<SubTenantDetail />} />
+                      <Route path="/sub-tenants/:tenantId/agents/:id" element={<SubTenantAgentViewPage />} />
+                      <Route path="/sub-tenants/:tenantId/agents/:id/edit" element={<SubTenantEditAgentPage />} />
 
                       {/* Default route for authenticated users */}
                       <Route path="/" element={<HomeRedirect />} />

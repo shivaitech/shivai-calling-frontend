@@ -501,7 +501,7 @@ import appToast from '../../components/AppToast';
 import { ArrowLeft, Save, X, Bot, Globe, Settings, Sparkles, Info, Upload, Link, Share2, FileText, File, Image, Plus, BookOpen, Volume2, Play, Square, Pencil, Check, Loader2, Eye, Code2, Search, ChevronUp, ChevronDown, Trash2, RefreshCw, PhoneIncoming, PhoneOutgoing, Wand2, ArrowRight, AlertTriangle } from 'lucide-react';
 import { useAgent } from '../../contexts/AgentContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { agentAPI } from '../../services/agentAPI';
+import { agentAPI, getTenantScope } from '../../services/agentAPI';
 import { aiTemplateService } from '../../services/aiTemplateService';
 import GlassCard from '../../components/GlassCard';
 import { formatAgentLanguages } from '../../lib/utils';
@@ -1073,7 +1073,8 @@ const EditAgent = () => {
       } catch (error) {
         console.error("Error fetching agent:", error);
         appToast.error("Failed to load agent data");
-        navigate('/agents');
+        const tenantScope = getTenantScope();
+        navigate(tenantScope ? `/sub-tenants/${tenantScope}` : '/agents');
       } finally {
         setIsLoadingAgent(false);
       }
@@ -2105,7 +2106,13 @@ const EditAgent = () => {
         // Refresh the agents list in context so view page shows updated data immediately
         await refreshAgents();
         // Navigate back to view page and signal a refresh
-        navigate(`/agents/${currentAgent.id}`, { state: { refreshed: true } });
+        const tenantScope = getTenantScope();
+        navigate(
+          tenantScope
+            ? `/sub-tenants/${tenantScope}/agents/${currentAgent.id}`
+            : `/agents/${currentAgent.id}`,
+          { state: { refreshed: true } },
+        );
       } catch (error) {
         appToast.dismiss(loadingToast);
         appToast.error("Failed to update agent. Please try again.");

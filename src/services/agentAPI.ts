@@ -1,6 +1,26 @@
 import axios, { AxiosResponse } from "axios";
+import { mockAgentStore } from "./mockAgentStore";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+// ── Sub Tenants: tenant-scoped mock mode ────────────────────────────────────
+// The real EditAgent.tsx / AgentViewPage.tsx are reused UNMODIFIED for a Main
+// Business viewing/editing a sub-tenant's AI employee (mounted at
+// /sub-tenants/:tenantId/agents/:agentId[/edit] — see App.tsx). Those routes
+// wrap their content in <TenantAgentScope tenantId=...>, which calls
+// setTenantScope() on mount/unmount so the handful of agentAPI methods these
+// two pages actually call (getAgentConfig, updateAgent, uploadKnowledgeBase,
+// getPresignedUrl) route to the per-tenant mock store instead of the real
+// backend for exactly the lifetime of that view. Every other consumer of
+// agentAPI never renders under that wrapper, so this stays null for them and
+// their behavior is unchanged.
+let activeTenantScope: string | null = null;
+export function setTenantScope(tenantId: string | null): void {
+  activeTenantScope = tenantId;
+}
+export function getTenantScope(): string | null {
+  return activeTenantScope;
+}
 
 // ── Single-flight token refresh ──────────────────────────────────────────────
 // When a page mounts it often fires several authenticated requests at once. If
@@ -530,6 +550,7 @@ class AgentAPI {
   // Fetch full agent config (used in edit/view pages)
   // Endpoint: GET /agent-configs/:id
   async getAgentConfig(id: string): Promise<{ agent: any }> {
+    if (activeTenantScope) return mockAgentStore.get(activeTenantScope, id);
     try {
       const response: AxiosResponse<{
         success: boolean;
@@ -581,6 +602,7 @@ class AgentAPI {
     id: string,
     agentData: UpdateAgentRequest
   ): Promise<ApiAgent> {
+    if (activeTenantScope) return mockAgentStore.update(activeTenantScope, id, agentData);
     try {
       const response: AxiosResponse<{
         success: boolean;
@@ -922,6 +944,21 @@ class AgentAPI {
       downloadUrl: string;
     };
   }> {
+    if (activeTenantScope) {
+      // No real file storage for mock agents — return a data: URL holding
+      // placeholder text so the KB file viewer/editor in EditAgent.tsx can
+      // still open and "save" (in-memory only) rather than 404ing against a
+      // real S3-style presigned URL. Per product decision: stub minimally,
+      // don't build a full fake file-storage round-trip.
+      const placeholder = "This is a preview of a knowledge base file.\n\nReal file content isn't available in this sub-tenant preview.";
+      const dataUrl = `data:text/plain;charset=utf-8,${encodeURIComponent(placeholder)}`;
+      return {
+        success: true,
+        statusCode: 200,
+        message: "Mock presigned URL",
+        data: { presignedUrl: dataUrl, downloadUrl: dataUrl },
+      };
+    }
     try {
       const response = await apiClient.get(`/agents/${agentId}/presigned-url`);
       return response.data;
@@ -945,6 +982,10 @@ class AgentAPI {
       count: number;
     };
   }> {
+    if (activeTenantScope) {
+      const result = mockAgentStore.uploadKnowledgeBase(files);
+      return { success: true, statusCode: 200, message: "Uploaded", data: result };
+    }
     try {
       const formData = new FormData();
       files.forEach((file) => {

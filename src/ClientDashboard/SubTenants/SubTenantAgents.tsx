@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Bot,
   Search,
@@ -24,8 +25,8 @@ import Pagination from '../../components/Pagination';
 import ModalOverlay from '../../components/ModalOverlay';
 import { formatAgentLanguages } from '../../lib/utils';
 import { mockAgentStore, type MockAgentRecord } from '../../services/mockAgentStore';
-import CreateTenantAgentModal from './CreateTenantAgentModal';
-import TenantAgentDetailModal from './TenantAgentDetailModal';
+import QuickCreateAgentWizard, { type KbCreationProgress } from '../Employees/agents/QuickCreateAgentWizard';
+import { createMockAgentDataSource } from '../Employees/agents/mockAgentDataSource';
 import TenantAgentTrainModal from './TenantAgentTrainModal';
 import TenantAgentQRModal from './TenantAgentQRModal';
 
@@ -37,15 +38,15 @@ interface SubTenantAgentsProps {
 }
 
 /**
- * Mirrors AgentManagement.tsx's card-grid list UI and CRUD actions for a
- * sub-tenant's AI employees. Deliberately self-contained — NOT the routed
- * AgentManagement/EditAgent/CreateAgent components — those hardcode
- * navigate('/agents/...') throughout, which would break out of the
- * sub-tenant view. Same look, same actions, no shared routing/state; data
- * is a per-tenant mock store (mockAgentStore.ts) since agents aren't
- * tenant-scoped on the backend yet.
+ * Mirrors AgentManagement.tsx's card-grid list UI/CRUD actions for a
+ * sub-tenant's AI employees, and reuses the SAME "Create AI Employee" wizard
+ * (QuickCreateAgentWizard, extracted out of AgentManagement.tsx) via a mock
+ * data source (mockAgentDataSource.ts) instead of the real backend — no KB
+ * training pipeline or TTS voice preview exists for mock agents, so those
+ * are stubbed to complete instantly / show an explanatory toast.
  */
 const SubTenantAgents = ({ tenantId, companyName }: SubTenantAgentsProps) => {
+  const navigate = useNavigate();
   const [refreshToken, setRefreshToken] = useState(0);
   const [agents, setAgents] = useState<MockAgentRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -56,10 +57,17 @@ const SubTenantAgents = ({ tenantId, companyName }: SubTenantAgentsProps) => {
   const [deleteTarget, setDeleteTarget] = useState<MockAgentRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [detailAgent, setDetailAgent] = useState<MockAgentRecord | null>(null);
-  const [editAgent, setEditAgent] = useState<MockAgentRecord | null>(null);
   const [trainAgent, setTrainAgent] = useState<MockAgentRecord | null>(null);
   const [qrAgent, setQrAgent] = useState<MockAgentRecord | null>(null);
+
+  // QuickCreateAgentWizard's controlled minimize/creation state — this view
+  // has no per-card "training in progress" overlay (mock KB completes
+  // instantly), so these are just plumbing to satisfy the shared component's
+  // props, not meaningfully user-visible here.
+  const [isModalMinimized, setIsModalMinimized] = useState(false);
+  const [isCreatingAgent, setIsCreatingAgent] = useState(false);
+  const [creatingAgentId, setCreatingAgentId] = useState<string | null>(null);
+  const [kbCreationProgress, setKbCreationProgress] = useState<KbCreationProgress>(null);
 
   useEffect(() => {
     setIsLoading(true);
@@ -87,6 +95,9 @@ const SubTenantAgents = ({ tenantId, companyName }: SubTenantAgentsProps) => {
   const unpublishedCount = totalAgents - liveCount;
 
   const refresh = () => setRefreshToken((n) => n + 1);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const dataSource = useMemo(() => createMockAgentDataSource(tenantId, refresh), [tenantId]);
 
   const handleTogglePublish = (agent: MockAgentRecord) => {
     setPublishingIds((prev) => new Set(prev).add(agent.id));
@@ -295,13 +306,13 @@ const SubTenantAgents = ({ tenantId, companyName }: SubTenantAgentsProps) => {
 
                   <div className="flex items-center gap-2 mb-3">
                     <button
-                      onClick={() => setDetailAgent(agent)}
+                      onClick={() => navigate(`/sub-tenants/${tenantId}/agents/${agent.id}`)}
                       className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors text-sm font-medium"
                     >
                       <Eye className="w-4 h-4" /> View
                     </button>
                     <button
-                      onClick={() => setEditAgent(agent)}
+                      onClick={() => navigate(`/sub-tenants/${tenantId}/agents/${agent.id}/edit`)}
                       className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-sm font-medium"
                     >
                       <Edit className="w-4 h-4" /> Edit
@@ -373,29 +384,22 @@ const SubTenantAgents = ({ tenantId, companyName }: SubTenantAgentsProps) => {
         />
       )}
 
-      <CreateTenantAgentModal
+      <QuickCreateAgentWizard
         open={showCreateModal}
-        tenantId={tenantId}
         onClose={() => setShowCreateModal(false)}
-        onCreated={() => {
-          setShowCreateModal(false);
-          refresh();
-        }}
-      />
-
-      <TenantAgentDetailModal
-        agent={editAgent || detailAgent}
-        mode={editAgent ? 'edit' : 'view'}
-        tenantId={tenantId}
-        onClose={() => {
-          setDetailAgent(null);
-          setEditAgent(null);
-        }}
-        onSaved={() => {
-          setEditAgent(null);
-          setDetailAgent(null);
-          refresh();
-        }}
+        onRequestOpen={() => setShowCreateModal(true)}
+        dataSource={dataSource}
+        publishAllowedEmails={[]}
+        userEmail={undefined}
+        isModalMinimized={isModalMinimized}
+        setIsModalMinimized={setIsModalMinimized}
+        isCreatingAgent={isCreatingAgent}
+        setIsCreatingAgent={setIsCreatingAgent}
+        creatingAgentId={creatingAgentId}
+        setCreatingAgentId={setCreatingAgentId}
+        kbCreationProgress={kbCreationProgress}
+        setKbCreationProgress={setKbCreationProgress}
+        onAgentListRefresh={refresh}
       />
 
       <ModalOverlay open={!!deleteTarget} onClose={() => (isDeleting ? undefined : setDeleteTarget(null))} closeOnBackdrop={!isDeleting} panelClassName="max-w-sm">

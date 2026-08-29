@@ -1,0 +1,1 @@
+import{j as r}from"./vendor-motion-DATsPUvo.js";import{r as o}from"./vendor-react-ZFq0RoOv.js";import{s as e}from"./index-n_WyXqw9.js";const n=({tenantId:n,children:s})=>(o.useEffect(()=>(e(n),()=>e(null)),[n]),r.jsx(r.Fragment,{children:s}));export{n as T};
