@@ -16,6 +16,8 @@ import {
   Search,
   ChevronDown,
   Phone,
+  PhoneIncoming,
+  PhoneOutgoing,
   MapPin,
   XCircle,
   Smartphone,
@@ -33,6 +35,25 @@ import {
   isUsableLocation,
   type IPLocationResult,
 } from "../../lib/ipGeolocation";
+import {
+  callTypeBadgeClass,
+  formatCallTypeLabel,
+  resolveSessionCallType,
+  resolveSessionLeadNumber,
+} from "../../lib/sessionDirection";
+
+// Primary channel tag metadata — matches the bold tag styling used on the
+// agent list cards and agent view page.
+const getChannelTagMeta = (agentType?: string) => {
+  if (!agentType) return null;
+  if (agentType === "inbound") {
+    return { label: "Inbound", Icon: PhoneIncoming, cls: "bg-black" };
+  }
+  if (agentType === "outbound") {
+    return { label: "Outbound", Icon: PhoneOutgoing, cls: "bg-black" };
+  }
+  return { label: "Web", Icon: Globe, cls: "bg-black" };
+};
 
 const Analytics = () => {
   const { user } = useAuth();
@@ -506,9 +527,21 @@ const Analytics = () => {
                     : "bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500 cursor-not-allowed"
                 } focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
               >
-                <span>
-                  {agentsList.find((a) => a.id === selectedEmployee)?.name ||
-                    "Select Agent"}
+                <span className="flex items-center gap-2 min-w-0">
+                  <span className="truncate">
+                    {agentsList.find((a) => a.id === selectedEmployee)?.name ||
+                      "Select Agent"}
+                  </span>
+                  {(() => {
+                    const selected = agentsList.find((a) => a.id === selectedEmployee);
+                    const meta = selected ? getChannelTagMeta(selected.agent_type) : null;
+                    return meta ? (
+                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold text-white shadow-sm flex-shrink-0 ${meta.cls}`}>
+                        <meta.Icon className="w-2.5 h-2.5" />
+                        {meta.label}
+                      </span>
+                    ) : null;
+                  })()}
                 </span>
                 <ChevronDown
                   className={`absolute right-2 top-1/2 transform -translate-y-1/2 w-4 h-4 pointer-events-none transition-transform ${
@@ -526,22 +559,31 @@ const Analytics = () => {
                 <div className="absolute top-full left-0 mt-2 w-full sm:w-80 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg z-50">
                   <div className="max-h-64 overflow-y-auto">
                     {/* Agents List */}
-                    {agentsList.map((agent) => (
-                      <button
-                        key={agent.id}
-                        onClick={() => {
-                          setSelectedEmployee(agent.id);
-                          setShowAgentDropdown(false);
-                        }}
-                        className={`w-full text-left px-4 py-2.5 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors border-b border-slate-100 dark:border-slate-700 text-sm ${
-                          selectedEmployee === agent.id
-                            ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-semibold"
-                            : "text-slate-800 dark:text-white"
-                        }`}
-                      >
-                        {agent.name}
-                      </button>
-                    ))}
+                    {agentsList.map((agent) => {
+                      const meta = getChannelTagMeta(agent.agent_type);
+                      return (
+                        <button
+                          key={agent.id}
+                          onClick={() => {
+                            setSelectedEmployee(agent.id);
+                            setShowAgentDropdown(false);
+                          }}
+                          className={`w-full text-left px-4 py-2.5 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors border-b border-slate-100 dark:border-slate-700 text-sm flex items-center justify-between gap-2 ${
+                            selectedEmployee === agent.id
+                              ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-semibold"
+                              : "text-slate-800 dark:text-white"
+                          }`}
+                        >
+                          <span className="truncate">{agent.name}</span>
+                          {meta && (
+                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold text-white shadow-sm flex-shrink-0 ${meta.cls}`}>
+                              <meta.Icon className="w-2.5 h-2.5" />
+                              {meta.label}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
 
                     {/* Load More Button */}
                     {agentLoadPage < totalAgentPages && (
@@ -894,8 +936,40 @@ const Analytics = () => {
                           </div>
                         </div>
 
-                        {/* Device and Location Info */}
+                        {/* Call type + lead number */}
                         <div className="flex flex-wrap items-center gap-2">
+                          {(() => {
+                            const type = resolveSessionCallType(session);
+                            const number = resolveSessionLeadNumber(session);
+                            const label = formatCallTypeLabel(type);
+                            if (!type && !number) return null;
+                            const TypeIcon =
+                              type === "inbound"
+                                ? PhoneIncoming
+                                : type === "outbound"
+                                  ? PhoneOutgoing
+                                  : Phone;
+                            return (
+                              <>
+                                {label && (
+                                  <div
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold capitalize ${callTypeBadgeClass(type)}`}
+                                  >
+                                    <TypeIcon className="w-3.5 h-3.5" />
+                                    {label}
+                                  </div>
+                                )}
+                                {number && (
+                                  <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900/30 px-3 py-1.5 rounded-lg text-xs">
+                                    <span className="font-mono font-medium text-slate-700 dark:text-slate-300">
+                                      {number}
+                                    </span>
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
+
                           {/* Device Type Badge */}
                           <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900/30 px-3 py-1.5 rounded-lg text-xs">
                             <DeviceIcon className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />

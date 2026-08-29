@@ -364,6 +364,8 @@
 
   // Store agent's configured language (fetched from API before widget init)
   let agentLanguage = null;
+  // Store the widget's key (fetched alongside agent config) — required by /widget-token
+  let widgetKey = null;
 
   // Resolve agentId from all possible sources (URL param, SHIVAI_CONFIG, data attributes)
   function resolveAgentId() {
@@ -403,6 +405,12 @@
       if (agentRes?.language) {
         agentLanguage = agentRes.language;
         console.log('🌐 [widget.js] Agent language from API:', agentLanguage);
+      }
+      if (agentRes?.widget?.widget_key) {
+        widgetKey = agentRes.widget.widget_key;
+        console.log('🔑 [widget.js] widget_key loaded from agent config');
+      } else {
+        console.warn('⚠️ [widget.js] No widget_key in agent config response — /widget-token call will likely be rejected');
       }
     } catch (err) {
       console.warn('⚠️ [widget.js] Error fetching agent config:', err);
@@ -4904,19 +4912,23 @@
 
       console.log(`Getting token for Agent: ${agentId}, User: ${userId || 'not set'}...`);
 
+      if (!widgetKey) {
+        console.warn("⚠️ No widget_key available — /widget-token call will likely be rejected");
+      }
+
       const response = await fetch(
-        "https://staging.voice.callshivai.com/token",
+        "https://staging.voice.callshivai.com/widget-token",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            room: roomName,
-            language: selectedLanguage,
             agent_id: agentId,
+            widget_key: widgetKey,
+            language: selectedLanguage,
             device: deviceType,
-            user_agent: navigator.userAgent,
-            ip: await getClientIP(),
-            ...(userId && { tenant_id: userId })
+            client_info: {
+              user_agent: navigator.userAgent,
+            },
           }),
         }
       );
@@ -4927,9 +4939,10 @@
 
       const data = await response.json();
       console.log("✅ Token received");
-      
-      // Only set currentCallId after successfully receiving token
-      window.currentCallId = roomName;
+
+      // Server now assigns the room — trust its room_name rather than the
+      // client-generated placeholder. end-call keeps using room_name.
+      window.currentCallId = data.room_name || roomName;
 
       // Check if connection was cancelled after getting token
       if (!isConnecting) {

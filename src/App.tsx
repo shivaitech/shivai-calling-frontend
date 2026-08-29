@@ -7,6 +7,7 @@ import {
   useLocation,
 } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
+import { HelmetProvider } from "react-helmet-async";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { AgentProvider } from "./contexts/AgentContext";
@@ -36,6 +37,9 @@ const OrbFallback = lazy(() =>
 );
 
 const Landing = lazy(() => import("./pages/Website/Landing"));
+const Pricing = lazy(() => import("./pages/Website/PricingPage"));
+const FAQPage = lazy(() => import("./pages/Website/FAQPage"));
+const SolutionsPage = lazy(() => import("./pages/Website/SolutionsPage"));
 const Sidebar = lazy(() => import("./components/Sidebar"));
 const TopBar = lazy(() => import("./components/TopBar"));
 const Overview = lazy(() => import("./ClientDashboard/Dashboard/Overview"));
@@ -45,16 +49,21 @@ const CreateAgent = lazy(() => import("./ClientDashboard/Employees/CreateAgent")
 const EditAgent = lazy(() => import("./ClientDashboard/Employees/EditAgent"));
 const Training = lazy(() => import("./ClientDashboard/Training/Training"));
 const Workflows = lazy(() => import("./ClientDashboard/Workflows/Workflows"));
+const CallSetup = lazy(() => import("./ClientDashboard/Workflows/CallSetup"));
 const Marketplace = lazy(() => import("./ClientDashboard/Marketplace/Marketplace"));
 const AppDetail = lazy(() => import("./ClientDashboard/Marketplace/AppDetail"));
 const WebsitePreview = lazy(() => import("./pages/WebsitePreview"));
 const AppWorkspace = lazy(() => import("./pages/AppWorkspace"));
+const CampaignDetail = lazy(() => import("./ClientDashboard/Workflows/CampaignDetail"));
+const ContactCallHistory = lazy(() => import("./ClientDashboard/Workflows/ContactCallHistory"));
 const Analytics = lazy(() => import("./ClientDashboard/Analytics/Analytics"));
 const Monitoring = lazy(() => import("./ClientDashboard/Monitoring/Monitoring"));
 const Billing = lazy(() => import("./ClientDashboard/Billing/Billing"));
 const Settings = lazy(() => import("./ClientDashboard/Settings/Settings"));
 const GoogleSheetsManager = lazy(() => import("./ClientDashboard/GoogleSheets/GoogleSheetsManager"));
 const GoogleSheetView = lazy(() => import("./ClientDashboard/GoogleSheets/GoogleSheetView"));
+const ZohoManager = lazy(() => import("./ClientDashboard/Zoho/ZohoManager"));
+const GoogleCalendarManager = lazy(() => import("./ClientDashboard/Zoho/GoogleCalendarManager"));
 const ResetPassword = lazy(() => import("./components/ResetPassword"));
 const AgentPublicPage = lazy(() => import("./pages/AgentPublicPage"));
 const DoctorCalendarPublicPage = lazy(() => import("./pages/DoctorCalendarPublicPage"));
@@ -84,6 +93,11 @@ function AppContent() {
   const isWebsitePreview = location.pathname.startsWith("/website-preview");
   // Standalone app workspace — auth-protected but rendered without dashboard chrome.
   const isAppWorkspace = location.pathname.startsWith("/app/");
+  // Public marketing pages — SEO-indexable, no dashboard chrome, no auth required.
+  const isMarketingPage =
+    location.pathname === "/pricing" ||
+    location.pathname === "/faq" ||
+    location.pathname === "/solutions";
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
@@ -94,16 +108,17 @@ function AppContent() {
       isAgentPublicPage ||
       isDoctorCalendarPage ||
       isWebsitePreview ||
-      isAppWorkspace
+      isAppWorkspace ||
+      isMarketingPage
     ) {
       return;
     }
     saveLastRoute(`${location.pathname}${location.search}`);
-  }, [location.pathname, location.search, isLandingPage, isAuthCallback, isResetPassword, isAgentPublicPage, isDoctorCalendarPage, isWebsitePreview, isAppWorkspace]);
+  }, [location.pathname, location.search, isLandingPage, isAuthCallback, isResetPassword, isAgentPublicPage, isDoctorCalendarPage, isWebsitePreview, isAppWorkspace, isMarketingPage]);
 
   return (
-    <div className="min-h-screen">
-      {isLandingPage || isAuthCallback || isResetPassword || isAgentPublicPage || isDoctorCalendarPage || isWebsitePreview || isAppWorkspace ? (
+    <div className="min-h-dvh">
+      {isLandingPage || isAuthCallback || isResetPassword || isAgentPublicPage || isDoctorCalendarPage || isWebsitePreview || isAppWorkspace || isMarketingPage ? (
         <Suspense fallback={<LoadingFallback />}>
           <Routes>
             <Route
@@ -142,6 +157,11 @@ function AppContent() {
             {/* Website preview - no auth required, opens in new tab */}
             <Route path="/website-preview" element={<WebsitePreview />} />
 
+            {/* Public marketing pages — dedicated routes for SEO/AI-answer indexing */}
+            <Route path="/pricing" element={<Pricing />} />
+            <Route path="/faq" element={<FAQPage />} />
+            <Route path="/solutions" element={<SolutionsPage />} />
+
             {/* Standalone app workspace — auth required, opens in new tab, no dashboard chrome */}
             <Route
               path="/app/:appId"
@@ -171,7 +191,7 @@ function AppContent() {
       ) : (
         <ProtectedRoute>
           <Suspense fallback={<LoadingFallback />}>
-            <div className="bg-gradient-to-br from-slate-100 via-slate-200 to-slate-300 dark:from-slate-900 dark:via-slate-800 dark:to-slate-700 transition-colors duration-300 min-h-screen">
+            <div className="bg-gradient-to-br from-slate-100 via-slate-200 to-slate-300 dark:from-slate-900 dark:via-slate-800 dark:to-slate-700 transition-colors duration-300 min-h-dvh">
               <div className="flex">
                 <Sidebar
                   isOpen={sidebarOpen}
@@ -204,7 +224,10 @@ function AppContent() {
                       />
                       <Route path="/agents/:id/train" element={<Training />} />
                       <Route path="/training" element={<Training />} />
+                      <Route path="/call-setup" element={<CallSetup />} />
                       <Route path="/workflows" element={<Workflows />} />
+                      <Route path="/campaigns/:campaignId" element={<CampaignDetail />} />
+                      <Route path="/contacts/:contactId/call-history" element={<ContactCallHistory />} />
                       <Route path="/marketplace" element={<Marketplace />} />
                       <Route path="/marketplace/:appId" element={<AppDetail />} />
                       {/* Website Builder now lives in its standalone workspace — redirect legacy route */}
@@ -215,6 +238,8 @@ function AppContent() {
                       <Route path="/settings" element={<Settings />} />
                       <Route path="/google-sheets" element={<GoogleSheetsManager />} />
                       <Route path="/google-sheets/:id/view" element={<GoogleSheetView />} />
+                      <Route path="/zoho" element={<ZohoManager />} />
+                      <Route path="/google-calendar" element={<GoogleCalendarManager />} />
 
                       {/* Default route for authenticated users */}
                       <Route path="/" element={<HomeRedirect />} />
@@ -222,10 +247,6 @@ function AppContent() {
                       {/* Redirect routes to home */}
                       <Route
                         path="/ai-employee"
-                        element={<Navigate to="/dashboard" replace />}
-                      />
-                      <Route
-                        path="/pricing"
                         element={<Navigate to="/dashboard" replace />}
                       />
                       <Route
@@ -310,23 +331,26 @@ function useVersionCheck() {
 function App() {
   useVersionCheck();
   return (
-    <AuthProvider>
-      {" "}
-      {/* Wrap with AuthProvider */}
-      <ThemeProvider>
-        <Router>
-          <AgentProvider>
-            <ScrollToTop />
-            <AppContent />
-            <Toaster
-              position="top-right"
-              toastOptions={{ duration: 4000 }}
-              containerStyle={{ zIndex: 99999 }}
-            />
-          </AgentProvider>
-        </Router>
-      </ThemeProvider>
-    </AuthProvider>
+    <HelmetProvider>
+      <AuthProvider>
+        {" "}
+        {/* Wrap with AuthProvider */}
+        <ThemeProvider>
+          <Router>
+            <AgentProvider>
+              <ScrollToTop />
+              <AppContent />
+              <Toaster
+                position="top-right"
+                toastOptions={{ duration: 4000 }}
+                containerStyle={{ zIndex: 2147483646 }}
+                containerClassName="!z-[2147483646]"
+              />
+            </AgentProvider>
+          </Router>
+        </ThemeProvider>
+      </AuthProvider>
+    </HelmetProvider>
   );
 }
 

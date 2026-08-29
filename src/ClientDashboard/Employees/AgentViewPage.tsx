@@ -28,6 +28,8 @@ import {
   Zap,
   Phone,
   PhoneCall,
+  PhoneIncoming,
+  PhoneOutgoing,
   Settings,
   X,
   Send,
@@ -47,6 +49,9 @@ import {
   ExternalLink,
   ChevronDown,
   UserCog,
+  AlertTriangle,
+  MessageCircle,
+  Mail,
 } from "lucide-react";
 import { workflowAPI } from "../../services/workflowAPI";
 import { authAPI } from "../../services/authAPI";
@@ -75,6 +80,9 @@ interface AgentViewPageProps {
   handlePublishCancel: () => void;
   handlePublishConfirm: () => void;
   isPublishing: boolean;
+  showPublishContactModal: boolean;
+  salesWhatsAppHref: string;
+  salesEmailHref: string;
 
   // Pause
   handlePause: (id: string) => void;
@@ -137,6 +145,9 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
   handlePublishCancel,
   handlePublishConfirm,
   isPublishing,
+  showPublishContactModal,
+  salesWhatsAppHref,
+  salesEmailHref,
   handlePause,
   showPauseConfirm,
   handlePauseCancel,
@@ -353,6 +364,16 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
   const isActive =
     agent?.status === "Published" || (agent as any)?.is_active;
 
+  // Primary channel tag — shown next to the Live/Unpublished status badge.
+  const agentChannelType = (agent as any)?.agent_type as string | undefined;
+  const channelTagMeta = agentChannelType
+    ? agentChannelType === "inbound"
+      ? { label: "Inbound", Icon: PhoneIncoming, cls: "bg-black" }
+      : agentChannelType === "outbound"
+        ? { label: "Outbound", Icon: PhoneOutgoing, cls: "bg-black" }
+        : { label: "Web", Icon: Globe, cls: "bg-black" }
+    : null;
+
   return (
     <div className="space-y-3 sm:space-y-4 lg:space-y-6 w-full">
       <GlassCard>
@@ -376,15 +397,14 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
                 <h1 className="text-sm font-bold text-slate-800 dark:text-white leading-tight truncate">
                   {agent.name}
                 </h1>
-                <span
-                  className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${
-                    isActive
-                      ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
-                      : "bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400"
-                  }`}
-                >
-                  {isActive ? "Live" : "Unpublished"}
-                </span>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  {channelTagMeta && (
+                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold text-white shadow-sm ${channelTagMeta.cls}`}>
+                      <channelTagMeta.Icon className="w-2.5 h-2.5" />
+                      {channelTagMeta.label}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -474,15 +494,14 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
                 <h1 className="text-xl lg:text-2xl font-bold text-slate-800 dark:text-white leading-tight truncate">
                   {agent.name}
                 </h1>
-                <span
-                  className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium mt-1 ${
-                    isActive
-                      ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
-                      : "bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400"
-                  }`}
-                >
-                  {isActive ? "Live" : "Unpublished"}
-                </span>
+                <div className="flex items-center gap-2 mt-1">
+                  {channelTagMeta && (
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold text-white shadow-sm ${channelTagMeta.cls}`}>
+                      <channelTagMeta.Icon className="w-3.5 h-3.5" />
+                      {channelTagMeta.label}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -595,6 +614,7 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
                 {(agent as any).personality || agent.persona}
               </p>
             </div>
+
 
             <div className="p-2 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
               <div className="flex items-center gap-1.5 mb-1">
@@ -1636,6 +1656,49 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
                       <span>Publish</span>
                     </>
                   )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Upgrade Required to Publish Modal */}
+      {showPublishContactModal && (
+        <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-xl border border-slate-200 dark:border-slate-700">
+            <div className="p-6">
+              <div className="flex items-center justify-center w-12 h-12 bg-amber-100 dark:bg-amber-900/20 rounded-full mx-auto mb-4">
+                <AlertTriangle className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+              </div>
+              <h3 className="text-xl font-semibold text-slate-800 dark:text-white text-center mb-2">
+                Upgrade to Publish Live
+              </h3>
+              <p className="text-sm text-slate-600 dark:text-slate-400 text-center mb-6">
+                Publishing an agent live is available on a paid subscription. Upgrade your plan or contact our sales team to enable go-live access for your account.
+              </p>
+              <div className="flex flex-col gap-3">
+                <a
+                  href={salesWhatsAppHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="h-11 px-4 rounded-xl bg-green-600 text-white hover:bg-green-700 transition-all duration-200 font-medium flex items-center justify-center gap-2"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  <span>Contact on WhatsApp</span>
+                </a>
+                <a
+                  href={salesEmailHref}
+                  className="h-11 px-4 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 transition-all duration-200 font-medium flex items-center justify-center gap-2"
+                >
+                  <Mail className="w-4 h-4" />
+                  <span>Send Email</span>
+                </a>
+                <button
+                  onClick={handlePublishCancel}
+                  className="h-11 px-4 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-all duration-200 font-medium"
+                >
+                  Close
                 </button>
               </div>
             </div>

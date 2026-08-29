@@ -407,6 +407,17 @@
     "/app/",
     "/doctor-calendar",
     "/website-preview",
+    "/analytics",
+    "/workflows",
+    "/campaigns",
+    "/settings",
+    "/training",
+    "/marketplace",
+    "/overview",
+    "/monitoring",
+    "/apps",
+    "/auth/",
+    "/reset-password",
   ];
 
   function isShivaiHostedApp() {
@@ -415,7 +426,9 @@
       h === "callshivai.com" ||
       h === "www.callshivai.com" ||
       h === "localhost" ||
-      h === "127.0.0.1"
+      h === "127.0.0.1" ||
+      h.endsWith(".callshivai.com") ||
+      h.indexOf("shivai-calling-frontend") !== -1
     );
   }
 
@@ -472,9 +485,6 @@
   applyBootScriptFlags();
 
   function shouldAllowWidget5OnThisPage() {
-    // External client websites — always show the embed
-    if (!isShivaiHostedApp()) return true;
-
     var params = getWidget5ScriptParams();
     // Preview iframe, QR, and agent test pages pass bypass=true
     if (params && params.get("bypass") === "true") return true;
@@ -482,12 +492,16 @@
     var path = window.location.pathname || "";
     if (path.indexOf("/MyAIEmployee") === 0) return true;
 
-    // Landing page is handled by widget4.js — never show widget5 there
-    if (isLandingOnlyRoute()) return false;
-
+    // Dashboard / app routes — never show, even on unrecognized preview hosts
     for (var i = 0; i < WIDGET5_BLOCKED_ON_HOST_PREFIXES.length; i++) {
       if (path.indexOf(WIDGET5_BLOCKED_ON_HOST_PREFIXES[i]) === 0) return false;
     }
+
+    // External client websites — always show the embed
+    if (!isShivaiHostedApp()) return true;
+
+    // Landing page is handled by widget4.js — never show widget5 there
+    if (isLandingOnlyRoute()) return false;
 
     return false;
   }
@@ -558,7 +572,11 @@
   function isWidgetVisibilityAllowed(visibility, allowedDomains, skipCheck) {
     if (skipCheck) return true;
     var mode = String(visibility || "public").toLowerCase();
-    if (mode !== "private") return true;
+    // public (or any non-private value) → no domain / URL restriction
+    if (mode !== "private") {
+      _wlog("✅ Widget visibility is public — no domain restriction");
+      return true;
+    }
 
     var list = Array.isArray(allowedDomains) ? allowedDomains : [];
     var cleaned = list.map(function (d) { return String(d || "").trim(); }).filter(Boolean);
@@ -8049,19 +8067,27 @@
         console.warn("⚠️ No userId found, tenant_id will not be sent");
       }
 
+      // widget_key comes from the widget config already fetched earlier
+      // (see agent-configs API response — widget.widget_key), stored on
+      // window.SHIVAI_WIDGET_CONFIG.
+      const widgetKey = (window.SHIVAI_WIDGET_CONFIG && window.SHIVAI_WIDGET_CONFIG.widget_key) || null;
+      if (!widgetKey) {
+        console.warn("⚠️ No widget_key found on SHIVAI_WIDGET_CONFIG — /widget-token call will likely be rejected");
+      }
+
       const response = await fetchWithTimeout(
-        "https://voice.callshivai.com/token",
+        "https://staging.voice.callshivai.com/widget-token",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             agent_id: agentId,
+            widget_key: widgetKey,
             language: selectedLanguage,
-            room: roomName,
             device: deviceType,
-            user_agent: navigator.userAgent,
-            ip: await getClientIP(),
-            ...(userId && { tenant_id: userId })
+            client_info: {
+              user_agent: navigator.userAgent,
+            },
           }),
         },
         CONNECTION_TIMEOUT
@@ -8072,7 +8098,9 @@
       }
 
       const data = await response.json();
-      window.currentCallId = roomName;
+      // Server now assigns the room — trust its room_name rather than the
+      // client-generated placeholder. end-call keeps using room_name.
+      window.currentCallId = data.room_name || roomName;
       if (!isConnecting) {
         _wlog("❌ Connection cancelled after token received");
         return;

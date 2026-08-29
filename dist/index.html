@@ -28,51 +28,23 @@
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Poppins:wght@300;400;500;600;700&display=swap" />
     </noscript>
 
+    <!--
+      Title, description, canonical, and OG/Twitter tags are intentionally
+      NOT hardcoded here. Every route renders its own via the <SEO>
+      component (src/components/SEO.tsx, react-helmet-async) — including
+      Landing.tsx for "/" and "/landing". react-helmet-async only
+      dedupes tags it renders itself; a static tag here would sit
+      alongside Helmet's version instead of being replaced by it,
+      producing duplicate <meta name="description">/<meta property="og:*">
+      tags in the live DOM. This bare fallback title covers the brief
+      pre-hydration window and JS-disabled crawlers only.
+    -->
     <title>
       Every Business Will Soon Hire an AI Employee. Meet ShivAI, Your First AI Hire.
     </title>
-
-    <!-- ✅ Primary Meta Tags -->
-    <meta
-      name="title"
-      content="Every Business Will Soon Hire an AI Employee. Meet ShivAI, Your First AI Hire."
-    />
-    <meta
-      name="description"
-      content="Deploy AI employees that answer calls, qualify leads, book appointments, support customers and engage website visitors 24/7 using natural voice conversations—without writing code."
-    />
     <meta
       name="keywords"
       content="ShivAI, CallShivAI,Shiv ai, Ai shiv, AI calling, AI calling app, AI voice assistant, voice AI, AI-powered calling, virtual agent, AI sales assistant, AI calling software"
-    />
-
-    <!-- ✅ Open Graph / Facebook -->
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://callshivai.com" />
-    <meta
-      property="og:title"
-      content="Every Business Will Soon Hire an AI Employee. Meet ShivAI, Your First AI Hire."
-    />
-    <meta
-      property="og:description"
-      content="Deploy AI employees that answer calls, qualify leads, book appointments, support customers and engage website visitors 24/7 using natural voice conversations—without writing code."
-    />
-    <meta property="og:image" content="https://callshivai.com/Shivai1.png" />
-    <meta property="og:image:alt" content="ShivAI – AI Calling Assistant" />
-
-    <meta property="twitter:card" content="summary_large_image" />
-    <meta property="twitter:url" content="https://callshivai.com" />
-    <meta
-      property="twitter:title"
-      content="Every Business Will Soon Hire an AI Employee. Meet ShivAI, Your First AI Hire."
-    />
-    <meta
-      property="twitter:description"
-      content="Deploy AI employees that answer calls, qualify leads, book appointments, support customers and engage website visitors 24/7 using natural voice conversations—without writing code."
-    />
-    <meta
-      property="twitter:image"
-      content="https://callshivai.com/Shivai1.png"
     />
 
     <script type="application/ld+json">
@@ -85,15 +57,8 @@
         "image": "https://callshivai.com/Shivai1.png",
         "screenshot": "https://callshivai.com/Shivai1.png",
         "applicationCategory": "BusinessApplication",
-        "operatingSystem": "Web",
-        "operatingSystem": "Android",
-        "operatingSystem": "iOS",
+        "operatingSystem": "Web, Android, iOS",
         "description": "Deploy AI employees that answer calls, qualify leads, book appointments, support customers and engage website visitors 24/7 using natural voice conversations—without writing code.",
-        "aggregateRating": {
-          "@type": "AggregateRating",
-          "ratingValue": "4.8",
-          "ratingCount": "150"
-        },
         "offers": {
           "@type": "Offer",
           "price": "0",
@@ -117,8 +82,8 @@
         ],
         "sameAs": [
           "https://www.linkedin.com/in/shivai-tech-52ab90382",
-          "https://twitter.com/shivai",
-          "https://github.com/shivai"
+          "https://twitter.com/callshivai",
+          "https://www.instagram.com/callshivai"
         ]
       }
     </script>
@@ -145,10 +110,10 @@
       href="/assets/shiv-D3Go-VCq.webp"
       fetchpriority="high"
     />
-    <script type="module" crossorigin src="/assets/index-e_v3agfm.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/vendor-react-nekZIeOw.js">
-    <link rel="modulepreload" crossorigin href="/assets/vendor-motion-BvTb3w7n.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-C8457zTM.css">
+    <script type="module" crossorigin src="/assets/index-DiCzWPfl.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/vendor-react-ZFq0RoOv.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-motion-DATsPUvo.js">
+    <link rel="stylesheet" crossorigin href="/assets/index-ChUveT1C.css">
   </head>
 
   <body>

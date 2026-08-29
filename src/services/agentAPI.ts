@@ -121,12 +121,119 @@ voiceApiClient.interceptors.response.use(
   makeAuthRetryInterceptor(voiceApiClient)
 );
 
+// ── TTS voice catalog ────────────────────────────────────────────────────────
+// GET /api/v1/voice/catalog — control-plane only, never called during a live
+// call. See docs: TTS Provider Catalog API.
+
+export type TtsProviderId = "google_chirp" | "cartesia" | "openai";
+
+export interface VoiceCatalogVoice {
+  id: string;
+  name: string;
+  gender?: string;
+}
+
+export interface VoiceCatalogModel {
+  id: string;
+  name: string;
+  streaming: boolean;
+  voice_id_format?: string;
+  voices: VoiceCatalogVoice[];
+}
+
+export interface VoiceCatalogProvider {
+  id: TtsProviderId;
+  name: string;
+  configured: boolean;
+  supports_emotions: boolean;
+  emotion_profiles: string[];
+  models: VoiceCatalogModel[];
+}
+
+export interface VoiceCatalog {
+  languages: string[];
+  providers: VoiceCatalogProvider[];
+}
+
+/** Persisted on the agent document and sent back from create/get/update. */
+export interface TtsConfig {
+  provider: TtsProviderId;
+  model: string;
+  voice_id: string;
+  language: string;
+  speed: number;
+  emotion_enabled: boolean;
+  emotion_profile: string;
+}
+
+// ── Call summary (/api/v1/summaries/*) ──────────────────────────────────────
+// The analytics service owns this shape and can add fields without notice, so
+// every field below the "always present" block is treated as optional at the
+// call site — never assume presence, default with `?? ''` / `?? []`.
+
+export type CallSummaryUrgency = "high" | "medium" | "low" | "unknown";
+export type CallSummaryOutcome =
+  | "resolved"
+  | "partially_resolved"
+  | "unresolved"
+  | "callback_required"
+  | "no_action_needed";
+export type CallSummarySentiment = "positive" | "neutral" | "negative";
+
+export interface CallSummaryLead {
+  name?: string;
+  organisation?: string;
+  requirement?: string;
+  eventDate?: string;
+  location?: string;
+  budget?: string;
+  timeline?: string;
+  quantity?: string;
+  email?: string;
+  phone?: string;
+  qualified?: boolean;
+  missingInfo?: string[];
+}
+
+export interface CallSummary {
+  id: string;
+  agentId: string;
+  callId: string;
+  direction: "inbound" | "outbound" | null;
+  callerNumber: string | null;
+  createdAt: string;
+  updatedAt: string;
+  summaryUrl?: string | null;
+
+  urgency?: CallSummaryUrgency;
+  urgencyReason?: string;
+  callerIntent?: string;
+  summary?: string;
+  outcome?: CallSummaryOutcome;
+  sentiment?: CallSummarySentiment;
+  followUpRequired?: boolean;
+  followUpReason?: string;
+
+  keyPoints?: string[];
+  questionsAsked?: string[];
+  questionsUnanswered?: string[];
+  actionItems?: string[];
+
+  lead?: CallSummaryLead;
+
+  requestedData?: string;
+  responseData?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+  deliveryChannels?: string[];
+}
+
 export interface ApiAgent {
   id: string;
   name: string;
   status: "Pending" | "Published";
   personality: string;
-  language: string;
+  language?: string | string[];
   voice: string;
   createdAt: string;
   updatedAt?: string;
@@ -140,6 +247,10 @@ export interface ApiAgent {
   max_response_length?: string;
   context_window?: string;
   temperature?: number;
+  /** Primary channel the agent communicates on. */
+  agent_type?: "webrtc" | "inbound" | "outbound";
+  /** TTS provider/model/voice selection — see TTS Provider Catalog API. */
+  tts?: TtsConfig;
   greeting_message?: {
     [key: string]: string;
   };
@@ -199,6 +310,10 @@ interface CreateAgentRequest {
   max_response_length: string;
   context_window: string;
   temperature: number;
+  /** Primary channel the agent communicates on. */
+  agent_type?: "webrtc" | "inbound" | "outbound";
+  /** TTS provider/model/voice selection — see TTS Provider Catalog API. */
+  tts?: TtsConfig;
 }
 
 interface UpdateAgentRequest {
@@ -218,6 +333,10 @@ interface UpdateAgentRequest {
   context_window?: string;
   temperature?: number;
   status?: "Pending" | "Published";
+  /** Primary channel the agent communicates on. */
+  agent_type?: "webrtc" | "inbound" | "outbound";
+  /** TTS provider/model/voice selection — see TTS Provider Catalog API. */
+  tts?: TtsConfig;
   template?: {
     name: string;
     description: string;
@@ -601,8 +720,57 @@ class AgentAPI {
     }
   }
 
-  // Get call summary for an agent
-  async getCallSummary(agentId: string): Promise<any> {
+  // Call summary keyed by the same call id the recording/transcript use — direct lookup, no matching needed.
+  async getCallSummaryByCallId(callId: string): Promise<CallSummary | null> {
+    try {
+      const response: AxiosResponse<{
+        success: boolean;
+        data: { summary: CallSummary };
+        message?: string;
+      }> = await apiClient.get(`/summaries/call/${encodeURIComponent(callId)}`);
+
+      if (response.data.success && response.data.data?.summary) {
+        return response.data.data.summary;
+      }
+      return null;
+    } catch (error: any) {
+      if (error?.response?.status === 404) return null;
+      console.error("Error fetching call summary:", error);
+      throw error;
+    }
+  }
+
+  // Paginated, newest-first summaries for an agent — used as a fallback when a call id isn't known yet.
+  async getCallSummariesForAgent(
+    agentId: string,
+    params: { page?: number; limit?: number; sortOrder?: "asc" | "desc" } = {}
+  ): Promise<{ summaries: CallSummary[]; pagination?: any }> {
+    try {
+      const { page = 1, limit = 10, sortOrder = "desc" } = params;
+      const response: AxiosResponse<{
+        success: boolean;
+        data: { summaries: CallSummary[] };
+        meta?: { pagination?: any };
+      }> = await apiClient.get(`/summaries/agent/${agentId}`, {
+        params: { page, limit, sortOrder },
+      });
+
+      if (response.data.success) {
+        return {
+          summaries: response.data.data?.summaries || [],
+          pagination: response.data.meta?.pagination,
+        };
+      }
+      return { summaries: [] };
+    } catch (error: any) {
+      console.error("Error fetching agent call summaries:", error);
+      throw error;
+    }
+  }
+
+  // Leads captured for an agent — separate from /summaries: this is lead-management data
+  // (status, tags, qualification), not the AI-generated per-call summary.
+  async getLeadsForAgent(agentId: string): Promise<any> {
     try {
       const response: AxiosResponse<{
         success: boolean;
@@ -614,9 +782,9 @@ class AgentAPI {
         return response.data.data;
       }
 
-      throw new Error(response.data.message || "Failed to fetch call summary");
+      throw new Error(response.data.message || "Failed to fetch leads");
     } catch (error: any) {
-      console.error("Error fetching call summary:", error);
+      console.error("Error fetching leads:", error);
       throw error;
     }
   }
@@ -687,6 +855,46 @@ class AgentAPI {
       console.error("Error creating agent (full):", error);
       throw error;
     }
+  }
+
+  // ── TTS voice catalog ────────────────────────────────────────────────────
+  // Control-plane only — call once after login and cache the result. Never
+  // call this during token issuance or a live call.
+  private voiceCatalogPromise: Promise<VoiceCatalog> | null = null;
+
+  async getVoiceCatalog(options?: { provider?: TtsProviderId; forceRefresh?: boolean }): Promise<VoiceCatalog> {
+    // Only cache the unfiltered (all-providers) fetch — a provider-scoped
+    // fetch always hits the network fresh.
+    if (!options?.provider && !options?.forceRefresh && this.voiceCatalogPromise) {
+      return this.voiceCatalogPromise;
+    }
+
+    const request = (async () => {
+      try {
+        const response: AxiosResponse<{
+          success: boolean;
+          data: VoiceCatalog;
+        }> = await apiClient.get("/voice/catalog", {
+          params: options?.provider ? { provider: options.provider } : undefined,
+        });
+
+        if (response.data.success && response.data.data) {
+          return response.data.data;
+        }
+        throw new Error("Failed to load voice catalog");
+      } catch (error: any) {
+        console.error("Error fetching voice catalog:", error);
+        throw error;
+      }
+    })();
+
+    if (!options?.provider) {
+      this.voiceCatalogPromise = request;
+      // Don't cache a rejected promise — let the next call retry.
+      request.catch(() => { this.voiceCatalogPromise = null; });
+    }
+
+    return request;
   }
 
   // Generate AI Prompt API - with extended timeout for AI generation

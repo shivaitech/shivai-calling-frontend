@@ -2,6 +2,170 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+/**
+ * Word-level diff (LCS-based) between two single lines. Tokenizes on
+ * whitespace and punctuation boundaries (each kept as its own token so
+ * spacing round-trips exactly and an inserted comma doesn't glue onto the
+ * adjacent word) and returns `next`'s tokens tagged added/unchanged.
+ */
+function diffLineTokens(prev: string, next: string): Array<{ text: string; added: boolean }> {
+  const tokenize = (s: string) => s.match(/\s+|[A-Za-z0-9_']+|[^\sA-Za-z0-9_']/g) || [];
+  const a = tokenize(prev);
+  const b = tokenize(next);
+
+  if (a.length * b.length > 4_000_000) {
+    return [{ text: next, added: false }];
+  }
+
+  const n = a.length;
+  const m = b.length;
+  const dp: Uint16Array[] = new Array(n + 1);
+  for (let i = 0; i <= n; i++) dp[i] = new Uint16Array(m + 1);
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+
+  const tokens: Array<{ text: string; added: boolean }> = [];
+  let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (a[i] === b[j]) {
+      tokens.push({ text: b[j], added: false });
+      i++; j++;
+    } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+      i++; // token only in prev (removed) — skip, this view only shows `next`
+    } else {
+      tokens.push({ text: b[j], added: true });
+      j++;
+    }
+  }
+  while (j < m) {
+    tokens.push({ text: b[j], added: true });
+    j++;
+  }
+
+  const merged: Array<{ text: string; added: boolean }> = [];
+  for (const t of tokens) {
+    const last = merged[merged.length - 1];
+    if (last && last.added === t.added) last.text += t.text;
+    else merged.push({ ...t });
+  }
+  return merged;
+}
+
+/** Token-set similarity (Jaccard over words) — used to decide whether two
+ * non-identical lines are "the same line, reworded" (worth a word-level diff)
+ * or genuinely different lines (the whole next-line should just show as added). */
+function lineSimilarity(a: string, b: string): number {
+  const words = (s: string) => new Set((s.toLowerCase().match(/[a-z0-9']+/g) || []));
+  const wa = words(a);
+  const wb = words(b);
+  if (wa.size === 0 && wb.size === 0) return 1;
+  if (wa.size === 0 || wb.size === 0) return 0;
+  let shared = 0;
+  for (const w of wa) if (wb.has(w)) shared++;
+  return shared / (wa.size + wb.size - shared);
+}
+
+/**
+ * Diff used to highlight what an AI edit actually changed, run at the LINE
+ * level first (an LCS over whole lines is unambiguous for a wholly new/removed
+ * line — unlike word-level LCS, it can't mistake a brand-new sentence for a
+ * "match" just because it happens to reuse common words scattered elsewhere
+ * in a long document). Lines that don't match exactly but are similar enough
+ * to be "the same line reworded" get a word-level diff for precise inline
+ * highlighting; lines with no reasonable match are shown as fully added.
+ */
+function diffHighlightTokens(prev: string, next: string): Array<{ text: string; added: boolean }> {
+  // Split into lines, keeping the newline with each line so it round-trips.
+  const splitLines = (s: string) => {
+    const out: string[] = [];
+    let start = 0;
+    for (let i = 0; i < s.length; i++) {
+      if (s[i] === '\n') { out.push(s.slice(start, i + 1)); start = i + 1; }
+    }
+    out.push(s.slice(start));
+    return out;
+  };
+  const a = splitLines(prev);
+  const b = splitLines(next);
+  const stripNl = (l: string) => (l.endsWith('\n') ? l.slice(0, -1) : l);
+
+  const n = a.length;
+  const m = b.length;
+  if (n * m > 4_000_000) {
+    return [{ text: next, added: false }];
+  }
+  const dp: Uint16Array[] = new Array(n + 1);
+  for (let i = 0; i <= n; i++) dp[i] = new Uint16Array(m + 1);
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+
+  const tokens: Array<{ text: string; added: boolean }> = [];
+  let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (a[i] === b[j]) {
+      tokens.push({ text: b[j], added: false });
+      i++; j++;
+    } else if (lineSimilarity(stripNl(a[i]), stripNl(b[j])) >= 0.4) {
+      // Treat as "same line, reworded" whenever the two lines directly facing
+      // each other are similar enough — checked BEFORE falling back to the
+      // line-LCS remove/insert tie-break, otherwise a single reworded line
+      // (n=1, m=1, so dp ties at 0 either way) gets resolved as "old line
+      // removed, new line inserted" and word-level highlighting is lost —
+      // the whole line renders as added instead of just what changed.
+      tokens.push(...diffLineTokens(stripNl(a[i]), stripNl(b[j])));
+      if (b[j].endsWith('\n')) tokens.push({ text: '\n', added: false });
+      i++; j++;
+    } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+      i++; // line only in prev (removed) — skip
+    } else {
+      tokens.push({ text: b[j], added: true });
+      j++;
+    }
+  }
+  while (j < m) {
+    tokens.push({ text: b[j], added: true });
+    j++;
+  }
+
+  const merged: Array<{ text: string; added: boolean }> = [];
+  for (const t of tokens) {
+    const last = merged[merged.length - 1];
+    if (last && last.added === t.added) last.text += t.text;
+    else merged.push({ ...t });
+  }
+  return merged;
+}
+
+/**
+ * Reduces diffHighlightTokens' output down to just the lines of `next` that
+ * contain at least one added token — a quick "what's new" summary separate
+ * from the full inline-highlighted prompt.
+ */
+function extractAddedLines(tokens: Array<{ text: string; added: boolean }>): string[] {
+  // Rebuild line-by-line, tracking whether each line has any added token.
+  const lines: Array<{ text: string; hasAdded: boolean }> = [{ text: '', hasAdded: false }];
+  for (const tok of tokens) {
+    const parts = tok.text.split('\n');
+    parts.forEach((part, idx) => {
+      if (idx > 0) lines.push({ text: '', hasAdded: false });
+      const current = lines[lines.length - 1];
+      current.text += part;
+      if (tok.added && part.length > 0) current.hasAdded = true;
+    });
+  }
+  return lines
+    .filter((l) => l.hasAdded && l.text.trim().length > 0)
+    .map((l) => l.text.trim());
+}
+
+const NO_NEW_LINES_MESSAGE = 'No new lines detected — only wording within existing lines changed.';
+
 /** Renders text content with search match highlights for the overlay div */
 function renderHighlightedContent(
   content: string,
@@ -334,7 +498,7 @@ function reconstructKbJson(originalJson: any, editedText: string): string {
 
 import { useParams, useNavigate } from 'react-router-dom';
 import appToast from '../../components/AppToast';
-import { ArrowLeft, Save, X, Bot, Globe, Settings, Sparkles, Info, Upload, Link, Share2, FileText, File, Image, Plus, BookOpen, Volume2, Play, Square, Pencil, Check, Loader2, Eye, Code2, Search, ChevronUp, ChevronDown, Trash2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Save, X, Bot, Globe, Settings, Sparkles, Info, Upload, Link, Share2, FileText, File, Image, Plus, BookOpen, Volume2, Play, Square, Pencil, Check, Loader2, Eye, Code2, Search, ChevronUp, ChevronDown, Trash2, RefreshCw, PhoneIncoming, PhoneOutgoing, Wand2, ArrowRight, AlertTriangle } from 'lucide-react';
 import { useAgent } from '../../contexts/AgentContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { agentAPI } from '../../services/agentAPI';
@@ -342,6 +506,7 @@ import { aiTemplateService } from '../../services/aiTemplateService';
 import GlassCard from '../../components/GlassCard';
 import { formatAgentLanguages } from '../../lib/utils';
 import SearchableSelect from '../../components/SearchableSelect';
+import TTSVoiceSelector, { TTSVoiceSelectorValue, toTtsConfig } from '../../components/TTSVoiceSelector';
 
 // Voice style → short instruction for voice_config.voice_instruction
 const VOICE_STYLE_SHORT_MAP: Record<string, string> = {
@@ -514,13 +679,53 @@ const EditAgent = () => {
     realtimeVoice: "alloy",
   });
 
+  // Primary channel — how this agent communicates (Web widget / Inbound calls / Outbound calls)
+  const [agentType, setAgentType] = useState<"webrtc" | "inbound" | "outbound">("webrtc");
+
+  // TTS provider/model/voice selection — see TTS Provider Catalog API.
+  // Agents saved before this feature have no tts object; default to
+  // Google Chirp with no voice pre-selected rather than showing a broken picker.
+  // Voice/provider is an audio concern, not a script-content concern, so unlike
+  // Primary channel it does not trigger the mandatory template-regeneration flow.
+  const [ttsConfig, setTtsConfig] = useState<TTSVoiceSelectorValue>({
+    provider: "google_chirp",
+    model: "",
+    voice_id: "",
+    language: "en-IN",
+    speed: 1,
+    emotion_enabled: false,
+    emotion_profile: "neutral",
+  });
+
   const [templateData, setTemplateData] = useState<any>(null);
   const [isRegeneratingTemplate, setIsRegeneratingTemplate] = useState(false);
   const [isSpGenerating, setIsSpGenerating] = useState(false);
+
+  // "Fix with AI" — targeted prompt-issue editor (Template tab)
+  const [showFixPromptModal, setShowFixPromptModal] = useState(false);
+  const [fixPromptStep, setFixPromptStep] = useState<'describe' | 'loading' | 'preview'>('describe');
+  const [fixPromptIssue, setFixPromptIssue] = useState('');
+  const [fixPromptError, setFixPromptError] = useState<string | null>(null);
+  const [fixPromptResult, setFixPromptResult] = useState<string | null>(null);
+  // Snapshot of the prompt as it was when the fix request was sent — the diff
+  // baseline stays stable even if formData changes while the modal is open.
+  const [fixPromptOriginal, setFixPromptOriginal] = useState<string>('');
+
+  // "Regenerate Template" diff preview — shown once the (possibly two-phase,
+  // background-callback-driven) regeneration settles, before it's written
+  // into formData.customInstructions.
+  const [showRegenPreviewModal, setShowRegenPreviewModal] = useState(false);
+  const [regenPreviewOriginal, setRegenPreviewOriginal] = useState<string>('');
+  const [regenPreviewResult, setRegenPreviewResult] = useState<string>('');
   const [templateRegenNeeded, setTemplateRegenNeeded] = useState(false);
+  // True only when the Primary channel changed — the system prompt shell is
+  // fundamentally different per channel (see outboundPromptShell.ts), so a
+  // stale prompt here is actively wrong, not just suboptimal. Blocks save
+  // and can't be dismissed until the template is regenerated.
+  const [channelRegenRequired, setChannelRegenRequired] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   // Stores the baseline key fields as loaded from API — used to detect meaningful changes
-  const baselineTemplateFieldsRef = useRef<{ businessProcess: string; industry: string; subIndustry: string; voiceStyle: string } | null>(null);
+  const baselineTemplateFieldsRef = useRef<{ businessProcess: string; industry: string; subIndustry: string; voiceStyle: string; agentType: string } | null>(null);
   // Tracks the original company name loaded from the API to detect user changes
   const originalCompanyNameRef = useRef<string>('');
   const originalAgentNameRef = useRef<string>('');
@@ -556,21 +761,24 @@ const EditAgent = () => {
   useEffect(() => {
     if (!isLoadedRef.current) return;
     setIsDirty(true);
-  }, [formData, templateData]);
+  }, [formData, templateData, agentType, ttsConfig]);
 
   // Detect when key template-driving fields drift from their loaded baseline
   useEffect(() => {
     if (!templateData || !baselineTemplateFieldsRef.current) return;
     const baseline = baselineTemplateFieldsRef.current;
+    const channelChanged = agentType !== baseline.agentType;
     const changed =
       formData.businessProcess !== baseline.businessProcess ||
       formData.industry !== baseline.industry ||
       formData.subIndustry !== baseline.subIndustry ||
       formData.voiceStyle !== baseline.voiceStyle ||
+      channelChanged ||
       (originalCompanyNameRef.current !== '' && formData.companyName !== originalCompanyNameRef.current) ||
       (originalAgentNameRef.current !== '' && formData.name !== originalAgentNameRef.current);
     setTemplateRegenNeeded(changed);
-  }, [formData.businessProcess, formData.industry, formData.subIndustry, formData.voiceStyle, formData.companyName, formData.name, templateData]);
+    setChannelRegenRequired(channelChanged);
+  }, [formData.businessProcess, formData.industry, formData.subIndustry, formData.voiceStyle, formData.companyName, formData.name, agentType, templateData]);
 
   // When the user explicitly changes Voice Style, patch the Voice Instructions
   // section of the system prompt with the new static content.
@@ -760,6 +968,32 @@ const EditAgent = () => {
           countries: Array.isArray((agentData as any).countries) ? (agentData as any).countries : [],
           realtimeVoice: (agentData as any).multilingual_voice || "alloy",
         });
+        setAgentType((agentData as any).agent_type || "webrtc");
+
+        // Legacy agents (created before this feature) have no tts object —
+        // default to Google Chirp with no voice pre-selected rather than
+        // showing a broken/empty picker built from the old flat voice field.
+        const loadedTts = (agentData as any).tts as TTSVoiceSelectorValue | undefined;
+        const initialTts: TTSVoiceSelectorValue = loadedTts
+          ? {
+              provider: loadedTts.provider || "google_chirp",
+              model: loadedTts.model || "",
+              voice_id: loadedTts.voice_id || "",
+              language: loadedTts.language || "en-IN",
+              speed: loadedTts.speed ?? (agentData as any).voice_speed ?? 1,
+              emotion_enabled: loadedTts.emotion_enabled ?? false,
+              emotion_profile: loadedTts.emotion_profile || "neutral",
+            }
+          : {
+              provider: "google_chirp",
+              model: "",
+              voice_id: "",
+              language: "en-IN",
+              speed: (agentData as any).voice_speed ?? 1,
+              emotion_enabled: false,
+              emotion_profile: "neutral",
+            };
+        setTtsConfig(initialTts);
 
         // Load template data if available.
         // Normalize: if the AI chose a different name (e.g. "Cler") than the
@@ -813,6 +1047,7 @@ const EditAgent = () => {
           subIndustry: mapSubIndustry(agentData.sub_industry),
           voiceStyle: (agentData as any).voice_style ||
             detectVoiceStyleFromInstruction((agentData as any).voice_config?.voice_instruction),
+          agentType: (agentData as any).agent_type || "webrtc",
         };
 
         // Mark as loaded so subsequent formData/templateData changes set isDirty
@@ -1755,6 +1990,16 @@ const EditAgent = () => {
       return;
     }
 
+    if (channelRegenRequired) {
+      appToast.error("Primary channel changed — regenerate the template before saving.");
+      return;
+    }
+
+    if (!ttsConfig.voice_id) {
+      appToast.error("Please select a voice for your agent.");
+      return;
+    }
+
     if (currentAgent) {
       const loadingToast = appToast.loading("Updating agent...");
       try {
@@ -1809,13 +2054,15 @@ const EditAgent = () => {
         const updateData = {
           name: formData.name,
           company_name: formData.companyName,
+          agent_type: agentType,
           personality: personalityToApi(formData.persona),
           language: formData.languages?.length ? formData.languages : ["en-US"],
-          voice: formData.voice,
-          voice_speed: formData.voiceSpeed,
+          voice: ttsConfig.voice_id || formData.voice,
+          voice_speed: ttsConfig.speed,
           voice_style: formData.voiceStyle,
           voice_instruction: VOICE_STYLE_SP_MAP[formData.voiceStyle] || VOICE_STYLE_SP_MAP['friendly'],
           gender: formData.gender,
+          tts: ttsConfig.voice_id ? toTtsConfig(ttsConfig) : undefined,
           countries: formData.countries?.length ? formData.countries : undefined,
           multilingual_voice: isMultilingualMode ? formData.realtimeVoice : undefined,
           business_process: formData.businessProcess.replace(/-/g, '_'),
@@ -1885,38 +2132,43 @@ const EditAgent = () => {
 
       const agentName = formData.name || prevNameRef.current || 'Assistant';
 
-      const request = {
-        companyName,
-        businessProcess: formData.businessProcess,
-        industry: formData.industry,
-        subIndustry: formData.subIndustry || undefined,
-        voiceStyle: formData.voiceStyle,
-        additionalContext: `The AI employee will be named: ${agentName}`,
+      // Snapshot what's actually in production right now — this is the prompt
+      // whose manual edits must survive the regeneration (unless the channel
+      // itself changed, which rewrites the whole shell by design). Also the
+      // diff baseline for the preview modal shown once regeneration settles.
+      const currentPromptSnapshot = formData.customInstructions;
+      setRegenPreviewOriginal(currentPromptSnapshot);
+      const baseline = baselineTemplateFieldsRef.current;
+      const changedFields: string[] = [];
+      if (baseline) {
+        if (formData.businessProcess !== baseline.businessProcess) changedFields.push('business process');
+        if (formData.industry !== baseline.industry) changedFields.push('industry');
+        if (formData.subIndustry !== baseline.subIndustry) changedFields.push('sub-industry');
+        if (formData.voiceStyle !== baseline.voiceStyle) changedFields.push('voice style');
+      }
+      // Channel change rewrites the whole prompt shell — merging doesn't apply there.
+      const shouldMerge = !channelRegenRequired && !!currentPromptSnapshot?.trim() && changedFields.length > 0;
+
+      const mergeOrReplace = async (freshPrompt: string): Promise<string> => {
+        if (!shouldMerge) return freshPrompt;
+        try {
+          return await aiTemplateService.mergeSystemPrompt({
+            currentPrompt: currentPromptSnapshot,
+            freshPrompt,
+            changedFields,
+            employeeName: agentName,
+            companyName,
+          });
+        } catch (mergeErr) {
+          console.error('Prompt merge failed — falling back to the current prompt:', mergeErr);
+          return currentPromptSnapshot;
+        }
       };
-
-      console.log('🔄 Regenerating template with request:', request);
-
-      let freshTemplates = await aiTemplateService.generateTemplates(
-        request,
-        // When system prompt comes back from background call (call 2), patch customInstructions
-        (templates) => {
-          // Always clear SP loading when this callback fires — this is the signal that call 2 is done
-          setIsSpGenerating(false);
-          const sysPrompt = templates[0]?.systemPrompt;
-          if (sysPrompt && sysPrompt.trim().length > 100) {
-            // Inject the correct voice style into the regenerated system prompt
-            const voiceContent = VOICE_STYLE_SP_MAP[formData.voiceStyle] || VOICE_STYLE_SP_MAP['friendly'];
-            const withVoice = updateVoiceInstructionsSection(sysPrompt, voiceContent) || sysPrompt;
-            setFormData((prev) => ({ ...prev, customInstructions: withVoice }));
-          }
-        },
-      );
-
-      const fresh = freshTemplates[0];
-      if (!fresh) throw new Error('No template returned from AI');
 
       // Normalise: replace whatever AI name the model chose with the user-provided name.
       // The agent name must ONLY come from formData.name — never from the KB.
+      // Defined before the request fires because the background "call 2" callback
+      // below can run while generateTemplates is still pending.
       const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const forceAgentName = (text: string | undefined): string => {
         if (!text) return text || '';
@@ -1932,26 +2184,71 @@ const EditAgent = () => {
           .replace(new RegExp(`\\b${escape(prevNameRef.current)}\\b`, 'gi'), agentName);
       };
 
-      // Update templateData with all freshly generated fields
+      const request = {
+        companyName,
+        businessProcess: formData.businessProcess,
+        industry: formData.industry,
+        subIndustry: formData.subIndustry || undefined,
+        voiceStyle: formData.voiceStyle,
+        additionalContext: `The AI employee will be named: ${agentName}`,
+        deploymentMode: agentType,
+      };
+
+      console.log('🔄 Regenerating template with request:', request, { shouldMerge, changedFields });
+
+      // Stages the merged/regenerated prompt for review instead of writing it
+      // straight into formData — the diff-preview modal applies it on confirm.
+      const stagePromptForPreview = (merged: string) => {
+        setTemplateData((prev: any) => ({ ...(prev || {}), systemPrompt: merged }));
+        setRegenPreviewResult(merged);
+        setShowRegenPreviewModal(true);
+      };
+
+      let freshTemplates = await aiTemplateService.generateTemplates(
+        request,
+        // When system prompt comes back from background call (call 2), stage it for preview
+        (templates) => {
+          // Always clear SP loading when this callback fires — this is the signal that call 2 is done
+          setIsSpGenerating(false);
+          const sysPrompt = templates[0]?.systemPrompt;
+          if (sysPrompt && sysPrompt.trim().length > 100) {
+            // Inject the correct voice style into the regenerated system prompt
+            const voiceContent = VOICE_STYLE_SP_MAP[formData.voiceStyle] || VOICE_STYLE_SP_MAP['friendly'];
+            const withVoice = updateVoiceInstructionsSection(sysPrompt, voiceContent) || sysPrompt;
+            mergeOrReplace(withVoice).then((merged) => {
+              stagePromptForPreview(forceAgentName(merged));
+            });
+          }
+        },
+      );
+
+      const fresh = freshTemplates[0];
+      if (!fresh) throw new Error('No template returned from AI');
+
+      // Advance prevNameRef so subsequent renames propagate correctly
+      prevNameRef.current = agentName;
+
+      // If system prompt was already in the first batch (some APIs return it synchronously), stage it now.
+      // NOTE: We do NOT clear isSpGenerating here — we always wait for the background call 2 callback.
+      let mergedSystemPrompt: string | undefined;
+      if (fresh.systemPrompt && fresh.systemPrompt.trim().length > 100) {
+        const voiceContent = VOICE_STYLE_SP_MAP[formData.voiceStyle] || VOICE_STYLE_SP_MAP['friendly'];
+        const withVoice = updateVoiceInstructionsSection(fresh.systemPrompt, voiceContent) || fresh.systemPrompt;
+        mergedSystemPrompt = forceAgentName(await mergeOrReplace(withVoice));
+        stagePromptForPreview(mergedSystemPrompt);
+        // isSpGenerating stays true — background call 2 will still run and clear it
+      }
+
+      // Update templateData with all freshly generated fields EXCEPT systemPrompt —
+      // that's staged above and only applied to formData/templateData once the
+      // user confirms the preview (see handleConfirmRegenPreview).
       setTemplateData((prev: any) => ({
         ...(prev || {}),
         ...fresh,
         firstMessage: forceAgentName(fresh.firstMessage) || prev?.firstMessage,
         closingScript: forceAgentName(fresh.closingScript) || prev?.closingScript,
-        systemPrompt: forceAgentName(fresh.systemPrompt),
+        systemPrompt: mergedSystemPrompt ?? prev?.systemPrompt,
       }));
-
-      // Advance prevNameRef so subsequent renames propagate correctly
-      prevNameRef.current = agentName;
-
-      // If system prompt was already in the first batch (some APIs return it synchronously), apply it now.
-      // NOTE: We do NOT clear isSpGenerating here — we always wait for the background call 2 callback.
-      if (fresh.systemPrompt && fresh.systemPrompt.trim().length > 100) {
-        const voiceContent = VOICE_STYLE_SP_MAP[formData.voiceStyle] || VOICE_STYLE_SP_MAP['friendly'];
-        const withVoice = updateVoiceInstructionsSection(fresh.systemPrompt, voiceContent) || fresh.systemPrompt;
-        setFormData((prev) => ({ ...prev, customInstructions: withVoice }));
-        // isSpGenerating stays true — background call 2 will still run and clear it
-      }
 
       // Reset baseline so the dirty banner goes away
       baselineTemplateFieldsRef.current = {
@@ -1959,14 +2256,16 @@ const EditAgent = () => {
         industry: formData.industry,
         subIndustry: formData.subIndustry,
         voiceStyle: formData.voiceStyle,
+        agentType,
       };
       setTemplateRegenNeeded(false);
+      setChannelRegenRequired(false);
       // Update company name and agent name baselines so the amber warning banners are dismissed
       originalCompanyNameRef.current = formData.companyName;
       originalAgentNameRef.current = formData.name;
 
       appToast.dismiss(regenToast);
-      appToast.success('Template regenerated! Review the changes and save when ready.');
+      appToast.success('Template regenerated! Review the system prompt changes to apply them.');
     } catch (err) {
       console.error('Regenerate template error:', err);
       appToast.dismiss(regenToast);
@@ -1977,6 +2276,81 @@ const EditAgent = () => {
       // NOTE: isSpGenerating is NOT cleared here — the background SP callback clears it.
       // It is only cleared early in catch (error) or when SP arrives synchronously.
     }
+  };
+
+  const openFixPromptModal = () => {
+    setFixPromptStep('describe');
+    setFixPromptIssue('');
+    setFixPromptError(null);
+    setFixPromptResult(null);
+    setFixPromptOriginal(formData.customInstructions);
+    setShowFixPromptModal(true);
+  };
+
+  const closeFixPromptModal = () => {
+    if (fixPromptStep === 'loading') return; // don't let a click-away lose an in-flight request
+    setShowFixPromptModal(false);
+  };
+
+  // "Edit more" — go back to the describe step but keep iterating on top of the
+  // fix just previewed, instead of starting over from the original prompt.
+  const handleEditMore = () => {
+    if (fixPromptResult) setFixPromptOriginal(fixPromptResult);
+    setFixPromptIssue('');
+    setFixPromptError(null);
+    setFixPromptResult(null);
+    setFixPromptStep('describe');
+  };
+
+  const handleFixPromptSubmit = async () => {
+    if (!fixPromptIssue.trim()) {
+      setFixPromptError('Describe what should change first.');
+      return;
+    }
+    setFixPromptError(null);
+    setFixPromptStep('loading');
+    try {
+      const companyName = formData.companyName || currentAgent?.name || 'the Company';
+      const agentName = formData.name || prevNameRef.current || 'Assistant';
+      // Iterate on top of the latest previewed fix if there is one, otherwise
+      // start from what's actually saved in the prompt right now.
+      const original = fixPromptOriginal || formData.customInstructions;
+      const fixed = await aiTemplateService.fixSystemPromptIssue({
+        currentPrompt: original,
+        issueDescription: fixPromptIssue.trim(),
+        employeeName: agentName,
+        companyName,
+      });
+      setFixPromptOriginal(original);
+      setFixPromptResult(fixed);
+      setFixPromptIssue('');
+      setFixPromptStep('preview');
+    } catch (err: any) {
+      setFixPromptError(err?.message || 'Failed to update the prompt. Please try again.');
+      setFixPromptStep('describe');
+    }
+  };
+
+  const handleFixPromptConfirm = () => {
+    if (!fixPromptResult) return;
+    setFormData((prev) => ({ ...prev, customInstructions: fixPromptResult }));
+    setShowFixPromptModal(false);
+    appToast.success('Prompt updated — remember to Save.');
+  };
+
+  const handleConfirmRegenPreview = () => {
+    if (!regenPreviewResult) return;
+    setFormData((prev) => ({ ...prev, customInstructions: regenPreviewResult }));
+    setShowRegenPreviewModal(false);
+    appToast.success('System prompt updated — remember to Save.');
+  };
+
+  const handleDiscardRegenPreview = () => {
+    // Revert templateData's systemPrompt back to what's actually still in
+    // formData.customInstructions — the regenerated prompt was only staged,
+    // never applied, so there's nothing to undo on the form itself.
+    setTemplateData((prev: any) => ({ ...(prev || {}), systemPrompt: regenPreviewOriginal }));
+    setShowRegenPreviewModal(false);
   };
 
   if (isLoadingAgent || !currentAgent) {
@@ -2050,7 +2424,9 @@ const EditAgent = () => {
 
               <button
                 onClick={handleSave}
-                className="common-button-bg flex items-center justify-center gap-1 sm:gap-2 px-2.5 sm:px-3 lg:px-4 py-1.5 sm:py-2 lg:py-2.5 rounded-lg sm:rounded-xl touch-manipulation min-h-[36px] sm:min-h-[40px]"
+                disabled={channelRegenRequired}
+                title={channelRegenRequired ? "Regenerate the template before saving — the Primary channel changed" : undefined}
+                className="common-button-bg flex items-center justify-center gap-1 sm:gap-2 px-2.5 sm:px-3 lg:px-4 py-1.5 sm:py-2 lg:py-2.5 rounded-lg sm:rounded-xl touch-manipulation min-h-[36px] sm:min-h-[40px] disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Save className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 <span className="text-xs sm:text-sm font-medium">
@@ -2096,22 +2472,43 @@ const EditAgent = () => {
         </div>
       </GlassCard>
 
-      {/* Regenerate template banner — shown whenever key fields drift from their loaded baseline */}
+      {/* Regenerate template banner — shown whenever key fields drift from their loaded baseline.
+          When the Primary channel itself changed, regeneration is mandatory (not dismissible):
+          the system prompt shell is fundamentally different per channel (see outboundPromptShell.ts),
+          so an unregenerated prompt would be actively wrong, not just stale. */}
       {templateRegenNeeded && templateData && (
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-700/50 rounded-xl">
+        <div
+          className={`flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border ${
+            channelRegenRequired
+              ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-700/50'
+              : 'bg-violet-50 dark:bg-violet-900/20 border-violet-200 dark:border-violet-700/50'
+          }`}
+        >
           <div className="flex items-start sm:items-center gap-2 flex-1 min-w-0">
-            <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-violet-600 dark:text-violet-400 flex-shrink-0 mt-0.5 sm:mt-0" />
-            <p className="text-[11px] sm:text-xs text-violet-800 dark:text-violet-300 leading-snug">
-              <strong>Settings changed.</strong>{' '}
-              <span className="hidden sm:inline">Regenerate the template so the system prompt, first message, scripts and examples all match your new configuration — no duplication.</span>
-              <span className="sm:hidden">Regenerate the template to match your new configuration.</span>
+            <Sparkles className={`w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0 mt-0.5 sm:mt-0 ${channelRegenRequired ? 'text-amber-600 dark:text-amber-400' : 'text-violet-600 dark:text-violet-400'}`} />
+            <p className={`text-[11px] sm:text-xs leading-snug ${channelRegenRequired ? 'text-amber-800 dark:text-amber-300' : 'text-violet-800 dark:text-violet-300'}`}>
+              {channelRegenRequired ? (
+                <>
+                  <strong>Primary channel changed.</strong>{' '}
+                  <span className="hidden sm:inline">The system prompt, first message, and scripts are written for the old channel and must be regenerated before saving.</span>
+                  <span className="sm:hidden">Regenerate the template before saving.</span>
+                </>
+              ) : (
+                <>
+                  <strong>Settings changed.</strong>{' '}
+                  <span className="hidden sm:inline">Regenerate the template so the system prompt, first message, scripts and examples all match your new configuration — no duplication.</span>
+                  <span className="sm:hidden">Regenerate the template to match your new configuration.</span>
+                </>
+              )}
             </p>
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
             <button
               onClick={handleRegenerateTemplate}
               disabled={isRegeneratingTemplate}
-              className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white text-[11px] sm:text-xs font-medium rounded-lg transition-colors"
+              className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 disabled:opacity-60 text-white text-[11px] sm:text-xs font-medium rounded-lg transition-colors ${
+                channelRegenRequired ? 'bg-amber-600 hover:bg-amber-700' : 'bg-violet-600 hover:bg-violet-700'
+              }`}
             >
               {isRegeneratingTemplate ? (
                 <Loader2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 animate-spin" />
@@ -2120,13 +2517,15 @@ const EditAgent = () => {
               )}
               {isRegeneratingTemplate ? 'Regenerating…' : 'Regenerate'}
             </button>
-            <button
-              onClick={() => setTemplateRegenNeeded(false)}
-              className="p-1 text-violet-500 hover:text-violet-700 dark:hover:text-violet-300 flex-shrink-0"
-              title="Dismiss"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
+            {!channelRegenRequired && (
+              <button
+                onClick={() => setTemplateRegenNeeded(false)}
+                className="p-1 text-violet-500 hover:text-violet-700 dark:hover:text-violet-300 flex-shrink-0"
+                title="Dismiss"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -2185,6 +2584,60 @@ const EditAgent = () => {
                     <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-1.5">
                       This name will be visible to your customers
                     </p>
+                  </div>
+
+                  {/* Primary channel — sliding segmented control */}
+                  <div>
+                    <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
+                      Primary channel
+                    </label>
+                    {(() => {
+                      const modes = [
+                        { id: 'webrtc' as const, label: 'Web', icon: Globe, hint: 'AI floating widget on your site — chats with customers, answers questions, and shares documents' },
+                        { id: 'inbound' as const, label: 'Inbound', icon: PhoneIncoming, hint: 'Customers call your number — the AI picks up and talks to them' },
+                        { id: 'outbound' as const, label: 'Outbound', icon: PhoneOutgoing, hint: 'The AI calls your customers — for follow-ups, reminders, or sales' },
+                      ];
+                      const activeIndex = Math.max(0, modes.findIndex((m) => m.id === agentType));
+                      const activeHint = modes[activeIndex]?.hint;
+                      return (
+                        <>
+                          <div
+                            role="radiogroup"
+                            aria-label="Primary channel"
+                            className="relative grid grid-cols-3 gap-0 p-1 rounded-lg sm:rounded-xl common-bg-icons"
+                          >
+                            <span
+                              aria-hidden
+                              className="absolute top-1 bottom-1 left-1 w-[calc((100%-0.5rem)/3)] rounded-lg common-button-bg !px-0 !py-0 shadow-md transition-transform duration-300 ease-out pointer-events-none"
+                              style={{ transform: `translateX(${activeIndex * 100}%)` }}
+                            />
+                            {modes.map((mode) => {
+                              const active = agentType === mode.id;
+                              return (
+                                <button
+                                  key={mode.id}
+                                  type="button"
+                                  role="radio"
+                                  aria-checked={active}
+                                  onClick={() => setAgentType(mode.id)}
+                                  className={`relative z-10 inline-flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition-colors duration-200 bg-transparent border-0 ${
+                                    active
+                                      ? 'text-white'
+                                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                  }`}
+                                >
+                                  <mode.icon className="w-3.5 h-3.5" />
+                                  {mode.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 sm:mt-1.5">
+                            {activeHint}
+                          </p>
+                        </>
+                      );
+                    })()}
                   </div>
 
                   {/* Business Process and Industry */}
@@ -2839,9 +3292,21 @@ const EditAgent = () => {
                   {/* Template Editor Section */}
                   {/* System Prompt / Custom Instructions */}
                   <div>
-                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                      System Prompt / Custom Instructions
-                    </label>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+                        System Prompt / Custom Instructions
+                      </label>
+                      <button
+                        type="button"
+                        onClick={openFixPromptModal}
+                        disabled={isRegeneratingTemplate || isSpGenerating || !formData.customInstructions.trim()}
+                        title={!formData.customInstructions.trim() ? 'Write a system prompt first' : 'Describe a behavior change and let AI update just that part'}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-900/20 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Wand2 className="w-3.5 h-3.5" />
+                        Improve with AI
+                      </button>
+                    </div>
                     <div className="relative">
                       <textarea
                         value={formData.customInstructions}
@@ -3397,61 +3862,25 @@ const EditAgent = () => {
                     </div>
                   </div>
 
-                  {/* Voice Type */}
-                  <div>
-                    <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
-                      Voice Type
-                    </label>
-                    <div className="flex gap-2">
-                      <select
-                        value={formData.voice}
-                        onChange={(e) => setFormData({ ...formData, voice: e.target.value })}
-                        className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm sm:text-base text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all"
-                      >
-                        {getFilteredVoiceOptions(formData.gender).map((voice) => (
-                          <option key={voice.value} value={voice.value}>{voice.label}</option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        disabled={isLoadingVoicePreview}
-                        onClick={() => {
-                          if (isTestingVoice) {
-                            stopVoicePreview();
-                          } else {
-                            previewGeminiVoice(formData.voice);
-                          }
-                        }}
-                        className={`px-4 py-2.5 sm:py-3 rounded-xl font-medium transition-all flex items-center gap-2 ${
-                          isLoadingVoicePreview
-                            ? 'bg-slate-400 dark:bg-slate-600 text-white cursor-not-allowed'
-                            : isTestingVoice
-                            ? 'bg-red-500 hover:bg-red-600 text-white hover:scale-[1.02] active:scale-[0.98]'
-                            : 'common-button-bg hover:scale-[1.02] active:scale-[0.98]'
-                        }`}
-                      >
-                        {isLoadingVoicePreview ? (
-                          <>
-                            <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                            </svg>
-                            <span className="hidden sm:inline">Loading</span>
-                          </>
-                        ) : isTestingVoice ? (
-                          <>
-                            <Square className="w-4 h-4" />
-                            <span className="hidden sm:inline">Stop</span>
-                          </>
-                        ) : (
-                          <>
-                            <Play className="w-4 h-4" />
-                            <span className="hidden sm:inline">Test</span>
-                          </>
-                        )}
-                      </button>
+                  {/* TTS Provider / Model / Voice */}
+                  <div className="common-bg-icons rounded-xl p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Sparkles className="w-4 h-4 text-purple-500" />
+                      <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">
+                        Voice
+                      </label>
                     </div>
-                    <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-1">
+                    <TTSVoiceSelector
+                      value={ttsConfig}
+                      onChange={setTtsConfig}
+                      genderFilter={formData.gender}
+                      onTestVoice={(voiceId) => previewGeminiVoice(voiceId)}
+                      onStopTestVoice={stopVoicePreview}
+                      isTesting={isTestingVoice}
+                      isLoadingTest={isLoadingVoicePreview}
+                      testSupportedProviders={["google_chirp"]}
+                    />
+                    <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-2">
                       Choose a voice that matches your brand personality
                     </p>
                   </div>
@@ -3479,37 +3908,6 @@ const EditAgent = () => {
                     <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-1">
                       Set the personality tone for your AI assistant
                     </p>
-                  </div>
-
-                  {/* Voice Speed */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">
-                        Voice Speed
-                      </label>
-                      <span className="text-xs sm:text-sm font-medium text-blue-600 dark:text-blue-400">
-                        {formData.voiceSpeed.toFixed(1)}x
-                      </span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0.5"
-                      max="2.0"
-                      step="0.1"
-                      value={formData.voiceSpeed}
-                      onChange={(e) =>
-                        setFormData({ ...formData, voiceSpeed: parseFloat(e.target.value) })
-                      }
-                      className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                      style={{
-                        background: `linear-gradient(to right, #2563eb ${((formData.voiceSpeed - 0.5) / (2.0 - 0.5)) * 100}%, #e2e8f0 ${((formData.voiceSpeed - 0.5) / (2.0 - 0.5)) * 100}%)`,
-                      }}
-                    />
-                    <div className="flex justify-between text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-1">
-                      <span>Slower (0.5x)</span>
-                      <span>Normal (1.0x)</span>
-                      <span>Faster (2.0x)</span>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -3552,6 +3950,284 @@ const EditAgent = () => {
           </GlassCard>
         </div>
       </div>
+
+      {/* Fix with AI — targeted system prompt issue editor */}
+      {showFixPromptModal && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999] p-4"
+          onClick={closeFixPromptModal}
+        >
+          <div
+            className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-200/80 dark:border-slate-700 overflow-hidden max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800 flex items-center justify-center flex-shrink-0">
+                  <Wand2 className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-base font-semibold text-slate-800 dark:text-white">Improve with AI</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {fixPromptStep === 'describe' && 'Describe what should change — only that part gets updated.'}
+                    {fixPromptStep === 'loading' && 'Reading the current prompt and applying a targeted update…'}
+                    {fixPromptStep === 'preview' && 'Review the change before applying it.'}
+                  </p>
+                </div>
+              </div>
+              <button onClick={closeFixPromptModal} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg flex-shrink-0">
+                <X className="w-4 h-4 text-slate-500" />
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto flex-1">
+              {fixPromptStep === 'describe' && (
+                <div className="space-y-3">
+                  {fixPromptError && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                      <AlertTriangle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
+                      <p className="text-xs text-red-700 dark:text-red-300">{fixPromptError}</p>
+                    </div>
+                  )}
+                  {fixPromptOriginal && fixPromptOriginal !== formData.customInstructions && (
+                    <div className="flex items-center gap-2 px-3 py-2 bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800 rounded-lg">
+                      <Wand2 className="w-3.5 h-3.5 text-violet-500 flex-shrink-0" />
+                      <p className="text-xs text-violet-700 dark:text-violet-300">
+                        Continuing from your last unsaved change — describe the next change and it'll build on that.
+                      </p>
+                    </div>
+                  )}
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
+                    Describe what you want changed or what issue this agent is having
+                  </label>
+                  <textarea
+                    autoFocus
+                    value={fixPromptIssue}
+                    onChange={(e) => setFixPromptIssue(e.target.value.slice(0, 1000))}
+                    placeholder="e.g. This agent is not asking for the caller's name or number initially. It also repeats the caller's name again and again."
+                    rows={5}
+                    className="w-full px-3 py-2 rounded-lg text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-violet-500/40 text-slate-800 dark:text-white resize-y"
+                  />
+                  <div className="flex justify-end">
+                    <span className="text-[11px] text-slate-400 dark:text-slate-500">{fixPromptIssue.length}/1000</span>
+                  </div>
+                </div>
+              )}
+
+              {fixPromptStep === 'loading' && (
+                <div className="flex flex-col items-center justify-center py-14 gap-3">
+                  <Loader2 className="w-7 h-7 text-violet-500 animate-spin" />
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Thinking it through…</p>
+                </div>
+              )}
+
+              {fixPromptStep === 'preview' && fixPromptResult && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg">
+                    <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+                    <p className="text-xs text-emerald-700 dark:text-emerald-300">
+                      Everything else in the prompt is unchanged — only the part addressing your request was edited.
+                    </p>
+                  </div>
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                        Updated System Prompt
+                        <span className="ml-1.5 font-normal text-slate-400 dark:text-slate-500">
+                          ({fixPromptResult.length} chars)
+                        </span>
+                      </p>
+                      <span className="flex items-center gap-1 text-[11px] text-blue-600 dark:text-blue-400">
+                        <span className="w-2 h-2 rounded-sm bg-blue-500" /> New / changed text
+                      </span>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3 max-h-72 overflow-y-auto">
+                      <pre className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap break-words font-sans">
+                        {diffHighlightTokens(fixPromptOriginal, fixPromptResult).map((tok, i) =>
+                          tok.added ? (
+                            <span key={i} className="font-bold text-blue-600 dark:text-blue-400">{tok.text}</span>
+                          ) : (
+                            <span key={i}>{tok.text}</span>
+                          )
+                        )}
+                      </pre>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
+                      New Lines Added
+                    </p>
+                    <div className="rounded-lg border border-blue-200 dark:border-blue-800/60 bg-blue-50/50 dark:bg-blue-900/10 p-3 max-h-48 overflow-y-auto">
+                      {(() => {
+                        const addedLines = extractAddedLines(diffHighlightTokens(fixPromptOriginal, fixPromptResult));
+                        return addedLines.length > 0 ? (
+                          <ul className="space-y-1.5">
+                            {addedLines.map((line, i) => (
+                              <li key={i} className="text-xs font-bold text-blue-600 dark:text-blue-400 whitespace-pre-wrap break-words">
+                                {line}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="text-xs text-slate-400 dark:text-slate-500">{NO_NEW_LINES_MESSAGE}</p>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleEditMore}
+                    className="flex items-center gap-1.5 text-xs font-medium text-violet-600 dark:text-violet-400 hover:underline"
+                  >
+                    <Pencil className="w-3 h-3" /> Not quite right? Describe another change
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700 flex gap-2.5">
+              {fixPromptStep === 'describe' && (
+                <>
+                  <button
+                    onClick={closeFixPromptModal}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleFixPromptSubmit}
+                    disabled={!fixPromptIssue.trim()}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <Wand2 className="w-4 h-4" /> Analyze &amp; Update
+                  </button>
+                </>
+              )}
+              {fixPromptStep === 'preview' && (
+                <>
+                  <button
+                    onClick={closeFixPromptModal}
+                    className="py-2.5 px-3 rounded-xl text-sm font-medium bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-colors"
+                  >
+                    Discard
+                  </button>
+                  <button
+                    onClick={handleEditMore}
+                    className="flex-1 py-2.5 px-3 rounded-xl text-sm font-medium bg-white dark:bg-slate-800 border border-violet-200 dark:border-violet-800 text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-900/20 flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <Pencil className="w-4 h-4" /> Edit More
+                  </button>
+                  <button
+                    onClick={handleFixPromptConfirm}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-violet-600 hover:bg-violet-700 text-white flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <ArrowRight className="w-4 h-4" /> Apply This Update
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Regenerate Template — system prompt diff preview before applying */}
+      {showRegenPreviewModal && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999] p-4"
+          onClick={handleDiscardRegenPreview}
+        >
+          <div
+            className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-2xl border border-slate-200/80 dark:border-slate-700 overflow-hidden max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800 flex items-center justify-center flex-shrink-0">
+                  <Sparkles className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-base font-semibold text-slate-800 dark:text-white">Regenerated System Prompt</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Review what changed before applying it to your saved prompt.
+                  </p>
+                </div>
+              </div>
+              <button onClick={handleDiscardRegenPreview} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg flex-shrink-0">
+                <X className="w-4 h-4 text-slate-500" />
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto flex-1 space-y-3">
+              <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-lg">
+                <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+                <p className="text-xs text-emerald-700 dark:text-emerald-300">
+                  Manual edits unrelated to the regenerated fields were preserved where possible.
+                </p>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                    Updated System Prompt
+                    <span className="ml-1.5 font-normal text-slate-400 dark:text-slate-500">
+                      ({regenPreviewResult.length} chars)
+                    </span>
+                  </p>
+                  <span className="flex items-center gap-1 text-[11px] text-blue-600 dark:text-blue-400">
+                    <span className="w-2 h-2 rounded-sm bg-blue-500" /> New / changed text
+                  </span>
+                </div>
+                <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3 max-h-72 overflow-y-auto">
+                  <pre className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap break-words font-sans">
+                    {diffHighlightTokens(regenPreviewOriginal, regenPreviewResult).map((tok, i) =>
+                      tok.added ? (
+                        <span key={i} className="font-bold text-blue-600 dark:text-blue-400">{tok.text}</span>
+                      ) : (
+                        <span key={i}>{tok.text}</span>
+                      )
+                    )}
+                  </pre>
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
+                  New Lines Added
+                </p>
+                <div className="rounded-lg border border-blue-200 dark:border-blue-800/60 bg-blue-50/50 dark:bg-blue-900/10 p-3 max-h-48 overflow-y-auto">
+                  {(() => {
+                    const addedLines = extractAddedLines(diffHighlightTokens(regenPreviewOriginal, regenPreviewResult));
+                    return addedLines.length > 0 ? (
+                      <ul className="space-y-1.5">
+                        {addedLines.map((line, i) => (
+                          <li key={i} className="text-xs font-bold text-blue-600 dark:text-blue-400 whitespace-pre-wrap break-words">
+                            {line}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-slate-400 dark:text-slate-500">{NO_NEW_LINES_MESSAGE}</p>
+                    );
+                  })()}
+                </div>
+              </div>
+            </div>
+
+            <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700 flex gap-2.5">
+              <button
+                onClick={handleDiscardRegenPreview}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-colors"
+              >
+                Discard
+              </button>
+              <button
+                onClick={handleConfirmRegenPreview}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-violet-600 hover:bg-violet-700 text-white flex items-center justify-center gap-2 transition-colors"
+              >
+                <ArrowRight className="w-4 h-4" /> Apply This Update
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

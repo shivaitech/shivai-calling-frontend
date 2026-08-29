@@ -12,6 +12,7 @@ import {
 } from "react-router-dom";
 import GlassCard from "../../components/GlassCard";
 import SearchableSelect from "../../components/SearchableSelect";
+import TTSVoiceSelector, { TTSVoiceSelectorValue, toTtsConfig } from "../../components/TTSVoiceSelector";
 import Pagination from "../../components/Pagination";
 import {
   AgentQRModal,
@@ -28,6 +29,10 @@ import {
   aiTemplateService,
   GeneratedTemplate,
 } from "../../services/aiTemplateService";
+import {
+  BUSINESS_PROCESS_BY_CHANNEL,
+  CHANNEL_STEP3_COPY,
+} from "../../constants/outboundPromptShell";
 import { isDeveloperUser, formatAgentLanguages } from "../../lib/utils";
 import { buildWidgetEmbedScript } from "../../lib/widgetConfig";
 import {
@@ -82,10 +87,12 @@ import {
   AlertTriangle,
   Mail,
   MessageCircle,
+  PhoneIncoming,
+  PhoneOutgoing,
 } from "lucide-react";
 
 const AGENTS_PER_PAGE = 6;
-const LIVE_PUBLISH_ALLOWED_EMAILS = ["demo@callshivai.com", "atharkatheri@gmail.com"];
+const PUBLISH_ALLOWED_EMAILS = ["demo@callshivai.com", "atharkatheri@gmail.com"];
 const SALES_EMAIL = "hello@shivaitech.com";
 const SALES_WHATSAPP_NUMBER = "919211490707";
 const SALES_WHATSAPP_MESSAGE =
@@ -271,11 +278,8 @@ const AgentManagement = () => {
   } = useAgent();
   const { user } = useAuth();
   const normalizedUserEmail = (user?.email || "").toLowerCase();
-  const canPublishOnLive = LIVE_PUBLISH_ALLOWED_EMAILS.includes(normalizedUserEmail);
-  const isLiveEnvironment =
-    import.meta.env.PROD &&
-    !String(import.meta.env.VITE_API_BASE_URL || "").toLowerCase().includes("staging");
-  const shouldBlockLivePublish = isLiveEnvironment && !canPublishOnLive;
+  const canPublishAgent = PUBLISH_ALLOWED_EMAILS.includes(normalizedUserEmail);
+  const shouldBlockPublish = !canPublishAgent;
   const salesWhatsAppHref = `https://wa.me/${SALES_WHATSAPP_NUMBER}?text=${encodeURIComponent(SALES_WHATSAPP_MESSAGE)}`;
   const salesEmailHref = `mailto:${SALES_EMAIL}?subject=${encodeURIComponent(SALES_EMAIL_SUBJECT)}`;
 
@@ -378,12 +382,22 @@ const AgentManagement = () => {
     companyName: "",
     useCompanyNameForTemplate: true,
     aiEmployeeName: "",
+    agentType: "webrtc" as "webrtc" | "inbound" | "outbound",
     countries: [] as string[],
     languages: ["en-US"] as string[],
     voice: "Achernar",
     realtimeVoice: "alloy",
     voiceSpeed: 1.0,
     voiceStyle: "friendly",
+    tts: {
+      provider: "google_chirp",
+      model: "",
+      voice_id: "",
+      language: "en-IN",
+      speed: 1,
+      emotion_enabled: false,
+      emotion_profile: "neutral",
+    } as TTSVoiceSelectorValue,
     gender: "female",
     businessProcess: "",
     industry: "",
@@ -598,6 +612,14 @@ const AgentManagement = () => {
   >([]);
   const [isGeneratingTemplates, setIsGeneratingTemplates] = useState(false);
   const [isGeneratingSystemPrompts, setIsGeneratingSystemPrompts] = useState(false);
+  // Bumped on every generateAITemplates() call and every channel switch. A
+  // response (metadata or the background system-prompt callback) is only
+  // applied if it matches the token that was current when its request was
+  // fired — otherwise it's a stale response from a channel the user has
+  // since navigated away from, and applying it would silently show e.g. an
+  // outbound-flavored template while "Web" is selected. See the "why is our
+  // system generating outbound templates when I picked Web" bug.
+  const templateGenerationTokenRef = useRef(0);
   // Tracks which template names have received their final system prompt from the BG callback
   const [spReadyTemplates, setSpReadyTemplates] = useState<Set<string>>(new Set());
   const [generationProgress, setGenerationProgress] = useState(0);
@@ -619,17 +641,42 @@ const AgentManagement = () => {
       .replace(/\[Agent Name\]/g, quickCreateData.aiEmployeeName || "AI Assistant");
   };
 
-  // Business Process Options
-  const businessProcessOptions = [
-    { value: "customer-support", label: "Customer Support", icon: "🎧" },
-    { value: "sales-marketing", label: "Sales & Marketing", icon: "💼" },
-    { value: "appointment-setting", label: "Appointment Setting", icon: "📅" },
-    { value: "lead-qualification", label: "Lead Qualification", icon: "🎯" },
-    { value: "technical-support", label: "Technical Support", icon: "🔧" },
-    { value: "order-processing", label: "Order Processing", icon: "📦" },
-    { value: "billing-inquiries", label: "Billing Inquiries", icon: "💳" },
-    { value: "onboarding", label: "Customer Onboarding", icon: "🚀" },
-  ];
+  // Business Process Options — filtered by Primary channel (Web / Inbound / Outbound)
+  const businessProcessOptions =
+    BUSINESS_PROCESS_BY_CHANNEL[quickCreateData.agentType] ||
+    BUSINESS_PROCESS_BY_CHANNEL.webrtc;
+
+  // If user goes back and switches channel (e.g. Outbound → Inbound), drop invalid use cases
+  // and reset channel-specific template state so Step 3 always shows the filtered list.
+  useEffect(() => {
+    const allowed =
+      BUSINESS_PROCESS_BY_CHANNEL[quickCreateData.agentType] ||
+      BUSINESS_PROCESS_BY_CHANNEL.webrtc;
+    const allowedValues = new Set(allowed.map((o) => o.value));
+
+    setQuickCreateData((prev) => {
+      if (!prev.businessProcess || allowedValues.has(prev.businessProcess)) {
+        return prev;
+      }
+      return {
+        ...prev,
+        businessProcess: "",
+        selectedTemplate: null,
+      };
+    });
+
+    // Only clear generated templates when the selected process is no longer valid for this channel
+    setAIGeneratedTemplates((prev) => {
+      // Keep if empty; wipe when channel changed out from under a prior generation
+      if (!prev.length) return prev;
+      // Always clear when channel changes — templates are channel-specific
+      return [];
+    });
+    setSpReadyTemplates(new Set());
+    setIsGeneratingSystemPrompts(false);
+    setTemplateGenerationError(null);
+    setBusinessProcessSlideIndex(0);
+  }, [quickCreateData.agentType]);
 
   // Voice Options by Gender
   const voiceOptions = {
@@ -934,10 +981,33 @@ const AgentManagement = () => {
   // Handle quick create wizard navigation
   const handleQuickCreateNext = async () => {
     if (quickCreateStep < 7) {
-      // Validate Step 2: Voice & Language are required
+      // Validate Step 2: Voice & Language are required; sanitize use case for channel filter
       if (quickCreateStep === 2) {
-        if (!quickCreateData.languages?.length || !quickCreateData.voice) {
+        if (!quickCreateData.languages?.length || !quickCreateData.tts.voice_id) {
           appToast.error('Please select at least one language and a voice before proceeding.');
+          return;
+        }
+        const allowed =
+          BUSINESS_PROCESS_BY_CHANNEL[quickCreateData.agentType] ||
+          BUSINESS_PROCESS_BY_CHANNEL.webrtc;
+        if (
+          quickCreateData.businessProcess &&
+          !allowed.some((o) => o.value === quickCreateData.businessProcess)
+        ) {
+          setQuickCreateData((prev) => ({ ...prev, businessProcess: "" }));
+        }
+        setBusinessProcessSlideIndex(0);
+      }
+
+      // Validate Step 3: use case must be in the filtered list for this channel
+      if (quickCreateStep === 3) {
+        const allowed =
+          BUSINESS_PROCESS_BY_CHANNEL[quickCreateData.agentType] ||
+          BUSINESS_PROCESS_BY_CHANNEL.webrtc;
+        if (!allowed.some((o) => o.value === quickCreateData.businessProcess)) {
+          appToast.error('Please select a use case for the current channel.');
+          setQuickCreateData((prev) => ({ ...prev, businessProcess: "" }));
+          setBusinessProcessSlideIndex(0);
           return;
         }
       }
@@ -963,6 +1033,10 @@ const AgentManagement = () => {
   };
 
   const generateAITemplates = async () => {
+    // Snapshot the token for this specific request. If the user switches
+    // Primary channel (or otherwise resets templates) before this resolves,
+    // the token is bumped and every apply-point below becomes a no-op.
+    const requestToken = ++templateGenerationTokenRef.current;
     setIsGeneratingTemplates(true);
     setTemplateGenerationError(null);
     setGenerationProgress(0);
@@ -979,6 +1053,11 @@ const AgentManagement = () => {
       let additionalContext = quickCreateData.aiEmployeeName
         ? `The AI employee will be named: ${quickCreateData.aiEmployeeName}`
         : '';
+      additionalContext += `\nPrimary channel / agent type: ${quickCreateData.agentType}`;
+      if (quickCreateData.agentType === 'outbound') {
+        additionalContext +=
+          '\nThis agent is PURE OUTBOUND voice — it places the call. Templates and prompts must follow the Universal Outbound Voice Agent shell. First message must impress: warm purpose + ask for a couple of minutes.';
+      }
       
       // Add extracted file content to context
       if (quickCreateData.extractedFileContent) {
@@ -1010,9 +1089,14 @@ const AgentManagement = () => {
           additionalContext: additionalContext || undefined,
           extractedContent: quickCreateData.extractedFileContent || undefined,
           voiceStyle: quickCreateData.voiceStyle || undefined,
+          deploymentMode: quickCreateData.agentType,
         },
         // Background callback: system prompts trickle in after loading is done
         (updatedTemplates) => {
+          // Discard if the user switched channel (or otherwise reset) since
+          // this request was fired — applying it would show a template
+          // generated for a different Primary channel than what's selected now.
+          if (templateGenerationTokenRef.current !== requestToken) return;
           // Overwrite the Voice Instructions section in every generated system prompt
           // so the user always sees our predefined instructions in the preview.
           const patchedTemplates = updatedTemplates.map((t) =>
@@ -1036,6 +1120,10 @@ const AgentManagement = () => {
         },
       );
 
+      // Discard if the user switched channel (or otherwise reset) since this
+      // request was fired — same staleness guard as the background callback above.
+      if (templateGenerationTokenRef.current !== requestToken) return;
+
       // ✅ Metadata is ready — stop loading immediately, show templates
       clearInterval(progressInterval);
       setGenerationProgress(100);
@@ -1043,6 +1131,7 @@ const AgentManagement = () => {
       // isGeneratingSystemPrompts already true — background callbacks will flip it false
       console.log("✅ AI template metadata ready — system prompts generating in background");
     } catch (error) {
+      if (templateGenerationTokenRef.current !== requestToken) return;
       clearInterval(progressInterval);
       console.error("❌ Error generating AI templates:", error);
       setTemplateGenerationError(
@@ -1108,12 +1197,22 @@ const AgentManagement = () => {
       companyName: "",
       useCompanyNameForTemplate: true,
       aiEmployeeName: "",
+      agentType: "webrtc",
       countries: [],
       languages: ["en-US"],
       voice: "Achernar",
       realtimeVoice: "alloy",
       voiceSpeed: 1.0,
       voiceStyle: "friendly",
+      tts: {
+        provider: "google_chirp",
+        model: "",
+        voice_id: "",
+        language: "en-IN",
+        speed: 1,
+        emotion_enabled: false,
+        emotion_profile: "neutral",
+      },
       gender: "female",
       businessProcess: "",
       industry: "",
@@ -1438,7 +1537,7 @@ const AgentManagement = () => {
       // Always use Step 2 voice configuration — use module-level VOICE_STYLE_SP_MAP
       const selectedStyle = (quickCreateData.voiceStyle || "friendly").trim().toLowerCase();
       const voiceInstruction = VOICE_STYLE_SP_MAP[selectedStyle] || VOICE_STYLE_SP_MAP['friendly'];
-      const clampedVoiceSpeed = Math.min(2.0, Math.max(0.5, quickCreateData.voiceSpeed ?? 1.0));
+      const clampedVoiceSpeed = Math.min(2.0, Math.max(0.5, quickCreateData.tts.speed ?? 1.0));
 
       const agentPayload = {
         name: quickCreateData.aiEmployeeName,
@@ -1449,7 +1548,8 @@ const AgentManagement = () => {
         personality: selectedTemplateData?.personality || "Professional",
         language: quickCreateData.languages?.length ? quickCreateData.languages : ["en-US"],
         countries: quickCreateData.countries?.length ? quickCreateData.countries : undefined,
-        voice: quickCreateData.voice || "Achernar",
+        voice: quickCreateData.tts.voice_id || quickCreateData.voice || "Achernar",
+        tts: quickCreateData.tts.voice_id ? toTtsConfig(quickCreateData.tts) : undefined,
         multilingual_voice: quickCreateData.languages.includes("multilingual") ? (quickCreateData.realtimeVoice || "alloy") : undefined,
         voice_config: {
           voice_instruction: voiceInstruction,
@@ -1465,6 +1565,7 @@ const AgentManagement = () => {
         context_window: "Standard (8K tokens)",
         temperature: 0.5, // Must be <= 1 (temperature scale is 0-1, not 0-100)
         company_name: quickCreateData.companyName || undefined,
+        agent_type: quickCreateData.agentType,
         // Template object with all details - replace placeholders with actual values
         template: selectedTemplateData
           ? {
@@ -1559,9 +1660,11 @@ const AgentManagement = () => {
           quickCreateData.aiEmployeeName.trim().length > 0
         );
       case 2:
-        return quickCreateData.languages.length > 0 && quickCreateData.voice.length > 0; // Voice configuration
+        return quickCreateData.languages.length > 0 && quickCreateData.tts.voice_id.length > 0; // Voice configuration
       case 3:
-        return quickCreateData.businessProcess.length > 0;
+        return businessProcessOptions.some(
+          (o) => o.value === quickCreateData.businessProcess
+        );
       case 4:
         return quickCreateData.industry.length > 0;
       case 5:
@@ -1756,6 +1859,22 @@ const AgentManagement = () => {
               setAgentListRefreshToken((t) => t + 1);
               navigate('/agents');
             }, 1500);
+          } else if (isFailed) {
+            ws.close();
+            kbWsRef.current = null;
+            localStorage.removeItem('kb_progress_agentId');
+            localStorage.removeItem('kb_progress_agentName');
+            appToast.error(data.error || `Knowledge base training failed for ${agentName}. Re-upload the files to retry.`, { duration: 6000 });
+            setTimeout(() => {
+              setIsCreatingAgent(false);
+              setIsModalMinimized(false);
+              setCreatingAgentId(null);
+              setKbCreationProgress(null);
+              setKbFileProgress([]);
+              setShowQuickCreateModal(false);
+              refreshAgents();
+              setAgentListRefreshToken((t) => t + 1);
+            }, 1500);
           }
         } catch {
           console.warn('KB WS: could not parse message');
@@ -1769,7 +1888,10 @@ const AgentManagement = () => {
         kbWsRef.current = null;
       };
 
-      // Fallback: 2-minute timeout
+      // Fallback: 2-minute timeout — the WS never delivered a final done/error
+      // message. Don't assume success: a still-processing state is genuinely
+      // unknown (treat as a soft success so the UI doesn't hang forever), but
+      // an already-failed state must stay failed.
       setTimeout(() => {
         if (kbWsRef.current) {
           kbWsRef.current.close();
@@ -1778,6 +1900,20 @@ const AgentManagement = () => {
         localStorage.removeItem('kb_progress_agentId');
         localStorage.removeItem('kb_progress_agentName');
         setKbCreationProgress((prev) => {
+          if (prev && prev.status === 'failed') {
+            appToast.error(prev.message || `Knowledge base training failed for ${agentName}. Re-upload the files to retry.`, { duration: 6000 });
+            setTimeout(() => {
+              setIsCreatingAgent(false);
+              setIsModalMinimized(false);
+              setCreatingAgentId(null);
+              setKbCreationProgress(null);
+              setKbFileProgress([]);
+              setShowQuickCreateModal(false);
+              refreshAgents();
+              setAgentListRefreshToken((t) => t + 1);
+            }, 500);
+            return prev;
+          }
           if (prev && prev.status !== 'completed') {
             appToast.success(`${agentName} has been created successfully!`, { duration: 4000 });
             setTimeout(() => {
@@ -1801,23 +1937,60 @@ const AgentManagement = () => {
   );
 
   // ── Reload reconnect: restore in-progress KB session from localStorage ───────
+  // The saved session only tells us training was in progress when the page was
+  // last open — it says nothing about whether it has since finished or failed.
+  // Check the agent's real knowledge_base_status before resurrecting the
+  // spinner, otherwise a KB that already failed gets stuck showing "processing"
+  // forever (the WS won't re-emit a message the client already missed).
   useEffect(() => {
     const savedAgentId = localStorage.getItem('kb_progress_agentId');
     const savedAgentName = localStorage.getItem('kb_progress_agentName');
-    if (savedAgentId) {
-      console.log('🔄 Restoring KB progress session for agent:', savedAgentId);
-      setCreatingAgentId(savedAgentId);
-      setIsCreatingAgent(true);
-      setIsModalMinimized(true);
-      setShowQuickCreateModal(true);
-      setKbCreationProgress({
-        agentId: savedAgentId,
-        status: 'processing',
-        progress: 10,
-        message: 'Reconnecting to knowledge base processing...',
+    if (!savedAgentId) return;
+
+    agentAPI
+      .getAgentConfig(savedAgentId)
+      .then(({ agent }) => {
+        const status = (agent as any)?.knowledge_base_status;
+        if (status === 'completed' || status === 'ready') {
+          localStorage.removeItem('kb_progress_agentId');
+          localStorage.removeItem('kb_progress_agentName');
+          refreshAgents();
+          setAgentListRefreshToken((t) => t + 1);
+          return;
+        }
+        if (status === 'failed') {
+          localStorage.removeItem('kb_progress_agentId');
+          localStorage.removeItem('kb_progress_agentName');
+          appToast.error(
+            (agent as any)?.knowledge_base_error ||
+              `Knowledge base training failed for ${savedAgentName || 'this AI employee'}. Re-upload the files to retry.`,
+            { duration: 6000 }
+          );
+          refreshAgents();
+          setAgentListRefreshToken((t) => t + 1);
+          return;
+        }
+
+        // Still genuinely processing — safe to reconnect and show the spinner.
+        console.log('🔄 Restoring KB progress session for agent:', savedAgentId);
+        setCreatingAgentId(savedAgentId);
+        setIsCreatingAgent(true);
+        setIsModalMinimized(true);
+        setShowQuickCreateModal(true);
+        setKbCreationProgress({
+          agentId: savedAgentId,
+          status: 'processing',
+          progress: 10,
+          message: 'Reconnecting to knowledge base processing...',
+        });
+        connectKbWebSocket(savedAgentId, savedAgentName || 'AI Employee');
+      })
+      .catch(() => {
+        // Couldn't verify — clear the stale session rather than show an
+        // indefinite spinner for an agent we can't confirm is still training.
+        localStorage.removeItem('kb_progress_agentId');
+        localStorage.removeItem('kb_progress_agentName');
       });
-      connectKbWebSocket(savedAgentId, savedAgentName || 'AI Employee');
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // ─────────────────────────────────────────────────────────────────────────────
@@ -2027,7 +2200,7 @@ const AgentManagement = () => {
 
   const handlePublish = (agentId: string) => {
     setAgentToPublish(agentId);
-    if (shouldBlockLivePublish) {
+    if (shouldBlockPublish) {
       setShowPublishContactModal(true);
       return;
     }
@@ -3132,7 +3305,7 @@ const AgentManagement = () => {
     // If currentAgent is not yet loaded, show a loading state
     if (!currentAgent) {
       return (
-        <div className="flex items-center justify-center h-screen">
+        <div className="flex items-center justify-center h-dvh">
           <div className="text-center">
             <Bot className="w-16 h-16 text-slate-300 dark:text-slate-600 mx-auto mb-4 animate-pulse" />
             <p className="text-slate-600 dark:text-slate-400">Loading agent...</p>
@@ -3153,6 +3326,9 @@ const AgentManagement = () => {
         handlePublishCancel={handlePublishCancel}
         handlePublishConfirm={handlePublishConfirm}
         isPublishing={isPublishing}
+        showPublishContactModal={showPublishContactModal}
+        salesWhatsAppHref={salesWhatsAppHref}
+        salesEmailHref={salesEmailHref}
         handlePause={handlePause}
         showPauseConfirm={showPauseConfirm}
         handlePauseCancel={handlePauseCancel}
@@ -3420,31 +3596,51 @@ const AgentManagement = () => {
                 <div className="p-4 sm:p-5 lg:p-6 relative">
                   {/* KB Processing Overlay — shown when modal is minimized */}
                   {creatingAgentId && agent.id === creatingAgentId && isCreatingAgent && isModalMinimized && (
-                    <div
-                      className="absolute inset-0 z-10 rounded-xl sm:rounded-2xl bg-blue-50/95 dark:bg-slate-900/95 flex flex-col items-center justify-center gap-3 cursor-pointer"
-                      onClick={() => {
-                        setIsModalMinimized(false);
-                        setShowQuickCreateModal(true);
-                      }}
-                    >
-                      <div className="w-10 h-10 border-[3px] border-blue-500 border-t-transparent rounded-full animate-spin" />
-                      <div className="text-center px-4">
-                        <p className="text-sm font-semibold text-slate-800 dark:text-white">
-                          Training Knowledge Base
-                        </p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                          Click to view progress
-                        </p>
-                      </div>
-                      {kbCreationProgress?.progress !== undefined && (
-                        <div className="w-32 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-blue-500 rounded-full transition-all duration-500"
-                            style={{ width: `${kbCreationProgress.progress}%` }}
-                          />
+                    kbCreationProgress?.status === 'failed' ? (
+                      <div
+                        className="absolute inset-0 z-10 rounded-xl sm:rounded-2xl bg-red-50/95 dark:bg-red-950/90 flex flex-col items-center justify-center gap-2 cursor-pointer"
+                        onClick={() => {
+                          setIsModalMinimized(false);
+                          setShowQuickCreateModal(true);
+                        }}
+                      >
+                        <AlertTriangle className="w-8 h-8 text-red-500 dark:text-red-400" />
+                        <div className="text-center px-4">
+                          <p className="text-sm font-semibold text-red-700 dark:text-red-300">
+                            Knowledge Base Training Failed
+                          </p>
+                          <p className="text-xs text-red-600/80 dark:text-red-400/80 mt-0.5">
+                            Click to view details
+                          </p>
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    ) : (
+                      <div
+                        className="absolute inset-0 z-10 rounded-xl sm:rounded-2xl bg-blue-50/95 dark:bg-slate-900/95 flex flex-col items-center justify-center gap-3 cursor-pointer"
+                        onClick={() => {
+                          setIsModalMinimized(false);
+                          setShowQuickCreateModal(true);
+                        }}
+                      >
+                        <div className="w-10 h-10 border-[3px] border-blue-500 border-t-transparent rounded-full animate-spin" />
+                        <div className="text-center px-4">
+                          <p className="text-sm font-semibold text-slate-800 dark:text-white">
+                            Training Knowledge Base
+                          </p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                            Click to view progress
+                          </p>
+                        </div>
+                        {kbCreationProgress?.progress !== undefined && (
+                          <div className="w-32 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-blue-500 rounded-full transition-all duration-500"
+                              style={{ width: `${kbCreationProgress.progress}%` }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )
                   )}
                   {/* Agent Header - Mobile Optimized */}
                   <div className="flex items-start gap-3 mb-4">
@@ -3461,19 +3657,22 @@ const AgentManagement = () => {
                             {formatAgentLanguages((agent as any).language)} • {agent.persona}
                           </p>
                         </div>
-                        <span
-                          className={`px-2 py-1 rounded-full text-xs font-medium flex-shrink-0 ${
-                            agent.status === "Published" ||
-                            (agent as any).is_active
-                              ? "bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400"
-                              : "bg-orange-100 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400"
-                          }`}
-                        >
-                          {agent.status === "Published" ||
-                          (agent as any).is_active
-                            ? "Live"
-                            : "Unpublished"}
-                        </span>
+                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                          {(agent as any).agent_type && (() => {
+                            const t = (agent as any).agent_type;
+                            const meta = t === 'inbound'
+                              ? { label: 'Inbound', Icon: PhoneIncoming, cls: 'bg-black' }
+                              : t === 'outbound'
+                              ? { label: 'Outbound', Icon: PhoneOutgoing, cls: 'bg-black' }
+                              : { label: 'Web', Icon: Globe, cls: 'bg-black' };
+                            return (
+                              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold text-white shadow-sm ${meta.cls}`}>
+                                <meta.Icon className="w-3 h-3" />
+                                {meta.label}
+                              </span>
+                            );
+                          })()}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -4046,10 +4245,10 @@ const AgentManagement = () => {
                     <AlertTriangle className="w-6 h-6 text-amber-600 dark:text-amber-400" />
                   </div>
                   <h3 className="text-xl font-semibold text-slate-800 dark:text-white text-center mb-2">
-                    Go Live With ShivAI
+                    Upgrade to Publish Live
                   </h3>
                   <p className="text-sm text-slate-600 dark:text-slate-400 text-center mb-6">
-                    To activate live publishing for your agent, please contact our sales team. We will help you review your setup and enable go-live access for your account.
+                    Publishing an agent live is available on a paid subscription. Upgrade your plan or contact our sales team to enable go-live access for your account.
                   </p>
                   <div className="flex flex-col gap-3">
                     <a
@@ -4685,6 +4884,81 @@ const AgentManagement = () => {
                           callers
                         </p>
                       </div>
+
+                      {/* Primary channel — sliding segmented control */}
+                      <div className="space-y-1.5 sm:space-y-2">
+                        <label className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                          <Layers className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                          Primary channel
+                        </label>
+                        {(() => {
+                          const modes = [
+                            { id: 'webrtc' as const, label: 'Web', icon: Globe, hint: 'AI floating widget on your site — chats with customers, answers questions, and shares documents' },
+                            { id: 'inbound' as const, label: 'Inbound', icon: PhoneIncoming, hint: 'Customers call your number — the AI picks up and talks to them' },
+                            { id: 'outbound' as const, label: 'Outbound', icon: PhoneOutgoing, hint: 'The AI calls your customers — for follow-ups, reminders, or sales' },
+                          ];
+                          const activeIndex = Math.max(
+                            0,
+                            modes.findIndex((m) => m.id === quickCreateData.agentType)
+                          );
+                          const activeHint = modes[activeIndex]?.hint;
+                          return (
+                            <>
+                              <div
+                                role="radiogroup"
+                                aria-label="Primary channel"
+                                className="relative grid grid-cols-3 gap-0 p-1 rounded-xl common-bg-icons"
+                              >
+                                <span
+                                  aria-hidden
+                                  className="absolute top-1 bottom-1 left-1 w-[calc((100%-0.5rem)/3)] rounded-lg common-button-bg !px-0 !py-0 shadow-md transition-transform duration-300 ease-out pointer-events-none"
+                                  style={{ transform: `translateX(${activeIndex * 100}%)` }}
+                                />
+                                {modes.map((mode) => {
+                                  const active = quickCreateData.agentType === mode.id;
+                                  return (
+                                    <button
+                                      key={mode.id}
+                                      type="button"
+                                      role="radio"
+                                      aria-checked={active}
+                                      onClick={() => {
+                                        if (mode.id === quickCreateData.agentType) return;
+                                        setBusinessProcessSlideIndex(0);
+                                        setQuickCreateData((prev) => ({
+                                          ...prev,
+                                          agentType: mode.id,
+                                          // Clear process so Step 3 re-selects from channel-specific list
+                                          businessProcess: "",
+                                          selectedTemplate: null,
+                                        }));
+                                        setAIGeneratedTemplates([]);
+                                        setSpReadyTemplates(new Set());
+                                        setIsGeneratingSystemPrompts(false);
+                                        setTemplateGenerationError(null);
+                                        // Invalidate any in-flight generation request/callback
+                                        // for the previous channel so it can't overwrite this reset.
+                                        templateGenerationTokenRef.current += 1;
+                                      }}
+                                      className={`relative z-10 inline-flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition-colors duration-200 bg-transparent border-0 ${
+                                        active
+                                          ? 'text-white'
+                                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                                      }`}
+                                    >
+                                      <mode.icon className="w-3.5 h-3.5" />
+                                      {mode.label}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500">
+                                {activeHint}
+                              </p>
+                            </>
+                          );
+                        })()}
+                      </div>
                     </div>
                   )}
 
@@ -5187,73 +5461,31 @@ const AgentManagement = () => {
                           </div>
                         </div>
 
-                        {/* Voice Selection — Language Voice */}
-                        <div>
-                          <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                            Voice <span className="text-red-500">*</span>
-                            <span className="ml-1 text-[10px] text-slate-400 font-normal">— for selected languages</span>
-                          </label>
-                          <div className="flex gap-2">
-                            <select
-                              value={quickCreateData.voice}
-                              onChange={(e) =>
-                                setQuickCreateData((prev) => ({
-                                  ...prev,
-                                  voice: e.target.value,
-                                }))
-                              }
-                              onFocus={() => setVoiceSelectOpen(true)}
-                              onBlur={() => setVoiceSelectOpen(false)}
-                              className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm sm:text-base text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/30 transition-all"
-                            >
-                              {getFilteredVoiceOptions(quickCreateData.gender as 'female' | 'male').map(v => (
-                                <option key={v.value} value={v.value}>{v.label}</option>
-                              ))}
-                            </select>
-                            <button
-                              type="button"
-                              disabled={isLoadingVoicePreview}
-                              onClick={() => {
-                                if (isTestingVoice) {
-                                  stopVoicePreview();
-                                } else {
-                                  previewGeminiVoice(
-                                    quickCreateData.voice,
-                                    quickCreateData.voiceSpeed,
-                                    `Hello! I'm ${quickCreateData.aiEmployeeName || 'your AI assistant'}. How can I help you today?`
-                                  );
-                                }
-                              }}
-                              className={`px-4 py-2.5 sm:py-3 rounded-xl font-medium transition-all flex items-center gap-2 ${
-                                isLoadingVoicePreview
-                                  ? 'bg-slate-400 dark:bg-slate-600 text-white cursor-not-allowed'
-                                  : isTestingVoice
-                                  ? 'bg-red-500 hover:bg-red-600 text-white hover:scale-[1.02] active:scale-[0.98]'
-                                  : 'common-button-bg hover:scale-[1.02] active:scale-[0.98]'
-                              }`}
-                            >
-                              {isLoadingVoicePreview ? (
-                                <>
-                                  <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                                  </svg>
-                                  <span className="hidden sm:inline">Loading</span>
-                                </>
-                              ) : isTestingVoice ? (
-                                <>
-                                  <Square className="w-4 h-4" />
-                                  <span className="hidden sm:inline">Stop</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Play className="w-4 h-4" />
-                                  <span className="hidden sm:inline">Test</span>
-                                </>
-                              )}
-                            </button>
+                        {/* TTS Provider / Model / Voice */}
+                        <div className="common-bg-icons rounded-xl p-4">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Sparkles className="w-4 h-4 text-purple-500" />
+                            <label className="block text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">
+                              Voice <span className="text-red-500">*</span>
+                            </label>
                           </div>
-                          <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-1">
+                          <TTSVoiceSelector
+                            value={quickCreateData.tts}
+                            onChange={(tts) => setQuickCreateData((prev) => ({ ...prev, tts, voice: tts.voice_id || prev.voice, voiceSpeed: tts.speed }))}
+                            genderFilter={quickCreateData.gender}
+                            onTestVoice={(voiceId) =>
+                              previewGeminiVoice(
+                                voiceId,
+                                quickCreateData.tts.speed,
+                                `Hello! I'm ${quickCreateData.aiEmployeeName || 'your AI assistant'}. How can I help you today?`
+                              )
+                            }
+                            onStopTestVoice={stopVoicePreview}
+                            isTesting={isTestingVoice}
+                            isLoadingTest={isLoadingVoicePreview}
+                            testSupportedProviders={["google_chirp"]}
+                          />
+                          <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-2">
                             Choose a voice that matches your brand personality
                           </p>
                         </div>
@@ -5284,40 +5516,6 @@ const AgentManagement = () => {
                             Set the personality tone for your AI assistant
                           </p>
                         </div>
-
-                        {/* Voice Speed Slider */}
-                        <div>
-                          <div className="flex items-center justify-between mb-2">
-                            <label className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300">
-                              Voice Speed
-                            </label>
-                            <span className="text-xs sm:text-sm font-medium text-blue-600 dark:text-blue-400">
-                              {quickCreateData.voiceSpeed.toFixed(1)}x
-                            </span>
-                          </div>
-                          <input
-                            type="range"
-                            min="0.5"
-                            max="2.0"
-                            step="0.1"
-                            value={quickCreateData.voiceSpeed}
-                            onChange={(e) =>
-                              setQuickCreateData((prev) => ({
-                                ...prev,
-                                voiceSpeed: parseFloat(e.target.value),
-                              }))
-                            }
-                            className="w-full h-2 rounded-lg appearance-none cursor-pointer accent-blue-600"
-                            style={{
-                              background: `linear-gradient(to right, #2563eb ${((quickCreateData.voiceSpeed - 0.5) / (2.0 - 0.5)) * 100}%, #e2e8f0 ${((quickCreateData.voiceSpeed - 0.5) / (2.0 - 0.5)) * 100}%)`,
-                            }}
-                          />
-                          <div className="flex justify-between text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-1">
-                            <span>Slower (0.5x)</span>
-                            <span>Normal (1.0x)</span>
-                            <span>Faster (2.0x)</span>
-                          </div>
-                        </div>
                       </div>
                     </div>
                   )}
@@ -5330,13 +5528,17 @@ const AgentManagement = () => {
                           <Briefcase className="w-6 h-6 sm:w-8 sm:h-8 text-purple-600 dark:text-purple-400" />
                         </div>
                         <h3 className="text-lg sm:text-xl font-semibold text-slate-800 dark:text-white mb-1 sm:mb-2">
-                          What should your AI Employee do?
+                          {CHANNEL_STEP3_COPY[quickCreateData.agentType].title}
                         </h3>
                         <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto px-2">
-                          Select the main task your AI will handle. This
-                          determines how it responds and what skills it
-                          prioritizes.
+                          {CHANNEL_STEP3_COPY[quickCreateData.agentType].subtitle}
                         </p>
+                        {quickCreateData.agentType === 'outbound' && (
+                          <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                            <PhoneOutgoing className="w-3 h-3" />
+                            Pure outbound templates · first greeting asks for a couple of minutes
+                          </p>
+                        )}
                       </div>
 
                       {/* Business Process Slider */}
@@ -6737,7 +6939,7 @@ const AgentManagement = () => {
                           <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                             <p className="text-xs text-blue-500 dark:text-blue-400 mb-1 font-medium">Voice</p>
                             <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                              {quickCreateData.voice || "Achernar"}
+                              {quickCreateData.tts.voice_id || quickCreateData.voice || "—"}
                             </p>
                           </div>
                           <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">

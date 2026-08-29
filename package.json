@@ -25,6 +25,7 @@
     "react": "^18.3.1",
     "react-ai-orb": "^1.0.13",
     "react-dom": "^18.3.1",
+    "react-helmet-async": "^3.0.0",
     "react-hook-form": "^7.63.0",
     "react-hot-toast": "^2.6.0",
     "react-markdown": "^10.1.0",

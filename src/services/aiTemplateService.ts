@@ -1,4 +1,12 @@
 import axios from "axios";
+import {
+  buildOutboundMetadataInstructions,
+  buildOutboundSystemPromptBrief,
+  businessProcessToOutboundVariant,
+  buildInboundMetadataInstructions,
+  buildInboundSystemPromptBrief,
+  businessProcessToInboundVariant,
+} from "../constants/outboundPromptShell";
 
 const PROMPT_GENERATION_API =
   import.meta.env.VITE_API_BASE_URL + "/generate-prompt/generate";
@@ -84,6 +92,8 @@ export interface GenerateTemplateRequest {
   additionalContext?: string;
   extractedContent?: string; // Extracted text from uploaded files (PDFs, docs, etc.)
   voiceStyle?: string; // e.g. friendly, professional, casual, authoritative, empathetic, enthusiastic
+  /** Primary channel from create wizard — outbound uses the universal outbound prompt shell. */
+  deploymentMode?: "webrtc" | "inbound" | "outbound";
 }
 
 interface PromptGenerationData {
@@ -128,9 +138,10 @@ class AITemplateService {
     let templates = this.parseGeneratedTemplates(generatedText);
     if (templates.length === 0) throw new Error("Failed to parse templates from API response");
 
-    if (templates.length > 2) templates = templates.slice(0, 2);
-    if (templates.length < 2) {
-      templates.push(this.generateComplementaryTemplate(templates[0], request));
+    const TARGET_TEMPLATE_COUNT = 3;
+    if (templates.length > TARGET_TEMPLATE_COUNT) templates = templates.slice(0, TARGET_TEMPLATE_COUNT);
+    while (templates.length < TARGET_TEMPLATE_COUNT) {
+      templates.push(this.generateComplementaryTemplate(templates[templates.length - 1], request));
     }
 
     console.log("✅ Metadata ready:", templates.map((t) => t.name));
@@ -156,6 +167,7 @@ class AITemplateService {
             template.manualKnowledge,
             request.subIndustry,
             request.voiceStyle,
+            request.deploymentMode,
           ).then((sysPrompt) => {
             if (sysPrompt.trim().length > 100) {
               bgTemplates[i] = { ...bgTemplates[i], systemPrompt: sysPrompt };
@@ -183,6 +195,37 @@ class AITemplateService {
     const subIndustryContent = request.subIndustry
       ? `\nSub-industry: ${request.subIndustry}`
       : "";
+
+    const employeeNameMatchEarly = request.additionalContext?.match(
+      /The AI employee will be named:\s*(.+)/i
+    );
+    const earlyEmployeeName = employeeNameMatchEarly
+      ? employeeNameMatchEarly[1].trim()
+      : request.companyName
+        ? `${request.companyName} Assistant`
+        : "[AI Employee Name]";
+    const earlyCompanyName = request.companyName || "[Company Name]";
+    const isOutbound = request.deploymentMode === "outbound";
+    const isInbound = request.deploymentMode === "inbound";
+    const outboundVariant = businessProcessToOutboundVariant(request.businessProcess);
+    const inboundVariant = businessProcessToInboundVariant(request.businessProcess);
+    const channelBlock = isOutbound
+      ? `\n\n${buildOutboundMetadataInstructions({
+          employeeName: earlyEmployeeName,
+          companyName: earlyCompanyName,
+          businessProcess: request.businessProcess,
+          industry: request.industry,
+          variant: outboundVariant,
+        })}\n`
+      : isInbound
+        ? `\n\n${buildInboundMetadataInstructions({
+            employeeName: earlyEmployeeName,
+            companyName: earlyCompanyName,
+            businessProcess: request.businessProcess,
+            industry: request.industry,
+            variant: inboundVariant,
+          })}\n`
+        : "";
 
     // High-quality example demonstrating voice-AI optimized system prompt format
     const exampleTemplates = `[
@@ -251,15 +294,17 @@ FALLBACK VALUES (only if truly not in document):
 - Business Process: ${request.businessProcess}
 - Industry: ${request.industry}${subIndustryContent}${urlContent}
 ${request.additionalContext ? `- Additional Context: ${request.additionalContext}` : ''}
+${channelBlock}
+STEP 3: GENERATE EXACTLY 3 DISTINCT TEMPLATES
 
-STEP 3: GENERATE EXACTLY 2 DISTINCT TEMPLATES
-
-Both templates MUST:
+All three templates MUST:
 - Use the EXACT AI employee name "${employeeName}" (not a placeholder)
 - Use the ACTUAL company name extracted from the document
-- Be based on REAL services/products from the document
-- Have different focuses (e.g., Template 1: primary customer service, Template 2: sales/lead-gen or specialized support)
-- Include comprehensive system prompts with REAL company-specific knowledge
+- Be based on REAL services/products/policies from the document — pull specific names, numbers, ranges, and terminology straight from the text, not generic industry filler
+- Represent 3 genuinely different real-world use cases for this specific business${isOutbound ? " within pure OUTBOUND calling (never inbound/web chat)" : isInbound ? " within pure INBOUND call-answering (never outbound/web chat)" : ""} — different call objectives, different stages of the customer/prospect journey, or different segments of who they'd be talking to. Do not produce 3 variations of the same generic conversation with a different label.
+- Include comprehensive system prompts with REAL company-specific knowledge — specific enough that someone reading it could tell exactly which company this is, not a template that could apply to any business in the industry
+${isOutbound ? `- firstMessage MUST be an impressive outbound opener that asks for a couple of minutes, e.g. "Hi, this is ${employeeName} from ${request.companyName || companyFallback}. {{one-line reason}}. Do you have a couple of minutes?" (never "Thank you for calling")` : ""}
+${isInbound ? `- firstMessage MUST be a call-answering greeting, e.g. "Thank you for calling ${request.companyName || companyFallback}, this is ${employeeName}. How can I help you today?" (never an outbound opener asking "do you have a couple of minutes")` : ""}
 
 Each template MUST have ALL of these fields:
 - name: Unique professional name for the AI Employee role
@@ -277,8 +322,9 @@ Each template MUST have ALL of these fields:
 - conversationExamples: 2-3 examples using REAL services/products
 - intents: 2-3 intents relevant to actual company offerings
 
-Return ONLY a valid JSON array with EXACTLY 2 template objects. No markdown, no explanation.
+Return ONLY a valid JSON array with EXACTLY 3 template objects. No markdown, no explanation.
 
+The example below shows the REQUIRED JSON structure and field format only — it is for an unrelated limo business and exists purely to show shape and level of detail. Do not reuse its industry, tone, phrasing, or content. Every field in your output must be built from the document above.
 Example format: ${exampleTemplates}`;
     }
     
@@ -299,15 +345,19 @@ Business Information:
 - Business Process: ${request.businessProcess}
 - Industry: ${request.industry}${subIndustryContent}${urlContent}
 ${request.additionalContext ? `- Additional Context: ${request.additionalContext}` : ''}
-
-Generate EXACTLY 2 DISTINCT AI Employee templates in JSON format.
+${channelBlock}
+Generate EXACTLY 3 DISTINCT AI Employee templates in JSON format.
 
 CRITICAL INSTRUCTIONS:
 1. ALWAYS use the exact AI Employee Name "${stdEmployeeName}" in firstMessage and all scripts.
 2. ALWAYS use the exact Company Name "${stdCompanyName}" everywhere — never use [Company Name] placeholder.
-3. Both templates must be DIFFERENT in focus (e.g., Template 1: customer service, Template 2: sales/appointment-setting).
-4. For systemPrompt: write a SHORT 2-3 sentence role summary ONLY (e.g. "You are ${stdEmployeeName}, a customer service specialist for ${stdCompanyName}. You handle customer inquiries, resolve issues, and book appointments."). The full detailed system prompt is generated in a separate step — do NOT write a long system prompt here.
-5. Do NOT use generic placeholders anywhere — all content must be specific and realistic.
+3. All three templates must represent genuinely different real-world use cases for this business${isOutbound ? " within pure OUTBOUND calling for this business process" : isInbound ? " within pure INBOUND call-answering for this business process" : ""} — different call objectives, different stages of the customer journey, or different customer segments. Not three versions of the same generic conversation.
+4. For systemPrompt: write a SHORT 2-3 sentence role summary ONLY (e.g. "You are ${stdEmployeeName}, a${isOutbound ? "n outbound" : isInbound ? "n inbound" : ""} customer service specialist for ${stdCompanyName}. You ${isOutbound ? "place outbound calls to qualify leads and route next steps" : isInbound ? "answer incoming calls to resolve issues and book appointments" : "handle customer inquiries, resolve issues, and book appointments"}."). The full detailed system prompt is generated in a separate step — do NOT write a long system prompt here.
+5. Do NOT use generic placeholders or generic industry boilerplate anywhere — every detail (services, policies, objections, talking points) must be specific enough to this exact business that it wouldn't fit a competitor.
+${isOutbound ? `6. firstMessage MUST impress on first test: outbound opener with purpose + ask for a couple of minutes, e.g. "Hi, this is ${stdEmployeeName} from ${stdCompanyName}. {{one-line reason}}. Do you have a couple of minutes?" Never use inbound "Thank you for calling".
+7. conversationExamples must be agent-initiated outbound dialogues.` : ""}
+${isInbound ? `6. firstMessage MUST sound like answering a ringing phone, e.g. "Thank you for calling ${stdCompanyName}, this is ${stdEmployeeName}. How can I help you today?" Never use an outbound opener asking permission to continue.
+7. conversationExamples must be customer-initiated inbound dialogues (the caller states their need; the agent responds).` : ""}
 
 For each template provide these JSON fields:
 - name, description, icon, features (array)
@@ -320,8 +370,9 @@ For each template provide these JSON fields:
 - conversationExamples (array of {customerInput, expectedResponse})
 - intents (array of {name, phrases, response})
 
-Return ONLY a valid JSON array with EXACTLY 2 objects. No markdown, no explanation.
+Return ONLY a valid JSON array with EXACTLY 3 objects. No markdown, no explanation.
 
+The example below shows the REQUIRED JSON structure and field format only — it is for an unrelated limo business and exists purely to show shape and level of detail. Do not reuse its industry, tone, phrasing, or content.
 Example format: ${exampleTemplates}`;
 
     return prompt;
@@ -363,13 +414,43 @@ Example format: ${exampleTemplates}`;
     manualKnowledge?: string,
     subIndustry?: string,
     _voiceStyle?: string, // reserved — Voice Instructions are injected externally
+    deploymentMode?: "webrtc" | "inbound" | "outbound",
   ): Promise<string> {
-    const subLine = subIndustry ? `\nSub-industry: ${subIndustry}` : "";
-    const kbSection = manualKnowledge?.trim()
-      ? `\n\nCompany-specific knowledge to incorporate:\n${manualKnowledge.substring(0, 3000)}`
-      : "";
+    const isOutbound = deploymentMode === "outbound";
+    const isInbound = deploymentMode === "inbound";
+    const outboundVariant = businessProcessToOutboundVariant(businessProcess);
+    const inboundVariant = businessProcessToInboundVariant(businessProcess);
 
-    const prompt = `You are an expert AI voice agent prompt engineer. Generate a comprehensive, production-quality system prompt for a voice-based AI employee.
+    const prompt = isOutbound
+      ? buildOutboundSystemPromptBrief({
+          employeeName,
+          companyName,
+          templateName,
+          description,
+          industry,
+          businessProcess,
+          subIndustry,
+          manualKnowledge,
+          variant: outboundVariant,
+        })
+      : isInbound
+        ? buildInboundSystemPromptBrief({
+            employeeName,
+            companyName,
+            templateName,
+            description,
+            industry,
+            businessProcess,
+            subIndustry,
+            manualKnowledge,
+            variant: inboundVariant,
+          })
+        : (() => {
+          const subLine = subIndustry ? `\nSub-industry: ${subIndustry}` : "";
+          const kbSection = manualKnowledge?.trim()
+            ? `\n\nCompany-specific knowledge to incorporate:\n${manualKnowledge.substring(0, 3000)}`
+            : "";
+          return `You are an expert AI voice agent prompt engineer. Generate a comprehensive, production-quality system prompt for a voice-based AI employee.
 
 Agent Details:
 - AI Employee Name: "${employeeName}" (use this exact name, never a placeholder)
@@ -419,6 +500,7 @@ Communication Rules
 [Dos and don'ts for how to communicate on every call]
 
 Return ONLY the system prompt text. No JSON, no markdown code blocks, no explanation.`;
+        })();
 
     const response = await promptClient.post<PromptGenerationResponse>(
       PROMPT_GENERATION_API,
@@ -430,6 +512,148 @@ Return ONLY the system prompt text. No JSON, no markdown code blocks, no explana
     );
 
     return this.extractGeneratedText(response.data) || "";
+  }
+
+  /**
+   * Merges a freshly-generated system prompt into the user's existing (possibly
+   * manually edited) one, updating only the content tied to the fields that
+   * actually changed and leaving every other section exactly as the user wrote it.
+   *
+   * Used by "Regenerate template" so a business-process/industry/voice-style
+   * change doesn't silently wipe out manual prompt edits.
+   */
+  async mergeSystemPrompt(params: {
+    currentPrompt: string;
+    freshPrompt: string;
+    changedFields: string[]; // e.g. ["businessProcess", "industry"]
+    employeeName: string;
+    companyName: string;
+  }): Promise<string> {
+    const { currentPrompt, freshPrompt, changedFields, employeeName, companyName } = params;
+
+    // Nothing to preserve — just use the fresh generation.
+    if (!currentPrompt?.trim()) return freshPrompt;
+    // Nothing changed — keep the current prompt untouched.
+    if (changedFields.length === 0) return currentPrompt;
+
+    const mergePrompt = `You are merging two versions of a voice AI agent's system prompt for "${employeeName}" at "${companyName}".
+
+CURRENT PROMPT (in production — contains manual edits made by the user that must be preserved):
+"""
+${currentPrompt}
+"""
+
+FRESH PROMPT (newly regenerated because these fields changed: ${changedFields.join(", ")}):
+"""
+${freshPrompt}
+"""
+
+Task: produce ONE merged system prompt that:
+1. Keeps every section, instruction, wording, and detail from the CURRENT PROMPT that is NOT specifically about ${changedFields.join(" or ")}.
+2. Only updates the parts of the prompt that are directly about ${changedFields.join(" or ")} — pull that updated content from the FRESH PROMPT.
+3. Does NOT revert, rewrite, or "improve" any other section — if the user manually tightened wording, added a rule, or added a custom section in CURRENT PROMPT, keep it verbatim.
+4. Does NOT duplicate sections. If both prompts cover the same topic, merge into a single section using the rule above (keep current unless it's about ${changedFields.join(" or ")}).
+5. Keeps the agent name "${employeeName}" and company name "${companyName}" exactly as they already appear — never invent a different name.
+
+Return ONLY the merged system prompt text. No JSON, no markdown code fences, no explanation, no commentary about what you changed.`;
+
+    const response = await promptClient.post<PromptGenerationResponse>(
+      PROMPT_GENERATION_API,
+      {
+        prompt: mergePrompt,
+        // The model has to echo back the entire (potentially long) prompt in its
+        // output, not just the changed part — 4000 tokens was cutting off longer
+        // prompts mid-generation. Match the ceiling used for full template gen.
+        max_tokens: 16000,
+        temperature: 0.3, // low — this is an editing task, not creative generation
+      },
+    );
+
+    const merged = this.extractGeneratedText(response.data);
+    // Reject a merge that came back dramatically shorter than the current prompt —
+    // that means the response got cut off rather than actually merging both
+    // versions — and fall back to the current prompt untouched instead of
+    // silently saving a truncated one.
+    if (merged && merged.trim().length >= currentPrompt.trim().length * 0.6) {
+      return merged;
+    }
+    return currentPrompt;
+  }
+
+  /**
+   * Targeted fix: given a plain-English description of a behavior problem
+   * ("agent isn't asking for the caller's name first", "keeps repeating the
+   * caller's name"), locates the relevant part of the current system prompt
+   * and edits just that — leaving everything else untouched. Used by the
+   * "Fix with AI" editor on the Template tab.
+   */
+  async fixSystemPromptIssue(params: {
+    currentPrompt: string;
+    issueDescription: string;
+    employeeName: string;
+    companyName: string;
+  }): Promise<string> {
+    const { currentPrompt, issueDescription, employeeName, companyName } = params;
+    if (!currentPrompt?.trim()) {
+      throw new Error("No system prompt to fix yet — write one first.");
+    }
+    if (!issueDescription?.trim()) {
+      throw new Error("Describe the issue first.");
+    }
+
+    const fixPrompt = `You are an expert voice AI prompt engineer fixing a specific behavior problem in a live system prompt for "${employeeName}" at "${companyName}".
+
+CURRENT SYSTEM PROMPT (in production):
+"""
+${currentPrompt}
+"""
+
+REPORTED ISSUE / REQUESTED CHANGE (from the person who owns this agent):
+"""
+${issueDescription}
+"""
+
+First, understand what the user actually wants — read the request the way a person would, not literally word-for-word. Figure out their real intent and what outcome they're asking for, then make the prompt produce that outcome.
+
+Then produce ONE corrected system prompt that:
+1. Finds the section(s) of the CURRENT SYSTEM PROMPT that are actually causing the reported behavior (e.g. a call-flow step, a data-collection rule, a restriction, an escalation condition) and edits exactly those — nothing else.
+2. If the request means an existing rule should be REMOVED, LOOSENED, or REVERSED (e.g. "stop restricting X", "it's fine to share Y now", "don't require Z anymore"), replace that rule outright with what the user asked for. Do NOT keep the old restriction and wrap the new behavior in a new conditional, exception, or hedge (like "unless policy allows it" or "if approved") — the user's instruction is the new rule, full stop, unless they explicitly asked for a condition.
+3. Do not invent conditions, policies, approval steps, or caveats that the user did not mention. If they said "always do X", the prompt should say to always do X — not "do X in most cases" or "do X unless Y" where Y was never mentioned.
+4. If no matching section exists yet, add a small, precisely-scoped instruction that produces the requested outcome — don't invent unrelated content around it.
+5. Leaves every other section, instruction, and wording EXACTLY as it is in the CURRENT SYSTEM PROMPT. Do not rewrite, reorder, "clean up", or shorten anything unrelated to the request.
+6. Does not duplicate or contradict instructions — if a rule already exists but is wrong or being followed incorrectly, correct that existing rule in place (per point 2) rather than adding a second, conflicting one elsewhere in the prompt.
+7. Keeps the agent name "${employeeName}" and company name "${companyName}" exactly as they already appear — never invent a different name.
+
+Before returning, re-read the CURRENT SYSTEM PROMPT once more and confirm no other rule still contradicts what the user just asked for — if one does, fix that one too, in place.
+
+Return ONLY the corrected system prompt text. No JSON, no markdown code fences, no explanation, no summary of what you changed.`;
+
+    const response = await promptClient.post<PromptGenerationResponse>(
+      PROMPT_GENERATION_API,
+      {
+        prompt: fixPrompt,
+        // The model must return the FULL corrected prompt, not a diff — for longer
+        // prompts 4000 tokens truncated the response mid-generation. Match the
+        // ceiling used for full template gen.
+        max_tokens: 16000,
+        temperature: 0.3, // low — targeted edit, not creative generation
+      },
+    );
+
+    const fixed = this.extractGeneratedText(response.data);
+    if (!fixed || fixed.trim().length < 100) {
+      throw new Error("The AI didn't return a usable prompt. Please try again.");
+    }
+    // The output should be the whole prompt back, not a fragment — if it came back
+    // dramatically shorter than the original, something got cut off or dropped
+    // content rather than making a targeted edit. Fail loudly instead of silently
+    // handing back a truncated prompt for the user to apply.
+    if (fixed.trim().length < currentPrompt.trim().length * 0.6) {
+      throw new Error(
+        "The AI's response looked incomplete (much shorter than your current prompt). Please try again.",
+      );
+    }
+    return fixed;
   }
 
   /**
@@ -917,16 +1141,42 @@ Return ONLY the system prompt text. No JSON, no markdown code blocks, no explana
     const complementaryName = `${employeeName} — ${roleFocus}`;
     const complementaryDescription = `${employeeName} is a dedicated ${roleFocus.toLowerCase()} for ${companyName}, specializing in ${request.industry} with a ${complementaryTone.toLowerCase()} approach. Fully trained on ${companyName}'s services and policies to deliver accurate, helpful responses.`;
 
+    // Channel shapes the greeting, conversation flow, and closing — an outbound
+    // agent placed the call and must ask permission to continue; an inbound
+    // agent answered a ringing phone and should get straight to helping;
+    // web/webrtc is a chat widget, not a phone call.
+    const isOutboundFallback = request.deploymentMode === "outbound";
+    const isInboundFallback = request.deploymentMode === "inbound";
+
+    const complementaryFirstMessage = isOutboundFallback
+      ? `Hi, this is ${employeeName} from ${companyName}. I'm following up regarding ${request.businessProcess.replace(/-/g, ' ')} — do you have a couple of minutes?`
+      : isInboundFallback
+        ? `Thank you for calling ${companyName}, this is ${employeeName}. How can I help you today?`
+        : `Hello! I'm ${employeeName} from ${companyName}. How can I assist you today?`;
+
+    const conversationFlowStep = isOutboundFallback
+      ? `1. Open with a warm, concise reason for the call and ask permission to continue (never "Thank you for calling")\n2. If busy — offer a callback time. If voicemail — leave a short professional message\n3. If they opt out or say not interested — end politely, no re-asking\n4. Ask discovery questions one at a time\n5. Confirm next steps and close`
+      : isInboundFallback
+        ? `1. Answer with a warm, immediate greeting as ${employeeName} from ${companyName}\n2. Identify what the caller needs — get straight to it, don't ask permission to continue\n3. Resolve, route, or book — whichever the request calls for\n4. Confirm key details back to the caller\n5. Close professionally, offering further help`
+        : `1. Greet the visitor warmly as ${employeeName} from ${companyName}\n2. Identify their need or question\n3. Provide accurate information from company knowledge\n4. Address any objections or concerns\n5. Confirm next steps and close professionally`;
+
+    const closingLine = isOutboundFallback
+      ? `\'Thanks for your time — I'll follow up as discussed.\'`
+      : isInboundFallback
+        ? `\'Thank you for calling ${companyName}. Is there anything else I can help you with?\'`
+        : `\'Thank you for contacting ${companyName}.\'`;
+
     const complementarySystemPrompt =
       `## Identity & Purpose\n\nYou are ${employeeName}, a ${roleFocus.toLowerCase()} for ${companyName}. ` +
-      `Your role is to assist customers professionally and efficiently in the context of ${request.businessProcess} within the ${request.industry} industry.\n\n` +
-      `## Voice & Persona\n\n### Personality\n- ${complementaryPersonality}\n- Knowledgeable about ${companyName}\'s services\n- Clear and accurate\n\n` +
-      `### Speech Characteristics\n- ${complementaryTone} tone\n- Listen actively before responding\n- Confirm key information\n\n` +
-      `## Conversation Flow\n\n1. Greet the caller warmly as ${employeeName} from ${companyName}\n2. Identify their need or question\n3. Provide accurate information from company knowledge\n4. Address any objections or concerns\n5. Confirm next steps and close professionally\n\n` +
+      `Your role is to ${isOutboundFallback ? 'place outbound calls and represent the company professionally' : isInboundFallback ? 'answer incoming calls and assist customers professionally and efficiently' : 'assist customers professionally and efficiently'} in the context of ${request.businessProcess} within the ${request.industry} industry.` +
+      (isOutboundFallback ? ` You are NOT an inbound support line — the customer did not call in; you initiated contact.` : isInboundFallback ? ` You are NOT an outbound caller — the customer initiated this call.` : '') +
+      `\n\n## Voice & Persona\n\n### Personality\n- ${complementaryPersonality}\n- Knowledgeable about ${companyName}\'s services\n- Clear and accurate\n\n` +
+      `### Speech Characteristics\n- ${complementaryTone} tone\n- Listen actively before responding\n- Confirm key information\n${isOutboundFallback ? '- Acknowledge they didn\'t ask for this call\n' : ''}` +
+      `\n## Conversation Flow\n\n${conversationFlowStep}\n\n` +
       `## Response Guidelines\n- Always identify yourself as ${employeeName}\n- Be concise and accurate\n- Never guess — use company knowledge\n- Escalate when needed\n\n` +
       `## Scenario Handling\n\n### General Inquiry\n1. Listen to the customer's question\n2. Reference company knowledge to answer accurately\n3. Offer additional help if needed\n\n### Complaint or Issue\n1. Acknowledge the issue empathetically\n2. Apologize for the inconvenience\n3. Provide a resolution or escalate\n\n### Request for Services\n1. Clarify what the customer needs\n2. Explain relevant services from company knowledge\n3. Guide them to next steps\n` +
       kbKnowledgeSection +
-      `\n\n## Call Management\n- If on hold: \'One moment, please.\'\n- For transfers: \'I will connect you with the right team.\'\n- Always end professionally: \'Thank you for contacting ${companyName}.\'`;
+      `\n\n## Call Management\n- If on hold: \'One moment, please.\'\n- For transfers: \'I will connect you with the right team.\'\n- Always end professionally: ${closingLine}`;
 
     return {
       name: complementaryName,
@@ -934,7 +1184,7 @@ Return ONLY the system prompt text. No JSON, no markdown code blocks, no explana
       icon: complementaryIcon,
       features: complementaryFeatures,
       systemPrompt: complementarySystemPrompt,
-      firstMessage: `Hello! I'm ${employeeName} from ${companyName}. How can I assist you today?`,
+      firstMessage: complementaryFirstMessage,
       industryFocus: request.industry || '',
       tone: complementaryTone,
       gender: existingTemplate.gender === 'Female' ? 'Male' : 'Female',
@@ -944,7 +1194,11 @@ Return ONLY the system prompt text. No JSON, no markdown code blocks, no explana
       websiteUrls: request.websiteUrls || [],
       keyTalkingPoints: existingTemplate.keyTalkingPoints ||
         `• ${companyName} is committed to excellent service\n• Accurate information from company knowledge\n• Professional and timely assistance`,
-      closingScript: `Thank you for contacting ${companyName}. Is there anything else I can help you with today?`,
+      closingScript: isOutboundFallback
+        ? `Thanks again for your time — I'll be in touch as discussed. Have a great day!`
+        : isInboundFallback
+          ? `Thank you for calling ${companyName}. Is there anything else I can help you with today?`
+          : `Thank you for contacting ${companyName}. Is there anything else I can help you with today?`,
       objections: existingTemplate.objections || [],
       conversationExamples: existingTemplate.conversationExamples || [],
       intents: existingTemplate.intents || [],

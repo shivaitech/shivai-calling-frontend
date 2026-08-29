@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import GlassCard from '../../components/GlassCard';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { authAPI } from '../../services/authAPI';
+import { authAPI, ZOHO_DATA_CENTERS, GoogleCalendarConnection } from '../../services/authAPI';
 import { 
   User, 
   Bell, 
@@ -50,6 +50,14 @@ const Settings = () => {
   const [selectedSheetId, setSelectedSheetId] = useState('');
   const [sheetsFetching, setSheetsFetching] = useState(false);
   const [sheetsSaving, setSheetsSaving] = useState(false);
+  const [zohoConnecting, setZohoConnecting] = useState(false);
+  const [zohoSuccessMsg, setZohoSuccessMsg] = useState(false);
+  const [zohoErrorMsg, setZohoErrorMsg] = useState('');
+  const [zohoDc, setZohoDc] = useState('in');
+  const [gcalConnecting, setGcalConnecting] = useState(false);
+  const [gcalSuccessMsg, setGcalSuccessMsg] = useState(false);
+  const [gcalErrorMsg, setGcalErrorMsg] = useState('');
+  const [gcalEmail, setGcalEmail] = useState('');
 
   const [profile, setProfile] = useState({
     name: '',
@@ -174,6 +182,105 @@ const Settings = () => {
       })
       .catch(() => {})
       .finally(() => setAccountsLoading(false));
+
+    authAPI.getZohoStatus()
+      .then(connection => {
+        if (connection.connected) {
+          setAccountStates(prev => ({ ...prev, zoho: { ...prev.zoho, connected: true } }));
+        }
+      })
+      .catch(() => {});
+
+    authAPI.getGoogleCalendarStatus()
+      .then((connection: GoogleCalendarConnection) => {
+        if (connection.connected) {
+          setAccountStates(prev => ({ ...prev, googleCalendar: { ...prev.googleCalendar, connected: true } }));
+          setGcalEmail(connection.email || '');
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Support deep-linking a tab via hash, e.g. /settings#accounts — used by the
+  // sidebar's Settings submenu and My Apps > Connections shortcuts.
+  useEffect(() => {
+    const tab = location.hash.replace(/^#/, '');
+    if (tab && tabs.some((t) => t.id === tab)) {
+      setActiveTab(tab);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.hash]);
+
+  // Detect ?google_calendar=connected / ?google_calendar=error redirect from Google Calendar OAuth callback
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const googleCalendar = params.get('google_calendar');
+    if (!googleCalendar) return;
+
+    setActiveTab('accounts');
+    const clean = new URL(window.location.href);
+    clean.searchParams.delete('google_calendar');
+    clean.searchParams.delete('reason');
+    window.history.replaceState({}, '', clean.toString());
+
+    if (googleCalendar === 'connected') {
+      // Status is the source of truth — refetch rather than trusting the query param alone
+      // (a duplicate/refreshed callback can occur since OAuth codes are one-time use).
+      authAPI.getGoogleCalendarStatus()
+        .then((connection: GoogleCalendarConnection) => {
+          if (connection.connected) {
+            setAccountStates(prev => ({ ...prev, googleCalendar: { ...prev.googleCalendar, connected: true, expanded: false } }));
+            setGcalEmail(connection.email || '');
+            setGcalSuccessMsg(true);
+            setTimeout(() => setGcalSuccessMsg(false), 6000);
+          }
+        })
+        .catch(() => {});
+    } else {
+      const reason = params.get('reason') || 'unknown';
+      const reasonLabels: Record<string, string> = {
+        access_denied: 'You declined access in Google.',
+        missing_params: 'The connection request was incomplete.',
+        invalid_state: 'The connection request expired. Please try again.',
+        calendar_scope_denied: 'Calendar access was not granted. Please try again and allow Calendar.',
+        missing_refresh_token: 'Google did not grant offline access. Remove ShivAI from your Google Account\'s third-party access, then try again.',
+        encryption_misconfigured: 'A server configuration issue prevented the connection. Please contact support.',
+        token_exchange_failed: 'Google could not verify the connection. Please try again.',
+      };
+      setGcalErrorMsg(reasonLabels[reason] || 'Could not connect Google Calendar. Please try again.');
+      setTimeout(() => setGcalErrorMsg(''), 8000);
+    }
+    setGcalConnecting(false);
+  }, []);
+
+  // Detect ?zoho=connected / ?zoho=error redirect from Zoho OAuth callback
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const zoho = params.get('zoho');
+    if (!zoho) return;
+
+    setActiveTab('accounts');
+    const clean = new URL(window.location.href);
+    clean.searchParams.delete('zoho');
+    clean.searchParams.delete('reason');
+    window.history.replaceState({}, '', clean.toString());
+
+    if (zoho === 'connected') {
+      setAccountStates(prev => ({ ...prev, zoho: { ...prev.zoho, connected: true, expanded: false } }));
+      setZohoSuccessMsg(true);
+      setTimeout(() => setZohoSuccessMsg(false), 6000);
+    } else {
+      const reason = params.get('reason') || 'unknown';
+      const reasonLabels: Record<string, string> = {
+        access_denied: 'You declined access in Zoho.',
+        missing_params: 'The connection request was incomplete.',
+        invalid_state: 'The connection request expired. Please try again.',
+        token_exchange_failed: 'Zoho could not verify the connection. Please try again.',
+      };
+      setZohoErrorMsg(reasonLabels[reason] || 'Could not connect Zoho CRM. Please try again.');
+      setTimeout(() => setZohoErrorMsg(''), 8000);
+    }
+    setZohoConnecting(false);
   }, []);
 
   // Detect ?oauth=connected redirect from Google OAuth callback
@@ -277,7 +384,7 @@ const Settings = () => {
   };
 
   // ── Accounts (connected accounts) state ────────────────────────────────────
-  type AccountId = 'google' | 'googleSheets' | 'twilio' | 'whatsapp' | 'slack' | 'meta' | 'zapier';
+  type AccountId = 'google' | 'googleSheets' | 'googleCalendar' | 'zoho' | 'twilio' | 'whatsapp' | 'slack' | 'meta' | 'zapier';
   type AccountState = {
     connected: boolean;
     expanded: boolean;
@@ -325,6 +432,38 @@ const Settings = () => {
           <rect x="7" y="7" width="4" height="10" rx="0.5" fill="white" fillOpacity="0.9"/>
           <rect x="13" y="7" width="4" height="10" rx="0.5" fill="white" fillOpacity="0.9"/>
           <rect x="7" y="11" width="10" height="1.5" fill="#0F9D58"/>
+        </svg>
+      ),
+      fields: [],
+    },
+    {
+      id: 'googleCalendar',
+      name: 'Google Calendar',
+      description: 'Sync bookings and appointments to your calendar',
+      color: 'text-blue-600',
+      bg: 'bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700',
+      isOAuth: true,
+      icon: (
+        <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none">
+          <rect x="3" y="4" width="18" height="17" rx="2" fill="#fff" stroke="#4285F4" strokeWidth="1.5"/>
+          <rect x="3" y="4" width="18" height="5" rx="1" fill="#4285F4"/>
+          <rect x="7" y="12" width="4" height="4" fill="#34A853"/>
+          <rect x="13" y="12" width="4" height="4" fill="#FBBC05"/>
+        </svg>
+      ),
+      fields: [],
+    },
+    {
+      id: 'zoho',
+      name: 'Zoho CRM',
+      description: 'Sync leads and contacts for outbound campaigns',
+      color: 'text-red-600',
+      bg: 'bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700',
+      isOAuth: true,
+      icon: (
+        <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none">
+          <rect x="2" y="6" width="20" height="12" rx="2" fill="#C8202F"/>
+          <path d="M7 9.5h4.5L7.3 14.5H12M13 9.5h4l-3.6 5" stroke="white" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
         </svg>
       ),
       fields: [],
@@ -438,6 +577,22 @@ const Settings = () => {
     authAPI.connectGoogleSheets(); // navigates away; no async needed
   };
 
+  const handleConnectZoho = () => {
+    setZohoConnecting(true);
+    authAPI.connectZoho(zohoDc)
+      .catch(() => {
+        setZohoConnecting(false);
+        setZohoErrorMsg('Could not start the Zoho connection. Please try again.');
+        setTimeout(() => setZohoErrorMsg(''), 8000);
+      });
+    // on success this navigates away — no need to reset zohoConnecting
+  };
+
+  const handleConnectGoogleCalendar = () => {
+    setGcalConnecting(true);
+    authAPI.connectGoogleCalendar(); // navigates away; no async needed
+  };
+
   const handleSaveSheet = async (sheetId: string) => {
     const sheet = sheetsList.find(s => s.id === sheetId);
     if (!sheet) return;
@@ -454,6 +609,12 @@ const Settings = () => {
 
   const disconnectAccount = (id: AccountId) => {
     const emptyFields = Object.fromEntries(ACCOUNT_DEFS.find(a => a.id === id)!.fields.map(f => [f.key, '']));
+    if (id === 'zoho') {
+      authAPI.disconnectZoho().catch(() => {});
+    } else if (id === 'googleCalendar') {
+      authAPI.disconnectGoogleCalendar().catch(() => {});
+      setGcalEmail('');
+    }
     setAccountStates(prev => ({ ...prev, [id]: { connected: false, expanded: false, fields: emptyFields } }));
   };
 
@@ -931,6 +1092,42 @@ const Settings = () => {
                   </button>
                 </div>
               )}
+              {gcalSuccessMsg && (
+                <div className="flex items-center gap-3 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
+                  <Check className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0" />
+                  <p className="text-sm text-green-700 dark:text-green-300 font-medium flex-1">Google Calendar connected{gcalEmail ? ` as ${gcalEmail}` : ''}!</p>
+                  <button onClick={() => setGcalSuccessMsg(false)} className="text-green-500 hover:text-green-700 transition-colors">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+              {gcalErrorMsg && (
+                <div className="flex items-center gap-3 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+                  <X className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0" />
+                  <p className="text-sm text-red-700 dark:text-red-300 font-medium flex-1">{gcalErrorMsg}</p>
+                  <button onClick={() => setGcalErrorMsg('')} className="text-red-500 hover:text-red-700 transition-colors">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+              {zohoSuccessMsg && (
+                <div className="flex items-center gap-3 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
+                  <Check className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0" />
+                  <p className="text-sm text-green-700 dark:text-green-300 font-medium flex-1">Zoho CRM connected! Manage the connection and leads from its dedicated page.</p>
+                  <button onClick={() => setZohoSuccessMsg(false)} className="text-green-500 hover:text-green-700 transition-colors">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+              {zohoErrorMsg && (
+                <div className="flex items-center gap-3 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+                  <X className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0" />
+                  <p className="text-sm text-red-700 dark:text-red-300 font-medium flex-1">{zohoErrorMsg}</p>
+                  <button onClick={() => setZohoErrorMsg('')} className="text-red-500 hover:text-red-700 transition-colors">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
               <div>
                 <h3 className="text-lg font-semibold text-slate-800 dark:text-white">Connected Accounts</h3>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Connect third-party services to power your AI agents.</p>
@@ -987,12 +1184,17 @@ const Settings = () => {
                               </span>
                             ) : def.isOAuth ? (
                               <button
-                                onClick={def.id === 'googleSheets' ? handleConnectGoogleSheets : handleConnectGmail}
-                                disabled={def.id === 'googleSheets' ? sheetsConnecting : gmailConnecting}
+                                onClick={
+                                  def.id === 'googleSheets' ? handleConnectGoogleSheets :
+                                  def.id === 'zoho' ? handleConnectZoho :
+                                  def.id === 'googleCalendar' ? handleConnectGoogleCalendar :
+                                  handleConnectGmail
+                                }
+                                disabled={def.id === 'googleSheets' ? sheetsConnecting : def.id === 'zoho' ? zohoConnecting : def.id === 'googleCalendar' ? gcalConnecting : gmailConnecting}
                                 className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-lg common-button-bg disabled:opacity-60 disabled:cursor-not-allowed flex-shrink-0 whitespace-nowrap"
                               >
-                                {(def.id === 'googleSheets' ? sheetsConnecting : gmailConnecting) ? <Loader2 className="w-3 h-3 animate-spin" /> : <Link2 className="w-3 h-3" />}
-                                {(def.id === 'googleSheets' ? sheetsConnecting : gmailConnecting) ? 'Connecting...' : 'Connect'}
+                                {(def.id === 'googleSheets' ? sheetsConnecting : def.id === 'zoho' ? zohoConnecting : def.id === 'googleCalendar' ? gcalConnecting : gmailConnecting) ? <Loader2 className="w-3 h-3 animate-spin" /> : <Link2 className="w-3 h-3" />}
+                                {(def.id === 'googleSheets' ? sheetsConnecting : def.id === 'zoho' ? zohoConnecting : def.id === 'googleCalendar' ? gcalConnecting : gmailConnecting) ? 'Connecting...' : 'Connect'}
                               </button>
                             ) : (
                               <button
@@ -1012,6 +1214,45 @@ const Settings = () => {
                         <div className="border-t border-slate-200 dark:border-slate-700 px-4 py-3 bg-slate-50/60 dark:bg-slate-800/40">
                           <button
                             onClick={() => navigate('/google-sheets')}
+                            className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                          >
+                            Manage Account
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Google Calendar — connected account email */}
+                      {def.id === 'googleCalendar' && state.connected && gcalEmail && (
+                        <div className="border-t border-slate-200 dark:border-slate-700 px-4 py-3 bg-slate-50/60 dark:bg-slate-800/40">
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            Connected as <span className="font-medium text-slate-700 dark:text-slate-300">{gcalEmail}</span>
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Zoho CRM — data center selector before connecting */}
+                      {def.id === 'zoho' && !state.connected && (
+                        <div className="border-t border-slate-200 dark:border-slate-700 px-4 py-3 bg-slate-50/60 dark:bg-slate-800/40">
+                          <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Zoho Data Center</label>
+                          <select
+                            value={zohoDc}
+                            onChange={e => setZohoDc(e.target.value)}
+                            disabled={zohoConnecting}
+                            className="w-full px-3 py-2 rounded-lg text-sm common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-blue-500/40 text-slate-800 dark:text-white disabled:opacity-60"
+                          >
+                            {ZOHO_DATA_CENTERS.map(dc => (
+                              <option key={dc.id} value={dc.id}>{dc.label}</option>
+                            ))}
+                          </select>
+                          <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Choose the region your Zoho CRM account is hosted in.</p>
+                        </div>
+                      )}
+
+                      {/* Zoho CRM — Manage Account button */}
+                      {def.id === 'zoho' && state.connected && (
+                        <div className="border-t border-slate-200 dark:border-slate-700 px-4 py-3 bg-slate-50/60 dark:bg-slate-800/40">
+                          <button
+                            onClick={() => navigate('/zoho')}
                             className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium border border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
                           >
                             Manage Account

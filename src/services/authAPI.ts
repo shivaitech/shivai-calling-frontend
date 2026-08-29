@@ -215,6 +215,108 @@ apiClient.interceptors.response.use(
   }
 );
 
+export type ZohoConnectionStatus = 'active' | 'expired' | 'revoked' | null;
+
+export interface ZohoConnection {
+  connected: boolean;
+  status: ZohoConnectionStatus;
+  apiDomain: string | null;
+  scopes: string[];
+  expiresAt: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export const ZOHO_DATA_CENTERS: { id: string; label: string }[] = [
+  { id: 'in', label: 'India (.in)' },
+  { id: 'com', label: 'United States (.com)' },
+  { id: 'eu', label: 'Europe (.eu)' },
+  { id: 'au', label: 'Australia (.au)' },
+  { id: 'jp', label: 'Japan (.jp)' },
+  { id: 'ca', label: 'Canada (.ca)' },
+  { id: 'sa', label: 'Saudi Arabia (.sa)' },
+  { id: 'cn', label: 'China (.cn)' },
+];
+
+export type GoogleCalendarConnectionStatus = 'active' | 'expired' | 'revoked' | null;
+
+export interface GoogleCalendarConnection {
+  connected: boolean;
+  status: GoogleCalendarConnectionStatus;
+  email: string | null;
+  googleAccountId: string | null;
+  scopes: string[];
+  expiresAt: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+// ── Google Calendar events (/api/v1/calendar) ───────────────────────────────
+// Separate from OAuth connect/status/disconnect above — these read/write actual
+// events on the connected Google account. Calendar must be connected first.
+
+export type CalendarSendUpdates = 'all' | 'externalOnly' | 'none';
+
+export interface CalendarEventDateTime {
+  dateTime: string | null;
+  date: string | null;
+  timeZone: string | null;
+}
+
+export interface CalendarAttendee {
+  email: string | null;
+  displayName: string | null;
+  responseStatus: string | null;
+}
+
+export interface CalendarEvent {
+  id: string | null;
+  calendarId: string;
+  status: string | null;
+  htmlLink: string | null;
+  summary: string | null;
+  description: string | null;
+  location: string | null;
+  start: CalendarEventDateTime | null;
+  end: CalendarEventDateTime | null;
+  attendees: CalendarAttendee[];
+  created: string | null;
+  updated: string | null;
+}
+
+export interface ListCalendarEventsParams {
+  calendarId?: string;
+  timeMin?: string;
+  timeMax?: string;
+  maxResults?: number;
+  pageToken?: string;
+  q?: string;
+}
+
+export interface CreateCalendarEventPayload {
+  summary: string;
+  start: string;
+  end: string;
+  description?: string;
+  location?: string;
+  timeZone?: string;
+  calendarId?: string;
+  attendees?: string[];
+  sendUpdates?: CalendarSendUpdates;
+}
+
+export interface UpdateCalendarEventPayload {
+  calendarId?: string;
+  summary?: string;
+  description?: string;
+  location?: string;
+  start?: string;
+  end?: string;
+  timeZone?: string;
+  attendees?: string[];
+  sendUpdates?: CalendarSendUpdates;
+}
+
 export const authAPI = {
   healthCheck: (): Promise<AxiosResponse> => apiClient.get("/health"),
   login: (data: LoginRequest): Promise<AuthResponse> =>
@@ -481,6 +583,125 @@ export const authAPI = {
           sheets: data.sheets ?? [],
         };
       }),
+
+  // ── Zoho CRM OAuth ───────────────────────────────────────────────────────────
+  // Own route namespace (/auth/zoho/*), not the unified /oauth/* used by Google.
+  // Connect is a two-step flow: an authenticated GET (Bearer header, via apiClient)
+  // returns { authUrl }, then the browser is redirected there via a full-page
+  // navigation (a plain fetch/XHR cannot follow Zoho's cross-origin login redirect).
+  // Never call /auth/zoho/callback from the app; Zoho redirects the browser there
+  // directly and the backend bounces the user back to the settings page.
+
+  connectZoho: (dc: string = 'in'): Promise<void> =>
+    apiClient.get('/auth/zoho/connect', { params: { dc } }).then(res => {
+      const authUrl = res.data?.data?.authUrl ?? res.data?.authUrl;
+      if (!authUrl) throw new Error('Zoho did not return an authorization URL');
+      window.location.assign(authUrl);
+    }),
+
+  // GET /auth/zoho/status — current user's Zoho CRM connection state
+  getZohoStatus: (): Promise<ZohoConnection> =>
+    apiClient.get('/auth/zoho/status').then(res => {
+      const data = res.data?.data ?? res.data ?? {};
+      return (
+        data.connection ?? {
+          connected: false,
+          status: null,
+          apiDomain: null,
+          scopes: [],
+          expiresAt: null,
+          createdAt: null,
+          updatedAt: null,
+        }
+      );
+    }),
+
+  // DELETE /auth/zoho/disconnect — 404 if nothing is connected for this user
+  disconnectZoho: (): Promise<void> =>
+    apiClient.delete('/auth/zoho/disconnect').then(() => undefined),
+
+  // ── Google Calendar OAuth ────────────────────────────────────────────────────
+  // Own route namespace (/auth/gc/*). Google's authorized redirect URI is the
+  // Gmail callback path (backend-only) — the backend detects the Calendar OAuth
+  // state on that URL and saves Calendar tokens there. Never call
+  // /gmail-auth/callback or /auth/gc/callback from the app.
+
+  connectGoogleCalendar: (): void => {
+    const tokens = localStorage.getItem('auth_tokens');
+    const accessToken = tokens ? JSON.parse(tokens).accessToken : '';
+    const url = new URL(`${API_BASE_URL}/auth/gc/connect`);
+    url.searchParams.set('token', accessToken);
+    window.location.assign(url.toString());
+  },
+
+  // GET /auth/gc/status — current user's Google Calendar connection state
+  getGoogleCalendarStatus: (): Promise<GoogleCalendarConnection> =>
+    apiClient.get('/auth/gc/status').then(res => {
+      const data = res.data?.data ?? res.data ?? {};
+      return (
+        data.connection ?? {
+          connected: false,
+          status: null,
+          email: null,
+          googleAccountId: null,
+          scopes: [],
+          expiresAt: null,
+          createdAt: null,
+          updatedAt: null,
+        }
+      );
+    }),
+
+  // DELETE /auth/gc/disconnect — 404 if nothing is connected for this user
+  disconnectGoogleCalendar: (): Promise<void> =>
+    apiClient.delete('/auth/gc/disconnect').then(() => undefined),
+
+  // ── Google Calendar events (/calendar/events) ─────────────────────────────
+  // Requires Calendar to be connected (getGoogleCalendarStatus().connected === true).
+
+  // GET /calendar/events — paginate with nextPageToken via params.pageToken
+  listCalendarEvents: (
+    params: ListCalendarEventsParams = {}
+  ): Promise<{ calendarId: string; nextPageToken: string | null; events: CalendarEvent[] }> =>
+    apiClient
+      .get('/calendar/events', {
+        params: {
+          calendarId: params.calendarId,
+          timeMin: params.timeMin,
+          timeMax: params.timeMax,
+          maxResults: params.maxResults,
+          pageToken: params.pageToken,
+          q: params.q,
+        },
+      })
+      .then(res => {
+        const data = res.data?.data ?? {};
+        return {
+          calendarId: data.calendarId || 'primary',
+          nextPageToken: data.nextPageToken ?? null,
+          events: Array.isArray(data.events) ? data.events : [],
+        };
+      }),
+
+  // POST /calendar/events — summary, start, end required
+  createCalendarEvent: (payload: CreateCalendarEventPayload): Promise<CalendarEvent> =>
+    apiClient.post('/calendar/events', payload).then(res => res.data?.data?.event),
+
+  // PUT /calendar/events/:eventId — partial update; send both start and end if changing time
+  updateCalendarEvent: (eventId: string, payload: UpdateCalendarEventPayload): Promise<CalendarEvent> =>
+    apiClient
+      .put(`/calendar/events/${encodeURIComponent(eventId)}`, payload)
+      .then(res => res.data?.data?.event),
+
+  // DELETE /calendar/events/:eventId
+  deleteCalendarEvent: (
+    eventId: string,
+    calendarId: string = 'primary',
+    sendUpdates: CalendarSendUpdates = 'none'
+  ): Promise<void> =>
+    apiClient
+      .delete(`/calendar/events/${encodeURIComponent(eventId)}`, { params: { calendarId, sendUpdates } })
+      .then(() => undefined),
 
   // GET /integrations/agent/:agentId/service/:serviceName
   getAgentServiceIntegrations: (agentId: string, serviceName: string): Promise<any[]> =>
