@@ -28,8 +28,10 @@ import {
   MessageSquare,
   Mail,
   Zap,
-  X
+  X,
+  Palette
 } from 'lucide-react';
+import BrandingTab from './BrandingTab';
 
 const Settings = () => {
   const { isDark, toggleTheme } = useTheme();
@@ -127,6 +129,7 @@ const Settings = () => {
     { id: 'security', label: 'Security', icon: Shield },
     { id: 'api', label: 'API Keys', icon: Key },
     { id: 'team', label: 'Team', icon: Users },
+    { id: 'branding', label: 'Branding', icon: Palette },
     { id: 'accounts', label: 'Accounts', icon: Link2 },
   ];
 
@@ -157,7 +160,7 @@ const Settings = () => {
   // Detect hash fragment and set active tab
   useEffect(() => {
     const hash = location.hash.slice(1);
-    if (hash && ['profile', 'notifications', 'security', 'api', 'team', 'accounts'].includes(hash)) {
+    if (hash && ['profile', 'notifications', 'security', 'api', 'team', 'branding', 'accounts'].includes(hash)) {
       setActiveTab(hash);
     }
   }, [location.hash]);
@@ -1071,6 +1074,8 @@ const Settings = () => {
               </div>
             </div>
           )}
+
+          {activeTab === 'branding' && <BrandingTab />}
 
           {activeTab === 'accounts' && (
             <div className="space-y-4">

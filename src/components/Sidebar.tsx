@@ -3,6 +3,8 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import Logo from "../resources/images/ShivaiLogo.svg";
 import { useAuth } from "../contexts/AuthContext";
+import { useTheme } from "../contexts/ThemeContext";
+import { useCanAccess } from "../permissions/usePermission";
 import { useInstalledApps } from "../marketplace/useInstalledApps";
 import { APPS, openAppWorkspace, getVisibleApps } from "../marketplace/apps";
 import {
@@ -32,13 +34,14 @@ import {
   Package,
   Calendar,
   Zap,
+  Building2,
 } from "lucide-react";
 
 // Static shortcut list — each opens its dedicated connection page directly
 // (both handle the not-connected state too), same spirit as My Apps.
 const CONNECTION_SHORTCUTS = [
-  { path: "/zoho", icon: Zap, label: "Zoho CRM" },
-  { path: "/google-calendar", icon: Calendar, label: "Google Calendar" },
+  { path: "/zoho", icon: Zap, label: "Zoho CRM", permissionKey: "module:zoho" },
+  { path: "/google-calendar", icon: Calendar, label: "Google Calendar", permissionKey: "module:google-calendar" },
 ] as const;
 
 interface AppSection {
@@ -73,6 +76,10 @@ interface NavItem {
   label: string;
   children?: NavItem[];
   highlight?: boolean; // gives the item a subtle accent treatment
+  /** module:* or module:*.page:* key from permissions/registry.ts — item is
+   * hidden entirely (not disabled) when the current tenant lacks this grant.
+   * Omit for items every tenant can always see (Dashboard, Settings). */
+  permissionKey?: string;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMode }) => {
@@ -80,6 +87,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMod
   const location = useLocation();
   const navigate = useNavigate();
   const { installedIds } = useInstalledApps();
+  const canAccess = useCanAccess();
+  const { branding } = useTheme();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
 
@@ -125,26 +134,49 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMod
     setCollapsed(isCollapsed);
   }, [isCollapsed, setCollapsed]);
 
-  const navItems: NavItem[] = [
+  const rawNavItems: NavItem[] = [
     { path: "/dashboard", icon: Home, label: "Dashboard" },
-    { path: "/agents", icon: Bot, label: "AI Employees" },
-    { path: "/training", icon: Brain, label: "Training" },
-    { path: "/call-setup", icon: Phone, label: "Call Setup - In/Outbound" },
+    { path: "/agents", icon: Bot, label: "AI Employees", permissionKey: "module:employees" },
+    { path: "/training", icon: Brain, label: "Training", permissionKey: "module:employees.page:training" },
+    {
+      path: "/call-setup",
+      icon: Phone,
+      label: "Call Setup - In/Outbound",
+      permissionKey: "module:workflows.page:call-setup",
+    },
     {
       path: "/workflows",
       icon: Workflow,
       label: "Workflows",
+      permissionKey: "module:workflows",
       children: [
-        { path: "/workflows#canvas", icon: Grid, label: "Canvas Builder" },
+        { path: "/workflows#canvas", icon: Grid, label: "Canvas Builder", permissionKey: "module:workflows.page:canvas" },
         { path: "/workflows#workflows", icon: Workflow, label: "My Workflows" },
-        { path: "/workflows#documents", icon: FileText, label: "AI Docs" },
+        { path: "/workflows#documents", icon: FileText, label: "AI Docs", permissionKey: "module:workflows.page:documents" },
       ],
     },
-    { path: "/marketplace", icon: Sparkles, label: "Feature Marketplace", highlight: true },
-    { path: "/analytics", icon: History, label: "Analytics & Call History" },
-    { path: "/monitoring", icon: BarChart3, label: "Monitoring & Reports" },
-    { path: "/billing", icon: CreditCard, label: "Billing" },
+    { path: "/marketplace", icon: Sparkles, label: "Feature Marketplace", highlight: true, permissionKey: "module:marketplace" },
+    { path: "/analytics", icon: History, label: "Analytics & Call History", permissionKey: "module:analytics" },
+    { path: "/monitoring", icon: BarChart3, label: "Monitoring & Reports", permissionKey: "module:monitoring" },
+    { path: "/billing", icon: CreditCard, label: "Billing", permissionKey: "module:billing" },
+    // TODO(sub-tenants backend): re-gate on tenantRole === MAIN_OWNER/MAIN_ADMIN
+    // once real tenant assignment exists. Shown to everyone for now since no
+    // account has a tenantRole yet — there's no backend/login flow to set one,
+    // so gating it today would make the module unreachable for everyone,
+    // including during review/dev. See SUB_TENANTS_MODULE_SPEC.md §2, §4.1.
+    { path: "/sub-tenants", icon: Building2, label: "Sub Tenants" },
   ];
+
+  // Hide (not disable) items the current tenant lacks — spec §4.3 point 2:
+  // "modules/pages/buttons not granted simply don't render." Items with no
+  // permissionKey (Dashboard, Settings, Sub Tenants) are always visible.
+  const navItems: NavItem[] = rawNavItems
+    .filter((item) => !item.permissionKey || canAccess(item.permissionKey))
+    .map((item) =>
+      item.children
+        ? { ...item, children: item.children.filter((c) => !c.permissionKey || canAccess(c.permissionKey)) }
+        : item
+    );
 
   return (
     <motion.div
@@ -211,14 +243,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMod
             className="cursor-pointer  flex flex-col items-start"
           >
             <motion.img
-              src={Logo}
-              alt="ShivAi Logo"
+              src={branding?.logoUrl || Logo}
+              alt={branding?.logoUrl ? "Business logo" : "ShivAi Logo"}
               animate={{
                 opacity: isCollapsed ? 0 : 1,
                 height: isCollapsed ? 0 : 32,
               }}
               transition={{ duration: 0.3 }}
-              className={`w-auto dark:invert ${
+              className={`w-auto max-h-8 object-contain ${branding?.logoUrl ? "" : "dark:invert"} ${
                 isCollapsed ? "hidden" : "block"
               }`}
             />
@@ -233,6 +265,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMod
               {!isCollapsed && (appMode ? appMode.appName : "Client Dashboard")}
             </motion.p>
           </motion.div>
+          {/* Non-removable ShivAI mark (spec §6.2) — hardcoded here, not a
+              themeable field: no API field, no admin toggle, no CSS override
+              hook. Always shown beneath the (possibly re-branded) logo above. */}
+          {!isCollapsed && branding?.logoUrl && (
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1.5 flex items-center gap-1">
+              <Zap className="w-2.5 h-2.5" /> Powered by ShivAI
+            </p>
+          )}
         </div>
 
         {/* Search Bar - Hidden when collapsed */}
@@ -464,7 +504,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMod
               </div>
             )}
             <nav className="space-y-1">
-              {CONNECTION_SHORTCUTS.map((conn) => (
+              {CONNECTION_SHORTCUTS.filter((conn) => canAccess(conn.permissionKey)).map((conn) => (
                 <NavLink
                   key={conn.label}
                   to={conn.path}

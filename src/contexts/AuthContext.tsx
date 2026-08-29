@@ -7,6 +7,17 @@ import React, {
 } from "react";
 import { authAPI } from "../services/authAPI";
 
+// Sub Tenants: a user optionally belongs to a tenant hierarchy (see
+// src/permissions/types.ts). Both fields are optional so accounts with no
+// tenant context (i.e. every account today, until the backend ships tenant
+// support) behave exactly as before — no tenant means no restrictions.
+export type TenantRole =
+  | 'MAIN_OWNER'
+  | 'MAIN_ADMIN'
+  | 'MAIN_MEMBER'
+  | 'SUBTENANT_OWNER'
+  | 'SUBTENANT_MEMBER';
+
 interface User {
   id: string;
   email: string;
@@ -14,6 +25,8 @@ interface User {
   profilePicture?: string;
   emailVerified: boolean;
   company?: string;
+  tenantId?: string;
+  tenantRole?: TenantRole;
 }
 
 interface Tokens {
