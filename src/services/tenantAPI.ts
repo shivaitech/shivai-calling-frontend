@@ -26,6 +26,30 @@ import type {
 const MOCK_LATENCY_MS = 350;
 const delay = (ms = MOCK_LATENCY_MS) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** Branding persistence — no backend yet, so it's kept in localStorage
+ * (keyed per tenantId) instead of only living in the in-memory mock store,
+ * which would otherwise reset on every page reload. */
+const BRANDING_STORAGE_PREFIX = 'shivai:tenant-branding:';
+
+function loadStoredBranding(tenantId: string): TenantBranding | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(BRANDING_STORAGE_PREFIX + tenantId);
+    return raw ? (JSON.parse(raw) as TenantBranding) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveStoredBranding(tenantId: string, branding: TenantBranding): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(BRANDING_STORAGE_PREFIX + tenantId, JSON.stringify(branding));
+  } catch {
+    // Storage full/unavailable — branding still applies for this session via the in-memory store.
+  }
+}
+
 const MOCK_TEMPLATES: PermissionTemplate[] = [
   { id: 'tpl-full', name: 'Full Access', grants: fullAccessGrants(true) },
   {
@@ -194,6 +218,17 @@ let MOCK_TENANTS: Tenant[] = [
   }),
 ];
 
+// Hydrate branding from localStorage so it survives page reloads (the rest
+// of the mock store is in-memory only and intentionally resets).
+{
+  const storedMain = loadStoredBranding(MOCK_MAIN_TENANT.id);
+  if (storedMain) MOCK_MAIN_TENANT.branding = storedMain;
+  MOCK_TENANTS.forEach((tenant) => {
+    const stored = loadStoredBranding(tenant.id);
+    if (stored) tenant.branding = stored;
+  });
+}
+
 const MOCK_GRANTS: Record<string, PermissionGrantMap> = {
   'tenant-sub-1': { ...MOCK_TEMPLATES[1].grants },
   'tenant-sub-2': { ...MOCK_TEMPLATES[2].grants },
@@ -334,37 +369,63 @@ class TenantAPI {
   }
 
   /**
-   * Branding always resolves to the MAIN tenant's record — a sub-tenant
-   * inherits its parent's branding rather than having its own (spec §6.3,
-   * decided against sub-branding for v1). Falls back to null (default ShivAI
-   * branding) if nothing is set.
+   * A sub-tenant uses its OWN branding when the Main Business has explicitly
+   * set one for it (via the "Only update sub-tenant panel" scope in
+   * BrandingTab), otherwise it inherits the Main Business's shared branding.
+   * Falls back to null (default ShivAI branding) if nothing is set anywhere.
    */
   async getBranding(tenantId: string): Promise<TenantBranding | null> {
     await delay(150);
+    const isCustomized = (b: TenantBranding) =>
+      Boolean(
+        b.logoUrl || b.faviconUrl || b.primaryColor !== '#7c3aed' || b.accentColor !== '#4f46e5' ||
+        b.backgroundColor || (b.backgroundTexture && b.backgroundTexture !== 'none') || b.headingColor ||
+        b.textColor || b.cardSurfaceColor
+      );
+
     const tenant = tenantId === MOCK_MAIN_TENANT.id
       ? MOCK_MAIN_TENANT
       : MOCK_TENANTS.find((t) => t.id === tenantId);
     if (!tenant) return null;
+
+    if (tenant.type === 'SUBTENANT' && isCustomized(tenant.branding)) return tenant.branding;
+
     const source = tenant.type === 'SUBTENANT' ? MOCK_MAIN_TENANT : tenant;
-    return source.branding.logoUrl || source.branding.faviconUrl || source.branding.primaryColor !== '#7c3aed'
-      ? source.branding
-      : null;
+    return isCustomized(source.branding) ? source.branding : null;
   }
 
-  async setBranding(tenantId: string, branding: TenantBranding): Promise<void> {
+  /**
+   * scope 'all' (default) writes the Main Business's shared branding, which
+   * every sub-tenant without its own override inherits. scope 'tenant-only'
+   * writes directly onto that one sub-tenant's record instead, overriding
+   * the shared branding just for them.
+   */
+  async setBranding(tenantId: string, branding: TenantBranding, scope: 'all' | 'tenant-only' = 'all'): Promise<void> {
     await delay(250);
+    if (scope === 'tenant-only' && tenantId !== MOCK_MAIN_TENANT.id) {
+      const tenant = MOCK_TENANTS.find((t) => t.id === tenantId);
+      if (tenant) tenant.branding = branding;
+      saveStoredBranding(tenantId, branding);
+      return;
+    }
     if (tenantId === MOCK_MAIN_TENANT.id) {
       MOCK_MAIN_TENANT.branding = branding;
+      saveStoredBranding(tenantId, branding);
       return;
     }
     const tenant = MOCK_TENANTS.find((t) => t.id === tenantId);
     if (tenant) tenant.branding = branding;
+    saveStoredBranding(tenantId, branding);
   }
 
   async createSubTenant(params: {
     name: string;
     sendInvite: boolean;
     email?: string;
+    /** Sign-in credential for the sub-tenant's owner account — passed
+     * through to the (future) real signup endpoint only, never persisted
+     * on the Tenant record itself since that's fetched/displayed broadly. */
+    password?: string;
     templateId?: string;
     contact: TenantContactInfo;
     maxAgents?: number;

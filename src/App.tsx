@@ -9,7 +9,7 @@ import {
 import { Toaster } from "react-hot-toast";
 import { HelmetProvider } from "react-helmet-async";
 import { AuthProvider } from "./contexts/AuthContext";
-import { ThemeProvider } from "./contexts/ThemeContext";
+import { ThemeProvider, useTheme } from "./contexts/ThemeContext";
 import { AgentProvider } from "./contexts/AgentContext";
 import { TenantPermissionsProvider } from "./permissions/TenantPermissionsContext";
 import { TenantViewProvider } from "./permissions/TenantViewContext";
@@ -91,6 +91,7 @@ function LoadingFallback() {
 }
 
 function AppContent() {
+  const { branding } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
   const isLandingPage =
@@ -206,7 +207,18 @@ function AppContent() {
       ) : (
         <ProtectedRoute>
           <Suspense fallback={<LoadingFallback />}>
-            <div className="bg-gradient-to-br from-slate-100 via-slate-200 to-slate-300 dark:from-slate-900 dark:via-slate-800 dark:to-slate-700 transition-colors duration-300 min-h-dvh">
+            <div
+              className="bg-gradient-to-br from-slate-100 via-slate-200 to-slate-300 dark:from-slate-900 dark:via-slate-800 dark:to-slate-700 transition-colors duration-300 min-h-dvh"
+              style={
+                branding?.backgroundColor
+                  ? {
+                      backgroundColor: 'var(--tenant-bg)',
+                      backgroundImage: 'var(--tenant-bg-texture)',
+                      backgroundSize: 'var(--tenant-bg-texture-size)',
+                    }
+                  : undefined
+              }
+            >
               <TenantViewBanner />
               <div className="flex">
                 <Sidebar

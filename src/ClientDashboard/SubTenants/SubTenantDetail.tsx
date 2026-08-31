@@ -15,6 +15,8 @@ import {
   Check,
   Sparkles,
   Bot,
+  BarChart3,
+  PhoneCall,
 } from 'lucide-react';
 import GlassCard from '../../components/GlassCard';
 import { tenantAPI } from '../../services/tenantAPI';
@@ -24,9 +26,11 @@ import PermissionMatrixEditor from './PermissionMatrixEditor';
 import InviteLinkModal from './InviteLinkModal';
 import SubTenantMembers from './SubTenantMembers';
 import SubTenantAgents from './SubTenantAgents';
+import Analytics from '../Analytics/Analytics';
+import CallSetup from '../Workflows/CallSetup';
 import { useTenantView } from '../../permissions/TenantViewContext';
 
-type TabId = 'overview' | 'permissions' | 'members' | 'activity' | 'agents';
+type TabId = 'overview' | 'permissions' | 'members' | 'activity' | 'agents' | 'analytics' | 'call-setup';
 
 const TABS: Array<{ id: TabId; label: string; icon: typeof Building2 }> = [
   { id: 'overview', label: 'Overview', icon: Building2 },
@@ -34,6 +38,8 @@ const TABS: Array<{ id: TabId; label: string; icon: typeof Building2 }> = [
   { id: 'members', label: 'Members', icon: Users },
   { id: 'activity', label: 'Activity', icon: History },
   { id: 'agents', label: 'AI Employees', icon: Bot },
+  { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+  { id: 'call-setup', label: 'Call Setup', icon: PhoneCall },
 ];
 
 const SubTenantDetail = () => {
@@ -320,6 +326,10 @@ const SubTenantDetail = () => {
       )}
 
       {tab === 'agents' && <SubTenantAgents tenantId={tenant.id} companyName={tenant.name} />}
+
+      {tab === 'analytics' && <Analytics />}
+
+      {tab === 'call-setup' && <CallSetup />}
 
       <InviteLinkModal
         open={showInviteModal}

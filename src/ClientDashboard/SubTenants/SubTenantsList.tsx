@@ -13,8 +13,11 @@ import {
   Pause,
   Play,
   MoreVertical,
+  Settings as SettingsIcon,
+  X,
 } from 'lucide-react';
 import GlassCard from '../../components/GlassCard';
+import ModalOverlay from '../../components/ModalOverlay';
 import SearchableSelect from '../../components/SearchableSelect';
 import Pagination from '../../components/Pagination';
 import { tenantAPI } from '../../services/tenantAPI';
@@ -22,6 +25,7 @@ import type { Tenant, TenantStatus } from '../../permissions/types';
 import SectionHeader from './components/SectionHeader';
 import TenantStatusBadge from './components/TenantStatusBadge';
 import CreateSubTenantModal from './CreateSubTenantModal';
+import BrandingTab from '../Settings/BrandingTab';
 
 const PAGE_SIZE = 8;
 
@@ -51,6 +55,7 @@ const SubTenantsList = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | TenantStatus>('all');
   const [page, setPage] = useState(1);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showBrandingModal, setShowBrandingModal] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [busyTenantId, setBusyTenantId] = useState<string | null>(null);
 
@@ -109,13 +114,23 @@ const SubTenantsList = () => {
           title="Sub Tenants"
           subtitle="Manage the businesses running their own ShivAI panel under your account"
         />
-        <button
-          type="button"
-          onClick={() => setShowCreateModal(true)}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-violet-600 hover:bg-violet-700 text-white transition-colors flex-shrink-0"
-        >
-          <Plus className="w-4 h-4" /> Add Sub Tenant
-        </button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            type="button"
+            onClick={() => setShowBrandingModal(true)}
+            title="Panel branding (logo & colors) applies to all sub-tenants"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-colors"
+          >
+            <SettingsIcon className="w-4 h-4" /> Settings
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowCreateModal(true)}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-violet-600 hover:bg-violet-700 text-white transition-colors"
+          >
+            <Plus className="w-4 h-4" /> Add Sub Tenant
+          </button>
+        </div>
       </div>
 
       {/* Preview banner — mock data until the tenant API is live */}
@@ -345,6 +360,27 @@ const SubTenantsList = () => {
           loadTenants();
         }}
       />
+
+      <ModalOverlay open={showBrandingModal} onClose={() => setShowBrandingModal(false)} closeOnBackdrop panelClassName="max-w-3xl">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/80 dark:border-slate-700 overflow-hidden">
+          <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-semibold text-slate-800 dark:text-white">Panel Settings</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Logo and colors shown across all of your sub-tenants' panels.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowBrandingModal(false)}
+              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg flex-shrink-0"
+            >
+              <X className="w-4 h-4 text-slate-500" />
+            </button>
+          </div>
+          <div className="p-4 sm:p-6 max-h-[75vh] overflow-y-auto">
+            <BrandingTab />
+          </div>
+        </div>
+      </ModalOverlay>
     </div>
   );
 };

@@ -190,7 +190,18 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMod
       }}
       className={`fixed left-0 top-0 h-full bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-700 z-40 transform transition-transform duration-300 ease-in-out ${
         isOpen ? "translate-x-0" : "-translate-x-full"
-      } lg:translate-x-0 flex flex-col overflow-hidden`}
+      } lg:translate-x-0 flex flex-col overflow-hidden ${
+        branding?.headingColor || branding?.textColor ? "tenant-branded" : ""
+      }`}
+      style={
+        branding?.backgroundColor
+          ? {
+              backgroundColor: 'var(--tenant-bg)',
+              backgroundImage: 'var(--tenant-bg-texture)',
+              backgroundSize: 'var(--tenant-bg-texture-size)',
+            }
+          : undefined
+      }
     >
       {/* Header Section */}
       <div

@@ -39,11 +39,25 @@ export interface TenantBillingConfig {
   perAgentRate?: number;
 }
 
+export type TenantBackgroundTexture = 'none' | 'dots' | 'lines' | 'grid';
+
 export interface TenantBranding {
   logoUrl: string | null;
   faviconUrl: string | null;
   primaryColor: string;
   accentColor: string;
+  /** Panel shell background — falls back to the default ShivAI gradient when unset. */
+  backgroundColor?: string;
+  /** Subtle repeating CSS pattern layered over backgroundColor. */
+  backgroundTexture?: TenantBackgroundTexture;
+  /** Page/section heading color (Sidebar/TopBar titles). */
+  headingColor?: string;
+  /** Body/secondary text color (Sidebar/TopBar subtext, nav labels). */
+  textColor?: string;
+  /** Card/panel surface color — GlassCard and other content surfaces
+   * (stat tiles, list rows, sub-tenant/agent cards). Falls back to the
+   * default translucent white/slate-800 look when unset. */
+  cardSurfaceColor?: string;
 }
 
 export interface TenantUsageStats {

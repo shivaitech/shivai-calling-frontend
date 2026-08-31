@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Building2, X, Loader2, User, Mail, Phone, MapPin, Globe, Briefcase } from 'lucide-react';
+import { Building2, X, Loader2, User, Mail, Phone, MapPin, Globe, Briefcase, Lock, Eye, EyeOff } from 'lucide-react';
 import ModalOverlay from '../../components/ModalOverlay';
 import SearchableSelect from '../../components/SearchableSelect';
 import { tenantAPI } from '../../services/tenantAPI';
@@ -13,6 +13,7 @@ interface CreateSubTenantModalProps {
 
 const NAME_MAX_LEN = 80;
 const NOTES_MAX_LEN = 300;
+const PASSWORD_MIN_LEN = 8;
 
 const INDUSTRY_OPTIONS = [
   'Healthcare',
@@ -45,6 +46,8 @@ const CreateSubTenantModal = ({ open, onClose, onCreated }: CreateSubTenantModal
   // Contact
   const [ownerName, setOwnerName] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [phone, setPhone] = useState('');
   const [notes, setNotes] = useState('');
   // Plan
@@ -66,6 +69,8 @@ const CreateSubTenantModal = ({ open, onClose, onCreated }: CreateSubTenantModal
     setLocation('');
     setOwnerName('');
     setEmail('');
+    setPassword('');
+    setShowPassword(false);
     setPhone('');
     setNotes('');
     setMaxAgents('5');
@@ -91,7 +96,15 @@ const CreateSubTenantModal = ({ open, onClose, onCreated }: CreateSubTenantModal
       return;
     }
     if (!email.trim()) {
-      setError('Add a contact email — required to invite them and for support.');
+      setError('Add an email — required for them to sign in.');
+      return;
+    }
+    if (!password) {
+      setError('Set a password — required for them to sign in.');
+      return;
+    }
+    if (password.length < PASSWORD_MIN_LEN) {
+      setError(`Password must be at least ${PASSWORD_MIN_LEN} characters.`);
       return;
     }
     setError(null);
@@ -100,7 +113,8 @@ const CreateSubTenantModal = ({ open, onClose, onCreated }: CreateSubTenantModal
       await tenantAPI.createSubTenant({
         name: trimmedName,
         sendInvite,
-        email: sendInvite ? email.trim() : undefined,
+        email: email.trim(),
+        password,
         templateId,
         maxAgents: Number(maxAgents) || undefined,
         maxUsers: Number(maxUsers) || undefined,
@@ -232,16 +246,41 @@ const CreateSubTenantModal = ({ open, onClose, onCreated }: CreateSubTenantModal
                 />
               </div>
             </div>
-            <div>
-              <FieldLabel icon={Mail}>Email</FieldLabel>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="owner@theirbusiness.com"
-                className={inputClass}
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <FieldLabel icon={Mail}>Email</FieldLabel>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="owner@theirbusiness.com"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <FieldLabel icon={Lock}>Password</FieldLabel>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={`At least ${PASSWORD_MIN_LEN} characters`}
+                    className={`${inputClass} pr-9`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
             </div>
+            <p className="text-[11px] text-slate-400 dark:text-slate-500 -mt-1.5">
+              This email and password are what they'll use to sign in to their ShivAI panel.
+            </p>
             <div>
               <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">Notes (optional)</label>
               <textarea

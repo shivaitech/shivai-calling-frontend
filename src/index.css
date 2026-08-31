@@ -10,6 +10,26 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Tenant-branding surface/text tokens — defaults match the stock ShivAI
+ * light/dark look exactly (bg-white/90, dark:bg-slate-800/90, etc. as used
+ * by GlassCard before this system existed). ThemeContext.tsx overrides
+ * --tenant-surface/-heading/-text with tenant-specific values on
+ * :root/document.documentElement when a tenant has custom branding; when it
+ * doesn't, these :root defaults are all that apply, so bg-surface/
+ * text-heading/text-body render identically to the old hardcoded classes. */
+:root {
+  --tenant-surface: rgba(255, 255, 255, 0.9);
+  --tenant-surface-border: rgba(226, 232, 240, 0.7);
+  --tenant-heading: #1e293b;
+  --tenant-text: #475569;
+}
+:root.dark {
+  --tenant-surface: rgba(30, 41, 59, 0.9);
+  --tenant-surface-border: rgba(51, 65, 85, 0.7);
+  --tenant-heading: #ffffff;
+  --tenant-text: #94a3b8;
+}
+
 /* Ensure dropdowns appear above everything */
 .dropdown-menu {
   z-index: 99999 !important;
@@ -174,6 +194,47 @@ body {
 /* Touch-optimized interactions */
 .touch-manipulation {
   touch-action: manipulation;
+}
+
+/* Tenant panel branding overrides (heading/body text) — scoped to
+ * .tenant-branded (added to Sidebar/TopBar roots only while ThemeContext has
+ * a headingColor/textColor set, see src/contexts/ThemeContext.tsx) so
+ * unbranded accounts and other pages/modals are completely unaffected. */
+.tenant-branded [class*="text-slate-800"],
+.tenant-branded [class*="text-slate-900"] {
+  color: var(--tenant-heading) !important;
+}
+.tenant-branded [class*="text-slate-600"],
+.tenant-branded [class*="text-slate-500"],
+.tenant-branded [class*="text-slate-400"] {
+  color: var(--tenant-text) !important;
+}
+
+/* Card content text — scoped to .tenant-card-branded (added by GlassCard
+ * only while a custom cardSurfaceColor is set) so a card's own heading/body
+ * text stays legible against its custom surface fill, without editing the
+ * ~49 files that render content inside GlassCard. Falls back to the
+ * :root/:root.dark --tenant-heading/--tenant-text defaults (identical to
+ * the stock slate-800/slate-500 look) when no headingColor/textColor is
+ * explicitly set, so this never goes illegible even on a partial config. */
+.tenant-card-branded [class*="text-slate-800"],
+.tenant-card-branded [class*="text-slate-900"] {
+  color: var(--tenant-heading) !important;
+}
+.tenant-card-branded [class*="text-slate-600"],
+.tenant-card-branded [class*="text-slate-500"],
+.tenant-card-branded [class*="text-slate-400"] {
+  color: var(--tenant-text) !important;
+}
+
+/* Primary button color, app-wide — gated on body.tenant-primary-branded
+ * (toggled by ThemeContext only while primaryColor differs from the ShivAI
+ * default) so unbranded accounts keep the stock violet-600 look. */
+body.tenant-primary-branded [class*="bg-violet-600"] {
+  background-color: var(--brand-primary) !important;
+}
+body.tenant-primary-branded [class*="hover:bg-violet-700"]:hover {
+  filter: brightness(0.9);
 }
 .common-bg-icons {
   @apply bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400;
