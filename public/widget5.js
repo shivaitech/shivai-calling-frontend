@@ -8076,7 +8076,7 @@
       }
 
       const response = await fetchWithTimeout(
-        "https://staging.voice.callshivai.com/widget-token",
+        "https://voice.callshivai.com/widget-token",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
