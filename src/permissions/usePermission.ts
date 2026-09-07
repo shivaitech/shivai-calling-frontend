@@ -1,5 +1,6 @@
 import { useAuth } from '../contexts/AuthContext';
 import { useTenantPermissions } from './TenantPermissionsContext';
+import { useTenantView } from './TenantViewContext';
 import type { PermissionGrantMap } from './types';
 import type { TenantRole } from '../contexts/AuthContext';
 
@@ -39,13 +40,19 @@ function checkPermission(
  * Accounts with no tenantId (every account today, until sub-tenants are
  * actually assigned) are never restricted — this hook is additive: it only
  * starts denying things once a real SUBTENANT_* tenant with an explicit
- * grant map is in play. This keeps the whole existing app unaffected until
- * a Main Business actually configures a sub-tenant's permissions.
+ * grant map is in play, OR a Main Business admin has entered "View as"
+ * (TenantViewContext) for a sub-tenant, in which case that sub-tenant's
+ * saved grants are checked instead so the preview actually reflects them.
  */
 export function usePermission(key: string): boolean {
   const { user } = useAuth();
-  const { grants, loaded } = useTenantPermissions();
-  return checkPermission(user?.tenantId, user?.tenantRole, grants, loaded, key);
+  const { grants: ownGrants, loaded: ownLoaded } = useTenantPermissions();
+  const { isViewing, viewedGrants, viewedGrantsLoaded } = useTenantView();
+
+  if (isViewing) {
+    return checkPermission('view-as', 'SUBTENANT_MEMBER', viewedGrants, viewedGrantsLoaded, key);
+  }
+  return checkPermission(user?.tenantId, user?.tenantRole, ownGrants, ownLoaded, key);
 }
 
 /**
@@ -55,6 +62,11 @@ export function usePermission(key: string): boolean {
  */
 export function useCanAccess(): (key: string) => boolean {
   const { user } = useAuth();
-  const { grants, loaded } = useTenantPermissions();
-  return (key: string) => checkPermission(user?.tenantId, user?.tenantRole, grants, loaded, key);
+  const { grants: ownGrants, loaded: ownLoaded } = useTenantPermissions();
+  const { isViewing, viewedGrants, viewedGrantsLoaded } = useTenantView();
+
+  if (isViewing) {
+    return (key: string) => checkPermission('view-as', 'SUBTENANT_MEMBER', viewedGrants, viewedGrantsLoaded, key);
+  }
+  return (key: string) => checkPermission(user?.tenantId, user?.tenantRole, ownGrants, ownLoaded, key);
 }

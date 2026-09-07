@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import GlassCard from '../../components/GlassCard';
 import appToast from '../../components/AppToast';
 import { useAgent } from '../../contexts/AgentContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { agentAPI, type CallSummary } from '../../services/agentAPI';
 import { authAPI, ZohoConnection } from '../../services/authAPI';
 import AgentPickerField from '../GoogleSheets/AgentPickerField';
@@ -568,6 +569,11 @@ const validateCampaignName = (raw: string): string | null => {
 const CallSetup: React.FC = () => {
   // Real agents from API via AgentContext
   const { agents, isLoading: agentsLoading, refreshAgents } = useAgent();
+  const { user } = useAuth();
+  // Accounts exempt from the free-plan one-number limit (can buy unlimited).
+  const UNLIMITED_NUMBER_EMAILS = ['demo@callshivai.com'];
+  const isUnlimitedNumbers = UNLIMITED_NUMBER_EMAILS.includes((user?.email || '').toLowerCase());
+  const numberLimitReached = (count: number) => !isUnlimitedNumbers && count >= MAX_FREE_PHONE_NUMBERS;
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -869,7 +875,8 @@ const CallSetup: React.FC = () => {
 
   const openBuyModal = async () => {
     // Free plan: one number only — more requires contacting sales for premium.
-    if (numbers.length >= MAX_FREE_PHONE_NUMBERS) {
+    // Exempt accounts (see isUnlimitedNumbers) skip this.
+    if (numberLimitReached(numbers.length)) {
       setShowPremiumContactModal(true);
       return;
     }
@@ -902,7 +909,7 @@ const CallSetup: React.FC = () => {
   };
 
   const handleBuyNumber = async () => {
-    if (numbers.length >= MAX_FREE_PHONE_NUMBERS) {
+    if (numberLimitReached(numbers.length)) {
       setShowBuyModal(false);
       setShowPremiumContactModal(true);
       return;
@@ -2622,18 +2629,18 @@ objective = the Objective bullet list (use \\n between bullets).`;
                             >
                               <Settings className="w-4 h-4" />
                             </button>
-                            {num.inboundEnabled && (
-                              <button
-                                onClick={() => setDeprovisionTarget(num)}
-                                disabled={releasingId === num.id}
-                                title="Detach AI employee & reset this number"
-                                className="p-1.5 sm:p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
-                              >
-                                {releasingId === num.id
-                                  ? <Loader2 className="w-4 h-4 animate-spin" />
-                                  : <Trash2 className="w-4 h-4" />}
-                              </button>
-                            )}
+                            {/* Delete/reset available on every number — whether an
+                                agent is assigned or not. */}
+                            <button
+                              onClick={() => setDeprovisionTarget(num)}
+                              disabled={releasingId === num.id}
+                              title="Delete / reset this number"
+                              className="p-1.5 sm:p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
+                            >
+                              {releasingId === num.id
+                                ? <Loader2 className="w-4 h-4 animate-spin" />
+                                : <Trash2 className="w-4 h-4" />}
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -4784,13 +4791,16 @@ objective = the Objective bullet list (use \\n between bullets).`;
               exit={{ scale: 0.95, opacity: 0 }}
               className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm shadow-2xl border border-slate-200 dark:border-slate-700 p-5 space-y-4"
             >
-              <h3 className="font-bold text-slate-800 dark:text-white">Detach AI employee?</h3>
+              <h3 className="font-bold text-slate-800 dark:text-white">
+                {deprovisionTarget.assignedAgentId ? 'Detach & reset number?' : 'Reset number?'}
+              </h3>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                Detach the AI employee from{' '}
+                {deprovisionTarget.assignedAgentId ? 'Detach the AI employee from ' : 'Reset '}
                 <span className="font-mono font-medium text-slate-700 dark:text-slate-200">
                   {deprovisionTarget.number}
                 </span>
-                ? The number stays on your account, but inbound calls will no longer reach an agent until you assign one again.
+                ? The number stays on your account, but its call routing is torn down
+                {deprovisionTarget.assignedAgentId ? ' and inbound calls will no longer reach an agent until you assign one again.' : '.'}
               </p>
               <div className="flex justify-end gap-2">
                 <button
@@ -4810,7 +4820,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
                   ) : (
                     <Trash2 className="w-4 h-4" />
                   )}
-                  Detach
+                  {deprovisionTarget.assignedAgentId ? 'Detach' : 'Reset'}
                 </button>
               </div>
             </motion.div>

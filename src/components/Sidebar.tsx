@@ -35,13 +35,15 @@ import {
   Calendar,
   Zap,
   Building2,
+  Headset,
+  UsersRound,
 } from "lucide-react";
 
 // Static shortcut list — each opens its dedicated connection page directly
 // (both handle the not-connected state too), same spirit as My Apps.
 const CONNECTION_SHORTCUTS = [
-  { path: "/zoho", icon: Zap, label: "Zoho CRM", permissionKey: "module:zoho" },
-  { path: "/google-calendar", icon: Calendar, label: "Google Calendar", permissionKey: "module:google-calendar" },
+  { path: "/zoho", icon: Zap, label: "Zoho CRM", permissionKey: "module:marketplace.page:zoho" },
+  { path: "/google-calendar", icon: Calendar, label: "Google Calendar", permissionKey: "module:marketplace.page:google-calendar" },
 ] as const;
 
 interface AppSection {
@@ -88,6 +90,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMod
   const navigate = useNavigate();
   const { installedIds } = useInstalledApps();
   const canAccess = useCanAccess();
+  // Sub-tenants never manage other sub-tenants (no Sub Tenants module for them).
+  const isSubTenant =
+    user?.tenantRole === "SUBTENANT_OWNER" || user?.tenantRole === "SUBTENANT_MEMBER";
+  // Connection shortcuts the current tenant can actually reach — the whole
+  // Connections group is hidden when none are accessible (e.g. Feature
+  // Marketplace is restricted for this sub-tenant).
+  const accessibleConnections = CONNECTION_SHORTCUTS.filter((conn) => canAccess(conn.permissionKey));
   const { branding } = useTheme();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
@@ -142,7 +151,19 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMod
       path: "/call-setup",
       icon: Phone,
       label: "Call Setup - In/Outbound",
-      permissionKey: "module:workflows.page:call-setup",
+      permissionKey: "module:call-setup",
+    },
+    {
+      path: "/command-center",
+      icon: Headset,
+      label: "Command Center",
+      permissionKey: "module:command-center",
+    },
+    {
+      path: "/staff",
+      icon: UsersRound,
+      label: "Staff",
+      permissionKey: "module:staff",
     },
     {
       path: "/workflows",
@@ -159,18 +180,18 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMod
     { path: "/analytics", icon: History, label: "Analytics & Call History", permissionKey: "module:analytics" },
     { path: "/monitoring", icon: BarChart3, label: "Monitoring & Reports", permissionKey: "module:monitoring" },
     { path: "/billing", icon: CreditCard, label: "Billing", permissionKey: "module:billing" },
-    // TODO(sub-tenants backend): re-gate on tenantRole === MAIN_OWNER/MAIN_ADMIN
-    // once real tenant assignment exists. Shown to everyone for now since no
-    // account has a tenantRole yet — there's no backend/login flow to set one,
-    // so gating it today would make the module unreachable for everyone,
-    // including during review/dev. See SUB_TENANTS_MODULE_SPEC.md §2, §4.1.
-    { path: "/sub-tenants", icon: Building2, label: "Sub Tenants" },
+    // Sub Tenants is main-business-only: hidden for sub-tenant accounts (see the
+    // isSubTenant filter below) and gate-able via module:sub-tenants for staff.
+    { path: "/sub-tenants", icon: Building2, label: "Sub Tenants", permissionKey: "module:sub-tenants" },
   ];
 
   // Hide (not disable) items the current tenant lacks — spec §4.3 point 2:
   // "modules/pages/buttons not granted simply don't render." Items with no
-  // permissionKey (Dashboard, Settings, Sub Tenants) are always visible.
+  // permissionKey (Dashboard, Settings) are always visible. Sub Tenants is a
+  // Main-Business-only module: hidden for sub-tenant accounts (they can't
+  // manage other sub-tenants), shown to everyone else.
   const navItems: NavItem[] = rawNavItems
+    .filter((item) => !(isSubTenant && item.path === "/sub-tenants"))
     .filter((item) => !item.permissionKey || canAccess(item.permissionKey))
     .map((item) =>
       item.children
@@ -462,8 +483,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMod
           )}
         </nav>
 
-        {/* ── My Apps (installed marketplace apps) — hidden in app workspace mode ── */}
-        {!appMode && installedApps.length > 0 && (
+        {/* ── My Apps (installed marketplace apps) — hidden in app workspace
+            mode and when the tenant lacks Feature Marketplace access ── */}
+        {!appMode && canAccess("module:marketplace") && installedApps.length > 0 && (
           <div className={`${isCollapsed ? "mt-4 pt-4" : "mt-6 pt-6"} border-t border-slate-200 dark:border-slate-700`}>
             {!isCollapsed && (
               <div className="flex items-center gap-2 px-4 mb-2">
@@ -503,8 +525,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMod
           </div>
         )}
 
-        {/* ── Connections (quick shortcuts to Settings > Accounts) — hidden in app workspace mode ── */}
-        {!appMode && (
+        {/* ── Connections (quick shortcuts to Settings > Accounts) — hidden in app
+            workspace mode, and when the tenant can't reach any connection ── */}
+        {!appMode && accessibleConnections.length > 0 && (
           <div className={`${isCollapsed ? "mt-4 pt-4" : "mt-6 pt-6"} border-t border-slate-200 dark:border-slate-700`}>
             {!isCollapsed && (
               <div className="flex items-center gap-2 px-4 mb-2">
@@ -515,7 +538,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMod
               </div>
             )}
             <nav className="space-y-1">
-              {CONNECTION_SHORTCUTS.filter((conn) => canAccess(conn.permissionKey)).map((conn) => (
+              {accessibleConnections.map((conn) => (
                 <NavLink
                   key={conn.label}
                   to={conn.path}
@@ -555,8 +578,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMod
           </div>
         )}
 
-        {/* Additional Settings — hidden in app workspace mode */}
-        {!appMode && (
+        {/* Additional Settings — hidden in app workspace mode and when the
+            tenant lacks the Settings module. */}
+        {!appMode && canAccess("module:settings") && (
         <div
           className={`${
             isCollapsed ? "mt-4 pt-4" : "mt-6 pt-6"
@@ -613,11 +637,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMod
               className="space-y-1 mt-1 ml-2 border-l border-slate-200 dark:border-slate-700 pl-3"
             >
               {[
-                { path: "/settings#profile",  icon: User,  label: "Profile"            },
-                { path: "/settings#security", icon: Globe, label: "Security"            },
-                { path: "/settings#accounts", icon: Link2, label: "Connected Accounts"  },
-                { path: "/settings#api",      icon: Key,   label: "API Keys"            },
-              ].map((child) => (
+                { path: "/settings#profile",  icon: User,  label: "Profile",           permissionKey: "module:settings.page:profile"  },
+                { path: "/settings#security", icon: Globe, label: "Security",           permissionKey: "module:settings.page:security" },
+                { path: "/settings#accounts", icon: Link2, label: "Connected Accounts", permissionKey: "module:settings.page:accounts" },
+                { path: "/settings#api",      icon: Key,   label: "API Keys",           permissionKey: "module:settings.page:api"      },
+              ]
+                .filter((child) => canAccess(child.permissionKey))
+                .map((child) => (
                 <NavLink
                   key={child.path}
                   to={child.path}

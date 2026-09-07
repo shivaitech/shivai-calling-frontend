@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState } from 'react';
 import { tenantAPI } from '../services/tenantAPI';
-import type { Tenant } from './types';
+import type { PermissionGrantMap, Tenant } from './types';
 
 interface TenantViewState {
   tenant: Tenant | null;
@@ -11,6 +11,12 @@ interface TenantViewContextType extends TenantViewState {
   isViewing: boolean;
   enterView: (tenant: Tenant) => Promise<void>;
   exitView: () => Promise<void>;
+  /** The viewed tenant's saved permission grants — usePermission()/
+   * useCanAccess() check against these instead of the logged-in user's own
+   * grants while isViewing is true, so "View as" actually reflects what was
+   * configured for them in the Permissions tab. */
+  viewedGrants: PermissionGrantMap;
+  viewedGrantsLoaded: boolean;
 }
 
 const TenantViewContext = createContext<TenantViewContextType>({
@@ -19,6 +25,8 @@ const TenantViewContext = createContext<TenantViewContextType>({
   isViewing: false,
   enterView: async () => {},
   exitView: async () => {},
+  viewedGrants: {},
+  viewedGrantsLoaded: false,
 });
 
 /**
@@ -37,22 +45,32 @@ const TenantViewContext = createContext<TenantViewContextType>({
 export const TenantViewProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [enteredAt, setEnteredAt] = useState<string | null>(null);
+  const [viewedGrants, setViewedGrants] = useState<PermissionGrantMap>({});
+  const [viewedGrantsLoaded, setViewedGrantsLoaded] = useState(false);
 
   const enterView = async (t: Tenant) => {
     setTenant(t);
     const now = new Date().toISOString();
     setEnteredAt(now);
+    setViewedGrantsLoaded(false);
     await tenantAPI.recordViewSession(t.id, 'enter');
+    const { grants } = await tenantAPI.getPermissions(t.id);
+    setViewedGrants(grants);
+    setViewedGrantsLoaded(true);
   };
 
   const exitView = async () => {
     if (tenant) await tenantAPI.recordViewSession(tenant.id, 'exit');
     setTenant(null);
     setEnteredAt(null);
+    setViewedGrants({});
+    setViewedGrantsLoaded(false);
   };
 
   return (
-    <TenantViewContext.Provider value={{ tenant, enteredAt, isViewing: !!tenant, enterView, exitView }}>
+    <TenantViewContext.Provider
+      value={{ tenant, enteredAt, isViewing: !!tenant, enterView, exitView, viewedGrants, viewedGrantsLoaded }}
+    >
       {children}
     </TenantViewContext.Provider>
   );

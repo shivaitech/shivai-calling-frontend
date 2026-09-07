@@ -54,6 +54,8 @@ const EditAgent = lazy(() => import("./ClientDashboard/Employees/EditAgent"));
 const Training = lazy(() => import("./ClientDashboard/Training/Training"));
 const Workflows = lazy(() => import("./ClientDashboard/Workflows/Workflows"));
 const CallSetup = lazy(() => import("./ClientDashboard/Workflows/CallSetup"));
+const CommandCenter = lazy(() => import("./ClientDashboard/CommandCenter/CommandCenter"));
+const Staff = lazy(() => import("./ClientDashboard/Staff/Staff"));
 const Marketplace = lazy(() => import("./ClientDashboard/Marketplace/Marketplace"));
 const AppDetail = lazy(() => import("./ClientDashboard/Marketplace/AppDetail"));
 const WebsitePreview = lazy(() => import("./pages/WebsitePreview"));
@@ -252,10 +254,12 @@ function AppContent() {
                       />
                       <Route path="/agents/:id/train" element={<PermissionRoute requires="module:employees.page:training"><Training /></PermissionRoute>} />
                       <Route path="/training" element={<PermissionRoute requires="module:employees.page:training"><Training /></PermissionRoute>} />
-                      <Route path="/call-setup" element={<PermissionRoute requires="module:workflows.page:call-setup"><CallSetup /></PermissionRoute>} />
+                      <Route path="/call-setup" element={<PermissionRoute requires="module:call-setup"><CallSetup /></PermissionRoute>} />
+                      <Route path="/command-center" element={<PermissionRoute requires="module:command-center"><CommandCenter /></PermissionRoute>} />
+                      <Route path="/staff" element={<PermissionRoute requires="module:staff"><Staff /></PermissionRoute>} />
                       <Route path="/workflows" element={<PermissionRoute requires="module:workflows"><Workflows /></PermissionRoute>} />
-                      <Route path="/campaigns/:campaignId" element={<PermissionRoute requires="module:workflows.page:call-setup"><CampaignDetail /></PermissionRoute>} />
-                      <Route path="/contacts/:contactId/call-history" element={<PermissionRoute requires="module:workflows.page:call-setup"><ContactCallHistory /></PermissionRoute>} />
+                      <Route path="/campaigns/:campaignId" element={<PermissionRoute requires="module:call-setup"><CampaignDetail /></PermissionRoute>} />
+                      <Route path="/contacts/:contactId/call-history" element={<PermissionRoute requires="module:call-setup"><ContactCallHistory /></PermissionRoute>} />
                       <Route path="/marketplace" element={<PermissionRoute requires="module:marketplace"><Marketplace /></PermissionRoute>} />
                       <Route path="/marketplace/:appId" element={<PermissionRoute requires="module:marketplace"><AppDetail /></PermissionRoute>} />
                       {/* Website Builder now lives in its standalone workspace — redirect legacy route */}
@@ -266,12 +270,12 @@ function AppContent() {
                       <Route path="/settings" element={<Settings />} />
                       <Route path="/google-sheets" element={<GoogleSheetsManager />} />
                       <Route path="/google-sheets/:id/view" element={<GoogleSheetView />} />
-                      <Route path="/zoho" element={<PermissionRoute requires="module:zoho"><ZohoManager /></PermissionRoute>} />
-                      <Route path="/google-calendar" element={<PermissionRoute requires="module:google-calendar"><GoogleCalendarManager /></PermissionRoute>} />
-                      <Route path="/sub-tenants" element={<SubTenantsList />} />
-                      <Route path="/sub-tenants/:tenantId" element={<SubTenantDetail />} />
-                      <Route path="/sub-tenants/:tenantId/agents/:id" element={<SubTenantAgentViewPage />} />
-                      <Route path="/sub-tenants/:tenantId/agents/:id/edit" element={<SubTenantEditAgentPage />} />
+                      <Route path="/zoho" element={<PermissionRoute requires="module:marketplace.page:zoho"><ZohoManager /></PermissionRoute>} />
+                      <Route path="/google-calendar" element={<PermissionRoute requires="module:marketplace.page:google-calendar"><GoogleCalendarManager /></PermissionRoute>} />
+                      <Route path="/sub-tenants" element={<PermissionRoute mainOnly><SubTenantsList /></PermissionRoute>} />
+                      <Route path="/sub-tenants/:tenantId" element={<PermissionRoute mainOnly><SubTenantDetail /></PermissionRoute>} />
+                      <Route path="/sub-tenants/:tenantId/agents/:id" element={<PermissionRoute mainOnly><SubTenantAgentViewPage /></PermissionRoute>} />
+                      <Route path="/sub-tenants/:tenantId/agents/:id/edit" element={<PermissionRoute mainOnly><SubTenantEditAgentPage /></PermissionRoute>} />
 
                       {/* Default route for authenticated users */}
                       <Route path="/" element={<HomeRedirect />} />

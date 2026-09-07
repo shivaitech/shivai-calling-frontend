@@ -7,20 +7,22 @@ import {
   Users,
   Phone,
   TrendingUp,
-  Sparkles,
   ChevronRight,
   Clock,
   Pause,
   Play,
   MoreVertical,
   Settings as SettingsIcon,
+  Trash2,
+  Loader2,
   X,
 } from 'lucide-react';
 import GlassCard from '../../components/GlassCard';
 import ModalOverlay from '../../components/ModalOverlay';
 import SearchableSelect from '../../components/SearchableSelect';
 import Pagination from '../../components/Pagination';
-import { tenantAPI } from '../../services/tenantAPI';
+import { listSubTenants, reactivateSubTenant, deleteSubTenant, toTenant } from '../../services/subTenantsAPI';
+import appToast from '../../components/AppToast';
 import type { Tenant, TenantStatus } from '../../permissions/types';
 import SectionHeader from './components/SectionHeader';
 import TenantStatusBadge from './components/TenantStatusBadge';
@@ -58,26 +60,61 @@ const SubTenantsList = () => {
   const [showBrandingModal, setShowBrandingModal] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [busyTenantId, setBusyTenantId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Tenant | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadTenants = async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
-      const data = await tenantAPI.listSubTenants();
+      const data = await listSubTenants({ limit: 100 });
       setTenants(data);
+    } catch (err: any) {
+      setLoadError(err?.message || 'Failed to load sub-tenants');
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Reactivate a deactivated sub-tenant (deactivation is done via the Remove
+  // confirm below, which soft-deletes through DELETE /tenants/:id).
   const handleToggleStatus = async (tenant: Tenant) => {
     setOpenMenuId(null);
+    if (tenant.status !== 'suspended') {
+      // Active → deactivate goes through the confirm dialog.
+      setDeleteTarget(tenant);
+      return;
+    }
     setBusyTenantId(tenant.id);
     try {
-      const nextStatus = tenant.status === 'suspended' ? 'active' : 'suspended';
-      const updated = await tenantAPI.updateTenantStatus(tenant.id, nextStatus);
-      setTenants((prev) => prev.map((t) => (t.id === tenant.id ? updated : t)));
+      const updated = await reactivateSubTenant(tenant.id);
+      setTenants((prev) => prev.map((t) => (t.id === tenant.id ? toTenant(updated) : t)));
+      appToast.success(`${tenant.name} reactivated`);
+    } catch (err: any) {
+      appToast.error(err?.message || 'Failed to reactivate');
     } finally {
       setBusyTenantId(null);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    try {
+      const updated = await deleteSubTenant(deleteTarget.id);
+      // Soft-delete: keep the row but mark it inactive (visible per current filter).
+      setTenants((prev) =>
+        prev.map((t) => (t.id === deleteTarget.id ? { ...t, status: 'suspended' as const } : t))
+      );
+      void updated;
+      appToast.success(`${deleteTarget.name} deactivated`);
+      setDeleteTarget(null);
+    } catch (err: any) {
+      appToast.error(err?.message || 'Failed to deactivate sub-tenant');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -133,13 +170,14 @@ const SubTenantsList = () => {
         </div>
       </div>
 
-      {/* Preview banner — mock data until the tenant API is live */}
-      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800">
-        <Sparkles className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0" />
-        <p className="text-xs text-indigo-700 dark:text-indigo-300">
-          Preview with sample data — will reflect your real sub-tenants once the tenant API is live.
-        </p>
-      </div>
+      {loadError && (
+        <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+          <p className="text-xs text-red-700 dark:text-red-300">{loadError}</p>
+          <button onClick={loadTenants} className="text-xs font-medium text-red-700 dark:text-red-300 underline flex-shrink-0">
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* Summary stat tiles — bordered no-fill badges per established icon convention */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -235,9 +273,15 @@ const SubTenantsList = () => {
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-600 to-slate-800 dark:from-slate-500 dark:to-slate-700 flex items-center justify-center flex-shrink-0 shadow-sm">
-                        <span className="text-xs font-bold text-white">{initials(tenant.name)}</span>
-                      </div>
+                      {tenant.branding?.logoUrl ? (
+                        <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden flex items-center justify-center flex-shrink-0 shadow-sm">
+                          <img src={tenant.branding.logoUrl} alt={`${tenant.name} logo`} className="w-full h-full object-contain" />
+                        </div>
+                      ) : (
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-600 to-slate-800 dark:from-slate-500 dark:to-slate-700 flex items-center justify-center flex-shrink-0 shadow-sm">
+                          <span className="text-xs font-bold text-white">{initials(tenant.name)}</span>
+                        </div>
+                      )}
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">{tenant.name}</p>
                         <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate">/{tenant.slug}</p>
@@ -318,18 +362,32 @@ const SubTenantsList = () => {
                         >
                           <ChevronRight className="w-3.5 h-3.5" /> View Details
                         </button>
-                        <button
-                          type="button"
-                          disabled={isBusy}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleToggleStatus(tenant);
-                          }}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/60 disabled:opacity-50"
-                        >
-                          {tenant.status === 'suspended' ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
-                          {tenant.status === 'suspended' ? 'Reactivate' : 'Suspend'}
-                        </button>
+                        <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
+                        {tenant.status === 'suspended' ? (
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleStatus(tenant);
+                            }}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/60 disabled:opacity-50"
+                          >
+                            <Play className="w-3.5 h-3.5" /> Reactivate
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleStatus(tenant);
+                            }}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 disabled:opacity-50"
+                          >
+                            <Pause className="w-3.5 h-3.5" /> Deactivate
+                          </button>
+                        )}
                       </div>
                     </>
                   )}
@@ -378,6 +436,41 @@ const SubTenantsList = () => {
           </div>
           <div className="p-4 sm:p-6 max-h-[75vh] overflow-y-auto">
             <BrandingTab />
+          </div>
+        </div>
+      </ModalOverlay>
+
+      {/* Remove sub-tenant confirmation */}
+      <ModalOverlay open={!!deleteTarget} onClose={isDeleting ? undefined : () => setDeleteTarget(null)} closeOnBackdrop={!isDeleting} panelClassName="max-w-md">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/80 dark:border-slate-700 overflow-hidden">
+          <div className="p-5">
+            <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 flex items-center justify-center mb-3">
+              <Trash2 className="w-5 h-5 text-rose-600 dark:text-rose-400" />
+            </div>
+            <h3 className="text-base font-semibold text-slate-800 dark:text-white mb-1">Deactivate this sub-tenant?</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              <span className="font-medium text-slate-700 dark:text-slate-300">{deleteTarget?.name}</span> will be
+              deactivated and lose access. This is a soft-delete — their data is retained and you can reactivate them anytime.
+            </p>
+          </div>
+          <div className="px-5 py-3 border-t border-slate-200 dark:border-slate-700 flex gap-2.5">
+            <button
+              type="button"
+              onClick={() => setDeleteTarget(null)}
+              disabled={isDeleting}
+              className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-colors disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+            >
+              {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              {isDeleting ? 'Deactivating…' : 'Deactivate'}
+            </button>
           </div>
         </div>
       </ModalOverlay>

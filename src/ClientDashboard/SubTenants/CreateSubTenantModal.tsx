@@ -1,9 +1,17 @@
 import { useEffect, useState } from 'react';
-import { Building2, X, Loader2, User, Mail, Phone, MapPin, Globe, Briefcase, Lock, Eye, EyeOff } from 'lucide-react';
+import { Building2, X, Loader2, User, Mail, Phone, MapPin, Globe, Briefcase, Lock, Eye, EyeOff, Image, Upload } from 'lucide-react';
 import ModalOverlay from '../../components/ModalOverlay';
 import SearchableSelect from '../../components/SearchableSelect';
-import { tenantAPI } from '../../services/tenantAPI';
-import type { PermissionTemplate } from '../../permissions/types';
+import appToast from '../../components/AppToast';
+import { createSubTenant } from '../../services/subTenantsAPI';
+import { listRoles } from '../../services/rolesAPI';
+import { agentAPI } from '../../services/agentAPI';
+import { getCitiesForCountry } from '../../services/locationCitiesAPI';
+import { defaultCountries } from '../../types/country';
+
+const COUNTRY_OPTIONS = defaultCountries
+  .map((c) => ({ value: c.name, label: `${c.flag} ${c.name}` }))
+  .sort((a, b) => a.label.localeCompare(b.label));
 
 interface CreateSubTenantModalProps {
   open: boolean;
@@ -42,7 +50,17 @@ const CreateSubTenantModal = ({ open, onClose, onCreated }: CreateSubTenantModal
   const [name, setName] = useState('');
   const [industry, setIndustry] = useState('');
   const [website, setWebsite] = useState('');
-  const [location, setLocation] = useState('');
+  const [logo, setLogo] = useState('');
+  const [logoUploading, setLogoUploading] = useState(false);
+  // Address
+  const [address, setAddress] = useState('');
+  const [city, setCity] = useState('');
+  const [country, setCountry] = useState('');
+  const [zip, setZip] = useState('');
+  // Cities depend on the chosen country (fetched on demand).
+  const [cities, setCities] = useState<string[]>([]);
+  const [citiesLoading, setCitiesLoading] = useState(false);
+  const [citiesError, setCitiesError] = useState(false);
   // Contact
   const [ownerName, setOwnerName] = useState('');
   const [email, setEmail] = useState('');
@@ -53,8 +71,8 @@ const CreateSubTenantModal = ({ open, onClose, onCreated }: CreateSubTenantModal
   // Plan
   const [maxAgents, setMaxAgents] = useState('5');
   const [maxUsers, setMaxUsers] = useState('10');
-  const [templateId, setTemplateId] = useState('tpl-standard');
-  const [templates, setTemplates] = useState<PermissionTemplate[]>([]);
+  // Sub-tenants always start on the default "sub-tenant" role — resolved silently.
+  const [roleId, setRoleId] = useState('');
   // Invite
   const [sendInvite, setSendInvite] = useState(true);
 
@@ -66,7 +84,15 @@ const CreateSubTenantModal = ({ open, onClose, onCreated }: CreateSubTenantModal
     setName('');
     setIndustry('');
     setWebsite('');
-    setLocation('');
+    setLogo('');
+    setLogoUploading(false);
+    setAddress('');
+    setCity('');
+    setCountry('');
+    setZip('');
+    setCities([]);
+    setCitiesLoading(false);
+    setCitiesError(false);
     setOwnerName('');
     setEmail('');
     setPassword('');
@@ -75,11 +101,65 @@ const CreateSubTenantModal = ({ open, onClose, onCreated }: CreateSubTenantModal
     setNotes('');
     setMaxAgents('5');
     setMaxUsers('10');
-    setTemplateId('tpl-standard');
+    setRoleId('');
     setSendInvite(true);
     setError(null);
-    tenantAPI.listTemplates().then(setTemplates);
+    // Resolve the default "sub-tenant" role id for the create payload (no UI).
+    listRoles({ limit: 100 })
+      .then(({ roles }) => {
+        const preferred = roles.find((r) => r.key === 'sub-tenant') || roles[0];
+        if (preferred) setRoleId(preferred.id);
+      })
+      .catch(() => {
+        /* non-fatal — surfaced on submit if roleId is still empty */
+      });
   }, [open]);
+
+  // Pick a country → reset city and load that country's cities.
+  const handleCountryChange = async (nextCountry: string) => {
+    setCountry(nextCountry);
+    setCity('');
+    setCities([]);
+    setCitiesError(false);
+    if (!nextCountry) return;
+    setCitiesLoading(true);
+    try {
+      setCities(await getCitiesForCountry(nextCountry));
+    } catch {
+      setCitiesError(true); // fall back to free-text city entry
+    } finally {
+      setCitiesLoading(false);
+    }
+  };
+
+  // Upload the picked logo file → store the returned URL in `logo`.
+  const handleLogoFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-picking the same file
+    if (!file) return;
+    const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+    if (!allowed.includes(file.type)) {
+      appToast.error('Please choose an image (JPG, PNG, GIF, WebP or SVG).');
+      return;
+    }
+    if (file.size > 1024 * 1024) {
+      appToast.error(`Logo is ${Math.round(file.size / 1024)}KB — max is 1MB.`);
+      return;
+    }
+    setLogoUploading(true);
+    try {
+      const res = await agentAPI.uploadLogo(file);
+      const url =
+        res?.logo_url || res?.url || res?.data?.logo_url || res?.data?.url || res?.data?.data?.logo_url;
+      if (!url) throw new Error('Upload succeeded but no URL was returned.');
+      setLogo(url);
+      appToast.success('Logo uploaded');
+    } catch (err: any) {
+      appToast.error(err?.message || 'Failed to upload logo');
+    } finally {
+      setLogoUploading(false);
+    }
+  };
 
   const handleSubmit = async () => {
     const trimmedName = name.trim();
@@ -107,30 +187,37 @@ const CreateSubTenantModal = ({ open, onClose, onCreated }: CreateSubTenantModal
       setError(`Password must be at least ${PASSWORD_MIN_LEN} characters.`);
       return;
     }
+    if (!roleId) {
+      setError('Could not resolve the default sub-tenant role. Please retry.');
+      return;
+    }
     setError(null);
     setIsSubmitting(true);
     try {
-      await tenantAPI.createSubTenant({
-        name: trimmedName,
-        sendInvite,
+      await createSubTenant({
+        roleId,
+        businessName: trimmedName,
+        fullName: ownerName.trim(),
         email: email.trim(),
         password,
-        templateId,
-        maxAgents: Number(maxAgents) || undefined,
-        maxUsers: Number(maxUsers) || undefined,
-        contact: {
-          ownerName: ownerName.trim(),
-          email: email.trim(),
-          phone: phone.trim(),
-          location: location.trim(),
-          industry: industry || undefined,
-          website: website.trim() || undefined,
-          notes: notes.trim() || undefined,
-        },
+        phone: phone.trim() || undefined,
+        industry: industry || undefined,
+        website: website.trim() || undefined,
+        description: notes.trim() || undefined,
+        address: address.trim() || undefined,
+        city: city.trim() || undefined,
+        country: country.trim() || undefined,
+        zip: zip.trim() || undefined,
+        logo: logo.trim() || undefined,
+        maxEmployees: Number(maxAgents) || undefined,
+        sendInvite,
       });
+      appToast.success(`${trimmedName} created`);
       onCreated();
     } catch (err: any) {
-      setError(err?.message || 'Failed to create sub-tenant. Please try again.');
+      const msg = err?.message || 'Failed to create sub-tenant. Please try again.';
+      setError(msg);
+      appToast.error(msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -197,24 +284,116 @@ const CreateSubTenantModal = ({ open, onClose, onCreated }: CreateSubTenantModal
                 />
               </div>
               <div>
-                <FieldLabel icon={MapPin}>Location</FieldLabel>
+                <FieldLabel icon={Globe}>Website (optional)</FieldLabel>
                 <input
                   type="text"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  placeholder="City, State"
+                  value={website}
+                  onChange={(e) => setWebsite(e.target.value)}
+                  placeholder="theirbusiness.com"
                   className={inputClass}
                 />
               </div>
             </div>
             <div>
-              <FieldLabel icon={Globe}>Website (optional)</FieldLabel>
+              <FieldLabel icon={Image}>Logo (optional)</FieldLabel>
+              <div className="flex items-center gap-3">
+                <div className="w-14 h-14 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 flex items-center justify-center overflow-hidden flex-shrink-0">
+                  {logo ? (
+                    <img src={logo} alt="Logo" className="w-full h-full object-contain" />
+                  ) : (
+                    <Image className="w-5 h-5 text-slate-300 dark:text-slate-600" />
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <label
+                    className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/80 cursor-pointer transition-colors ${logoUploading ? 'opacity-50 pointer-events-none' : ''}`}
+                  >
+                    {logoUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                    {logoUploading ? 'Uploading…' : logo ? 'Replace' : 'Upload logo'}
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml"
+                      className="hidden"
+                      onChange={handleLogoFile}
+                      disabled={logoUploading}
+                    />
+                  </label>
+                  {logo && !logoUploading && (
+                    <button
+                      type="button"
+                      onClick={() => setLogo('')}
+                      className="inline-flex items-center gap-1 px-2.5 py-2 rounded-lg text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" /> Remove
+                    </button>
+                  )}
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5">PNG, JPG, SVG or WebP — up to 1MB.</p>
+            </div>
+          </div>
+
+          {/* Address */}
+          <div className="space-y-3 pt-1 border-t border-slate-200 dark:border-slate-700">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 pt-3">
+              Address
+            </p>
+            <div>
+              <FieldLabel icon={MapPin}>Street Address (optional)</FieldLabel>
               <input
                 type="text"
-                value={website}
-                onChange={(e) => setWebsite(e.target.value)}
-                placeholder="theirbusiness.com"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="123 Main St, Suite 100"
                 className={inputClass}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <FieldLabel icon={Globe}>Country</FieldLabel>
+                <SearchableSelect
+                  options={COUNTRY_OPTIONS}
+                  value={country}
+                  onChange={handleCountryChange}
+                  placeholder="Select country…"
+                />
+              </div>
+              <div>
+                <FieldLabel icon={MapPin}>City</FieldLabel>
+                {!country ? (
+                  <div className={`${inputClass} text-slate-400 dark:text-slate-500 flex items-center`}>
+                    Select a country first
+                  </div>
+                ) : citiesLoading ? (
+                  <div className={`${inputClass} text-slate-400 dark:text-slate-500 flex items-center gap-2`}>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading cities…
+                  </div>
+                ) : citiesError || cities.length === 0 ? (
+                  <input
+                    type="text"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    placeholder="Type your city"
+                    className={inputClass}
+                  />
+                ) : (
+                  <SearchableSelect
+                    options={cities.map((c) => ({ value: c, label: c }))}
+                    value={city}
+                    onChange={setCity}
+                    placeholder="Select city…"
+                  />
+                )}
+              </div>
+            </div>
+            <div>
+              <FieldLabel icon={MapPin}>ZIP / Postal Code (optional)</FieldLabel>
+              <input
+                type="text"
+                value={zip}
+                onChange={(e) => setZip(e.target.value)}
+                placeholder="e.g. 94107"
+                className={`${inputClass} sm:max-w-[200px]`}
               />
             </div>
           </div>
@@ -323,18 +502,10 @@ const CreateSubTenantModal = ({ open, onClose, onCreated }: CreateSubTenantModal
                 />
               </div>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
-                Starting Permission Template
-              </label>
-              <SearchableSelect
-                options={templates.map((t) => ({ value: t.id, label: t.name }))}
-                value={templateId}
-                onChange={setTemplateId}
-                placeholder="Choose a template…"
-              />
-              <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
-                You can fine-tune exactly what they can access afterward.
+            <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 px-3 py-2.5">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Starts with the default <span className="font-medium text-slate-700 dark:text-slate-300">Sub-tenant</span> permission role.
+                You can fine-tune exactly what they can access afterward from their Permissions tab.
               </p>
             </div>
           </div>
@@ -362,11 +533,11 @@ const CreateSubTenantModal = ({ open, onClose, onCreated }: CreateSubTenantModal
           </button>
           <button
             onClick={handleSubmit}
-            disabled={isSubmitting}
+            disabled={isSubmitting || logoUploading}
             className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-violet-600 hover:bg-violet-700 text-white flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
           >
             {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Building2 className="w-4 h-4" />}
-            {isSubmitting ? 'Creating…' : 'Create Sub Tenant'}
+            {isSubmitting ? 'Creating…' : logoUploading ? 'Uploading logo…' : 'Create Sub Tenant'}
           </button>
         </div>
       </div>
