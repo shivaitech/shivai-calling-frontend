@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import { authAPI } from "../services/authAPI";
 import { getMyProfile } from "../services/subTenantsAPI";
+import { setStaffFlag, setActingAccount, clearActingContext } from "../services/actingContext";
 
 // Sub Tenants: a user optionally belongs to a tenant hierarchy (see
 // src/permissions/types.ts). Both fields are optional so accounts with no
@@ -17,7 +18,8 @@ export type TenantRole =
   | 'MAIN_ADMIN'
   | 'MAIN_MEMBER'
   | 'SUBTENANT_OWNER'
-  | 'SUBTENANT_MEMBER';
+  | 'SUBTENANT_MEMBER'
+  | 'STAFF';
 
 interface User {
   id: string;
@@ -40,6 +42,26 @@ export const TENANT_GRANTS_STORAGE_KEY = "tenant_grants";
 // sub-tenants get a SUBTENANT role + their parent's id as tenantId so
 // usePermission() gates them; everyone else stays a fail-open MAIN role.
 const enrichUserFromProfile = (baseUser: User, profile: Awaited<ReturnType<typeof getMyProfile>>): User => {
+  // Staff are delegated users — gated deny-by-default like sub-tenants, so they
+  // only see the modules they were granted.
+  if (profile.isStaff) {
+    setStaffFlag(true);
+    // Staff act AS THE MAIN (parent) TENANT — send X-Acting-Tenant-Id = parent
+    // tenant id (from accounts[0].tenantId). They then drill into a specific
+    // sub-tenant via ?sub_tenant_id on Command Center / Sub Tenants, like the
+    // main tenant. Never send a sub-tenant acting header.
+    const parentTenantId = profile.accounts?.[0]?.tenantId ?? null;
+    if (parentTenantId) {
+      setActingAccount({ tenantId: String(parentTenantId), subTenantId: null });
+    }
+    return {
+      ...baseUser,
+      tenantId: String(baseUser.id),
+      tenantRole: "STAFF",
+    };
+  }
+  // Not staff → clear any staff acting context.
+  clearActingContext();
   if (!profile.isSubTenant) {
     return { ...baseUser, tenantRole: baseUser.tenantRole ?? "MAIN_OWNER" };
   }
@@ -343,6 +365,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     localStorage.removeItem("pending_auth_tokens");
     localStorage.removeItem("pending_auth_user");
     localStorage.removeItem(TENANT_GRANTS_STORAGE_KEY);
+    clearActingContext();
   };
 
   const updateUser = (updates: Partial<User>) => {

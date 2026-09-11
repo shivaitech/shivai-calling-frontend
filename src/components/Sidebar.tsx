@@ -144,7 +144,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMod
   }, [isCollapsed, setCollapsed]);
 
   const rawNavItems: NavItem[] = [
-    { path: "/dashboard", icon: Home, label: "Dashboard" },
+    // Dashboard is always-on for sub-tenants (locked grant) and fail-open for
+    // main business; for staff it's gate-able, so key it and let canAccess decide.
+    { path: "/dashboard", icon: Home, label: "Dashboard", permissionKey: "module:dashboard" },
     { path: "/agents", icon: Bot, label: "AI Employees", permissionKey: "module:employees" },
     { path: "/training", icon: Brain, label: "Training", permissionKey: "module:employees.page:training" },
     {

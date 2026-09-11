@@ -1,5 +1,6 @@
 import axios, { AxiosResponse } from "axios";
 import { mockAgentStore } from "./mockAgentStore";
+import { actingHeaders, selfSubTenantId } from "./actingContext";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -102,6 +103,22 @@ apiClient.interceptors.request.use((config) => {
       console.warn("Failed to parse auth tokens:", error);
     }
   }
+
+  // Sub-tenant scoping: when a Main Business is viewing/managing a sub-tenant's
+  // AI employees, tag every /agents request with sub_tenant_id so the backend
+  // returns/operates on that sub-tenant's agents. Sent as a query param for all
+  // methods (GET/POST/PUT/DELETE) so the backend reads it uniformly.
+  if (activeTenantScope && typeof config.url === "string" && config.url.includes("/agents")) {
+    config.params = { ...(config.params || {}), sub_tenant_id: activeTenantScope };
+  }
+
+  // Staff acting context — X-Acting-Tenant-Id / X-Acting-Sub-Tenant-Id on every
+  // request (backend resolves staff scope from these on all protected routes).
+  const acting = actingHeaders();
+  if (Object.keys(acting).length) {
+    config.headers = Object.assign(config.headers || {}, acting);
+  }
+
   return config;
 });
 
@@ -132,6 +149,10 @@ voiceApiClient.interceptors.request.use((config) => {
     } catch (error) {
       console.warn("Failed to parse auth tokens:", error);
     }
+  }
+  const acting = actingHeaders();
+  if (Object.keys(acting).length) {
+    config.headers = Object.assign(config.headers || {}, acting);
   }
   return config;
 });
@@ -429,6 +450,7 @@ class AgentAPI {
     limit?: number;
     industry?: string;
     business_process?: string;
+    sub_tenant_id?: string;
   }): Promise<{
     agents: ApiAgent[];
     total: number;
@@ -461,10 +483,18 @@ class AgentAPI {
       if (params.business_process) {
         queryParams.append('business_process', params.business_process);
       }
+      // Scope to a specific sub-tenant's agents. Explicit param (main tenant
+      // drilling in) wins; otherwise a logged-in sub-tenant scopes to their own id.
+      const subTenantId = params.sub_tenant_id ?? selfSubTenantId() ?? undefined;
+      if (subTenantId) {
+        queryParams.append('sub_tenant_id', subTenantId);
+      }
 
       const queryString = queryParams.toString();
+      // Always the plain /agents list; sub_tenant_id (query) scopes it to a
+      // sub-tenant's agents when a Main Business is viewing them.
       const url = `/agents${queryString ? `?${queryString}` : ''}`;
-      
+
       const response: AxiosResponse<AgentsResponse> = await apiClient.get(url);
 
       if (response.data.success && response.data.data.agents) {
@@ -548,9 +578,9 @@ class AgentAPI {
   }
 
   // Fetch full agent config (used in edit/view pages)
-  // Endpoint: GET /agent-configs/:id
+  // Endpoint: GET /agent-configs/:id — real for sub-tenant agents too (they're
+  // fetched by their globally-unique id).
   async getAgentConfig(id: string): Promise<{ agent: any }> {
-    if (activeTenantScope) return mockAgentStore.get(activeTenantScope, id);
     try {
       const response: AxiosResponse<{
         success: boolean;
@@ -860,13 +890,19 @@ class AgentAPI {
   }
 
   // Create agent with full payload (includes voice_speed, voice_style, template, knowledge base URLs)
-  async createAgentFull(agentData: Record<string, any>): Promise<any> {
+  async createAgentFull(agentData: Record<string, any>, subTenantId?: string): Promise<any> {
     try {
+      // When creating on behalf of a sub-tenant, tag the agent with its owner
+      // in the JSON body. (createAgentFull uses voiceApiClient, which the
+      // apiClient interceptor that injects sub_tenant_id does NOT cover.)
+      const scoped = subTenantId
+        ? { ...agentData, sub_tenant_id: subTenantId }
+        : agentData;
       const response: AxiosResponse<{
         success: boolean;
         data: any;
         message?: string;
-      }> = await voiceApiClient.post("/agents/create-agent", agentData, { timeout: 0 });
+      }> = await voiceApiClient.post("/agents/create-agent", scoped, { timeout: 0 });
 
       if (response.data.success && response.data.data) {
         return response.data.data;

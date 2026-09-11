@@ -1,4 +1,5 @@
 import axios, { AxiosResponse } from "axios";
+import { actingHeaders, withSelfScope } from "./actingContext";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -21,6 +22,7 @@ const authHeaders = (extra?: Record<string, string>) => {
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
+      ...actingHeaders(), // staff acting context
       ...extra,
     },
   };
@@ -75,6 +77,7 @@ export interface ListContactsParams {
   direction?: ContactDirection | "all";
   agent_id?: string;
   include_inactive?: boolean;
+  sub_tenant_id?: string;
 }
 
 export interface ListContactsResult {
@@ -118,7 +121,7 @@ export const listContacts = async (
   params: ListContactsParams = {}
 ): Promise<ListContactsResult> => {
   try {
-    const { page = 1, limit = 50, ...rest } = params;
+    const { page = 1, limit = 50, ...rest } = withSelfScope(params);
     const clean: Record<string, any> = { page, limit };
     Object.entries(rest).forEach(([k, v]) => {
       if (v !== undefined && v !== null && v !== "" && v !== "all") clean[k] = v;
@@ -474,6 +477,7 @@ export interface ListCallHistoryParams {
   status?: string;
   from?: string;
   to?: string;
+  sub_tenant_id?: string; // "<id>" | "none" | omit (whole org)
 }
 
 export interface CallHistoryByNumberParams extends Omit<ListCallHistoryParams, "phone_number"> {
@@ -511,7 +515,8 @@ export const listCallHistory = async (
   params: ListCallHistoryParams = {}
 ): Promise<CallHistoryListResult> => {
   try {
-    const { page = 1, limit = 20, direction, ...rest } = params;
+    // A logged-in sub-tenant auto-scopes to their own id (explicit wins).
+    const { page = 1, limit = 20, direction, ...rest } = withSelfScope(params);
     const clean: Record<string, any> = { page, limit: Math.min(limit, 100) };
     if (direction && direction !== "all") clean.direction = direction;
     Object.entries(rest).forEach(([k, v]) => {
@@ -539,7 +544,8 @@ export const getCallHistoryByNumber = async (
     throw new Error("Phone number is required");
   }
   try {
-    const { page = 1, limit = 20, direction, ...rest } = params;
+    // Sub-tenant auto-scopes to their own id (explicit wins).
+    const { page = 1, limit = 20, direction, ...rest } = withSelfScope(params);
     const clean: Record<string, any> = { page, limit: Math.min(limit, 100) };
     if (direction && direction !== "all") clean.direction = direction;
     Object.entries(rest).forEach(([k, v]) => {
@@ -565,10 +571,11 @@ export const getCallHistoryStats = async (params: {
   agent_id?: string;
   contact_id?: string;
   phone_number?: string;
+  sub_tenant_id?: string;
 } = {}): Promise<any> => {
   try {
     const clean: Record<string, any> = {};
-    Object.entries(params).forEach(([k, v]) => {
+    Object.entries(withSelfScope(params)).forEach(([k, v]) => {
       if (v !== undefined && v !== null && v !== "" && v !== "all") clean[k] = v;
     });
     const response: AxiosResponse<any> = await axios.get(`${API_BASE_URL}/call-history/stats`, {

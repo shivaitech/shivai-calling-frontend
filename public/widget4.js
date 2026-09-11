@@ -58,6 +58,7 @@
   let lastAssistantMessageDiv = null;
   let lastAssistantSegmentId = null;
   let assistantBubbleText = ""; // full text currently shown in the live assistant bubble
+  let userBubbleClosed = true; // interim/final: false while a user partial bubble is live
   let lastSentMessage = null; // Track last sent message to prevent duplicates
   // Once the agent's words arrive on lk.transcription, that stream owns the
   // assistant transcript; lk.chat then sends the SAME text and must not re-add it.
@@ -6257,6 +6258,7 @@
     lastAssistantMessageDiv = null;
     lastAssistantSegmentId = null;
     assistantBubbleText = "";
+    userBubbleClosed = true;
     lastSentMessage = null; // Reset last sent message tracker
     if (visualizerInterval) {
       clearInterval(visualizerInterval);
@@ -6997,6 +6999,21 @@
     } else {
       updateMessage(lastAssistantMessageDiv, r.fullText);
     }
+  }
+
+  // User transcript with interim→final replacement (mirrors test.html): while
+  // is_final=false, keep UPDATING one live bubble; the final message closes it
+  // so the next utterance starts a fresh bubble. Prevents partials stacking.
+  function renderUserTranscript(rawText, isFinal) {
+    const text = (rawText || "").trim();
+    if (!text) return;
+    if (userBubbleClosed || !lastUserMessageDiv || !lastUserMessageDiv.isConnected) {
+      lastUserMessageDiv = addMessage("user", text);
+    } else {
+      updateMessage(lastUserMessageDiv, text);
+    }
+    // A final segment ends this bubble; the next partial opens a new one.
+    userBubbleClosed = !!isFinal;
   }
 
   // ── WhatsApp-style document card from AI ────────────────────────────────
@@ -8004,11 +8021,8 @@
                   if (jsonData.role === "user") {
                     // Allow voice transcripts for user, but skip chat messages
                     if (jsonData.type !== "chat") {
-                      if (!lastUserMessageDiv) {
-                        lastUserMessageDiv = addMessage("user", jsonData.text);
-                      } else {
-                        updateMessage(lastUserMessageDiv, jsonData.text);
-                      }
+                      const legacyFinal = jsonData.is_final ?? jsonData.isFinal ?? true;
+                      renderUserTranscript(jsonData.text, Boolean(legacyFinal));
                     } else {
                       _wlog(
                         "🚫 Skipping user chat message (already shown from sendMessage)"
@@ -8038,6 +8052,9 @@
 
                 if (shouldAddToChat) {
                   const senderRole = isUser ? "user" : "assistant";
+                  // Interim/final flag (test.html contract): partials update one
+                  // bubble; final closes it. Absent → treat as final.
+                  const isFinalSeg = jsonData.is_final ?? jsonData.isFinal ?? true;
                   // Skip typed messages (they have source: 'typed') but allow voice transcripts
                   if (
                     !isUser ||
@@ -8045,11 +8062,11 @@
                     (isUser && jsonData.source !== "typed")
                   ) {
                     // Assistant text → the single overlap-merger (prevents doubles
-                    // across channels); user text keeps the plain add.
+                    // across channels); user voice text → interim/final bubble.
                     if (!isUser) {
                       renderAssistantTranscript(transcriptText);
                     } else {
-                      addMessage(senderRole, transcriptText);
+                      renderUserTranscript(transcriptText, Boolean(isFinalSeg));
                     }
                     _dbg("✅ Transcript added:", senderRole, "|", transcriptText.substring(0, 100));
                     // Track first AI response

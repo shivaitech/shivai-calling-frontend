@@ -566,7 +566,13 @@ const validateCampaignName = (raw: string): string | null => {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-const CallSetup: React.FC = () => {
+interface CallSetupProps {
+  /** When rendered inside a sub-tenant view, scope campaigns & call history to
+   * this sub-tenant (sub_tenant_id). Omit for the tenant's own Call Setup. */
+  subTenantId?: string;
+}
+
+const CallSetup: React.FC<CallSetupProps> = ({ subTenantId }) => {
   // Real agents from API via AgentContext
   const { agents, isLoading: agentsLoading, refreshAgents } = useAgent();
   const { user } = useAuth();
@@ -622,6 +628,7 @@ const CallSetup: React.FC = () => {
   const [selectedDid, setSelectedDid] = useState<CatalogNumber | null>(null);
   const [buyDisplayName, setBuyDisplayName] = useState('');
   const [buyAgentId, setBuyAgentId] = useState('');
+  const [buyChannelCount, setBuyChannelCount] = useState(1); // concurrent channels
   const [isBuying, setIsBuying] = useState(false);
   const [buyError, setBuyError] = useState<string | null>(null);
 
@@ -884,6 +891,7 @@ const CallSetup: React.FC = () => {
     setSelectedDid(null);
     setBuyDisplayName('');
     setBuyAgentId('');
+    setBuyChannelCount(1);
     setBuyError(null);
     setSelectedDidTypeId(null);
     setCatalog([]);
@@ -923,6 +931,7 @@ const CallSetup: React.FC = () => {
         did_number: selectedDid.did_number,
         agent_id: buyAgentId,
         display_name: buyDisplayName.trim(),
+        channel_count: Math.max(1, buyChannelCount || 1),
       });
       setShowBuyModal(false);
       appToast.success(`${result?.phone_number || 'Number'} purchased & provisioned`);
@@ -1399,7 +1408,7 @@ const CallSetup: React.FC = () => {
     setCampaignsLoading(true);
     setCampaignsError(null);
     try {
-      const list = await getCampaigns();
+      const list = await getCampaigns(subTenantId);
       setCampaigns(list);
       // Fetch live stats per campaign; fall back to embedded campaign.stats
       const withStats = await Promise.all(
@@ -1417,7 +1426,7 @@ const CallSetup: React.FC = () => {
     } finally {
       setCampaignsLoading(false);
     }
-  }, []);
+  }, [subTenantId]);
 
   // Load campaigns the first time the user opens Outbound or Analytics
   useEffect(() => {
@@ -2007,6 +2016,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
         direction: 'inbound',
         page,
         limit: INBOUND_PAGE_SIZE,
+        ...(subTenantId ? { sub_tenant_id: subTenantId } : {}),
       });
       setInboundCalls(result.calls || []);
       setInboundCallsTotal(result.pagination?.total || result.calls?.length || 0);
@@ -2018,7 +2028,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
     } finally {
       setInboundCallsLoading(false);
     }
-  }, []);
+  }, [subTenantId]);
 
   // Resolve the real agent-session (recording/transcripts/summary live there,
   // not on the lightweight call-history row) before opening the modal.
@@ -5138,6 +5148,23 @@ objective = the Objective bullet list (use \\n between bullets).`;
                     active={showBuyModal}
                     variant="panel"
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                    Concurrent Channels
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={buyChannelCount}
+                    onChange={(e) => setBuyChannelCount(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                    className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm sm:max-w-[160px]"
+                  />
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+                    How many calls this number can handle at once. Default 1.
+                  </p>
                 </div>
 
                 {buyError && (

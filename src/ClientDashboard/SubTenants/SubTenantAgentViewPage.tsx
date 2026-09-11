@@ -4,7 +4,6 @@ import { Bot } from 'lucide-react';
 import AgentViewPage from '../Employees/AgentViewPage';
 import { convertApiAgentToAgent, type Agent } from '../../contexts/AgentContext';
 import { agentAPI } from '../../services/agentAPI';
-import { mockAgentStore } from '../../services/mockAgentStore';
 import appToast from '../../components/AppToast';
 import TenantAgentScope from './TenantAgentScope';
 
@@ -78,8 +77,11 @@ const SubTenantAgentViewPageInner = () => {
         if (!agentId) return;
         setIsPublishing(true);
         try {
-          mockAgentStore.setPublished(tenantId!, agentId, true);
+          await agentAPI.publishAgent(agentId);
+          appToast.success('Agent published');
           load();
+        } catch (err: any) {
+          appToast.error(err?.message || 'Failed to publish agent');
         } finally {
           setIsPublishing(false);
           setShowPublishConfirm(false);
@@ -96,8 +98,11 @@ const SubTenantAgentViewPageInner = () => {
         if (!agentId) return;
         setIsPausing(true);
         try {
-          mockAgentStore.setPublished(tenantId!, agentId, false);
+          await agentAPI.unpublishAgent(agentId);
+          appToast.success('Agent unpublished');
           load();
+        } catch (err: any) {
+          appToast.error(err?.message || 'Failed to unpublish agent');
         } finally {
           setIsPausing(false);
           setShowPauseConfirm(false);
@@ -110,9 +115,11 @@ const SubTenantAgentViewPageInner = () => {
         if (!agentId) return;
         setIsDeleting(true);
         try {
-          mockAgentStore.remove(tenantId!, agentId);
+          await agentAPI.deleteAgent(agentId);
+          appToast.success('Agent deleted');
           navigate(`/sub-tenants/${tenantId}`);
-        } finally {
+        } catch (err: any) {
+          appToast.error(err?.message || 'Failed to delete agent');
           setIsDeleting(false);
         }
       }}

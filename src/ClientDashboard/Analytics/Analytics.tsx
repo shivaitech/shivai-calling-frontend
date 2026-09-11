@@ -55,7 +55,13 @@ const getChannelTagMeta = (agentType?: string) => {
   return { label: "Web", Icon: Globe, cls: "bg-black" };
 };
 
-const Analytics = () => {
+interface AnalyticsProps {
+  /** When viewing a sub-tenant's analytics, scope agents to this sub-tenant
+   * (GET /agents?sub_tenant_id=). Omit for the tenant's own analytics. */
+  subTenantId?: string;
+}
+
+const Analytics = ({ subTenantId }: AnalyticsProps = {}) => {
   const { user } = useAuth();
   const [timeRange, setTimeRange] = useState("all");
   const [deviceFilter, setDeviceFilter] = useState("all");
@@ -117,13 +123,16 @@ const Analytics = () => {
   // Load agents on mount
   useEffect(() => {
     const fetchAgents = async () => {
-      if (!isDeveloper) return;
+      // Sub-tenant analytics always loads (scoped by sub_tenant_id); the
+      // developer gate only applies to the tenant's own analytics.
+      if (!isDeveloper && !subTenantId) return;
 
       try {
         console.log("🚀 Fetching agents...");
         const response = await agentAPI.getAgentsWithFilters({
           page: 1,
           limit: agentPageSize,
+          ...(subTenantId ? { sub_tenant_id: subTenantId } : {}),
         });
         
         setAgentsList(response.agents || []);
@@ -148,20 +157,22 @@ const Analytics = () => {
     };
 
     fetchAgents();
-  }, [isDeveloper]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDeveloper, subTenantId]);
 
   // Load more agents when clicked
   const loadMoreAgents = async () => {
-    if (!isDeveloper || agentLoadPage >= totalAgentPages) return;
+    if ((!isDeveloper && !subTenantId) || agentLoadPage >= totalAgentPages) return;
 
     setIsLoadingMoreAgents(true);
     try {
       const nextPage = agentLoadPage + 1;
       console.log("🚀 Loading more agents, page:", nextPage);
-      
+
       const response = await agentAPI.getAgentsWithFilters({
         page: nextPage,
         limit: agentPageSize,
+        ...(subTenantId ? { sub_tenant_id: subTenantId } : {}),
       });
 
       // Append new agents to existing list
@@ -207,6 +218,10 @@ const Analytics = () => {
       if (dateRange.endDate) {
         queryParams.append("endDate", dateRange.endDate);
       }
+
+      // NOTE: the sessions endpoint is already scoped by the selected agentId
+      // (which belongs to the sub-tenant), so we do NOT send sub_tenant_id here
+      // — it isn't supported on /agent-sessions and 500s the request.
 
       // Add search term if exists
       if (searchQuery.trim()) {

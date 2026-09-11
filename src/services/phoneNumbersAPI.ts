@@ -1,4 +1,5 @@
 import axios, { AxiosResponse } from "axios";
+import { actingHeaders, selfSubTenantId } from "./actingContext";
 import { placeDirectOutboundCall } from "./contactsAPI";
 export { placeDirectOutboundCall };
 export type {
@@ -38,6 +39,7 @@ const createAuthenticatedRequest = () => {
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
+      ...actingHeaders(), // staff acting context
     },
   };
 };
@@ -45,7 +47,7 @@ const createAuthenticatedRequest = () => {
 // Auth header for multipart uploads — let the browser set the boundary itself
 const createUploadRequest = () => {
   const token = getAuthToken();
-  return { headers: { Authorization: `Bearer ${token}` } };
+  return { headers: { Authorization: `Bearer ${token}`, ...actingHeaders() } };
 };
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -91,6 +93,9 @@ export interface BuyNumberRequest {
   agent_id: string;
   display_name: string;
   language?: string;
+  months?: number; // default 1
+  channel_count?: number; // NEW — concurrent channels, default 1
+  dry_run?: boolean; // NEW — true validates & returns a plan, spends nothing
 }
 
 export interface BuyNumberResult {
@@ -102,6 +107,25 @@ export interface BuyNumberResult {
   voicelink_trunk_id?: number;
   voicelink_call_routing_id?: number;
   voicelink_call_setting_id?: number;
+  // Present on a dry_run response — a plan/estimate rather than a real purchase.
+  dry_run?: boolean;
+  plan?: any;
+  cost?: number | string;
+  [key: string]: any;
+}
+
+// GET /phone-numbers/:id/status — provisioning readiness across layers.
+export interface PhoneNumberStatusLayer {
+  step: number;
+  layer: string;
+  ok: boolean;
+  detail?: string;
+}
+
+export interface PhoneNumberStatus {
+  phone_number: string;
+  ready: boolean;
+  layers: PhoneNumberStatusLayer[];
 }
 
 export interface CallLogEntry {
@@ -454,13 +478,21 @@ export const getNumberCatalog = async (didTypeId: number): Promise<CatalogNumber
   }
 };
 
-// Buy + provision a number (VoiceLink trunk, routing, LiveKit dispatch — all server-side)
+// Buy + provision a number (VoiceLink trunk, routing, LiveKit dispatch — all server-side).
+// Pass dry_run:true to validate and get a cost/plan back WITHOUT spending money.
 export const buyPhoneNumber = async (payload: BuyNumberRequest): Promise<BuyNumberResult> => {
   try {
+    const body = {
+      language: "en-in",
+      months: 1,
+      channel_count: 1,
+      dry_run: false,
+      ...payload,
+    };
     const response: AxiosResponse<{ success: boolean; message: string; data: BuyNumberResult }> =
       await axios.post(
         `${API_BASE_URL}/phone-numbers/buy`,
-        { language: "en-in", ...payload },
+        body,
         createAuthenticatedRequest()
       );
     return response.data.data;
@@ -469,6 +501,12 @@ export const buyPhoneNumber = async (payload: BuyNumberRequest): Promise<BuyNumb
     throw new Error(errMessage(error, "Failed to provision number"));
   }
 };
+
+// Dry-run a purchase — validates and returns a plan (cost/config) without
+// spending. Convenience wrapper over buyPhoneNumber with dry_run:true.
+export const previewBuyPhoneNumber = async (
+  payload: Omit<BuyNumberRequest, "dry_run">
+): Promise<BuyNumberResult> => buyPhoneNumber({ ...payload, dry_run: true });
 
 // List the tenant's active numbers
 export const getPhoneNumbers = async (
@@ -527,6 +565,36 @@ export const deprovisionPhoneNumber = async (id: string): Promise<string> => {
   } catch (error: any) {
     console.error("Error deprovisioning phone number:", error);
     throw new Error(errMessage(error, "Failed to deprovision number"));
+  }
+};
+
+// GET /phone-numbers/:id/status — layer-by-layer provisioning readiness.
+export const getPhoneNumberStatus = async (id: string): Promise<PhoneNumberStatus> => {
+  try {
+    const response: AxiosResponse<{ success: boolean; data: PhoneNumberStatus }> = await axios.get(
+      `${API_BASE_URL}/phone-numbers/${id}/status`,
+      createAuthenticatedRequest()
+    );
+    return response.data.data;
+  } catch (error: any) {
+    console.error("Error fetching phone number status:", error);
+    throw new Error(errMessage(error, "Failed to load number status"));
+  }
+};
+
+// DELETE /phone-numbers/:id/release — permanently release the number back to the
+// provider. Requires { confirm: true }; without it the API returns a 400 whose
+// message is safe to show in the confirm dialog.
+export const releasePhoneNumber = async (id: string): Promise<string> => {
+  try {
+    const response: AxiosResponse<{ success: boolean; message: string }> = await axios.delete(
+      `${API_BASE_URL}/phone-numbers/${id}/release`,
+      { ...createAuthenticatedRequest(), data: { confirm: true } }
+    );
+    return response.data.message;
+  } catch (error: any) {
+    console.error("Error releasing phone number:", error);
+    throw new Error(errMessage(error, "Failed to release number"));
   }
 };
 
@@ -940,11 +1008,17 @@ export const deleteCampaign = async (campaignId: string): Promise<string> => {
 };
 
 // List all campaigns for the tenant
-export const getCampaigns = async (): Promise<Campaign[]> => {
+// subTenantId: "<id>" → that sub-tenant only · "none" → tenant's own · omit → whole org.
+// A logged-in real sub-tenant auto-scopes to their own id.
+export const getCampaigns = async (subTenantId?: string): Promise<Campaign[]> => {
   try {
+    const scope = subTenantId ?? selfSubTenantId() ?? undefined;
     const response: AxiosResponse<{ success: boolean; data: Campaign[] }> = await axios.get(
       `${API_BASE_URL}/campaigns`,
-      createAuthenticatedRequest()
+      {
+        ...createAuthenticatedRequest(),
+        ...(scope ? { params: { sub_tenant_id: scope } } : {}),
+      }
     );
     const list = response.data.data || [];
     return list.map(normalizeCampaign).filter((c) => isValidCampaignId(c._id));

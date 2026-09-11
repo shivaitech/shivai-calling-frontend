@@ -27,8 +27,9 @@ const StaffEditorModal = ({ open, tenantId, editing, onClose, onSaved }: Props) 
   const [showPassword, setShowPassword] = useState(false);
   const [roleName, setRoleName] = useState('');
   const [grants, setGrants] = useState<PermissionGrantMap>({});
-  const [managedIds, setManagedIds] = useState<string[]>([]);
-  const [scopeMode, setScopeMode] = useState<'all' | 'select'>('all');
+  // Independent sub-tenant scope PER scoped module (command-center, sub-tenants).
+  const [scopeMode, setScopeMode] = useState<Record<string, 'all' | 'select'>>({});
+  const [managedIds, setManagedIds] = useState<Record<string, string[]>>({});
   const [invite, setInvite] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -57,8 +58,9 @@ const StaffEditorModal = ({ open, tenantId, editing, onClose, onSaved }: Props) 
       setPhone(editing.phone || '');
       setRoleName(editing.roleName || '');
       setGrants(editing.grants || {});
-      setManagedIds(editing.managedSubTenantIds || []);
-      setScopeMode(editing.managedSubTenantIds && editing.managedSubTenantIds.length > 0 ? 'select' : 'all');
+      // Seed both scoped modules from the record's per-module scope maps.
+      setScopeMode({ ...(editing.subTenantScopes || {}) } as any);
+      setManagedIds({ ...(editing.managedSubTenantsByModule || {}) } as any);
       setInvite(false);
     } else {
       setName('');
@@ -66,74 +68,88 @@ const StaffEditorModal = ({ open, tenantId, editing, onClose, onSaved }: Props) 
       setPhone('');
       setRoleName('');
       setGrants({});
-      setManagedIds([]);
-      setScopeMode('all');
+      setScopeMode({});
+      setManagedIds({});
       setInvite(true);
     }
   }, [open, editing]);
 
-  const toggleManaged = (id: string) =>
-    setManagedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  const scopeOf = (moduleKey: string): 'all' | 'select' => scopeMode[moduleKey] || 'all';
+  const idsOf = (moduleKey: string): string[] => managedIds[moduleKey] || [];
+  const setScopeOf = (moduleKey: string, mode: 'all' | 'select') =>
+    setScopeMode((prev) => ({ ...prev, [moduleKey]: mode }));
+  const toggleManaged = (moduleKey: string, id: string) =>
+    setManagedIds((prev) => {
+      const cur = prev[moduleKey] || [];
+      return { ...prev, [moduleKey]: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id] };
+    });
 
   // One shared sub-tenant scope for this staff member — governs both which
   // sub-tenants they can manage (Sub Tenants module) and which sub-tenants'
   // data their Command Center shows. Rendered inline under either module.
-  const renderScopePicker = (heading: string, allText: string) => (
-    <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 p-3">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">
-        {heading}
-      </p>
-      <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden w-full mb-2">
-        {(['all', 'select'] as const).map((m) => (
-          <button
-            key={m}
-            type="button"
-            onClick={() => setScopeMode(m)}
-            className={`flex-1 px-3 py-1.5 text-xs font-medium transition-colors ${
-              scopeMode === m
-                ? 'bg-violet-600 text-white'
-                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/60'
-            }`}
-          >
-            {m === 'all' ? 'All sub-tenants' : 'Select sub-tenants'}
-          </button>
-        ))}
-      </div>
-      {scopeMode === 'select' ? (
-        subTenants.length === 0 ? (
-          <p className="text-[11px] text-slate-400 dark:text-slate-500">No sub-tenants yet.</p>
+  // moduleKey scopes this picker to its own state so the two pickers
+  // (command-center vs sub-tenants) don't share selections. stopPropagation on
+  // clicks so they never bubble to the matrix's module/page toggles.
+  const renderScopePicker = (moduleKey: string, heading: string, allText: string) => {
+    const mode = scopeOf(moduleKey);
+    const ids = idsOf(moduleKey);
+    return (
+      <div className="rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 p-3" onClick={(e) => e.stopPropagation()}>
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">
+          {heading}
+        </p>
+        <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden w-full mb-2">
+          {(['all', 'select'] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setScopeOf(moduleKey, m); }}
+              className={`flex-1 px-3 py-1.5 text-xs font-medium transition-colors ${
+                mode === m
+                  ? 'bg-violet-600 text-white'
+                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/60'
+              }`}
+            >
+              {m === 'all' ? 'All sub-tenants' : 'Select sub-tenants'}
+            </button>
+          ))}
+        </div>
+        {mode === 'select' ? (
+          subTenants.length === 0 ? (
+            <p className="text-[11px] text-slate-400 dark:text-slate-500">No sub-tenants yet.</p>
+          ) : (
+            <>
+              <div className="max-h-40 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                {subTenants.map((t) => {
+                  const checked = ids.includes(t.id);
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); toggleManaged(moduleKey, t.id); }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                    >
+                      <span className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${checked ? 'bg-violet-600 border-violet-600' : 'border-slate-300 dark:border-slate-600'}`}>
+                        {checked && <Check className="w-3 h-3 text-white" />}
+                      </span>
+                      <span className="text-sm text-slate-700 dark:text-slate-300 truncate flex items-center gap-1.5">
+                        <Building2 className="w-3 h-3 text-slate-400" /> {t.name}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5">
+                {ids.length} of {subTenants.length} selected.
+              </p>
+            </>
+          )
         ) : (
-          <>
-            <div className="max-h-40 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900">
-              {subTenants.map((t) => {
-                const checked = managedIds.includes(t.id);
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => toggleManaged(t.id)}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800/60"
-                  >
-                    <span className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${checked ? 'bg-violet-600 border-violet-600' : 'border-slate-300 dark:border-slate-600'}`}>
-                      {checked && <Check className="w-3 h-3 text-white" />}
-                    </span>
-                    <span className="text-sm text-slate-700 dark:text-slate-300 truncate flex items-center gap-1.5">
-                      <Building2 className="w-3 h-3 text-slate-400" /> {t.name}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5">
-              {managedIds.length} of {subTenants.length} selected.
-            </p>
-          </>
-        )
-      ) : (
-        <p className="text-[11px] text-slate-400 dark:text-slate-500">{allText}</p>
-      )}
-    </div>
-  );
+          <p className="text-[11px] text-slate-400 dark:text-slate-500">{allText}</p>
+        )}
+      </div>
+    );
+  };
 
   const grantCount = useMemo(() => countGrants(grants), [grants]);
 
@@ -146,14 +162,31 @@ const StaffEditorModal = ({ open, tenantId, editing, onClose, onSaved }: Props) 
       if (password.length < PASSWORD_MIN_LEN) return appToast.error(`Password must be at least ${PASSWORD_MIN_LEN} characters.`);
     }
     if (grantCount === 0) return appToast.error('Grant at least one feature.');
+
+    // accounts[] (API-required) = the UNION of every scoped module's selection
+    // (all → every sub-tenant). Each entry { tenantId: owner id, subTenantId }.
+    const ownerId = String(user?.id || tenantId);
+    const allIds = subTenants.map((t) => t.id);
+    const idsForModule = (mk: string) => (scopeOf(mk) === 'all' ? allIds : idsOf(mk));
+    const scopedModuleKeys = Object.keys(grants).filter(
+      (k) => grants[k] && (k.startsWith('module:command-center') || k.startsWith('module:sub-tenants'))
+    );
+    const unionIds = Array.from(new Set(scopedModuleKeys.flatMap((k) => idsForModule(k))));
+    const accounts = unionIds.map((subTenantId) => ({ tenantId: ownerId, subTenantId }));
+    if (isMainTenant && scopedModuleKeys.length > 0 && accounts.length === 0) {
+      return appToast.error('Assign at least one sub-tenant account.');
+    }
+    // Per-module scope maps → encoded into the permission strings by the service.
+    const subTenantScopes = isMainTenant ? scopeMode : undefined;
+    const managedSubTenantsByModule = isMainTenant ? managedIds : undefined;
+
     setSaving(true);
     try {
-      const managedSubTenantIds = isMainTenant ? (scopeMode === 'all' ? [] : managedIds) : undefined;
       if (editing) {
-        await staffAPI.update(editing.id, { name, email, phone, roleName, grants, managedSubTenantIds });
+        await staffAPI.update(editing.id, { name, email, phone, roleName, grants, subTenantScopes, managedSubTenantsByModule, accounts });
         appToast.success('Staff updated');
       } else {
-        await staffAPI.create(tenantId, { name, email, phone, password, roleName, grants, managedSubTenantIds, invite });
+        await staffAPI.create(tenantId, { name, email, phone, password, roleName, grants, subTenantScopes, managedSubTenantsByModule, accounts, invite });
         appToast.success(invite ? 'Staff invited' : 'Staff added');
       }
       onSaved();
@@ -238,7 +271,6 @@ const StaffEditorModal = ({ open, tenantId, editing, onClose, onSaved }: Props) 
             </p>
           </div>
 
-
           {/* Per-staff feature access */}
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -249,17 +281,20 @@ const StaffEditorModal = ({ open, tenantId, editing, onClose, onSaved }: Props) 
               grants={grants}
               onChange={setGrants}
               templates={[]}
+              lockAlwaysOn={false}
               renderModuleExtra={
                 isMainTenant
                   ? (moduleKey, granted) => {
                       if (!granted) return null;
                       if (moduleKey === 'module:sub-tenants')
                         return renderScopePicker(
+                          moduleKey,
                           'Which sub-tenants can they manage?',
                           'Can manage every current and future sub-tenant.'
                         );
                       if (moduleKey === 'module:command-center')
                         return renderScopePicker(
+                          moduleKey,
                           'Which sub-tenants’ activity can they see?',
                           'Command Center shows every sub-tenant’s calls, leads and follow-ups.'
                         );

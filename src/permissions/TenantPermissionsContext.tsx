@@ -42,21 +42,25 @@ export const TenantPermissionsProvider: React.FC<{ children: React.ReactNode }> 
   const [loaded, setLoaded] = useState(false);
 
   const refresh = async () => {
-    // No tenant context → not a gated sub-tenant; nothing to load.
+    // No tenant context → not a gated sub-tenant/staff; nothing to load.
     if (!user?.tenantId) {
       setGrants({});
       setLoaded(true);
       return;
     }
+    // Staff have no always-on modules — Dashboard is grantable for them, so
+    // don't force-lock it. Sub-tenants keep the locked (always-on) modules.
+    const isStaff = user?.tenantRole === 'STAFF';
+    const applyLocks = (g: PermissionGrantMap) => (isStaff ? g : withLockedGrants(g));
     // Seed from the cached map immediately so we don't flash-deny on reload.
     const cached = readCachedGrants();
     if (cached) {
-      setGrants(withLockedGrants(cached));
+      setGrants(applyLocks(cached));
       setLoaded(true);
     }
     try {
       const profile = await getMyProfile();
-      const next = withLockedGrants(profile.grants);
+      const next = applyLocks(profile.grants);
       setGrants(next);
       try {
         localStorage.setItem(TENANT_GRANTS_STORAGE_KEY, JSON.stringify(profile.grants));

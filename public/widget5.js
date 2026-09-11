@@ -8544,21 +8544,18 @@
                     _wlog("🚫 Skipping DataReceived transcript — using lk.transcription stream");
                     return;
                   }
+                  const legacyFinal = jsonData.is_final ?? jsonData.isFinal ?? true;
                   if (jsonData.role === "user") {
                     // Allow voice transcripts for user, but skip chat messages
                     if (jsonData.type !== "chat") {
-                      if (!lastUserMessageDiv) {
-                        lastUserMessageDiv = addMessage("user", jsonData.text);
-                      } else {
-                        updateMessage(lastUserMessageDiv, jsonData.text);
-                      }
+                      addMessage("user", jsonData.text, { isFinal: Boolean(legacyFinal) });
                     } else {
                       _wlog(
                         "🚫 Skipping user chat message (already shown from sendMessage)"
                       );
                     }
                   } else if (jsonData.role === "assistant") {
-                    addMessage("assistant", jsonData.text);
+                    addMessage("assistant", jsonData.text, { isFinal: Boolean(legacyFinal) });
                     // Track first assistant response
                     if (!firstResponseReceived) {
                       _dbg("✅ First AI response (legacy transcript):", jsonData.text.substring(0,80));
@@ -8584,13 +8581,17 @@
                     return;
                   }
                   const senderRole = isUser ? "user" : "assistant";
+                  // Interim/final (test.html contract): partials update one bubble,
+                  // final closes it. Absent → final. addMessage handles the
+                  // interim/partial bubble tracking via options.isFinal.
+                  const isFinalSeg = jsonData.is_final ?? jsonData.isFinal ?? true;
                   // Skip typed messages (they have source: 'typed') but allow voice transcripts
                   if (
                     !isUser ||
                     (isUser && jsonData.type !== "chat") ||
                     (isUser && jsonData.source !== "typed")
                   ) {
-                    addMessage(senderRole, transcriptText);
+                    addMessage(senderRole, transcriptText, { isFinal: Boolean(isFinalSeg) });
                     _dbg("✅ Transcript added:", senderRole, "|", transcriptText.substring(0, 100));
                     // Track first AI response
                     if (!isUser && !firstResponseReceived) {
@@ -8676,6 +8677,9 @@
                 const text = await reader.readAll();
 
                 if (text && text.trim()) {
+                  // The lk.transcription stream is actually delivering — from now
+                  // on it owns transcripts, so DataReceived can defer to it.
+                  textStreamTranscriptsEnabled = true;
                   const isUser =
                     participantInfo.identity ===
                     room.localParticipant?.identity;
@@ -8792,7 +8796,11 @@
           );
 
           _wlog("✅ Text stream handlers registered successfully");
-          textStreamTranscriptsEnabled = true;
+          // NOTE: do NOT enable stream-mode here just because the handler is
+          // registered — the backend may still deliver transcripts via
+          // DataReceived. Stream-mode turns on only when the lk.transcription
+          // stream actually delivers text (see the handler), so the DataReceived
+          // path stays active until then.
         } else {
           console.warn(
             "⚠️ registerTextStreamHandler not available, using fallback DataReceived"

@@ -1,5 +1,6 @@
 import axios, { AxiosResponse } from "axios";
 import type { Tenant, TenantStatus } from "../permissions/types";
+import { actingHeaders } from "./actingContext";
 
 // Sub-tenants API — tenant-facing team-member (sub-tenant) management.
 // See public/test/tenants-sub-tenants-and-roles-api.md.
@@ -28,6 +29,7 @@ const authHeaders = () => ({
   headers: {
     Authorization: `Bearer ${getAuthToken()}`,
     "Content-Type": "application/json",
+    ...actingHeaders(), // staff X-Acting-Tenant-Id / X-Acting-Sub-Tenant-Id
   },
 });
 
@@ -281,11 +283,16 @@ export const grantMapFromRecord = (rec: SubTenantRecord): Record<string, boolean
 // A permission bundle can arrive in several shapes across endpoints. Pull the
 // granted keys from wherever they are (permission.permissions, top-level
 // permissions, or a modules[]+actions[] fallback).
+// Staff permission strings encode a sub-tenant scope inline, e.g.
+// "module:command-center-read-subtenant-(id1,id2)". Strip that so the key
+// matches the permission registry (usePermission checks the base key).
+const stripScopeSuffix = (key: string): string => key.replace(/-read-subtenant-\([^)]*\)$/, "");
+
 const extractPermissionKeys = (src: any): string[] => {
   if (!src) return [];
   const perm = src.permission ?? src;
-  if (Array.isArray(perm?.permissions)) return perm.permissions.filter(Boolean);
-  if (Array.isArray(src?.permissions)) return src.permissions.filter(Boolean);
+  if (Array.isArray(perm?.permissions)) return perm.permissions.filter(Boolean).map(stripScopeSuffix);
+  if (Array.isArray(src?.permissions)) return src.permissions.filter(Boolean).map(stripScopeSuffix);
   // Coarse module:action fallback (e.g. modules:["users"], actions:["read"]).
   const modules: string[] = Array.isArray(perm?.modules) ? perm.modules : [];
   const actions: string[] = Array.isArray(perm?.actions) ? perm.actions : [];
@@ -326,8 +333,10 @@ export interface MyProfile {
   tenantDetail: any | null;
   // Derived
   isSubTenant: boolean;
+  isStaff: boolean;
   grants: Record<string, boolean>;
-  roleKey: string | null; // e.g. "sub-tenant", "tenant", "admin"
+  roleKey: string | null; // e.g. "sub-tenant", "tenant", "admin", "staff"
+  accounts: Array<{ tenantId: string; subTenantId?: string | null }>; // staff account switcher
 }
 
 // GET /auth/me — normalized for the current signed-in user. Reads the
@@ -355,21 +364,28 @@ export const getMyProfile = async (): Promise<MyProfile> => {
       data.tenantDetail ?? data.tenantDetails ?? data.tenant ??
       user?.tenantDetail ?? user?.tenantDetails ?? user?.tenant ?? null;
     const tenantDetail = rawDetail ? normalizeTenantDetail(rawDetail) : null;
-    const roleKey: string | null = permission?.role?.key ?? permission?.roleKey ?? null;
+    // Role can arrive at data.role (top-level, /auth/me) or permission.role.key.
+    const roleKey: string | null =
+      data.role ?? permission?.role?.key ?? permission?.roleKey ?? null;
 
+    const isStaff = roleKey === "staff";
     const isSubTenant = Boolean(
       user?.parentTenantId ||
         permission?.subTenantId ||
         (roleKey && roleKey === "sub-tenant")
     );
 
+    const accounts = Array.isArray(permission?.accounts) ? permission.accounts : [];
+
     return {
       user,
       permission,
       tenantDetail,
       isSubTenant,
+      isStaff,
       grants: permissionsToGrantMap(extractPermissionKeys(permission ?? data)),
       roleKey,
+      accounts,
     };
   } catch (error: any) {
     console.error("Error loading profile:", error);
@@ -420,6 +436,8 @@ export const listSubTenantRecords = async (
 ): Promise<{ subTenants: SubTenantRecord[]; pagination?: PaginationMeta }> => {
   try {
     const { includeInactive, ...rest } = params;
+    // Parent tenant comes from the auth token (or, for staff, the acting-context
+    // headers) — the tenant_id query param was removed by the backend (§6).
     const res: AxiosResponse<{
       success: boolean;
       data: { subTenants?: SubTenantRecord[] };

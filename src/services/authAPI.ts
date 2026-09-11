@@ -6,6 +6,8 @@ import type {
   StandaloneSheetResult,
 } from "../ClientDashboard/GoogleSheets/sheetTypes";
 
+import { actingHeaders } from "./actingContext";
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 
@@ -179,6 +181,10 @@ apiClient.interceptors.request.use(
     if (tokens) {
       const { accessToken } = JSON.parse(tokens);
       config.headers.Authorization = `Bearer ${accessToken}`;
+    }
+    const acting = actingHeaders();
+    if (Object.keys(acting).length) {
+      config.headers = Object.assign(config.headers || {}, acting);
     }
     return config;
   },

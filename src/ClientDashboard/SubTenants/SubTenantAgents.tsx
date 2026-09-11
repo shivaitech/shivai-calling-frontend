@@ -25,8 +25,9 @@ import Pagination from '../../components/Pagination';
 import ModalOverlay from '../../components/ModalOverlay';
 import { formatAgentLanguages } from '../../lib/utils';
 import { mockAgentStore, type MockAgentRecord } from '../../services/mockAgentStore';
+import { agentAPI } from '../../services/agentAPI';
 import QuickCreateAgentWizard, { type KbCreationProgress } from '../Employees/agents/QuickCreateAgentWizard';
-import { createMockAgentDataSource } from '../Employees/agents/mockAgentDataSource';
+import { createSubTenantAgentDataSource } from '../Employees/agents/subTenantAgentDataSource';
 import TenantAgentTrainModal from './TenantAgentTrainModal';
 import TenantAgentQRModal from './TenantAgentQRModal';
 
@@ -70,13 +71,39 @@ const SubTenantAgents = ({ tenantId, companyName }: SubTenantAgentsProps) => {
   const [kbCreationProgress, setKbCreationProgress] = useState<KbCreationProgress>(null);
 
   useEffect(() => {
+    let cancelled = false;
     setIsLoading(true);
-    // Mirror the async feel of the real API without an artificial store dependency.
-    const timer = setTimeout(() => {
-      setAgents(mockAgentStore.list(tenantId) as MockAgentRecord[]);
-      setIsLoading(false);
-    }, 200);
-    return () => clearTimeout(timer);
+    // Fetch this sub-tenant's real AI employees: GET /agents?sub_tenant_id=<id>.
+    // Falls back to the local mock store if the API errors (e.g. backend not yet
+    // scoping agents), so the create-wizard demo still works.
+    agentAPI
+      .getAgentsWithFilters({ sub_tenant_id: tenantId, page: 1, limit: 100 })
+      .then((res) => {
+        if (cancelled) return;
+        const mapped: MockAgentRecord[] = (res.agents || []).map((a: any) => ({
+          id: String(a.id ?? a._id ?? ''),
+          tenantId,
+          name: a.name || 'Untitled Employee',
+          status: a.is_active ? 'Published' : (a.status || 'Pending'),
+          is_active: !!a.is_active,
+          gender: a.gender || a.voice_gender || 'female',
+          agentType: a.agentType || a.agent_type || 'webrtc',
+          voice: a.voice || a.voice_name || '',
+          languages: a.languages || a.preferred_languages || [],
+          createdAt: a.created_at || a.createdAt || new Date().toISOString(),
+          ...a,
+        })) as MockAgentRecord[];
+        setAgents(mapped);
+      })
+      .catch(() => {
+        if (!cancelled) setAgents(mockAgentStore.list(tenantId) as MockAgentRecord[]);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [tenantId, refreshToken]);
 
   const filtered = useMemo(() => {
@@ -97,7 +124,7 @@ const SubTenantAgents = ({ tenantId, companyName }: SubTenantAgentsProps) => {
   const refresh = () => setRefreshToken((n) => n + 1);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const dataSource = useMemo(() => createMockAgentDataSource(tenantId, refresh), [tenantId]);
+  const dataSource = useMemo(() => createSubTenantAgentDataSource(tenantId, refresh), [tenantId]);
 
   const handleTogglePublish = (agent: MockAgentRecord) => {
     setPublishingIds((prev) => new Set(prev).add(agent.id));
@@ -129,7 +156,7 @@ const SubTenantAgents = ({ tenantId, companyName }: SubTenantAgentsProps) => {
       <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800">
         <Sparkles className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0" />
         <p className="text-xs text-indigo-700 dark:text-indigo-300">
-          Preview with sample data — will manage this sub-tenant's real AI employees once agents are tenant-scoped.
+          Showing this sub-tenant's AI employees. New employees are created under this sub-tenant (sub_tenant_id). Editing &amp; publishing are being tenant-scoped next.
         </p>
       </div>
 
@@ -400,6 +427,12 @@ const SubTenantAgents = ({ tenantId, companyName }: SubTenantAgentsProps) => {
         kbCreationProgress={kbCreationProgress}
         setKbCreationProgress={setKbCreationProgress}
         onAgentListRefresh={refresh}
+        // Stay in the sub-tenant tab after creating — don't fall back to the
+        // wizard's default navigate('/agents') (the main tenant's list).
+        onCreateComplete={() => {
+          setShowCreateModal(false);
+          refresh();
+        }}
       />
 
       <ModalOverlay open={!!deleteTarget} onClose={() => (isDeleting ? undefined : setDeleteTarget(null))} closeOnBackdrop={!isDeleting} panelClassName="max-w-sm">

@@ -653,9 +653,9 @@ const SubTenantDetail = () => {
 
       {tab === 'agents' && <SubTenantAgents tenantId={tenant.id} companyName={tenant.name} />}
 
-      {tab === 'analytics' && <Analytics />}
+      {tab === 'analytics' && <Analytics subTenantId={tenant.id} />}
 
-      {tab === 'call-setup' && <CallSetup />}
+      {tab === 'call-setup' && <CallSetup subTenantId={tenant.id} />}
 
       <ModalOverlay open={showDeleteConfirm} onClose={isDeleting ? undefined : () => setShowDeleteConfirm(false)} closeOnBackdrop={!isDeleting} panelClassName="max-w-md">
         <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/80 dark:border-slate-700 overflow-hidden">

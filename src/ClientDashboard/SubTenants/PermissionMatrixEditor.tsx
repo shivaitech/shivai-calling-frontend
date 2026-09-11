@@ -13,6 +13,10 @@ interface PermissionMatrixEditorProps {
    * with whether that module is currently granted. Return null to render
    * nothing for a module. */
   renderModuleExtra?: (moduleKey: string, granted: boolean) => ReactNode;
+  /** Lock the always-on modules (Dashboard) so they can't be toggled off.
+   * Defaults true (sub-tenants). Pass false for Staff so a tenant can choose
+   * whether a staff member gets Dashboard access. */
+  lockAlwaysOn?: boolean;
 }
 
 /** Toggle switch matching the app's compact control sizing (no external lib). */
@@ -47,7 +51,7 @@ const Toggle = ({
 // landing surface). Their toggles render locked-on. Sourced from the registry.
 const LOCKED_MODULES = new Set<string>(LOCKED_MODULE_KEYS);
 
-const PermissionMatrixEditor = ({ grants, onChange, templates, renderModuleExtra }: PermissionMatrixEditorProps) => {
+const PermissionMatrixEditor = ({ grants, onChange, templates, renderModuleExtra, lockAlwaysOn = true }: PermissionMatrixEditorProps) => {
   const [query, setQuery] = useState('');
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
@@ -124,7 +128,7 @@ const PermissionMatrixEditor = ({ grants, onChange, templates, renderModuleExtra
           const pageKeys = mod.pages.map((p) => p.key);
           const actionKeys = mod.pages.flatMap((p) => (p.actions || []).map((a) => a.key));
           const isCollapsed = collapsed[mod.key] ?? false;
-          const isLocked = LOCKED_MODULES.has(mod.key);
+          const isLocked = lockAlwaysOn && LOCKED_MODULES.has(mod.key);
           // Locked modules (Dashboard) are always granted and can't be toggled.
           const moduleGranted = isLocked || grants[mod.key] === true;
 

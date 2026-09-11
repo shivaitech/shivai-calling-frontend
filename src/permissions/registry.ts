@@ -134,8 +134,9 @@ export const PERMISSION_REGISTRY: PermissionModule[] = [
         key: 'module:sub-tenants.page:list',
         label: 'Sub Tenant List',
         actions: [
-          { key: 'module:sub-tenants.page:list.action:create', label: 'Create Sub Tenant' },
-          { key: 'module:sub-tenants.page:list.action:manage', label: 'Manage / Edit' },
+          { key: 'module:sub-tenants.page:list.action:create', label: 'Add Sub Tenant' },
+          { key: 'module:sub-tenants.page:list.action:edit', label: 'Edit Sub Tenant' },
+          { key: 'module:sub-tenants.page:list.action:delete', label: 'Delete Sub Tenant' },
         ],
       },
     ],
