@@ -6,7 +6,7 @@ import type {
   StandaloneSheetResult,
 } from "../ClientDashboard/GoogleSheets/sheetTypes";
 
-import { actingHeaders } from "./actingContext";
+import { staffTenantId } from "./actingContext";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -182,9 +182,12 @@ apiClient.interceptors.request.use(
       const { accessToken } = JSON.parse(tokens);
       config.headers.Authorization = `Bearer ${accessToken}`;
     }
-    const acting = actingHeaders();
-    if (Object.keys(acting).length) {
-      config.headers = Object.assign(config.headers || {}, acting);
+    // Staff act as the parent tenant — send tenant_id on every request. Skip
+    // auth endpoints (login/refresh/me) which resolve identity from the token.
+    const stTenant = staffTenantId();
+    if (stTenant && !String(config.url || "").startsWith("/auth/")) {
+      const p: any = config.params || {};
+      if (p.tenant_id === undefined) config.params = { ...p, tenant_id: stTenant };
     }
     return config;
   },

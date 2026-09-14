@@ -1,6 +1,6 @@
 import axios, { AxiosResponse } from "axios";
 import { mockAgentStore } from "./mockAgentStore";
-import { actingHeaders, selfSubTenantId } from "./actingContext";
+import { staffTenantId, selfSubTenantId } from "./actingContext";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -112,11 +112,12 @@ apiClient.interceptors.request.use((config) => {
     config.params = { ...(config.params || {}), sub_tenant_id: activeTenantScope };
   }
 
-  // Staff acting context — X-Acting-Tenant-Id / X-Acting-Sub-Tenant-Id on every
-  // request (backend resolves staff scope from these on all protected routes).
-  const acting = actingHeaders();
-  if (Object.keys(acting).length) {
-    config.headers = Object.assign(config.headers || {}, acting);
+  // Staff act as the parent tenant — send tenant_id on every request (query
+  // param; explicit value already in params wins).
+  const stTenant = staffTenantId();
+  if (stTenant) {
+    const p: any = config.params || {};
+    if (p.tenant_id === undefined) config.params = { ...p, tenant_id: stTenant };
   }
 
   return config;
@@ -150,9 +151,11 @@ voiceApiClient.interceptors.request.use((config) => {
       console.warn("Failed to parse auth tokens:", error);
     }
   }
-  const acting = actingHeaders();
-  if (Object.keys(acting).length) {
-    config.headers = Object.assign(config.headers || {}, acting);
+  // Staff act as the parent tenant — send tenant_id (query param) on every call.
+  const stTenant = staffTenantId();
+  if (stTenant) {
+    const p: any = config.params || {};
+    if (p.tenant_id === undefined) config.params = { ...p, tenant_id: stTenant };
   }
   return config;
 });
@@ -541,7 +544,7 @@ class AgentAPI {
   }
 
   // Get agent by ID
-  async getAgent(id: string): Promise<{ agent: ApiAgent }> {
+  async getAgent(id: string, subTenantId?: string): Promise<{ agent: ApiAgent }> {
     try {
       const response: AxiosResponse<{
         success: boolean;
@@ -555,7 +558,7 @@ class AgentAPI {
           };
         };
         message?: string;
-      }> = await apiClient.get(`/agents/${id}`);
+      }> = await apiClient.get(`/agents/${id}`, subTenantId ? { params: { sub_tenant_id: subTenantId } } : undefined);
 
       if (response.data.success && response.data.data?.agent) {
         const agent = {
@@ -711,7 +714,7 @@ class AgentAPI {
     }
   }
 
-  // Get agent session history
+  // Get agent session history for ONE agent — GET /agent-sessions/agent/:id.
   async getAgentSessions(payload: string, agentId: string): Promise<any> {
     try {
       const response: AxiosResponse<{
@@ -729,6 +732,27 @@ class AgentAPI {
       );
     } catch (error: any) {
       console.error("Error fetching agent sessions:", error);
+      throw error;
+    }
+  }
+
+  // Session history across ALL agents in scope — GET /agent-sessions.
+  // Used for a sub-tenant's combined analytics: pass sub_tenant_id in `payload`
+  // (a logged-in sub-tenant is auto-scoped server-side by their token).
+  async getSessions(payload: string): Promise<any> {
+    try {
+      const response: AxiosResponse<{
+        success: boolean;
+        data: any;
+        message?: string;
+      }> = await apiClient.get(`/agent-sessions${payload ? `?${payload}` : ""}`);
+
+      if (response.data.success && response.data.data) {
+        return response.data.data;
+      }
+      throw new Error(response.data.message || "Failed to fetch sessions");
+    } catch (error: any) {
+      console.error("Error fetching sessions:", error);
       throw error;
     }
   }

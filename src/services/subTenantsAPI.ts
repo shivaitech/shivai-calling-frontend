@@ -1,6 +1,6 @@
 import axios, { AxiosResponse } from "axios";
 import type { Tenant, TenantStatus } from "../permissions/types";
-import { actingHeaders } from "./actingContext";
+import { staffTenantId } from "./actingContext";
 
 // Sub-tenants API — tenant-facing team-member (sub-tenant) management.
 // See public/test/tenants-sub-tenants-and-roles-api.md.
@@ -29,7 +29,6 @@ const authHeaders = () => ({
   headers: {
     Authorization: `Bearer ${getAuthToken()}`,
     "Content-Type": "application/json",
-    ...actingHeaders(), // staff X-Acting-Tenant-Id / X-Acting-Sub-Tenant-Id
   },
 });
 
@@ -436,8 +435,9 @@ export const listSubTenantRecords = async (
 ): Promise<{ subTenants: SubTenantRecord[]; pagination?: PaginationMeta }> => {
   try {
     const { includeInactive, ...rest } = params;
-    // Parent tenant comes from the auth token (or, for staff, the acting-context
-    // headers) — the tenant_id query param was removed by the backend (§6).
+    // Parent tenant comes from the auth token; for STAFF (who act as the parent
+    // tenant) we send tenant_id = parent so they list that tenant's sub-tenants.
+    const stTenant = staffTenantId();
     const res: AxiosResponse<{
       success: boolean;
       data: { subTenants?: SubTenantRecord[] };
@@ -446,6 +446,7 @@ export const listSubTenantRecords = async (
       ...authHeaders(),
       params: {
         ...rest,
+        ...(stTenant ? { tenant_id: stTenant } : {}),
         // API expects the string "true"/"false".
         ...(includeInactive !== undefined ? { includeInactive: String(includeInactive) } : {}),
       },

@@ -1,5 +1,5 @@
 import axios, { AxiosResponse } from "axios";
-import { actingHeaders, selfSubTenantId } from "./actingContext";
+import { selfSubTenantId, staffTenantId } from "./actingContext";
 import { placeDirectOutboundCall } from "./contactsAPI";
 export { placeDirectOutboundCall };
 export type {
@@ -39,7 +39,6 @@ const createAuthenticatedRequest = () => {
     headers: {
       Authorization: `Bearer ${token}`,
       "Content-Type": "application/json",
-      ...actingHeaders(), // staff acting context
     },
   };
 };
@@ -47,7 +46,23 @@ const createAuthenticatedRequest = () => {
 // Auth header for multipart uploads — let the browser set the boundary itself
 const createUploadRequest = () => {
   const token = getAuthToken();
-  return { headers: { Authorization: `Bearer ${token}`, ...actingHeaders() } };
+  return { headers: { Authorization: `Bearer ${token}` } };
+};
+
+// Staff act as parent tenant → tenant_id on every phone/campaign request.
+const withTenant = <T extends Record<string, any>>(p: T = {} as T): T => {
+  const id = staffTenantId();
+  if (!id || (p as any).tenant_id !== undefined) return p;
+  return { ...p, tenant_id: id };
+};
+
+// Query params for a per-number action on a possibly sub-tenant-owned number:
+//  - parent tenant acting on a sub-tenant's number → explicit subTenantId
+//  - sub-tenant acting on their own → self-scope
+//  - staff → tenant_id (via withTenant)
+const numberScopeParams = (subTenantId?: string) => {
+  const scope = subTenantId ?? selfSubTenantId() ?? undefined;
+  return withTenant({ ...(scope ? { sub_tenant_id: scope } : {}) });
 };
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -96,6 +111,7 @@ export interface BuyNumberRequest {
   months?: number; // default 1
   channel_count?: number; // NEW — concurrent channels, default 1
   dry_run?: boolean; // NEW — true validates & returns a plan, spends nothing
+  sub_tenant_id?: string; // provision the number under a specific sub-tenant
 }
 
 export interface BuyNumberResult {
@@ -404,6 +420,7 @@ export interface CreateCampaignRequest {
   calls_per_minute?: number;
   daily_limit?: number;
   priority?: CampaignPriority | number | string;
+  sub_tenant_id?: string; // create for a specific sub-tenant (else derived from agent)
 }
 
 export type UpdateCampaignRequest = Partial<CreateCampaignRequest>;
@@ -469,7 +486,7 @@ export const getNumberCatalog = async (didTypeId: number): Promise<CatalogNumber
     const response: AxiosResponse<{ success: boolean; data: CatalogNumber[] }> =
       await axios.get(`${API_BASE_URL}/phone-numbers/catalog`, {
         ...createAuthenticatedRequest(),
-        params: { type: didTypeId },
+        params: withTenant({ type: didTypeId }),
       });
     return response.data.data || [];
   } catch (error: any) {
@@ -488,6 +505,17 @@ export const buyPhoneNumber = async (payload: BuyNumberRequest): Promise<BuyNumb
       channel_count: 1,
       dry_run: false,
       ...payload,
+      // Provision under a specific sub-tenant: explicit (main tenant in a
+      // sub-tenant view) wins; else a logged-in sub-tenant scopes to self.
+      ...(payload.sub_tenant_id
+        ? { sub_tenant_id: payload.sub_tenant_id }
+        : selfSubTenantId()
+          ? { sub_tenant_id: selfSubTenantId() }
+          : {}),
+      // Staff act as parent tenant → include tenant_id.
+      ...(staffTenantId() && (payload as any).tenant_id === undefined
+        ? { tenant_id: staffTenantId() }
+        : {}),
     };
     const response: AxiosResponse<{ success: boolean; message: string; data: BuyNumberResult }> =
       await axios.post(
@@ -508,15 +536,34 @@ export const previewBuyPhoneNumber = async (
   payload: Omit<BuyNumberRequest, "dry_run">
 ): Promise<BuyNumberResult> => buyPhoneNumber({ ...payload, dry_run: true });
 
-// List the tenant's active numbers
+// List numbers.
+//  - Main tenant drilling into a sub-tenant → pass sub_tenant_id.
+//  - Sub-tenant → their token scopes them; pass include_inactive=true to ALSO
+//    see the parent's idle (unassigned) shared pool. Do NOT self-scope with
+//    sub_tenant_id here, or the idle pool would be filtered out.
 export const getPhoneNumbers = async (
-  params: { agent_id?: string; page?: number; limit?: number } = {}
+  params: {
+    agent_id?: string;
+    page?: number;
+    limit?: number;
+    sub_tenant_id?: string;
+    include_inactive?: boolean;
+  } = {}
 ): Promise<{ data: ProvisionedNumber[]; total: number }> => {
   try {
-    const { page = 1, limit = 20, agent_id } = params;
+    const { page = 1, limit = 20, agent_id, sub_tenant_id, include_inactive } = params;
     const response: AxiosResponse<ListResponse<ProvisionedNumber>> = await axios.get(
       `${API_BASE_URL}/phone-numbers`,
-      { ...createAuthenticatedRequest(), params: { page, limit, ...(agent_id ? { agent_id } : {}) } }
+      {
+        ...createAuthenticatedRequest(),
+        params: withTenant({
+          page,
+          limit,
+          ...(agent_id ? { agent_id } : {}),
+          ...(sub_tenant_id ? { sub_tenant_id } : {}),
+          ...(include_inactive ? { include_inactive: "true" } : {}),
+        }),
+      }
     );
     return { data: response.data.data || [], total: response.data.total || 0 };
   } catch (error: any) {
@@ -540,12 +587,23 @@ export const getPhoneNumber = async (id: string): Promise<ProvisionedNumber> => 
 };
 
 // Change which agent answers this number — rebuilds the LiveKit dispatch rule
-export const reassignPhoneNumber = async (id: string, agentId: string): Promise<string> => {
+// Reassign a number's inbound agent. When a PARENT tenant reassigns a
+// sub-tenant's number, pass subTenantId → sent as ?sub_tenant_id= (the fix).
+// A sub-tenant reassigning their own number needs nothing (self-scope).
+export const reassignPhoneNumber = async (
+  id: string,
+  agentId: string,
+  subTenantId?: string
+): Promise<string> => {
   try {
+    const scope = subTenantId ?? selfSubTenantId() ?? undefined;
     const response: AxiosResponse<{ success: boolean; message: string }> = await axios.patch(
       `${API_BASE_URL}/phone-numbers/${id}/reassign`,
       { agent_id: agentId },
-      createAuthenticatedRequest()
+      {
+        ...createAuthenticatedRequest(),
+        params: withTenant({ ...(scope ? { sub_tenant_id: scope } : {}) }),
+      }
     );
     return response.data.message;
   } catch (error: any) {
@@ -555,11 +613,11 @@ export const reassignPhoneNumber = async (id: string, agentId: string): Promise<
 };
 
 // Remove LiveKit trunk + dispatch rule — inbound calls stop routing
-export const deprovisionPhoneNumber = async (id: string): Promise<string> => {
+export const deprovisionPhoneNumber = async (id: string, subTenantId?: string): Promise<string> => {
   try {
     const response: AxiosResponse<{ success: boolean; message: string }> = await axios.delete(
       `${API_BASE_URL}/phone-numbers/${id}/provision`,
-      createAuthenticatedRequest()
+      { ...createAuthenticatedRequest(), params: numberScopeParams(subTenantId) }
     );
     return response.data.message;
   } catch (error: any) {
@@ -600,12 +658,12 @@ export const releasePhoneNumber = async (id: string): Promise<string> => {
 
 // Flip VoiceLink routing so this number can be used as an outbound campaign caller.
 // Must be called before an outbound agent can be set.
-export const enableOutbound = async (phoneNumberId: string): Promise<string> => {
+export const enableOutbound = async (phoneNumberId: string, subTenantId?: string): Promise<string> => {
   try {
     const response: AxiosResponse<{ success: boolean; message: string }> = await axios.post(
       `${API_BASE_URL}/phone-numbers/${phoneNumberId}/enable-outbound`,
       {},
-      createAuthenticatedRequest()
+      { ...createAuthenticatedRequest(), params: numberScopeParams(subTenantId) }
     );
     return response.data.message;
   } catch (error: any) {
@@ -618,13 +676,14 @@ export const enableOutbound = async (phoneNumberId: string): Promise<string> => 
 // Number must be outbound-enabled first (else the API returns 409).
 export const setOutboundAgent = async (
   phoneNumberId: string,
-  agentId: string
+  agentId: string,
+  subTenantId?: string
 ): Promise<ProvisionedNumber> => {
   try {
     const response: AxiosResponse<{ success: boolean; data: ProvisionedNumber }> = await axios.post(
       `${API_BASE_URL}/phone-numbers/${phoneNumberId}/outbound-agent`,
       { agent_id: agentId },
-      createAuthenticatedRequest()
+      { ...createAuthenticatedRequest(), params: numberScopeParams(subTenantId) }
     );
     return response.data.data;
   } catch (error: any) {
@@ -639,12 +698,13 @@ export const setOutboundAgent = async (
 
 // Remove the outbound agent (outbound_agent_id → null).
 export const removeOutboundAgent = async (
-  phoneNumberId: string
+  phoneNumberId: string,
+  subTenantId?: string
 ): Promise<string> => {
   try {
     const response: AxiosResponse<{ success: boolean; message: string }> = await axios.delete(
       `${API_BASE_URL}/phone-numbers/${phoneNumberId}/outbound-agent`,
-      createAuthenticatedRequest()
+      { ...createAuthenticatedRequest(), params: numberScopeParams(subTenantId) }
     );
     return response.data.message;
   } catch (error: any) {
@@ -765,9 +825,21 @@ const toActionResult = (body: any, fallbackMessage: string): CampaignActionResul
 // Create a campaign. caller_number must be a number with outbound already enabled.
 export const createCampaign = async (payload: CreateCampaignRequest): Promise<Campaign> => {
   try {
+    // Scope: explicit sub_tenant_id (tenant creating for a sub-tenant) wins;
+    // else a logged-in sub-tenant creates for themselves. Staff tenant_id added.
+    const scoped = withTenant({
+      language: "en-in",
+      max_concurrent: 3,
+      ...payload,
+      ...(payload.sub_tenant_id
+        ? { sub_tenant_id: payload.sub_tenant_id }
+        : selfSubTenantId()
+          ? { sub_tenant_id: selfSubTenantId() }
+          : {}),
+    });
     const response: AxiosResponse<{ success: boolean; data: Campaign }> = await axios.post(
       `${API_BASE_URL}/campaigns`,
-      normalizeCampaignWritePayload({ language: "en-in", max_concurrent: 3, ...payload }),
+      normalizeCampaignWritePayload(scoped as CreateCampaignRequest),
       createAuthenticatedRequest()
     );
     return normalizeCampaign(response.data.data);
@@ -1017,7 +1089,7 @@ export const getCampaigns = async (subTenantId?: string): Promise<Campaign[]> =>
       `${API_BASE_URL}/campaigns`,
       {
         ...createAuthenticatedRequest(),
-        ...(scope ? { params: { sub_tenant_id: scope } } : {}),
+        params: withTenant({ ...(scope ? { sub_tenant_id: scope } : {}) }),
       }
     );
     const list = response.data.data || [];

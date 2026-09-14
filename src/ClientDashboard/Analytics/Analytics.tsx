@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import GlassCard from "../../components/GlassCard";
 import { useAuth } from "../../contexts/AuthContext";
 import { isDeveloperUser } from "../../lib/utils";
@@ -68,6 +68,9 @@ const Analytics = ({ subTenantId }: AnalyticsProps = {}) => {
   const [searchTerm, setSearchTerm] = useState(""); // For input value only
   const [searchQuery, setSearchQuery] = useState(""); // For API calls
   const [selectedEmployee, setSelectedEmployee] = useState("");
+  // Guards against stale session responses: only the latest fetch applies its
+  // result (agent switches can race, leaving a previous agent's sessions shown).
+  const sessionReqIdRef = useRef(0);
   const [agentsList, setAgentsList] = useState<any[]>([]);
   const [sessionHistory, setSessionHistory] = useState<any[]>([]);
   const [sessionLoading, setSessionLoading] = useState(false);
@@ -187,18 +190,22 @@ const Analytics = ({ subTenantId }: AnalyticsProps = {}) => {
     }
   };
 
-  // Fetch session history from API with pagination
+  // Fetch session history from API with pagination.
+  // Sub-tenant module → base GET /agent-sessions?sub_tenant_id=<id> (whole
+  // sub-tenant). Otherwise → per-agent GET /agent-sessions/agent/:id.
   const fetchSessionHistory = async (agentId: string, page: number = 1) => {
-    if (!agentId) {
+    if (!subTenantId && !agentId) {
       console.log("⚠️ No agent ID provided, skipping fetch");
       return;
     }
 
+    const reqId = ++sessionReqIdRef.current; // this call's token
+    const isStale = () => reqId !== sessionReqIdRef.current;
     setSessionLoading(true);
     setSessionError(null);
 
     try {
-      console.log("🔄 Fetching sessions for agent:", agentId, "page:", page);
+      console.log("🔄 Fetching sessions", subTenantId ? `for sub-tenant ${subTenantId}` : `for agent ${agentId}`, "page:", page);
 
       // Build API query parameters
       const queryParams = new URLSearchParams({
@@ -219,21 +226,29 @@ const Analytics = ({ subTenantId }: AnalyticsProps = {}) => {
         queryParams.append("endDate", dateRange.endDate);
       }
 
-      // NOTE: the sessions endpoint is already scoped by the selected agentId
-      // (which belongs to the sub-tenant), so we do NOT send sub_tenant_id here
-      // — it isn't supported on /agent-sessions and 500s the request.
-
       // Add search term if exists
       if (searchQuery.trim()) {
         queryParams.append("q", searchQuery.trim());
       }
 
-      // Convert query params to string
-      const payload = queryParams.toString();
-      console.log("API Query Params:", payload);
+      let response;
+      if (agentId) {
+        // A specific agent is selected → per-agent route (no sub_tenant_id).
+        // GET /agent-sessions/agent/:agentId
+        const payload = queryParams.toString();
+        console.log("API Query Params:", payload);
+        response = await agentAPI.getAgentSessions(payload, agentId);
+      } else if (subTenantId) {
+        // No agent selected in the sub-tenant module → whole sub-tenant via
+        // the base endpoint + sub_tenant_id.
+        queryParams.append("sub_tenant_id", subTenantId);
+        response = await agentAPI.getSessions(queryParams.toString());
+      } else {
+        return;
+      }
 
-      // Call API with query parameters
-      const response = await agentAPI.getAgentSessions(payload, agentId);
+      // A newer fetch superseded this one (agent/scope changed) — drop it.
+      if (isStale()) return;
 
       // Use server-side pagination data
       const sessions = response?.sessions || [];
@@ -268,6 +283,9 @@ const Analytics = ({ subTenantId }: AnalyticsProps = {}) => {
       // Clear loading state
       setLoadingLocations(new Set());
 
+      // Re-check after the async IP resolution — a newer fetch may have landed.
+      if (isStale()) return;
+
       setSessionHistory(sessionsWithLocations);
       setTotalPages(pagination.totalPages || 1);
       setTotalSessions(pagination.total || sessions.length);
@@ -276,6 +294,7 @@ const Analytics = ({ subTenantId }: AnalyticsProps = {}) => {
       console.log("✅ Session history loaded:", sessions.length, "sessions");
       console.log("📊 Pagination:", pagination);
     } catch (error) {
+      if (isStale()) return;
       console.error("❌ Error fetching session history:", error);
       setSessionError(
         error instanceof Error
@@ -286,23 +305,27 @@ const Analytics = ({ subTenantId }: AnalyticsProps = {}) => {
       setTotalPages(1);
       setTotalSessions(0);
     } finally {
-      setSessionLoading(false);
+      if (!isStale()) setSessionLoading(false);
     }
-  };  
+  };
 
-  // Fetch sessions when employee changes (reset to page 1)
+  // Fetch sessions when the selected agent / filters change (reset to page 1).
+  // Sub-tenant module and developer view both fetch PER selected agent. In the
+  // sub-tenant module the agent list auto-selects the first agent, so this fires
+  // once an agent is chosen — avoiding a stale "whole sub-tenant" count showing
+  // for an agent that has no sessions.
   useEffect(() => {
-    console.log(
-      "📊 Analytics useEffect triggered - isDeveloper:",
-      isDeveloper,
-      "selectedEmployee:",
-      selectedEmployee
-    );
-    if (isDeveloper && selectedEmployee) {
+    if (selectedEmployee && (subTenantId || isDeveloper)) {
       setCurrentPage(1);
       fetchSessionHistory(selectedEmployee, 1);
+    } else if (subTenantId && !selectedEmployee) {
+      // No agent yet (e.g. sub-tenant has zero agents) → clear the list.
+      setSessionHistory([]);
+      setTotalSessions(0);
+      setTotalPages(1);
     }
-  }, [selectedEmployee, isDeveloper, deviceFilter, dateRange, searchQuery]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedEmployee, isDeveloper, deviceFilter, dateRange, searchQuery, subTenantId]);
 
   // Close dropdown when clicking outside
   useEffect(() => {

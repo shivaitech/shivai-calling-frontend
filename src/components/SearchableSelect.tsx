@@ -74,18 +74,21 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
   useEffect(() => {
     if (isOpen) {
       updateDropdownPosition();
-      
+
       const handleScroll = () => updateDropdownPosition();
       const handleResize = () => updateDropdownPosition();
-      
+
       window.addEventListener('scroll', handleScroll, true);
       window.addEventListener('resize', handleResize);
-      
+
       return () => {
         window.removeEventListener('scroll', handleScroll, true);
         window.removeEventListener('resize', handleResize);
       };
     }
+    // Closed → clear the computed position so the next open doesn't flash the
+    // portal at a stale spot before it's re-measured (the white-square bug).
+    setDropdownStyle({});
   }, [isOpen, updateDropdownPosition]);
 
   useEffect(() => {
@@ -132,8 +135,8 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
         <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ml-2 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
-      {isOpen && createPortal(
-        <div 
+      {isOpen && dropdownStyle.left !== undefined && createPortal(
+        <div
           ref={dropdownRef}
           className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl max-h-80 overflow-y-auto no-scrollbar z-[99999]"
           style={{

@@ -26,6 +26,7 @@ import ModalOverlay from '../../components/ModalOverlay';
 import { formatAgentLanguages } from '../../lib/utils';
 import { mockAgentStore, type MockAgentRecord } from '../../services/mockAgentStore';
 import { agentAPI } from '../../services/agentAPI';
+import appToast from '../../components/AppToast';
 import QuickCreateAgentWizard, { type KbCreationProgress } from '../Employees/agents/QuickCreateAgentWizard';
 import { createSubTenantAgentDataSource } from '../Employees/agents/subTenantAgentDataSource';
 import TenantAgentTrainModal from './TenantAgentTrainModal';
@@ -126,26 +127,40 @@ const SubTenantAgents = ({ tenantId, companyName }: SubTenantAgentsProps) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const dataSource = useMemo(() => createSubTenantAgentDataSource(tenantId, refresh), [tenantId]);
 
-  const handleTogglePublish = (agent: MockAgentRecord) => {
+  // Publish / pause a real sub-tenant agent via the publications API.
+  const handleTogglePublish = async (agent: MockAgentRecord) => {
+    const isLive = agent.status === 'Published' || agent.is_active;
     setPublishingIds((prev) => new Set(prev).add(agent.id));
-    setTimeout(() => {
-      mockAgentStore.setPublished(tenantId, agent.id, !(agent.status === 'Published' || agent.is_active));
+    try {
+      if (isLive) {
+        await agentAPI.unpublishAgent(agent.id);
+        appToast.success(`${agent.name} paused`);
+      } else {
+        await agentAPI.publishAgent(agent.id);
+        appToast.success(`${agent.name} published`);
+      }
+      refresh();
+    } catch (err: any) {
+      appToast.error(err?.message || 'Failed to update publish status');
+    } finally {
       setPublishingIds((prev) => {
         const next = new Set(prev);
         next.delete(agent.id);
         return next;
       });
-      refresh();
-    }, 400);
+    }
   };
 
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
     setIsDeleting(true);
     try {
-      mockAgentStore.remove(tenantId, deleteTarget.id);
+      await agentAPI.deleteAgent(deleteTarget.id);
+      appToast.success(`${deleteTarget.name} deleted`);
       setDeleteTarget(null);
       refresh();
+    } catch (err: any) {
+      appToast.error(err?.message || 'Failed to delete agent');
     } finally {
       setIsDeleting(false);
     }
@@ -257,7 +272,40 @@ const SubTenantAgents = ({ tenantId, companyName }: SubTenantAgentsProps) => {
 
             return (
               <GlassCard key={agent.id} hover>
-                <div className="p-4 sm:p-5 lg:p-6">
+                <div className="p-4 sm:p-5 lg:p-6 relative">
+                  {/* Real-time KB training overlay — shown on the card being
+                      created while the wizard is minimized (fed by the live
+                      kb-progress WebSocket via the wizard's connectKbProgress). */}
+                  {creatingAgentId && agent.id === creatingAgentId && isCreatingAgent && isModalMinimized && (
+                    kbCreationProgress?.status === 'failed' ? (
+                      <div
+                        className="absolute inset-0 z-10 rounded-xl sm:rounded-2xl bg-red-50/95 dark:bg-red-950/90 flex flex-col items-center justify-center gap-2 cursor-pointer"
+                        onClick={() => { setIsModalMinimized(false); setShowCreateModal(true); }}
+                      >
+                        <AlertTriangle className="w-8 h-8 text-red-500 dark:text-red-400" />
+                        <div className="text-center px-4">
+                          <p className="text-sm font-semibold text-red-700 dark:text-red-300">Knowledge Base Training Failed</p>
+                          <p className="text-xs text-red-600/80 dark:text-red-400/80 mt-0.5">Click to view details</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        className="absolute inset-0 z-10 rounded-xl sm:rounded-2xl bg-blue-50/95 dark:bg-slate-900/95 flex flex-col items-center justify-center gap-3 cursor-pointer"
+                        onClick={() => { setIsModalMinimized(false); setShowCreateModal(true); }}
+                      >
+                        <div className="w-10 h-10 border-[3px] border-blue-500 border-t-transparent rounded-full animate-spin" />
+                        <div className="text-center px-4">
+                          <p className="text-sm font-semibold text-slate-800 dark:text-white">Training Knowledge Base</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Click to view progress</p>
+                        </div>
+                        {kbCreationProgress?.progress !== undefined && (
+                          <div className="w-32 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                            <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${kbCreationProgress.progress}%` }} />
+                          </div>
+                        )}
+                      </div>
+                    )
+                  )}
                   <div className="flex items-start gap-3 mb-4">
                     <div className="w-10 sm:w-12 h-10 sm:h-12 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl flex items-center justify-center flex-shrink-0">
                       <Bot className="w-5 sm:w-6 h-5 sm:h-6 text-slate-600 dark:text-slate-300" />

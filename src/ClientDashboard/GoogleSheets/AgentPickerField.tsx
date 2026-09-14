@@ -32,7 +32,22 @@ interface AgentPickerFieldProps {
   variant?: "dropdown" | "panel";
   /** Start open when variant is dropdown */
   defaultOpen?: boolean;
+  /** Scope the list to a sub-tenant's agents (GET /agents?sub_tenant_id=). */
+  subTenantId?: string;
+  /** Only show live/published agents (e.g. buy-number answering agent). */
+  publishedOnly?: boolean;
 }
+
+// Agent channel tag shown next to the name (Inbound / Outbound / Web).
+const channelTag = (agentType?: string): { label: string; cls: string } => {
+  const t = (agentType || "").toLowerCase();
+  if (t === "inbound") return { label: "Inbound", cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" };
+  if (t === "outbound") return { label: "Outbound", cls: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300" };
+  return { label: "Web", cls: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300" };
+};
+
+const isPublishedAgent = (a: any): boolean =>
+  a?.is_active === true || a?.status === "Published" || a?.status === "published";
 
 const labelClass =
   "text-xs font-medium text-slate-600 dark:text-slate-400 shrink-0";
@@ -54,6 +69,8 @@ const AgentPickerField = ({
   className = "",
   variant = "dropdown",
   defaultOpen = false,
+  subTenantId,
+  publishedOnly = false,
 }: AgentPickerFieldProps) => {
   const isPanel = variant === "panel";
   const [agents, setAgents] = useState<ApiAgent[]>([]);
@@ -76,13 +93,14 @@ const AgentPickerField = ({
         page: pageNum,
         limit: AGENT_PAGE_SIZE,
         ...(search.trim() ? { search: search.trim() } : {}),
+        ...(subTenantId ? { sub_tenant_id: subTenantId } : {}),
       });
       setAgents((prev) => (append ? mergeAgentsById(prev, res.agents) : res.agents));
       setPage(res.page);
       setTotalPages(res.totalPages);
       return res;
     },
-    [],
+    [subTenantId],
   );
 
   // Debounce search → query
@@ -155,10 +173,14 @@ const AgentPickerField = ({
     [agents, value],
   );
 
-  const sortedAgents = useMemo(
-    () => [...agents].sort((a, b) => a.name.localeCompare(b.name)),
-    [agents],
-  );
+  const sortedAgents = useMemo(() => {
+    let list = [...agents];
+    if (publishedOnly) {
+      // Keep the currently-selected agent visible even if not published.
+      list = list.filter((a) => isPublishedAgent(a) || a.id === value);
+    }
+    return list.sort((a, b) => a.name.localeCompare(b.name));
+  }, [agents, publishedOnly, value]);
 
   const hasMore = page < totalPages;
 
@@ -262,6 +284,14 @@ const AgentPickerField = ({
                   {agent.name}
                   {isBlocked ? " (already linked)" : ""}
                 </span>
+                {(() => {
+                  const tag = channelTag((agent as any).agent_type ?? (agent as any).agentType);
+                  return (
+                    <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0 ${tag.cls}`}>
+                      {tag.label}
+                    </span>
+                  );
+                })()}
                 {isSelected && <Check className="w-3.5 h-3.5 flex-shrink-0" />}
               </button>
             );

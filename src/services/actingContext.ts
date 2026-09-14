@@ -1,7 +1,7 @@
-// Staff acting-context — the tenant/sub-tenant a staff user is currently
-// operating as. The backend resolves scope from these headers on EVERY
-// protected route (X-Acting-Tenant-Id / X-Acting-Sub-Tenant-Id). Non-staff
-// users don't send them (their scope comes from their own token).
+// Staff acting-context — the parent tenant a staff user operates as. Staff act
+// AS THE MAIN (PARENT) TENANT: the parent tenant id is sent as `tenant_id` IN
+// EVERY API (query param on GET/list, body on POST/PUT) — NOT via a header.
+// Non-staff users don't send it (their scope comes from their own token).
 //
 // The selected account is persisted so it survives reloads and is available to
 // all service modules without prop-drilling.
@@ -95,14 +95,19 @@ export const clearActingContext = (): void => {
   }
 };
 
-// Headers to merge into any authenticated request. Empty for non-staff.
-// Staff act AS THE MAIN (parent) TENANT — only X-Acting-Tenant-Id is sent.
-// Scoping to a specific sub-tenant (Command Center / Sub Tenants) is done via a
-// ?sub_tenant_id query param on those listings, exactly like the main tenant
-// drilling in — NOT via X-Acting-Sub-Tenant-Id.
-export const actingHeaders = (): Record<string, string> => {
-  if (!isStaffUser()) return {};
-  const acct = getActingAccount();
-  if (!acct?.tenantId) return {};
-  return { "X-Acting-Tenant-Id": acct.tenantId };
+// Staff act AS THE MAIN (parent) TENANT. Instead of an acting header, the parent
+// tenant id is sent as `tenant_id` IN EVERY API (query param on GET/list, body
+// on POST/PUT). Returns the parent tenant id for a logged-in staff, else null.
+export const staffTenantId = (): string | null => {
+  if (!isStaffUser()) return null;
+  return getActingAccount()?.tenantId ?? null;
+};
+
+// Merge the staff's parent tenant id into a params/body object as `tenant_id`.
+// No-op for non-staff; never overrides an explicit tenant_id already set.
+export const withStaffScope = <T extends Record<string, any>>(params: T = {} as T): T => {
+  const id = staffTenantId();
+  if (!id) return params;
+  if (params && (params as any).tenant_id !== undefined) return params;
+  return { ...params, tenant_id: id };
 };
