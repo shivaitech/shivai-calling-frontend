@@ -849,6 +849,7 @@ const CreateAgent = () => {
                       { value: "fr", label: "🇫🇷 French" },
                       { value: "de", label: "🇩🇪 German" },
                       { value: "hi", label: "🇮🇳 Hindi" },
+                      { value: "hi-formal", label: "🇮🇳 Hindi (Pure/Formal)" },
                       { value: "it", label: "🇮🇹 Italian" },
                       { value: "ja", label: "🇯🇵 Japanese" },
                       { value: "ko", label: "🇰🇷 Korean" },

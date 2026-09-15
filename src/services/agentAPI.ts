@@ -587,15 +587,26 @@ class AgentAPI {
     try {
       const response: AxiosResponse<{
         success: boolean;
-        data?: { agent: any };
+        data?: { agent?: any; agentConfig?: any; [key: string]: any };
         message?: string;
       }> = await apiClient.get(`/agent-configs/${id}`);
 
-      if (response.data.success && response.data.data?.agent) {
-        return { agent: response.data.data.agent };
+      // The backend's `data` wrapper shape for this endpoint has varied
+      // (agent / agentConfig / the agent object directly) — accept any of
+      // them rather than throwing on `success:true` responses whose agent
+      // just isn't nested under the exact key we originally expected.
+      const data = response.data?.data;
+      const agent = data?.agent ?? data?.agentConfig ?? (data?.id ? data : undefined);
+
+      if (response.data?.success && agent) {
+        return { agent };
       }
 
-      throw new Error(response.data.message || "Agent config not found");
+      throw new Error(
+        response.data?.success
+          ? "Agent config response was missing the agent data."
+          : response.data?.message || "Agent config not found"
+      );
     } catch (error: any) {
       console.error("Error fetching agent config:", error);
       throw error;

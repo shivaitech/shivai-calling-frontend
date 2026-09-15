@@ -236,23 +236,32 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
   const [docPickerSearch, setDocPickerSearch] = useState('');
   const [docPickerSaving, setDocPickerSaving] = useState(false);
 
-  // Fetch agent config data using same API as Edit page
+  // Fetch the raw agent-config shape (fields like agent_type/is_active/
+  // knowledge_base_status aren't all present on the already-loaded
+  // `currentAgent` prop). This is a background enrichment, not the page's
+  // only data source — every caller of AgentViewPage already fetched a
+  // valid `currentAgent` before rendering it, so a failure/cancellation
+  // here must never navigate away; it just means the page keeps showing
+  // `currentAgent` instead of the richer `agentData`.
   useEffect(() => {
     if (!id) return;
+    let cancelled = false;
 
     const fetchAgentConfig = async () => {
       try {
         const { agent: fetchedAgent } = await agentAPI.getAgentConfig(id);
-        setAgentData(fetchedAgent);
+        if (!cancelled) setAgentData(fetchedAgent);
       } catch (error: any) {
+        if (cancelled) return; // request was superseded/aborted — not a real failure
         console.error("Error fetching agent config:", error);
-        appToast.error("Failed to load agent data");
-        navigate("/agents");
       }
     };
 
     fetchAgentConfig();
-  }, [id, navigate]);
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
 
   // Re-fetch when navigating back from edit page with refreshed flag
   useEffect(() => {

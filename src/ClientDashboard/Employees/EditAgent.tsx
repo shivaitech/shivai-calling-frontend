@@ -1070,8 +1070,17 @@ const EditAgent = () => {
         if (Array.isArray(existingSocialUrls) && existingSocialUrls.length > 0) {
           setSocialMediaUrls(existingSocialUrls);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error fetching agent:", error);
+        // A request the browser/axios itself aborted (fast unmount, rapid
+        // re-navigation) is not "agent not found" — only redirect away on a
+        // genuine response failure, so a transient cancellation doesn't
+        // kick the user back to the list while editing.
+        const isCancelled =
+          error?.code === 'ERR_CANCELED' ||
+          error?.name === 'CanceledError' ||
+          /canceled|cancelled|aborted/i.test(String(error?.message || ''));
+        if (isCancelled) return;
         appToast.error("Failed to load agent data");
         const tenantScope = getTenantScope();
         navigate(tenantScope ? `/sub-tenants/${tenantScope}` : '/agents');
@@ -1466,7 +1475,8 @@ const EditAgent = () => {
     { value: "ko",     label: "Korean",              flag: "🇰🇷", countryCodes: ["KR"] },
     { value: "zh",     label: "Chinese",             flag: "🇨🇳", countryCodes: ["CN", "TW"] },
     { value: "ar",     label: "Arabic",              flag: "🇸🇦", countryCodes: ["SA", "AE", "EG"] },
-    { value: "hi",     label: "Hindi",               flag: "🇮🇳", countryCodes: ["IN"] },
+    { value: "hi",         label: "Hindi",                    flag: "🇮🇳", countryCodes: ["IN"] },
+    { value: "hi-formal",  label: "Hindi (Pure/Formal)",      flag: "🇮🇳", countryCodes: ["IN"] },
     { value: "ta",     label: "Tamil",               flag: "🇮🇳", countryCodes: ["IN"] },
     { value: "te",     label: "Telugu",              flag: "🇮🇳", countryCodes: ["IN"] },
     { value: "mr",     label: "Marathi",             flag: "🇮🇳", countryCodes: ["IN"] },

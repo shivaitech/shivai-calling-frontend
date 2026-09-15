@@ -204,7 +204,8 @@ export const ALL_LANGUAGES: { value: string; label: string; flag: string; countr
   { value: "id",     label: "Indonesian",           flag: "🇮🇩", countryCodes: ["ID"] },
   // Indian languages (Sarvam STT + Google TTS)
   { value: "en-IN",  label: "English (India)",      flag: "🇮🇳", countryCodes: ["IN"] },
-  { value: "hi",     label: "Hindi",                flag: "🇮🇳", countryCodes: ["IN"] },
+  { value: "hi",         label: "Hindi",                flag: "🇮🇳", countryCodes: ["IN"] },
+  { value: "hi-formal",  label: "Hindi (Pure/Formal)",  flag: "🇮🇳", countryCodes: ["IN"] },
   { value: "ta",     label: "Tamil",                flag: "🇮🇳", countryCodes: ["IN"] },
   { value: "te",     label: "Telugu",               flag: "🇮🇳", countryCodes: ["IN"] },
   { value: "mr",     label: "Marathi",              flag: "🇮🇳", countryCodes: ["IN"] },

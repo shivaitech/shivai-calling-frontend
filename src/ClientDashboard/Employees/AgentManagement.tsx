@@ -457,8 +457,16 @@ const AgentManagement = () => {
             ]);
             // Fetch session history for this agent
             fetchSessionHistory(transformedAgent.id);
-          } catch (error) {
+          } catch (error: any) {
             console.error("Error fetching agent config:", error);
+            // Don't bounce the user back to the list for a request the
+            // browser/axios itself aborted (fast unmount, rapid
+            // re-navigation) — only a genuine failure should redirect.
+            const isCancelled =
+              error?.code === 'ERR_CANCELED' ||
+              error?.name === 'CanceledError' ||
+              /canceled|cancelled|aborted/i.test(String(error?.message || ''));
+            if (isCancelled) return;
             appToast.error("Failed to load agent");
             navigate("/agents");
           }
