@@ -297,21 +297,21 @@ const AgentAnalyticsPanel: React.FC<AgentAnalyticsPanelProps> = ({
         {/* ── Analytics tab ─────────────────────────────────────────────── */}
         {activeTab === "analytics" && (
           <div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
+            <div className="grid grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
               {statCards.map(({ icon: Icon, label, value, cls }) => (
                 <div
                   key={label}
-                  className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700"
+                  className="p-2.5 sm:p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700"
                 >
                   <div
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center mb-2 ${cls}`}
+                    className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center mb-1.5 sm:mb-2 ${cls}`}
                   >
-                    <Icon className="w-4 h-4" />
+                    <Icon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   </div>
-                  <p className="text-lg font-bold text-slate-800 dark:text-white leading-none">
+                  <p className="text-base sm:text-lg font-bold text-slate-800 dark:text-white leading-none truncate">
                     {loading ? "—" : value}
                   </p>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                  <p className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 mt-1 truncate">
                     {label}
                   </p>
                 </div>

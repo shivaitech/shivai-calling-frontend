@@ -663,6 +663,11 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
         </div>
       </GlassCard>
 
+      {/* Analytics & Call History for this agent */}
+      <div className="mt-3 sm:mt-4 lg:mt-6">
+        <AgentAnalyticsPanel agentId={agent.id} />
+      </div>
+
       {/* ── Workflow Section ─────────────────────────────────────────────────── */}
       <GlassCard>
         <div className="p-4 sm:p-5 lg:p-6">
@@ -1209,11 +1214,6 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
           </div>
         </div>
       )}
-
-      {/* Analytics & Call History for this agent */}
-      <div className="mt-4 sm:mt-6">
-        <AgentAnalyticsPanel agentId={agent.id} />
-      </div>
 
       {/* Test Chat Modal - Only for published agents */}
       {showTestChat && agent.status === "Published" && (
