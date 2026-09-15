@@ -84,6 +84,9 @@ const Analytics = ({ subTenantId }: AnalyticsProps = {}) => {
   const [agentLoadPage, setAgentLoadPage] = useState(1);
   const [isLoadingMoreAgents, setIsLoadingMoreAgents] = useState(false);
   const [showAgentDropdown, setShowAgentDropdown] = useState(false);
+  const [agentSearch, setAgentSearch] = useState(""); // Agent dropdown search box
+  const [agentSearchLoading, setAgentSearchLoading] = useState(false);
+  const agentSearchReqRef = useRef(0); // guards stale agent-search responses
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -190,6 +193,41 @@ const Analytics = ({ subTenantId }: AnalyticsProps = {}) => {
     }
   };
 
+  // Server-side agent search (the list is paged, so filtering only the loaded
+  // page would miss most agents). Debounced GET /agents?search=… replaces the
+  // list with matches; clearing the box reloads the first browse page.
+  useEffect(() => {
+    if (!showAgentDropdown) return;
+    if (!isDeveloper && !subTenantId) return;
+
+    const q = agentSearch.trim();
+    const reqId = ++agentSearchReqRef.current;
+    const timeout = setTimeout(async () => {
+      setAgentSearchLoading(true);
+      try {
+        const response = await agentAPI.getAgentsWithFilters({
+          page: 1,
+          limit: agentPageSize,
+          ...(q ? { search: q } : {}),
+          ...(subTenantId ? { sub_tenant_id: subTenantId } : {}),
+        });
+        if (reqId !== agentSearchReqRef.current) return; // superseded
+        setAgentsList(response.agents || []);
+        setTotalAgents(response.total || 0);
+        setTotalAgentPages(response.totalPages || 1);
+        setAgentLoadPage(1);
+      } catch (error) {
+        if (reqId !== agentSearchReqRef.current) return;
+        console.error("❌ Error searching agents:", error);
+      } finally {
+        if (reqId === agentSearchReqRef.current) setAgentSearchLoading(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentSearch, showAgentDropdown, subTenantId]);
+
   // Fetch session history from API with pagination.
   // Sub-tenant module → base GET /agent-sessions?sub_tenant_id=<id> (whole
   // sub-tenant). Otherwise → per-agent GET /agent-sessions/agent/:id.
@@ -226,9 +264,14 @@ const Analytics = ({ subTenantId }: AnalyticsProps = {}) => {
         queryParams.append("endDate", dateRange.endDate);
       }
 
-      // Add search term if exists
+      // Add search term if exists. The sessions API param name isn't fully
+      // pinned down, so send both `q` and `search` (other list endpoints in
+      // this app use `search`); the backend picks up whichever it supports and
+      // ignores the other. A client-side filter below covers the case where it
+      // honors neither.
       if (searchQuery.trim()) {
         queryParams.append("q", searchQuery.trim());
+        queryParams.append("search", searchQuery.trim());
       }
 
       let response;
@@ -333,6 +376,7 @@ const Analytics = ({ subTenantId }: AnalyticsProps = {}) => {
       const target = event.target as HTMLElement;
       if (!target.closest(".agent-dropdown-container")) {
         setShowAgentDropdown(false);
+        setAgentSearch("");
       }
     };
 
@@ -593,10 +637,30 @@ const Analytics = ({ subTenantId }: AnalyticsProps = {}) => {
               </button>
 
               {/* Custom Dropdown Menu */}
-              {showAgentDropdown && isDeveloper && (
+              {showAgentDropdown && isDeveloper && (() => {
+                const q = agentSearch.trim();
+                return (
                 <div className="absolute top-full left-0 mt-2 w-full sm:w-80 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg z-50">
+                  {/* Search */}
+                  <div className="p-2 border-b border-slate-100 dark:border-slate-700">
+                    <div className="relative">
+                      {agentSearchLoading ? (
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                      )}
+                      <input
+                        type="text"
+                        autoFocus
+                        value={agentSearch}
+                        onChange={(e) => setAgentSearch(e.target.value)}
+                        placeholder="Search agents..."
+                        className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                      />
+                    </div>
+                  </div>
                   <div className="max-h-64 overflow-y-auto">
-                    {/* Agents List */}
+                    {/* Agents List (server-filtered) */}
                     {agentsList.map((agent) => {
                       const meta = getChannelTagMeta(agent.agent_type);
                       return (
@@ -605,6 +669,7 @@ const Analytics = ({ subTenantId }: AnalyticsProps = {}) => {
                           onClick={() => {
                             setSelectedEmployee(agent.id);
                             setShowAgentDropdown(false);
+                            setAgentSearch("");
                           }}
                           className={`w-full text-left px-4 py-2.5 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors border-b border-slate-100 dark:border-slate-700 text-sm flex items-center justify-between gap-2 ${
                             selectedEmployee === agent.id
@@ -623,8 +688,15 @@ const Analytics = ({ subTenantId }: AnalyticsProps = {}) => {
                       );
                     })}
 
-                    {/* Load More Button */}
-                    {agentLoadPage < totalAgentPages && (
+                    {/* Empty state after a search returns nothing */}
+                    {q && !agentSearchLoading && agentsList.length === 0 && (
+                      <div className="px-4 py-6 text-center text-sm text-slate-500 dark:text-slate-400">
+                        No agents match “{q}”
+                      </div>
+                    )}
+
+                    {/* Load More Button — hidden while searching */}
+                    {!q && agentLoadPage < totalAgentPages && (
                       <button
                         onClick={loadMoreAgents}
                         disabled={isLoadingMoreAgents}
@@ -642,14 +714,15 @@ const Analytics = ({ subTenantId }: AnalyticsProps = {}) => {
                     )}
 
                     {/* No More Items Message */}
-                    {agentLoadPage >= totalAgentPages && totalAgents > 0 && (
+                    {!q && agentLoadPage >= totalAgentPages && totalAgents > 0 && (
                       <div className="px-4 py-3 bg-slate-50 dark:bg-slate-900/30 text-slate-500 dark:text-slate-400 text-center text-sm border-t border-slate-200 dark:border-slate-700">
                         All {totalAgents} agents loaded
                       </div>
                     )}
                   </div>
                 </div>
-              )}
+                );
+              })()}
             </div>
             {isDeveloper && totalAgents > 1 && (
               <span className="text-xs text-slate-500 dark:text-slate-400 italic">
@@ -861,6 +934,33 @@ const Analytics = ({ subTenantId }: AnalyticsProps = {}) => {
             </div>
           </div>
 
+          {(() => {
+          // Client-side fallback filter: the backend may not honor the `q`
+          // param on the sessions route, so also narrow the fetched list
+          // locally by session id, lead/phone number and call type. This makes
+          // typing feel responsive and correct even when the API returns the
+          // full page unchanged.
+          const sq = searchQuery.trim().toLowerCase();
+          const displayedSessions = sq
+            ? sessionHistory.filter((session: any) => {
+                const haystack = [
+                  session.session_id,
+                  session.id,
+                  session.call_id,
+                  resolveSessionLeadNumber(session),
+                  resolveSessionCallType(session),
+                  session?.contact_name,
+                  session?.contact?.name,
+                  session?.caller_number,
+                  session?.callee_number,
+                ]
+                  .filter(Boolean)
+                  .join(" ")
+                  .toLowerCase();
+                return haystack.includes(sq);
+              })
+            : sessionHistory;
+          return (
           <div className="space-y-3">
             {sessionLoading ? (
               <div className="flex items-center justify-center py-12">
@@ -876,19 +976,20 @@ const Analytics = ({ subTenantId }: AnalyticsProps = {}) => {
                   {sessionError}
                 </p>
               </div>
-            ) : sessionHistory.length === 0 ? (
+            ) : displayedSessions.length === 0 ? (
               <div className="text-center py-8">
                 <MessageSquare className="w-12 h-12 text-slate-400 mx-auto mb-3" />
                 <p className="text-base text-slate-600 dark:text-slate-400 mb-1">
-                  No sessions yet
+                  {sq ? "No matching sessions" : "No sessions yet"}
                 </p>
                 <p className="text-sm text-slate-500 dark:text-slate-500">
-                  Session history will appear here once agents start handling
-                  calls
+                  {sq
+                    ? `No sessions match “${searchQuery.trim()}” on this page. Try a different term or clear the search.`
+                    : "Session history will appear here once agents start handling calls"}
                 </p>
               </div>
             ) : (
-              sessionHistory.map((session) => {
+              displayedSessions.map((session) => {
                 const formatDuration = (seconds: number) => {
                   if (!seconds) return "0s";
                   const mins = Math.floor(seconds / 60);
@@ -1111,6 +1212,8 @@ const Analytics = ({ subTenantId }: AnalyticsProps = {}) => {
               })
             )}
           </div>
+          );
+          })()}
 
           {/* Pagination Controls */}
           {!sessionLoading && !sessionError && totalPages > 1 && (

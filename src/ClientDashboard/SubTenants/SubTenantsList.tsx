@@ -290,14 +290,13 @@ const SubTenantsList = () => {
                     <ChevronRight className="w-4 h-4 text-slate-300 dark:text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-1" />
                   </div>
 
-                  <div className="mt-2.5 flex items-center gap-1.5 flex-wrap">
-                    <TenantStatusBadge status={tenant.status} />
-                    {nearLimit && tenant.status === 'active' && (
+                  {nearLimit && tenant.status === 'active' && (
+                    <div className="mt-2.5 flex items-center gap-1.5 flex-wrap">
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 whitespace-nowrap">
                         Near plan limit
                       </span>
-                    )}
-                  </div>
+                    </div>
+                  )}
 
                   <div className="mt-3 grid grid-cols-3 gap-2">
                     <div className="rounded-lg border border-slate-200/80 dark:border-slate-700/80 px-2 py-1.5 text-center">
@@ -329,8 +328,9 @@ const SubTenantsList = () => {
                     </div>
                   )}
 
-                  <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-400 dark:text-slate-500">
+                  <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2 text-[11px] text-slate-400 dark:text-slate-500">
                     <span className="flex items-center gap-1"><Clock className="w-3 h-3" />Added {relativeTime(tenant.createdAt)}</span>
+                    <TenantStatusBadge status={tenant.status} />
                   </div>
                 </div>
 
@@ -342,7 +342,7 @@ const SubTenantsList = () => {
                       e.stopPropagation();
                       setOpenMenuId((prev) => (prev === tenant.id ? null : tenant.id));
                     }}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors opacity-0 group-hover:opacity-100 data-[open=true]:opacity-100"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                     data-open={openMenuId === tenant.id}
                   >
                     <MoreVertical className="w-4 h-4" />

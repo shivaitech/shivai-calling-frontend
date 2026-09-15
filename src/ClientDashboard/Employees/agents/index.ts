@@ -9,6 +9,7 @@ export { default as AgentEmptyState } from "./AgentEmptyState";
 export { default as AgentViewHeader } from "./AgentViewHeader";
 export { default as AgentConfigSection } from "./AgentConfigSection";
 export { default as AgentQuickActions } from "./AgentQuickActions";
+export { default as AgentAnalyticsPanel } from "./AgentAnalyticsPanel";
 export { default as AgentRecentActivity } from "./AgentRecentActivity";
 export { default as AgentWidgetCustomization } from "./AgentWidgetCustomization";
 export { default as AgentIntegrationCode } from "./AgentIntegrationCode";

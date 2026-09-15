@@ -8,6 +8,7 @@ import {
   AgentWidgetCustomization,
   AgentQRModal,
   AgentIntegrationCode,
+  AgentAnalyticsPanel,
 } from "./agents";
 import { Agent } from "../../contexts/AgentContext";
 
@@ -23,8 +24,6 @@ import {
   Users,
   Clock,
   // CheckCircle unused
-  Lightbulb,
-  Download,
   Zap,
   Phone,
   PhoneCall,
@@ -1211,98 +1210,9 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
         </div>
       )}
 
-      {/* Quick Actions */}
+      {/* Analytics & Call History for this agent */}
       <div className="mt-4 sm:mt-6">
-        {/* Mobile */}
-        <div className="lg:hidden">
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() =>
-                navigate(`/agents/${agent.id}/train`, {
-                  state: { from: "view" },
-                })
-              }
-              className="common-bg-icons hover:shadow-md transition-all duration-200 p-2 rounded-lg touch-manipulation group"
-            >
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-center">
-                  <Lightbulb className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                </div>
-                <p className="text-xs font-medium text-slate-800 dark:text-white">
-                  Train
-                </p>
-              </div>
-            </button>
-
-            <button className="common-bg-icons hover:shadow-md transition-all duration-200 p-2 rounded-lg touch-manipulation group">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 bg-purple-50 dark:bg-purple-900/20 rounded-lg flex items-center justify-center">
-                  <Download className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                </div>
-                <p className="text-xs font-medium text-slate-800 dark:text-white">
-                  Export
-                </p>
-              </div>
-            </button>
-          </div>
-        </div>
-
-        {/* Desktop */}
-        <div className="hidden lg:block">
-          <GlassCard>
-            <div className="p-4 lg:p-5">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-8 h-8 bg-slate-50 dark:bg-slate-800 rounded-lg flex items-center justify-center">
-                  <Zap className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                </div>
-                <h3 className="text-base font-semibold text-slate-800 dark:text-white">
-                  Quick Actions
-                </h3>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() =>
-                    navigate(`/agents/${agent.id}/train`, {
-                      state: { from: "view" },
-                    })
-                  }
-                  className="common-bg-icons hover:shadow-md transition-all duration-200 p-4 rounded-lg touch-manipulation group"
-                >
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="w-10 h-10 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
-                      <Lightbulb className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <div className="text-center">
-                      <p className="text-sm font-semibold text-slate-800 dark:text-white">
-                        Train Agent
-                      </p>
-                      <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
-                        Improve responses
-                      </p>
-                    </div>
-                  </div>
-                </button>
-
-                <button className="common-bg-icons hover:shadow-md transition-all duration-200 p-4 rounded-lg touch-manipulation group">
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="w-10 h-10 bg-purple-50 dark:bg-purple-900/20 rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
-                      <Download className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                    </div>
-                    <div className="text-center">
-                      <p className="text-sm font-semibold text-slate-800 dark:text-white">
-                        Export Data
-                      </p>
-                      <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
-                        Download config
-                      </p>
-                    </div>
-                  </div>
-                </button>
-              </div>
-            </div>
-          </GlassCard>
-        </div>
+        <AgentAnalyticsPanel agentId={agent.id} />
       </div>
 
       {/* Test Chat Modal - Only for published agents */}
