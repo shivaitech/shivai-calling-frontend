@@ -6,6 +6,7 @@ import GlassCard from '../../components/GlassCard';
 import appToast from '../../components/AppToast';
 import { useAgent } from '../../contexts/AgentContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { usePermission } from '../../permissions/usePermission';
 import { agentAPI, type CallSummary } from '../../services/agentAPI';
 import { authAPI, ZohoConnection } from '../../services/authAPI';
 import AgentPickerField from '../GoogleSheets/AgentPickerField';
@@ -579,6 +580,7 @@ const CallSetup: React.FC<CallSetupProps> = ({ subTenantId }) => {
   // Real agents from API via AgentContext
   const { agents, isLoading: agentsLoading, refreshAgents } = useAgent();
   const { user } = useAuth();
+  const canLaunchCampaign = usePermission('module:call-setup.page:outbound.action:launch-campaign');
   // Accounts exempt from the free-plan one-number limit (can buy unlimited).
   const UNLIMITED_NUMBER_EMAILS = ['demo@callshivai.com'];
   const isUnlimitedNumbers = UNLIMITED_NUMBER_EMAILS.includes((user?.email || '').toLowerCase());
@@ -6009,8 +6011,10 @@ objective = the Objective bullet list (use \\n between bullets).`;
                       isSavingCampaign ||
                       !step1Valid ||
                       !step2Valid ||
-                      (!schedule.startNow && !schedule.scheduledAt)
+                      (!schedule.startNow && !schedule.scheduledAt) ||
+                      (!editingCampaignId && !canLaunchCampaign)
                     }
+                    title={!editingCampaignId && !canLaunchCampaign ? 'Not included in your access' : undefined}
                     className="common-button-bg px-6 py-2.5 rounded-xl text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
                     {isSavingCampaign ? (

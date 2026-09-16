@@ -1199,11 +1199,12 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                       Company Branding
                     </h4>
                     <div className="space-y-4">
-                      <div>
-                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">
-                          Company Logo <span className="text-slate-400">(Max: 1MB)</span>
+                      <div className="flex flex-nowrap items-start gap-5">
+                      <div className="min-w-0 flex flex-col items-center text-center">
+                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2 h-8 flex items-center justify-center">
+                          Company Logo
                         </label>
-                        <div className="relative group w-32 h-32">
+                        <div className="relative group w-24 h-24 sm:w-28 sm:h-28">
                           <input
                             ref={logoInputRef}
                             type="file"
@@ -1214,7 +1215,7 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                           />
 
                           {/* Preview Box with Upload/Remove */}
-                          <div className="relative w-full h-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600 overflow-hidden">
+                          <div className="relative w-full h-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 rounded-full border-2 border-dashed border-slate-300 dark:border-slate-600 overflow-hidden">
                             {logoDisplay ? (
                               <>
                                 <label
@@ -1259,10 +1260,10 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                               <>
                                 <label
                                   htmlFor="logo-upload"
-                                  className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                                  className="absolute inset-0 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors rounded-full"
                                 >
                                 <svg
-                                  className="w-10 h-10 text-slate-400 dark:text-slate-500 mb-2"
+                                  className="w-9 h-9 text-slate-400 dark:text-slate-500 mb-1"
                                   fill="none"
                                   stroke="currentColor"
                                   viewBox="0 0 24 24"
@@ -1282,14 +1283,15 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                             )}
                           </div>
                         </div>
+                        <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-2">Max 1MB</p>
                       </div>
 
                       {/* Trigger Button Image */}
-                      <div>
-                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">
-                          Trigger Button Image <span className="text-slate-400">(Max: 1MB — shown on the call button)</span>
+                      <div className="min-w-0 flex flex-col items-center text-center">
+                        <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2 h-8 flex items-center justify-center">
+                          Trigger Button Image
                         </label>
-                        <div className="relative group w-28 h-28">
+                        <div className="relative group w-24 h-24 sm:w-28 sm:h-28">
                           <input
                             ref={triggerButtonInputRef}
                             type="file"
@@ -1336,7 +1338,8 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
                             </button>
                           )}
                         </div>
-                        <p className="text-xs text-slate-500 dark:text-slate-500 mt-2">Upload a photo (e.g. agent avatar) to display inside the floating call button.</p>
+                        <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-2">Max 1MB — shown on the call button</p>
+                      </div>
                       </div>
 
                       {/* Call to Action Text */}

@@ -93,11 +93,19 @@ export interface TenantDetail {
   updatedAt?: string;
 }
 
+// Usage stats bundled per sub-tenant on the list endpoint.
+export interface SubTenantStats {
+  agent_count?: number;
+  call_count?: number;
+  call_success_ratio?: number;
+}
+
 // One sub-tenant bundle as returned by the API.
 export interface SubTenantRecord {
   user: SubTenantUser;
   permission?: SubTenantPermission | null;
   tenantDetail?: TenantDetail | null;
+  stats?: SubTenantStats | null;
 }
 
 export interface CreateSubTenantRequest {
@@ -178,6 +186,7 @@ const slugify = (s: string) =>
 export const toTenant = (rec: SubTenantRecord): Tenant => {
   const user = rec.user || ({} as SubTenantUser);
   const detail = rec.tenantDetail || ({} as TenantDetail);
+  const stats = rec.stats || ({} as SubTenantStats);
   const id = String(user.id || detail.tenantId || "");
   const name = String(detail.businessName || user.fullName || user.email || "Sub Tenant");
   const location = [detail.city, detail.state, detail.country].filter(Boolean).join(", ");
@@ -200,10 +209,10 @@ export const toTenant = (rec: SubTenantRecord): Tenant => {
     },
     limits: { maxAgents: detail.maxEmployees },
     usage: {
-      activeAgents: 0,
-      callsThisMonth: 0,
+      activeAgents: stats.agent_count ?? 0,
+      callsThisMonth: stats.call_count ?? 0,
       callMinutesThisMonth: 0,
-      successRate: 0,
+      successRate: stats.call_success_ratio ?? 0,
       activeUsers: 0,
     },
     contact: {

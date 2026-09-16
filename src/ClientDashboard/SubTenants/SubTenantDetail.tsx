@@ -36,7 +36,7 @@ import { defaultCountries } from '../../types/country';
 import { withLockedGrants } from '../../permissions/registry';
 import ModalOverlay from '../../components/ModalOverlay';
 import appToast from '../../components/AppToast';
-import type { PermissionGrantMap, PermissionTemplate, Tenant, TenantAuditLogEntry } from '../../permissions/types';
+import type { PermissionGrantMap, Tenant, TenantAuditLogEntry } from '../../permissions/types';
 import TenantStatusBadge from './components/TenantStatusBadge';
 import PermissionMatrixEditor from './PermissionMatrixEditor';
 import SubTenantAgents from './SubTenantAgents';
@@ -82,7 +82,6 @@ const SubTenantDetail = () => {
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [grants, setGrants] = useState<PermissionGrantMap>({});
-  const [templates, setTemplates] = useState<PermissionTemplate[]>([]);
   const [isSavingPermissions, setIsSavingPermissions] = useState(false);
   const [permissionsSaved, setPermissionsSaved] = useState(false);
   const [auditLog, setAuditLog] = useState<TenantAuditLogEntry[]>([]);
@@ -109,18 +108,16 @@ const SubTenantDetail = () => {
     setLoadError(null);
     // Tenant detail + granted permissions come from the real API (one call).
     // Grants are derived from the record's permission.permissions array so the
-    // matrix editor prefills. Templates/audit have no real endpoint yet, so they
-    // fall back to the mock and never break the page load.
+    // matrix editor prefills. Audit has no real endpoint yet, so it falls
+    // back to the mock and never breaks the page load.
     Promise.all([
       getSubTenant(tenantId),
-      tenantAPI.listTemplates().catch(() => [] as PermissionTemplate[]),
       tenantAPI.getAuditLog(tenantId).catch(() => [] as TenantAuditLogEntry[]),
     ])
-      .then(([record, tpl, log]) => {
+      .then(([record, log]) => {
         setTenant(toTenant(record));
         // Force always-on modules (Dashboard) so the map matches the locked UI.
         setGrants(withLockedGrants(grantMapFromRecord(record)));
-        setTemplates(tpl);
         setAuditLog(log);
         // Seed the editable business form from the record's tenant detail.
         const d = record.tenantDetail || {};
@@ -608,7 +605,7 @@ const SubTenantDetail = () => {
               {grantedCount} permission{grantedCount === 1 ? '' : 's'} currently granted. Changes apply once you save.
             </p>
           </div>
-          <PermissionMatrixEditor grants={grants} onChange={setGrants} templates={templates} />
+          <PermissionMatrixEditor grants={grants} onChange={setGrants} />
           <div className="flex justify-end">
             <button
               type="button"

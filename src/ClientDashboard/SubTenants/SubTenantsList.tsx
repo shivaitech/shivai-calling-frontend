@@ -180,20 +180,20 @@ const SubTenantsList = () => {
       )}
 
       {/* Summary stat tiles — bordered no-fill badges per established icon convention */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
         {[
           { label: 'Sub Tenants', value: totals.count, icon: Building2 },
           { label: 'Active Employees', value: totals.activeAgents, icon: Users },
           { label: 'Calls This Month', value: totals.callsThisMonth, icon: Phone },
         ].map((stat) => (
-          <GlassCard key={stat.label} className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex items-center justify-center flex-shrink-0">
-                <stat.icon className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+          <GlassCard key={stat.label} className="p-2.5 sm:p-4">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex items-center justify-center flex-shrink-0">
+                <stat.icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-500 dark:text-slate-400" />
               </div>
               <div className="min-w-0">
-                <p className="text-lg font-bold text-slate-800 dark:text-white leading-tight">{stat.value}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">{stat.label}</p>
+                <p className="text-sm sm:text-lg font-bold text-slate-800 dark:text-white leading-tight">{stat.value}</p>
+                <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 truncate">{stat.label}</p>
               </div>
             </div>
           </GlassCard>

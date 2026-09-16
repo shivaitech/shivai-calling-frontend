@@ -1,13 +1,12 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { ChevronDown, Search, Lock } from 'lucide-react';
-import SearchableSelect from '../../components/SearchableSelect';
+import GlassCard from '../../components/GlassCard';
 import { PERMISSION_REGISTRY, LOCKED_MODULE_KEYS } from '../../permissions/registry';
-import type { PermissionGrantMap, PermissionTemplate } from '../../permissions/types';
+import type { PermissionGrantMap } from '../../permissions/types';
 
 interface PermissionMatrixEditorProps {
   grants: PermissionGrantMap;
   onChange: (grants: PermissionGrantMap) => void;
-  templates: PermissionTemplate[];
   /** Optional extra content rendered inside a module's expanded body (e.g. a
    * sub-tenant scope picker under the Sub Tenants module). Called per module
    * with whether that module is currently granted. Return null to render
@@ -51,7 +50,7 @@ const Toggle = ({
 // landing surface). Their toggles render locked-on. Sourced from the registry.
 const LOCKED_MODULES = new Set<string>(LOCKED_MODULE_KEYS);
 
-const PermissionMatrixEditor = ({ grants, onChange, templates, renderModuleExtra, lockAlwaysOn = true }: PermissionMatrixEditorProps) => {
+const PermissionMatrixEditor = ({ grants, onChange, renderModuleExtra, lockAlwaysOn = true }: PermissionMatrixEditorProps) => {
   const [query, setQuery] = useState('');
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
@@ -78,11 +77,10 @@ const PermissionMatrixEditor = ({ grants, onChange, templates, renderModuleExtra
       for (const k of actionKeys) next[k] = false;
     }
     onChange(next);
-  };
-
-  const applyTemplate = (templateId: string) => {
-    const template = templates.find((t) => t.id === templateId);
-    if (template) onChange({ ...template.grants });
+    // Enabling a module auto-expands its card so the newly-available
+    // pages/actions are immediately visible; disabling leaves the expand
+    // state as-is (the chevron still toggles it independently either way).
+    if (value) setCollapsed((prev) => ({ ...prev, [moduleKey]: false }));
   };
 
   const filteredRegistry = useMemo(() => {
@@ -102,47 +100,57 @@ const PermissionMatrixEditor = ({ grants, onChange, templates, renderModuleExtra
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-col sm:flex-row gap-2">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 z-10" />
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search modules, pages, actions…"
-            className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 text-slate-800 dark:text-white text-sm transition-all"
-          />
-        </div>
-        <div className="sm:w-56">
-          <SearchableSelect
-            options={templates.map((t) => ({ value: t.id, label: `Apply: ${t.name}` }))}
-            value=""
-            onChange={applyTemplate}
-            placeholder="Apply a template…"
-          />
-        </div>
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 z-10" />
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search modules, pages, actions…"
+          className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/20 text-slate-800 dark:text-white text-sm transition-all"
+        />
       </div>
 
-      <div className="rounded-xl border border-slate-200 dark:border-slate-700 divide-y divide-slate-200 dark:divide-slate-700 overflow-hidden">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-start">
         {filteredRegistry.map((mod) => {
           const pageKeys = mod.pages.map((p) => p.key);
           const actionKeys = mod.pages.flatMap((p) => (p.actions || []).map((a) => a.key));
-          const isCollapsed = collapsed[mod.key] ?? false;
           const isLocked = lockAlwaysOn && LOCKED_MODULES.has(mod.key);
           // Locked modules (Dashboard) are always granted and can't be toggled.
           const moduleGranted = isLocked || grants[mod.key] === true;
+          // Collapsed by default — expands only once the user clicks the
+          // chevron, or setModuleGrant auto-expands it on enabling the module.
+          const isCollapsed = collapsed[mod.key] ?? true;
+          // Nested pages + actions currently granted, out of the total this
+          // module has — shown as a count badge even while collapsed.
+          const totalNested = pageKeys.length + actionKeys.length;
+          const grantedNested = isLocked
+            ? totalNested
+            : pageKeys.filter((k) => grants[k] === true).length +
+              actionKeys.filter((k) => grants[k] === true).length;
 
           return (
-            <div key={mod.key} className="bg-white dark:bg-slate-900">
-              <div className="flex items-center gap-2 px-3 py-2.5 bg-slate-50/60 dark:bg-slate-800/40">
+            <GlassCard key={mod.key} className={`overflow-hidden transition-opacity ${moduleGranted ? '' : 'opacity-80'}`}>
+              <div className="flex items-center gap-2 px-3.5 py-3">
                 <button
                   type="button"
                   onClick={() => setCollapsed((prev) => ({ ...prev, [mod.key]: !isCollapsed }))}
-                  className="p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                  className="p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 flex-shrink-0"
                 >
                   <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
                 </button>
                 <span className="text-sm font-semibold text-slate-800 dark:text-white flex-1">{mod.label}</span>
+                {totalNested > 0 && (
+                  <span
+                    className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap ${
+                      grantedNested > 0
+                        ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500'
+                    }`}
+                  >
+                    {grantedNested}/{totalNested} allowed
+                  </span>
+                )}
                 {isLocked && (
                   <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wide">
                     <Lock className="w-3 h-3" /> Always on
@@ -156,9 +164,9 @@ const PermissionMatrixEditor = ({ grants, onChange, templates, renderModuleExtra
               </div>
 
               {!isCollapsed && (
-                <div className={`divide-y divide-slate-100 dark:divide-slate-800 ${moduleGranted ? '' : 'opacity-60'}`}>
+                <div className={`border-t border-slate-100 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800 ${moduleGranted ? '' : 'opacity-60'}`}>
                   {mod.pages.map((page) => (
-                    <div key={page.key} className="px-3 py-2 pl-9">
+                    <div key={page.key} className="px-3.5 py-2 pl-10">
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-medium text-slate-700 dark:text-slate-300 flex-1">{page.label}</span>
                         <Toggle
@@ -184,11 +192,11 @@ const PermissionMatrixEditor = ({ grants, onChange, templates, renderModuleExtra
                     </div>
                   ))}
                   {renderModuleExtra && renderModuleExtra(mod.key, moduleGranted) && (
-                    <div className="px-3 py-2.5 pl-9">{renderModuleExtra(mod.key, moduleGranted)}</div>
+                    <div className="px-3.5 py-2.5 pl-10">{renderModuleExtra(mod.key, moduleGranted)}</div>
                   )}
                 </div>
               )}
-            </div>
+            </GlassCard>
           );
         })}
       </div>

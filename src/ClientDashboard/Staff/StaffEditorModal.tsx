@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { X, Loader2, User, Mail, ShieldCheck, UserPlus, Phone, Lock, Eye, EyeOff, Briefcase, Building2, Check } from 'lucide-react';
+import { X, Loader2, User, Mail, ShieldCheck, UserPlus, Phone, Lock, Eye, EyeOff, Briefcase, Building2, Check, CheckCircle, XCircle } from 'lucide-react';
 import ModalOverlay from '../../components/ModalOverlay';
 import appToast from '../../components/AppToast';
 import PermissionMatrixEditor from '../SubTenants/PermissionMatrixEditor';
 import { staffAPI, countGrants, type StaffMember } from '../../services/staffAPI';
 import { listSubTenants } from '../../services/subTenantsAPI';
 import { useAuth } from '../../contexts/AuthContext';
+import { usePasswordValidation } from '../../hooks/useAuthValidation';
+import { AUTH_MESSAGES } from '../../constants/validation';
 import type { PermissionGrantMap, Tenant } from '../../permissions/types';
 
 interface Props {
@@ -25,6 +27,7 @@ const StaffEditorModal = ({ open, tenantId, editing, onClose, onSaved }: Props) 
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const passwordValidation = usePasswordValidation(password, email, 'signup');
   const [roleName, setRoleName] = useState('');
   const [grants, setGrants] = useState<PermissionGrantMap>({});
   // Independent sub-tenant scope PER scoped module (command-center, sub-tenants).
@@ -157,9 +160,10 @@ const StaffEditorModal = ({ open, tenantId, editing, onClose, onSaved }: Props) 
     if (!name.trim()) return appToast.error('Enter the staff member’s name.');
     if (!roleName.trim()) return appToast.error('Enter a role name.');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return appToast.error('Enter a valid email.');
+    if (!phone.trim()) return appToast.error('Enter a phone number.');
     if (!editing) {
       if (!password) return appToast.error('Set a password — required for them to sign in.');
-      if (password.length < PASSWORD_MIN_LEN) return appToast.error(`Password must be at least ${PASSWORD_MIN_LEN} characters.`);
+      if (!passwordValidation.isValid) return appToast.error(passwordValidation.error || 'Password does not meet the requirements.');
     }
     if (grantCount === 0) return appToast.error('Grant at least one feature.');
 
@@ -228,7 +232,7 @@ const StaffEditorModal = ({ open, tenantId, editing, onClose, onSaved }: Props) 
               <input type="email" value={email} disabled={!!editing} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" className={`${INPUT} ${editing ? 'opacity-60 cursor-not-allowed' : ''}`} />
             </div>
             <div>
-              <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5"><Phone className="w-3 h-3 text-slate-400" /> Phone {editing ? '' : '(optional)'}</label>
+              <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5"><Phone className="w-3 h-3 text-slate-400" /> Phone</label>
               <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1 (555) 000-0000" className={INPUT} />
             </div>
             {!editing && (
@@ -249,6 +253,25 @@ const StaffEditorModal = ({ open, tenantId, editing, onClose, onSaved }: Props) 
               </div>
             )}
           </div>
+          {!editing && password && (
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1 -mt-1">
+              {AUTH_MESSAGES.validation.password_requirements.map((req) => {
+                const satisfied = passwordValidation.requirements[req.id as keyof typeof passwordValidation.requirements];
+                return (
+                  <div key={req.id} className="flex items-center gap-1.5">
+                    {satisfied ? (
+                      <CheckCircle className="w-3 h-3 text-emerald-500 flex-shrink-0" />
+                    ) : (
+                      <XCircle className="w-3 h-3 text-slate-300 dark:text-slate-600 flex-shrink-0" />
+                    )}
+                    <span className={`text-[11px] ${satisfied ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`}>
+                      {req.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
           {!editing && (
             <p className="text-[11px] text-slate-400 dark:text-slate-500 -mt-2">
               This email and password are what they'll use to sign in.
@@ -280,7 +303,6 @@ const StaffEditorModal = ({ open, tenantId, editing, onClose, onSaved }: Props) 
             <PermissionMatrixEditor
               grants={grants}
               onChange={setGrants}
-              templates={[]}
               lockAlwaysOn={false}
               renderModuleExtra={
                 isMainTenant

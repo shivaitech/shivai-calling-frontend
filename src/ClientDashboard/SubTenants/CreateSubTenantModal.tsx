@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Building2, X, Loader2, User, Mail, Phone, MapPin, Globe, Briefcase, Lock, Eye, EyeOff, Image, Upload } from 'lucide-react';
+import { Building2, X, Loader2, User, Mail, Phone, MapPin, Globe, Briefcase, Lock, Eye, EyeOff, Image, Upload, CheckCircle, XCircle } from 'lucide-react';
 import ModalOverlay from '../../components/ModalOverlay';
 import SearchableSelect from '../../components/SearchableSelect';
 import appToast from '../../components/AppToast';
@@ -8,6 +8,8 @@ import { listRoles } from '../../services/rolesAPI';
 import { agentAPI } from '../../services/agentAPI';
 import { getCitiesForCountry } from '../../services/locationCitiesAPI';
 import { defaultCountries } from '../../types/country';
+import { usePasswordValidation } from '../../hooks/useAuthValidation';
+import { AUTH_MESSAGES } from '../../constants/validation';
 
 const COUNTRY_OPTIONS = defaultCountries
   .map((c) => ({ value: c.name, label: `${c.flag} ${c.name}` }))
@@ -66,6 +68,7 @@ const CreateSubTenantModal = ({ open, onClose, onCreated }: CreateSubTenantModal
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const passwordValidation = usePasswordValidation(password, email, 'signup');
   const [phone, setPhone] = useState('');
   const [notes, setNotes] = useState('');
   // Plan
@@ -175,6 +178,10 @@ const CreateSubTenantModal = ({ open, onClose, onCreated }: CreateSubTenantModal
       setError("Enter the business owner's or main contact's name.");
       return;
     }
+    if (!phone.trim()) {
+      setError('Add a phone number for the primary contact.');
+      return;
+    }
     if (!email.trim()) {
       setError('Add an email — required for them to sign in.');
       return;
@@ -183,8 +190,8 @@ const CreateSubTenantModal = ({ open, onClose, onCreated }: CreateSubTenantModal
       setError('Set a password — required for them to sign in.');
       return;
     }
-    if (password.length < PASSWORD_MIN_LEN) {
-      setError(`Password must be at least ${PASSWORD_MIN_LEN} characters.`);
+    if (!passwordValidation.isValid) {
+      setError(passwordValidation.error || 'Password does not meet the requirements.');
       return;
     }
     if (!roleId) {
@@ -200,7 +207,7 @@ const CreateSubTenantModal = ({ open, onClose, onCreated }: CreateSubTenantModal
         fullName: ownerName.trim(),
         email: email.trim(),
         password,
-        phone: phone.trim() || undefined,
+        phone: phone.trim(),
         industry: industry || undefined,
         website: website.trim() || undefined,
         description: notes.trim() || undefined,
@@ -415,7 +422,7 @@ const CreateSubTenantModal = ({ open, onClose, onCreated }: CreateSubTenantModal
                 />
               </div>
               <div>
-                <FieldLabel icon={Phone}>Phone (optional)</FieldLabel>
+                <FieldLabel icon={Phone}>Phone</FieldLabel>
                 <input
                   type="tel"
                   value={phone}
@@ -457,6 +464,25 @@ const CreateSubTenantModal = ({ open, onClose, onCreated }: CreateSubTenantModal
                 </div>
               </div>
             </div>
+            {password && (
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1 -mt-1.5">
+                {AUTH_MESSAGES.validation.password_requirements.map((req) => {
+                  const satisfied = passwordValidation.requirements[req.id as keyof typeof passwordValidation.requirements];
+                  return (
+                    <div key={req.id} className="flex items-center gap-1.5">
+                      {satisfied ? (
+                        <CheckCircle className="w-3 h-3 text-emerald-500 flex-shrink-0" />
+                      ) : (
+                        <XCircle className="w-3 h-3 text-slate-300 dark:text-slate-600 flex-shrink-0" />
+                      )}
+                      <span className={`text-[11px] ${satisfied ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`}>
+                        {req.label}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             <p className="text-[11px] text-slate-400 dark:text-slate-500 -mt-1.5">
               This email and password are what they'll use to sign in to their ShivAI panel.
             </p>

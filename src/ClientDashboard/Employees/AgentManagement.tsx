@@ -18,6 +18,7 @@ import {
 import AgentViewPage from "./AgentViewPage";
 import { useAgent } from "../../contexts/AgentContext";
 import { useAuth } from "../../contexts/AuthContext";
+import { usePermission } from "../../permissions/usePermission";
 import { formatAgentLanguages } from "../../lib/utils";
 import { buildWidgetEmbedScript } from "../../lib/widgetConfig";
 import {
@@ -97,6 +98,9 @@ const AgentManagement = () => {
 
   // Check if current user is developer
   const isDeveloper = true; // Open to all users
+
+  const canCreateAgent = usePermission("module:employees.page:list.action:create");
+  const canDeleteAgent = usePermission("module:employees.page:list.action:delete");
 
   const isTrain = location.pathname.includes("/train");
   const isView = id && !isTrain;
@@ -1791,19 +1795,25 @@ const AgentManagement = () => {
           {/* Create Button */}
           <button
             onClick={() => {
-              if (!isDeveloper || (isCreatingAgent && isModalMinimized)) return;
+              if (!isDeveloper || !canCreateAgent || (isCreatingAgent && isModalMinimized)) return;
               setShowQuickCreateModal(true);
             }}
-            disabled={!isDeveloper || (isCreatingAgent && isModalMinimized)}
-            title={isCreatingAgent && isModalMinimized ? 'Knowledge base training in progress…' : undefined}
+            disabled={!isDeveloper || !canCreateAgent || (isCreatingAgent && isModalMinimized)}
+            title={
+              !canCreateAgent
+                ? "Not included in your access"
+                : isCreatingAgent && isModalMinimized
+                ? 'Knowledge base training in progress…'
+                : undefined
+            }
             className={`relative overflow-hidden flex items-center justify-center gap-2 px-4 lg:px-6 py-2.5 lg:py-3 rounded-xl transition-all duration-200 shadow-sm whitespace-nowrap ${
-              isDeveloper && !(isCreatingAgent && isModalMinimized)
+              isDeveloper && canCreateAgent && !(isCreatingAgent && isModalMinimized)
                 ? "common-button-bg transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
                 : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50"
             }`}
           >
             {/* Tailwind shine effect (requires keyframes in tailwind.config.js) */}
-            {isDeveloper && (
+            {isDeveloper && canCreateAgent && (
               <span
                 aria-hidden="true"
                 className="absolute left-0 top-0 h-full w-full pointer-events-none z-0"
@@ -2250,9 +2260,14 @@ const AgentManagement = () => {
                     )}
 
                     <button
-                      onClick={() => handleDeleteClick(agent.id)}
-                      className="p-2.5 text-slate-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 active:scale-95"
-                      title="Delete agent"
+                      onClick={() => canDeleteAgent && handleDeleteClick(agent.id)}
+                      disabled={!canDeleteAgent}
+                      className={`p-2.5 transition-colors rounded-lg active:scale-95 ${
+                        canDeleteAgent
+                          ? "text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                          : "text-slate-300 dark:text-slate-700 cursor-not-allowed opacity-50"
+                      }`}
+                      title={canDeleteAgent ? "Delete agent" : "Not included in your access"}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -2294,8 +2309,14 @@ const AgentManagement = () => {
             {!searchTerm && genderFilter === "all" && isDeveloper && (
               <div className="space-y-3">
                 <button
-                  onClick={() => setShowQuickCreateModal(true)}
-                  className="w-full sm:w-auto common-button-bg px-6 py-3 rounded-xl shadow-sm hover:shadow-md transform hover:scale-[1.02] active:scale-[0.98]"
+                  onClick={() => canCreateAgent && setShowQuickCreateModal(true)}
+                  disabled={!canCreateAgent}
+                  title={!canCreateAgent ? "Not included in your access" : undefined}
+                  className={`w-full sm:w-auto px-6 py-3 rounded-xl shadow-sm transform ${
+                    canCreateAgent
+                      ? "common-button-bg hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
+                      : "bg-gray-400 dark:bg-gray-600 text-gray-200 dark:text-gray-300 cursor-not-allowed opacity-50"
+                  }`}
                 >
                   Create your first AI Employee
                 </button>
