@@ -1,4 +1,5 @@
 import axios, { AxiosResponse } from "axios";
+import { withSelfScope, withStaffScope } from "./actingContext";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -25,6 +26,10 @@ const authHeaders = (extra?: Record<string, string>) => {
     },
   };
 };
+
+// Combine sub-tenant self-scope + staff parent tenant_id into a params/body.
+const withScope = <T extends Record<string, any>>(p: T = {} as T): T =>
+  withStaffScope(withSelfScope(p));
 
 const errMessage = (error: any, fallback: string) =>
   error.response?.data?.error || error.response?.data?.message || fallback;
@@ -63,6 +68,7 @@ export interface CreateContactRequest {
   phone_number_id?: string;
   language?: string;
   custom_fields?: Record<string, string>;
+  sub_tenant_id?: string; // file under a specific sub-tenant (main tenant view)
 }
 
 export type UpdateContactRequest = Partial<CreateContactRequest>;
@@ -75,6 +81,7 @@ export interface ListContactsParams {
   direction?: ContactDirection | "all";
   agent_id?: string;
   include_inactive?: boolean;
+  sub_tenant_id?: string;
 }
 
 export interface ListContactsResult {
@@ -100,9 +107,11 @@ const normalizeContact = (raw: any): TenantContact => {
 
 export const createContact = async (payload: CreateContactRequest): Promise<TenantContact> => {
   try {
+    // A logged-in sub-tenant auto-stamps their own id; explicit wins.
+    const body = withScope(payload as Record<string, any>);
     const response: AxiosResponse<any> = await axios.post(
       `${API_BASE_URL}/contacts`,
-      payload,
+      body,
       authHeaders()
     );
     return normalizeContact(unwrapData(response.data) || response.data);
@@ -118,7 +127,7 @@ export const listContacts = async (
   params: ListContactsParams = {}
 ): Promise<ListContactsResult> => {
   try {
-    const { page = 1, limit = 50, ...rest } = params;
+    const { page = 1, limit = 50, ...rest } = withScope(params);
     const clean: Record<string, any> = { page, limit };
     Object.entries(rest).forEach(([k, v]) => {
       if (v !== undefined && v !== null && v !== "" && v !== "all") clean[k] = v;
@@ -230,6 +239,7 @@ export interface ContactBatchRequest {
   goal?: string;
   /** Client idempotency key — reuse on retry/timeout. */
   idempotency_key?: string;
+  sub_tenant_id?: string; // batch on behalf of a specific sub-tenant
 }
 
 export interface ContactBatchResult {
@@ -243,10 +253,13 @@ export interface ContactBatchResult {
 export const startContactBatch = async (
   payload: ContactBatchRequest
 ): Promise<ContactBatchResult> => {
-  const { idempotency_key, ...body } = payload;
-  if (!body.contact_ids?.length) {
+  const { idempotency_key, ...rest } = payload;
+  if (!rest.contact_ids?.length) {
     throw new Error("Select at least one contact");
   }
+  // Scope to sub-tenant: explicit wins, else logged-in sub-tenant self-scopes;
+  // staff parent tenant_id added.
+  const body = withScope(rest as Record<string, any>);
   try {
     const key =
       idempotency_key ||
@@ -302,6 +315,7 @@ export interface DirectOutboundCallRequest {
   goal?: string;
   recipients: DirectOutboundRecipient[];
   idempotency_key?: string;
+  sub_tenant_id?: string; // dial on behalf of a specific sub-tenant
 }
 
 export interface DirectOutboundCallResult {
@@ -377,6 +391,7 @@ export const placeDirectOutboundCall = async (
         phone_number_id: payload.phone_number_id,
         language,
         ...(r.call_context ? { custom_fields: { call_context: r.call_context } } : {}),
+        ...(payload.sub_tenant_id ? { sub_tenant_id: payload.sub_tenant_id } : {}),
       });
       contactIds.push(created.id);
     } catch (err: any) {
@@ -413,6 +428,7 @@ export const placeDirectOutboundCall = async (
     // Do not put per-contact call_context into campaign objective — that belongs on the contact.
     ...(payload.objective?.trim() ? { objective: payload.objective.trim() } : {}),
     ...(payload.goal?.trim() ? { goal: payload.goal.trim() } : {}),
+    ...(payload.sub_tenant_id ? { sub_tenant_id: payload.sub_tenant_id } : {}),
     idempotency_key: payload.idempotency_key,
   });
 
@@ -474,6 +490,7 @@ export interface ListCallHistoryParams {
   status?: string;
   from?: string;
   to?: string;
+  sub_tenant_id?: string; // "<id>" | "none" | omit (whole org)
 }
 
 export interface CallHistoryByNumberParams extends Omit<ListCallHistoryParams, "phone_number"> {
@@ -511,7 +528,8 @@ export const listCallHistory = async (
   params: ListCallHistoryParams = {}
 ): Promise<CallHistoryListResult> => {
   try {
-    const { page = 1, limit = 20, direction, ...rest } = params;
+    // A logged-in sub-tenant auto-scopes to their own id (explicit wins).
+    const { page = 1, limit = 20, direction, ...rest } = withScope(params);
     const clean: Record<string, any> = { page, limit: Math.min(limit, 100) };
     if (direction && direction !== "all") clean.direction = direction;
     Object.entries(rest).forEach(([k, v]) => {
@@ -539,7 +557,8 @@ export const getCallHistoryByNumber = async (
     throw new Error("Phone number is required");
   }
   try {
-    const { page = 1, limit = 20, direction, ...rest } = params;
+    // Sub-tenant auto-scopes to their own id (explicit wins).
+    const { page = 1, limit = 20, direction, ...rest } = withScope(params);
     const clean: Record<string, any> = { page, limit: Math.min(limit, 100) };
     if (direction && direction !== "all") clean.direction = direction;
     Object.entries(rest).forEach(([k, v]) => {
@@ -565,10 +584,11 @@ export const getCallHistoryStats = async (params: {
   agent_id?: string;
   contact_id?: string;
   phone_number?: string;
+  sub_tenant_id?: string;
 } = {}): Promise<any> => {
   try {
     const clean: Record<string, any> = {};
-    Object.entries(params).forEach(([k, v]) => {
+    Object.entries(withScope(params)).forEach(([k, v]) => {
       if (v !== undefined && v !== null && v !== "" && v !== "all") clean[k] = v;
     });
     const response: AxiosResponse<any> = await axios.get(`${API_BASE_URL}/call-history/stats`, {

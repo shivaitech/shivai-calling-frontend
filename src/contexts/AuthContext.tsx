@@ -6,6 +6,20 @@ import React, {
   useEffect,
 } from "react";
 import { authAPI } from "../services/authAPI";
+import { getMyProfile } from "../services/subTenantsAPI";
+import { setStaffFlag, setActingAccount, clearActingContext } from "../services/actingContext";
+
+// Sub Tenants: a user optionally belongs to a tenant hierarchy (see
+// src/permissions/types.ts). Both fields are optional so accounts with no
+// tenant context (i.e. every account today, until the backend ships tenant
+// support) behave exactly as before — no tenant means no restrictions.
+export type TenantRole =
+  | 'MAIN_OWNER'
+  | 'MAIN_ADMIN'
+  | 'MAIN_MEMBER'
+  | 'SUBTENANT_OWNER'
+  | 'SUBTENANT_MEMBER'
+  | 'STAFF';
 
 interface User {
   id: string;
@@ -14,7 +28,53 @@ interface User {
   profilePicture?: string;
   emailVerified: boolean;
   company?: string;
+  tenantId?: string;
+  tenantRole?: TenantRole;
+  parentTenantId?: string | null;
 }
+
+// localStorage key holding the signed-in user's resolved permission grant map
+// (from GET /users/profile). TenantPermissionsContext reads it so it doesn't
+// re-fetch the profile after login already did.
+export const TENANT_GRANTS_STORAGE_KEY = "tenant_grants";
+
+// Enrich the login user with tenant context resolved from GET /users/profile:
+// sub-tenants get a SUBTENANT role + their parent's id as tenantId so
+// usePermission() gates them; everyone else stays a fail-open MAIN role.
+const enrichUserFromProfile = (baseUser: User, profile: Awaited<ReturnType<typeof getMyProfile>>): User => {
+  // Staff are delegated users — gated deny-by-default like sub-tenants, so they
+  // only see the modules they were granted.
+  if (profile.isStaff) {
+    setStaffFlag(true);
+    // Staff act AS THE MAIN (parent) TENANT — send X-Acting-Tenant-Id = parent
+    // tenant id (from accounts[0].tenantId). They then drill into a specific
+    // sub-tenant via ?sub_tenant_id on Command Center / Sub Tenants, like the
+    // main tenant. Never send a sub-tenant acting header.
+    const parentTenantId = profile.accounts?.[0]?.tenantId ?? null;
+    if (parentTenantId) {
+      setActingAccount({ tenantId: String(parentTenantId), subTenantId: null });
+    }
+    return {
+      ...baseUser,
+      tenantId: String(baseUser.id),
+      tenantRole: "STAFF",
+    };
+  }
+  // Not staff → clear any staff acting context.
+  clearActingContext();
+  if (!profile.isSubTenant) {
+    return { ...baseUser, tenantRole: baseUser.tenantRole ?? "MAIN_OWNER" };
+  }
+  const parentTenantId = profile.user?.parentTenantId ?? profile.permission?.tenantId ?? null;
+  return {
+    ...baseUser,
+    parentTenantId,
+    // A truthy tenantId + SUBTENANT role is what switches usePermission() into
+    // deny-by-default. Use the sub-tenant's own id as their tenant context.
+    tenantId: String(baseUser.id),
+    tenantRole: "SUBTENANT_MEMBER",
+  };
+};
 
 interface Tokens {
   accessToken: string;
@@ -62,7 +122,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Initialize auth state on mount
   useEffect(() => {
-    const initializeAuth = () => {
+    const initializeAuth = async () => {
+      let hasSession = false;
       try {
         const storedTokens = localStorage.getItem("auth_tokens");
         const storedUser = localStorage.getItem("auth_user");
@@ -70,6 +131,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         if (storedTokens && storedUser) {
           setTokens(JSON.parse(storedTokens));
           setUser(JSON.parse(storedUser));
+          hasSession = true;
         }
       } catch (error) {
         localStorage.removeItem("auth_tokens");
@@ -77,6 +139,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       } finally {
         // Always set loading to false after initialization attempt
         setIsLoading(false);
+      }
+
+      // Re-resolve tenant context / permissions from /auth/me on every reload of
+      // an authenticated session, so existing sessions (stored before this
+      // resolution existed, or with stale grants) get enriched too. Best-effort.
+      if (hasSession) {
+        try {
+          const storedUser = JSON.parse(localStorage.getItem("auth_user") || "null") as User | null;
+          if (storedUser) {
+            const profile = await getMyProfile();
+            const enriched = enrichUserFromProfile(storedUser, profile);
+            setUser(enriched);
+            localStorage.setItem("auth_user", JSON.stringify(enriched));
+            localStorage.setItem(TENANT_GRANTS_STORAGE_KEY, JSON.stringify(profile.grants));
+          }
+        } catch (profileErr) {
+          console.error("Failed to refresh profile on init:", profileErr);
+        }
       }
     };
 
@@ -105,12 +185,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         code,
       });
 
-      // Update state
-      setUser(response.user);
       setTokens(response.tokens);
-
       localStorage.setItem("auth_tokens", JSON.stringify(response.tokens));
-      localStorage.setItem("auth_user", JSON.stringify(response.user));
+
+      // Resolve tenant context / permissions from the profile (same as login).
+      let finalUser = response.user as User;
+      try {
+        const profile = await getMyProfile();
+        finalUser = enrichUserFromProfile(response.user as User, profile);
+        localStorage.setItem(TENANT_GRANTS_STORAGE_KEY, JSON.stringify(profile.grants));
+      } catch (profileErr) {
+        console.error("Failed to load profile after Google login:", profileErr);
+        localStorage.removeItem(TENANT_GRANTS_STORAGE_KEY);
+      }
+
+      setUser(finalUser);
+      localStorage.setItem("auth_user", JSON.stringify(finalUser));
     } catch (err: any) {
       if (err.name === "AbortError") {
         return;
@@ -140,9 +230,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setIsLoading(true);
       setError(null);
       const response = await authAPI.login({ email, password });
-      setUser(response.user);
+      // Persist tokens first so the profile call below is authenticated.
       setTokens(response.tokens);
-      return response;
+      localStorage.setItem("auth_tokens", JSON.stringify(response.tokens));
+
+      // The login payload doesn't carry tenant context / permissions, so fetch
+      // the signed-in user's profile to learn if they're a sub-tenant and what
+      // they can access. Never let a profile hiccup block sign-in.
+      let finalUser = response.user as User;
+      try {
+        const profile = await getMyProfile();
+        finalUser = enrichUserFromProfile(response.user as User, profile);
+        localStorage.setItem(TENANT_GRANTS_STORAGE_KEY, JSON.stringify(profile.grants));
+      } catch (profileErr) {
+        console.error("Failed to load profile after login:", profileErr);
+        localStorage.removeItem(TENANT_GRANTS_STORAGE_KEY);
+      }
+
+      setUser(finalUser);
+      localStorage.setItem("auth_user", JSON.stringify(finalUser));
+      return { ...response, user: finalUser };
     } catch (err: any) {
       const errorMessage = err.response?.data?.message || "Login failed";
       setError(errorMessage);
@@ -257,6 +364,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     localStorage.removeItem("auth_user");
     localStorage.removeItem("pending_auth_tokens");
     localStorage.removeItem("pending_auth_user");
+    localStorage.removeItem(TENANT_GRANTS_STORAGE_KEY);
+    clearActingContext();
   };
 
   const updateUser = (updates: Partial<User>) => {

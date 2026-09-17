@@ -9,11 +9,15 @@ import {
 import { Toaster } from "react-hot-toast";
 import { HelmetProvider } from "react-helmet-async";
 import { AuthProvider } from "./contexts/AuthContext";
-import { ThemeProvider } from "./contexts/ThemeContext";
+import { ThemeProvider, useTheme } from "./contexts/ThemeContext";
 import { AgentProvider } from "./contexts/AgentContext";
+import { TenantPermissionsProvider } from "./permissions/TenantPermissionsContext";
+import { TenantViewProvider } from "./permissions/TenantViewContext";
+import TenantViewBanner from "./components/TenantViewBanner";
 import ScrollToTop from "./components/ScrollToTop";
 import PublicRoute from "./components/PublicRoute";
 import ProtectedRoute from "./components/ProtectedRoute";
+import PermissionRoute from "./components/PermissionRoute";
 import HomeRedirect from "./components/HomeRedirect";
 import GoogleCallback from "./components/GoogleCallback";
 import { saveLastRoute } from "./utils/homeRoute";
@@ -50,6 +54,8 @@ const EditAgent = lazy(() => import("./ClientDashboard/Employees/EditAgent"));
 const Training = lazy(() => import("./ClientDashboard/Training/Training"));
 const Workflows = lazy(() => import("./ClientDashboard/Workflows/Workflows"));
 const CallSetup = lazy(() => import("./ClientDashboard/Workflows/CallSetup"));
+const CommandCenter = lazy(() => import("./ClientDashboard/CommandCenter/CommandCenter"));
+const Staff = lazy(() => import("./ClientDashboard/Staff/Staff"));
 const Marketplace = lazy(() => import("./ClientDashboard/Marketplace/Marketplace"));
 const AppDetail = lazy(() => import("./ClientDashboard/Marketplace/AppDetail"));
 const WebsitePreview = lazy(() => import("./pages/WebsitePreview"));
@@ -64,6 +70,11 @@ const GoogleSheetsManager = lazy(() => import("./ClientDashboard/GoogleSheets/Go
 const GoogleSheetView = lazy(() => import("./ClientDashboard/GoogleSheets/GoogleSheetView"));
 const ZohoManager = lazy(() => import("./ClientDashboard/Zoho/ZohoManager"));
 const GoogleCalendarManager = lazy(() => import("./ClientDashboard/Zoho/GoogleCalendarManager"));
+const SubTenantsList = lazy(() => import("./ClientDashboard/SubTenants/SubTenantsList"));
+const SubTenantDetail = lazy(() => import("./ClientDashboard/SubTenants/SubTenantDetail"));
+const SubTenantAgentViewPage = lazy(() => import("./ClientDashboard/SubTenants/SubTenantAgentViewPage"));
+const SubTenantEditAgentPage = lazy(() => import("./ClientDashboard/SubTenants/SubTenantEditAgentPage"));
+const InviteAcceptPage = lazy(() => import("./pages/InviteAcceptPage"));
 const ResetPassword = lazy(() => import("./components/ResetPassword"));
 const AgentPublicPage = lazy(() => import("./pages/AgentPublicPage"));
 const DoctorCalendarPublicPage = lazy(() => import("./pages/DoctorCalendarPublicPage"));
@@ -82,6 +93,7 @@ function LoadingFallback() {
 }
 
 function AppContent() {
+  const { branding } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
   const isLandingPage =
@@ -98,6 +110,8 @@ function AppContent() {
     location.pathname === "/pricing" ||
     location.pathname === "/faq" ||
     location.pathname === "/solutions";
+  // Sub-tenant invite-accept — public, pre-auth (spec §9).
+  const isInviteAcceptPage = location.pathname.startsWith("/invite/");
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
@@ -109,16 +123,17 @@ function AppContent() {
       isDoctorCalendarPage ||
       isWebsitePreview ||
       isAppWorkspace ||
-      isMarketingPage
+      isMarketingPage ||
+      isInviteAcceptPage
     ) {
       return;
     }
     saveLastRoute(`${location.pathname}${location.search}`);
-  }, [location.pathname, location.search, isLandingPage, isAuthCallback, isResetPassword, isAgentPublicPage, isDoctorCalendarPage, isWebsitePreview, isAppWorkspace, isMarketingPage]);
+  }, [location.pathname, location.search, isLandingPage, isAuthCallback, isResetPassword, isAgentPublicPage, isDoctorCalendarPage, isWebsitePreview, isAppWorkspace, isMarketingPage, isInviteAcceptPage]);
 
   return (
     <div className="min-h-dvh">
-      {isLandingPage || isAuthCallback || isResetPassword || isAgentPublicPage || isDoctorCalendarPage || isWebsitePreview || isAppWorkspace || isMarketingPage ? (
+      {isLandingPage || isAuthCallback || isResetPassword || isAgentPublicPage || isDoctorCalendarPage || isWebsitePreview || isAppWorkspace || isMarketingPage || isInviteAcceptPage ? (
         <Suspense fallback={<LoadingFallback />}>
           <Routes>
             <Route
@@ -162,6 +177,9 @@ function AppContent() {
             <Route path="/faq" element={<FAQPage />} />
             <Route path="/solutions" element={<SolutionsPage />} />
 
+            {/* Sub-tenant invite-accept — public, pre-auth (spec §9) */}
+            <Route path="/invite/:slug/:token" element={<InviteAcceptPage />} />
+
             {/* Standalone app workspace — auth required, opens in new tab, no dashboard chrome */}
             <Route
               path="/app/:appId"
@@ -191,7 +209,19 @@ function AppContent() {
       ) : (
         <ProtectedRoute>
           <Suspense fallback={<LoadingFallback />}>
-            <div className="bg-gradient-to-br from-slate-100 via-slate-200 to-slate-300 dark:from-slate-900 dark:via-slate-800 dark:to-slate-700 transition-colors duration-300 min-h-dvh">
+            <div
+              className="bg-gradient-to-br from-slate-100 via-slate-200 to-slate-300 dark:from-slate-900 dark:via-slate-800 dark:to-slate-700 transition-colors duration-300 min-h-dvh"
+              style={
+                branding?.backgroundColor
+                  ? {
+                      backgroundColor: 'var(--tenant-bg)',
+                      backgroundImage: 'var(--tenant-bg-texture)',
+                      backgroundSize: 'var(--tenant-bg-texture-size)',
+                    }
+                  : undefined
+              }
+            >
+              <TenantViewBanner />
               <div className="flex">
                 <Sidebar
                   isOpen={sidebarOpen}
@@ -211,35 +241,41 @@ function AppContent() {
                       <Route path="/dashboard" element={<DashboardEntry />} />
                       <Route
                         path="/agents"
-                        element={<AgentManagement key="list" />}
+                        element={<PermissionRoute requires="module:employees"><AgentManagement key="list" /></PermissionRoute>}
                       />
                       <Route
                         path="/agents/create"
-                        element={<CreateAgent />}
+                        element={<PermissionRoute requires="module:employees.page:list.action:create"><CreateAgent /></PermissionRoute>}
                       />
-                      <Route path="/agents/:id" element={<AgentManagement />} />
+                      <Route path="/agents/:id" element={<PermissionRoute requires="module:employees"><AgentManagement /></PermissionRoute>} />
                       <Route
                         path="/agents/:id/edit"
-                        element={<EditAgent />}
+                        element={<PermissionRoute requires="module:employees.page:edit-agent"><EditAgent /></PermissionRoute>}
                       />
-                      <Route path="/agents/:id/train" element={<Training />} />
-                      <Route path="/training" element={<Training />} />
-                      <Route path="/call-setup" element={<CallSetup />} />
-                      <Route path="/workflows" element={<Workflows />} />
-                      <Route path="/campaigns/:campaignId" element={<CampaignDetail />} />
-                      <Route path="/contacts/:contactId/call-history" element={<ContactCallHistory />} />
-                      <Route path="/marketplace" element={<Marketplace />} />
-                      <Route path="/marketplace/:appId" element={<AppDetail />} />
+                      <Route path="/agents/:id/train" element={<PermissionRoute requires="module:employees.page:training"><Training /></PermissionRoute>} />
+                      <Route path="/training" element={<PermissionRoute requires="module:employees.page:training"><Training /></PermissionRoute>} />
+                      <Route path="/call-setup" element={<PermissionRoute requires="module:call-setup"><CallSetup /></PermissionRoute>} />
+                      <Route path="/command-center" element={<PermissionRoute requires="module:command-center"><CommandCenter /></PermissionRoute>} />
+                      <Route path="/staff" element={<PermissionRoute requires="module:staff"><Staff /></PermissionRoute>} />
+                      <Route path="/workflows" element={<PermissionRoute requires="module:workflows"><Workflows /></PermissionRoute>} />
+                      <Route path="/campaigns/:campaignId" element={<PermissionRoute requires="module:call-setup"><CampaignDetail /></PermissionRoute>} />
+                      <Route path="/contacts/:contactId/call-history" element={<PermissionRoute requires="module:call-setup"><ContactCallHistory /></PermissionRoute>} />
+                      <Route path="/marketplace" element={<PermissionRoute requires="module:marketplace"><Marketplace /></PermissionRoute>} />
+                      <Route path="/marketplace/:appId" element={<PermissionRoute requires="module:marketplace"><AppDetail /></PermissionRoute>} />
                       {/* Website Builder now lives in its standalone workspace — redirect legacy route */}
                       <Route path="/websites" element={<Navigate to="/app/website-builder" replace />} />
-                      <Route path="/analytics" element={<Analytics />} />
-                      <Route path="/monitoring" element={<Monitoring />} />
-                      <Route path="/billing" element={<Billing />} />
+                      <Route path="/analytics" element={<PermissionRoute requires="module:analytics"><Analytics /></PermissionRoute>} />
+                      <Route path="/monitoring" element={<PermissionRoute requires="module:monitoring"><Monitoring /></PermissionRoute>} />
+                      <Route path="/billing" element={<PermissionRoute requires="module:billing"><Billing /></PermissionRoute>} />
                       <Route path="/settings" element={<Settings />} />
                       <Route path="/google-sheets" element={<GoogleSheetsManager />} />
                       <Route path="/google-sheets/:id/view" element={<GoogleSheetView />} />
-                      <Route path="/zoho" element={<ZohoManager />} />
-                      <Route path="/google-calendar" element={<GoogleCalendarManager />} />
+                      <Route path="/zoho" element={<PermissionRoute requires="module:marketplace.page:zoho"><ZohoManager /></PermissionRoute>} />
+                      <Route path="/google-calendar" element={<PermissionRoute requires="module:marketplace.page:google-calendar"><GoogleCalendarManager /></PermissionRoute>} />
+                      <Route path="/sub-tenants" element={<PermissionRoute mainOnly><SubTenantsList /></PermissionRoute>} />
+                      <Route path="/sub-tenants/:tenantId" element={<PermissionRoute mainOnly><SubTenantDetail /></PermissionRoute>} />
+                      <Route path="/sub-tenants/:tenantId/agents/:id" element={<PermissionRoute mainOnly><SubTenantAgentViewPage /></PermissionRoute>} />
+                      <Route path="/sub-tenants/:tenantId/agents/:id/edit" element={<PermissionRoute mainOnly><SubTenantEditAgentPage /></PermissionRoute>} />
 
                       {/* Default route for authenticated users */}
                       <Route path="/" element={<HomeRedirect />} />
@@ -337,16 +373,20 @@ function App() {
         {/* Wrap with AuthProvider */}
         <ThemeProvider>
           <Router>
-            <AgentProvider>
-              <ScrollToTop />
-              <AppContent />
-              <Toaster
-                position="top-right"
-                toastOptions={{ duration: 4000 }}
-                containerStyle={{ zIndex: 2147483646 }}
-                containerClassName="!z-[2147483646]"
-              />
-            </AgentProvider>
+            <TenantPermissionsProvider>
+              <TenantViewProvider>
+                <AgentProvider>
+                  <ScrollToTop />
+                  <AppContent />
+                  <Toaster
+                    position="top-right"
+                    toastOptions={{ duration: 4000 }}
+                    containerStyle={{ zIndex: 2147483646 }}
+                    containerClassName="!z-[2147483646]"
+                  />
+                </AgentProvider>
+              </TenantViewProvider>
+            </TenantPermissionsProvider>
           </Router>
         </ThemeProvider>
       </AuthProvider>

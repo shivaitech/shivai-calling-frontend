@@ -1,6 +1,27 @@
 import axios, { AxiosResponse } from "axios";
+import { mockAgentStore } from "./mockAgentStore";
+import { staffTenantId, selfSubTenantId } from "./actingContext";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+
+// ── Sub Tenants: tenant-scoped mock mode ────────────────────────────────────
+// The real EditAgent.tsx / AgentViewPage.tsx are reused UNMODIFIED for a Main
+// Business viewing/editing a sub-tenant's AI employee (mounted at
+// /sub-tenants/:tenantId/agents/:agentId[/edit] — see App.tsx). Those routes
+// wrap their content in <TenantAgentScope tenantId=...>, which calls
+// setTenantScope() on mount/unmount so the handful of agentAPI methods these
+// two pages actually call (getAgentConfig, updateAgent, uploadKnowledgeBase,
+// getPresignedUrl) route to the per-tenant mock store instead of the real
+// backend for exactly the lifetime of that view. Every other consumer of
+// agentAPI never renders under that wrapper, so this stays null for them and
+// their behavior is unchanged.
+let activeTenantScope: string | null = null;
+export function setTenantScope(tenantId: string | null): void {
+  activeTenantScope = tenantId;
+}
+export function getTenantScope(): string | null {
+  return activeTenantScope;
+}
 
 // ── Single-flight token refresh ──────────────────────────────────────────────
 // When a page mounts it often fires several authenticated requests at once. If
@@ -82,6 +103,23 @@ apiClient.interceptors.request.use((config) => {
       console.warn("Failed to parse auth tokens:", error);
     }
   }
+
+  // Sub-tenant scoping: when a Main Business is viewing/managing a sub-tenant's
+  // AI employees, tag every /agents request with sub_tenant_id so the backend
+  // returns/operates on that sub-tenant's agents. Sent as a query param for all
+  // methods (GET/POST/PUT/DELETE) so the backend reads it uniformly.
+  if (activeTenantScope && typeof config.url === "string" && config.url.includes("/agents")) {
+    config.params = { ...(config.params || {}), sub_tenant_id: activeTenantScope };
+  }
+
+  // Staff act as the parent tenant — send tenant_id on every request (query
+  // param; explicit value already in params wins).
+  const stTenant = staffTenantId();
+  if (stTenant) {
+    const p: any = config.params || {};
+    if (p.tenant_id === undefined) config.params = { ...p, tenant_id: stTenant };
+  }
+
   return config;
 });
 
@@ -112,6 +150,12 @@ voiceApiClient.interceptors.request.use((config) => {
     } catch (error) {
       console.warn("Failed to parse auth tokens:", error);
     }
+  }
+  // Staff act as the parent tenant — send tenant_id (query param) on every call.
+  const stTenant = staffTenantId();
+  if (stTenant) {
+    const p: any = config.params || {};
+    if (p.tenant_id === undefined) config.params = { ...p, tenant_id: stTenant };
   }
   return config;
 });
@@ -409,6 +453,7 @@ class AgentAPI {
     limit?: number;
     industry?: string;
     business_process?: string;
+    sub_tenant_id?: string;
   }): Promise<{
     agents: ApiAgent[];
     total: number;
@@ -441,10 +486,18 @@ class AgentAPI {
       if (params.business_process) {
         queryParams.append('business_process', params.business_process);
       }
+      // Scope to a specific sub-tenant's agents. Explicit param (main tenant
+      // drilling in) wins; otherwise a logged-in sub-tenant scopes to their own id.
+      const subTenantId = params.sub_tenant_id ?? selfSubTenantId() ?? undefined;
+      if (subTenantId) {
+        queryParams.append('sub_tenant_id', subTenantId);
+      }
 
       const queryString = queryParams.toString();
+      // Always the plain /agents list; sub_tenant_id (query) scopes it to a
+      // sub-tenant's agents when a Main Business is viewing them.
       const url = `/agents${queryString ? `?${queryString}` : ''}`;
-      
+
       const response: AxiosResponse<AgentsResponse> = await apiClient.get(url);
 
       if (response.data.success && response.data.data.agents) {
@@ -491,7 +544,7 @@ class AgentAPI {
   }
 
   // Get agent by ID
-  async getAgent(id: string): Promise<{ agent: ApiAgent }> {
+  async getAgent(id: string, subTenantId?: string): Promise<{ agent: ApiAgent }> {
     try {
       const response: AxiosResponse<{
         success: boolean;
@@ -505,7 +558,7 @@ class AgentAPI {
           };
         };
         message?: string;
-      }> = await apiClient.get(`/agents/${id}`);
+      }> = await apiClient.get(`/agents/${id}`, subTenantId ? { params: { sub_tenant_id: subTenantId } } : undefined);
 
       if (response.data.success && response.data.data?.agent) {
         const agent = {
@@ -528,20 +581,32 @@ class AgentAPI {
   }
 
   // Fetch full agent config (used in edit/view pages)
-  // Endpoint: GET /agent-configs/:id
+  // Endpoint: GET /agent-configs/:id — real for sub-tenant agents too (they're
+  // fetched by their globally-unique id).
   async getAgentConfig(id: string): Promise<{ agent: any }> {
     try {
       const response: AxiosResponse<{
         success: boolean;
-        data?: { agent: any };
+        data?: { agent?: any; agentConfig?: any; [key: string]: any };
         message?: string;
       }> = await apiClient.get(`/agent-configs/${id}`);
 
-      if (response.data.success && response.data.data?.agent) {
-        return { agent: response.data.data.agent };
+      // The backend's `data` wrapper shape for this endpoint has varied
+      // (agent / agentConfig / the agent object directly) — accept any of
+      // them rather than throwing on `success:true` responses whose agent
+      // just isn't nested under the exact key we originally expected.
+      const data = response.data?.data;
+      const agent = data?.agent ?? data?.agentConfig ?? (data?.id ? data : undefined);
+
+      if (response.data?.success && agent) {
+        return { agent };
       }
 
-      throw new Error(response.data.message || "Agent config not found");
+      throw new Error(
+        response.data?.success
+          ? "Agent config response was missing the agent data."
+          : response.data?.message || "Agent config not found"
+      );
     } catch (error: any) {
       console.error("Error fetching agent config:", error);
       throw error;
@@ -581,6 +646,7 @@ class AgentAPI {
     id: string,
     agentData: UpdateAgentRequest
   ): Promise<ApiAgent> {
+    if (activeTenantScope) return mockAgentStore.update(activeTenantScope, id, agentData);
     try {
       const response: AxiosResponse<{
         success: boolean;
@@ -659,7 +725,7 @@ class AgentAPI {
     }
   }
 
-  // Get agent session history
+  // Get agent session history for ONE agent — GET /agent-sessions/agent/:id.
   async getAgentSessions(payload: string, agentId: string): Promise<any> {
     try {
       const response: AxiosResponse<{
@@ -677,6 +743,27 @@ class AgentAPI {
       );
     } catch (error: any) {
       console.error("Error fetching agent sessions:", error);
+      throw error;
+    }
+  }
+
+  // Session history across ALL agents in scope — GET /agent-sessions.
+  // Used for a sub-tenant's combined analytics: pass sub_tenant_id in `payload`
+  // (a logged-in sub-tenant is auto-scoped server-side by their token).
+  async getSessions(payload: string): Promise<any> {
+    try {
+      const response: AxiosResponse<{
+        success: boolean;
+        data: any;
+        message?: string;
+      }> = await apiClient.get(`/agent-sessions${payload ? `?${payload}` : ""}`);
+
+      if (response.data.success && response.data.data) {
+        return response.data.data;
+      }
+      throw new Error(response.data.message || "Failed to fetch sessions");
+    } catch (error: any) {
+      console.error("Error fetching sessions:", error);
       throw error;
     }
   }
@@ -838,13 +925,19 @@ class AgentAPI {
   }
 
   // Create agent with full payload (includes voice_speed, voice_style, template, knowledge base URLs)
-  async createAgentFull(agentData: Record<string, any>): Promise<any> {
+  async createAgentFull(agentData: Record<string, any>, subTenantId?: string): Promise<any> {
     try {
+      // When creating on behalf of a sub-tenant, tag the agent with its owner
+      // in the JSON body. (createAgentFull uses voiceApiClient, which the
+      // apiClient interceptor that injects sub_tenant_id does NOT cover.)
+      const scoped = subTenantId
+        ? { ...agentData, sub_tenant_id: subTenantId }
+        : agentData;
       const response: AxiosResponse<{
         success: boolean;
         data: any;
         message?: string;
-      }> = await voiceApiClient.post("/agents/create-agent", agentData, { timeout: 0 });
+      }> = await voiceApiClient.post("/agents/create-agent", scoped, { timeout: 0 });
 
       if (response.data.success && response.data.data) {
         return response.data.data;
@@ -922,6 +1015,21 @@ class AgentAPI {
       downloadUrl: string;
     };
   }> {
+    if (activeTenantScope) {
+      // No real file storage for mock agents — return a data: URL holding
+      // placeholder text so the KB file viewer/editor in EditAgent.tsx can
+      // still open and "save" (in-memory only) rather than 404ing against a
+      // real S3-style presigned URL. Per product decision: stub minimally,
+      // don't build a full fake file-storage round-trip.
+      const placeholder = "This is a preview of a knowledge base file.\n\nReal file content isn't available in this sub-tenant preview.";
+      const dataUrl = `data:text/plain;charset=utf-8,${encodeURIComponent(placeholder)}`;
+      return {
+        success: true,
+        statusCode: 200,
+        message: "Mock presigned URL",
+        data: { presignedUrl: dataUrl, downloadUrl: dataUrl },
+      };
+    }
     try {
       const response = await apiClient.get(`/agents/${agentId}/presigned-url`);
       return response.data;
@@ -945,6 +1053,10 @@ class AgentAPI {
       count: number;
     };
   }> {
+    if (activeTenantScope) {
+      const result = mockAgentStore.uploadKnowledgeBase(files);
+      return { success: true, statusCode: 200, message: "Uploaded", data: result };
+    }
     try {
       const formData = new FormData();
       files.forEach((file) => {

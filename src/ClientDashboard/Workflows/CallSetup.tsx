@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import GlassCard from '../../components/GlassCard';
 import appToast from '../../components/AppToast';
 import { useAgent } from '../../contexts/AgentContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { usePermission } from '../../permissions/usePermission';
 import { agentAPI, type CallSummary } from '../../services/agentAPI';
 import { authAPI, ZohoConnection } from '../../services/authAPI';
 import AgentPickerField from '../GoogleSheets/AgentPickerField';
@@ -120,6 +122,9 @@ import freshworkIcon from '../../resources/Icon/freshwork.svg';
 import zendeskIcon from '../../resources/Icon/zendesk.svg';
 
 const MAX_FREE_PHONE_NUMBERS = 1;
+// Default DID type for buying: 2 = "Mobile". Plans include it; "92 Series"
+// types 422 with "plan does not include" — see Akash's note.
+const PREFERRED_DID_TYPE_ID = 2;
 const SALES_EMAIL = 'hello@shivaitech.com';
 const SALES_WHATSAPP_NUMBER = '919211490707';
 const SALES_WHATSAPP_MESSAGE =
@@ -565,9 +570,21 @@ const validateCampaignName = (raw: string): string | null => {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-const CallSetup: React.FC = () => {
+interface CallSetupProps {
+  /** When rendered inside a sub-tenant view, scope campaigns & call history to
+   * this sub-tenant (sub_tenant_id). Omit for the tenant's own Call Setup. */
+  subTenantId?: string;
+}
+
+const CallSetup: React.FC<CallSetupProps> = ({ subTenantId }) => {
   // Real agents from API via AgentContext
   const { agents, isLoading: agentsLoading, refreshAgents } = useAgent();
+  const { user } = useAuth();
+  const canLaunchCampaign = usePermission('module:call-setup.page:outbound.action:launch-campaign');
+  // Accounts exempt from the free-plan one-number limit (can buy unlimited).
+  const UNLIMITED_NUMBER_EMAILS = ['demo@callshivai.com'];
+  const isUnlimitedNumbers = UNLIMITED_NUMBER_EMAILS.includes((user?.email || '').toLowerCase());
+  const numberLimitReached = (count: number) => !isUnlimitedNumbers && count >= MAX_FREE_PHONE_NUMBERS;
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -613,9 +630,12 @@ const CallSetup: React.FC = () => {
   const [catalog, setCatalog] = useState<CatalogNumber[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [catalogPage, setCatalogPage] = useState(1); // client-side pagination
+  const CATALOG_PAGE_SIZE = 8;
   const [selectedDid, setSelectedDid] = useState<CatalogNumber | null>(null);
   const [buyDisplayName, setBuyDisplayName] = useState('');
   const [buyAgentId, setBuyAgentId] = useState('');
+  const [buyChannelCount, setBuyChannelCount] = useState(1); // concurrent channels
   const [isBuying, setIsBuying] = useState(false);
   const [buyError, setBuyError] = useState<string | null>(null);
 
@@ -721,18 +741,27 @@ const CallSetup: React.FC = () => {
 
   // ─── Inbound handlers ─────────────────────────────────────────────────────
 
+  // A logged-in sub-tenant sees their own numbers + the parent's idle shared
+  // pool via include_inactive=true. A main tenant drilling into a sub-tenant
+  // passes sub_tenant_id instead.
+  const isSubTenantUser =
+    user?.tenantRole === 'SUBTENANT_OWNER' || user?.tenantRole === 'SUBTENANT_MEMBER';
   const loadNumbers = useCallback(async () => {
     setNumbersLoading(true);
     setNumbersError(null);
     try {
-      const { data } = await getPhoneNumbers({ limit: 100 });
+      const { data } = await getPhoneNumbers({
+        limit: 100,
+        ...(subTenantId ? { sub_tenant_id: subTenantId } : {}),
+        ...(isSubTenantUser ? { include_inactive: true } : {}),
+      });
       setNumbers(data.map(toPhoneNumber));
     } catch (err: any) {
       setNumbersError(err.message || 'Failed to load phone numbers');
     } finally {
       setNumbersLoading(false);
     }
-  }, []);
+  }, [subTenantId, isSubTenantUser]);
 
   useEffect(() => {
     loadNumbers();
@@ -776,7 +805,7 @@ const CallSetup: React.FC = () => {
       const entries = await Promise.all(
         missing.map(async (id) => {
           try {
-            const { agent } = await agentAPI.getAgent(id);
+            const { agent } = await agentAPI.getAgent(id, subTenantId);
             return [id, agent?.name || 'Assigned agent'] as const;
           } catch {
             return [id, 'Assigned agent'] as const;
@@ -794,7 +823,7 @@ const CallSetup: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [numbers, agents, resolvedAgentNames]);
+  }, [numbers, agents, resolvedAgentNames, subTenantId]);
 
   const agentLabel = (agentId: string | null | undefined): string | null => {
     if (!agentId) return null;
@@ -808,7 +837,7 @@ const CallSetup: React.FC = () => {
     setAssigningId(target.id);
     setActionError(null);
     try {
-      await reassignPhoneNumber(target.id, agentId);
+      await reassignPhoneNumber(target.id, agentId, subTenantId);
       setNumbers((prev) =>
         prev.map((n) => (n.id === target.id ? { ...n, assignedAgentId: agentId } : n))
       );
@@ -830,7 +859,7 @@ const CallSetup: React.FC = () => {
     setReleasingId(num.id);
     setActionError(null);
     try {
-      await deprovisionPhoneNumber(num.id);
+      await deprovisionPhoneNumber(num.id, subTenantId);
       setNumbers((prev) =>
         prev.map((n) =>
           n.id === num.id
@@ -855,6 +884,7 @@ const CallSetup: React.FC = () => {
   const loadCatalog = async (didTypeId: number) => {
     setSelectedDid(null);
     setSelectedDidTypeId(didTypeId);
+    setCatalogPage(1);
     setCatalogLoading(true);
     setCatalogError(null);
     try {
@@ -869,7 +899,8 @@ const CallSetup: React.FC = () => {
 
   const openBuyModal = async () => {
     // Free plan: one number only — more requires contacting sales for premium.
-    if (numbers.length >= MAX_FREE_PHONE_NUMBERS) {
+    // Exempt accounts (see isUnlimitedNumbers) skip this.
+    if (numberLimitReached(numbers.length)) {
       setShowPremiumContactModal(true);
       return;
     }
@@ -877,6 +908,7 @@ const CallSetup: React.FC = () => {
     setSelectedDid(null);
     setBuyDisplayName('');
     setBuyAgentId('');
+    setBuyChannelCount(1);
     setBuyError(null);
     setSelectedDidTypeId(null);
     setCatalog([]);
@@ -887,9 +919,14 @@ const CallSetup: React.FC = () => {
     try {
       const types = await getDidTypes();
       setDidTypes(types);
-      const first = types.find((t) => !t.requires_request) || types[0];
-      if (first) {
-        await loadCatalog(first.id);
+      // Prefer DID type 2 (Mobile) — plans include it; the "92 Series" types
+      // 422 with "plan does not include". Fall back to the first buyable type.
+      const preferred =
+        types.find((t) => t.id === PREFERRED_DID_TYPE_ID && !t.requires_request) ||
+        types.find((t) => !t.requires_request) ||
+        types[0];
+      if (preferred) {
+        await loadCatalog(preferred.id);
       } else {
         setCatalogLoading(false);
         setCatalogError('No number types are available right now.');
@@ -902,7 +939,7 @@ const CallSetup: React.FC = () => {
   };
 
   const handleBuyNumber = async () => {
-    if (numbers.length >= MAX_FREE_PHONE_NUMBERS) {
+    if (numberLimitReached(numbers.length)) {
       setShowBuyModal(false);
       setShowPremiumContactModal(true);
       return;
@@ -916,6 +953,8 @@ const CallSetup: React.FC = () => {
         did_number: selectedDid.did_number,
         agent_id: buyAgentId,
         display_name: buyDisplayName.trim(),
+        channel_count: Math.max(1, buyChannelCount || 1),
+        ...(subTenantId ? { sub_tenant_id: subTenantId } : {}),
       });
       setShowBuyModal(false);
       appToast.success(`${result?.phone_number || 'Number'} purchased & provisioned`);
@@ -940,7 +979,7 @@ const CallSetup: React.FC = () => {
     setEnablingOutboundId(num.id);
     setActionError(null);
     try {
-      await enableOutbound(num.id);
+      await enableOutbound(num.id, subTenantId);
       setNumbers((prev) =>
         prev.map((n) => (n.id === num.id ? { ...n, outboundEnabled: true } : n))
       );
@@ -962,7 +1001,7 @@ const CallSetup: React.FC = () => {
     setActionError(null);
     try {
       if (agentId) {
-        const updated = await setOutboundAgent(num.id, agentId);
+        const updated = await setOutboundAgent(num.id, agentId, subTenantId);
         setNumbers((prev) =>
           prev.map((n) =>
             n.id === num.id ? { ...n, outboundAgentId: updated.outbound_agent_id || agentId } : n
@@ -972,7 +1011,7 @@ const CallSetup: React.FC = () => {
         appToast.success(`Outbound agent set to ${agentName} for ${num.number}`);
         setOutboundAssignModal(null);
       } else {
-        await removeOutboundAgent(num.id);
+        await removeOutboundAgent(num.id, subTenantId);
         setNumbers((prev) =>
           prev.map((n) => (n.id === num.id ? { ...n, outboundAgentId: null } : n))
         );
@@ -1044,6 +1083,7 @@ const CallSetup: React.FC = () => {
         limit: 200,
         search: typeof search === 'string' ? search.trim() || undefined : undefined,
         include_inactive: false,
+        ...(subTenantId ? { sub_tenant_id: subTenantId } : {}),
       });
       // Map tenant contacts into the CampaignContact-shaped list used by Direct Call / wizard.
       const mapped: CampaignContact[] = (result.data || []).map((c) => ({
@@ -1063,7 +1103,7 @@ const CallSetup: React.FC = () => {
     } finally {
       setPreviousContactsLoading(false);
     }
-  }, []);
+  }, [subTenantId]);
 
   useEffect(() => {
     if (showCreateCampaign && campaignStep === 2 && contactMode === 'previous') {
@@ -1392,7 +1432,7 @@ const CallSetup: React.FC = () => {
     setCampaignsLoading(true);
     setCampaignsError(null);
     try {
-      const list = await getCampaigns();
+      const list = await getCampaigns(subTenantId);
       setCampaigns(list);
       // Fetch live stats per campaign; fall back to embedded campaign.stats
       const withStats = await Promise.all(
@@ -1410,7 +1450,7 @@ const CallSetup: React.FC = () => {
     } finally {
       setCampaignsLoading(false);
     }
-  }, []);
+  }, [subTenantId]);
 
   // Load campaigns the first time the user opens Outbound or Analytics
   useEffect(() => {
@@ -1489,6 +1529,7 @@ const CallSetup: React.FC = () => {
         language: newCampaign.language,
         ...(newCampaign.objective.trim() ? { objective: newCampaign.objective.trim() } : {}),
         ...(newCampaign.goal.trim() ? { goal: newCampaign.goal.trim() } : {}),
+        ...(subTenantId ? { sub_tenant_id: subTenantId } : {}),
         ...schedulePayload(),
       };
 
@@ -2000,6 +2041,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
         direction: 'inbound',
         page,
         limit: INBOUND_PAGE_SIZE,
+        ...(subTenantId ? { sub_tenant_id: subTenantId } : {}),
       });
       setInboundCalls(result.calls || []);
       setInboundCallsTotal(result.pagination?.total || result.calls?.length || 0);
@@ -2011,7 +2053,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
     } finally {
       setInboundCallsLoading(false);
     }
-  }, []);
+  }, [subTenantId]);
 
   // Resolve the real agent-session (recording/transcripts/summary live there,
   // not on the lightweight call-history row) before opening the modal.
@@ -2265,6 +2307,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
         caller_number: caller.number,
         agent_id: caller.outboundAgentId,
         language: caller.language || 'en-in',
+        ...(subTenantId ? { sub_tenant_id: subTenantId } : {}),
         recipients: recipients.map((r) => ({
           to: r.phone,
           name: r.name,
@@ -2367,6 +2410,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
           ...(caller?.outboundAgentId ? { agent_id: caller.outboundAgentId } : {}),
           ...(caller?.id ? { phone_number_id: caller.id } : {}),
           ...(Object.keys(custom_fields).length ? { custom_fields } : {}),
+          ...(subTenantId ? { sub_tenant_id: subTenantId } : {}),
         });
         appToast.success('Contact created');
       }
@@ -2622,18 +2666,18 @@ objective = the Objective bullet list (use \\n between bullets).`;
                             >
                               <Settings className="w-4 h-4" />
                             </button>
-                            {num.inboundEnabled && (
-                              <button
-                                onClick={() => setDeprovisionTarget(num)}
-                                disabled={releasingId === num.id}
-                                title="Detach AI employee & reset this number"
-                                className="p-1.5 sm:p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
-                              >
-                                {releasingId === num.id
-                                  ? <Loader2 className="w-4 h-4 animate-spin" />
-                                  : <Trash2 className="w-4 h-4" />}
-                              </button>
-                            )}
+                            {/* Delete/reset available on every number — whether an
+                                agent is assigned or not. */}
+                            <button
+                              onClick={() => setDeprovisionTarget(num)}
+                              disabled={releasingId === num.id}
+                              title="Delete / reset this number"
+                              className="p-1.5 sm:p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
+                            >
+                              {releasingId === num.id
+                                ? <Loader2 className="w-4 h-4 animate-spin" />
+                                : <Trash2 className="w-4 h-4" />}
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -4784,13 +4828,16 @@ objective = the Objective bullet list (use \\n between bullets).`;
               exit={{ scale: 0.95, opacity: 0 }}
               className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-sm shadow-2xl border border-slate-200 dark:border-slate-700 p-5 space-y-4"
             >
-              <h3 className="font-bold text-slate-800 dark:text-white">Detach AI employee?</h3>
+              <h3 className="font-bold text-slate-800 dark:text-white">
+                {deprovisionTarget.assignedAgentId ? 'Detach & reset number?' : 'Reset number?'}
+              </h3>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                Detach the AI employee from{' '}
+                {deprovisionTarget.assignedAgentId ? 'Detach the AI employee from ' : 'Reset '}
                 <span className="font-mono font-medium text-slate-700 dark:text-slate-200">
                   {deprovisionTarget.number}
                 </span>
-                ? The number stays on your account, but inbound calls will no longer reach an agent until you assign one again.
+                ? The number stays on your account, but its call routing is torn down
+                {deprovisionTarget.assignedAgentId ? ' and inbound calls will no longer reach an agent until you assign one again.' : '.'}
               </p>
               <div className="flex justify-end gap-2">
                 <button
@@ -4810,7 +4857,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
                   ) : (
                     <Trash2 className="w-4 h-4" />
                   )}
-                  Detach
+                  {deprovisionTarget.assignedAgentId ? 'Detach' : 'Reset'}
                 </button>
               </div>
             </motion.div>
@@ -4859,6 +4906,8 @@ objective = the Objective bullet list (use \\n between bullets).`;
                   active={!!assignModal}
                   disabled={!!assigningId}
                   variant="panel"
+                  subTenantId={subTenantId}
+                  publishedOnly
                 />
 
                 {assigningId && (
@@ -4915,6 +4964,8 @@ objective = the Objective bullet list (use \\n between bullets).`;
                   allowClear
                   clearLabel="— No agent —"
                   variant="panel"
+                  subTenantId={subTenantId}
+                  publishedOnly
                 />
 
                 {outboundAgentSavingId && (
@@ -5072,8 +5123,11 @@ objective = the Objective bullet list (use \\n between bullets).`;
                   )}
 
                   {!catalogLoading && catalog.length > 0 && (
+                    <>
                     <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                      {catalog.map((did) => (
+                      {catalog
+                        .slice((catalogPage - 1) * CATALOG_PAGE_SIZE, catalogPage * CATALOG_PAGE_SIZE)
+                        .map((did) => (
                         <button
                           key={did.id}
                           onClick={() => setSelectedDid(did)}
@@ -5101,6 +5155,30 @@ objective = the Objective bullet list (use \\n between bullets).`;
                         </button>
                       ))}
                     </div>
+                    {catalog.length > CATALOG_PAGE_SIZE && (
+                      <div className="flex items-center justify-between mt-2">
+                        <button
+                          type="button"
+                          onClick={() => setCatalogPage((p) => Math.max(1, p - 1))}
+                          disabled={catalogPage <= 1}
+                          className="px-3 py-1.5 rounded-lg text-xs font-medium common-bg-icons text-slate-600 dark:text-slate-300 disabled:opacity-40"
+                        >
+                          Previous
+                        </button>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                          Page {catalogPage} of {Math.ceil(catalog.length / CATALOG_PAGE_SIZE)} · {catalog.length} numbers
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setCatalogPage((p) => Math.min(Math.ceil(catalog.length / CATALOG_PAGE_SIZE), p + 1))}
+                          disabled={catalogPage >= Math.ceil(catalog.length / CATALOG_PAGE_SIZE)}
+                          className="px-3 py-1.5 rounded-lg text-xs font-medium common-bg-icons text-slate-600 dark:text-slate-300 disabled:opacity-40"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    )}
+                    </>
                   )}
                 </div>
 
@@ -5127,7 +5205,26 @@ objective = the Objective bullet list (use \\n between bullets).`;
                     placeholder="Search & select agent…"
                     active={showBuyModal}
                     variant="panel"
+                    subTenantId={subTenantId}
+                    publishedOnly
                   />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                    Concurrent Channels
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={buyChannelCount}
+                    onChange={(e) => setBuyChannelCount(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                    className="common-bg-icons w-full px-4 py-2.5 rounded-xl text-sm sm:max-w-[160px]"
+                  />
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+                    How many calls this number can handle at once. Default 1.
+                  </p>
                 </div>
 
                 {buyError && (
@@ -5306,7 +5403,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
                             <div className="w-full px-4 py-2.5 rounded-xl text-sm bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 flex items-center gap-2 text-emerald-700 dark:text-emerald-300">
                               <Bot className="w-4 h-4 flex-shrink-0" />
                               <span className="font-medium truncate">
-                                {agents.find((a) => a.id === selectedCallerNum.outboundAgentId)?.name || 'Assigned agent'}
+                                {agentLabel(selectedCallerNum.outboundAgentId) || 'Assigned agent'}
                               </span>
                             </div>
                           ) : (
@@ -5914,8 +6011,10 @@ objective = the Objective bullet list (use \\n between bullets).`;
                       isSavingCampaign ||
                       !step1Valid ||
                       !step2Valid ||
-                      (!schedule.startNow && !schedule.scheduledAt)
+                      (!schedule.startNow && !schedule.scheduledAt) ||
+                      (!editingCampaignId && !canLaunchCampaign)
                     }
+                    title={!editingCampaignId && !canLaunchCampaign ? 'Not included in your access' : undefined}
                     className="common-button-bg px-6 py-2.5 rounded-xl text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                   >
                     {isSavingCampaign ? (

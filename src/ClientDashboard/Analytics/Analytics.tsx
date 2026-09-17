@@ -55,13 +55,22 @@ const getChannelTagMeta = (agentType?: string) => {
   return { label: "Web", Icon: Globe, cls: "bg-black" };
 };
 
-const Analytics = () => {
+interface AnalyticsProps {
+  /** When viewing a sub-tenant's analytics, scope agents to this sub-tenant
+   * (GET /agents?sub_tenant_id=). Omit for the tenant's own analytics. */
+  subTenantId?: string;
+}
+
+const Analytics = ({ subTenantId }: AnalyticsProps = {}) => {
   const { user } = useAuth();
   const [timeRange, setTimeRange] = useState("all");
   const [deviceFilter, setDeviceFilter] = useState("all");
   const [searchTerm, setSearchTerm] = useState(""); // For input value only
   const [searchQuery, setSearchQuery] = useState(""); // For API calls
   const [selectedEmployee, setSelectedEmployee] = useState("");
+  // Guards against stale session responses: only the latest fetch applies its
+  // result (agent switches can race, leaving a previous agent's sessions shown).
+  const sessionReqIdRef = useRef(0);
   const [agentsList, setAgentsList] = useState<any[]>([]);
   const [sessionHistory, setSessionHistory] = useState<any[]>([]);
   const [sessionLoading, setSessionLoading] = useState(false);
@@ -120,13 +129,16 @@ const Analytics = () => {
   // Load agents on mount
   useEffect(() => {
     const fetchAgents = async () => {
-      if (!isDeveloper) return;
+      // Sub-tenant analytics always loads (scoped by sub_tenant_id); the
+      // developer gate only applies to the tenant's own analytics.
+      if (!isDeveloper && !subTenantId) return;
 
       try {
         console.log("🚀 Fetching agents...");
         const response = await agentAPI.getAgentsWithFilters({
           page: 1,
           limit: agentPageSize,
+          ...(subTenantId ? { sub_tenant_id: subTenantId } : {}),
         });
         
         setAgentsList(response.agents || []);
@@ -151,20 +163,22 @@ const Analytics = () => {
     };
 
     fetchAgents();
-  }, [isDeveloper]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDeveloper, subTenantId]);
 
   // Load more agents when clicked
   const loadMoreAgents = async () => {
-    if (!isDeveloper || agentLoadPage >= totalAgentPages) return;
+    if ((!isDeveloper && !subTenantId) || agentLoadPage >= totalAgentPages) return;
 
     setIsLoadingMoreAgents(true);
     try {
       const nextPage = agentLoadPage + 1;
       console.log("🚀 Loading more agents, page:", nextPage);
-      
+
       const response = await agentAPI.getAgentsWithFilters({
         page: nextPage,
         limit: agentPageSize,
+        ...(subTenantId ? { sub_tenant_id: subTenantId } : {}),
       });
 
       // Append new agents to existing list
@@ -183,7 +197,8 @@ const Analytics = () => {
   // page would miss most agents). Debounced GET /agents?search=… replaces the
   // list with matches; clearing the box reloads the first browse page.
   useEffect(() => {
-    if (!showAgentDropdown || !isDeveloper) return;
+    if (!showAgentDropdown) return;
+    if (!isDeveloper && !subTenantId) return;
 
     const q = agentSearch.trim();
     const reqId = ++agentSearchReqRef.current;
@@ -194,6 +209,7 @@ const Analytics = () => {
           page: 1,
           limit: agentPageSize,
           ...(q ? { search: q } : {}),
+          ...(subTenantId ? { sub_tenant_id: subTenantId } : {}),
         });
         if (reqId !== agentSearchReqRef.current) return; // superseded
         setAgentsList(response.agents || []);
@@ -210,20 +226,24 @@ const Analytics = () => {
 
     return () => clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agentSearch, showAgentDropdown]);
+  }, [agentSearch, showAgentDropdown, subTenantId]);
 
-  // Fetch session history from API with pagination
+  // Fetch session history from API with pagination.
+  // Sub-tenant module → base GET /agent-sessions?sub_tenant_id=<id> (whole
+  // sub-tenant). Otherwise → per-agent GET /agent-sessions/agent/:id.
   const fetchSessionHistory = async (agentId: string, page: number = 1) => {
-    if (!agentId) {
+    if (!subTenantId && !agentId) {
       console.log("⚠️ No agent ID provided, skipping fetch");
       return;
     }
 
+    const reqId = ++sessionReqIdRef.current; // this call's token
+    const isStale = () => reqId !== sessionReqIdRef.current;
     setSessionLoading(true);
     setSessionError(null);
 
     try {
-      console.log("🔄 Fetching sessions for agent:", agentId, "page:", page);
+      console.log("🔄 Fetching sessions", subTenantId ? `for sub-tenant ${subTenantId}` : `for agent ${agentId}`, "page:", page);
 
       // Build API query parameters
       const queryParams = new URLSearchParams({
@@ -254,12 +274,24 @@ const Analytics = () => {
         queryParams.append("search", searchQuery.trim());
       }
 
-      // Convert query params to string
-      const payload = queryParams.toString();
-      console.log("API Query Params:", payload);
+      let response;
+      if (agentId) {
+        // A specific agent is selected → per-agent route (no sub_tenant_id).
+        // GET /agent-sessions/agent/:agentId
+        const payload = queryParams.toString();
+        console.log("API Query Params:", payload);
+        response = await agentAPI.getAgentSessions(payload, agentId);
+      } else if (subTenantId) {
+        // No agent selected in the sub-tenant module → whole sub-tenant via
+        // the base endpoint + sub_tenant_id.
+        queryParams.append("sub_tenant_id", subTenantId);
+        response = await agentAPI.getSessions(queryParams.toString());
+      } else {
+        return;
+      }
 
-      // Call API with query parameters
-      const response = await agentAPI.getAgentSessions(payload, agentId);
+      // A newer fetch superseded this one (agent/scope changed) — drop it.
+      if (isStale()) return;
 
       // Use server-side pagination data
       const sessions = response?.sessions || [];
@@ -294,6 +326,9 @@ const Analytics = () => {
       // Clear loading state
       setLoadingLocations(new Set());
 
+      // Re-check after the async IP resolution — a newer fetch may have landed.
+      if (isStale()) return;
+
       setSessionHistory(sessionsWithLocations);
       setTotalPages(pagination.totalPages || 1);
       setTotalSessions(pagination.total || sessions.length);
@@ -302,6 +337,7 @@ const Analytics = () => {
       console.log("✅ Session history loaded:", sessions.length, "sessions");
       console.log("📊 Pagination:", pagination);
     } catch (error) {
+      if (isStale()) return;
       console.error("❌ Error fetching session history:", error);
       setSessionError(
         error instanceof Error
@@ -312,23 +348,27 @@ const Analytics = () => {
       setTotalPages(1);
       setTotalSessions(0);
     } finally {
-      setSessionLoading(false);
+      if (!isStale()) setSessionLoading(false);
     }
-  };  
+  };
 
-  // Fetch sessions when employee changes (reset to page 1)
+  // Fetch sessions when the selected agent / filters change (reset to page 1).
+  // Sub-tenant module and developer view both fetch PER selected agent. In the
+  // sub-tenant module the agent list auto-selects the first agent, so this fires
+  // once an agent is chosen — avoiding a stale "whole sub-tenant" count showing
+  // for an agent that has no sessions.
   useEffect(() => {
-    console.log(
-      "📊 Analytics useEffect triggered - isDeveloper:",
-      isDeveloper,
-      "selectedEmployee:",
-      selectedEmployee
-    );
-    if (isDeveloper && selectedEmployee) {
+    if (selectedEmployee && (subTenantId || isDeveloper)) {
       setCurrentPage(1);
       fetchSessionHistory(selectedEmployee, 1);
+    } else if (subTenantId && !selectedEmployee) {
+      // No agent yet (e.g. sub-tenant has zero agents) → clear the list.
+      setSessionHistory([]);
+      setTotalSessions(0);
+      setTotalPages(1);
     }
-  }, [selectedEmployee, isDeveloper, deviceFilter, dateRange, searchQuery]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedEmployee, isDeveloper, deviceFilter, dateRange, searchQuery, subTenantId]);
 
   // Close dropdown when clicking outside
   useEffect(() => {

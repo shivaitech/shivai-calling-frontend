@@ -58,6 +58,7 @@
   let lastAssistantMessageDiv = null;
   let lastAssistantSegmentId = null;
   let assistantBubbleText = ""; // full text currently shown in the live assistant bubble
+  let userBubbleClosed = true; // interim/final: false while a user partial bubble is live
   let lastSentMessage = null; // Track last sent message to prevent duplicates
   // Once the agent's words arrive on lk.transcription, that stream owns the
   // assistant transcript; lk.chat then sends the SAME text and must not re-add it.
@@ -2371,7 +2372,7 @@
       "el": "Greek", "he": "Hebrew", "vi": "Vietnamese", "hr": "Croatian",
       "sr": "Serbian", "sk": "Slovak", "sl": "Slovenian", "et": "Estonian",
       "lv": "Latvian", "lt": "Lithuanian",
-      "en-in": "Indian English", "hi": "Hindi (हिन्दी)", "ta": "Tamil (தமிழ்)", "te": "Telugu (తెలుగు)",
+      "en-in": "Indian English", "hi": "Hindi (हिन्दी)", "hi-formal": "Hindi (Pure/Formal)", "ta": "Tamil (தமிழ்)", "te": "Telugu (తెలుగు)",
       "mr": "Marathi (मराठी)", "bn": "Bengali (বাংলা)", "ur": "Urdu (اردو)", "gu": "Gujarati (ગુજરાતી)", "kn": "Kannada (ಕನ್ನಡ)",
       "ml": "Malayalam (മലയാളം)", "pa": "Punjabi (ਪੰਜਾਬੀ)",
     };
@@ -2384,7 +2385,7 @@
       "vi": "vn", "hr": "hr", "sr": "rs", "sk": "sk", "sl": "si",
       "et": "ee", "lv": "lv", "lt": "lt", "th": "th", "id": "id",
       "ar": "sa", "ja": "jp", "ko": "kr", "zh": "cn",
-      "hi": "in", "ta": "in", "te": "in", "mr": "in", "bn": "in", "ur": "in",
+      "hi": "in", "hi-formal": "in", "ta": "in", "te": "in", "mr": "in", "bn": "in", "ur": "in",
       "gu": "in", "kn": "in", "ml": "in", "pa": "in",
     };
     const globeSvg = `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><radialGradient id="earthOcean" cx="35%" cy="32%" r="80%"><stop offset="0%" stop-color="#5fb6ff"/><stop offset="60%" stop-color="#0a84ff"/><stop offset="100%" stop-color="#0050b8"/></radialGradient></defs><circle cx="32" cy="32" r="30" fill="url(#earthOcean)"/><path fill="#34c759" d="M16 18c2-1.5 4.5-2 7-1.5 2 .5 3.5 2 4.5 4 .8 1.7 1 3.5 2 5 1.2 1.8 3.5 2.4 5.5 2 1.6-.3 2.8-1.6 3-3.2.1-1.4-.5-2.7-1.4-3.7-1-1.2-2.3-2.2-3-3.5-.5-1-.4-2.4.4-3.3.3-.4.7-.7 1.2-.9 5 1.8 8.7 6.2 9.6 11.4-1-.4-2-.7-3-.5-1.4.3-2.5 1.4-3.3 2.6-1.4 2.3-1.9 5-3.6 7.2-1.6 2-4.4 3-6.6 1.9-1.6-.8-2.6-2.5-3-4.2-.4-2-.1-4.1-1.1-5.9-1-1.7-3-2.6-4.9-2.7-1.5-.1-3.1.4-4.4 1.3-1 .7-1.9 1.7-3 2.2-1 .5-2.3.5-3.1-.3-.5-.4-.7-1-.8-1.6-.3-2 .6-4.1 1.9-5.7 1.4-1.7 3.3-2.9 5.1-3.6zM41 38c1.6-.6 3.5-.4 4.8.8 1 .9 1.5 2.3 1.7 3.6.1 1-.1 2.2-.9 2.9-.7.7-1.8.8-2.7.4-1-.4-1.7-1.4-1.9-2.5-.2-.9-.1-1.9-.5-2.7-.4-.8-1.3-1.3-2.1-1.4.5-.5 1-.9 1.6-1.1z"/><path fill="#34c759" d="M23 38c1.6-.4 3.5.1 4.5 1.4 1 1.3 1.1 3.2.4 4.7-.7 1.5-2.2 2.6-3.9 2.7-1.7.1-3.4-.8-4.3-2.2-1-1.5-1-3.7.1-5.1.7-.9 1.8-1.4 2.9-1.5z"/></svg>`;
@@ -6014,8 +6015,10 @@
     if (!labelEl || !select) return;
     const opt = select.options[select.selectedIndex];
     let name = opt ? opt.textContent : (select.value || "English");
-    // strip native script in parens, e.g. "Hindi (हिन्दी)" -> "Hindi"
-    name = name.replace(/\s*\([^)]+\)\s*$/, "").trim();
+    // strip native/regional-script parenthetical, e.g. "Hindi (हिन्दी)" -> "Hindi"
+    // — only when it's actually non-Latin script, so an English qualifier
+    // like "Hindi (Pure/Formal)" survives intact.
+    name = name.replace(/\s*\([^)]*[^\x00-\x7F][^)]*\)\s*$/, "").trim();
     labelEl.textContent = name || "English";
   }
 
@@ -6257,6 +6260,7 @@
     lastAssistantMessageDiv = null;
     lastAssistantSegmentId = null;
     assistantBubbleText = "";
+    userBubbleClosed = true;
     lastSentMessage = null; // Reset last sent message tracker
     if (visualizerInterval) {
       clearInterval(visualizerInterval);
@@ -6997,6 +7001,21 @@
     } else {
       updateMessage(lastAssistantMessageDiv, r.fullText);
     }
+  }
+
+  // User transcript with interim→final replacement (mirrors test.html): while
+  // is_final=false, keep UPDATING one live bubble; the final message closes it
+  // so the next utterance starts a fresh bubble. Prevents partials stacking.
+  function renderUserTranscript(rawText, isFinal) {
+    const text = (rawText || "").trim();
+    if (!text) return;
+    if (userBubbleClosed || !lastUserMessageDiv || !lastUserMessageDiv.isConnected) {
+      lastUserMessageDiv = addMessage("user", text);
+    } else {
+      updateMessage(lastUserMessageDiv, text);
+    }
+    // A final segment ends this bubble; the next partial opens a new one.
+    userBubbleClosed = !!isFinal;
   }
 
   // ── WhatsApp-style document card from AI ────────────────────────────────
@@ -8004,11 +8023,8 @@
                   if (jsonData.role === "user") {
                     // Allow voice transcripts for user, but skip chat messages
                     if (jsonData.type !== "chat") {
-                      if (!lastUserMessageDiv) {
-                        lastUserMessageDiv = addMessage("user", jsonData.text);
-                      } else {
-                        updateMessage(lastUserMessageDiv, jsonData.text);
-                      }
+                      const legacyFinal = jsonData.is_final ?? jsonData.isFinal ?? true;
+                      renderUserTranscript(jsonData.text, Boolean(legacyFinal));
                     } else {
                       _wlog(
                         "🚫 Skipping user chat message (already shown from sendMessage)"
@@ -8038,6 +8054,9 @@
 
                 if (shouldAddToChat) {
                   const senderRole = isUser ? "user" : "assistant";
+                  // Interim/final flag (test.html contract): partials update one
+                  // bubble; final closes it. Absent → treat as final.
+                  const isFinalSeg = jsonData.is_final ?? jsonData.isFinal ?? true;
                   // Skip typed messages (they have source: 'typed') but allow voice transcripts
                   if (
                     !isUser ||
@@ -8045,11 +8064,11 @@
                     (isUser && jsonData.source !== "typed")
                   ) {
                     // Assistant text → the single overlap-merger (prevents doubles
-                    // across channels); user text keeps the plain add.
+                    // across channels); user voice text → interim/final bubble.
                     if (!isUser) {
                       renderAssistantTranscript(transcriptText);
                     } else {
-                      addMessage(senderRole, transcriptText);
+                      renderUserTranscript(transcriptText, Boolean(isFinalSeg));
                     }
                     _dbg("✅ Transcript added:", senderRole, "|", transcriptText.substring(0, 100));
                     // Track first AI response

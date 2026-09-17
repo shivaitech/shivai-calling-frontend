@@ -501,7 +501,8 @@ import appToast from '../../components/AppToast';
 import { ArrowLeft, Save, X, Bot, Globe, Settings, Sparkles, Info, Upload, Link, Share2, FileText, File, Image, Plus, BookOpen, Volume2, Play, Square, Pencil, Check, Loader2, Eye, Code2, Search, ChevronUp, ChevronDown, Trash2, RefreshCw, PhoneIncoming, PhoneOutgoing, Wand2, ArrowRight, AlertTriangle } from 'lucide-react';
 import { useAgent } from '../../contexts/AgentContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { agentAPI } from '../../services/agentAPI';
+import { usePermission } from '../../permissions/usePermission';
+import { agentAPI, getTenantScope } from '../../services/agentAPI';
 import { aiTemplateService } from '../../services/aiTemplateService';
 import GlassCard from '../../components/GlassCard';
 import { formatAgentLanguages } from '../../lib/utils';
@@ -656,6 +657,8 @@ const EditAgent = () => {
   const { user } = useAuth();
   const MULTILINGUAL_ALLOWED_EMAILS = ['demo@callshivai.com', 'atharkatheri@gmail.com'];
   const canUseMultilingual = MULTILINGUAL_ALLOWED_EMAILS.includes((user?.email || '').toLowerCase());
+  const canRegenerateTemplate = usePermission('module:employees.page:edit-agent.action:regenerate-template');
+  const canImproveWithAI = usePermission('module:employees.page:edit-agent.action:improve-with-ai');
 
   const [formData, setFormData] = useState({
     name: "",
@@ -1070,10 +1073,20 @@ const EditAgent = () => {
         if (Array.isArray(existingSocialUrls) && existingSocialUrls.length > 0) {
           setSocialMediaUrls(existingSocialUrls);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error fetching agent:", error);
+        // A request the browser/axios itself aborted (fast unmount, rapid
+        // re-navigation) is not "agent not found" — only redirect away on a
+        // genuine response failure, so a transient cancellation doesn't
+        // kick the user back to the list while editing.
+        const isCancelled =
+          error?.code === 'ERR_CANCELED' ||
+          error?.name === 'CanceledError' ||
+          /canceled|cancelled|aborted/i.test(String(error?.message || ''));
+        if (isCancelled) return;
         appToast.error("Failed to load agent data");
-        navigate('/agents');
+        const tenantScope = getTenantScope();
+        navigate(tenantScope ? `/sub-tenants/${tenantScope}` : '/agents');
       } finally {
         setIsLoadingAgent(false);
       }
@@ -1465,7 +1478,8 @@ const EditAgent = () => {
     { value: "ko",     label: "Korean",              flag: "🇰🇷", countryCodes: ["KR"] },
     { value: "zh",     label: "Chinese",             flag: "🇨🇳", countryCodes: ["CN", "TW"] },
     { value: "ar",     label: "Arabic",              flag: "🇸🇦", countryCodes: ["SA", "AE", "EG"] },
-    { value: "hi",     label: "Hindi",               flag: "🇮🇳", countryCodes: ["IN"] },
+    { value: "hi",         label: "Hindi",                    flag: "🇮🇳", countryCodes: ["IN"] },
+    { value: "hi-formal",  label: "Hindi (Pure/Formal)",      flag: "🇮🇳", countryCodes: ["IN"] },
     { value: "ta",     label: "Tamil",               flag: "🇮🇳", countryCodes: ["IN"] },
     { value: "te",     label: "Telugu",              flag: "🇮🇳", countryCodes: ["IN"] },
     { value: "mr",     label: "Marathi",             flag: "🇮🇳", countryCodes: ["IN"] },
@@ -2105,7 +2119,13 @@ const EditAgent = () => {
         // Refresh the agents list in context so view page shows updated data immediately
         await refreshAgents();
         // Navigate back to view page and signal a refresh
-        navigate(`/agents/${currentAgent.id}`, { state: { refreshed: true } });
+        const tenantScope = getTenantScope();
+        navigate(
+          tenantScope
+            ? `/sub-tenants/${tenantScope}/agents/${currentAgent.id}`
+            : `/agents/${currentAgent.id}`,
+          { state: { refreshed: true } },
+        );
       } catch (error) {
         appToast.dismiss(loadingToast);
         appToast.error("Failed to update agent. Please try again.");
@@ -2505,8 +2525,9 @@ const EditAgent = () => {
           <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
             <button
               onClick={handleRegenerateTemplate}
-              disabled={isRegeneratingTemplate}
-              className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 disabled:opacity-60 text-white text-[11px] sm:text-xs font-medium rounded-lg transition-colors ${
+              disabled={isRegeneratingTemplate || !canRegenerateTemplate}
+              title={!canRegenerateTemplate ? 'Not included in your access' : undefined}
+              className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 disabled:opacity-60 disabled:cursor-not-allowed text-white text-[11px] sm:text-xs font-medium rounded-lg transition-colors ${
                 channelRegenRequired ? 'bg-amber-600 hover:bg-amber-700' : 'bg-violet-600 hover:bg-violet-700'
               }`}
             >
@@ -3299,8 +3320,14 @@ const EditAgent = () => {
                       <button
                         type="button"
                         onClick={openFixPromptModal}
-                        disabled={isRegeneratingTemplate || isSpGenerating || !formData.customInstructions.trim()}
-                        title={!formData.customInstructions.trim() ? 'Write a system prompt first' : 'Describe a behavior change and let AI update just that part'}
+                        disabled={isRegeneratingTemplate || isSpGenerating || !formData.customInstructions.trim() || !canImproveWithAI}
+                        title={
+                          !canImproveWithAI
+                            ? 'Not included in your access'
+                            : !formData.customInstructions.trim()
+                            ? 'Write a system prompt first'
+                            : 'Describe a behavior change and let AI update just that part'
+                        }
                         className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-900/20 hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <Wand2 className="w-3.5 h-3.5" />

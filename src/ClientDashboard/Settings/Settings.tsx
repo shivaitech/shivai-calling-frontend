@@ -4,6 +4,12 @@ import GlassCard from '../../components/GlassCard';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { authAPI, ZOHO_DATA_CENTERS, GoogleCalendarConnection } from '../../services/authAPI';
+import { getMyProfile, updateSubTenant } from '../../services/subTenantsAPI';
+import { getCitiesForCountry } from '../../services/locationCitiesAPI';
+import { agentAPI } from '../../services/agentAPI';
+import { defaultCountries } from '../../types/country';
+import SearchableSelect from '../../components/SearchableSelect';
+import appToast from '../../components/AppToast';
 import { 
   User, 
   Bell, 
@@ -28,8 +34,37 @@ import {
   MessageSquare,
   Mail,
   Zap,
-  X
+  X,
+  Palette,
+  Upload,
+  Image as ImageIcon,
+  Briefcase,
+  MapPin,
+  Building2
 } from 'lucide-react';
+import BrandingTab from './BrandingTab';
+
+// Shared input styling for the Business Profile fields (matches the page's look).
+const SETTINGS_INPUT =
+  'common-bg-icons w-full px-4 py-3 rounded-xl text-sm text-slate-800 dark:text-white placeholder:text-slate-400 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all';
+
+// Same industry list Create Sub Tenant uses.
+const INDUSTRY_OPTIONS = [
+  'Healthcare',
+  'Real Estate',
+  'Legal Services',
+  'Automotive Services',
+  'Retail / E-commerce',
+  'Hospitality',
+  'Education',
+  'Finance & Insurance',
+  'Home Services',
+  'Other',
+].map((v) => ({ value: v, label: v }));
+
+const COUNTRY_OPTIONS = defaultCountries
+  .map((c) => ({ value: c.name, label: `${c.flag} ${c.name}` }))
+  .sort((a, b) => a.label.localeCompare(b.label));
 
 const Settings = () => {
   const { isDark, toggleTheme } = useTheme();
@@ -66,6 +101,30 @@ const Settings = () => {
     timezone: 'Asia/Kolkata',
     language: 'English'
   });
+
+  // Business profile (TenantDetail) — the same fields Create Sub Tenant collects.
+  // Shown to sub-tenant accounts so they can view/maintain their own business
+  // info. Populated from GET /auth/me's tenantDetail.
+  const isSubTenant =
+    user?.tenantRole === 'SUBTENANT_OWNER' || user?.tenantRole === 'SUBTENANT_MEMBER';
+  const [business, setBusiness] = useState({
+    businessName: '',
+    industry: '',
+    phone: '',
+    website: '',
+    logo: '',
+    address: '',
+    country: '',
+    city: '',
+    state: '',
+    zip: '',
+    description: '',
+    maxEmployees: '' as number | string,
+  });
+  const [businessCities, setBusinessCities] = useState<string[]>([]);
+  const [businessCitiesLoading, setBusinessCitiesLoading] = useState(false);
+  const [businessCitiesError, setBusinessCitiesError] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
 
   const [notifications, setNotifications] = useState({
     emailAlerts: true,
@@ -123,10 +182,12 @@ const Settings = () => {
 
   const tabs = [
     { id: 'profile', label: 'Profile', icon: User },
+    { id: 'business', label: 'Business', icon: Building2 },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'security', label: 'Security', icon: Shield },
     { id: 'api', label: 'API Keys', icon: Key },
     { id: 'team', label: 'Team', icon: Users },
+    { id: 'branding', label: 'Branding', icon: Palette },
     { id: 'accounts', label: 'Accounts', icon: Link2 },
   ];
 
@@ -157,7 +218,7 @@ const Settings = () => {
   // Detect hash fragment and set active tab
   useEffect(() => {
     const hash = location.hash.slice(1);
-    if (hash && ['profile', 'notifications', 'security', 'api', 'team', 'accounts'].includes(hash)) {
+    if (hash && ['profile', 'notifications', 'security', 'api', 'team', 'branding', 'accounts'].includes(hash)) {
       setActiveTab(hash);
     }
   }, [location.hash]);
@@ -359,6 +420,128 @@ const Settings = () => {
 
     fetchProfile();
   }, [user]);
+
+  // Load the sub-tenant's own business profile (TenantDetail) from /auth/me.
+  // Loads the current account's business profile (TenantDetail) — for both
+  // sub-tenants and main tenants (a parent tenant also has a TenantDetail).
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const profileData = await getMyProfile();
+        const d = profileData.tenantDetail || {};
+        if (cancelled) return;
+        setBusiness({
+          businessName: d.businessName || '',
+          industry: d.industry || '',
+          phone: d.phone || '',
+          website: d.website || '',
+          logo: d.logo || '',
+          address: d.address || '',
+          country: d.country || '',
+          city: d.city || '',
+          state: d.state || '',
+          zip: d.zip || '',
+          description: d.description || '',
+          maxEmployees: d.maxEmployees ?? '',
+        });
+        // Preload cities for the saved country so the dropdown shows the value.
+        if (d.country) {
+          try {
+            const cities = await getCitiesForCountry(d.country);
+            if (!cancelled) setBusinessCities(cities);
+          } catch {
+            if (!cancelled) setBusinessCitiesError(true);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load business profile:', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Country → reset city and fetch that country's cities.
+  const handleBusinessCountryChange = async (nextCountry: string) => {
+    setBusiness((b) => ({ ...b, country: nextCountry, city: '' }));
+    setBusinessCities([]);
+    setBusinessCitiesError(false);
+    if (!nextCountry) return;
+    setBusinessCitiesLoading(true);
+    try {
+      setBusinessCities(await getCitiesForCountry(nextCountry));
+    } catch {
+      setBusinessCitiesError(true);
+    } finally {
+      setBusinessCitiesLoading(false);
+    }
+  };
+
+  // Upload a new business logo → store the returned URL.
+  const handleBusinessLogoFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+    if (!allowed.includes(file.type)) {
+      appToast.error('Please choose an image (JPG, PNG, GIF, WebP or SVG).');
+      return;
+    }
+    if (file.size > 1024 * 1024) {
+      appToast.error(`Logo is ${Math.round(file.size / 1024)}KB — max is 1MB.`);
+      return;
+    }
+    setLogoUploading(true);
+    try {
+      const res = await agentAPI.uploadLogo(file);
+      const url = res?.logo_url || res?.url || res?.data?.logo_url || res?.data?.url || res?.data?.data?.logo_url;
+      if (!url) throw new Error('Upload succeeded but no URL was returned.');
+      setBusiness((b) => ({ ...b, logo: url }));
+      appToast.success('Logo uploaded');
+    } catch (err: any) {
+      appToast.error(err?.message || 'Failed to upload logo');
+    } finally {
+      setLogoUploading(false);
+    }
+  };
+
+  // Save the business profile (TenantDetail). Sub-tenants update their own
+  // record via PUT /tenants/:id; main tenants update via /users/profile.
+  const handleSaveBusiness = async () => {
+    if (!user?.id) return;
+    setIsSaving(true);
+    setSaveSuccess(false);
+    const payload = {
+      businessName: business.businessName.trim() || undefined,
+      industry: business.industry || undefined,
+      phone: business.phone.trim() || undefined,
+      website: business.website.trim() || undefined,
+      logo: business.logo.trim() || undefined,
+      address: business.address.trim() || undefined,
+      country: business.country.trim() || undefined,
+      city: business.city.trim() || undefined,
+      state: business.state.trim() || undefined,
+      zip: business.zip.trim() || undefined,
+      description: business.description.trim() || undefined,
+    };
+    try {
+      if (isSubTenant) {
+        await updateSubTenant(String(user.id), payload);
+      } else {
+        await authAPI.updateProfile(payload);
+      }
+      appToast.success('Business profile saved');
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err: any) {
+      appToast.error(err?.message || 'Failed to save business profile');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleSaveProfile = async () => {
     setIsSaving(true);
@@ -626,21 +809,21 @@ const Settings = () => {
     <div className="space-y-4 sm:space-y-6 w-full">
     
 
-      {/* Tab Navigation */}
+      {/* Tab Navigation — horizontally scrollable on mobile (no visible bar) */}
       <GlassCard>
-        <div className="p-4 sm:p-6">
-          <div className="flex space-x-1 common-bg-icons rounded-xl p-1 overflow-x-auto">
+        <div className="p-2 sm:p-6">
+          <div className="flex space-x-1 common-bg-icons rounded-xl p-1 overflow-x-auto no-scrollbar -mx-0.5 px-0.5">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 rounded-lg transition-all duration-200 whitespace-nowrap ${
+                className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-lg transition-all duration-200 whitespace-nowrap flex-shrink-0 ${
                   activeTab === tab.id
                     ? 'common-button-bg2'
                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                 }`}
               >
-                <tab.icon className="w-3 sm:w-4 h-3 sm:h-4" />
+                <tab.icon className="w-4 h-4 flex-shrink-0" />
                 <span className="text-xs sm:text-sm">{tab.label}</span>
               </button>
             ))}
@@ -754,11 +937,11 @@ const Settings = () => {
                     </div>
                   </div>
 
-                  <div className="flex justify-end pt-4 border-t border-slate-200 dark:border-slate-700">
+                  <div className="flex pt-4 border-t border-slate-200 dark:border-slate-700 sm:justify-end">
                     <button
                       onClick={handleSaveProfile}
                       disabled={isSaving}
-                      className="common-button-bg flex items-center gap-2 px-6 py-2.5 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                      className="common-button-bg w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                     >
                       {isSaving ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -771,6 +954,124 @@ const Settings = () => {
                     </button>
                   </div>
                 </>
+              )}
+            </div>
+          )}
+
+          {/* Business Profile (TenantDetail) — same fields as Create Sub Tenant.
+              Its own tab; shown to both main tenants and sub-tenants. */}
+          {activeTab === 'business' && (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-800 dark:text-white">Business Profile</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                  Your business details, used across your ShivAI panel.
+                </p>
+              </div>
+
+              {isLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-6">
+                    {/* Logo */}
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Logo</label>
+                        <div className="flex items-center gap-3">
+                          <div className="w-14 h-14 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 flex items-center justify-center overflow-hidden flex-shrink-0">
+                            {business.logo ? (
+                              <img src={business.logo} alt="Logo" className="w-full h-full object-contain" />
+                            ) : (
+                              <ImageIcon className="w-5 h-5 text-slate-300 dark:text-slate-600" />
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <label className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/80 cursor-pointer transition-colors ${logoUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                              {logoUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                              {logoUploading ? 'Uploading…' : business.logo ? 'Replace' : 'Upload logo'}
+                              <input type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" className="hidden" onChange={handleBusinessLogoFile} disabled={logoUploading} />
+                            </label>
+                            {business.logo && !logoUploading && (
+                              <button type="button" onClick={() => setBusiness((b) => ({ ...b, logo: '' }))} className="inline-flex items-center gap-1 px-2.5 py-2 rounded-lg text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors">
+                                <X className="w-3.5 h-3.5" /> Remove
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                        <div>
+                          <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300 mb-2"><Building2 className="w-3.5 h-3.5 text-slate-400" /> Business Name</label>
+                          <input type="text" value={business.businessName} onChange={(e) => setBusiness({ ...business, businessName: e.target.value })} placeholder="e.g. Northwind Dental Clinic" className={SETTINGS_INPUT} />
+                        </div>
+                        <div>
+                          <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300 mb-2"><Briefcase className="w-3.5 h-3.5 text-slate-400" /> Industry</label>
+                          <SearchableSelect options={INDUSTRY_OPTIONS} value={business.industry} onChange={(v) => setBusiness({ ...business, industry: v })} placeholder="Select industry…" />
+                        </div>
+                        <div>
+                          <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300 mb-2"><Phone className="w-3.5 h-3.5 text-slate-400" /> Phone</label>
+                          <input type="tel" value={business.phone} onChange={(e) => setBusiness({ ...business, phone: e.target.value })} placeholder="+1 (555) 000-0000" className={SETTINGS_INPUT} />
+                        </div>
+                        <div>
+                          <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300 mb-2"><Globe className="w-3.5 h-3.5 text-slate-400" /> Website</label>
+                          <input type="text" value={business.website} onChange={(e) => setBusiness({ ...business, website: e.target.value })} placeholder="theirbusiness.com" className={SETTINGS_INPUT} />
+                        </div>
+                        <div className="lg:col-span-2">
+                          <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300 mb-2"><MapPin className="w-3.5 h-3.5 text-slate-400" /> Street Address</label>
+                          <input type="text" value={business.address} onChange={(e) => setBusiness({ ...business, address: e.target.value })} placeholder="123 Main St, Suite 100" className={SETTINGS_INPUT} />
+                        </div>
+                        <div>
+                          <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300 mb-2"><Globe className="w-3.5 h-3.5 text-slate-400" /> Country</label>
+                          <SearchableSelect options={COUNTRY_OPTIONS} value={business.country} onChange={handleBusinessCountryChange} placeholder="Select country…" />
+                        </div>
+                        <div>
+                          <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300 mb-2"><MapPin className="w-3.5 h-3.5 text-slate-400" /> City</label>
+                          {!business.country ? (
+                            <div className={`${SETTINGS_INPUT} text-slate-400 dark:text-slate-500 flex items-center`}>Select a country first</div>
+                          ) : businessCitiesLoading ? (
+                            <div className={`${SETTINGS_INPUT} text-slate-400 dark:text-slate-500 flex items-center gap-2`}><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading cities…</div>
+                          ) : businessCitiesError || businessCities.length === 0 ? (
+                            <input type="text" value={business.city} onChange={(e) => setBusiness({ ...business, city: e.target.value })} placeholder="Type your city" className={SETTINGS_INPUT} />
+                          ) : (
+                            <SearchableSelect options={businessCities.map((c) => ({ value: c, label: c }))} value={business.city} onChange={(v) => setBusiness({ ...business, city: v })} placeholder="Select city…" />
+                          )}
+                        </div>
+                        <div>
+                          <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300 mb-2"><MapPin className="w-3.5 h-3.5 text-slate-400" /> State / Province</label>
+                          <input type="text" value={business.state} onChange={(e) => setBusiness({ ...business, state: e.target.value })} placeholder="e.g. California" className={SETTINGS_INPUT} />
+                        </div>
+                        <div>
+                          <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300 mb-2"><MapPin className="w-3.5 h-3.5 text-slate-400" /> ZIP / Postal Code</label>
+                          <input type="text" value={business.zip} onChange={(e) => setBusiness({ ...business, zip: e.target.value })} placeholder="e.g. 94107" className={SETTINGS_INPUT} />
+                        </div>
+                        {business.maxEmployees !== '' && (
+                          <div>
+                            <label className="flex items-center gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-300 mb-2"><Users className="w-3.5 h-3.5 text-slate-400" /> Max Employees</label>
+                            <input type="text" value={String(business.maxEmployees)} disabled className={`${SETTINGS_INPUT} opacity-75 cursor-not-allowed`} />
+                            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Set by your account admin.</p>
+                          </div>
+                        )}
+                        <div className="lg:col-span-2">
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Description</label>
+                          <textarea value={business.description} onChange={(e) => setBusiness({ ...business, description: e.target.value })} placeholder="A short description of your business…" rows={3} className={`${SETTINGS_INPUT} resize-none`} />
+                        </div>
+                      </div>
+
+                      <div className="flex pt-4 border-t border-slate-200 dark:border-slate-700 sm:justify-end">
+                        <button
+                          onClick={handleSaveBusiness}
+                          disabled={isSaving || logoUploading}
+                          className="common-button-bg w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                        >
+                          {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : saveSuccess ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+                          {isSaving ? 'Saving...' : saveSuccess ? 'Saved!' : 'Save Business Profile'}
+                        </button>
+                      </div>
+                    </div>
+                  </>
               )}
             </div>
           )}
@@ -810,10 +1111,10 @@ const Settings = () => {
                 ))}
               </div>
 
-              <div className="flex justify-end">
+              <div className="flex sm:justify-end">
                 <button
                   onClick={handleSaveNotifications}
-                  className="common-button-bg flex items-center gap-2"
+                  className="common-button-bg w-full sm:w-auto flex items-center justify-center gap-2"
                 >
                   <Save className="w-4 h-4" />
                   Save Preferences
@@ -1071,6 +1372,8 @@ const Settings = () => {
               </div>
             </div>
           )}
+
+          {activeTab === 'branding' && <BrandingTab />}
 
           {activeTab === 'accounts' && (
             <div className="space-y-4">

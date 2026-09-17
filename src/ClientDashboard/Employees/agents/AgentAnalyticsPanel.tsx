@@ -317,18 +317,6 @@ const AgentAnalyticsPanel: React.FC<AgentAnalyticsPanelProps> = ({
                 </div>
               ))}
             </div>
-            {!loading && stats.total === 0 && (
-              <div className="text-center py-8 mt-2">
-                <MessageSquare className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  No sessions yet for this agent
-                </p>
-              </div>
-            )}
-            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-3">
-              Averages are computed from the latest {sessions.length} loaded
-              session{sessions.length !== 1 ? "s" : ""}.
-            </p>
           </div>
         )}
 

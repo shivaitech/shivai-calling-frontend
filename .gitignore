@@ -26,3 +26,5 @@ node_modules
 .env.*
 .env.production
 .env.development
+# TypeScript incremental build cache
+*.tsbuildinfo
