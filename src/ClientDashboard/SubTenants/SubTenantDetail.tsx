@@ -452,10 +452,6 @@ const SubTenantDetail = () => {
                 <p className="font-medium text-slate-800 dark:text-white">{tenant.limits.maxAgents ?? 'Unlimited'}</p>
               </div>
               <div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">Max Team Members</p>
-                <p className="font-medium text-slate-800 dark:text-white">{tenant.limits.maxUsers ?? 'Unlimited'}</p>
-              </div>
-              <div>
                 <p className="text-xs text-slate-500 dark:text-slate-400">Billing</p>
                 <p className="font-medium text-slate-800 dark:text-white">
                   {tenant.billing.mode === 'CENTRAL' ? 'Billed to you' : 'Pass-through'}

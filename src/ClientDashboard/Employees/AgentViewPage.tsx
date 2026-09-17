@@ -66,6 +66,10 @@ interface AgentViewPageProps {
   currentAgent: Agent;
   publishingAgents: Set<string>;
 
+  /** Set when this page is hosting a sub-tenant's agent (sub-tenant view) so
+   * the Analytics & Call History panel scopes sessions with sub_tenant_id. */
+  subTenantId?: string;
+
   // QR Modal
   showQRModal: boolean;
   setShowQRModal: (v: boolean) => void;
@@ -136,6 +140,7 @@ interface AgentViewPageProps {
 const AgentViewPage: React.FC<AgentViewPageProps> = ({
   currentAgent,
   publishingAgents,
+  subTenantId,
   showQRModal,
   setShowQRModal,
   openAgentTestPage,
@@ -674,7 +679,7 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
 
       {/* Analytics & Call History for this agent */}
       <div className="mt-3 sm:mt-4 lg:mt-6">
-        <AgentAnalyticsPanel agentId={agent.id} />
+        <AgentAnalyticsPanel agentId={agent.id} subTenantId={subTenantId} />
       </div>
 
       {/* ── Workflow Section ─────────────────────────────────────────────────── */}

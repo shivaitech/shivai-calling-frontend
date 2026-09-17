@@ -32,6 +32,7 @@ import {
   resolveSessionCallType,
   resolveSessionLeadNumber,
 } from "../../../lib/sessionDirection";
+import { selfSubTenantId } from "../../../services/actingContext";
 
 interface AgentAnalyticsPanelProps {
   agentId: string;
@@ -118,6 +119,13 @@ const AgentAnalyticsPanel: React.FC<AgentAnalyticsPanelProps> = ({
       if (searchQuery.trim()) {
         params.append("q", searchQuery.trim());
         params.append("search", searchQuery.trim());
+      }
+      // Scope to the sub-tenant: explicit prop (tenant viewing a sub-tenant's
+      // agent) wins; otherwise a logged-in sub-tenant scopes to their own id.
+      // GET /agent-sessions/agent/:id?sub_tenant_id=<id>
+      const scopeId = subTenantId ?? selfSubTenantId() ?? null;
+      if (scopeId) {
+        params.append("sub_tenant_id", scopeId);
       }
       // Per-agent session history — GET /agent-sessions/agent/:id.
       const response = await agentAPI.getAgentSessions(params.toString(), agentId);
