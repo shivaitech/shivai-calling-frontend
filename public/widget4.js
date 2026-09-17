@@ -2372,7 +2372,7 @@
       "el": "Greek", "he": "Hebrew", "vi": "Vietnamese", "hr": "Croatian",
       "sr": "Serbian", "sk": "Slovak", "sl": "Slovenian", "et": "Estonian",
       "lv": "Latvian", "lt": "Lithuanian",
-      "en-in": "Indian English", "hi": "Hindi (हिन्दी)", "hi-formal": "Hindi (Pure/Formal)", "ta": "Tamil (தமிழ்)", "te": "Telugu (తెలుగు)",
+      "en-in": "Indian English", "hi": "Hinglish", "hi-formal": "Hindi (हिन्दी)", "ta": "Tamil (தமிழ்)", "te": "Telugu (తెలుగు)",
       "mr": "Marathi (मराठी)", "bn": "Bengali (বাংলা)", "ur": "Urdu (اردو)", "gu": "Gujarati (ગુજરાતી)", "kn": "Kannada (ಕನ್ನಡ)",
       "ml": "Malayalam (മലയാളം)", "pa": "Punjabi (ਪੰਜਾਬੀ)",
     };
@@ -6016,8 +6016,8 @@
     const opt = select.options[select.selectedIndex];
     let name = opt ? opt.textContent : (select.value || "English");
     // strip native/regional-script parenthetical, e.g. "Hindi (हिन्दी)" -> "Hindi"
-    // — only when it's actually non-Latin script, so an English qualifier
-    // like "Hindi (Pure/Formal)" survives intact.
+    // — only when it's actually non-Latin script, so a Latin-only label
+    // (e.g. "Hinglish") survives intact.
     name = name.replace(/\s*\([^)]*[^\x00-\x7F][^)]*\)\s*$/, "").trim();
     labelEl.textContent = name || "English";
   }
