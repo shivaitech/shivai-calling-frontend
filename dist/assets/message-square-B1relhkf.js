@@ -1,5 +1,0 @@
-<<<<<<<< HEAD:dist/assets/message-square-CgkvptzU.js
-import{c as a}from"./index-DQq0wAge.js";const e=a("MessageSquare",[["path",{d:"M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z",key:"1lielz"}]]);export{e as M};
-========
-import{c as a}from"./index-GnVZUH6_.js";const e=a("MessageSquare",[["path",{d:"M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z",key:"1lielz"}]]);export{e as M};
->>>>>>>> staging:dist/assets/message-square-B1relhkf.js

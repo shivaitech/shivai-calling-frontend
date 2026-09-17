@@ -1,5 +1,1 @@
-<<<<<<<< HEAD:dist/assets/mail-DiLBCfI6.js
 import{c as t}from"./index-DQq0wAge.js";const e=t("Mail",[["rect",{width:"20",height:"16",x:"2",y:"4",rx:"2",key:"18n3k1"}],["path",{d:"m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7",key:"1ocrg3"}]]);export{e as M};
-========
-import{c as t}from"./index-GnVZUH6_.js";const e=t("Mail",[["rect",{width:"20",height:"16",x:"2",y:"4",rx:"2",key:"18n3k1"}],["path",{d:"m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7",key:"1ocrg3"}]]);export{e as M};
->>>>>>>> staging:dist/assets/mail-DOi64QnT.js
