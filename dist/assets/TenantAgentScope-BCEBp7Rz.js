@@ -1,5 +1,0 @@
-<<<<<<<< HEAD:dist/assets/TenantAgentScope-DHPwACBZ.js
-import{j as r}from"./vendor-motion-DATsPUvo.js";import{r as o}from"./vendor-react-ZFq0RoOv.js";import{K as e}from"./index-BIKNRqpV.js";const n=({tenantId:n,children:t})=>(o.useEffect(()=>(e(n),()=>e(null)),[n]),r.jsx(r.Fragment,{children:t}));export{n as T};
-========
-import{j as r}from"./vendor-motion-DATsPUvo.js";import{r as o}from"./vendor-react-ZFq0RoOv.js";import{K as e}from"./index-DOE5Ytcn.js";const n=({tenantId:n,children:t})=>(o.useEffect(()=>(e(n),()=>e(null)),[n]),r.jsx(r.Fragment,{children:t}));export{n as T};
->>>>>>>> staging:dist/assets/TenantAgentScope-BCEBp7Rz.js
