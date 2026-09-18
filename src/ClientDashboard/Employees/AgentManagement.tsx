@@ -66,7 +66,7 @@ import {
 } from "lucide-react";
 
 const AGENTS_PER_PAGE = 6;
-const PUBLISH_ALLOWED_EMAILS = ["demo@callshivai.com", "atharkatheri@gmail.com"];
+const PUBLISH_ALLOWED_EMAILS = ["demo@callshivai.com", "atharkatheri@gmail.com", "mhegc2025@gmail.com"];
 const SALES_EMAIL = "hello@shivaitech.com";
 const SALES_WHATSAPP_NUMBER = "919211490707";
 const SALES_WHATSAPP_MESSAGE =
