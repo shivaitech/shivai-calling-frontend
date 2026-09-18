@@ -16,6 +16,8 @@ import {
 import { AgentAvatar, StatusPill, StatCard, SectionTitle } from "./ui";
 import { Customers } from "./Customers";
 import { Departments } from "./Departments";
+import StaffView from "./StaffView";
+import StaffCalendarView from "./StaffCalendarView";
 import { useDepartments } from "./departmentsStore";
 import { useAgentChannels, mockNumberFor, webEmbedFor } from "./channelsStore";
 import { useIndustry, INDUSTRY_PRESETS, CustomField } from "./industryConfig";
@@ -40,6 +42,8 @@ const SupportCRM: React.FC<Props> = ({ section = "overview" }) => {
   switch (section) {
     case "agents":      return <AgentsRoster onOpen={setSelectedAgentId} />;
     case "departments": return <Departments />;
+    case "staff":       return <StaffView />;
+    case "staff-calendar": return <StaffCalendarView />;
     case "customers":   return <Customers />;
     case "tickets":     return <TicketsBoard />;
     case "live":        return <LiveActivity onOpen={setSelectedAgentId} />;

@@ -107,12 +107,12 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
             </h1>
           </div>
 
-          <div className="relative hidden sm:block pl-2">
-            <div className="px-1">
-              <h1 className="text-base sm:text-lg lg:text-2xl font-bold text-slate-800 dark:text-white leading-tight">
+          <div className="relative hidden sm:block pl-2 min-w-0">
+            <div className="px-1 min-w-0">
+              <h1 className="text-base sm:text-lg lg:text-2xl font-bold text-slate-800 dark:text-white leading-tight whitespace-nowrap truncate max-w-[45vw] lg:max-w-[42vw]">
                 {getCurrentModule()}
               </h1>
-              <p className="hidden lg:block text-sm text-slate-600 dark:text-slate-400 mt-0.5">
+              <p className="hidden lg:block text-sm text-slate-600 dark:text-slate-400 mt-0.5 whitespace-nowrap truncate max-w-[45vw] lg:max-w-[42vw]">
                 {(() => {
                   const path = location.pathname;
                   if (workspaceApp) return workspaceApp.tagline;
