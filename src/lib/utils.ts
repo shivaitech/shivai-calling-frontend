@@ -8,7 +8,7 @@ export function cn(...inputs: ClassValue[]) {
 const LANG_TO_LABEL: Record<string, string> = {
   en: "English", "en-us": "English (US)", "en-gb": "English (UK)",
   "en-au": "English (Australia)", "en-ca": "English (Canada)", "en-in": "English (India)",
-  hi: "Hindi", es: "Spanish", fr: "French", de: "German", it: "Italian",
+  hi: "Hinglish", "hi-formal": "Hindi", es: "Spanish", fr: "French", de: "German", it: "Italian",
   pt: "Portuguese", ru: "Russian", ja: "Japanese", ko: "Korean", zh: "Chinese",
   ar: "Arabic", nl: "Dutch", sv: "Swedish", no: "Norwegian", nb: "Norwegian",
   da: "Danish", fi: "Finnish", pl: "Polish", tr: "Turkish", he: "Hebrew",
