@@ -1,5 +1,0 @@
-<<<<<<<< HEAD:dist/assets/activity-DTwhrmU-.js
-import{c as t}from"./index-DQq0wAge.js";const d=t("Activity",[["path",{d:"M22 12h-4l-3 9L9 3l-3 9H2",key:"d5dnw9"}]]);export{d as A};
-========
-import{c as t}from"./index-CgZqEWL6.js";const d=t("Activity",[["path",{d:"M22 12h-4l-3 9L9 3l-3 9H2",key:"d5dnw9"}]]);export{d as A};
->>>>>>>> staging:dist/assets/activity-btc_zcff.js
