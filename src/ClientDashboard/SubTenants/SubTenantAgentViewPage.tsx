@@ -67,6 +67,7 @@ const SubTenantAgentViewPageInner = () => {
     <AgentViewPage
       currentAgent={currentAgent}
       publishingAgents={new Set()}
+      subTenantId={tenantId}
       showQRModal={showQRModal}
       setShowQRModal={setShowQRModal}
       openAgentTestPage={() => appToast.info("Public test page isn't available for a sub-tenant preview agent.")}
