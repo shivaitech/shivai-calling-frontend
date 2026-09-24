@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import GlassCard from "../../../components/GlassCard";
 import {
@@ -6,7 +7,7 @@ import {
   AlertTriangle, Activity, ArrowLeft, Search, ChevronRight, Timer,
   TrendingUp, TrendingDown, Headphones, MessageSquare, Mail, Mic,
   Pause, Play, BarChart3, Inbox, Trophy, Plus, Tag, Trash2, Check, Save, Building2,
-  Globe, Settings2, Copy, X,
+  Globe, Settings2, Copy, X, UserPlus, UserCog,
 } from "lucide-react";
 import {
   AGENTS, TICKETS, LIVE_CALLS, TEAM_METRICS, getAgent,
@@ -15,10 +16,11 @@ import {
 } from "./mockData";
 import { AgentAvatar, StatusPill, StatCard, SectionTitle } from "./ui";
 import { Customers } from "./Customers";
-import { Departments } from "./Departments";
-import StaffView from "./StaffView";
+import DepartmentsStaffView from "./DepartmentsStaffView";
 import StaffCalendarView from "./StaffCalendarView";
 import { useDepartments } from "./departmentsStore";
+import { useStaff, STAFF_STATUS_META } from "./staffStore";
+import { useStaffWork } from "./staffWorkStore";
 import { useAgentChannels, mockNumberFor, webEmbedFor } from "./channelsStore";
 import { useIndustry, INDUSTRY_PRESETS, CustomField } from "./industryConfig";
 
@@ -41,8 +43,10 @@ const SupportCRM: React.FC<Props> = ({ section = "overview" }) => {
 
   switch (section) {
     case "agents":      return <AgentsRoster onOpen={setSelectedAgentId} />;
-    case "departments": return <Departments />;
-    case "staff":       return <StaffView />;
+    // "departments" merged into "staff" (Departments & Staff); keep the case as
+    // an alias so any old bookmarked ?section=departments still resolves.
+    case "departments":
+    case "staff":       return <DepartmentsStaffView />;
     case "staff-calendar": return <StaffCalendarView />;
     case "customers":   return <Customers />;
     case "tickets":     return <TicketsBoard />;
@@ -280,6 +284,8 @@ const ChannelSetup: React.FC<{ agent: AIAgentEmployee }> = ({ agent }) => {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const ch = channels.getChannels(agent.id);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
 
   const copy = (text: string, key: string) => {
     navigator.clipboard?.writeText(text);
@@ -287,20 +293,48 @@ const ChannelSetup: React.FC<{ agent: AIAgentEmployee }> = ({ agent }) => {
     setTimeout(() => setCopied(null), 1500);
   };
 
+  // Position the popover as a fixed-position portal anchored to the button, so
+  // it escapes the agent card's clipping/stacking context and never hides
+  // behind the next card. Right-align to the button, clamp within the viewport.
+  const POPOVER_W = 288; // w-72
+  const place = () => {
+    const r = btnRef.current?.getBoundingClientRect();
+    if (!r) return;
+    const left = Math.max(8, Math.min(r.right - POPOVER_W, window.innerWidth - POPOVER_W - 8));
+    setPos({ top: r.bottom + 8, left });
+  };
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    place();
+    const onScroll = () => place();
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onScroll);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
   return (
     <div className="relative">
       <button
+        ref={btnRef}
         onClick={() => setOpen((v) => !v)}
         className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium common-bg-icons"
       >
         <Settings2 className="w-3.5 h-3.5" /> Setup
       </button>
 
-      {open && (
+      {open && pos && createPortal(
         <>
           {/* click-outside backdrop */}
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 z-50 mt-2 w-72 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xl p-4">
+          <div className="fixed inset-0 z-[998]" onClick={() => setOpen(false)} />
+          <div
+            className="fixed z-[999] w-72 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xl p-4"
+            style={{ top: pos.top, left: pos.left }}
+          >
             <div className="flex items-center justify-between mb-3">
               <p className="text-sm font-semibold text-slate-800 dark:text-white">Channels · {agent.name}</p>
               <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X className="w-4 h-4" /></button>
@@ -343,7 +377,8 @@ const ChannelSetup: React.FC<{ agent: AIAgentEmployee }> = ({ agent }) => {
               </div>
             </ChannelRow>
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   );
@@ -457,6 +492,9 @@ const AgentDetail: React.FC<{ agent: AIAgentEmployee; onBack: () => void }> = ({
         <StatCard icon={ShieldCheck} color="purple" label="SLA Compliance" value={`${agent.metrics.slaCompliance}%`} />
       </div>
 
+      {/* Human assignees — staff who handle the human side & update tickets */}
+      <AgentAssignees agentId={agent.id} />
+
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         {/* Shift timeline */}
         <GlassCard>
@@ -520,6 +558,110 @@ const AgentDetail: React.FC<{ agent: AIAgentEmployee; onBack: () => void }> = ({
         </GlassCard>
       </div>
     </div>
+  );
+};
+
+// ── Human assignees for an AI agent ───────────────────────────────────────────
+// Staff members who handle the human side of this agent's tickets and update
+// them. Assign from the staff roster; each opens their own workspace.
+const AgentAssignees: React.FC<{ agentId: string }> = ({ agentId }) => {
+  const { staff } = useStaff();
+  const work = useStaffWork();
+  const [adding, setAdding] = useState(false);
+
+  const assignedIds = work.assigneesForAgent(agentId);
+  const assigned = staff.filter((s) => assignedIds.includes(s.id));
+  const available = staff.filter((s) => !assignedIds.includes(s.id));
+
+  return (
+    <GlassCard>
+      <div className="p-4 sm:p-6">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg common-bg-icons flex items-center justify-center">
+              <UserCog className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+            </div>
+            <div>
+              <h3 className="text-base font-semibold text-slate-800 dark:text-white leading-tight">Human Assignees</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Staff who handle the human side &amp; update tickets</p>
+            </div>
+          </div>
+          {!adding && available.length > 0 && (
+            <button onClick={() => setAdding(true)} className="common-button-bg flex items-center gap-1.5 !px-3 !py-2 rounded-lg text-sm">
+              <UserPlus className="w-4 h-4" /> <span className="hidden sm:inline">Assign</span>
+            </button>
+          )}
+        </div>
+
+        {/* Add picker */}
+        {adding && (
+          <div className="mb-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+            {available.length === 0 ? (
+              <p className="text-sm text-slate-400">All staff are already assigned.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {available.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => { work.addAssignee(agentId, s.id); if (available.length === 1) setAdding(false); }}
+                    className="inline-flex items-center gap-2 pl-1 pr-3 py-1 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-violet-300 dark:hover:border-violet-600 text-sm"
+                  >
+                    <span
+                      className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-semibold"
+                      style={{ background: `linear-gradient(135deg, hsl(${s.hue},70%,55%), hsl(${s.hue + 25},65%,45%))` }}
+                    >
+                      {s.name.charAt(0)}
+                    </span>
+                    <span className="text-slate-700 dark:text-slate-200">{s.name}</span>
+                    <Plus className="w-3.5 h-3.5 text-slate-400" />
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex justify-end mt-2">
+              <button onClick={() => setAdding(false)} className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">Done</button>
+            </div>
+          </div>
+        )}
+
+        {/* Assigned list */}
+        {assigned.length === 0 ? (
+          <div className="py-6 text-center">
+            <p className="text-sm text-slate-500 dark:text-slate-400">No human assignees yet.</p>
+            <p className="text-xs text-slate-400 mt-0.5">Assign staff to handle tickets this AI agent can't fully resolve.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {assigned.map((s) => {
+              const meta = STAFF_STATUS_META[s.status];
+              return (
+                <div key={s.id} className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                  <span
+                    className="w-9 h-9 rounded-lg flex items-center justify-center text-white text-sm font-semibold flex-shrink-0"
+                    style={{ background: `linear-gradient(135deg, hsl(${s.hue},70%,55%), hsl(${s.hue + 25},65%,45%))` }}
+                  >
+                    {s.name.charAt(0)}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-slate-800 dark:text-white truncate">{s.name}</p>
+                    <p className="text-[11px] text-slate-400 flex items-center gap-1 truncate">
+                      <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} /> {s.role || meta.label}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => work.removeAssignee(agentId, s.id)}
+                    className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-slate-400 hover:text-red-500 flex-shrink-0"
+                    title="Remove assignee"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </GlassCard>
   );
 };
 

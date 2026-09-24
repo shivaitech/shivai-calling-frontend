@@ -701,6 +701,11 @@ const EditAgent = () => {
   });
 
   const [templateData, setTemplateData] = useState<any>(null);
+  // The REAL, live greeting the agent speaks — per-language keyed
+  // (e.g. { hi: "...", "hi-formal": "...", "en-IN": "..." }). This is separate
+  // from templateData.firstMessage, which is only AI-generation scaffolding
+  // and is never actually spoken to callers.
+  const [greetingMessages, setGreetingMessages] = useState<Record<string, string>>({});
   const [isRegeneratingTemplate, setIsRegeneratingTemplate] = useState(false);
   const [isSpGenerating, setIsSpGenerating] = useState(false);
 
@@ -764,7 +769,7 @@ const EditAgent = () => {
   useEffect(() => {
     if (!isLoadedRef.current) return;
     setIsDirty(true);
-  }, [formData, templateData, agentType, ttsConfig]);
+  }, [formData, templateData, agentType, ttsConfig, greetingMessages]);
 
   // Detect when key template-driving fields drift from their loaded baseline
   useEffect(() => {
@@ -997,6 +1002,14 @@ const EditAgent = () => {
               emotion_profile: "neutral",
             };
         setTtsConfig(initialTts);
+
+        // Load the REAL greeting the agent speaks (per-language). This is the
+        // top-level greeting_message field — NOT template.firstMessage, which
+        // is only AI-generation scaffolding and isn't what callers hear.
+        const loadedGreeting = (agentData as any).greeting_message;
+        setGreetingMessages(
+          loadedGreeting && typeof loadedGreeting === "object" ? { ...loadedGreeting } : {}
+        );
 
         // Load template data if available.
         // Normalize: if the AI chose a different name (e.g. "Cler") than the
@@ -1435,6 +1448,13 @@ const EditAgent = () => {
       { value: "gaming", label: "Gaming" },
       { value: "events", label: "Events & Concerts" },
       { value: "sports", label: "Sports" },
+      { value: "film-tv-production", label: "Film & TV Production" },
+      { value: "actors-talent", label: "Actors & Talent" },
+      { value: "directors-producers", label: "Directors & Producers" },
+      { value: "talent-management", label: "Talent Management Agency" },
+      { value: "music-artists", label: "Music & Artists" },
+      { value: "influencers-creators", label: "Influencers & Content Creators" },
+      { value: "modeling", label: "Modeling Agency" },
     ],
     "other": [
       { value: "general", label: "General Business" },
@@ -2092,6 +2112,11 @@ const EditAgent = () => {
           website_urls: websiteUrls.filter((url) => url.trim()),
           social_media_urls: socialMediaUrls.filter((url) => url.trim()),
           knowledge_base_file_urls: [...new Set([...existingKbFiles, ...uploadedFileUrls])],
+          // The REAL greeting the agent speaks — top-level field, per language.
+          // (Not template.firstMessage below, which is generation scaffolding only.)
+          ...(Object.keys(greetingMessages).length > 0 && {
+            greeting_message: greetingMessages,
+          }),
           // Include template data if it exists (firstMessage, keyTalkingPoints, closingScript, etc.)
           ...(templateData && {
             template: {
@@ -3377,23 +3402,43 @@ const EditAgent = () => {
                   {templateData && (
                     <div className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-700">
 
-                      {/* First Message */}
+                      {/* Greeting Message — the REAL line the agent speaks to
+                          open the call, per selected language. This is stored
+                          separately from the AI-generation template below. */}
                       <div>
                         <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                          First Message
+                          Greeting Message
                         </label>
-                        <textarea
-                          value={templateData.firstMessage || ''}
-                          onChange={(e) =>
-                            setTemplateData({
-                              ...templateData,
-                              firstMessage: e.target.value,
-                            })
-                          }
-                          placeholder="Initial greeting message..."
-                          rows={2}
-                          className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/20 text-slate-800 dark:text-white text-sm resize-none"
-                        />
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-2">
+                          What the agent actually says to open the call. Set one per language you've selected.
+                        </p>
+                        <div className="space-y-3">
+                          {(formData.languages.length ? formData.languages : ["en-IN"])
+                            .filter((lang) => lang !== "multilingual")
+                            .map((lang) => {
+                              const meta = ALL_LANGUAGES.find((l) => l.value === lang);
+                              return (
+                                <div key={lang}>
+                                  <label className="flex items-center gap-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">
+                                    {meta?.flag && <span>{meta.flag}</span>}
+                                    {meta?.label || lang}
+                                  </label>
+                                  <textarea
+                                    value={greetingMessages[lang] || ''}
+                                    onChange={(e) =>
+                                      setGreetingMessages((prev) => ({
+                                        ...prev,
+                                        [lang]: e.target.value,
+                                      }))
+                                    }
+                                    placeholder={`Greeting in ${meta?.label || lang}...`}
+                                    rows={2}
+                                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/20 text-slate-800 dark:text-white text-sm resize-none"
+                                  />
+                                </div>
+                              );
+                            })}
+                        </div>
                       </div>
 
                    

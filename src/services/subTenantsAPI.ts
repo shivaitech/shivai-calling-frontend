@@ -156,9 +156,13 @@ const normalizeWebsite = (raw?: string): string | undefined => {
   return `https://${v}`;
 };
 
-// phone must be digits only (6–15).
-const normalizePhone = (raw?: string): string | undefined =>
-  raw != null ? raw.replace(/\D/g, "") : undefined;
+// phone must be digits only (6–15). Optional — blank/whitespace normalizes to
+// undefined so it's dropped from the request instead of sending "".
+const normalizePhone = (raw?: string): string | undefined => {
+  if (raw == null) return undefined;
+  const digits = raw.replace(/\D/g, "");
+  return digits ? digits : undefined;
+};
 
 export interface SubTenantsListParams {
   page?: number;

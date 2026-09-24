@@ -17,7 +17,8 @@ export type StaffStatus = "active" | "on-leave" | "inactive";
 export interface StaffMember {
   id: string;
   name: string;
-  role: string;
+  role: string;             // display label (kept in sync with the role's name)
+  roleId?: string | null;   // structured role (belongs to the department)
   departmentId: string | null;
   email: string;
   phone: string;
@@ -27,6 +28,22 @@ export interface StaffMember {
 
 /** Weekly shift: staffId → set of weekday indices (0=Mon … 6=Sun) they work. */
 export type ShiftMap = Record<string, number[]>;
+
+/** Working hours per staff (applies to their working days). */
+export interface WorkHours {
+  start: string; // "09:00"
+  end: string;   // "18:00"
+}
+export type HoursMap = Record<string, WorkHours>;
+export const DEFAULT_HOURS: WorkHours = { start: "09:00", end: "18:00" };
+
+/** A specific calendar date the staff member is off. */
+export interface Holiday {
+  date: string;    // "2026-01-26" (ISO date)
+  label?: string;  // e.g. "Republic Day", "Personal leave"
+}
+/** staffId → holidays[] */
+export type HolidayMap = Record<string, Holiday[]>;
 
 export const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -57,6 +74,8 @@ export const STAFF_STATUS_META: Record<
 const STAFF_EVENT = "shivai:supportcrm-staff-changed";
 const staffKey = () => `shivai_supportcrm_staff_${getActiveIndustryId()}`;
 const shiftKey = () => `shivai_supportcrm_staff_shifts_${getActiveIndustryId()}`;
+const hoursKey = () => `shivai_supportcrm_staff_hours_${getActiveIndustryId()}`;
+const holidayKey = () => `shivai_supportcrm_staff_holidays_${getActiveIndustryId()}`;
 
 const HUES = [210, 150, 280, 25, 330, 190, 95, 250];
 
@@ -152,6 +171,50 @@ function writeShifts(map: ShiftMap) {
   window.dispatchEvent(new CustomEvent(STAFF_EVENT));
 }
 
+export function getHours(): HoursMap {
+  try {
+    const raw = localStorage.getItem(hoursKey());
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") return parsed;
+    }
+  } catch {
+    /* ignore */
+  }
+  return {};
+}
+
+function writeHours(map: HoursMap) {
+  try {
+    localStorage.setItem(hoursKey(), JSON.stringify(map));
+  } catch {
+    /* ignore */
+  }
+  window.dispatchEvent(new CustomEvent(STAFF_EVENT));
+}
+
+export function getHolidays(): HolidayMap {
+  try {
+    const raw = localStorage.getItem(holidayKey());
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") return parsed;
+    }
+  } catch {
+    /* ignore */
+  }
+  return {};
+}
+
+function writeHolidays(map: HolidayMap) {
+  try {
+    localStorage.setItem(holidayKey(), JSON.stringify(map));
+  } catch {
+    /* ignore */
+  }
+  window.dispatchEvent(new CustomEvent(STAFF_EVENT));
+}
+
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
 export function useStaff() {
@@ -170,6 +233,8 @@ export function useStaff() {
 
   const staff = getStaff();
   const shifts = getShifts();
+  const hours = getHours();
+  const holidays = getHolidays();
 
   const addStaff = useCallback(
     (input: Omit<StaffMember, "id" | "hue">) => {
@@ -212,5 +277,30 @@ export function useStaff() {
     writeShifts({ ...map, [staffId]: [...cur].sort((a, b) => a - b) });
   }, []);
 
-  return { staff, shifts, addStaff, updateStaff, removeStaff, toggleShift };
+  const setHours = useCallback((staffId: string, h: WorkHours) => {
+    writeHours({ ...getHours(), [staffId]: h });
+  }, []);
+
+  const addHoliday = useCallback((staffId: string, date: string, label?: string) => {
+    if (!date) return;
+    const map = getHolidays();
+    const list = map[staffId] || [];
+    if (list.some((h) => h.date === date)) return; // no duplicates
+    const next = [...list, { date, label: label?.trim() || undefined }].sort((a, b) =>
+      a.date.localeCompare(b.date)
+    );
+    writeHolidays({ ...map, [staffId]: next });
+  }, []);
+
+  const removeHoliday = useCallback((staffId: string, date: string) => {
+    const map = getHolidays();
+    const list = (map[staffId] || []).filter((h) => h.date !== date);
+    writeHolidays({ ...map, [staffId]: list });
+  }, []);
+
+  return {
+    staff, shifts, hours, holidays,
+    addStaff, updateStaff, removeStaff, toggleShift, setHours,
+    addHoliday, removeHoliday,
+  };
 }

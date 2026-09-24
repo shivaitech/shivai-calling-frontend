@@ -173,8 +173,7 @@ export const APPS: MarketplaceApp[] = [
     badge: "New",
     workspaceSections: [
       { key: "overview", label: "Command Center", icon: LayoutDashboard },
-      { key: "departments", label: "Departments", icon: Building2 },
-      { key: "staff", label: "Staff", icon: UserCog },
+      { key: "staff", label: "Departments & Staff", icon: UserCog },
       { key: "staff-calendar", label: "Staff Calendar", icon: CalendarClock },
       { key: "agents", label: "AI Agents", icon: Users },
       { key: "customers", label: "Customers", icon: Contact },

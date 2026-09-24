@@ -17,14 +17,24 @@ import {
   Eye,
   X,
   Check,
+  ChevronRight,
 } from 'lucide-react';
 import GlassCard from '../../components/GlassCard';
 import ModalOverlay from '../../components/ModalOverlay';
 import appToast from '../../components/AppToast';
 import { useAuth } from '../../contexts/AuthContext';
 import { staffAPI, countGrants, type StaffMember, type StaffStatus } from '../../services/staffAPI';
+import { useStaffAssignments } from '../../services/staffOrgStore';
+import {
+  departmentsAPI,
+  designationsAPI,
+  designationDepartmentId as designationDeptId,
+  type Department,
+  type Designation,
+} from '../../services/departmentsAPI';
 import { PERMISSION_REGISTRY } from '../../permissions/registry';
 import StaffEditorModal from './StaffEditorModal';
+import { Briefcase } from 'lucide-react';
 
 const statusBadge = (status: StaffStatus) => {
   if (status === 'active') return 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800';
@@ -57,6 +67,37 @@ const Staff = () => {
   const { user } = useAuth();
   const tenantId = String(user?.tenantId || user?.id || 'me');
 
+  const assignments = useStaffAssignments(tenantId);
+  // Tab order follows the real dependency chain: a Department must exist
+  // before a Designation can be created inside it, and a Designation must
+  // exist before Staff can be hired into it. Land on Departments first so a
+  // new tenant is guided through the hierarchy in the right order.
+  const [tab, setTab] = useState<'departments' | 'designations' | 'staff'>('departments');
+  // Departments/Designations are global API catalogs — loaded once here and
+  // shared with the card list (for department name lookup) and both panels.
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [designations, setDesignations] = useState<Designation[]>([]);
+  const [loadingCatalogs, setLoadingCatalogs] = useState(true);
+
+  const loadCatalogs = () => {
+    setLoadingCatalogs(true);
+    Promise.all([
+      departmentsAPI.list({ limit: 100, sortBy: 'name', sortOrder: 'asc' }),
+      designationsAPI.list({ limit: 100, sortBy: 'name', sortOrder: 'asc' }),
+    ])
+      .then(([deptRes, desigRes]) => {
+        setDepartments(deptRes.departments);
+        setDesignations(desigRes.designations);
+      })
+      .catch(() => { setDepartments([]); setDesignations([]); })
+      .finally(() => setLoadingCatalogs(false));
+  };
+  useEffect(() => {
+    loadCatalogs();
+  }, []);
+
+  const departmentName = (id: string | null | undefined) =>
+    id ? departments.find((d) => d.id === id)?.name : undefined;
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -168,21 +209,77 @@ const Staff = () => {
             <UsersRound className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-slate-800 dark:text-white">Staff</h1>
+            <h1 className="text-xl font-bold text-slate-800 dark:text-white">Departments &amp; Staff</h1>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              Hire people and give each access to only the features they need.
+              Organise your team into departments and roles, then give each person access to only the features they need.
             </p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={openCreate}
-          className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold bg-violet-600 hover:bg-violet-700 text-white transition-colors"
-        >
-          <Plus className="w-4 h-4" /> Add Staff
-        </button>
+        {tab === 'staff' && (
+          <button
+            type="button"
+            onClick={() => (departments.length === 0 ? setTab('departments') : openCreate())}
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold bg-violet-600 hover:bg-violet-700 text-white transition-colors"
+          >
+            <Plus className="w-4 h-4" /> Add Staff
+          </button>
+        )}
       </div>
 
+      {/* Tabs — ordered Departments → Designations → Staff, the real setup order */}
+      <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 overflow-x-auto no-scrollbar">
+        {([
+          { key: 'departments', label: 'Departments', icon: Building2 },
+          { key: 'designations', label: 'Designations', icon: Briefcase },
+          { key: 'staff', label: 'Staff', icon: UsersRound },
+        ] as const).map(({ key, label, icon: Icon }, i) => (
+          <div key={key} className="flex items-center">
+            {i > 0 && <ChevronRight className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 mx-0.5 flex-shrink-0" />}
+            <button
+              type="button"
+              onClick={() => setTab(key)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+                tab === key
+                  ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5" /> {label}
+              {key === 'departments' && !loadingCatalogs && (
+                <span className="ml-0.5 text-[10px] text-slate-400">({departments.length})</span>
+              )}
+              {key === 'designations' && !loadingCatalogs && (
+                <span className="ml-0.5 text-[10px] text-slate-400">({designations.length})</span>
+              )}
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {tab === 'departments' && (
+        <DepartmentsPanel
+          departments={departments}
+          designations={designations}
+          loading={loadingCatalogs}
+          onChanged={loadCatalogs}
+          assignments={assignments}
+          staff={staff}
+        />
+      )}
+      {tab === 'designations' && (
+        <DesignationsPanel
+          departments={departments}
+          designations={designations}
+          loading={loadingCatalogs}
+          onChanged={loadCatalogs}
+          assignments={assignments}
+          staff={staff}
+          onGoToDepartments={() => setTab('departments')}
+        />
+      )}
+
+      {tab === 'staff' && (
+      <>
       {/* Filters */}
       <GlassCard className="p-3">
         <div className="flex flex-col sm:flex-row gap-2">
@@ -229,13 +326,37 @@ const Staff = () => {
       ) : filtered.length === 0 ? (
         <GlassCard className="p-10 text-center">
           <UsersRound className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
-          <p className="text-sm text-slate-600 dark:text-slate-300 mb-1 font-medium">No staff yet</p>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
-            Add your first team member and choose what they can access.
-          </p>
-          <button onClick={openCreate} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold bg-violet-600 hover:bg-violet-700 text-white transition-colors">
-            <Plus className="w-4 h-4" /> Add Staff
-          </button>
+          {!loadingCatalogs && departments.length === 0 ? (
+            <>
+              <p className="text-sm text-slate-600 dark:text-slate-300 mb-1 font-medium">Set up your org first</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                Create a department (then a designation inside it) before hiring staff — the two feed the "Add Staff" form.
+              </p>
+              <button onClick={() => setTab('departments')} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold bg-violet-600 hover:bg-violet-700 text-white transition-colors">
+                <Building2 className="w-4 h-4" /> Create a Department
+              </button>
+            </>
+          ) : !loadingCatalogs && designations.length === 0 ? (
+            <>
+              <p className="text-sm text-slate-600 dark:text-slate-300 mb-1 font-medium">Add a designation next</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                You have {departments.length} department{departments.length === 1 ? '' : 's'} — add at least one designation before hiring staff.
+              </p>
+              <button onClick={() => setTab('designations')} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold bg-violet-600 hover:bg-violet-700 text-white transition-colors">
+                <Briefcase className="w-4 h-4" /> Create a Designation
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-slate-600 dark:text-slate-300 mb-1 font-medium">No staff yet</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                Add your first team member and choose what they can access.
+              </p>
+              <button onClick={openCreate} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold bg-violet-600 hover:bg-violet-700 text-white transition-colors">
+                <Plus className="w-4 h-4" /> Add Staff
+              </button>
+            </>
+          )}
         </GlassCard>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
@@ -256,6 +377,9 @@ const Staff = () => {
                     <Mail className="w-3 h-3" /> {s.email}
                   </p>
                   <div className="flex items-center gap-3 mt-2 text-xs text-slate-500 dark:text-slate-400 flex-wrap">
+                    {departmentName(assignments.assignmentFor(s.id).departmentId) && (
+                      <span className="inline-flex items-center gap-1"><Building2 className="w-3 h-3" /> {departmentName(assignments.assignmentFor(s.id).departmentId)}</span>
+                    )}
                     <span className="inline-flex items-center gap-1"><ShieldCheck className="w-3 h-3" /> {s.roleName || 'Staff'}</span>
                     <span>· {countGrants(s.grants)} features</span>
                     {hasSelectedScope(s) && (
@@ -283,6 +407,8 @@ const Staff = () => {
             </GlassCard>
           ))}
         </div>
+      )}
+      </>
       )}
 
       {/* Row menu portal — escapes the dashboard <main> overflow-hidden clip. */}
@@ -344,7 +470,12 @@ const Staff = () => {
                       {viewTarget.status}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{viewTarget.roleName || 'Staff'}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                    {viewTarget.roleName || 'Staff'}
+                    {departmentName(assignments.assignmentFor(viewTarget.id).departmentId) && (
+                      <> · {departmentName(assignments.assignmentFor(viewTarget.id).departmentId)}</>
+                    )}
+                  </p>
                 </div>
               </div>
               <button onClick={() => setViewTarget(null)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg flex-shrink-0">
@@ -458,6 +589,261 @@ const Staff = () => {
           </div>
         </div>
       </ModalOverlay>
+    </div>
+  );
+};
+
+// ── Shared panel types ───────────────────────────────────────────────────────
+
+type AssignmentsApi = ReturnType<typeof useStaffAssignments>;
+
+interface CatalogPanelProps {
+  departments: Department[];
+  designations: Designation[];
+  loading: boolean;
+  onChanged: () => void;
+  assignments: AssignmentsApi;
+  staff: StaffMember[];
+  /** Jump back a step in the hierarchy (e.g. Designations → Departments). */
+  onGoToDepartments?: () => void;
+}
+
+const PANEL_INPUT =
+  'w-full px-3 py-2 rounded-lg text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-violet-500/40 text-slate-800 dark:text-white';
+
+// ── Departments panel — global catalog, backed by departmentsAPI ─────────────
+
+const DepartmentsPanel = ({ departments, designations, loading, onChanged, assignments, staff }: CatalogPanelProps) => {
+  const [adding, setAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [name, setName] = useState('');
+  const [desc, setDesc] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const start = (d?: Department) => {
+    setEditingId(d?.id ?? null);
+    setName(d?.name ?? '');
+    setDesc(d?.description ?? '');
+    setAdding(true);
+  };
+
+  const submit = async () => {
+    const nm = name.trim();
+    const description = desc.trim();
+    if (nm.length < 2 || !description) return;
+    setSaving(true);
+    try {
+      if (editingId) {
+        await departmentsAPI.update(editingId, { name: nm, description });
+        appToast.success('Department updated');
+      } else {
+        await departmentsAPI.create({ name: nm, description });
+        appToast.success('Department created');
+      }
+      setAdding(false); setEditingId(null); setName(''); setDesc('');
+      onChanged();
+    } catch (err: any) {
+      appToast.error(err?.message || 'Failed to save department');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async (d: Department) => {
+    setDeletingId(d.id);
+    try {
+      await departmentsAPI.remove(d.id);
+      appToast.success(`${d.name} deleted`);
+      onChanged();
+    } catch (err: any) {
+      appToast.error(err?.message || 'Failed to delete department');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const designationCount = (deptId: string) => designations.filter((r) => designationDeptId(r) === deptId).length;
+  const countStaff = (deptId: string) => staff.filter((s) => assignments.assignmentFor(s.id).departmentId === deptId).length;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        {!adding && (
+          <button onClick={() => start()} className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold bg-violet-600 hover:bg-violet-700 text-white transition-colors">
+            <Plus className="w-4 h-4" /> Add Department
+          </button>
+        )}
+      </div>
+      {adding && (
+        <GlassCard className="p-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Department name" className={PANEL_INPUT} autoFocus maxLength={100} />
+            <input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Description" className={PANEL_INPUT} maxLength={500} />
+          </div>
+          <div className="flex justify-end gap-2 mt-3">
+            <button onClick={() => { setAdding(false); setEditingId(null); }} disabled={saving} className="px-3 py-2 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 disabled:opacity-50">Cancel</button>
+            <button onClick={submit} disabled={saving || name.trim().length < 2 || !desc.trim()} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} {editingId ? 'Save' : 'Add'}
+            </button>
+          </div>
+        </GlassCard>
+      )}
+      {loading ? (
+        <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-violet-500 animate-spin" /></div>
+      ) : departments.length === 0 ? (
+        <GlassCard className="p-10 text-center">
+          <Building2 className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+          <p className="text-sm text-slate-600 dark:text-slate-300 font-medium">No departments yet</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Create departments, then add designations under them.</p>
+        </GlassCard>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+          {departments.map((d) => (
+            <GlassCard key={d.id} className="p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-violet-50 dark:bg-violet-900/20 flex items-center justify-center flex-shrink-0">
+                    <Building2 className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-slate-800 dark:text-white truncate">{d.name}</p>
+                    {d.description && <p className="text-xs text-slate-400 truncate">{d.description}</p>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button onClick={() => start(d)} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-violet-600"><Pencil className="w-3.5 h-3.5" /></button>
+                  <button onClick={() => remove(d)} disabled={deletingId === d.id} className="p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-900/20 text-slate-400 hover:text-rose-500 disabled:opacity-50">
+                    {deletingId === d.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+              <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700/60 flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
+                <span className="inline-flex items-center gap-1"><Briefcase className="w-3.5 h-3.5" /> {designationCount(d.id)} designations</span>
+                <span className="inline-flex items-center gap-1"><UsersRound className="w-3.5 h-3.5" /> {countStaff(d.id)} staff</span>
+              </div>
+            </GlassCard>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── Designations panel — global catalog, backed by designationsAPI ───────────
+
+const DesignationsPanel = ({ departments, designations, loading, onChanged, assignments, staff, onGoToDepartments }: CatalogPanelProps) => {
+  const [adding, setAdding] = useState(false);
+  const [deptId, setDeptId] = useState('');
+  const [name, setName] = useState('');
+  const [desc, setDesc] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const noDepts = departments.length === 0;
+
+  const submit = async () => {
+    const nm = name.trim();
+    const description = desc.trim();
+    if (!deptId || nm.length < 2 || !description) return;
+    setSaving(true);
+    try {
+      await designationsAPI.create({ name: nm, description, department: deptId });
+      appToast.success('Designation created');
+      setName(''); setDesc(''); setAdding(false);
+      onChanged();
+    } catch (err: any) {
+      appToast.error(err?.message || 'Failed to create designation');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async (r: Designation) => {
+    setDeletingId(r.id);
+    try {
+      await designationsAPI.remove(r.id);
+      appToast.success(`${r.name} deleted`);
+      onChanged();
+    } catch (err: any) {
+      appToast.error(err?.message || 'Failed to delete designation');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        {!adding && (
+          <button onClick={() => setAdding(true)} disabled={noDepts || loading} className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-semibold bg-violet-600 hover:bg-violet-700 text-white transition-colors disabled:opacity-50" title={noDepts ? 'Create a department first' : undefined}>
+            <Plus className="w-4 h-4" /> Add Designation
+          </button>
+        )}
+      </div>
+      {noDepts && !loading && (
+        <GlassCard className="p-8 text-center">
+          <Building2 className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Create a department first — designations belong to a department.</p>
+          {onGoToDepartments && (
+            <button onClick={onGoToDepartments} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold bg-violet-600 hover:bg-violet-700 text-white transition-colors">
+              <Building2 className="w-4 h-4" /> Go to Departments
+            </button>
+          )}
+        </GlassCard>
+      )}
+      {adding && !noDepts && (
+        <GlassCard className="p-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <select value={deptId} onChange={(e) => setDeptId(e.target.value)} className={PANEL_INPUT}>
+              <option value="">Select department…</option>
+              {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Designation name (e.g. Senior Manager)" className={PANEL_INPUT} maxLength={100} />
+          </div>
+          <input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Description" className={`${PANEL_INPUT} mt-3`} maxLength={500} />
+          <div className="flex justify-end gap-2 mt-3">
+            <button onClick={() => setAdding(false)} disabled={saving} className="px-3 py-2 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 disabled:opacity-50">Cancel</button>
+            <button onClick={submit} disabled={saving || !deptId || name.trim().length < 2 || !desc.trim()} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Add
+            </button>
+          </div>
+        </GlassCard>
+      )}
+      {loading ? (
+        <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-violet-500 animate-spin" /></div>
+      ) : (
+        departments.map((d) => {
+          const deptDesignations = designations.filter((r) => designationDeptId(r) === d.id);
+          return (
+            <GlassCard key={d.id} className="p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <Building2 className="w-4 h-4 text-slate-400" />
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-white">{d.name}</h3>
+                <span className="text-[11px] text-slate-400">· {deptDesignations.length} designations</span>
+              </div>
+              {deptDesignations.length === 0 ? (
+                <p className="text-xs text-slate-400">No designations in this department yet.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {deptDesignations.map((r) => {
+                    const count = staff.filter((s) => assignments.assignmentFor(s.id).designationId === r.id).length;
+                    return (
+                      <span key={r.id} className="inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 rounded-full bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-sm">
+                        <Briefcase className="w-3.5 h-3.5 text-slate-400" />
+                        <span className="text-slate-700 dark:text-slate-200">{r.name}</span>
+                        {count > 0 && <span className="text-[10px] text-slate-400">· {count}</span>}
+                        <button onClick={() => remove(r)} disabled={deletingId === r.id} className="p-1 rounded-full hover:bg-rose-50 dark:hover:bg-rose-900/20 text-slate-400 hover:text-rose-500 disabled:opacity-50">
+                          {deletingId === r.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+            </GlassCard>
+          );
+        })
+      )}
     </div>
   );
 };

@@ -311,6 +311,13 @@ const CreateAgent = () => {
       { value: "gaming", label: "Gaming" },
       { value: "events", label: "Events & Concerts" },
       { value: "sports", label: "Sports" },
+      { value: "film-tv-production", label: "Film & TV Production" },
+      { value: "actors-talent", label: "Actors & Talent" },
+      { value: "directors-producers", label: "Directors & Producers" },
+      { value: "talent-management", label: "Talent Management Agency" },
+      { value: "music-artists", label: "Music & Artists" },
+      { value: "influencers-creators", label: "Influencers & Content Creators" },
+      { value: "modeling", label: "Modeling Agency" },
     ],
     "other": [
       { value: "general", label: "General" },

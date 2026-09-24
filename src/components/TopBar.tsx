@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { Bell, ChevronDown, Moon, Sun, Menu, User, User2Icon, UserCheck2Icon, ArrowLeft } from "lucide-react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Bell, ChevronDown, Moon, Sun, Menu, User, User2Icon, UserCheck2Icon } from "lucide-react";
+import { useLocation } from "react-router-dom";
 import { useTheme } from "../contexts/ThemeContext";
 import { useAuth } from "../contexts/AuthContext";
 import { getAppById } from "../marketplace/apps";
@@ -13,28 +13,14 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
   const { isDark, toggleTheme, branding } = useTheme();
   const { user, logout } = useAuth(); // Get user and logout from context
   const location = useLocation();
-  const navigate = useNavigate();
   const [tenantDropdownOpen, setTenantDropdownOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
-  // Standalone app workspace: /app/:appId — show the app's name
+  // Standalone app workspace: /app/:appId — show the app's name. Returning to
+  // the dashboard is handled by clicking the sidebar logo.
   const appMatch = location.pathname.match(/^\/app\/([^/]+)/);
   const workspaceApp = appMatch ? getAppById(appMatch[1]) : undefined;
-
-  // In an app workspace, the page opens in its own tab — close it to return to
-  // the dashboard tab, or navigate there directly if opened standalone.
-  const handleBackToDashboard = () => {
-    if (workspaceApp?.id === "appointment-crm") {
-      navigate(-1);
-      return;
-    }
-    if (window.opener && !window.opener.closed) {
-      window.close();
-    } else {
-      navigate("/dashboard");
-    }
-  };
 
   const getCurrentModule = () => {
     const path = location.pathname;
@@ -49,11 +35,12 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
       return "AI Employees";
     }
     if (path === "/training") return "Training Center";
+    if (path === "/staff") return "Departments & Staff";
     if (path === "/workflows") return "Workflows";
     if (path === "/monitoring") return "Monitoring";
     if (path === "/billing") return "Billing";
     if (path === "/settings") return "Settings";
-    
+
     return "Dashboard";
   };
 
@@ -86,20 +73,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
           >
             <Menu className="w-5 h-5 text-slate-600 dark:text-slate-300" />
           </button>
-
-          {/* Back to dashboard — only inside an app workspace */}
-          {workspaceApp && (
-            <button
-              onClick={handleBackToDashboard}
-              className="common-button-bg2 flex items-center gap-1.5 !px-2.5 sm:!px-3 !py-1.5 sm:!py-2 rounded-lg flex-shrink-0"
-              title={workspaceApp.id === "appointment-crm" ? "Back" : "Back to Dashboard"}
-            >
-              <ArrowLeft className="w-4 h-4" />
-              {workspaceApp.id !== "appointment-crm" && (
-                <span className="hidden sm:inline">Dashboard</span>
-              )}
-            </button>
-          )}
+          {/* App workspaces return to the dashboard via the sidebar logo. */}
 
           <div className="block sm:hidden">
             <h1 className="text-base font-bold text-slate-800 dark:text-white truncate max-w-[200px]">
@@ -126,6 +100,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
                     return "Manage and monitor all your AI agents.";
                   }
                   if (path === "/training") return "Upload documents and train your AI agents.";
+                  if (path === "/staff") return "Organise your team into departments and roles, and manage their access.";
                   if (path === "/workflows") return "Design and automate your business processes.";
                   if (path === "/monitoring") return "Track performance and analyze AI agent metrics.";
                   if (path === "/billing") return "Manage your subscription and usage costs.";

@@ -1,20 +1,18 @@
 import axios, { AxiosResponse } from "axios";
-import { mockAgentStore } from "./mockAgentStore";
 import { staffTenantId, selfSubTenantId } from "./actingContext";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-// ── Sub Tenants: tenant-scoped mock mode ────────────────────────────────────
+// ── Sub Tenants: tenant-scoped requests ─────────────────────────────────────
 // The real EditAgent.tsx / AgentViewPage.tsx are reused UNMODIFIED for a Main
 // Business viewing/editing a sub-tenant's AI employee (mounted at
 // /sub-tenants/:tenantId/agents/:agentId[/edit] — see App.tsx). Those routes
 // wrap their content in <TenantAgentScope tenantId=...>, which calls
-// setTenantScope() on mount/unmount so the handful of agentAPI methods these
-// two pages actually call (getAgentConfig, updateAgent, uploadKnowledgeBase,
-// getPresignedUrl) route to the per-tenant mock store instead of the real
-// backend for exactly the lifetime of that view. Every other consumer of
-// agentAPI never renders under that wrapper, so this stays null for them and
-// their behavior is unchanged.
+// setTenantScope() on mount/unmount. Sub-tenant agents are REAL records, so we
+// hit the real backend and the request interceptor simply appends
+// sub_tenant_id=<activeTenantScope> to /agents requests for the lifetime of
+// that view. Every other consumer never renders under that wrapper, so this
+// stays null for them and their behavior is unchanged.
 let activeTenantScope: string | null = null;
 export function setTenantScope(tenantId: string | null): void {
   activeTenantScope = tenantId;
@@ -381,6 +379,13 @@ interface UpdateAgentRequest {
   agent_type?: "webrtc" | "inbound" | "outbound";
   /** TTS provider/model/voice selection — see TTS Provider Catalog API. */
   tts?: TtsConfig;
+  /** What the agent actually says to open the call — per-language keyed
+   * (e.g. { hi: "...", "hi-formal": "...", "en-IN": "..." }). This is the
+   * real, live greeting; template.firstMessage below is only AI-generation
+   * scaffolding and is NOT what callers hear. */
+  greeting_message?: {
+    [key: string]: string;
+  };
   template?: {
     name: string;
     description: string;
@@ -646,7 +651,9 @@ class AgentAPI {
     id: string,
     agentData: UpdateAgentRequest
   ): Promise<ApiAgent> {
-    if (activeTenantScope) return mockAgentStore.update(activeTenantScope, id, agentData);
+    // Sub-tenant agents are real records — the request interceptor appends
+    // sub_tenant_id from activeTenantScope, so this goes to the real API just
+    // like a main-tenant update (no mock routing).
     try {
       const response: AxiosResponse<{
         success: boolean;
@@ -1015,21 +1022,6 @@ class AgentAPI {
       downloadUrl: string;
     };
   }> {
-    if (activeTenantScope) {
-      // No real file storage for mock agents — return a data: URL holding
-      // placeholder text so the KB file viewer/editor in EditAgent.tsx can
-      // still open and "save" (in-memory only) rather than 404ing against a
-      // real S3-style presigned URL. Per product decision: stub minimally,
-      // don't build a full fake file-storage round-trip.
-      const placeholder = "This is a preview of a knowledge base file.\n\nReal file content isn't available in this sub-tenant preview.";
-      const dataUrl = `data:text/plain;charset=utf-8,${encodeURIComponent(placeholder)}`;
-      return {
-        success: true,
-        statusCode: 200,
-        message: "Mock presigned URL",
-        data: { presignedUrl: dataUrl, downloadUrl: dataUrl },
-      };
-    }
     try {
       const response = await apiClient.get(`/agents/${agentId}/presigned-url`);
       return response.data;
@@ -1053,10 +1045,6 @@ class AgentAPI {
       count: number;
     };
   }> {
-    if (activeTenantScope) {
-      const result = mockAgentStore.uploadKnowledgeBase(files);
-      return { success: true, statusCode: 200, message: "Uploaded", data: result };
-    }
     try {
       const formData = new FormData();
       files.forEach((file) => {
