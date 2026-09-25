@@ -2262,6 +2262,7 @@
     statusDiv = document.getElementById("shivai-status");
     connectBtn = document.getElementById("shivai-connect");
     messagesDiv = document.getElementById("shivai-messages");
+    attachPhoneChipHandler(messagesDiv);
     messageInputContainer = document.querySelector(".message-input-container");
     clearBtn = document.getElementById("shivai-clear");
     muteBtn = document.getElementById("shivai-mute");
@@ -5235,6 +5236,47 @@
       }
       .message-text { font-size: 13px; line-height: 1.45; color: inherit; }
 
+      /* ── Tappable phone-number chip inside a transcript bubble ── */
+      .shivai-phone-chip {
+      display: inline-flex; align-items: center;
+      color: #0a84ff; font-weight: 600;
+      text-decoration: underline; text-decoration-style: dotted;
+      text-underline-offset: 2px;
+      cursor: pointer;
+      }
+      .message.user .shivai-phone-chip { color: #d8ecff; }
+      .shivai-phone-chip:hover, .shivai-phone-chip:focus-visible {
+      color: #ffffff; background: rgba(10,132,255,0.85);
+      border-radius: 4px; padding: 0 2px; margin: 0 -2px;
+      outline: none;
+      }
+
+      /* ── Call / WhatsApp popover — appended to document.body, fixed-positioned ── */
+      .shivai-phone-popover {
+      position: fixed; z-index: 2147483000;
+      display: flex; flex-direction: column;
+      min-width: 150px;
+      background: #1c1c1e; border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 12px; padding: 6px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+      font-family: inherit;
+      animation: shivaiPhonePopIn 0.12s ease-out;
+      }
+      @keyframes shivaiPhonePopIn {
+      from { opacity: 0; transform: translateY(-4px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+      }
+      .shivai-phone-popover-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 12px; border-radius: 8px;
+      font-size: 13px; font-weight: 500;
+      color: #f5f5f7; text-decoration: none;
+      }
+      .shivai-phone-popover-item:hover { background: rgba(255,255,255,0.08); }
+      .shivai-phone-popover-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+      .shivai-phone-popover-item[data-action="call"] svg { color: #30d158; }
+      .shivai-phone-popover-item[data-action="whatsapp"] svg { color: #25d366; }
+
       /* ── Doc card (dark) ── */
       .message.assistant.message-document {
       display: flex; flex-direction: column; align-items: stretch;
@@ -6766,6 +6808,41 @@
     }
   }
 
+  // ── Phone numbers in transcript text → tappable "chips" ────────────────────
+  // The AI can say all sorts of digit runs (durations, amounts, tracking IDs,
+  // dates) — only link ones that validate as a real Indian mobile number:
+  //   - bare 10 digits starting 6-9                      → 9876543210
+  //   - with trunk 0                                      → 09876543210
+  //   - with country code, +91 / 91 / 0091, then 6-9…    → +91 98765 43210
+  // Anything else (short codes, years, wrong length, wrong leading digit) is
+  // left as plain text — never linked, never guessed at.
+  const PHONE_RE = /(\+?\d[\d\s().-]{5,}\d)/g;
+  function normalizeIndianPhone(candidate) {
+    const digits = candidate.replace(/\D/g, '');
+    let national = null;
+    if (/^[6-9]\d{9}$/.test(digits)) {
+      national = digits; // bare 10-digit mobile
+    } else if (/^0[6-9]\d{9}$/.test(digits)) {
+      national = digits.slice(1); // trunk-prefixed
+    } else if (/^(0091|91)[6-9]\d{9}$/.test(digits)) {
+      national = digits.slice(-10); // country-code prefixed
+    }
+    return national ? '91' + national : null; // E.164 (without '+') for tel:/wa.me
+  }
+  function linkifyPhoneNumbers(escapedHtmlFragment, rawTextForMatching) {
+    // Run the regex against the RAW text (so digit-grouping isn't broken by
+    // escaping), then rebuild the escaped fragment with matches replaced by
+    // clickable spans. Since esc() only touches &, <, > — none of which
+    // appear inside a phone-number match — we can safely search-and-replace
+    // on the already-escaped string using the same matches.
+    return escapedHtmlFragment.replace(PHONE_RE, function(match) {
+      const normalized = normalizeIndianPhone(match);
+      if (!normalized) return match; // not a valid Indian number — leave as plain text
+      return '<span class="shivai-phone-chip" data-phone="' + normalized + '" role="button" tabindex="0">'
+        + match + '</span>';
+    });
+  }
+
 // Converts AI responses (HTML or plain text with URLs) into clean formatted content.
   // Returns an HTML string, or null to fall back to textContent.
   function renderMessageText(text) {
@@ -6799,14 +6876,28 @@
     // Here we just strip the URLs and show the surrounding text cleanly.
     if (!/<[a-z][\s\S]*?>/i.test(noComments)) {
       const urlRe = /https?:\/\/[^\s<>"']+/gi;
-      if (!urlRe.test(noComments)) return null; // truly plain text, no special rendering needed
+      if (!urlRe.test(noComments)) {
+        // Truly plain text — no URL. Still worth a render pass if it contains
+        // a phone number, so it can become a tappable Call/WhatsApp chip;
+        // otherwise fall back to plain textContent (cheaper, unchanged).
+        if (!PHONE_RE.test(noComments)) return null;
+        PHONE_RE.lastIndex = 0; // reset after .test()
+        const lines = noComments.split('\n').map(function(l) { return l.trim(); }).filter(Boolean);
+        if (lines.length === 0) return null;
+        if (lines.length === 1) return '<span>' + linkifyPhoneNumbers(esc(lines[0]), lines[0]) + '</span>';
+        return lines.map(function(l) {
+          return '<span style="display:block">' + linkifyPhoneNumbers(esc(l), l) + '</span>';
+        }).join('');
+      }
       // Strip all URLs, keep only the human-readable text
       const textOnly = noComments.replace(urlRe, '').replace(/[:\s]+$/, '').trim()
         .replace(/\n{2,}/g, '\n').trim();
       if (!textOnly) return null;
       const lines = textOnly.split('\n').map(function(l) { return l.trim(); }).filter(Boolean);
-      if (lines.length === 1) return '<span>' + esc(lines[0]) + '</span>';
-      return lines.map(function(l) { return '<span style="display:block">' + esc(l) + '</span>'; }).join('');
+      if (lines.length === 1) return '<span>' + linkifyPhoneNumbers(esc(lines[0]), lines[0]) + '</span>';
+      return lines.map(function(l) {
+        return '<span style="display:block">' + linkifyPhoneNumbers(esc(l), l) + '</span>';
+      }).join('');
     }
 
     // ── Case 2: HTML-wrapped content (e.g. <div>filename</div>) ─────────────
@@ -6819,7 +6910,7 @@
     });
     if (lines.length === 0) return null;
     const fileExts = /\.(pdf|doc|docx|txt|csv|xlsx|xls|ppt|pptx|png|jpg|jpeg|gif|mp4|mp3|zip)$/i;
-    let html = '<span>' + esc(lines[0]) + '</span>';
+    let html = '<span>' + linkifyPhoneNumbers(esc(lines[0]), lines[0]) + '</span>';
     if (lines.length > 1) {
       html += '<div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">';
       for (let i = 1; i < lines.length; i++) {
@@ -6834,12 +6925,80 @@
               + '<div class="doc-meta"><div class="doc-name" title="' + esc(item) + '">' + esc(item) + '</div></div></div>';
           }
         } else {
-          html += '<div style="font-size:13px;color:#374151;">' + esc(item) + '</div>';
+          html += '<div style="font-size:13px;color:#374151;">' + linkifyPhoneNumbers(esc(item), item) + '</div>';
         }
       }
       html += '</div>';
     }
     return html;
+  }
+
+  // ── Phone chip → Call / WhatsApp popover ────────────────────────────────────
+  let _phoneChipPopoverEl = null;
+  function closePhoneChipPopover() {
+    if (_phoneChipPopoverEl && _phoneChipPopoverEl.parentNode) {
+      _phoneChipPopoverEl.parentNode.removeChild(_phoneChipPopoverEl);
+    }
+    _phoneChipPopoverEl = null;
+    document.removeEventListener('click', onDocClickForPhonePopover, true);
+    document.removeEventListener('scroll', closePhoneChipPopover, true);
+    window.removeEventListener('resize', closePhoneChipPopover);
+  }
+  function onDocClickForPhonePopover(e) {
+    if (_phoneChipPopoverEl && !_phoneChipPopoverEl.contains(e.target)) {
+      closePhoneChipPopover();
+    }
+  }
+  function openPhoneChipPopover(chipEl, phoneDigits) {
+    closePhoneChipPopover();
+    const rect = chipEl.getBoundingClientRect();
+    const pop = document.createElement('div');
+    pop.className = 'shivai-phone-popover';
+    pop.innerHTML =
+      '<a class="shivai-phone-popover-item" data-action="call" href="tel:' + phoneDigits + '">'
+        + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>'
+        + '<span>Call</span>'
+      + '</a>'
+      + '<a class="shivai-phone-popover-item" data-action="whatsapp" href="https://wa.me/' + phoneDigits.replace(/^\+/, '') + '" target="_blank" rel="noopener noreferrer">'
+        + '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.868-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12.001 2C6.478 2 2 6.477 2 12c0 1.986.578 3.836 1.578 5.396L2 22l4.75-1.549A9.94 9.94 0 0 0 12.001 22C17.524 22 22 17.523 22 12S17.524 2 12.001 2zm0 18.09a8.06 8.06 0 0 1-4.115-1.128l-.295-.176-3.066 1 .93-2.988-.192-.31A8.084 8.084 0 1 1 20.09 12a8.098 8.098 0 0 1-8.089 8.09z"/></svg>'
+        + '<span>WhatsApp</span>'
+      + '</a>';
+    document.body.appendChild(pop);
+    const pr = pop.getBoundingClientRect();
+    let top = rect.bottom + 6;
+    let left = rect.left;
+    if (left + pr.width > window.innerWidth - 8) left = window.innerWidth - pr.width - 8;
+    if (top + pr.height > window.innerHeight - 8) top = rect.top - pr.height - 6;
+    pop.style.top = Math.max(8, top) + 'px';
+    pop.style.left = Math.max(8, left) + 'px';
+    _phoneChipPopoverEl = pop;
+    setTimeout(function() {
+      document.addEventListener('click', onDocClickForPhonePopover, true);
+      document.addEventListener('scroll', closePhoneChipPopover, true);
+      window.addEventListener('resize', closePhoneChipPopover);
+    }, 0);
+    pop.addEventListener('click', function(e) {
+      const item = e.target.closest('.shivai-phone-popover-item');
+      if (item) closePhoneChipPopover(); // let the tel:/wa.me navigation proceed
+    });
+  }
+  function attachPhoneChipHandler(container) {
+    if (!container || container.dataset.shivaiPhoneBound === 'true') return;
+    container.dataset.shivaiPhoneBound = 'true';
+    container.addEventListener('click', function(e) {
+      const chip = e.target.closest('.shivai-phone-chip');
+      if (!chip || !container.contains(chip)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      openPhoneChipPopover(chip, chip.dataset.phone || '');
+    });
+    container.addEventListener('keydown', function(e) {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const chip = e.target.closest('.shivai-phone-chip');
+      if (!chip || !container.contains(chip)) return;
+      e.preventDefault();
+      openPhoneChipPopover(chip, chip.dataset.phone || '');
+    });
   }
 
   function addMessage(role, text, options = {}) {
