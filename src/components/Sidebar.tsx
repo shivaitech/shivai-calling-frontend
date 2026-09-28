@@ -164,7 +164,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMod
     {
       path: "/staff",
       icon: UsersRound,
-      label: "Staff",
+      label: "Departments & Staff",
       permissionKey: "module:staff",
     },
     {
@@ -267,14 +267,27 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMod
             onClick={() => {
               if (isCollapsed) {
                 setIsCollapsed(false);
-              } else {
+                return;
+              }
+              // In an app workspace the page opens in its own tab — close it to
+              // return to the dashboard tab, or navigate there if opened
+              // standalone. Outside app mode, just go to the dashboard.
+              if (appMode) {
+                if (typeof window !== "undefined" && window.opener && !window.opener.closed) {
+                  window.close();
+                  return;
+                }
                 navigate("/dashboard");
                 onClose();
+                return;
               }
+              navigate("/dashboard");
+              onClose();
             }}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             className="cursor-pointer  flex flex-col items-start"
+            title="Go to Dashboard"
           >
             <motion.img
               src={branding?.logoUrl || Logo}

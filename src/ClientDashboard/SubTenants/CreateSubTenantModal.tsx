@@ -178,8 +178,8 @@ const CreateSubTenantModal = ({ open, onClose, onCreated }: CreateSubTenantModal
       setError("Enter the business owner's or main contact's name.");
       return;
     }
-    if (!phone.trim()) {
-      setError('Add a phone number for the primary contact.');
+    if (phone.trim() && phone.trim().replace(/\D/g, '').length < 6) {
+      setError('Enter a valid phone number, or leave it blank.');
       return;
     }
     if (!email.trim()) {
@@ -207,7 +207,7 @@ const CreateSubTenantModal = ({ open, onClose, onCreated }: CreateSubTenantModal
         fullName: ownerName.trim(),
         email: email.trim(),
         password,
-        phone: phone.trim(),
+        phone: phone.trim() || undefined,
         industry: industry || undefined,
         website: website.trim() || undefined,
         description: notes.trim() || undefined,
@@ -422,7 +422,7 @@ const CreateSubTenantModal = ({ open, onClose, onCreated }: CreateSubTenantModal
                 />
               </div>
               <div>
-                <FieldLabel icon={Phone}>Phone</FieldLabel>
+                <FieldLabel icon={Phone}>Phone (optional)</FieldLabel>
                 <input
                   type="tel"
                   value={phone}

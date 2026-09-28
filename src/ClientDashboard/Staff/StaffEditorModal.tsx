@@ -5,6 +5,13 @@ import appToast from '../../components/AppToast';
 import PermissionMatrixEditor from '../SubTenants/PermissionMatrixEditor';
 import { staffAPI, countGrants, type StaffMember } from '../../services/staffAPI';
 import { listSubTenants } from '../../services/subTenantsAPI';
+import { useStaffAssignments } from '../../services/staffOrgStore';
+import {
+  departmentsAPI,
+  designationsAPI,
+  type Department,
+  type Designation,
+} from '../../services/departmentsAPI';
 import { useAuth } from '../../contexts/AuthContext';
 import { usePasswordValidation } from '../../hooks/useAuthValidation';
 import { AUTH_MESSAGES } from '../../constants/validation';
@@ -29,6 +36,25 @@ const StaffEditorModal = ({ open, tenantId, editing, onClose, onSaved }: Props) 
   const [showPassword, setShowPassword] = useState(false);
   const passwordValidation = usePasswordValidation(password, email, 'signup');
   const [roleName, setRoleName] = useState('');
+  // Department → Designation hierarchy — real global catalogs (departmentsAPI).
+  // The staff↔department/designation link itself has no backend field yet, so
+  // it's tracked locally; the designation's NAME is what goes to the staff API
+  // as role_name.
+  const assignments = useStaffAssignments(tenantId);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [designations, setDesignations] = useState<Designation[]>([]);
+  const [loadingDepartments, setLoadingDepartments] = useState(false);
+  const [loadingDesignations, setLoadingDesignations] = useState(false);
+  const [departmentId, setDepartmentId] = useState<string | null>(null);
+  const [designationId, setDesignationId] = useState<string | null>(null);
+  const [newDept, setNewDept] = useState(false);
+  const [newDeptName, setNewDeptName] = useState('');
+  const [newDeptDesc, setNewDeptDesc] = useState('');
+  const [savingDept, setSavingDept] = useState(false);
+  const [newDesignation, setNewDesignation] = useState(false);
+  const [newDesignationName, setNewDesignationName] = useState('');
+  const [newDesignationDesc, setNewDesignationDesc] = useState('');
+  const [savingDesignation, setSavingDesignation] = useState(false);
   const [grants, setGrants] = useState<PermissionGrantMap>({});
   // Independent sub-tenant scope PER scoped module (command-center, sub-tenants).
   const [scopeMode, setScopeMode] = useState<Record<string, 'all' | 'select'>>({});
@@ -51,15 +77,75 @@ const StaffEditorModal = ({ open, tenantId, editing, onClose, onSaved }: Props) 
       .catch(() => setSubTenants([]));
   }, [open, isMainTenant]);
 
+  // Load the global Departments catalog whenever the modal opens. If it comes
+  // back empty, jump straight into "New department" — an empty dropdown with
+  // nothing to pick is a dead end, so skip it and let them create one inline.
+  const loadDepartments = () => {
+    setLoadingDepartments(true);
+    departmentsAPI
+      .list({ limit: 100, sortBy: 'name', sortOrder: 'asc' })
+      .then((res) => {
+        setDepartments(res.departments);
+        if (res.departments.length === 0 && !departmentId) {
+          setNewDept(true);
+        } else if (departmentId && !res.departments.some((d) => d.id === departmentId)) {
+          // The previously-assigned department was deleted since — clear it
+          // rather than silently showing a blank/invalid selection.
+          setDepartmentId(null);
+          setDesignationId(null);
+        }
+      })
+      .catch(() => setDepartments([]))
+      .finally(() => setLoadingDepartments(false));
+  };
+  useEffect(() => {
+    if (!open) return;
+    loadDepartments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // Load that department's Designations whenever the selected department
+  // changes. An empty result is a dead end too, so jump into "New
+  // designation" automatically instead of leaving an empty dropdown.
+  const loadDesignations = (deptId: string) => {
+    setLoadingDesignations(true);
+    designationsAPI
+      .list({ department: deptId, limit: 100, sortBy: 'name', sortOrder: 'asc' })
+      .then((res) => {
+        setDesignations(res.designations);
+        if (res.designations.length === 0 && !designationId) {
+          setNewDesignation(true);
+        } else if (designationId && !res.designations.some((d) => d.id === designationId)) {
+          setDesignationId(null);
+        }
+      })
+      .catch(() => setDesignations([]))
+      .finally(() => setLoadingDesignations(false));
+  };
+  useEffect(() => {
+    if (!open || !departmentId) {
+      setDesignations([]);
+      return;
+    }
+    loadDesignations(departmentId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, departmentId]);
+
   useEffect(() => {
     if (!open) return;
     setPassword('');
     setShowPassword(false);
+    setNewDept(false); setNewDeptName(''); setNewDeptDesc('');
+    setNewDesignation(false); setNewDesignationName(''); setNewDesignationDesc('');
     if (editing) {
       setName(editing.name);
       setEmail(editing.email);
       setPhone(editing.phone || '');
       setRoleName(editing.roleName || '');
+      // Restore the local department/designation assignment for this staff member.
+      const a = assignments.assignmentFor(editing.id);
+      setDepartmentId(a.departmentId);
+      setDesignationId(a.designationId);
       setGrants(editing.grants || {});
       // Seed both scoped modules from the record's per-module scope maps.
       setScopeMode({ ...(editing.subTenantScopes || {}) } as any);
@@ -70,11 +156,14 @@ const StaffEditorModal = ({ open, tenantId, editing, onClose, onSaved }: Props) 
       setEmail('');
       setPhone('');
       setRoleName('');
+      setDepartmentId(null);
+      setDesignationId(null);
       setGrants({});
       setScopeMode({});
       setManagedIds({});
       setInvite(true);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editing]);
 
   const scopeOf = (moduleKey: string): 'all' | 'select' => scopeMode[moduleKey] || 'all';
@@ -158,9 +247,10 @@ const StaffEditorModal = ({ open, tenantId, editing, onClose, onSaved }: Props) 
 
   const save = async () => {
     if (!name.trim()) return appToast.error('Enter the staff member’s name.');
-    if (!roleName.trim()) return appToast.error('Enter a role name.');
+    if (!departmentId) return appToast.error('Select a department.');
+    if (!roleName.trim()) return appToast.error('Select or create a designation.');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return appToast.error('Enter a valid email.');
-    if (!phone.trim()) return appToast.error('Enter a phone number.');
+    if (phone.trim() && phone.trim().replace(/\D/g, '').length < 7) return appToast.error('Enter a valid phone number, or leave it blank.');
     if (!editing) {
       if (!password) return appToast.error('Set a password — required for them to sign in.');
       if (!passwordValidation.isValid) return appToast.error(passwordValidation.error || 'Password does not meet the requirements.');
@@ -188,9 +278,12 @@ const StaffEditorModal = ({ open, tenantId, editing, onClose, onSaved }: Props) 
     try {
       if (editing) {
         await staffAPI.update(editing.id, { name, email, phone, roleName, grants, subTenantScopes, managedSubTenantsByModule, accounts });
+        // Persist the local department/designation assignment for this staff member.
+        assignments.setAssignment(editing.id, departmentId, designationId);
         appToast.success('Staff updated');
       } else {
-        await staffAPI.create(tenantId, { name, email, phone, password, roleName, grants, subTenantScopes, managedSubTenantsByModule, accounts, invite });
+        const created = await staffAPI.create(tenantId, { name, email, phone, password, roleName, grants, subTenantScopes, managedSubTenantsByModule, accounts, invite });
+        if (created?.id) assignments.setAssignment(created.id, departmentId, designationId);
         appToast.success(invite ? 'Staff invited' : 'Staff added');
       }
       onSaved();
@@ -232,7 +325,7 @@ const StaffEditorModal = ({ open, tenantId, editing, onClose, onSaved }: Props) 
               <input type="email" value={email} disabled={!!editing} onChange={(e) => setEmail(e.target.value)} placeholder="name@company.com" className={`${INPUT} ${editing ? 'opacity-60 cursor-not-allowed' : ''}`} />
             </div>
             <div>
-              <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5"><Phone className="w-3 h-3 text-slate-400" /> Phone</label>
+              <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5"><Phone className="w-3 h-3 text-slate-400" /> Phone <span className="text-slate-400 font-normal">(optional)</span></label>
               <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1 (555) 000-0000" className={INPUT} />
             </div>
             {!editing && (
@@ -278,21 +371,129 @@ const StaffEditorModal = ({ open, tenantId, editing, onClose, onSaved }: Props) 
             </p>
           )}
 
-          {/* Role name (free text) */}
-          <div>
-            <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
-              <Briefcase className="w-3 h-3 text-slate-400" /> Role name
-            </label>
-            <input
-              value={roleName}
-              onChange={(e) => setRoleName(e.target.value)}
-              placeholder="e.g. Lead Manager, Brand Manager, Front Desk…"
-              className={INPUT}
-            />
-            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5">
-              A label for this person’s job. Choose the exact features they can access below.
-            </p>
+          {/* Department → Designation hierarchy (global catalogs) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Department */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400">
+                  <Building2 className="w-3 h-3 text-slate-400" /> Department
+                </label>
+                <button type="button" onClick={() => { setNewDept((v) => !v); setNewDesignation(false); }} className="text-[11px] font-medium text-violet-600 dark:text-violet-400 inline-flex items-center gap-0.5">
+                  <UserPlus className="w-3 h-3" /> New
+                </button>
+              </div>
+              {newDept ? (
+                <div className="space-y-1.5">
+                  <input value={newDeptName} onChange={(e) => setNewDeptName(e.target.value)} placeholder="Department name" className={INPUT} autoFocus />
+                  <input value={newDeptDesc} onChange={(e) => setNewDeptDesc(e.target.value)} placeholder="Description" className={INPUT} />
+                  <div className="flex gap-1.5">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const nm = newDeptName.trim();
+                        const desc = newDeptDesc.trim();
+                        if (nm.length < 2 || !desc) return;
+                        setSavingDept(true);
+                        try {
+                          const d = await departmentsAPI.create({ name: nm, description: desc });
+                          setDepartments((prev) => [...prev, d].sort((a, b) => a.name.localeCompare(b.name)));
+                          setDepartmentId(d.id);
+                          setDesignationId(null);
+                          setNewDeptName(''); setNewDeptDesc(''); setNewDept(false);
+                        } catch (err: any) {
+                          appToast.error(err?.message || 'Failed to create department');
+                        } finally {
+                          setSavingDept(false);
+                        }
+                      }}
+                      disabled={savingDept || newDeptName.trim().length < 2 || !newDeptDesc.trim()}
+                      className="flex-1 px-2.5 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-medium disabled:opacity-50 flex items-center justify-center gap-1"
+                    >
+                      {savingDept ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} Create
+                    </button>
+                    <button type="button" onClick={() => { setNewDept(false); setNewDeptName(''); setNewDeptDesc(''); }} className="px-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500"><X className="w-4 h-4" /></button>
+                  </div>
+                </div>
+              ) : (
+                <select
+                  value={departmentId ?? ''}
+                  onChange={(e) => { setDepartmentId(e.target.value || null); setDesignationId(null); }}
+                  className={INPUT}
+                  disabled={loadingDepartments}
+                >
+                  <option value="">{loadingDepartments ? 'Loading…' : 'Select department…'}</option>
+                  {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+              )}
+            </div>
+
+            {/* Designation (scoped to department) */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400">
+                  <Briefcase className="w-3 h-3 text-slate-400" /> Designation
+                </label>
+                {departmentId && !newDept && (
+                  <button type="button" onClick={() => setNewDesignation((v) => !v)} className="text-[11px] font-medium text-violet-600 dark:text-violet-400 inline-flex items-center gap-0.5">
+                    <UserPlus className="w-3 h-3" /> New
+                  </button>
+                )}
+              </div>
+              {!departmentId ? (
+                <div className={`${INPUT} flex items-center text-slate-400`}>Pick a department first</div>
+              ) : newDesignation ? (
+                <div className="space-y-1.5">
+                  <input value={newDesignationName} onChange={(e) => setNewDesignationName(e.target.value)} placeholder="Designation name" className={INPUT} autoFocus />
+                  <input value={newDesignationDesc} onChange={(e) => setNewDesignationDesc(e.target.value)} placeholder="Description" className={INPUT} />
+                  <div className="flex gap-1.5">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const nm = newDesignationName.trim();
+                        const desc = newDesignationDesc.trim();
+                        if (nm.length < 2 || !desc || !departmentId) return;
+                        setSavingDesignation(true);
+                        try {
+                          const created = await designationsAPI.create({ name: nm, description: desc, department: departmentId });
+                          setDesignations((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+                          setDesignationId(created.id);
+                          setRoleName(created.name);
+                          setNewDesignationName(''); setNewDesignationDesc(''); setNewDesignation(false);
+                        } catch (err: any) {
+                          appToast.error(err?.message || 'Failed to create designation');
+                        } finally {
+                          setSavingDesignation(false);
+                        }
+                      }}
+                      disabled={savingDesignation || newDesignationName.trim().length < 2 || !newDesignationDesc.trim()}
+                      className="flex-1 px-2.5 py-1.5 rounded-lg bg-violet-600 text-white text-xs font-medium disabled:opacity-50 flex items-center justify-center gap-1"
+                    >
+                      {savingDesignation ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} Create
+                    </button>
+                    <button type="button" onClick={() => { setNewDesignation(false); setNewDesignationName(''); setNewDesignationDesc(''); }} className="px-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500"><X className="w-4 h-4" /></button>
+                  </div>
+                </div>
+              ) : (
+                <select
+                  value={designationId ?? ''}
+                  onChange={(e) => {
+                    const id = e.target.value || null;
+                    setDesignationId(id);
+                    setRoleName(designations.find((d) => d.id === id)?.name || '');
+                  }}
+                  className={INPUT}
+                  disabled={loadingDesignations}
+                >
+                  <option value="">{loadingDesignations ? 'Loading…' : 'Select designation…'}</option>
+                  {designations.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+              )}
+            </div>
           </div>
+          <p className="text-[11px] text-slate-400 dark:text-slate-500 -mt-1">
+            Departments &amp; designations organise your team. Choose the exact features they can access below.
+          </p>
 
           {/* Per-staff feature access */}
           <div>

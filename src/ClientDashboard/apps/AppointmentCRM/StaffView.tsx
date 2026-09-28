@@ -16,6 +16,9 @@ import { useDepartments, addDepartment, removeDepartment } from "./departmentsSt
 import { useStaff, staffRoleLine } from "./staffStore";
 import { useEnsureOrgSeeded } from "./orgSeed";
 import StaffFormModal from "./StaffFormModal";
+import { useAuth } from "../../../contexts/AuthContext";
+import { useStaffAssignments } from "../../../services/staffOrgStore";
+import { designationsAPI, type Designation as GlobalDesignation } from "../../../services/departmentsAPI";
 
 type StaffModalState =
   | { mode: "add" }
@@ -28,6 +31,21 @@ const StaffView = () => {
   useEnsureOrgSeeded(branches);
   const { departments } = useDepartments();
   const { staff, displayName } = useStaff();
+
+  // Org-wide Designation catalog (shared across apps) — read-only lookup here,
+  // just to show each person's designation next to their branch-scoped role.
+  const { user } = useAuth();
+  const tenantId = String(user?.tenantId || user?.id || "me");
+  const assignments = useStaffAssignments(tenantId);
+  const [globalDesignations, setGlobalDesignations] = useState<GlobalDesignation[]>([]);
+  useEffect(() => {
+    designationsAPI
+      .list({ limit: 100 })
+      .then((res) => setGlobalDesignations(res.designations))
+      .catch(() => setGlobalDesignations([]));
+  }, []);
+  const designationName = (staffId: string): string | undefined =>
+    globalDesignations.find((d) => d.id === assignments.assignmentFor(staffId).designationId)?.name;
 
   const selectedBranchId = activeBranchId;
 
@@ -224,7 +242,14 @@ const StaffView = () => {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">{displayName(s)}</p>
-                      <p className="text-[11px] text-slate-500">{staffRoleLine(s)}</p>
+                      <p className="text-[11px] text-slate-500 flex items-center gap-1.5 flex-wrap">
+                        <span>{staffRoleLine(s)}</span>
+                        {designationName(s.id) && (
+                          <span className="px-1.5 py-0.5 rounded-full bg-violet-50 dark:bg-violet-900/25 text-violet-700 dark:text-violet-300 text-[10px] font-medium">
+                            {designationName(s.id)}
+                          </span>
+                        )}
+                      </p>
                     </div>
                     <Pencil className="w-4 h-4 text-slate-300 group-hover:text-violet-500 flex-shrink-0" />
                   </button>

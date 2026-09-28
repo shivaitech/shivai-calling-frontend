@@ -79,6 +79,7 @@ const ResetPassword = lazy(() => import("./components/ResetPassword"));
 const AgentPublicPage = lazy(() => import("./pages/AgentPublicPage"));
 const DoctorCalendarPublicPage = lazy(() => import("./pages/DoctorCalendarPublicPage"));
 const DoctorCalendarPWALauncher = lazy(() => import("./pages/DoctorCalendarPWALauncher"));
+const StaffPortalPage = lazy(() => import("./pages/StaffPortalPage"));
 
 function LoadingFallback() {
   return (
@@ -168,6 +169,9 @@ function AppContent() {
             {/* Doctor personal calendar PWA — launcher + per-doctor calendar */}
             <Route path="/doctor-calendar" element={<DoctorCalendarPWALauncher />} />
             <Route path="/doctor-calendar/:staffId" element={<DoctorCalendarPublicPage />} />
+
+            {/* Support CRM staff mini-app — shared per-staff workspace (public) */}
+            <Route path="/staff-portal/:staffId" element={<StaffPortalPage />} />
 
             {/* Website preview - no auth required, opens in new tab */}
             <Route path="/website-preview" element={<WebsitePreview />} />

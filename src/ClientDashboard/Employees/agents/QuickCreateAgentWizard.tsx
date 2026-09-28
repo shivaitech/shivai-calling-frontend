@@ -563,7 +563,7 @@ const QuickCreateAgentWizard = ({
     { id: 'overview', label: 'Overview', icon: '📋' },
     { id: 'settings', label: 'Settings', icon: '⚙️' },
     { id: 'system-prompt', label: 'System Prompt', icon: '🤖' },
-    { id: 'first-message', label: 'First Message', icon: '💬' },
+    { id: 'first-message', label: 'Greeting Message', icon: '💬' },
     { id: 'knowledge', label: 'Knowledge', icon: '📚' },
     { id: 'scripts', label: 'Scripts', icon: '📝' },
     { id: 'training', label: 'Training', icon: '🎯' },
@@ -710,6 +710,7 @@ const QuickCreateAgentWizard = ({
     { value: "automotive", label: "Automotive", icon: "🚗" },
     { value: "beauty", label: "Beauty & Salon", icon: "💇" },
     { value: "home-services", label: "Home Services", icon: "🏠" },
+    { value: "entertainment", label: "Entertainment", icon: "🎬" },
     { value: "other", label: "Other", icon: "📋" },
   ];
 
@@ -895,6 +896,19 @@ const QuickCreateAgentWizard = ({
         { value: "handyman", label: "Handyman Services" },
         { value: "carpet-cleaning", label: "Carpet Cleaning" },
         { value: "window-cleaning", label: "Window Cleaning" },
+      ],
+      entertainment: [
+        { value: "media", label: "Media & Broadcasting" },
+        { value: "gaming", label: "Gaming" },
+        { value: "events", label: "Events & Concerts" },
+        { value: "sports", label: "Sports" },
+        { value: "film-tv-production", label: "Film & TV Production" },
+        { value: "actors-talent", label: "Actors & Talent" },
+        { value: "directors-producers", label: "Directors & Producers" },
+        { value: "talent-management", label: "Talent Management Agency" },
+        { value: "music-artists", label: "Music & Artists" },
+        { value: "influencers-creators", label: "Influencers & Content Creators" },
+        { value: "modeling", label: "Modeling Agency" },
       ],
       other: [
         { value: "general", label: "General Business" },
@@ -4242,15 +4256,15 @@ const QuickCreateAgentWizard = ({
                       )
                     ) : null}
                   </div>
-                  {/* First Message Section */}
-                  {/* First Message Section Marker */}
+                  {/* Greeting Message Section */}
+                  {/* Greeting Message Section Marker */}
                   <div id="template-section-first-message" className="scroll-mt-2" />
-                  
+
                   {(aiTemplate?.firstMessage ||
                     template?.firstMessage) && (
                     <div>
                       <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                        First Message
+                        Greeting Message
                       </h3>
                       {isEditingTemplate ? (
                         <textarea
@@ -4549,10 +4563,10 @@ const QuickCreateAgentWizard = ({
                         </div>
                       </div>
 
-                      {/* First Message */}
+                      {/* Greeting Message */}
                       <div>
                         <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                          First Message
+                          Greeting Message
                         </h3>
                         <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 border border-slate-200 dark:border-slate-700">
                           <p className="text-sm text-slate-600 dark:text-slate-400 italic">
