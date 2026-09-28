@@ -6810,24 +6810,31 @@
 
   // ── Phone numbers in transcript text → tappable "chips" ────────────────────
   // The AI can say all sorts of digit runs (durations, amounts, tracking IDs,
-  // dates) — only link ones that validate as a real Indian mobile number:
-  //   - bare 10 digits starting 6-9                      → 9876543210
-  //   - with trunk 0                                      → 09876543210
-  //   - with country code, +91 / 91 / 0091, then 6-9…    → +91 98765 43210
+  // dates) — only link ones that validate as a real phone number:
+  //   - Indian mobile, no country code needed (it's an unambiguous local shape):
+  //       bare 10 digits starting 6-9                      → 9876543210
+  //       with trunk 0                                      → 09876543210
+  //       with country code, +91 / 91 / 0091, then 6-9…    → +91 98765 43210
+  //   - Any OTHER country: only when an explicit "+<countrycode>" is present
+  //     (e.g. +971 50 123 4567) — without that + prefix a bare number is
+  //     indistinguishable from a random digit string, so we don't guess.
   // Anything else (short codes, years, wrong length, wrong leading digit) is
   // left as plain text — never linked, never guessed at.
   const PHONE_RE = /(\+?\d[\d\s().-]{5,}\d)/g;
-  function normalizeIndianPhone(candidate) {
+  function normalizePhoneNumber(candidate) {
     const digits = candidate.replace(/\D/g, '');
-    let national = null;
-    if (/^[6-9]\d{9}$/.test(digits)) {
-      national = digits; // bare 10-digit mobile
-    } else if (/^0[6-9]\d{9}$/.test(digits)) {
-      national = digits.slice(1); // trunk-prefixed
-    } else if (/^(0091|91)[6-9]\d{9}$/.test(digits)) {
-      national = digits.slice(-10); // country-code prefixed
+    // Indian mobile — recognized even without a country code.
+    if (/^[6-9]\d{9}$/.test(digits)) return '91' + digits;
+    if (/^0[6-9]\d{9}$/.test(digits)) return '91' + digits.slice(1);
+    if (/^(0091|91)[6-9]\d{9}$/.test(digits)) return '91' + digits.slice(-10);
+    // Any other country — only trust it when "+" was explicit in the source
+    // text (an unambiguous phone-number signal), and it roughly fits E.164:
+    // 1-3 digit country code + a national number not starting with 0,
+    // 8-14 digits total after the country code.
+    if (candidate.trim().charAt(0) === '+' && /^\d{8,15}$/.test(digits) && !/^0/.test(digits.slice(1))) {
+      return digits;
     }
-    return national ? '91' + national : null; // E.164 (without '+') for tel:/wa.me
+    return null;
   }
   function linkifyPhoneNumbers(escapedHtmlFragment, rawTextForMatching) {
     // Run the regex against the RAW text (so digit-grouping isn't broken by
@@ -6836,8 +6843,8 @@
     // appear inside a phone-number match — we can safely search-and-replace
     // on the already-escaped string using the same matches.
     return escapedHtmlFragment.replace(PHONE_RE, function(match) {
-      const normalized = normalizeIndianPhone(match);
-      if (!normalized) return match; // not a valid Indian number — leave as plain text
+      const normalized = normalizePhoneNumber(match);
+      if (!normalized) return match; // not a valid phone number — leave as plain text
       return '<span class="shivai-phone-chip" data-phone="' + normalized + '" role="button" tabindex="0">'
         + match + '</span>';
     });
@@ -6955,7 +6962,7 @@
     const pop = document.createElement('div');
     pop.className = 'shivai-phone-popover';
     pop.innerHTML =
-      '<a class="shivai-phone-popover-item" data-action="call" href="tel:' + phoneDigits + '">'
+      '<a class="shivai-phone-popover-item" data-action="call" href="tel:+' + phoneDigits + '">'
         + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>'
         + '<span>Call</span>'
       + '</a>'
@@ -6979,7 +6986,15 @@
     }, 0);
     pop.addEventListener('click', function(e) {
       const item = e.target.closest('.shivai-phone-popover-item');
-      if (item) closePhoneChipPopover(); // let the tel:/wa.me navigation proceed
+      if (!item) return;
+      // Best-effort: also put the number on the clipboard so it's there to paste
+      // into a dialer/contacts app on desktop, where `tel:`/`wa.me` links often
+      // have no registered handler and silently do nothing.
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        const forCopy = item.dataset.action === 'call' ? ('+' + phoneDigits) : phoneDigits;
+        navigator.clipboard.writeText(forCopy).catch(function() {});
+      }
+      closePhoneChipPopover(); // let the tel:/wa.me navigation proceed
     });
   }
   function attachPhoneChipHandler(container) {

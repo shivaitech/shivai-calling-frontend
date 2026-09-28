@@ -65,7 +65,8 @@ import {
   PhoneOutgoing,
 } from "lucide-react";
 
-const AGENTS_PER_PAGE = 6;
+const DEFAULT_AGENTS_PER_PAGE = 6;
+const AGENTS_PER_PAGE_OPTIONS = [6, 12, 24, 48];
 const PUBLISH_ALLOWED_EMAILS = ["demo@callshivai.com", "atharkatheri@gmail.com", "mhegc2025@gmail.com"];
 const SALES_EMAIL = "hello@shivaitech.com";
 const SALES_WHATSAPP_NUMBER = "919211490707";
@@ -142,6 +143,10 @@ const AgentManagement = () => {
 
   // Pagination state - read from URL query params
   const currentPage = parseInt(searchParams.get("page") || "1", 10);
+  const agentsPerPage = (() => {
+    const fromUrl = parseInt(searchParams.get("pageSize") || "", 10);
+    return AGENTS_PER_PAGE_OPTIONS.includes(fromUrl) ? fromUrl : DEFAULT_AGENTS_PER_PAGE;
+  })();
   const [showQRModal, setShowQRModal] = useState(false);
   const [showTestChat, setShowTestChat] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -1551,7 +1556,7 @@ const AgentManagement = () => {
         sort: sortBy,
         search: debouncedSearchTerm || undefined,
         page: currentPage,
-        limit: AGENTS_PER_PAGE,
+        limit: agentsPerPage,
       });
 
       setFilteredAgents(result.agents);
@@ -1593,11 +1598,11 @@ const AgentManagement = () => {
         });
 
       const total = fallbackFiltered.length;
-      const totalPagesCalc = Math.ceil(total / AGENTS_PER_PAGE);
-      const startIndex = (currentPage - 1) * AGENTS_PER_PAGE;
+      const totalPagesCalc = Math.ceil(total / agentsPerPage);
+      const startIndex = (currentPage - 1) * agentsPerPage;
       const paginatedFallback = fallbackFiltered.slice(
         startIndex,
-        startIndex + AGENTS_PER_PAGE,
+        startIndex + agentsPerPage,
       );
 
       setFilteredAgents(paginatedFallback);
@@ -1612,6 +1617,7 @@ const AgentManagement = () => {
     sortBy,
     debouncedSearchTerm,
     currentPage,
+    agentsPerPage,
     agentListRefreshToken,
     // NOTE: `agents` intentionally excluded — adding it would cause fetchFilteredAgents to
     // re-run after every publish/pause and overwrite the optimistic UI update with stale
@@ -1667,16 +1673,22 @@ const AgentManagement = () => {
 
   // Handle page change
   const handlePageChange = (page: number) => {
-    setSearchParams({ page: page.toString() });
+    setSearchParams({ page: page.toString(), pageSize: agentsPerPage.toString() });
     // Scroll to top of the page when page changes
     window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  // Handle "agents per page" change - reset to page 1 so the new page size doesn't
+  // land the user past the end of the (now shorter) list of pages
+  const handlePageSizeChange = (size: number) => {
+    setSearchParams({ page: "1", pageSize: size.toString() });
   };
 
   // Reset to page 1 when filters change
   useEffect(() => {
     if (currentPage > 1) {
       // Reset to page 1 when search, gender or sort changes
-      setSearchParams({ page: "1" });
+      setSearchParams({ page: "1", pageSize: agentsPerPage.toString() });
     }
   }, [debouncedSearchTerm, genderFilter, sortBy]);
 
@@ -1949,7 +1961,7 @@ const AgentManagement = () => {
         {/* Loading State */}
         {isLoadingAgents && (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
-            {[...Array(AGENTS_PER_PAGE)].map((_, index) => (
+            {[...Array(agentsPerPage)].map((_, index) => (
               <GlassCard key={index}>
                 <div className="p-4 sm:p-5 lg:p-6 animate-pulse">
                   <div className="flex items-start gap-3 mb-4">
@@ -2286,8 +2298,10 @@ const AgentManagement = () => {
               currentPage={currentPage}
               totalPages={totalPages}
               totalItems={totalAgents}
-              itemsPerPage={AGENTS_PER_PAGE}
+              itemsPerPage={agentsPerPage}
               onPageChange={handlePageChange}
+              pageSizeOptions={AGENTS_PER_PAGE_OPTIONS}
+              onPageSizeChange={handlePageSizeChange}
             />
           </div>
         )}
