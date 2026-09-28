@@ -1,0 +1,919 @@
+import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
+import {
+  UsersRound,
+  Plus,
+  Search,
+  Loader2,
+  MoreVertical,
+  Pencil,
+  Pause,
+  Play,
+  Trash2,
+  ShieldCheck,
+  Mail,
+  Clock,
+  Building2,
+  Eye,
+  X,
+  Check,
+  ChevronRight,
+} from 'lucide-react';
+import GlassCard from '../../../components/GlassCard';
+import ModalOverlay from '../../../components/ModalOverlay';
+import appToast from '../../../components/AppToast';
+import { SectionTitle } from '../SupportCRM/ui';
+import { useAuth } from '../../../contexts/AuthContext';
+import { staffAPI, countGrants, type StaffMember, type StaffStatus } from '../../../services/staffAPI';
+import { useStaffAssignments } from '../../../services/staffOrgStore';
+import {
+  departmentsAPI,
+  designationsAPI,
+  designationDepartmentId as designationDeptId,
+  type Department,
+  type Designation,
+} from '../../../services/departmentsAPI';
+import { PERMISSION_REGISTRY } from '../../../permissions/registry';
+import StaffEditorModal from '../../Staff/StaffEditorModal';
+import { Briefcase } from 'lucide-react';
+import { useActiveBranch, type Branch } from './branchesStore';
+
+/**
+ * Same org-wide Departments → Designations → Staff module as the main
+ * dashboard's Staff page (src/ClientDashboard/Staff/Staff.tsx), embedded here
+ * so it's reachable from inside the Appointment CRM too. The one addition is
+ * a Branch picker on Departments — once a department is tied to a branch,
+ * its Designations and Staff inherit that branch automatically (grouped by
+ * the department they belong to), no separate branch field needed on them.
+ */
+
+const statusBadge = (status: StaffStatus) => {
+  if (status === 'active') return 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800';
+  if (status === 'invited') return 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800';
+  return 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700';
+};
+
+const selectedSubTenantIds = (s: StaffMember): string[] => {
+  const byMod = s.managedSubTenantsByModule || {};
+  return Array.from(new Set(Object.values(byMod).flat()));
+};
+const hasSelectedScope = (s: StaffMember): boolean => {
+  const scopes = s.subTenantScopes || {};
+  return Object.values(scopes).some((m) => m === 'select') && selectedSubTenantIds(s).length > 0;
+};
+
+const fmtLastActive = (iso: string | null): string => {
+  if (!iso) return 'Never signed in';
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.round(diff / 60000);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
+};
+
+interface Props {
+  /**
+   * When set, scopes the whole module to one branch: only departments with a
+   * matching branchId are shown (new departments default to it too), and
+   * Designations/Staff follow automatically since they belong to those
+   * departments. Omit for the org-wide "Main Tenant Staff" view.
+   */
+  branchId?: string;
+}
+
+const TenantStaffModule = ({ branchId }: Props) => {
+  const { user } = useAuth();
+  const tenantId = String(user?.tenantId || user?.id || 'me');
+  const { branches } = useActiveBranch();
+
+  const assignments = useStaffAssignments(tenantId);
+  const [tab, setTab] = useState<'departments' | 'designations' | 'staff'>('departments');
+  const [allDepartments, setAllDepartments] = useState<Department[]>([]);
+  const [allDesignations, setAllDesignations] = useState<Designation[]>([]);
+  const [loadingCatalogs, setLoadingCatalogs] = useState(true);
+
+  const loadCatalogs = () => {
+    setLoadingCatalogs(true);
+    Promise.all([
+      departmentsAPI.list({ limit: 100, sortBy: 'name', sortOrder: 'asc' }),
+      designationsAPI.list({ limit: 100, sortBy: 'name', sortOrder: 'asc' }),
+    ])
+      .then(([deptRes, desigRes]) => {
+        setAllDepartments(deptRes.departments);
+        setAllDesignations(desigRes.designations);
+      })
+      .catch(() => { setAllDepartments([]); setAllDesignations([]); })
+      .finally(() => setLoadingCatalogs(false));
+  };
+  useEffect(() => {
+    loadCatalogs();
+  }, []);
+
+  // Scope to the given branch when one is set — Designations/Staff inherit
+  // the scope automatically since they belong to a (now-filtered) department.
+  const departments = useMemo(
+    () => (branchId ? allDepartments.filter((d) => d.branchId === branchId) : allDepartments),
+    [allDepartments, branchId],
+  );
+  const departmentIds = useMemo(() => new Set(departments.map((d) => d.id)), [departments]);
+  const designations = useMemo(
+    () => (branchId ? allDesignations.filter((r) => departmentIds.has(designationDeptId(r))) : allDesignations),
+    [allDesignations, branchId, departmentIds],
+  );
+
+  const departmentName = (id: string | null | undefined) =>
+    id ? allDepartments.find((d) => d.id === id)?.name : undefined;
+  const branchName = (id: string | null | undefined) =>
+    id ? branches.find((b) => b.id === id)?.name : undefined;
+  const [staff, setStaff] = useState<StaffMember[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | StaffStatus>('all');
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const openMenu = (id: string, btn: HTMLElement) => {
+    if (openMenuId === id) {
+      setOpenMenuId(null);
+      return;
+    }
+    const r = btn.getBoundingClientRect();
+    const MENU_W = 176;
+    setMenuPos({ top: r.bottom + 6, left: Math.max(8, r.right - MENU_W) });
+    setOpenMenuId(id);
+  };
+
+  useEffect(() => {
+    if (!openMenuId) return;
+    const close = () => setOpenMenuId(null);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [openMenuId]);
+
+  const [showEditor, setShowEditor] = useState(false);
+  const [editing, setEditing] = useState<StaffMember | null>(null);
+  const [viewTarget, setViewTarget] = useState<StaffMember | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<StaffMember | null>(null);
+  const [isRemoving, setIsRemoving] = useState(false);
+
+  const load = () => {
+    setLoading(true);
+    setError(null);
+    staffAPI
+      .list(tenantId)
+      .then(setStaff)
+      .catch((err: any) => setError(err?.message || 'Failed to load staff'))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return staff
+      .filter((s) => (branchId ? departmentIds.has(assignments.assignmentFor(s.id).departmentId || '') : true))
+      .filter((s) => (statusFilter === 'all' ? true : s.status === statusFilter))
+      .filter((s) => (q ? `${s.name} ${s.email}`.toLowerCase().includes(q) : true));
+  }, [staff, search, statusFilter, branchId, departmentIds, assignments]);
+
+  const openCreate = () => {
+    setEditing(null);
+    setShowEditor(true);
+  };
+  const openEdit = (s: StaffMember) => {
+    setOpenMenuId(null);
+    setEditing(s);
+    setShowEditor(true);
+  };
+
+  const toggleStatus = async (s: StaffMember) => {
+    setOpenMenuId(null);
+    setBusyId(s.id);
+    try {
+      const next: StaffStatus = s.status === 'suspended' ? 'active' : 'suspended';
+      const updated = await staffAPI.setStatus(s.id, next);
+      setStaff((prev) => prev.map((x) => (x.id === s.id ? updated : x)));
+      appToast.success(next === 'suspended' ? `${s.name} suspended` : `${s.name} reactivated`);
+    } catch (err: any) {
+      appToast.error(err?.message || 'Failed to update status');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const confirmRemove = async () => {
+    if (!removeTarget) return;
+    setIsRemoving(true);
+    try {
+      await staffAPI.remove(removeTarget.id);
+      setStaff((prev) => prev.filter((x) => x.id !== removeTarget.id));
+      appToast.success(`${removeTarget.name} removed`);
+      setRemoveTarget(null);
+    } catch (err: any) {
+      appToast.error(err?.message || 'Failed to remove staff');
+    } finally {
+      setIsRemoving(false);
+    }
+  };
+
+  const scopedBranch = branchId ? branches.find((b) => b.id === branchId) : undefined;
+
+  return (
+    <div className="space-y-5" onClick={() => openMenuId && setOpenMenuId(null)}>
+      <SectionTitle
+        title="Departments & Staff"
+        subtitle={
+          branchId
+            ? `Departments, designations & staff for ${scopedBranch?.name ?? 'this branch'}.`
+            : "Your organization's global departments, designations & staff — shared across every app."
+        }
+        stackOnMobile
+        right={
+          tab === 'staff' ? (
+            <button
+              type="button"
+              onClick={() => (departments.length === 0 ? setTab('departments') : openCreate())}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium common-button-bg"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add Staff
+            </button>
+          ) : undefined
+        }
+      />
+
+      {/* Tabs — ordered Departments → Designations → Staff, the real setup order */}
+      <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 overflow-x-auto no-scrollbar">
+        {([
+          { key: 'departments', label: 'Departments', icon: Building2 },
+          { key: 'designations', label: 'Designations', icon: Briefcase },
+          { key: 'staff', label: 'Staff', icon: UsersRound },
+        ] as const).map(({ key, label, icon: Icon }, i) => (
+          <div key={key} className="flex items-center">
+            {i > 0 && <ChevronRight className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 mx-0.5 flex-shrink-0" />}
+            <button
+              type="button"
+              onClick={() => setTab(key)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+                tab === key
+                  ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5" /> {label}
+              {key === 'departments' && !loadingCatalogs && (
+                <span className="ml-0.5 text-[10px] text-slate-400">({departments.length})</span>
+              )}
+              {key === 'designations' && !loadingCatalogs && (
+                <span className="ml-0.5 text-[10px] text-slate-400">({designations.length})</span>
+              )}
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {tab === 'departments' && (
+        <DepartmentsPanel
+          departments={departments}
+          designations={designations}
+          loading={loadingCatalogs}
+          onChanged={loadCatalogs}
+          assignments={assignments}
+          staff={staff}
+          branches={branches}
+          branchName={branchName}
+          scopedBranchId={branchId}
+        />
+      )}
+      {tab === 'designations' && (
+        <DesignationsPanel
+          departments={departments}
+          designations={designations}
+          loading={loadingCatalogs}
+          onChanged={loadCatalogs}
+          assignments={assignments}
+          staff={staff}
+          branchName={branchName}
+          onGoToDepartments={() => setTab('departments')}
+          scopedBranchId={branchId}
+        />
+      )}
+
+      {tab === 'staff' && (
+      <>
+      {/* Filters */}
+      <GlassCard className="p-3">
+        <div className="flex flex-col sm:flex-row gap-2">
+          <div className="flex-1 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search staff by name or email…"
+              className="w-full pl-9 pr-3 py-2.5 rounded-xl text-sm common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-violet-500/40 text-slate-800 dark:text-white"
+            />
+          </div>
+          <div className="flex rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+            {(['all', 'active', 'invited', 'suspended'] as const).map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setStatusFilter(s)}
+                className={`px-3 py-2.5 text-xs font-medium capitalize transition-colors ${
+                  statusFilter === s
+                    ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900'
+                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/60'
+                }`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+      </GlassCard>
+
+      {/* List */}
+      {loading ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="w-6 h-6 text-violet-500 animate-spin" />
+        </div>
+      ) : error ? (
+        <GlassCard className="p-8 text-center">
+          <p className="text-sm text-rose-600 dark:text-rose-400 mb-3">{error}</p>
+          <button onClick={load} className="text-sm font-medium text-violet-600 dark:text-violet-400 hover:underline">
+            Retry
+          </button>
+        </GlassCard>
+      ) : filtered.length === 0 ? (
+        <GlassCard className="p-10 text-center">
+          <UsersRound className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+          {!loadingCatalogs && departments.length === 0 ? (
+            <>
+              <p className="text-sm text-slate-600 dark:text-slate-300 mb-1 font-medium">Set up your org first</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                Create a department (then a designation inside it) before hiring staff — the two feed the "Add Staff" form.
+              </p>
+              <button onClick={() => setTab('departments')} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium common-button-bg">
+                <Building2 className="w-4 h-4" /> Create a Department
+              </button>
+            </>
+          ) : !loadingCatalogs && designations.length === 0 ? (
+            <>
+              <p className="text-sm text-slate-600 dark:text-slate-300 mb-1 font-medium">Add a designation next</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                You have {departments.length} department{departments.length === 1 ? '' : 's'} — add at least one designation before hiring staff.
+              </p>
+              <button onClick={() => setTab('designations')} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium common-button-bg">
+                <Briefcase className="w-4 h-4" /> Create a Designation
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-slate-600 dark:text-slate-300 mb-1 font-medium">No staff yet</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                Add your first team member and choose what they can access.
+              </p>
+              <button onClick={openCreate} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium common-button-bg">
+                <Plus className="w-4 h-4" /> Add Staff
+              </button>
+            </>
+          )}
+        </GlassCard>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          {filtered.map((s) => {
+            const deptId = assignments.assignmentFor(s.id).departmentId;
+            const dept = departments.find((d) => d.id === deptId);
+            return (
+            <GlassCard key={s.id} className="p-4 relative">
+              <div className="flex items-start gap-3">
+                <div className="w-11 h-11 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 text-white flex items-center justify-center text-sm font-semibold flex-shrink-0">
+                  {(s.name || '?').slice(0, 2).toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">{s.name}</p>
+                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border capitalize ${statusBadge(s.status)}`}>
+                      {s.status}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 truncate flex items-center gap-1 mt-0.5">
+                    <Mail className="w-3 h-3" /> {s.email}
+                  </p>
+                  <div className="flex items-center gap-3 mt-2 text-xs text-slate-500 dark:text-slate-400 flex-wrap">
+                    {departmentName(deptId) && (
+                      <span className="inline-flex items-center gap-1"><Building2 className="w-3 h-3" /> {departmentName(deptId)}</span>
+                    )}
+                    {dept?.branchId && branchName(dept.branchId) && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-violet-50 dark:bg-violet-900/20 text-violet-600 dark:text-violet-300">
+                        {branchName(dept.branchId)}
+                      </span>
+                    )}
+                    <span className="inline-flex items-center gap-1"><ShieldCheck className="w-3 h-3" /> {s.roleName || 'Staff'}</span>
+                    <span>· {countGrants(s.grants)} features</span>
+                    {hasSelectedScope(s) && (
+                      <span className="inline-flex items-center gap-1"><Building2 className="w-3 h-3" /> {selectedSubTenantIds(s).length} sub-tenants</span>
+                    )}
+                    <span className="inline-flex items-center gap-1"><Clock className="w-3 h-3" /> {fmtLastActive(s.lastActive)}</span>
+                  </div>
+                </div>
+
+                {/* Row menu (opens as a portal — see below) */}
+                <div className="relative flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openMenu(s.id, e.currentTarget);
+                    }}
+                    disabled={busyId === s.id}
+                    className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
+                  >
+                    {busyId === s.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <MoreVertical className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+            </GlassCard>
+            );
+          })}
+        </div>
+      )}
+      </>
+      )}
+
+      {/* Row menu portal — escapes the dashboard <main> overflow-hidden clip. */}
+      {openMenuId && menuPos && (() => {
+        const s = staff.find((x) => x.id === openMenuId);
+        if (!s) return null;
+        return createPortal(
+          <>
+            <div className="fixed inset-0 z-[998]" onClick={() => setOpenMenuId(null)} />
+            <div
+              className="fixed z-[999] w-44 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl py-1"
+              style={{ top: menuPos.top, left: menuPos.left }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button type="button" onClick={() => { setOpenMenuId(null); setViewTarget(s); }} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/60">
+                <Eye className="w-3.5 h-3.5" /> View details
+              </button>
+              <button type="button" onClick={() => openEdit(s)} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/60">
+                <Pencil className="w-3.5 h-3.5" /> Edit access
+              </button>
+              <button type="button" onClick={() => toggleStatus(s)} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/60">
+                {s.status === 'suspended' ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
+                {s.status === 'suspended' ? 'Reactivate' : 'Suspend'}
+              </button>
+              <div className="my-1 border-t border-slate-100 dark:border-slate-700" />
+              <button type="button" onClick={() => { setOpenMenuId(null); setRemoveTarget(s); }} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20">
+                <Trash2 className="w-3.5 h-3.5" /> Remove
+              </button>
+            </div>
+          </>,
+          document.body
+        );
+      })()}
+
+      <StaffEditorModal
+        open={showEditor}
+        tenantId={tenantId}
+        editing={editing}
+        onClose={() => setShowEditor(false)}
+        onSaved={() => {
+          setShowEditor(false);
+          load();
+        }}
+      />
+
+      {/* View details */}
+      <ModalOverlay open={!!viewTarget} onClose={() => setViewTarget(null)} closeOnBackdrop panelClassName="max-w-lg">
+        {viewTarget && (
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/80 dark:border-slate-700 overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-11 h-11 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 text-white flex items-center justify-center text-sm font-semibold flex-shrink-0">
+                  {(viewTarget.name || '?').slice(0, 2).toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-base font-semibold text-slate-800 dark:text-white truncate">{viewTarget.name}</h3>
+                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border capitalize ${statusBadge(viewTarget.status)}`}>
+                      {viewTarget.status}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                    {viewTarget.roleName || 'Staff'}
+                    {departmentName(assignments.assignmentFor(viewTarget.id).departmentId) && (
+                      <> · {departmentName(assignments.assignmentFor(viewTarget.id).departmentId)}</>
+                    )}
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setViewTarget(null)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg flex-shrink-0">
+                <X className="w-4 h-4 text-slate-500" />
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto flex-1 space-y-4">
+              {/* Contact */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                <div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Email</p>
+                  <p className="font-medium text-slate-800 dark:text-white break-words">{viewTarget.email || '—'}</p>
+                </div>
+                {viewTarget.phone && (
+                  <div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Phone</p>
+                    <p className="font-medium text-slate-800 dark:text-white">{viewTarget.phone}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Sub-tenants</p>
+                  <p className="font-medium text-slate-800 dark:text-white">
+                    {hasSelectedScope(viewTarget)
+                      ? `${selectedSubTenantIds(viewTarget).length} selected`
+                      : 'All sub-tenants'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Last active</p>
+                  <p className="font-medium text-slate-800 dark:text-white">{fmtLastActive(viewTarget.lastActive)}</p>
+                </div>
+              </div>
+
+              {/* Granted features */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">
+                  Feature access ({countGrants(viewTarget.grants)})
+                </p>
+                <div className="space-y-2">
+                  {PERMISSION_REGISTRY.filter((mod) => viewTarget.grants[mod.key]).map((mod) => {
+                    const pages = mod.pages.filter(
+                      (p) => viewTarget.grants[p.key] || (p.actions || []).some((a) => viewTarget.grants[a.key])
+                    );
+                    return (
+                      <div key={mod.key} className="rounded-lg border border-slate-200 dark:border-slate-700 p-2.5">
+                        <p className="text-sm font-medium text-slate-800 dark:text-white flex items-center gap-1.5">
+                          <Check className="w-3.5 h-3.5 text-emerald-500" /> {mod.label}
+                        </p>
+                        {pages.length > 0 && (
+                          <div className="mt-1.5 pl-5 flex flex-wrap gap-1.5">
+                            {pages.map((p) => (
+                              <span key={p.key} className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                {p.label}
+                                {(p.actions || []).filter((a) => viewTarget.grants[a.key]).length > 0 &&
+                                  ` · ${(p.actions || []).filter((a) => viewTarget.grants[a.key]).map((a) => a.label).join(', ')}`}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {countGrants(viewTarget.grants) === 0 && (
+                    <p className="text-sm text-slate-500 dark:text-slate-400">No features granted.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="px-4 py-3 border-t border-slate-200 dark:border-slate-700 flex gap-2.5">
+              <button onClick={() => setViewTarget(null)} className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/80">
+                Close
+              </button>
+              <button
+                onClick={() => {
+                  const t = viewTarget;
+                  setViewTarget(null);
+                  setEditing(t);
+                  setShowEditor(true);
+                }}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium common-button-bg flex items-center justify-center gap-2"
+              >
+                <Pencil className="w-4 h-4" /> Edit access
+              </button>
+            </div>
+          </div>
+        )}
+      </ModalOverlay>
+
+      {/* Remove confirm */}
+      <ModalOverlay open={!!removeTarget} onClose={isRemoving ? undefined : () => setRemoveTarget(null)} closeOnBackdrop={!isRemoving} panelClassName="max-w-sm">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/80 dark:border-slate-700 overflow-hidden">
+          <div className="p-5">
+            <div className="w-10 h-10 rounded-xl bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 flex items-center justify-center mb-3">
+              <Trash2 className="w-5 h-5 text-rose-600 dark:text-rose-400" />
+            </div>
+            <h3 className="text-base font-semibold text-slate-800 dark:text-white mb-1">Remove staff member?</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              <span className="font-medium text-slate-700 dark:text-slate-300">{removeTarget?.name}</span> will lose all access immediately.
+            </p>
+          </div>
+          <div className="px-5 py-3 border-t border-slate-200 dark:border-slate-700 flex gap-2.5">
+            <button onClick={() => setRemoveTarget(null)} disabled={isRemoving} className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/80 disabled:opacity-50">
+              Cancel
+            </button>
+            <button onClick={confirmRemove} disabled={isRemoving} className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center gap-2 disabled:opacity-50">
+              {isRemoving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              {isRemoving ? 'Removing…' : 'Remove'}
+            </button>
+          </div>
+        </div>
+      </ModalOverlay>
+    </div>
+  );
+};
+
+// ── Shared panel types ───────────────────────────────────────────────────────
+
+type AssignmentsApi = ReturnType<typeof useStaffAssignments>;
+
+interface CatalogPanelProps {
+  departments: Department[];
+  designations: Designation[];
+  loading: boolean;
+  onChanged: () => void;
+  assignments: AssignmentsApi;
+  staff: StaffMember[];
+  branchName: (id: string | null | undefined) => string | undefined;
+  /** Jump back a step in the hierarchy (e.g. Designations → Departments). */
+  onGoToDepartments?: () => void;
+}
+
+const PANEL_INPUT =
+  'w-full px-3 py-2 rounded-lg text-sm common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-violet-500/40 text-slate-800 dark:text-white';
+
+// ── Departments panel — global catalog, backed by departmentsAPI ─────────────
+
+const DepartmentsPanel = ({
+  departments,
+  designations,
+  loading,
+  onChanged,
+  assignments,
+  staff,
+  branches,
+  branchName,
+  scopedBranchId,
+}: CatalogPanelProps & { branches: Branch[]; scopedBranchId?: string }) => {
+  const [adding, setAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [name, setName] = useState('');
+  const [desc, setDesc] = useState('');
+  const [branchId, setBranchId] = useState(scopedBranchId ?? '');
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const start = (d?: Department) => {
+    setEditingId(d?.id ?? null);
+    setName(d?.name ?? '');
+    setDesc(d?.description ?? '');
+    setBranchId(d?.branchId ?? scopedBranchId ?? '');
+    setAdding(true);
+  };
+
+  const submit = async () => {
+    const nm = name.trim();
+    const description = desc.trim();
+    if (nm.length < 2 || !description) return;
+    setSaving(true);
+    try {
+      if (editingId) {
+        await departmentsAPI.update(editingId, { name: nm, description, branchId: branchId || undefined });
+        appToast.success('Department updated');
+      } else {
+        await departmentsAPI.create({ name: nm, description, branchId: branchId || undefined });
+        appToast.success('Department created');
+      }
+      setAdding(false); setEditingId(null); setName(''); setDesc(''); setBranchId('');
+      onChanged();
+    } catch (err: any) {
+      appToast.error(err?.message || 'Failed to save department');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async (d: Department) => {
+    setDeletingId(d.id);
+    try {
+      await departmentsAPI.remove(d.id);
+      appToast.success(`${d.name} deleted`);
+      onChanged();
+    } catch (err: any) {
+      appToast.error(err?.message || 'Failed to delete department');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const designationCount = (deptId: string) => designations.filter((r) => designationDeptId(r) === deptId).length;
+  const countStaff = (deptId: string) => staff.filter((s) => assignments.assignmentFor(s.id).departmentId === deptId).length;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        {!adding && (
+          <button onClick={() => start()} className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium common-button-bg">
+            <Plus className="w-4 h-4" /> Add Department
+          </button>
+        )}
+      </div>
+      {adding && (
+        <GlassCard className="p-4">
+          <div className={`grid grid-cols-1 gap-3 ${scopedBranchId ? 'sm:grid-cols-2' : 'sm:grid-cols-3'}`}>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Department name" className={PANEL_INPUT} autoFocus maxLength={100} />
+            <input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Description" className={PANEL_INPUT} maxLength={500} />
+            {!scopedBranchId && (
+              <select value={branchId} onChange={(e) => setBranchId(e.target.value)} className={PANEL_INPUT}>
+                <option value="">No branch (org-wide)</option>
+                {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            )}
+          </div>
+          <div className="flex justify-end gap-2 mt-3">
+            <button onClick={() => { setAdding(false); setEditingId(null); }} disabled={saving} className="px-3 py-2 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 disabled:opacity-50">Cancel</button>
+            <button onClick={submit} disabled={saving || name.trim().length < 2 || !desc.trim()} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium common-button-bg disabled:opacity-50">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} {editingId ? 'Save' : 'Add'}
+            </button>
+          </div>
+        </GlassCard>
+      )}
+      {loading ? (
+        <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-violet-500 animate-spin" /></div>
+      ) : departments.length === 0 ? (
+        <GlassCard className="p-10 text-center">
+          <Building2 className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+          <p className="text-sm text-slate-600 dark:text-slate-300 font-medium">No departments yet</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Create departments, then add designations under them.</p>
+        </GlassCard>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+          {departments.map((d) => (
+            <GlassCard key={d.id} className="p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-violet-50 dark:bg-violet-900/20 flex items-center justify-center flex-shrink-0">
+                    <Building2 className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-slate-800 dark:text-white truncate">{d.name}</p>
+                    {d.description && <p className="text-xs text-slate-400 truncate">{d.description}</p>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button onClick={() => start(d)} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-violet-600"><Pencil className="w-3.5 h-3.5" /></button>
+                  <button onClick={() => remove(d)} disabled={deletingId === d.id} className="p-1.5 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-900/20 text-slate-400 hover:text-rose-500 disabled:opacity-50">
+                    {deletingId === d.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+              {!scopedBranchId && d.branchId && branchName(d.branchId) && (
+                <span className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-full bg-violet-50 dark:bg-violet-900/25 text-violet-700 dark:text-violet-300 text-[10px] font-medium">
+                  {branchName(d.branchId)}
+                </span>
+              )}
+              <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-700/60 flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
+                <span className="inline-flex items-center gap-1"><Briefcase className="w-3.5 h-3.5" /> {designationCount(d.id)} designations</span>
+                <span className="inline-flex items-center gap-1"><UsersRound className="w-3.5 h-3.5" /> {countStaff(d.id)} staff</span>
+              </div>
+            </GlassCard>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── Designations panel — global catalog, backed by designationsAPI ───────────
+
+const DesignationsPanel = ({ departments, designations, loading, onChanged, assignments, staff, branchName, onGoToDepartments, scopedBranchId }: CatalogPanelProps & { scopedBranchId?: string }) => {
+  const [adding, setAdding] = useState(false);
+  const [deptId, setDeptId] = useState('');
+  const [name, setName] = useState('');
+  const [desc, setDesc] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const noDepts = departments.length === 0;
+
+  const submit = async () => {
+    const nm = name.trim();
+    const description = desc.trim();
+    if (!deptId || nm.length < 2 || !description) return;
+    setSaving(true);
+    try {
+      await designationsAPI.create({ name: nm, description, department: deptId });
+      appToast.success('Designation created');
+      setName(''); setDesc(''); setAdding(false);
+      onChanged();
+    } catch (err: any) {
+      appToast.error(err?.message || 'Failed to create designation');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async (r: Designation) => {
+    setDeletingId(r.id);
+    try {
+      await designationsAPI.remove(r.id);
+      appToast.success(`${r.name} deleted`);
+      onChanged();
+    } catch (err: any) {
+      appToast.error(err?.message || 'Failed to delete designation');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        {!adding && (
+          <button onClick={() => setAdding(true)} disabled={noDepts || loading} className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-medium common-button-bg disabled:opacity-50" title={noDepts ? 'Create a department first' : undefined}>
+            <Plus className="w-4 h-4" /> Add Designation
+          </button>
+        )}
+      </div>
+      {noDepts && !loading && (
+        <GlassCard className="p-8 text-center">
+          <Building2 className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Create a department first — designations belong to a department.</p>
+          {onGoToDepartments && (
+            <button onClick={onGoToDepartments} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium common-button-bg">
+              <Building2 className="w-4 h-4" /> Go to Departments
+            </button>
+          )}
+        </GlassCard>
+      )}
+      {adding && !noDepts && (
+        <GlassCard className="p-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <select value={deptId} onChange={(e) => setDeptId(e.target.value)} className={PANEL_INPUT}>
+              <option value="">Select department…</option>
+              {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Designation name (e.g. Senior Manager)" className={PANEL_INPUT} maxLength={100} />
+          </div>
+          <input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Description" className={`${PANEL_INPUT} mt-3`} maxLength={500} />
+          <div className="flex justify-end gap-2 mt-3">
+            <button onClick={() => setAdding(false)} disabled={saving} className="px-3 py-2 rounded-xl text-sm font-medium text-slate-600 dark:text-slate-300 disabled:opacity-50">Cancel</button>
+            <button onClick={submit} disabled={saving || !deptId || name.trim().length < 2 || !desc.trim()} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium common-button-bg disabled:opacity-50">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Add
+            </button>
+          </div>
+        </GlassCard>
+      )}
+      {loading ? (
+        <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-violet-500 animate-spin" /></div>
+      ) : (
+        departments.map((d) => {
+          const deptDesignations = designations.filter((r) => designationDeptId(r) === d.id);
+          return (
+            <GlassCard key={d.id} className="p-4">
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
+                <Building2 className="w-4 h-4 text-slate-400" />
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-white">{d.name}</h3>
+                <span className="text-[11px] text-slate-400">· {deptDesignations.length} designations</span>
+                {!scopedBranchId && d.branchId && branchName(d.branchId) && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-50 dark:bg-violet-900/25 text-violet-700 dark:text-violet-300 text-[10px] font-medium">
+                    {branchName(d.branchId)}
+                  </span>
+                )}
+              </div>
+              {deptDesignations.length === 0 ? (
+                <p className="text-xs text-slate-400">No designations in this department yet.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {deptDesignations.map((r) => {
+                    const count = staff.filter((s) => assignments.assignmentFor(s.id).designationId === r.id).length;
+                    return (
+                      <span key={r.id} className="inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 rounded-full bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-sm">
+                        <Briefcase className="w-3.5 h-3.5 text-slate-400" />
+                        <span className="text-slate-700 dark:text-slate-200">{r.name}</span>
+                        {count > 0 && <span className="text-[10px] text-slate-400">· {count}</span>}
+                        <button onClick={() => remove(r)} disabled={deletingId === r.id} className="p-1 rounded-full hover:bg-rose-50 dark:hover:bg-rose-900/20 text-slate-400 hover:text-rose-500 disabled:opacity-50">
+                          {deletingId === r.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+            </GlassCard>
+          );
+        })
+      )}
+    </div>
+  );
+};
+
+export default TenantStaffModule;
