@@ -56,7 +56,29 @@
       "Bash(git fetch *)",
       "Bash(node test-tts-selector.mjs)",
       "Bash(node test-quickcreate-tts.mjs)",
-      "Bash(node find-create-button.mjs)"
+      "Bash(node find-create-button.mjs)",
+      "Bash(git commit *)",
+      "Bash(tee /tmp/tsc_analytics.txt)",
+      "Read(//tmp/**)",
+      "Bash(grep -n \"navigate\\(\\\\`/campaigns\\\\|navigate\\(\\\\\"/campaigns\\\\|navigate\\('/campaigns\\\\|navigate\\(\\\\`/contacts\\\\|navigate\\(\\\\\"/contacts\\\\|navigate\\('/contacts\\\\|navigate\\(\\\\`/call-setup\\\\|navigate\\(\\\\\"/call-setup\\\\|navigate\\('/call-setup\" src/ClientDashboard/Workflows/CallSetup.tsx src/ClientDashboard/Workflows/CampaignDetail.tsx src/ClientDashboard/Workflows/ContactCallHistory.tsx)",
+      "Bash(tee /tmp/tsc_callsetup.txt)",
+      "Bash(tee /tmp/tsc_settings.txt)",
+      "Bash(tee /tmp/tsc_settings2.txt)",
+      "Bash(tee /tmp/tsc_final.txt)",
+      "Bash(xargs -I{} basename {})",
+      "Bash(tee /tmp/tsc_theme.txt)",
+      "Bash(tee /tmp/tsc_branding.txt)",
+      "Bash(tee /tmp/tsc_scope.txt)",
+      "Bash(tee /tmp/tsc_refresh.txt)",
+      "Bash(tee /tmp/tsc_reset.txt)",
+      "Bash(tee /tmp/tsc_localstorage.txt)",
+      "Bash(tee /tmp/tsc_fix.txt)",
+      "Bash(tee /tmp/tsc_tokens.txt)",
+      "Bash(node -e \"console.log\\('slate-200 should be #e2e8f0 -> rgb\\(226,232,240\\)'\\)\")",
+      "Bash(tee /tmp/tsc_fix2.txt)",
+      "Bash(tee /tmp/tsc_password.txt)",
+      "Bash(git stash *)",
+      "Bash(tee /tmp/tsc_viewas.txt)"
     ]
   }
 }
