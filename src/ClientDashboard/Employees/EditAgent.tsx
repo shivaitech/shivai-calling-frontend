@@ -505,6 +505,7 @@ import { usePermission } from '../../permissions/usePermission';
 import { agentAPI, getTenantScope } from '../../services/agentAPI';
 import { aiTemplateService } from '../../services/aiTemplateService';
 import GlassCard from '../../components/GlassCard';
+import AgentSkillsPanel from './agents/AgentSkillsPanel';
 import { formatAgentLanguages } from '../../lib/utils';
 import SearchableSelect from '../../components/SearchableSelect';
 import TTSVoiceSelector, { TTSVoiceSelectorValue, toTtsConfig } from '../../components/TTSVoiceSelector';
@@ -746,6 +747,7 @@ const EditAgent = () => {
     { id: 'identity', label: 'Identity', icon: Bot },
     { id: 'voice', label: 'Voice', icon: Volume2 },
     { id: 'knowledge', label: 'Knowledge', icon: BookOpen },
+    { id: 'skills', label: 'Skills', icon: Sparkles },
     { id: 'settings', label: 'Template Setting', icon: Settings },
   ];
 
@@ -3271,6 +3273,15 @@ const EditAgent = () => {
                     </button>
                   </div>
                 </div>
+              </div>
+            </GlassCard>
+          )}
+
+          {/* Skills Tab Content */}
+          {activeTab === 'skills' && id && (
+            <GlassCard>
+              <div className="p-4 sm:p-5 lg:p-6">
+                <AgentSkillsPanel agentId={id} userEmail={user?.email} editable />
               </div>
             </GlassCard>
           )}

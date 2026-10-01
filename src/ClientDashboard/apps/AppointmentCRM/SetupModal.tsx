@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Briefcase,
   Building2,
@@ -110,7 +110,12 @@ const SetupModal = ({ open, onComplete, onSkip }: SetupModalProps) => {
   const [companyName, setCompanyName] = useState("");
   const [industryId, setIndustryId] = useState("clinic");
   const [branchMode, setBranchMode] = useState<BranchMode>("single");
-  const [branchNames, setBranchNames] = useState<string[]>(["Main Location"]);
+  const [branchNames, setBranchNames] = useState<string[]>([""]);
+  // Single-branch mode: the business itself IS the one location, so its name
+  // defaults to the company name the user already typed in step 0 — no
+  // separate "Main Location" branch is invented. Once the user edits the
+  // single branch name directly, it stops following companyName.
+  const [singleBranchNameTouched, setSingleBranchNameTouched] = useState(false);
   const [saving, setSaving] = useState(false);
   const [customInput, setCustomInput] = useState<CustomPresetInput>(() => readCustomPresetInput() ?? emptyCustomInput());
 
@@ -123,8 +128,24 @@ const SetupModal = ({ open, onComplete, onSkip }: SetupModalProps) => {
     setIndustryId(p.id);
     if (p.id === "generic") return; // branches seeded once the custom form is filled in
     const seeds = p.defaultBranches.map((b) => b.name);
-    setBranchNames(branchMode === "single" ? [seeds[0] ?? "Main Location"] : seeds.length ? seeds : ["Main Location", "Branch 2"]);
+    if (branchMode === "single") {
+      // The business itself is the one location — default to the company
+      // name, not a generic preset placeholder, unless the user already
+      // typed their own branch name.
+      if (!singleBranchNameTouched) setBranchNames([companyName.trim() || seeds[0] || ""]);
+    } else {
+      setBranchNames(seeds.length ? seeds : ["Branch 1", "Branch 2"]);
+    }
   };
+
+  // Single-branch mode: keep following the company name as the user types it
+  // in step 0, until they explicitly edit the branch name themselves.
+  useEffect(() => {
+    if (branchMode === "single" && !singleBranchNameTouched) {
+      setBranchNames([companyName]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyName, branchMode, singleBranchNameTouched]);
 
   const isCustomValid =
     customInput.customerLabel.trim().length > 0 &&
@@ -329,12 +350,19 @@ const SetupModal = ({ open, onComplete, onSkip }: SetupModalProps) => {
                     onClick={() => {
                       setBranchMode(mode);
                       if (mode === "single") {
-                        setBranchNames([branchNames[0] || preset.defaultBranches[0]?.name || "Main Location"]);
+                        // Collapsing back to one location: that location IS
+                        // the business, so prefer the company name unless the
+                        // user already set a custom single-branch name.
+                        setBranchNames([
+                          !singleBranchNameTouched
+                            ? companyName.trim() || preset.defaultBranches[0]?.name || ""
+                            : branchNames[0] || companyName.trim() || "",
+                        ]);
                       } else if (branchNames.length < 2) {
                         setBranchNames(
                           preset.defaultBranches.length >= 2
                             ? preset.defaultBranches.map((b) => b.name)
-                            : [branchNames[0] || "Main Location", "Branch 2"],
+                            : [branchNames[0] || companyName.trim() || "Branch 1", "Branch 2"],
                         );
                       }
                     }}
@@ -371,8 +399,9 @@ const SetupModal = ({ open, onComplete, onSkip }: SetupModalProps) => {
                       const next = [...branchNames];
                       next[i] = e.target.value;
                       setBranchNames(next);
+                      if (branchMode === "single" && i === 0) setSingleBranchNameTouched(true);
                     }}
-                    placeholder={`${preset.terms.branch} ${i + 1}`}
+                    placeholder={branchMode === "single" ? "Your business name" : `${preset.terms.branch} ${i + 1}`}
                     className="w-full px-3 py-2 rounded-xl text-sm common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-violet-500/40"
                   />
                 ))}
@@ -422,7 +451,9 @@ const SetupModal = ({ open, onComplete, onSkip }: SetupModalProps) => {
               onClick={() => {
                 if (step === 1 && industryId === "generic" && branchNames.every((n) => !n.trim())) {
                   const seeds = preset.defaultBranches.map((b) => b.name);
-                  setBranchNames(branchMode === "single" ? [seeds[0] ?? "Main Location"] : seeds);
+                  setBranchNames(
+                    branchMode === "single" ? [companyName.trim() || seeds[0] || ""] : seeds,
+                  );
                 }
                 setStep((s) => s + 1);
               }}

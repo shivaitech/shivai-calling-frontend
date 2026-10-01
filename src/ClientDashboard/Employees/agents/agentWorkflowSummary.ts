@@ -1,5 +1,7 @@
 import type { AgentWorkflowChip } from "./AgentCardWorkflows";
 import type { AgentDocumentFile } from "../../../services/workflowAPI";
+import { readAgentSkillIds } from "../../../marketplace/useAgentSkills";
+import { getVisibleAppById } from "../../../marketplace/apps";
 
 type IntegrationRecord = Record<string, unknown>;
 
@@ -37,12 +39,35 @@ function rosterName(integration: IntegrationRecord): string {
   return gs?.google_sheets?.assignment?.directory_sheet_name ?? "Staff roster";
 }
 
+/**
+ * Skill chips — installed marketplace apps assigned to this agent (see
+ * useAgentSkills.ts). Read synchronously from local storage since there's no
+ * backend for this yet; folded into the same chip list the workflow/document
+ * chips already use so the agent list gets skill visibility for free.
+ */
+function buildSkillChips(agentId: string, userEmail?: string): AgentWorkflowChip[] {
+  const skillIds = readAgentSkillIds(agentId);
+  const chips: AgentWorkflowChip[] = [];
+  for (const appId of skillIds) {
+    const app = getVisibleAppById(appId, userEmail);
+    if (!app) continue;
+    chips.push({
+      id: `skill-${appId}`,
+      label: app.name,
+      kind: "skill",
+      href: `/agents/${agentId}`,
+    });
+  }
+  return chips;
+}
+
 export function buildAgentWorkflowChips(
   agentId: string,
   integrations: IntegrationRecord[],
   documentFiles: AgentDocumentFile[] = [],
+  userEmail?: string,
 ): AgentWorkflowChip[] {
-  const chips: AgentWorkflowChip[] = [];
+  const chips: AgentWorkflowChip[] = [...buildSkillChips(agentId, userEmail)];
   const seen = new Set<string>();
 
   const agentIntegrations = integrations.filter((i) => integrationAgentId(i) === agentId);
@@ -109,6 +134,7 @@ export async function loadWorkflowChipsForAgents(
   agentIds: string[],
   fetchIntegrations: () => Promise<IntegrationRecord[]>,
   fetchAgentDocuments: (agentId: string) => Promise<AgentDocumentFile[]>,
+  userEmail?: string,
 ): Promise<Record<string, AgentWorkflowChip[]>> {
   if (!agentIds.length) return {};
 
@@ -122,7 +148,7 @@ export async function loadWorkflowChipsForAgents(
 
   const result: Record<string, AgentWorkflowChip[]> = {};
   for (const [agentId, files] of docEntries) {
-    result[agentId] = buildAgentWorkflowChips(agentId, integrations, files);
+    result[agentId] = buildAgentWorkflowChips(agentId, integrations, files, userEmail);
   }
   return result;
 }

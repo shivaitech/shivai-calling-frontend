@@ -232,7 +232,7 @@ export const APPS: MarketplaceApp[] = [
       { key: "branches", label: "Branches", icon: Building2 },
       { key: "staff", label: "Staff & Departments", icon: UserCog },
       { key: "customers", label: "Customers", icon: Contact },
-      { key: "agents", label: "AI Agents", icon: Users },
+      { key: "agents", label: "AI Configuration", icon: Users },
       { key: "reminders", label: "Reminders", icon: Bell },
       { key: "settings", label: "Setup", icon: SettingsIcon },
     ],

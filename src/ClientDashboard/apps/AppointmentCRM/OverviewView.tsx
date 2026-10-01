@@ -17,7 +17,7 @@ import { useAppointmentIndustry } from "./industryConfig";
 import { useAppointmentSetup } from "./setupStore";
 import { useActiveBranch } from "./branchesStore";
 import { useRealSchedulingAgents } from "./realAgents";
-import { useImportedAgents } from "./importedAgents";
+import { getAgentIdsForSkill } from "../../../marketplace/useAgentSkills";
 import { useBookings } from "./bookingsStore";
 import { useDepartments } from "./departmentsStore";
 import { useStaff } from "./staffStore";
@@ -38,10 +38,12 @@ const OverviewView = ({ onOpenAgent }: Props) => {
   const { departments } = useDepartments();
   const { staff } = useStaff();
   const { rawAgents, loading: agentsLoading } = useRealSchedulingAgents();
-  const { imported } = useImportedAgents();
-  const importedWithAgent = imported
-    .map((rec) => ({ rec, agent: rawAgents.find((a) => a.id === rec.agentId) }))
-    .filter((x): x is { rec: typeof x.rec; agent: NonNullable<typeof x.agent> } => Boolean(x.agent));
+  const assignedAgents = useMemo(
+    () => getAgentIdsForSkill("appointment-crm", rawAgents.map((a) => a.id))
+      .map((id) => rawAgents.find((a) => a.id === id))
+      .filter((a): a is NonNullable<typeof a> => Boolean(a)),
+    [rawAgents],
+  );
 
   const branchBookings = useMemo(
     () => (activeBranchId ? bookings.filter((b) => b.branchId === activeBranchId) : bookings),
@@ -216,21 +218,21 @@ const OverviewView = ({ onOpenAgent }: Props) => {
           <div className="p-4 sm:p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-base font-semibold text-slate-800 dark:text-white">AI {terms.agent}s</h3>
-              <span className="text-xs text-slate-500">{importedWithAgent.length} imported</span>
+              <span className="text-xs text-slate-500">{assignedAgents.length} assigned</span>
             </div>
             {agentsLoading ? (
               <div className="flex items-center justify-center py-8">
                 <div className="w-5 h-5 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
               </div>
-            ) : importedWithAgent.length === 0 ? (
-              <p className="text-sm text-slate-500 py-4 text-center">No AI agents imported yet — import one from the AI Agents tab.</p>
+            ) : assignedAgents.length === 0 ? (
+              <p className="text-sm text-slate-500 py-4 text-center">No AI agents assigned yet — assign one from the AI Configuration tab.</p>
             ) : (
               <div className="space-y-2">
-                {importedWithAgent.slice(0, 5).map(({ rec, agent }) => (
+                {assignedAgents.slice(0, 5).map((agent) => (
                   <button
-                    key={rec.importId}
+                    key={agent.id}
                     type="button"
-                    onClick={() => onOpenAgent?.(rec.importId)}
+                    onClick={() => onOpenAgent?.(agent.id)}
                     className="w-full flex items-center gap-3 p-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-violet-300 dark:hover:border-violet-700 transition-all text-left"
                   >
                     <div className="w-10 h-10 common-bg-icons rounded-xl flex items-center justify-center flex-shrink-0">
@@ -238,7 +240,6 @@ const OverviewView = ({ onOpenAgent }: Props) => {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold text-slate-800 dark:text-white">{agent.name}</p>
-                      <p className="text-xs text-violet-600 dark:text-violet-400">{rec.aiRoleName}</p>
                     </div>
                     <Phone className="w-4 h-4 text-slate-400" />
                   </button>

@@ -153,6 +153,10 @@ export interface StaffInput {
   phone?: string;
   password?: string; // create only
   roleName: string;
+  /** Department name — now REQUIRED by the backend alongside designation. */
+  department?: string;
+  /** Designation name — now REQUIRED by the backend. Usually equals roleName. */
+  designation?: string;
   grants: PermissionGrantMap;
   /** Per-module scope: subTenantScopes[moduleRoot] = 'all' | 'select'. */
   subTenantScopes?: Record<string, "all" | "select">;
@@ -165,9 +169,11 @@ export interface StaffInput {
 }
 
 // The backend validates strictly (unknown keys → 422), so send ONLY the
-// documented fields. The UI's fine-grained grants are flattened into
-// `permissions[]` (a documented field). phone / grants-map / managedSubTenantIds
-// are UI-only and intentionally NOT sent until the backend accepts them.
+// documented fields — now including `department` and `designation` (plain
+// names), which the backend requires. The UI's fine-grained grants are
+// flattened into `permissions[]` (a documented field). phone / grants-map /
+// managedSubTenantIds are UI-only and intentionally NOT sent until the
+// backend accepts them.
 // Encode a module's sub-tenant scope INTO its permission string, e.g.
 //   module:command-center-read-subtenant-(id1,id2)
 //   module:command-center-read-subtenant-(all)
@@ -195,6 +201,8 @@ const buildBody = (input: Partial<StaffInput>) => {
   if (input.email !== undefined) body.email = input.email.trim().toLowerCase();
   if (input.password !== undefined) body.password = input.password;
   if (input.roleName !== undefined) body.role_name = input.roleName.trim();
+  if (input.department !== undefined) body.department = input.department.trim();
+  if (input.designation !== undefined) body.designation = input.designation.trim();
   if (input.accounts !== undefined) body.accounts = input.accounts;
   if (input.grants !== undefined) {
     const granted = Object.keys(input.grants).filter((k) => input.grants![k]);

@@ -37,9 +37,9 @@ const StaffEditorModal = ({ open, tenantId, editing, onClose, onSaved }: Props) 
   const passwordValidation = usePasswordValidation(password, email, 'signup');
   const [roleName, setRoleName] = useState('');
   // Department → Designation hierarchy — real global catalogs (departmentsAPI).
-  // The staff↔department/designation link itself has no backend field yet, so
-  // it's tracked locally; the designation's NAME is what goes to the staff API
-  // as role_name.
+  // The designation's NAME is sent as both role_name and designation; the
+  // department's NAME is sent as department. Locally we also keep the ids so
+  // this modal can prefill the dropdowns on edit (staffOrgStore assignment).
   const assignments = useStaffAssignments(tenantId);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [designations, setDesignations] = useState<Designation[]>([]);
@@ -274,15 +274,17 @@ const StaffEditorModal = ({ open, tenantId, editing, onClose, onSaved }: Props) 
     const subTenantScopes = isMainTenant ? scopeMode : undefined;
     const managedSubTenantsByModule = isMainTenant ? managedIds : undefined;
 
+    const departmentName = departments.find((d) => d.id === departmentId)?.name;
+
     setSaving(true);
     try {
       if (editing) {
-        await staffAPI.update(editing.id, { name, email, phone, roleName, grants, subTenantScopes, managedSubTenantsByModule, accounts });
+        await staffAPI.update(editing.id, { name, email, phone, roleName, department: departmentName, designation: roleName, grants, subTenantScopes, managedSubTenantsByModule, accounts });
         // Persist the local department/designation assignment for this staff member.
         assignments.setAssignment(editing.id, departmentId, designationId);
         appToast.success('Staff updated');
       } else {
-        const created = await staffAPI.create(tenantId, { name, email, phone, password, roleName, grants, subTenantScopes, managedSubTenantsByModule, accounts, invite });
+        const created = await staffAPI.create(tenantId, { name, email, phone, password, roleName, department: departmentName, designation: roleName, grants, subTenantScopes, managedSubTenantsByModule, accounts, invite });
         if (created?.id) assignments.setAssignment(created.id, departmentId, designationId);
         appToast.success(invite ? 'Staff invited' : 'Staff added');
       }

@@ -1,6 +1,8 @@
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import GlassCard from "../../components/GlassCard";
+import AgentSkillsPanel from "./agents/AgentSkillsPanel";
+import { useAuth } from "../../contexts/AuthContext";
 import { agentAPI } from "../../services/agentAPI";
 import appToast from "../../components/AppToast";
 import { formatAgentLanguages } from "../../lib/utils";
@@ -193,6 +195,7 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
   const navigate = useNavigate();
   const { id } = useParams();
   const location = useLocation();
+  const { user } = useAuth();
   const [agentData, setAgentData] = useState<any>(null);
 
   // ── Section collapse state ────────────────────────────────────────────────
@@ -781,6 +784,13 @@ const AgentViewPage: React.FC<AgentViewPageProps> = ({
           )}
           </div>
           )}
+        </div>
+      </GlassCard>
+
+      {/* ── Skills Section ────────────────────────────────────────────────────── */}
+      <GlassCard>
+        <div className="p-4 sm:p-5 lg:p-6">
+          <AgentSkillsPanel agentId={agent.id} userEmail={user?.email} />
         </div>
       </GlassCard>
 

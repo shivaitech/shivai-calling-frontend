@@ -102,7 +102,7 @@ export const PERMISSION_REGISTRY: PermissionModule[] = [
   {
     // Connected apps (Zoho, Google Calendar, …) live under Feature Marketplace.
     key: 'module:marketplace',
-    label: 'Feature Marketplace',
+    label: 'Skill and Features',
     pages: [
       { key: 'module:marketplace.page:browse', label: 'Browse Apps' },
       { key: 'module:marketplace.page:zoho', label: 'Zoho CRM' },

@@ -20,6 +20,7 @@ import {
 } from "../../marketplace/apps";
 import { useInstalledApps } from "../../marketplace/useInstalledApps";
 import { useAuth } from "../../contexts/AuthContext";
+import AssignSkillModal from "./AssignSkillModal";
 
 const pricingStyles: Record<MarketplaceApp["pricing"], string> = {
   Free: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200/70 dark:border-emerald-800/60",
@@ -36,6 +37,7 @@ const Marketplace = () => {
 
   const [query, setQuery] = useState("");
   const [activeCat, setActiveCat] = useState<AppCategory | "all">("all");
+  const [assignApp, setAssignApp] = useState<MarketplaceApp | null>(null);
 
   const visibleApps = useMemo(() => getVisibleApps(user?.email), [user?.email]);
 
@@ -61,6 +63,7 @@ const Marketplace = () => {
       openAppWorkspace(app.id, undefined, navigate);
     } else {
       install(app.id);
+      setAssignApp(app);
     }
   };
 
@@ -231,6 +234,14 @@ const Marketplace = () => {
             );
           })}
         </div>
+      )}
+
+      {assignApp && (
+        <AssignSkillModal
+          open={Boolean(assignApp)}
+          onClose={() => setAssignApp(null)}
+          app={assignApp}
+        />
       )}
     </div>
   );

@@ -1,8 +1,7 @@
 import React, { useState } from "react";
-import { Bell, ChevronDown, Moon, Sun, Menu, User, User2Icon, UserCheck2Icon } from "lucide-react";
+import { Bell, Moon, Sun, Menu } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { useTheme } from "../contexts/ThemeContext";
-import { useAuth } from "../contexts/AuthContext";
 import { getAppById } from "../marketplace/apps";
 
 interface TopBarProps {
@@ -11,10 +10,8 @@ interface TopBarProps {
 
 const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
   const { isDark, toggleTheme, branding } = useTheme();
-  const { user, logout } = useAuth(); // Get user and logout from context
   const location = useLocation();
   const [tenantDropdownOpen, setTenantDropdownOpen] = useState(false);
-  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   // Standalone app workspace: /app/:appId — show the app's name. Returning to
@@ -43,18 +40,6 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
 
     return "Dashboard";
   };
-
-  const handleLogout = async () => {
-    try {
-      await logout();
-      window.location.href = "/landing";
-    } catch (error) {
-      window.location.href = "/landing";
-    }
-  };
-
-  const userName = user?.fullName || "User";
-  const userEmail = user?.email || "user@example.com";
 
 
 
@@ -149,82 +134,10 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
             )}
           </div>
 
-          {/* Updated Profile Section with Real User Data */}
-          <div className="relative flex-shrink-0">
-            <button
-              onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-              className="flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg bg-slate-100/50 dark:bg-slate-800/50 hover:bg-slate-200/50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer min-h-[44px]"
-              aria-label="User menu"
-            >
-            <div className="w-8 h-8 rounded-full bg-slate-300 dark:bg-slate-600 flex items-center justify-center text-sm font-medium text-white overflow-hidden">
-              <UserCheck2Icon />
-            </div>
-
-              {/* User Info with real data */}
-              <div className="text-left hidden sm:block">
-                <p className="text-sm font-medium text-slate-800 dark:text-white leading-tight">
-                  {userName}
-                </p>
-                <p className="text-xs text-slate-600 dark:text-slate-400 leading-tight">
-                  {userEmail}
-                </p>
-              </div>
-              <ChevronDown
-                className={`w-3 sm:w-4 h-3 sm:h-4 text-slate-400 hidden sm:block transition-transform ${
-                  profileDropdownOpen ? "rotate-180" : ""
-                }`}
-              />
-            </button>
-
-            {profileDropdownOpen && (
-              <div className="absolute top-full mt-1 right-0 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl z-[99999] overflow-hidden min-w-[200px]">
-                {/* Updated profile info with real data */}
-                <div className="p-3 border-b border-slate-200 dark:border-slate-700">
-                  <p className="font-medium text-slate-800 dark:text-white">
-                    {userName}
-                  </p>
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
-                    {userEmail}
-                  </p>
-                  {user?.emailVerified && (
-                    <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
-                      ✓ Verified Account
-                    </p>
-                  )}
-                </div>
-                <div className="p-1">
-                  <button
-                    onClick={() => {
-                      setProfileDropdownOpen(false);
-                      // Add profile settings logic here
-                    }}
-                    className="w-full text-left px-3 py-2 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-sm text-slate-700 dark:text-slate-300"
-                  >
-                    Profile Settings
-                  </button>
-                  <button
-                    onClick={() => {
-                      setProfileDropdownOpen(false);
-                      handleLogout();
-                    }}
-                    className="w-full text-left px-3 py-2 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-sm text-red-600 dark:text-red-400"
-                  >
-                    Sign Out
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
         </div>
       </div>
 
       {/* Click outside handlers */}
-      {profileDropdownOpen && (
-        <div
-          className="fixed inset-0 z-20"
-          onClick={() => setProfileDropdownOpen(false)}
-        />
-      )}
       {tenantDropdownOpen && (
         <div
           className="fixed inset-0 z-20"

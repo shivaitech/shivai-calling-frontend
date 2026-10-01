@@ -252,13 +252,13 @@ const TenantStaffModule = ({ branchId }: Props) => {
       />
 
       {/* Tabs — ordered Departments → Designations → Staff, the real setup order */}
-      <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 overflow-x-auto no-scrollbar">
+      <div className="w-full max-w-full flex items-center gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 overflow-x-auto no-scrollbar">
         {([
           { key: 'departments', label: 'Departments', icon: Building2 },
           { key: 'designations', label: 'Designations', icon: Briefcase },
           { key: 'staff', label: 'Staff', icon: UsersRound },
         ] as const).map(({ key, label, icon: Icon }, i) => (
-          <div key={key} className="flex items-center">
+          <div key={key} className="flex items-center flex-shrink-0">
             {i > 0 && <ChevronRight className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600 mx-0.5 flex-shrink-0" />}
             <button
               type="button"

@@ -8,7 +8,8 @@ import { useDepartments } from "./departmentsStore";
 import { useStaff, staffDisplayName } from "./staffStore";
 import { useBookings } from "./bookingsStore";
 import { BookingStatus, bookingStatusMeta } from "./mockData";
-import { useImportedAgents } from "./importedAgents";
+import { useRealSchedulingAgents } from "./realAgents";
+import { getAgentIdsForSkill } from "../../../marketplace/useAgentSkills";
 
 const FILTERS: (BookingStatus | "all")[] = ["all", "confirmed", "pending", "checked-in", "completed", "cancelled", "no-show"];
 const ALL = "all";
@@ -21,7 +22,13 @@ const BookingsView = () => {
   const { activeBranch, activeBranchId } = useActiveBranch();
   const { departments } = useDepartments();
   const { staff } = useStaff();
-  const { imported } = useImportedAgents();
+  const { rawAgents } = useRealSchedulingAgents();
+  const assignedAgents = useMemo(
+    () => getAgentIdsForSkill("appointment-crm", rawAgents.map((a) => a.id))
+      .map((id) => rawAgents.find((a) => a.id === id))
+      .filter((a): a is NonNullable<typeof a> => Boolean(a)),
+    [rawAgents],
+  );
   const bookings = useBookings();
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");
   const [deptFilter, setDeptFilter] = useState<string>(ALL);
@@ -39,11 +46,9 @@ const BookingsView = () => {
   );
 
   // Bookings store the real agentId (assignedAgentId); resolve it to the
-  // imported record's AI Role Name so bookings/filters speak the same
-  // language as the AI Agents tab. If an agent was imported more than once,
-  // this shows its first imported role name.
-  const importedByAgentId = (agentId: string | undefined) => imported.find((r) => r.agentId === agentId);
-  const agentName = (id: string | undefined) => importedByAgentId(id)?.aiRoleName;
+  // agent's name so bookings/filters speak the same language as the AI
+  // Configuration tab.
+  const agentName = (id: string | undefined) => assignedAgents.find((a) => a.id === id)?.name;
 
   const list = bookings.filter((b) => {
     if (activeBranchId && b.branchId !== activeBranchId) return false;
@@ -109,8 +114,8 @@ const BookingsView = () => {
         </select>
         <select value={agentFilter} onChange={(e) => setAgentFilter(e.target.value)} className={FILTER_SELECT}>
           <option value={ALL}>All AI {terms.agent.toLowerCase()}s</option>
-          {imported.map((r) => (
-            <option key={r.importId} value={r.agentId}>{r.aiRoleName}</option>
+          {assignedAgents.map((a) => (
+            <option key={a.id} value={a.id}>{a.name}</option>
           ))}
         </select>
         {(deptFilter !== ALL || staffFilter !== ALL || agentFilter !== ALL) && (
