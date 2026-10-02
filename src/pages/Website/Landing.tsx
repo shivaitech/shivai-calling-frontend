@@ -14,6 +14,7 @@ const WhatShivaiDo = lazy(() => import("./WhatShivaiDo").then(m => ({ default: m
 const WhatWeWork = lazy(() => import("./WhatWeWork").then(m => ({ default: m.WhatWeWork })));
 const WorkTools = lazy(() => import("./WorkTools").then(m => ({ default: m.WorkTools })));
 const ShivaiSubsPlan = lazy(() => import("./ShivaiSubsPlanV2").then(m => ({ default: m.ShivaiSubsPlanV2 })));
+const GlobalPresence = lazy(() => import("./GlobalPresence").then(m => ({ default: m.GlobalPresence })));
 const FAQ = lazy(() => import("./FAQ").then(m => ({ default: m.FAQ })));
 const Footer = lazy(() => import("./Footer"));
 
@@ -195,6 +196,11 @@ const Landing: React.FC = () => {
       <Suspense fallback={<SectionSkeleton minHeight="50vh" />}>
         <section id="features" className="py-0 px-0 lg:px-0">
           <FAQ setAuthMode={setAuthMode} setShowAuthModal={setShowAuthModal} />
+        </section>
+      </Suspense>
+      <Suspense fallback={<SectionSkeleton minHeight="60vh" />}>
+        <section id="presence" className="py-0 px-0">
+          <GlobalPresence />
         </section>
       </Suspense>
       <Suspense fallback={<SectionSkeleton minHeight="30vh" dark />}>

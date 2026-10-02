@@ -3,21 +3,31 @@ import { motion } from "framer-motion";
 import {
   ArrowLeft,
   Bell,
-  Check,
   Mail,
   MessageSquare,
   Phone,
   Save,
   Settings2,
+  Trash2,
 } from "lucide-react";
 import GlassCard from "../../../components/GlassCard";
-import { AgentAvatar, SectionTitle, StatusPill, StatCard } from "../SupportCRM/ui";
-import { useAppointmentIndustry, APPOINTMENT_INDUSTRY_PRESETS, setActiveIndustryId } from "./industryConfig";
+import AgentCrmConfigPanel from "../../../components/AgentCrmConfigPanel";
+import { getAppById } from "../../../marketplace/apps";
+import { SectionTitle, StatusPill } from "../SupportCRM/ui";
+import type { AgentStatus } from "../SupportCRM/mockData";
+import {
+  useAppointmentIndustry,
+  APPOINTMENT_INDUSTRY_PRESETS,
+  setActiveIndustryId,
+  CustomPresetInput,
+  readCustomPresetInput,
+  saveCustomPreset,
+} from "./industryConfig";
 import { rebuildOrgFromIndustry, ensureOrgSeeded } from "./orgSeed";
 import { useActiveBranch } from "./branchesStore";
 import { useAppointmentSetup, writeSetup, isSetupComplete } from "./setupStore";
 import { isAppointmentCrmApiMode } from "./api/apiMode";
-import SetupModal from "./SetupModal";
+import SetupModal, { CustomPresetForm } from "./SetupModal";
 import BranchSwitcher from "./BranchSwitcher";
 import { AppointmentCRMProvider, useAppointmentCRM } from "./AppointmentCRMProvider";
 import OverviewView from "./OverviewView";
@@ -26,7 +36,8 @@ import CalendarView from "./CalendarView";
 import BranchesView from "./BranchesView";
 import CustomersView from "./CustomersView";
 import StaffView from "./StaffView";
-import { SCHEDULING_AGENTS, getSchedulingAgent } from "./mockData";
+import ImportedAgentsView from "./ImportedAgentsView";
+import { useRealSchedulingAgents } from "./realAgents";
 
 interface Props {
   section?: string;
@@ -40,7 +51,9 @@ const AppointmentCRM: React.FC<Props> = ({ section = "calendar" }) => (
 
 const AppointmentCRMContent: React.FC<Props> = ({ section = "calendar" }) => {
   const [setupOpen, setSetupOpen] = useState(!isSetupComplete());
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  // Deep-link from Overview's "open agent" shortcut — jumps to Agents and
+  // pre-selects that agent's tab. Agents itself manages tab selection after.
+  const [pendingAgentId, setPendingAgentId] = useState<string | null>(null);
   const { branches, activeBranch } = useActiveBranch();
   const { apiReady, bootstrap } = useAppointmentCRM();
 
@@ -57,17 +70,21 @@ const AppointmentCRMContent: React.FC<Props> = ({ section = "calendar" }) => {
   }, [apiReady, bootstrap?.setup.setupComplete]);
 
   const handleSetupComplete = () => setSetupOpen(false);
+  // Skip only hides the modal for this render — setup is still marked
+  // incomplete, so it reappears on the next refresh/visit until finished.
+  const handleSetupSkip = () => setSetupOpen(false);
 
-  if (selectedAgentId) {
-    const agent = getSchedulingAgent(selectedAgentId);
-    if (agent) {
-      return (
-        <>
-          <SetupModal open={setupOpen} onComplete={handleSetupComplete} />
-          <AgentDetail agent={agent} onBack={() => setSelectedAgentId(null)} />
-        </>
-      );
-    }
+  const openAgent = (agentId: string) => setPendingAgentId(agentId);
+
+  // Overview's "open agent" shortcut jumps straight to the Agents tabs view
+  // regardless of the sidebar's current section, pre-selecting that agent.
+  if (pendingAgentId && section !== "agents") {
+    return (
+      <>
+        <SetupModal open={setupOpen} onComplete={handleSetupComplete} onSkip={handleSetupSkip} />
+        <ImportedAgentsView initialAgentId={pendingAgentId} onInitialHandled={() => setPendingAgentId(null)} />
+      </>
+    );
   }
 
   let content: React.ReactNode;
@@ -88,7 +105,7 @@ const AppointmentCRMContent: React.FC<Props> = ({ section = "calendar" }) => {
       content = <CustomersView />;
       break;
     case "agents":
-      content = <AgentsView onOpen={setSelectedAgentId} />;
+      content = <ImportedAgentsView initialAgentId={pendingAgentId} onInitialHandled={() => setPendingAgentId(null)} />;
       break;
     case "reminders":
       content = <RemindersView />;
@@ -97,76 +114,72 @@ const AppointmentCRMContent: React.FC<Props> = ({ section = "calendar" }) => {
       content = <SettingsView onRerunSetup={() => setSetupOpen(true)} />;
       break;
     default:
-      content = <OverviewView onOpenAgent={setSelectedAgentId} />;
+      content = <OverviewView onOpenAgent={openAgent} />;
   }
 
   const showBranchBar = section !== "overview" && section !== "settings" && activeBranch;
 
   return (
     <>
-      <SetupModal open={setupOpen} onComplete={handleSetupComplete} />
+      <SetupModal open={setupOpen} onComplete={handleSetupComplete} onSkip={handleSetupSkip} />
       {showBranchBar && <BranchSwitcher variant="compact" className="mb-3 sm:mb-4" />}
       {content}
     </>
   );
 };
 
-// ── AI Agents ────────────────────────────────────────────────────────────────
-const AgentsView: React.FC<{ onOpen: (id: string) => void }> = ({ onOpen }) => {
-  const { terms } = useAppointmentIndustry();
+/** The agent's full AI configuration surface — rendered inline under its tab
+ * in ImportedAgentsView (no separate page/navigation). `onBack` is optional:
+ * omit it when embedded in tabs, where switching tabs replaces "Back". */
+export const AgentDetail: React.FC<{ agentId: string; onBack?: () => void; onUnassign?: () => void }> = ({ agentId, onBack, onUnassign }) => {
+  const { rawAgents } = useRealSchedulingAgents();
+  const agent = rawAgents.find((a) => a.id === agentId);
+
+  if (!agent) {
+    return (
+      <div className="space-y-5">
+        {onBack && (
+          <button type="button" onClick={onBack} className="inline-flex items-center gap-1 text-sm text-violet-600 dark:text-violet-400 font-medium">
+            <ArrowLeft className="w-4 h-4" /> Back
+          </button>
+        )}
+        <GlassCard className="p-8 text-center">
+          <p className="text-sm text-slate-500 dark:text-slate-400">Loading agent…</p>
+        </GlassCard>
+      </div>
+    );
+  }
+
+  const status: AgentStatus = agent.status === "Published" ? "available" : "paused";
+
   return (
     <div className="space-y-5">
-      <SectionTitle
-        title={`AI ${terms.agent}s`}
-        subtitle="Voice & chat agents that book, reschedule, and confirm appointments 24/7"
-      />
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {SCHEDULING_AGENTS.map((a) => (
-          <GlassCard key={a.id} hover>
-            <button type="button" onClick={() => onOpen(a.id)} className="w-full p-5 text-left">
-              <div className="flex items-start gap-3">
-                <AgentAvatar name={a.name} hue={a.avatarHue} status={a.status} size={52} />
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-slate-800 dark:text-white">{a.name}</p>
-                  <p className="text-xs text-slate-500">{a.role}</p>
-                  <div className="mt-2"><StatusPill status={a.status} pulse /></div>
-                  <p className="text-[11px] text-slate-400 mt-2">{a.bookingsToday} bookings today</p>
-                </div>
-              </div>
-            </button>
-          </GlassCard>
-        ))}
+      {onBack && (
+        <button type="button" onClick={onBack} className="inline-flex items-center gap-1 text-sm text-violet-600 dark:text-violet-400 font-medium">
+          <ArrowLeft className="w-4 h-4" /> Back
+        </button>
+      )}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <h2 className="text-base font-semibold text-slate-800 dark:text-white truncate">{agent.name}</h2>
+          <StatusPill status={status} pulse />
+        </div>
+        {onUnassign && (
+          <button
+            type="button"
+            onClick={onUnassign}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 flex-shrink-0"
+          >
+            <Trash2 className="w-3.5 h-3.5" /> Unassign
+          </button>
+        )}
       </div>
+      {appointmentCrmApp && <AgentCrmConfigPanel app={appointmentCrmApp} agent={agent} />}
     </div>
   );
 };
 
-const AgentDetail: React.FC<{ agent: (typeof SCHEDULING_AGENTS)[0]; onBack: () => void }> = ({ agent, onBack }) => {
-  const { terms } = useAppointmentIndustry();
-  return (
-    <div className="space-y-5">
-      <button type="button" onClick={onBack} className="inline-flex items-center gap-1 text-sm text-violet-600 dark:text-violet-400 font-medium">
-        <ArrowLeft className="w-4 h-4" /> Back
-      </button>
-      <GlassCard>
-        <div className="p-6 flex flex-col sm:flex-row gap-6">
-          <AgentAvatar name={agent.name} hue={agent.avatarHue} status={agent.status} size={72} />
-          <div className="flex-1">
-            <h2 className="text-xl font-bold text-slate-800 dark:text-white">{agent.name}</h2>
-            <p className="text-sm text-slate-500">{agent.role}</p>
-            <div className="mt-2"><StatusPill status={agent.status} pulse /></div>
-            <p className="text-xs text-slate-400 mt-3">Languages: {agent.languages.join(", ")}</p>
-          </div>
-        </div>
-      </GlassCard>
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-        <StatCard icon={Phone} color="purple" label={`${terms.appointments} Today`} value={agent.bookingsToday} />
-        <StatCard icon={Check} color="emerald" label="No-show Rate" value={`${agent.noShowRate}%`} subTone="down" />
-        <StatCard icon={Bell} color="amber" label="Reminders Sent" value="41" sub="Today" />
-      </div>
-    </div>
-  );
-};
+const appointmentCrmApp = getAppById("appointment-crm");
 
 // ── Reminders ────────────────────────────────────────────────────────────────
 const RemindersView = () => {
@@ -223,14 +236,33 @@ const RemindersView = () => {
 };
 
 // ── Settings ───────────────────────────────────────────────────────────────────
+const emptyCustomInput = (): CustomPresetInput => ({
+  customerLabel: "",
+  appointmentLabel: "",
+  providerLabel: "",
+  branchLabel: "",
+  services: [""],
+  appointmentTypes: [""],
+});
+
 const SettingsView: React.FC<{ onRerunSetup: () => void }> = ({ onRerunSetup }) => {
   const setup = useAppointmentSetup();
   const { branches } = useActiveBranch();
   const { preset, activeId } = useAppointmentIndustry();
   const [draftIndustry, setDraftIndustry] = useState(activeId);
   const [dirty, setDirty] = useState(false);
+  const [customInput, setCustomInput] = useState<CustomPresetInput>(() => readCustomPresetInput() ?? emptyCustomInput());
+
+  const isCustomValid =
+    draftIndustry !== "generic" ||
+    (customInput.customerLabel.trim() &&
+      customInput.appointmentLabel.trim() &&
+      customInput.providerLabel.trim() &&
+      customInput.branchLabel.trim() &&
+      customInput.services.some((s) => s.trim()));
 
   const save = () => {
+    if (draftIndustry === "generic") saveCustomPreset(customInput);
     setActiveIndustryId(draftIndustry);
     writeSetup({ industryId: draftIndustry });
     if (draftIndustry !== activeId) {
@@ -301,6 +333,12 @@ const SettingsView: React.FC<{ onRerunSetup: () => void }> = ({ onRerunSetup }) 
             </button>
           ))}
         </div>
+
+        {draftIndustry === "generic" && (
+          <div className="mt-3">
+            <CustomPresetForm value={customInput} onChange={setCustomInput} />
+          </div>
+        )}
       </div>
 
       <GlassCard>
@@ -325,7 +363,12 @@ const SettingsView: React.FC<{ onRerunSetup: () => void }> = ({ onRerunSetup }) 
           <button type="button" onClick={() => { setDraftIndustry(activeId); setDirty(false); }} className="text-sm opacity-80 hover:opacity-100">
             Discard
           </button>
-          <button type="button" onClick={save} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-violet-500 text-white text-sm font-medium">
+          <button
+            type="button"
+            onClick={save}
+            disabled={!isCustomValid}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-violet-500 text-white text-sm font-medium disabled:opacity-50"
+          >
             <Save className="w-3.5 h-3.5" /> Save
           </button>
         </motion.div>

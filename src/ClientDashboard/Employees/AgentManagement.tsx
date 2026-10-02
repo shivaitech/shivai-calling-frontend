@@ -1648,28 +1648,37 @@ const AgentManagement = () => {
     setWorkflowsLoading(true);
     const agentIds = filteredAgents.map((a: { id: string }) => a.id);
 
-    loadWorkflowChipsForAgents(
-      agentIds,
-      () => authAPI.getIntegrations("google_sheets"),
-      async (agentId) => {
-        const res = await workflowAPI.getAgentDocuments(agentId);
-        return res.data?.document?.files ?? [];
-      },
-    )
-      .then((map) => {
-        if (!cancelled) setAgentWorkflowChips(map);
-      })
-      .catch(() => {
-        if (!cancelled) setAgentWorkflowChips({});
-      })
-      .finally(() => {
-        if (!cancelled) setWorkflowsLoading(false);
-      });
+    const loadChips = () => {
+      loadWorkflowChipsForAgents(
+        agentIds,
+        () => authAPI.getIntegrations("google_sheets"),
+        async (agentId) => {
+          const res = await workflowAPI.getAgentDocuments(agentId);
+          return res.data?.document?.files ?? [];
+        },
+        user?.email,
+      )
+        .then((map) => {
+          if (!cancelled) setAgentWorkflowChips(map);
+        })
+        .catch(() => {
+          if (!cancelled) setAgentWorkflowChips({});
+        })
+        .finally(() => {
+          if (!cancelled) setWorkflowsLoading(false);
+        });
+    };
+
+    loadChips();
+    // Skills are assigned locally (no backend yet) — re-sync chips when they
+    // change instead of waiting for the next full agent-list refresh.
+    window.addEventListener("shivai:agent-skills-changed", loadChips);
 
     return () => {
       cancelled = true;
+      window.removeEventListener("shivai:agent-skills-changed", loadChips);
     };
-  }, [isList, isDeveloper, filteredAgents, agentListRefreshToken]);
+  }, [isList, isDeveloper, filteredAgents, agentListRefreshToken, user?.email]);
 
   // Handle page change
   const handlePageChange = (page: number) => {

@@ -505,6 +505,7 @@ import { usePermission } from '../../permissions/usePermission';
 import { agentAPI, getTenantScope } from '../../services/agentAPI';
 import { aiTemplateService } from '../../services/aiTemplateService';
 import GlassCard from '../../components/GlassCard';
+import AgentSkillsPanel from './agents/AgentSkillsPanel';
 import { formatAgentLanguages } from '../../lib/utils';
 import SearchableSelect from '../../components/SearchableSelect';
 import TTSVoiceSelector, { TTSVoiceSelectorValue, toTtsConfig } from '../../components/TTSVoiceSelector';
@@ -746,6 +747,7 @@ const EditAgent = () => {
     { id: 'identity', label: 'Identity', icon: Bot },
     { id: 'voice', label: 'Voice', icon: Volume2 },
     { id: 'knowledge', label: 'Knowledge', icon: BookOpen },
+    { id: 'skills', label: 'Skills', icon: Sparkles },
     { id: 'settings', label: 'Template Setting', icon: Settings },
   ];
 
@@ -2141,16 +2143,10 @@ const EditAgent = () => {
         appToast.dismiss(loadingToast);
         appToast.success("Agent updated successfully!");
         setIsDirty(false);
-        // Refresh the agents list in context so view page shows updated data immediately
+        // Refresh the agents list in context so other pages show updated data
+        // immediately — stay on this edit page rather than navigating away,
+        // so the user can keep making changes without re-opening it.
         await refreshAgents();
-        // Navigate back to view page and signal a refresh
-        const tenantScope = getTenantScope();
-        navigate(
-          tenantScope
-            ? `/sub-tenants/${tenantScope}/agents/${currentAgent.id}`
-            : `/agents/${currentAgent.id}`,
-          { state: { refreshed: true } },
-        );
       } catch (error) {
         appToast.dismiss(loadingToast);
         appToast.error("Failed to update agent. Please try again.");
@@ -3271,6 +3267,15 @@ const EditAgent = () => {
                     </button>
                   </div>
                 </div>
+              </div>
+            </GlassCard>
+          )}
+
+          {/* Skills Tab Content */}
+          {activeTab === 'skills' && id && (
+            <GlassCard>
+              <div className="p-4 sm:p-5 lg:p-6">
+                <AgentSkillsPanel agentId={id} userEmail={user?.email} editable />
               </div>
             </GlassCard>
           )}

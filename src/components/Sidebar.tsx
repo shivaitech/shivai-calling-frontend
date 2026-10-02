@@ -100,6 +100,16 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMod
   const { branding } = useTheme();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({});
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      window.location.href = "/landing";
+    } catch {
+      window.location.href = "/landing";
+    }
+  };
 
   // Installed marketplace apps shown under the "My Apps" group, filtered by visibility.
   const visibleApps = getVisibleApps(user?.email);
@@ -178,7 +188,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMod
         { path: "/workflows#documents", icon: FileText, label: "AI Docs", permissionKey: "module:workflows.page:documents" },
       ],
     },
-    { path: "/marketplace", icon: Sparkles, label: "Feature Marketplace", highlight: true, permissionKey: "module:marketplace" },
+    { path: "/marketplace", icon: Sparkles, label: "Skill and Features", highlight: true, permissionKey: "module:marketplace" },
     { path: "/analytics", icon: History, label: "Analytics & Call History", permissionKey: "module:analytics" },
     { path: "/monitoring", icon: BarChart3, label: "Monitoring & Reports", permissionKey: "module:monitoring" },
     { path: "/billing", icon: CreditCard, label: "Billing", permissionKey: "module:billing" },
@@ -683,13 +693,44 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMod
 
       {/* User Profile Section */}
       <div
-        className={`${
+        className={`relative ${
           isCollapsed ? "p-3" : "p-6"
         } border-t border-slate-200 dark:border-slate-700`}
       >
-        <div
-          className={`flex items-center ${
+        {profileMenuOpen && (
+          <>
+            <div
+              className="fixed inset-0 z-20"
+              onClick={() => setProfileMenuOpen(false)}
+            />
+            <div className="absolute bottom-full left-3 right-3 mb-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl z-30 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setProfileMenuOpen(false)}
+                className="w-full text-left px-3 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-sm text-slate-700 dark:text-slate-300"
+              >
+                Profile Settings
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setProfileMenuOpen(false);
+                  handleLogout();
+                }}
+                className="w-full flex items-center gap-2 text-left px-3 py-2.5 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-sm text-red-600 dark:text-red-400 border-t border-slate-100 dark:border-slate-700"
+              >
+                <LogOut className="w-3.5 h-3.5" /> Sign Out
+              </button>
+            </div>
+          </>
+        )}
+        <button
+          type="button"
+          onClick={() => setProfileMenuOpen((v) => !v)}
+          className={`w-full flex items-center ${
             isCollapsed ? "justify-center" : "gap-3"
+          } hover:bg-slate-50 dark:hover:bg-slate-800/60 rounded-lg transition-colors ${
+            isCollapsed ? "" : "-m-1.5 p-1.5"
           }`}
         >
           <div className="border p-2 rounded-lg  flex items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white  ">
@@ -701,7 +742,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMod
               width: isCollapsed ? 0 : "auto",
             }}
             transition={{ duration: 0.2 }}
-            className="flex-1 min-w-0 overflow-hidden"
+            className="flex-1 min-w-0 overflow-hidden text-left"
           >
             {!isCollapsed && (
               <>
@@ -714,7 +755,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMod
               </>
             )}
           </motion.div>
-        </div>
+          {!isCollapsed && (
+            <ChevronDown
+              className={`w-4 h-4 text-slate-400 flex-shrink-0 transition-transform ${
+                profileMenuOpen ? "rotate-180" : ""
+              }`}
+            />
+          )}
+        </button>
       </div>
     </motion.div>
   );

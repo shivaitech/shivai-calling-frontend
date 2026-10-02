@@ -48,6 +48,12 @@ export interface Department {
   is_deleted: boolean;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Optional branch/location this department belongs to (Appointment CRM's
+   * branchesStore id). Departments created without one are treated as
+   * org-wide/unscoped and shown regardless of the active branch.
+   */
+  branchId?: string;
 }
 
 export interface DesignationDepartment {
@@ -79,6 +85,8 @@ export interface ListParams {
   sortBy?: "createdAt" | "updatedAt" | "name";
   sortOrder?: "asc" | "desc";
   search?: string;
+  /** Filter departments to one branch/location. */
+  branchId?: string;
 }
 
 export interface ListDesignationsParams extends ListParams {
@@ -89,6 +97,7 @@ export interface ListDesignationsParams extends ListParams {
 export interface DepartmentInput {
   name: string;
   description: string;
+  branchId?: string;
 }
 
 export interface DesignationInput {
@@ -115,6 +124,7 @@ const buildListParams = (params: ListParams = {}) => {
     sortBy: params.sortBy,
     sortOrder: params.sortOrder,
     search: params.search?.trim() || undefined,
+    branchId: params.branchId || undefined,
   };
   Object.keys(q).forEach((k) => q[k] === undefined && delete q[k]);
   return q;
@@ -156,7 +166,11 @@ export const departmentsAPI = {
 
   async create(input: DepartmentInput): Promise<Department> {
     try {
-      const body = { name: input.name.trim(), description: input.description.trim() };
+      const body = compact({
+        name: input.name.trim(),
+        description: input.description.trim(),
+        branchId: input.branchId || undefined,
+      });
       const res: AxiosResponse<any> = await axios.post(DEPARTMENTS_BASE, body, authHeaders());
       return res.data?.data?.department;
     } catch (error: any) {
@@ -171,6 +185,7 @@ export const departmentsAPI = {
       const body = compact({
         name: patch.name?.trim(),
         description: patch.description?.trim(),
+        branchId: patch.branchId,
       });
       const res: AxiosResponse<any> = await axios.put(`${DEPARTMENTS_BASE}/${id}`, body, authHeaders());
       return res.data?.data?.department;

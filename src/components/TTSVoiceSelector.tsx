@@ -27,11 +27,32 @@ interface TTSVoiceSelectorProps {
   className?: string;
 }
 
+// Masked display names — the real provider/model identity (and the catalog's
+// own `name` field) must never reach the UI, so no technically-minded user
+// can tell which vendors back our TTS. Keyed by the provider's stable `id`
+// (not catalog order), so aliases don't shift if the backend reorders or
+// temporarily omits a provider. Unknown future provider ids get a generic
+// fallback derived from their position in PROVIDER_ALIAS_FALLBACK_ORDER.
 const PROVIDER_LABELS: Record<string, string> = {
-  google_chirp: "Google Chirp",
-  cartesia: "Cartesia",
-  openai: "OpenAI",
+  google_chirp: "SAiTTS v1",
+  cartesia: "SAiTTS v2",
+  openai: "SAiTTS v3",
 };
+
+function providerAlias(providerId: string): string {
+  if (PROVIDER_LABELS[providerId]) return PROVIDER_LABELS[providerId];
+  // Any provider id not in the known map (new backend addition) still gets a
+  // masked, stable-looking name rather than ever falling back to its real name.
+  let hash = 0;
+  for (let i = 0; i < providerId.length; i += 1) hash = (hash * 31 + providerId.charCodeAt(i)) | 0;
+  return `SAiTTS v${4 + (Math.abs(hash) % 6)}`;
+}
+
+/** Masked model label: "{provider alias} — Tier N", numbered in the order the
+ * catalog returns that provider's models. Never shows the real model name. */
+function modelAlias(providerId: string, modelIndex: number): string {
+  return `${providerAlias(providerId)} — Tier ${modelIndex + 1}`;
+}
 
 /**
  * Provider → Model → Voice cascading selector backed by GET /api/v1/voice/catalog.
@@ -131,12 +152,12 @@ const TTSVoiceSelector: React.FC<TTSVoiceSelectorProps> = ({
 
   const providerOptions = providers.map((p) => ({
     value: p.id,
-    label: `${PROVIDER_LABELS[p.id] || p.name}${p.configured ? "" : " (not configured)"}`,
+    label: `${providerAlias(p.id)}${p.configured ? "" : " (not configured)"}`,
   }));
 
-  const modelOptions = models.map((m) => ({
+  const modelOptions = models.map((m, i) => ({
     value: m.id,
-    label: m.name,
+    label: modelAlias(selectedProvider?.id || "", i),
   }));
 
   const voiceOptions = voices.map((v) => ({
@@ -275,7 +296,7 @@ const TTSVoiceSelector: React.FC<TTSVoiceSelectorProps> = ({
               title={
                 canPreview
                   ? undefined
-                  : "Preview is currently only available for Google Chirp voices"
+                  : `Preview is currently only available for ${testSupportedProviders.map(providerAlias).join(", ")} voices`
               }
               className={`px-4 py-2.5 sm:py-3 rounded-xl font-medium transition-all flex items-center gap-2 flex-shrink-0 ${
                 !canPreview || isLoadingTest
@@ -298,7 +319,7 @@ const TTSVoiceSelector: React.FC<TTSVoiceSelectorProps> = ({
         </div>
         {selectedProvider?.id === "cartesia" && (
           <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-1">
-            Cartesia voices are fetched securely from your account — the API key never reaches the browser.
+            {providerAlias("cartesia")} voices are fetched securely from your account — the API key never reaches the browser.
           </p>
         )}
       </div>

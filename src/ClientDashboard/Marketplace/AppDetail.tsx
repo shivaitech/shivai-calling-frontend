@@ -12,10 +12,12 @@ import {
   ShieldCheck,
   Loader2,
   ChevronRight,
+  Bot,
 } from "lucide-react";
 import { getVisibleAppById, MarketplaceApp, openAppWorkspace } from "../../marketplace/apps";
 import { useInstalledApps } from "../../marketplace/useInstalledApps";
 import { useAuth } from "../../contexts/AuthContext";
+import AssignSkillModal from "./AssignSkillModal";
 
 const pricingStyles: Record<MarketplaceApp["pricing"], string> = {
   Free: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200/70 dark:border-emerald-800/60",
@@ -33,6 +35,7 @@ const AppDetail = () => {
 
   const [installing, setInstalling] = useState(false);
   const [justInstalled, setJustInstalled] = useState(false);
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
 
   const app = appId ? getVisibleAppById(appId, user?.email) : undefined;
 
@@ -64,6 +67,7 @@ const AppDetail = () => {
       install(app.id);
       setInstalling(false);
       setJustInstalled(true);
+      setAssignModalOpen(true);
       setTimeout(() => setJustInstalled(false), 1800);
     }, 600);
   };
@@ -130,6 +134,12 @@ const AppDetail = () => {
                     className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:opacity-90 shadow-md shadow-indigo-500/20 transition-all active:scale-[0.98]"
                   >
                     Open <ArrowRight className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setAssignModalOpen(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    <Bot className="w-4 h-4" /> Assign to Agents
                   </button>
                   <button
                     onClick={() => uninstall(app.id)}
@@ -230,6 +240,12 @@ const AppDetail = () => {
           </div>
         </div>
       </div>
+
+      <AssignSkillModal
+        open={assignModalOpen}
+        onClose={() => setAssignModalOpen(false)}
+        app={app}
+      />
     </div>
   );
 };

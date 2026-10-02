@@ -1,24 +1,39 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
+  Briefcase,
   Building2,
+  Calculator,
   CalendarClock,
+  Camera,
+  Car,
   Check,
   ChevronLeft,
   ChevronRight,
   Dumbbell,
   GraduationCap,
   HeartPulse,
+  Home,
   Loader2,
   MapPin,
+  Plane,
+  Plus,
+  Scale,
   Scissors,
+  Sofa,
   Sparkles,
   Stethoscope,
   Building,
+  Trash2,
+  X,
 } from "lucide-react";
 import ModalOverlay from "../../../components/ModalOverlay";
 import {
   APPOINTMENT_INDUSTRY_PRESETS,
   AppointmentIndustryPreset,
+  buildCustomPreset,
+  CustomPresetInput,
+  readCustomPresetInput,
+  saveCustomPreset,
   setActiveIndustryId,
 } from "./industryConfig";
 import { BranchMode, completeSetup, completeSetupViaApi } from "./setupStore";
@@ -30,6 +45,12 @@ import { useAppointmentCRM } from "./AppointmentCRMProvider";
 interface SetupModalProps {
   open: boolean;
   onComplete: () => void;
+  /**
+   * Dismiss without finishing setup. Only hides the modal for the current
+   * page view — since setup is still not marked complete, it reappears on
+   * every refresh/re-render until the user either finishes it or skips again.
+   */
+  onSkip?: () => void;
 }
 
 const STEPS = ["Welcome", "Industry", "Locations", "Review"] as const;
@@ -49,34 +70,93 @@ const industryIcon = (id: string) => {
       return <Scissors className={cls} />;
     case "fitness":
       return <Dumbbell className={cls} />;
+    case "legal":
+      return <Scale className={cls} />;
+    case "realestate":
+      return <Home className={cls} />;
+    case "veterinary":
+      return <HeartPulse className={cls} />;
+    case "homeservices":
+      return <Sofa className={cls} />;
+    case "consulting":
+      return <Briefcase className={cls} />;
+    case "automotive":
+      return <Car className={cls} />;
+    case "events":
+      return <Camera className={cls} />;
+    case "coworking":
+      return <Building className={cls} />;
+    case "immigration":
+      return <Plane className={cls} />;
+    case "financial":
+      return <Calculator className={cls} />;
     default:
       return <Sparkles className={cls} />;
   }
 };
 
-const SetupModal = ({ open, onComplete }: SetupModalProps) => {
+const emptyCustomInput = (): CustomPresetInput => ({
+  customerLabel: "",
+  appointmentLabel: "",
+  providerLabel: "",
+  branchLabel: "",
+  services: [""],
+  appointmentTypes: [""],
+});
+
+const SetupModal = ({ open, onComplete, onSkip }: SetupModalProps) => {
   const { refresh, apiReady } = useAppointmentCRM();
   const [step, setStep] = useState(0);
   const [companyName, setCompanyName] = useState("");
   const [industryId, setIndustryId] = useState("clinic");
   const [branchMode, setBranchMode] = useState<BranchMode>("single");
-  const [branchNames, setBranchNames] = useState<string[]>(["Main Location"]);
+  const [branchNames, setBranchNames] = useState<string[]>([""]);
+  // Single-branch mode: the business itself IS the one location, so its name
+  // defaults to the company name the user already typed in step 0 — no
+  // separate "Main Location" branch is invented. Once the user edits the
+  // single branch name directly, it stops following companyName.
+  const [singleBranchNameTouched, setSingleBranchNameTouched] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [customInput, setCustomInput] = useState<CustomPresetInput>(() => readCustomPresetInput() ?? emptyCustomInput());
 
-  const preset = useMemo(
-    () => APPOINTMENT_INDUSTRY_PRESETS.find((p) => p.id === industryId) ?? APPOINTMENT_INDUSTRY_PRESETS[1],
-    [industryId],
-  );
+  const preset = useMemo(() => {
+    if (industryId === "generic") return buildCustomPreset(customInput);
+    return APPOINTMENT_INDUSTRY_PRESETS.find((p) => p.id === industryId) ?? APPOINTMENT_INDUSTRY_PRESETS[1];
+  }, [industryId, customInput]);
 
   const selectIndustry = (p: AppointmentIndustryPreset) => {
     setIndustryId(p.id);
+    if (p.id === "generic") return; // branches seeded once the custom form is filled in
     const seeds = p.defaultBranches.map((b) => b.name);
-    setBranchNames(branchMode === "single" ? [seeds[0] ?? "Main Location"] : seeds.length ? seeds : ["Main Location", "Branch 2"]);
+    if (branchMode === "single") {
+      // The business itself is the one location — default to the company
+      // name, not a generic preset placeholder, unless the user already
+      // typed their own branch name.
+      if (!singleBranchNameTouched) setBranchNames([companyName.trim() || seeds[0] || ""]);
+    } else {
+      setBranchNames(seeds.length ? seeds : ["Branch 1", "Branch 2"]);
+    }
   };
+
+  // Single-branch mode: keep following the company name as the user types it
+  // in step 0, until they explicitly edit the branch name themselves.
+  useEffect(() => {
+    if (branchMode === "single" && !singleBranchNameTouched) {
+      setBranchNames([companyName]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyName, branchMode, singleBranchNameTouched]);
+
+  const isCustomValid =
+    customInput.customerLabel.trim().length > 0 &&
+    customInput.appointmentLabel.trim().length > 0 &&
+    customInput.providerLabel.trim().length > 0 &&
+    customInput.branchLabel.trim().length > 0 &&
+    customInput.services.some((s) => s.trim());
 
   const canNext = () => {
     if (step === 0) return companyName.trim().length >= 2;
-    if (step === 1) return Boolean(industryId);
+    if (step === 1) return industryId === "generic" ? isCustomValid : Boolean(industryId);
     if (step === 2) return branchNames.some((n) => n.trim());
     return true;
   };
@@ -84,6 +164,7 @@ const SetupModal = ({ open, onComplete }: SetupModalProps) => {
   const handleFinish = async () => {
     setSaving(true);
     try {
+      if (industryId === "generic") saveCustomPreset(customInput);
       setActiveIndustryId(industryId);
       const seeds = branchNames
         .filter((n) => n.trim())
@@ -133,7 +214,7 @@ const SetupModal = ({ open, onComplete }: SetupModalProps) => {
             <div className="w-10 h-10 rounded-xl bg-violet-50 dark:bg-violet-900/30 border border-violet-200 dark:border-violet-800 flex items-center justify-center">
               <CalendarClock className="w-5 h-5 text-violet-600 dark:text-violet-400" />
             </div>
-            <div>
+            <div className="flex-1 min-w-0">
               <h2 className="text-base font-semibold text-slate-900 dark:text-white">
                 Set up your scheduling CRM
               </h2>
@@ -141,6 +222,15 @@ const SetupModal = ({ open, onComplete }: SetupModalProps) => {
                 Industry templates, terminology & branches — tailored in under a minute.
               </p>
             </div>
+            {onSkip && (
+              <button
+                type="button"
+                onClick={onSkip}
+                className="text-xs font-medium text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 flex-shrink-0 self-start"
+              >
+                Skip for now
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -234,6 +324,10 @@ const SetupModal = ({ open, onComplete }: SetupModalProps) => {
                   );
                 })}
               </div>
+
+              {industryId === "generic" && (
+                <CustomPresetForm value={customInput} onChange={setCustomInput} />
+              )}
             </div>
           )}
 
@@ -256,12 +350,19 @@ const SetupModal = ({ open, onComplete }: SetupModalProps) => {
                     onClick={() => {
                       setBranchMode(mode);
                       if (mode === "single") {
-                        setBranchNames([branchNames[0] || preset.defaultBranches[0]?.name || "Main Location"]);
+                        // Collapsing back to one location: that location IS
+                        // the business, so prefer the company name unless the
+                        // user already set a custom single-branch name.
+                        setBranchNames([
+                          !singleBranchNameTouched
+                            ? companyName.trim() || preset.defaultBranches[0]?.name || ""
+                            : branchNames[0] || companyName.trim() || "",
+                        ]);
                       } else if (branchNames.length < 2) {
                         setBranchNames(
                           preset.defaultBranches.length >= 2
                             ? preset.defaultBranches.map((b) => b.name)
-                            : [branchNames[0] || "Main Location", "Branch 2"],
+                            : [branchNames[0] || companyName.trim() || "Branch 1", "Branch 2"],
                         );
                       }
                     }}
@@ -298,8 +399,9 @@ const SetupModal = ({ open, onComplete }: SetupModalProps) => {
                       const next = [...branchNames];
                       next[i] = e.target.value;
                       setBranchNames(next);
+                      if (branchMode === "single" && i === 0) setSingleBranchNameTouched(true);
                     }}
-                    placeholder={`${preset.terms.branch} ${i + 1}`}
+                    placeholder={branchMode === "single" ? "Your business name" : `${preset.terms.branch} ${i + 1}`}
                     className="w-full px-3 py-2 rounded-xl text-sm common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-violet-500/40"
                   />
                 ))}
@@ -346,7 +448,15 @@ const SetupModal = ({ open, onComplete }: SetupModalProps) => {
           {step < STEPS.length - 1 ? (
             <button
               type="button"
-              onClick={() => setStep((s) => s + 1)}
+              onClick={() => {
+                if (step === 1 && industryId === "generic" && branchNames.every((n) => !n.trim())) {
+                  const seeds = preset.defaultBranches.map((b) => b.name);
+                  setBranchNames(
+                    branchMode === "single" ? [companyName.trim() || seeds[0] || ""] : seeds,
+                  );
+                }
+                setStep((s) => s + 1);
+              }}
               disabled={!canNext()}
               className="flex-1 py-2.5 rounded-xl text-sm font-medium common-button-bg disabled:opacity-50 flex items-center justify-center gap-1"
             >
@@ -374,5 +484,153 @@ const ReviewRow = ({ label, value }: { label: string; value: string }) => (
     <span className="font-medium text-slate-800 dark:text-white text-right truncate">{value}</span>
   </div>
 );
+
+const customInputCls =
+  "w-full px-3 py-2 rounded-lg text-sm common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-violet-500/40 text-slate-800 dark:text-white";
+
+export const CustomPresetForm = ({
+  value,
+  onChange,
+}: {
+  value: CustomPresetInput;
+  onChange: (next: CustomPresetInput) => void;
+}) => {
+  const setField = (key: keyof CustomPresetInput, v: string) => onChange({ ...value, [key]: v });
+
+  const setListItem = (key: "services" | "appointmentTypes", i: number, v: string) => {
+    const next = [...value[key]];
+    next[i] = v;
+    onChange({ ...value, [key]: next });
+  };
+  const addListItem = (key: "services" | "appointmentTypes") =>
+    onChange({ ...value, [key]: [...value[key], ""] });
+  const removeListItem = (key: "services" | "appointmentTypes", i: number) =>
+    onChange({ ...value, [key]: value[key].filter((_, idx) => idx !== i) });
+
+  return (
+    <div className="rounded-xl border border-violet-200/70 dark:border-violet-800/50 bg-violet-50/40 dark:bg-violet-950/10 p-3.5 space-y-3.5">
+      <p className="text-xs font-semibold text-violet-800 dark:text-violet-200">
+        Define your own setup — call things whatever makes sense for your business.
+      </p>
+
+      <div className="grid grid-cols-2 gap-2.5">
+        <div>
+          <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
+            What do you call a customer? <span className="text-red-400">*</span>
+          </label>
+          <input
+            value={value.customerLabel}
+            onChange={(e) => setField("customerLabel", e.target.value)}
+            placeholder="e.g. Client, Guest, Member"
+            className={customInputCls}
+          />
+        </div>
+        <div>
+          <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
+            What do you call a booking? <span className="text-red-400">*</span>
+          </label>
+          <input
+            value={value.appointmentLabel}
+            onChange={(e) => setField("appointmentLabel", e.target.value)}
+            placeholder="e.g. Appointment, Session, Visit"
+            className={customInputCls}
+          />
+        </div>
+        <div>
+          <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
+            What do you call the person providing it? <span className="text-red-400">*</span>
+          </label>
+          <input
+            value={value.providerLabel}
+            onChange={(e) => setField("providerLabel", e.target.value)}
+            placeholder="e.g. Staff, Expert, Trainer"
+            className={customInputCls}
+          />
+        </div>
+        <div>
+          <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
+            What do you call a location? <span className="text-red-400">*</span>
+          </label>
+          <input
+            value={value.branchLabel}
+            onChange={(e) => setField("branchLabel", e.target.value)}
+            placeholder="e.g. Branch, Outlet, Site"
+            className={customInputCls}
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
+          Services you offer <span className="text-red-400">*</span>
+        </label>
+        <div className="space-y-1.5">
+          {value.services.map((s, i) => (
+            <div key={i} className="flex items-center gap-1.5">
+              <input
+                value={s}
+                onChange={(e) => setListItem("services", i, e.target.value)}
+                placeholder={`Service ${i + 1}`}
+                className={customInputCls}
+              />
+              {value.services.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => removeListItem("services", i)}
+                  className="p-2 text-slate-400 hover:text-red-500 rounded-lg flex-shrink-0"
+                  aria-label="Remove service"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => addListItem("services")}
+            className="flex items-center gap-1 text-xs font-medium text-violet-600 dark:text-violet-400 hover:underline"
+          >
+            <Plus className="w-3.5 h-3.5" /> Add service
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-400 mb-1">
+          Booking types (optional)
+        </label>
+        <div className="space-y-1.5">
+          {value.appointmentTypes.map((s, i) => (
+            <div key={i} className="flex items-center gap-1.5">
+              <input
+                value={s}
+                onChange={(e) => setListItem("appointmentTypes", i, e.target.value)}
+                placeholder={`Booking type ${i + 1}`}
+                className={customInputCls}
+              />
+              {value.appointmentTypes.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => removeListItem("appointmentTypes", i)}
+                  className="p-2 text-slate-400 hover:text-red-500 rounded-lg flex-shrink-0"
+                  aria-label="Remove booking type"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => addListItem("appointmentTypes")}
+            className="flex items-center gap-1 text-xs font-medium text-violet-600 dark:text-violet-400 hover:underline"
+          >
+            <Plus className="w-3.5 h-3.5" /> Add booking type
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default SetupModal;

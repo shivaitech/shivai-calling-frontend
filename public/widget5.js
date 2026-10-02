@@ -1280,11 +1280,21 @@
 
   // Function to refresh widget styles with updated theme colors
   function refreshWidgetTheme() {
-    var existingStyles = document.getElementById('shivai-widget-styles');
-    if (existingStyles) existingStyles.remove();
-    var existingOverride = document.getElementById('shivai-theme-override');
-    if (existingOverride) existingOverride.remove();
+    // Removing #shivai-widget-styles before the replacement is parsed leaves
+    // a real gap with NO matching stylesheet in the document — the trigger
+    // button (and, if open, the panel) render unstyled for that window,
+    // which is exactly the "blinking" flash reported on-device. addWidgetStyles()
+    // always appends a fresh node, so only remove the OLD one after the new
+    // one is already in the document — never leave zero stylesheets present.
     addWidgetStyles();
+    var staleStyleNodes = document.querySelectorAll('#shivai-widget-styles');
+    for (var i = 0; i < staleStyleNodes.length - 1; i++) {
+      staleStyleNodes[i].remove();
+    }
+    // NOTE: #shivai-theme-override is intentionally NOT removed here — each
+    // branch below (glass / non-glass) removes the stale one only right
+    // before inserting its replacement, so there's never a gap with zero
+    // override stylesheet present either.
 
     var colors = getThemeColors();
     var p1 = colors.primaryColor;
@@ -1321,8 +1331,6 @@
         var cv0 = widgetContainer.querySelector('.call-view');
         if (cv0) cv0.style.background = "#f5f6f8";
         // Keep landing transparent for the glass look; call view is opaque.
-        var origOverride = document.getElementById('shivai-theme-override');
-        if (origOverride) origOverride.remove();
         var origEl = document.createElement('style');
         origEl.id = 'shivai-theme-override';
         origEl.textContent = [
@@ -1339,6 +1347,8 @@
           ".shivai-widget .widget-subtitle, .shivai-widget .landing-agent-desc { color: #374151 !important; }",
         ].concat(buildCallChatBoxOverrides(), buildThemedButtonOverrides(p1, p2)).join('\n');
         document.head.appendChild(origEl);
+        var staleOverrideG = document.getElementById('shivai-theme-override');
+        if (staleOverrideG && staleOverrideG !== origEl) staleOverrideG.remove();
       }
     } else {
       // Non-glass: white backgrounds, themed buttons
@@ -1381,6 +1391,8 @@
         ".shivai-trigger { --shivai-glow: " + hexToRgbTriplet(p1) + " !important; }",
       ].concat(buildCallChatBoxOverrides()).join('\n');
       document.head.appendChild(overrideEl);
+      var staleOverrideW = document.getElementById('shivai-theme-override');
+      if (staleOverrideW && staleOverrideW !== overrideEl) staleOverrideW.remove();
     }
     _wlog("🎨 Widget theme refreshed:", isGlassWidgetBackground() ? "glass" : "white", p1, p2);
     applyCallViewTheme();
@@ -6719,10 +6731,17 @@
       messageInterval = null;
     }
     
-    // Re-check agent status when widget opens to ensure UI is up-to-date
-    agentStatus.loading = true;
-    updateLandingViewBasedOnStatus();
-    updateTriggerBasedOnStatus();
+    // Re-check agent status when widget opens to ensure UI is up-to-date.
+    // Only flash the "Checking availability…" loading state if we don't
+    // already know the agent's status (first-ever open) — re-verifying an
+    // already-known-active agent on every open used to blank the Start Call
+    // button back to a spinner and immediately swap it back, which read as
+    // a visible flicker rather than a real loading state (client-reported).
+    const hadKnownStatus = !agentStatus.loading;
+    if (!hadKnownStatus) {
+      updateLandingViewBasedOnStatus();
+      updateTriggerBasedOnStatus();
+    }
     checkAgentStatusOnLoad().then(() => {
       updateLandingViewBasedOnStatus();
       updateTriggerBasedOnStatus();

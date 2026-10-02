@@ -35,12 +35,12 @@ const CalendarOfflineBlockCard = ({ block, dayStartMin, dayEndMin, onClick }: Pr
   const label = blockTypeLabel(block);
 
   const cardCls = isManual
-    ? "border-amber-400/70 dark:border-amber-600/50 bg-amber-100/90 dark:bg-amber-950/50 hover:bg-amber-200/90 dark:hover:bg-amber-900/60"
+    ? "border-amber-300/70 dark:border-amber-600/50 bg-amber-50/95 dark:bg-amber-950/50 hover:bg-amber-100 dark:hover:bg-amber-900/60"
     : isBreak
-      ? "border-sky-400/70 dark:border-sky-600/50 bg-sky-100/90 dark:bg-sky-950/50 hover:bg-sky-200/90 dark:hover:bg-sky-900/60"
-      : "border-slate-400/60 dark:border-slate-500/50 bg-slate-200/90 dark:bg-slate-700/80 hover:bg-slate-300/90 dark:hover:bg-slate-600/80";
+      ? "border-slate-200 dark:border-slate-600/50 bg-slate-100/80 dark:bg-slate-700/60 hover:bg-slate-150 dark:hover:bg-slate-600/70"
+      : "border-slate-300/60 dark:border-slate-500/50 bg-slate-200/90 dark:bg-slate-700/80 hover:bg-slate-300/90 dark:hover:bg-slate-600/80";
 
-  const accentCls = isManual ? "bg-amber-600" : isBreak ? "bg-sky-600" : "bg-slate-500";
+  const accentCls = isManual ? "bg-amber-500" : isBreak ? "bg-slate-400" : "bg-slate-500";
 
   const titleLine = isManual
     ? block.patientName || "Manual"
@@ -56,7 +56,7 @@ const CalendarOfflineBlockCard = ({ block, dayStartMin, dayEndMin, onClick }: Pr
     <button
       type="button"
       onClick={onClick}
-      className={`absolute left-px right-px z-10 group text-left rounded-[3px] overflow-hidden border hover:z-20 transition-colors shadow-sm ${cardCls}`}
+      className={`absolute left-px right-px z-10 group text-left rounded-md overflow-hidden border hover:z-20 transition-colors shadow-sm ${cardCls}`}
       style={{ top, height: Math.max(height - 1, 14) }}
       title={`${label} · ${timeLabel}${isManual && block.patientId ? ` · ${block.patientId}` : ""}`}
     >

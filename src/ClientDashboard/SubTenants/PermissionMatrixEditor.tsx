@@ -111,7 +111,7 @@ const PermissionMatrixEditor = ({ grants, onChange, renderModuleExtra, lockAlway
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-start">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
         {filteredRegistry.map((mod) => {
           const pageKeys = mod.pages.map((p) => p.key);
           const actionKeys = mod.pages.flatMap((p) => (p.actions || []).map((a) => a.key));
@@ -131,36 +131,40 @@ const PermissionMatrixEditor = ({ grants, onChange, renderModuleExtra, lockAlway
 
           return (
             <GlassCard key={mod.key} className={`overflow-hidden transition-opacity ${moduleGranted ? '' : 'opacity-80'}`}>
-              <div className="flex items-center gap-2 px-3.5 py-3">
+              <div className="flex items-start gap-2 px-3.5 py-3">
                 <button
                   type="button"
                   onClick={() => setCollapsed((prev) => ({ ...prev, [mod.key]: !isCollapsed }))}
-                  className="p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 flex-shrink-0"
+                  className="p-0.5 mt-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 flex-shrink-0"
                 >
                   <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
                 </button>
-                <span className="text-sm font-semibold text-slate-800 dark:text-white flex-1">{mod.label}</span>
-                {totalNested > 0 && (
-                  <span
-                    className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap ${
-                      grantedNested > 0
-                        ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300'
-                        : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500'
-                    }`}
-                  >
-                    {grantedNested}/{totalNested} allowed
-                  </span>
-                )}
-                {isLocked && (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wide">
-                    <Lock className="w-3 h-3" /> Always on
-                  </span>
-                )}
-                <Toggle
-                  checked={moduleGranted}
-                  disabled={isLocked}
-                  onChange={(v) => setModuleGrant(mod.key, pageKeys, actionKeys, v)}
-                />
+                <span className="text-sm font-semibold text-slate-800 dark:text-white flex-1 min-w-0 leading-snug pt-0.5">
+                  {mod.label}
+                </span>
+                <div className="flex items-center gap-2 flex-shrink-0 pt-0.5">
+                  {totalNested > 0 && (
+                    <span
+                      className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap ${
+                        grantedNested > 0
+                          ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300'
+                          : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500'
+                      }`}
+                    >
+                      {grantedNested}/{totalNested} allowed
+                    </span>
+                  )}
+                  {isLocked && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wide whitespace-nowrap">
+                      <Lock className="w-3 h-3" /> Always on
+                    </span>
+                  )}
+                  <Toggle
+                    checked={moduleGranted}
+                    disabled={isLocked}
+                    onChange={(v) => setModuleGrant(mod.key, pageKeys, actionKeys, v)}
+                  />
+                </div>
               </div>
 
               {!isCollapsed && (

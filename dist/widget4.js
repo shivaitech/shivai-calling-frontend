@@ -958,13 +958,16 @@
 
   // Function to refresh widget styles with updated theme colors
   function refreshWidgetTheme() {
-    // Remove existing styles
-    const existingStyles = document.getElementById('shivai-widget-styles');
-    if (existingStyles) {
-      existingStyles.remove();
-    }
-    // Re-add styles with updated theme
+    // Add the new stylesheet FIRST, then remove the old one — removing it
+    // before the replacement exists leaves a real gap with NO matching
+    // widget stylesheet in the document, so the trigger button (and the
+    // panel, if open) briefly render unstyled. That's the visible
+    // "blinking" flash reported on-device (Samsung Galaxy S26 Ultra).
     addWidgetStyles();
+    const staleStyleNodes = document.querySelectorAll('#shivai-widget-styles');
+    for (let i = 0; i < staleStyleNodes.length - 1; i++) {
+      staleStyleNodes[i].remove();
+    }
     _wlog("🎨 Widget theme refreshed with new colors");
   }
 
@@ -6227,10 +6230,19 @@
       messageInterval = null;
     }
     
-    // Re-check agent status when widget opens to ensure UI is up-to-date
-    agentStatus.loading = true;
-    updateLandingViewBasedOnStatus();
-    updateTriggerBasedOnStatus();
+    // Re-check agent status when widget opens to ensure UI is up-to-date.
+    // Only flash the "Checking availability…" loading state if we don't
+    // already know the agent's status (first-ever open) — re-verifying an
+    // already-known-active agent on every open used to blank the Start Call
+    // button back to a spinner and immediately swap it back, which read as
+    // a visible flicker rather than a real loading state (client-reported,
+    // most visible on slower devices/connections where the round trip takes
+    // long enough for the blank spinner frame to actually be seen).
+    const hadKnownStatus = !agentStatus.loading;
+    if (!hadKnownStatus) {
+      updateLandingViewBasedOnStatus();
+      updateTriggerBasedOnStatus();
+    }
     checkAgentStatusOnLoad().then(() => {
       updateLandingViewBasedOnStatus();
       updateTriggerBasedOnStatus();

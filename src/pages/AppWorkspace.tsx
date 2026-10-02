@@ -10,7 +10,9 @@ import {
   WorkspaceSection,
 } from "../marketplace/apps";
 import { useInstalledApps } from "../marketplace/useInstalledApps";
+import { useHasAnyAgentAssignedSkill } from "../marketplace/useAgentSkills";
 import { useAuth } from "../contexts/AuthContext";
+import AssignSkillModal from "../ClientDashboard/Marketplace/AssignSkillModal";
 
 // Lazily load each app's main surface. Add a case here when an app goes live.
 const appComponents: Record<string, React.LazyExoticComponent<React.ComponentType<any>>> = {
@@ -64,6 +66,16 @@ const AppWorkspace: React.FC = () => {
   const activeSection =
     searchParams.get("section") || app?.defaultSection || sections[0].key;
   const AppComponent = app ? appComponents[app.id] : undefined;
+
+  // Persistent nag: as long as NO agent has this app's skill assigned, block
+  // the workspace with the assign-agent modal on every visit. Called
+  // unconditionally (before the guards below) to satisfy the rules of hooks.
+  const hasAgentAssigned = useHasAnyAgentAssignedSkill(app?.id ?? "");
+  const [nagDismissedThisVisit, setNagDismissedThisVisit] = useState(false);
+
+  useEffect(() => {
+    setNagDismissedThisVisit(false);
+  }, [app?.id]);
 
   useEffect(() => {
     if (!app?.defaultSection || searchParams.get("section")) return;
@@ -154,6 +166,18 @@ const AppWorkspace: React.FC = () => {
             onClick={() => setSidebarOpen(false)}
           />
         </div>
+      )}
+
+      {/* Persistent "no agent assigned" nag — reappears on every visit to this
+          app's workspace until at least one agent has its skill assigned.
+          Skipping only dismisses it for this viewing session. */}
+      {!hasAgentAssigned && (
+        <AssignSkillModal
+          open={!nagDismissedThisVisit}
+          onClose={() => setNagDismissedThisVisit(true)}
+          app={app}
+          allowSkip
+        />
       )}
     </div>
   );
