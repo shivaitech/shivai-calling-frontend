@@ -3,9 +3,6 @@ import Shivlogo from "../../resources/images/LogoFooter.svg";
 import ShivAi from "../../resources/images/ShivaiLogo.svg";
 import instaIcon from "../../resources/Icon/insta.svg";
 import linkedinIcon from "../../resources/Icon/linkin.svg";
-import uaeFlag from "../../resources/Icon/uae-flag.svg";
-import indiaFlag from "../../resources/Icon/india-flag.svg";
-import usaFlag from "../../resources/Icon/usa-flag.svg";
 import QuoteModal from "../../components/QuoteModal";
 
 const Footer = () => {
@@ -128,7 +125,7 @@ const Footer = () => {
           </div>
 
           {/* Combined Links Column */}
-          <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-4 lg:gap-12 ">
+          <div className="md:col-span-4 lg:col-start-4 lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-8 lg:gap-12 lg:justify-items-end">
             {/* Product Column */}
             <div className="">
               <h4 className="font-[400] text-white mb-2 md:mb-4 text-sm md:text-base">
@@ -222,113 +219,6 @@ const Footer = () => {
                 </li>
               </ul>
             </div>
-
-          {/* Office Locations Column */}
-          <div className=" ">
-            <h4 className="font-[400] text-white mb-2 text-sm">Our Presence</h4>
-            <div className="space-y-3 font-[400] text-[14px] lg:text-[14px] text-[#FFFFFF99]/60">
-              {/* India Office */}
-             
-
-                <div className="bwhiteDarkGradient rounded-full px-6 py-3 hover:bg-gray-700/50 transition-colors min-w-[320px]">
-                <a
-                  href="https://wa.me/919211490707"
-                  className="flex items-center justify-between w-full hover:text-white transition-colors"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={indiaFlag}
-                      alt="UAE Flag"
-                      className="w-6 h-5 object-cover rounded-sm border border-gray-600 flag flex-shrink-0"
-                    />
-                    <div className="min-w-0">
-                      <div className="text-white text-sm font-medium">India</div>
-                      <div className="text-gray-400 text-xs whitespace-nowrap">ShivAI Tech Pvt. Ltd.</div>
-                                         <div className="text-gray-300 text-xs">+91 921 149 0707</div>
-
-                    </div>
-                  </div>
-                  <div className=" rounded-full p-2">
-                    <img
-                      src="/whatsapp.svg"
-                      alt="WhatsApp"
-                      className="w-4 h-4 object-contain whatsapp"
-                    />
-                  </div>
-                </a>
-              </div>
-
-              {/* UAE Office */}
-              <div className="bwhiteDarkGradient rounded-full px-6 py-3 hover:bg-gray-700/50 transition-colors min-w-[320px]">
-                <a
-                  href="https://wa.me/971566180707"
-                  className="flex items-center justify-between w-full hover:text-white transition-colors"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={uaeFlag}
-                      alt="UAE Flag"
-                      className="w-6 h-5 object-cover rounded-sm border border-gray-600 flag flex-shrink-0"
-                    />
-                    <div className="min-w-0">
-                      <div className="text-white text-sm font-medium">UAE</div>
-                      <div className="text-gray-400 text-xs whitespace-nowrap">Call Shiv AI Developing Services</div>
-                      <div className="text-gray-300 text-xs">+971 56 618 0707</div>
-                    </div>
-                  </div>
-                  <div className=" rounded-full p-2">
-                    <img
-                      src="/whatsapp.svg"
-                      alt="WhatsApp"
-                      className="w-4 h-4 object-contain whatsapp"
-                    />
-                  </div>
-                </a>
-              </div>
-
-              {/* USA Office */}
-              <div className="bwhiteDarkGradient rounded-full px-6 py-3 hover:bg-gray-700/50 transition-colors min-w-[320px]">
-                <a
-                  href="https://wa.me/13154440707"
-                  className="flex items-center justify-between w-full hover:text-white transition-colors"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={usaFlag}
-                      alt="USA Flag"
-                      className="w-6 h-5 object-cover rounded-sm border border-gray-600 flag flex-shrink-0"
-                    />
-                    <div className="min-w-0">
-                      <div className="text-white text-sm font-medium">USA</div>
-                      <div className="text-gray-300 text-xs">+1 315 444 0707</div>
-                    </div>
-                  </div>
-                  <div className=" rounded-full p-2">
-                    <img
-                      src="/whatsapp.svg"
-                      alt="WhatsApp"
-                      className="w-4 h-4 object-contain whatsapp"
-                    />
-                  </div>
-                </a>
-              </div>
-              <div className="text-[11px] mt-1">
-                <span className="text-[#FFFFFF99]/60">Email us: </span>
-                <a
-                  href="mailto:hello@shivaitech.com"
-                  className="hover:text-white transition-colors"
-                >
-                  Hello@shivaitech.com
-                </a>
-              </div>
-            </div>
-          </div>
           </div>
 
         </div>

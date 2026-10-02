@@ -2143,16 +2143,10 @@ const EditAgent = () => {
         appToast.dismiss(loadingToast);
         appToast.success("Agent updated successfully!");
         setIsDirty(false);
-        // Refresh the agents list in context so view page shows updated data immediately
+        // Refresh the agents list in context so other pages show updated data
+        // immediately — stay on this edit page rather than navigating away,
+        // so the user can keep making changes without re-opening it.
         await refreshAgents();
-        // Navigate back to view page and signal a refresh
-        const tenantScope = getTenantScope();
-        navigate(
-          tenantScope
-            ? `/sub-tenants/${tenantScope}/agents/${currentAgent.id}`
-            : `/agents/${currentAgent.id}`,
-          { state: { refreshed: true } },
-        );
       } catch (error) {
         appToast.dismiss(loadingToast);
         appToast.error("Failed to update agent. Please try again.");
