@@ -37,9 +37,10 @@ const StaffEditorModal = ({ open, tenantId, editing, onClose, onSaved }: Props) 
   const passwordValidation = usePasswordValidation(password, email, 'signup');
   const [roleName, setRoleName] = useState('');
   // Department → Designation hierarchy — real global catalogs (departmentsAPI).
-  // The designation's NAME is sent as both role_name and designation; the
-  // department's NAME is sent as department. Locally we also keep the ids so
-  // this modal can prefill the dropdowns on edit (staffOrgStore assignment).
+  // The API requires department/designation as catalog ObjectIds (departmentId/
+  // designationId below) — roleName is a SEPARATE free-text display label sent
+  // as role_name, not derived from the designation. staffOrgStore mirrors the
+  // picked ids locally so this modal can prefill the dropdowns on edit.
   const assignments = useStaffAssignments(tenantId);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [designations, setDesignations] = useState<Designation[]>([]);
@@ -248,7 +249,8 @@ const StaffEditorModal = ({ open, tenantId, editing, onClose, onSaved }: Props) 
   const save = async () => {
     if (!name.trim()) return appToast.error('Enter the staff member’s name.');
     if (!departmentId) return appToast.error('Select a department.');
-    if (!roleName.trim()) return appToast.error('Select or create a designation.');
+    if (!designationId) return appToast.error('Select or create a designation.');
+    if (!roleName.trim()) return appToast.error('Enter a display role/title.');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return appToast.error('Enter a valid email.');
     if (phone.trim() && phone.trim().replace(/\D/g, '').length < 7) return appToast.error('Enter a valid phone number, or leave it blank.');
     if (!editing) {
@@ -257,34 +259,37 @@ const StaffEditorModal = ({ open, tenantId, editing, onClose, onSaved }: Props) 
     }
     if (grantCount === 0) return appToast.error('Grant at least one feature.');
 
-    // accounts[] (API-required) = the UNION of every scoped module's selection
-    // (all → every sub-tenant). Each entry { tenantId: owner id, subTenantId }.
+    // accounts[] is REQUIRED by the API for a tenant caller — at least one
+    // entry with a non-null subTenantId — regardless of which modules are
+    // granted. Scoped modules (Command Center / Sub Tenants) still control
+    // WHICH sub-tenants via their own picker; everything else defaults to
+    // every sub-tenant the tenant owns, so staff always get a valid account.
     const ownerId = String(user?.id || tenantId);
     const allIds = subTenants.map((t) => t.id);
     const idsForModule = (mk: string) => (scopeOf(mk) === 'all' ? allIds : idsOf(mk));
     const scopedModuleKeys = Object.keys(grants).filter(
       (k) => grants[k] && (k.startsWith('module:command-center') || k.startsWith('module:sub-tenants'))
     );
-    const unionIds = Array.from(new Set(scopedModuleKeys.flatMap((k) => idsForModule(k))));
+    const unionIds = Array.from(
+      new Set(scopedModuleKeys.length ? scopedModuleKeys.flatMap((k) => idsForModule(k)) : allIds),
+    );
     const accounts = unionIds.map((subTenantId) => ({ tenantId: ownerId, subTenantId }));
-    if (isMainTenant && scopedModuleKeys.length > 0 && accounts.length === 0) {
-      return appToast.error('Assign at least one sub-tenant account.');
+    if (isMainTenant && accounts.length === 0) {
+      return appToast.error('Add at least one sub-tenant before assigning staff.');
     }
     // Per-module scope maps → encoded into the permission strings by the service.
     const subTenantScopes = isMainTenant ? scopeMode : undefined;
     const managedSubTenantsByModule = isMainTenant ? managedIds : undefined;
 
-    const departmentName = departments.find((d) => d.id === departmentId)?.name;
-
     setSaving(true);
     try {
       if (editing) {
-        await staffAPI.update(editing.id, { name, email, phone, roleName, department: departmentName, designation: roleName, grants, subTenantScopes, managedSubTenantsByModule, accounts });
+        await staffAPI.update(editing.id, { name, email, phone, roleName, department: departmentId, designation: designationId, grants, subTenantScopes, managedSubTenantsByModule, accounts });
         // Persist the local department/designation assignment for this staff member.
         assignments.setAssignment(editing.id, departmentId, designationId);
         appToast.success('Staff updated');
       } else {
-        const created = await staffAPI.create(tenantId, { name, email, phone, password, roleName, department: departmentName, designation: roleName, grants, subTenantScopes, managedSubTenantsByModule, accounts, invite });
+        const created = await staffAPI.create(tenantId, { name, email, phone, password, roleName, department: departmentId ?? undefined, designation: designationId ?? undefined, grants, subTenantScopes, managedSubTenantsByModule, accounts, invite });
         if (created?.id) assignments.setAssignment(created.id, departmentId, designationId);
         appToast.success(invite ? 'Staff invited' : 'Staff added');
       }

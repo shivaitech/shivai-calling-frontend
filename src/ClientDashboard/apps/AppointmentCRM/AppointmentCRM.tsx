@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import GlassCard from "../../../components/GlassCard";
 import AgentCrmConfigPanel from "../../../components/AgentCrmConfigPanel";
+import appToast from "../../../components/AppToast";
 import { getAppById } from "../../../marketplace/apps";
 import { SectionTitle, StatusPill } from "../SupportCRM/ui";
 import type { AgentStatus } from "../SupportCRM/mockData";
@@ -23,10 +24,10 @@ import {
   readCustomPresetInput,
   saveCustomPreset,
 } from "./industryConfig";
-import { rebuildOrgFromIndustry, ensureOrgSeeded } from "./orgSeed";
 import { useActiveBranch } from "./branchesStore";
-import { useAppointmentSetup, writeSetup, isSetupComplete } from "./setupStore";
-import { isAppointmentCrmApiMode } from "./api/apiMode";
+import { useAppointmentSetup, writeSetup } from "./setupStore";
+import { templateIdFromIndustry } from "./api/mappers";
+import appointmentCrmAPI from "./api/index";
 import SetupModal, { CustomPresetForm } from "./SetupModal";
 import BranchSwitcher from "./BranchSwitcher";
 import { AppointmentCRMProvider, useAppointmentCRM } from "./AppointmentCRMProvider";
@@ -50,24 +51,18 @@ const AppointmentCRM: React.FC<Props> = ({ section = "calendar" }) => (
 );
 
 const AppointmentCRMContent: React.FC<Props> = ({ section = "calendar" }) => {
-  const [setupOpen, setSetupOpen] = useState(!isSetupComplete());
+  // AppointmentCRMProvider never renders children until a real bootstrap has
+  // loaded, so `bootstrap` is always present here.
+  const [setupOpen, setSetupOpen] = useState(false);
   // Deep-link from Overview's "open agent" shortcut — jumps to Agents and
   // pre-selects that agent's tab. Agents itself manages tab selection after.
   const [pendingAgentId, setPendingAgentId] = useState<string | null>(null);
-  const { branches, activeBranch } = useActiveBranch();
-  const { apiReady, bootstrap } = useAppointmentCRM();
+  const { activeBranch } = useActiveBranch();
+  const { bootstrap } = useAppointmentCRM();
 
   useEffect(() => {
-    if (!isAppointmentCrmApiMode() && !apiReady) {
-      ensureOrgSeeded(branches);
-    }
-  }, [branches.length, apiReady]);
-
-  useEffect(() => {
-    if (apiReady && bootstrap) {
-      setSetupOpen(!bootstrap.setup.setupComplete);
-    }
-  }, [apiReady, bootstrap?.setup.setupComplete]);
+    setSetupOpen(!bootstrap?.setup.setupComplete);
+  }, [bootstrap?.setup.setupComplete]);
 
   const handleSetupComplete = () => setSetupOpen(false);
   // Skip only hides the modal for this render — setup is still marked
@@ -247,10 +242,11 @@ const emptyCustomInput = (): CustomPresetInput => ({
 
 const SettingsView: React.FC<{ onRerunSetup: () => void }> = ({ onRerunSetup }) => {
   const setup = useAppointmentSetup();
-  const { branches } = useActiveBranch();
   const { preset, activeId } = useAppointmentIndustry();
+  const { refresh } = useAppointmentCRM();
   const [draftIndustry, setDraftIndustry] = useState(activeId);
   const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [customInput, setCustomInput] = useState<CustomPresetInput>(() => readCustomPresetInput() ?? emptyCustomInput());
 
   const isCustomValid =
@@ -261,14 +257,25 @@ const SettingsView: React.FC<{ onRerunSetup: () => void }> = ({ onRerunSetup }) 
       customInput.branchLabel.trim() &&
       customInput.services.some((s) => s.trim()));
 
-  const save = () => {
-    if (draftIndustry === "generic") saveCustomPreset(customInput);
-    setActiveIndustryId(draftIndustry);
-    writeSetup({ industryId: draftIndustry });
-    if (draftIndustry !== activeId) {
-      rebuildOrgFromIndustry(branches);
+  const save = async () => {
+    setSaving(true);
+    try {
+      if (draftIndustry === "generic") saveCustomPreset(customInput);
+      setActiveIndustryId(draftIndustry);
+      writeSetup({ industryId: draftIndustry });
+      if (draftIndustry !== activeId) {
+        // Re-applying the template re-derives departments/services on the
+        // backend for this tenant — never reseeded locally.
+        await appointmentCrmAPI.applyConfigTemplate({ templateId: templateIdFromIndustry(draftIndustry) });
+        await refresh();
+      }
+      setDirty(false);
+      appToast.success("Settings saved");
+    } catch (err: any) {
+      appToast.error(err?.message || "Failed to save settings");
+    } finally {
+      setSaving(false);
     }
-    setDirty(false);
   };
 
   return (
@@ -365,11 +372,11 @@ const SettingsView: React.FC<{ onRerunSetup: () => void }> = ({ onRerunSetup }) 
           </button>
           <button
             type="button"
-            onClick={save}
-            disabled={!isCustomValid}
+            onClick={() => void save()}
+            disabled={!isCustomValid || saving}
             className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-violet-500 text-white text-sm font-medium disabled:opacity-50"
           >
-            <Save className="w-3.5 h-3.5" /> Save
+            <Save className="w-3.5 h-3.5" /> {saving ? "Saving…" : "Save"}
           </button>
         </motion.div>
       )}

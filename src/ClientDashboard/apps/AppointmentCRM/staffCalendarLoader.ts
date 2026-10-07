@@ -1,7 +1,6 @@
 import type { ApiStaff } from "./api/types";
 import appointmentCrmAPI from "./api/index";
 import { isAppointmentCrmApiConfigured } from "./api/client";
-import { setAppointmentCrmApiMode } from "./api/apiMode";
 import { hydrateFromBootstrap, hydrateStaffBookingsSchedule, hydrateCalendarDay } from "./api/hydrate";
 import { apiId, mapStaff } from "./api/mappers";
 import { toIsoDate } from "./availabilityStore";
@@ -27,12 +26,8 @@ export async function loadStaffCalendarById(staffId: string): Promise<StaffMembe
   if (!staffId.trim()) throw new Error("Staff not found");
 
   if (!isAppointmentCrmApiConfigured()) {
-    const local = getStaffById(staffId);
-    if (!local) throw new Error("Staff not found");
-    return local;
+    throw new Error("Appointment CRM isn't configured — the API base URL is missing.");
   }
-
-  setAppointmentCrmApiMode(true);
 
   const bootstrap = await appointmentCrmAPI.fetchBootstrap();
   hydrateFromBootstrap(bootstrap);

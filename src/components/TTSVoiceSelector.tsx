@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Loader2, AlertTriangle, Sparkles, Play, Square } from "lucide-react";
 import SearchableSelect from "./SearchableSelect";
-import { agentAPI, VoiceCatalog, VoiceCatalogProvider, TtsConfig } from "../services/agentAPI";
+import { agentAPI, VoiceCatalog, TtsConfig } from "../services/agentAPI";
 
 export interface TTSVoiceSelectorValue {
   provider: string;
@@ -31,21 +31,26 @@ interface TTSVoiceSelectorProps {
 // own `name` field) must never reach the UI, so no technically-minded user
 // can tell which vendors back our TTS. Keyed by the provider's stable `id`
 // (not catalog order), so aliases don't shift if the backend reorders or
-// temporarily omits a provider. Unknown future provider ids get a generic
-// fallback derived from their position in PROVIDER_ALIAS_FALLBACK_ORDER.
+// temporarily omits a provider. Unknown future provider ids get the next
+// sequential number after this list, in the order the catalog returns them.
 const PROVIDER_LABELS: Record<string, string> = {
   google_chirp: "SAiTTS v1",
   cartesia: "SAiTTS v2",
   openai: "SAiTTS v3",
+  google_gemini_tts: "SAiTTS v4",
 };
+
+const fallbackProviderAliases = new Map<string, string>();
 
 function providerAlias(providerId: string): string {
   if (PROVIDER_LABELS[providerId]) return PROVIDER_LABELS[providerId];
+  if (fallbackProviderAliases.has(providerId)) return fallbackProviderAliases.get(providerId)!;
   // Any provider id not in the known map (new backend addition) still gets a
-  // masked, stable-looking name rather than ever falling back to its real name.
-  let hash = 0;
-  for (let i = 0; i < providerId.length; i += 1) hash = (hash * 31 + providerId.charCodeAt(i)) | 0;
-  return `SAiTTS v${4 + (Math.abs(hash) % 6)}`;
+  // masked name — sequential, assigned in first-seen order, never the real name.
+  const nextIndex = Object.keys(PROVIDER_LABELS).length + fallbackProviderAliases.size + 1;
+  const alias = `SAiTTS v${nextIndex}`;
+  fallbackProviderAliases.set(providerId, alias);
+  return alias;
 }
 
 /** Masked model label: "{provider alias} — Tier N", numbered in the order the
@@ -150,10 +155,17 @@ const TTSVoiceSelector: React.FC<TTSVoiceSelectorProps> = ({
     return filtered.length > 0 ? filtered : allVoices;
   }, [allVoices, genderFilter]);
 
-  const providerOptions = providers.map((p) => ({
-    value: p.id,
-    label: `${providerAlias(p.id)}${p.configured ? "" : " (not configured)"}`,
-  }));
+  const providerOptions = providers
+    .map((p) => ({
+      value: p.id,
+      alias: providerAlias(p.id),
+      label: `${providerAlias(p.id)}${p.configured ? "" : " (not configured)"}`,
+    }))
+    .sort((a, b) => {
+      const aNum = parseInt(a.alias.replace(/\D/g, ""), 10);
+      const bNum = parseInt(b.alias.replace(/\D/g, ""), 10);
+      return aNum - bNum;
+    });
 
   const modelOptions = models.map((m, i) => ({
     value: m.id,

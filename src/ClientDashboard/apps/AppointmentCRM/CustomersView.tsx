@@ -1,13 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronRight, Search } from "lucide-react";
 import GlassCard from "../../../components/GlassCard";
 import { SectionTitle } from "../SupportCRM/ui";
 import { useAppointmentIndustry } from "./industryConfig";
 import appointmentCrmAPI from "./api/index";
-import { isAppointmentCrmApiConfigured } from "./api/client";
 import { apiId } from "./api/mappers";
-import { isAppointmentCrmApiMode } from "./api/apiMode";
-import { MOCK_CUSTOMERS } from "./mockData";
 
 interface CustomerRow {
   id: string;
@@ -28,7 +25,6 @@ const CustomersView = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!isAppointmentCrmApiMode() || !isAppointmentCrmApiConfigured()) return;
     let cancelled = false;
     setLoading(true);
     appointmentCrmAPI
@@ -59,12 +55,7 @@ const CustomersView = () => {
     };
   }, [q]);
 
-  const list = useMemo(() => {
-    if (isAppointmentCrmApiMode()) return apiCustomers;
-    return MOCK_CUSTOMERS.filter((c) =>
-      `${c.name} ${c.phone}`.toLowerCase().includes(q.toLowerCase()),
-    );
-  }, [apiCustomers, q]);
+  const list = apiCustomers;
 
   const detail = selected ? list.find((c) => c.id === selected) : null;
 

@@ -103,22 +103,22 @@ export const GlobalPresence: React.FC = () => {
         </div>
 
         {/* ── Office cards ── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-5" style={{ perspective: "1200px" }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2.5 sm:gap-5" style={{ perspective: "1200px" }}>
           {OFFICES.map((office) => (
             <div
               key={office.countryLabel}
-              className="group/card relative flex flex-col rounded-2xl p-5 sm:p-6 bg-white/50 backdrop-blur-xl border border-white/60 transition-all duration-300 ease-out hover:-translate-y-1.5 hover:[transform:rotateX(2deg)_rotateY(-2deg)_translateY(-6px)]"
+              className="group/card relative flex flex-col rounded-xl sm:rounded-2xl p-3 sm:p-6 bg-white/50 backdrop-blur-xl border border-white/60 transition-all duration-300 ease-out hover:-translate-y-1.5 hover:[transform:rotateX(2deg)_rotateY(-2deg)_translateY(-6px)]"
               style={{
                 boxShadow:
                   "0 1px 1px rgba(255,255,255,0.8) inset, 0 -1px 1px rgba(0,0,0,0.04) inset, 0 8px 24px -8px rgba(31,41,55,0.12), 0 2px 6px -2px rgba(31,41,55,0.08)",
               }}
             >
               {/* Glass sheen — soft highlight along the top edge */}
-              <div className="pointer-events-none absolute inset-x-0 top-0 h-20 rounded-t-2xl bg-gradient-to-b from-white/70 to-transparent" />
+              <div className="pointer-events-none absolute inset-x-0 top-0 h-20 rounded-t-xl sm:rounded-t-2xl bg-gradient-to-b from-white/70 to-transparent" />
               {/* Hover glow */}
-              <div className="pointer-events-none absolute -inset-px rounded-2xl opacity-0 group-hover/card:opacity-100 transition-opacity duration-300 bg-gradient-to-br from-white/40 via-transparent to-violet-100/30" />
+              <div className="pointer-events-none absolute -inset-px rounded-xl sm:rounded-2xl opacity-0 group-hover/card:opacity-100 transition-opacity duration-300 bg-gradient-to-br from-white/40 via-transparent to-violet-100/30" />
 
-              <div className="relative w-14 h-10 sm:w-16 sm:h-11 rounded-lg bg-white flex-shrink-0 overflow-hidden ring-1 ring-black/5 shadow-[0_4px_10px_-2px_rgba(31,41,55,0.2)] transition-transform duration-300 group-hover/card:scale-105">
+              <div className="relative w-9 h-6 sm:w-16 sm:h-11 rounded-md sm:rounded-lg bg-white flex-shrink-0 overflow-hidden ring-1 ring-black/5 shadow-[0_4px_10px_-2px_rgba(31,41,55,0.2)] transition-transform duration-300 group-hover/card:scale-105">
                 <img
                   src={`https://flagcdn.com/w80/${office.flagCode}.png`}
                   srcSet={`https://flagcdn.com/w160/${office.flagCode}.png 2x`}
@@ -130,13 +130,19 @@ export const GlobalPresence: React.FC = () => {
                 />
               </div>
 
-              <p className="relative mt-4 text-[10px] font-semibold tracking-[0.14em] uppercase text-[#8a8a88]">
+              <p className="relative mt-2 sm:mt-4 text-[8px] sm:text-[10px] font-semibold tracking-[0.1em] sm:tracking-[0.14em] uppercase text-[#8a8a88]">
                 {office.countryLabel}
               </p>
-              <h3 className="relative mt-1 text-[16px] sm:text-[17px] font-semibold text-[#1a1a1a] leading-snug min-h-[2.6em]">
+              <h3 className="relative mt-0.5 sm:mt-1 text-[12px] sm:text-[17px] font-semibold text-[#1a1a1a] leading-snug sm:min-h-[2.6em]">
                 {office.name}
               </h3>
-              <p className="relative mt-2 text-[13px] font-[300] text-[#5A5A59] leading-relaxed flex-1">
+              {/* Flows as one wrapped line on mobile (uses the card's full width
+                  instead of short, individually-broken lines); on sm:+ each
+                  address component gets its own line, like a mailing address. */}
+              <p className="relative mt-1 sm:mt-2 text-[10px] sm:text-[13px] font-[300] text-[#5A5A59] leading-snug sm:leading-relaxed flex-1 sm:hidden">
+                {office.addressLines.join(", ")}
+              </p>
+              <p className="relative mt-1 sm:mt-2 text-[10px] sm:text-[13px] font-[300] text-[#5A5A59] leading-snug sm:leading-relaxed flex-1 hidden sm:block">
                 {office.addressLines.map((line, i) => (
                   <React.Fragment key={i}>
                     {line}
@@ -145,36 +151,36 @@ export const GlobalPresence: React.FC = () => {
                 ))}
               </p>
 
-              <div className="relative mt-5 pt-4 border-t border-black/5 space-y-2">
+              <div className="relative mt-2.5 sm:mt-5 pt-2.5 sm:pt-4 border-t border-black/5 grid grid-cols-2 sm:grid-cols-1 gap-1.5 sm:gap-2">
                 <a
                   href={waLink(office.whatsapp)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group flex items-center justify-between gap-3 w-full pl-2.5 pr-3.5 py-2 rounded-xl bg-white/80 backdrop-blur-sm border border-white/80 shadow-[0_2px_8px_-3px_rgba(31,41,55,0.12)] transition-all duration-200 hover:bg-white hover:-translate-y-0.5 hover:shadow-[0_6px_14px_-4px_rgba(31,41,55,0.18)] active:scale-[0.98] active:translate-y-0"
+                  className="group flex items-center justify-between gap-1 sm:gap-3 w-full pl-1.5 sm:pl-2.5 pr-1.5 sm:pr-3.5 py-1.5 sm:py-2 rounded-lg sm:rounded-xl bg-white/80 backdrop-blur-sm border border-white/80 shadow-[0_2px_8px_-3px_rgba(31,41,55,0.12)] transition-all duration-200 hover:bg-white hover:-translate-y-0.5 hover:shadow-[0_6px_14px_-4px_rgba(31,41,55,0.18)] active:scale-[0.98] active:translate-y-0"
                 >
-                  <span className="flex items-center gap-2.5 min-w-0">
-                    <span className="w-8 h-8 rounded-full bg-gradient-to-b from-[#2fdb73] to-[#20bd5f] flex items-center justify-center flex-shrink-0 shadow-[0_3px_8px_-2px_rgba(32,189,95,0.6)]">
-                      <WhatsAppIcon className="w-4 h-4 text-white" />
+                  <span className="flex items-center gap-1 sm:gap-2.5 min-w-0">
+                    <span className="w-5 h-5 sm:w-8 sm:h-8 rounded-full bg-gradient-to-b from-[#2fdb73] to-[#20bd5f] flex items-center justify-center flex-shrink-0 shadow-[0_3px_8px_-2px_rgba(32,189,95,0.6)]">
+                      <WhatsAppIcon className="w-2.5 h-2.5 sm:w-4 sm:h-4 text-white" />
                     </span>
                     <span className="flex flex-col items-start leading-tight min-w-0">
-                      <span className="text-[10px] font-medium text-[#9A9A98]">WhatsApp</span>
-                      <span className="text-[14px] font-semibold text-[#1a1a1a] truncate">{office.whatsapp}</span>
+                      <span className="hidden sm:block text-[10px] font-medium text-[#9A9A98]">WhatsApp</span>
+                      <span className="text-[9px] sm:text-[14px] font-semibold text-[#1a1a1a] truncate">{office.whatsapp}</span>
                     </span>
                   </span>
-                  <ArrowRight className="w-4 h-4 flex-shrink-0 text-[#1a1a1a] transition-transform duration-200 group-hover:translate-x-0.5" />
+                  <ArrowRight className="hidden sm:block w-4 h-4 flex-shrink-0 text-[#1a1a1a] transition-transform duration-200 group-hover:translate-x-0.5" />
                 </a>
 
                 <a
                   href={office.mapsUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group flex items-center justify-between gap-2 w-full px-3.5 py-2.5 rounded-xl bg-white/70 backdrop-blur-sm border border-white/80 text-[#1a1a1a] text-[13px] font-medium shadow-[0_2px_6px_-2px_rgba(31,41,55,0.1)] transition-all duration-200 hover:bg-white/90 hover:-translate-y-0.5 hover:shadow-[0_4px_10px_-2px_rgba(31,41,55,0.15)] active:scale-[0.98] active:translate-y-0"
+                  className="group flex items-center justify-between gap-1 sm:gap-2 w-full px-1.5 sm:px-3.5 py-1.5 sm:py-2.5 rounded-lg sm:rounded-xl bg-white/70 backdrop-blur-sm border border-white/80 text-[#1a1a1a] text-[9px] sm:text-[13px] font-medium shadow-[0_2px_6px_-2px_rgba(31,41,55,0.1)] transition-all duration-200 hover:bg-white/90 hover:-translate-y-0.5 hover:shadow-[0_4px_10px_-2px_rgba(31,41,55,0.15)] active:scale-[0.98] active:translate-y-0"
                 >
-                  <span className="flex items-center gap-2 min-w-0">
-                    <MapPin className="w-4 h-4 flex-shrink-0 text-[#5A5A59]" />
+                  <span className="flex items-center gap-1 sm:gap-2 min-w-0">
+                    <MapPin className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0 text-[#5A5A59]" />
                     <span className="truncate">View on Maps</span>
                   </span>
-                  <ArrowRight className="w-3.5 h-3.5 flex-shrink-0 text-[#5A5A59] transition-transform duration-200 group-hover:translate-x-0.5" />
+                  <ArrowRight className="hidden sm:block w-3.5 h-3.5 flex-shrink-0 text-[#5A5A59] transition-transform duration-200 group-hover:translate-x-0.5" />
                 </a>
               </div>
             </div>

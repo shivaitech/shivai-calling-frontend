@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
-import { BranchSeed } from "./industryConfig";
 import { removeDepartmentsForBranch } from "./departmentsStore";
 import { removeStaffForBranch } from "./staffStore";
-import { isAppointmentCrmApiMode } from "./api/apiMode";
 import { mapBranch } from "./api/mappers";
 import appointmentCrmAPI from "./api/index";
 
@@ -26,20 +24,19 @@ export interface Branch {
   calendar?: BranchCalendarHours;
 }
 
-const STORAGE_KEY = "shivai_appointmentcrm_branches";
+// Branches themselves are never cached to localStorage — they always come
+// from the API. The ACTIVE branch selection is a harmless UI preference
+// (which tab you're viewing), so it's still remembered across reloads.
 const ACTIVE_BRANCH_KEY = "shivai_appointmentcrm_active_branch";
 const BRANCH_EVENT = "shivai:appointment-branches-changed";
 const ACTIVE_BRANCH_EVENT = "shivai:appointment-active-branch-changed";
 
-let memoryBranches: Branch[] | null = null;
+let memoryBranches: Branch[] = [];
 let memoryActiveBranchId: string | null | undefined;
 
-function persistBranches(branches: Branch[], fromApi = false): void {
+function persistBranches(branches: Branch[]): void {
   memoryBranches = branches;
   try {
-    if (!isAppointmentCrmApiMode() || !fromApi) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(branches));
-    }
     window.dispatchEvent(new CustomEvent(BRANCH_EVENT));
     const activeId = getActiveBranchId();
     if (activeId && !branches.some((b) => b.id === activeId)) {
@@ -52,24 +49,12 @@ function persistBranches(branches: Branch[], fromApi = false): void {
   }
 }
 
-export function writeBranches(branches: Branch[], opts?: { fromApi?: boolean }): void {
-  persistBranches(branches, opts?.fromApi);
-}
-
-function makeId(): string {
-  return `br-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+export function writeBranches(branches: Branch[]): void {
+  persistBranches(branches);
 }
 
 export function readBranches(): Branch[] {
-  if (memoryBranches) return memoryBranches;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  return memoryBranches;
 }
 
 export function getActiveBranchId(): string | null {
@@ -82,14 +67,12 @@ export function getActiveBranchId(): string | null {
 }
 
 export async function setActiveBranchId(id: string, opts?: { fromApi?: boolean }): Promise<void> {
-  if (isAppointmentCrmApiMode() && !opts?.fromApi) {
+  if (!opts?.fromApi) {
     await appointmentCrmAPI.setActiveBranch(id);
   }
   memoryActiveBranchId = id;
   try {
-    if (!isAppointmentCrmApiMode()) {
-      localStorage.setItem(ACTIVE_BRANCH_KEY, id);
-    }
+    localStorage.setItem(ACTIVE_BRANCH_KEY, id);
     window.dispatchEvent(new CustomEvent(ACTIVE_BRANCH_EVENT));
   } catch {
     /* ignore */
@@ -116,7 +99,7 @@ export function resolveActiveBranch(branches: Branch[]): Branch | null {
   return branches.find((b) => b.isPrimary) ?? branches[0] ?? null;
 }
 
-/** Call after seeding branches so Command Center has a default context. */
+/** Call after branches load so Command Center has a default context. */
 export function ensureActiveBranch(branches: Branch[]): Branch | null {
   const resolved = resolveActiveBranch(branches);
   if (resolved && getActiveBranchId() !== resolved.id) {
@@ -125,65 +108,33 @@ export function ensureActiveBranch(branches: Branch[]): Branch | null {
   return resolved;
 }
 
-export function seedBranchesFromPreset(seeds: BranchSeed[], mode: "single" | "multi"): Branch[] {
-  const list = mode === "single" ? seeds.slice(0, 1) : seeds;
-  const branches: Branch[] = list.map((s, i) => ({
-    id: makeId(),
-    name: s.name,
-    address: s.address,
-    isPrimary: i === 0,
-    active: true,
-    calendar: { ...DEFAULT_BRANCH_CALENDAR },
-  }));
-  writeBranches(branches);
-  ensureActiveBranch(branches);
-  return branches;
-}
-
 export async function addBranch(name: string, address?: string): Promise<Branch> {
   const branches = readBranches();
-  if (isAppointmentCrmApiMode()) {
-    const created = await appointmentCrmAPI.createBranch({
-      name,
-      address,
-      isPrimary: branches.length === 0,
-    });
-    const branch = mapBranch(created, branches.length);
-    persistBranches([...branches, branch], true);
-    if (branches.length === 0) await setActiveBranchId(branch.id);
-    return branch;
-  }
-  const branch: Branch = {
-    id: makeId(),
+  const created = await appointmentCrmAPI.createBranch({
     name,
     address,
     isPrimary: branches.length === 0,
-    active: true,
-    calendar: { ...DEFAULT_BRANCH_CALENDAR },
-  };
+  });
+  const branch = mapBranch(created, branches.length);
   persistBranches([...branches, branch]);
   if (branches.length === 0) await setActiveBranchId(branch.id);
   return branch;
 }
 
 export async function updateBranch(id: string, patch: Partial<Branch>): Promise<void> {
-  if (isAppointmentCrmApiMode()) {
-    await appointmentCrmAPI.patchBranch(id, patch);
-  }
-  persistBranches(readBranches().map((b) => (b.id === id ? { ...b, ...patch } : b)), isAppointmentCrmApiMode());
+  await appointmentCrmAPI.patchBranch(id, patch);
+  persistBranches(readBranches().map((b) => (b.id === id ? { ...b, ...patch } : b)));
 }
 
 export async function removeBranch(id: string): Promise<void> {
-  if (isAppointmentCrmApiMode()) {
-    await appointmentCrmAPI.deleteBranch(id);
-  }
+  await appointmentCrmAPI.deleteBranch(id);
   removeDepartmentsForBranch(id);
   removeStaffForBranch(id);
   const next = readBranches().filter((b) => b.id !== id);
   if (next.length && !next.some((b) => b.isPrimary)) {
     next[0].isPrimary = true;
   }
-  persistBranches(next, isAppointmentCrmApiMode());
+  persistBranches(next);
 }
 
 export function useBranches() {

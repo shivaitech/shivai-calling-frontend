@@ -11,8 +11,10 @@ export interface AppointmentSetup {
   completedAt?: string;
 }
 
-const STORAGE_KEY = "shivai_appointmentcrm_setup_v1";
 const SETUP_EVENT = "shivai:appointment-setup-changed";
+// Harmless UI preference (which branch tab was last viewed) — not business
+// data, so it's still allowed to persist across reloads.
+const ACTIVE_BRANCH_KEY = "shivai_appointmentcrm_active_branch";
 
 const DEFAULT_SETUP: AppointmentSetup = {
   setupComplete: false,
@@ -22,33 +24,18 @@ const DEFAULT_SETUP: AppointmentSetup = {
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Kolkata",
 };
 
+// Setup state lives in memory only, for the lifetime of the tab — it always
+// comes from the real API's bootstrap response, never cached to localStorage.
 let memorySetup: AppointmentSetup | null = null;
 
 export function readSetup(): AppointmentSetup {
-  if (memorySetup) return { ...DEFAULT_SETUP, ...memorySetup };
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { ...DEFAULT_SETUP };
-    return { ...DEFAULT_SETUP, ...JSON.parse(raw) };
-  } catch {
-    return { ...DEFAULT_SETUP };
-  }
+  return memorySetup ? { ...DEFAULT_SETUP, ...memorySetup } : { ...DEFAULT_SETUP };
 }
 
-export function writeSetup(
-  patch: Partial<AppointmentSetup>,
-  opts?: { fromApi?: boolean; skipEvent?: boolean },
-): AppointmentSetup {
+export function writeSetup(patch: Partial<AppointmentSetup>, opts?: { skipEvent?: boolean }): AppointmentSetup {
   const next = { ...readSetup(), ...patch };
   memorySetup = next;
-  try {
-    if (!opts?.fromApi) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    }
-    if (!opts?.skipEvent) window.dispatchEvent(new CustomEvent(SETUP_EVENT));
-  } catch {
-    /* ignore */
-  }
+  if (!opts?.skipEvent) window.dispatchEvent(new CustomEvent(SETUP_EVENT));
   return next;
 }
 
@@ -56,20 +43,9 @@ export function isSetupComplete(): boolean {
   return readSetup().setupComplete;
 }
 
-export function completeSetup(params: {
-  companyName: string;
-  industryId: string;
-  branchMode: BranchMode;
-  timezone?: string;
-}): AppointmentSetup {
-  return writeSetup({
-    ...params,
-    setupComplete: true,
-    completedAt: new Date().toISOString(),
-  });
-}
-
-export async function completeSetupViaApi(params: {
+/** Runs the real backend setup flow (templates, branches) and hydrates the
+ * in-memory stores from the fresh bootstrap. There is no local/offline path. */
+export async function completeSetup(params: {
   companyName: string;
   industryId: string;
   branchMode: BranchMode;
@@ -79,8 +55,6 @@ export async function completeSetupViaApi(params: {
   const { appointmentCrmAPI } = await import("./api/index");
   const { templateIdFromIndustry } = await import("./api/mappers");
   const { hydrateFromBootstrap } = await import("./api/hydrate");
-  const { setAppointmentCrmApiMode } = await import("./api/apiMode");
-  setAppointmentCrmApiMode(true);
   await appointmentCrmAPI.completeSetup({
     templateId: templateIdFromIndustry(params.industryId),
     companyName: params.companyName,
@@ -90,23 +64,29 @@ export async function completeSetupViaApi(params: {
   });
   const bootstrap = await appointmentCrmAPI.fetchBootstrap();
   hydrateFromBootstrap(bootstrap);
-  return writeSetup(
-    {
-      companyName: params.companyName,
-      industryId: params.industryId,
-      branchMode: params.branchMode,
-      timezone: params.timezone,
-      setupComplete: true,
-      completedAt: new Date().toISOString(),
-    },
-    { fromApi: true },
-  );
+  return writeSetup({
+    companyName: params.companyName,
+    industryId: params.industryId,
+    branchMode: params.branchMode,
+    timezone: params.timezone ?? DEFAULT_SETUP.timezone,
+    setupComplete: true,
+    completedAt: new Date().toISOString(),
+  });
 }
 
 export function resetSetup(): void {
+  memorySetup = null;
+  window.dispatchEvent(new CustomEvent(SETUP_EVENT));
+}
+
+/** Uninstalling the app only needs to forget which branch tab was last
+ * selected — there's no local business data to wipe anymore; everything
+ * else always lives on the backend. */
+export function resetAppointmentCrmData(): void {
+  resetSetup();
   try {
-    localStorage.removeItem(STORAGE_KEY);
-    window.dispatchEvent(new CustomEvent(SETUP_EVENT));
+    localStorage.removeItem(ACTIVE_BRANCH_KEY);
+    window.dispatchEvent(new CustomEvent("shivai:appointment-active-branch-changed"));
   } catch {
     /* ignore */
   }
@@ -117,11 +97,7 @@ export function useAppointmentSetup() {
   useEffect(() => {
     const sync = () => force((n) => n + 1);
     window.addEventListener(SETUP_EVENT, sync);
-    window.addEventListener("storage", sync);
-    return () => {
-      window.removeEventListener(SETUP_EVENT, sync);
-      window.removeEventListener("storage", sync);
-    };
+    return () => window.removeEventListener(SETUP_EVENT, sync);
   }, []);
   return readSetup();
 }

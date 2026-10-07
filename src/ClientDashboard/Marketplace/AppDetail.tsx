@@ -19,6 +19,15 @@ import { useInstalledApps } from "../../marketplace/useInstalledApps";
 import { useAuth } from "../../contexts/AuthContext";
 import AssignSkillModal from "./AssignSkillModal";
 
+// Per-app uninstall cleanup — apps with their own local setup wizard/data
+// must wipe it on uninstall, otherwise a reinstall silently skips the wizard
+// (it reads a "done" flag that outlives the install) and shows stale data.
+const APP_UNINSTALL_CLEANUP: Record<string, () => void> = {
+  "appointment-crm": () => {
+    import("../apps/AppointmentCRM/setupStore").then((m) => m.resetAppointmentCrmData());
+  },
+};
+
 const pricingStyles: Record<MarketplaceApp["pricing"], string> = {
   Free: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200/70 dark:border-emerald-800/60",
   Included:
@@ -70,6 +79,18 @@ const AppDetail = () => {
       setAssignModalOpen(true);
       setTimeout(() => setJustInstalled(false), 1800);
     }, 600);
+  };
+
+  const handleUninstall = (appId: string) => {
+    const cleanup = APP_UNINSTALL_CLEANUP[appId];
+    if (cleanup) {
+      const ok = window.confirm(
+        "Uninstalling will permanently delete this app's data (branches, staff, bookings, setup). This can't be undone. Continue?",
+      );
+      if (!ok) return;
+      cleanup();
+    }
+    uninstall(appId);
   };
 
   return (
@@ -142,7 +163,7 @@ const AppDetail = () => {
                     <Bot className="w-4 h-4" /> Assign to Agents
                   </button>
                   <button
-                    onClick={() => uninstall(app.id)}
+                    onClick={() => handleUninstall(app.id)}
                     title="Uninstall"
                     className="inline-flex items-center justify-center w-10 h-10 rounded-xl text-slate-400 hover:text-red-500 bg-slate-100 dark:bg-slate-700 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                   >

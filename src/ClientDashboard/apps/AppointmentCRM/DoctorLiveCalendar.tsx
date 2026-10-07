@@ -1,17 +1,15 @@
 import { useEffect } from "react";
 import CalendarView from "./CalendarView";
-import { readBranches, useActiveBranch } from "./branchesStore";
+import { useActiveBranch } from "./branchesStore";
 import { getStaffById } from "./staffStore";
-import { useEnsureOrgSeeded } from "./orgSeed";
 
 interface Props {
   staffId: string;
 }
 
-/** Doctor personal calendar — single staff column with live clinic data. */
+/** Doctor personal calendar — single staff column with live clinic data,
+ * hydrated by staffCalendarLoader before this component ever mounts. */
 const DoctorLiveCalendar = ({ staffId }: Props) => {
-  const branches = readBranches();
-  useEnsureOrgSeeded(branches);
   const { setActiveBranch } = useActiveBranch();
   const staff = getStaffById(staffId);
 

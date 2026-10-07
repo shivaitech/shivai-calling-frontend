@@ -11,7 +11,7 @@ import {
   isManualBookingBlock,
   removeOfflineBlock,
 } from "./offlineBlocksStore";
-import { toIsoDate } from "./availabilityStore";
+import { fetchScheduleFor, toIsoDate } from "./availabilityStore";
 import { parseTimeToMinutes } from "./calendarUtils";
 import { useAppointmentIndustry } from "./industryConfig";
 import DeleteOfflineBlockModal from "./DeleteOfflineBlockModal";
@@ -115,6 +115,10 @@ const StaffOfflineBookingPanel = ({ staffId, staffName }: Props) => {
     return () => window.removeEventListener(SCHEDULE_EVENT, sync);
   }, [staffId]);
 
+  useEffect(() => {
+    void fetchScheduleFor(staffId);
+  }, [staffId]);
+
   const openForm = (type: OfflineBlockType) => {
     if (activeForm === type) {
       setActiveForm(null);
@@ -199,7 +203,7 @@ const StaffOfflineBookingPanel = ({ staffId, staffName }: Props) => {
     setDeleting(true);
     const toastId = appToast.loading("Removing…");
     try {
-      await removeOfflineBlock(deleteTarget.id);
+      await removeOfflineBlock(staffId, deleteTarget.id);
       appToast.dismiss(toastId);
       const label = blockTypeLabel(deleteTarget).toLowerCase();
       appToast.success(

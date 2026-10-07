@@ -8,12 +8,11 @@ import {
   type ReactNode,
 } from "react";
 import { isAppointmentCrmApiConfigured } from "./api/client";
-import { setAppointmentCrmApiMode } from "./api/apiMode";
 import appointmentCrmAPI from "./api/index";
 import { hydrateFromBootstrap, hydrateStaffBookingsSchedule } from "./api/hydrate";
-import { apiId, mapStaff } from "./api/mappers";
+import { apiId, mapBooking, mapStaff } from "./api/mappers";
 import type { ApiAnalyticsOverview, ApiBootstrap } from "./api/types";
-import { isSetupComplete, writeSetup } from "./setupStore";
+import { writeSetup } from "./setupStore";
 import { readBranches } from "./branchesStore";
 
 interface AppointmentCRMContextValue {
@@ -73,33 +72,30 @@ export function AppointmentCRMProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     if (!apiReady) {
-      setAppointmentCrmApiMode(false);
+      setError("Appointment CRM isn't configured — the API base URL is missing.");
       setLoading(false);
       return;
     }
     setLoading(true);
     setError(null);
     try {
-      setAppointmentCrmApiMode(true);
       const data = await appointmentCrmAPI.fetchBootstrap();
       setBootstrap(data);
       if (data.setup?.setupComplete) {
         const overview = await loadOrgData(data);
         setAnalytics(overview);
       } else {
-        writeSetup(
-          {
-            setupComplete: false,
-            companyName: data.setup?.companyName ?? "",
-            industryId: "clinic",
-            branchMode: data.setup?.branchMode ?? "single",
-            timezone: data.setup?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
-          },
-          { fromApi: true },
-        );
+        writeSetup({
+          setupComplete: false,
+          companyName: data.setup?.companyName ?? "",
+          industryId: "clinic",
+          branchMode: data.setup?.branchMode ?? "single",
+          timezone: data.setup?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+        });
       }
     } catch (e) {
-      setAppointmentCrmApiMode(false);
+      // Never fall back to seeded/local data — surface the failure instead.
+      setBootstrap(null);
       setError(e instanceof Error ? e.message : "Failed to load Appointment CRM");
     } finally {
       setLoading(false);
@@ -107,7 +103,7 @@ export function AppointmentCRMProvider({ children }: { children: ReactNode }) {
   }, [apiReady]);
 
   const reloadCalendarDay = useCallback(async (branchId: string, date: string) => {
-    if (!apiReady || !isSetupComplete()) return;
+    if (!apiReady || !bootstrap?.setup.setupComplete) return;
     const day = await appointmentCrmAPI.fetchCalendarDay({ branchId, date });
     const branches = readBranches();
     const branchName = branches.find((b) => b.id === branchId)?.name ?? "";
@@ -141,7 +137,10 @@ export function AppointmentCRMProvider({ children }: { children: ReactNode }) {
     [loading, error, apiReady, bootstrap, analytics, refresh, reloadCalendarDay],
   );
 
-  if (loading && apiReady && !bootstrap) {
+  // Never render app content without a live bootstrap — no seeded/local
+  // fallback. Loading and error states always take priority, even on a
+  // retry after an earlier successful load.
+  if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
         <div className="w-8 h-8 rounded-full border-[3px] border-violet-400 border-t-transparent animate-spin" />
@@ -149,10 +148,12 @@ export function AppointmentCRMProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  if (error && apiReady && !bootstrap) {
+  if (error || !bootstrap) {
     return (
       <div className="max-w-md mx-auto py-16 text-center px-4">
-        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+        <p className="text-sm text-red-600 dark:text-red-400">
+          {error ?? "Couldn't load Appointment CRM."}
+        </p>
         <button
           type="button"
           onClick={() => void refresh()}

@@ -36,10 +36,7 @@ import {
   saveCustomPreset,
   setActiveIndustryId,
 } from "./industryConfig";
-import { BranchMode, completeSetup, completeSetupViaApi } from "./setupStore";
-import { seedBranchesFromPreset, ensureActiveBranch } from "./branchesStore";
-import { seedOrgHierarchy } from "./orgSeed";
-import { isAppointmentCrmApiConfigured } from "./api/client";
+import { BranchMode, completeSetup } from "./setupStore";
 import { useAppointmentCRM } from "./AppointmentCRMProvider";
 
 interface SetupModalProps {
@@ -105,17 +102,22 @@ const emptyCustomInput = (): CustomPresetInput => ({
 });
 
 const SetupModal = ({ open, onComplete, onSkip }: SetupModalProps) => {
-  const { refresh, apiReady } = useAppointmentCRM();
+  const { refresh } = useAppointmentCRM();
   const [step, setStep] = useState(0);
   const [companyName, setCompanyName] = useState("");
   const [industryId, setIndustryId] = useState("clinic");
   const [branchMode, setBranchMode] = useState<BranchMode>("single");
   const [branchNames, setBranchNames] = useState<string[]>([""]);
-  // Single-branch mode: the business itself IS the one location, so its name
-  // defaults to the company name the user already typed in step 0 — no
-  // separate "Main Location" branch is invented. Once the user edits the
-  // single branch name directly, it stops following companyName.
+  // Tracks whether the user has typed their own name for a "separate
+  // location" branch, so it stops following the industry preset's default.
+  // Irrelevant when isDefaultAccountBranch is true (name always follows
+  // companyName in that case — see the effect below).
   const [singleBranchNameTouched, setSingleBranchNameTouched] = useState(false);
+  // Explicit choice (single-branch mode only): is this one location literally
+  // the main tenant/account itself, or a genuinely separate place this app
+  // manages? "Same as account" locks the name to companyName so there's never
+  // a second, parallel identity; "Separate location" lets them name it freely.
+  const [isDefaultAccountBranch, setIsDefaultAccountBranch] = useState(true);
   const [saving, setSaving] = useState(false);
   const [customInput, setCustomInput] = useState<CustomPresetInput>(() => readCustomPresetInput() ?? emptyCustomInput());
 
@@ -129,23 +131,24 @@ const SetupModal = ({ open, onComplete, onSkip }: SetupModalProps) => {
     if (p.id === "generic") return; // branches seeded once the custom form is filled in
     const seeds = p.defaultBranches.map((b) => b.name);
     if (branchMode === "single") {
-      // The business itself is the one location — default to the company
-      // name, not a generic preset placeholder, unless the user already
-      // typed their own branch name.
-      if (!singleBranchNameTouched) setBranchNames([companyName.trim() || seeds[0] || ""]);
+      if (isDefaultAccountBranch) {
+        setBranchNames([companyName.trim() || seeds[0] || ""]);
+      } else if (!singleBranchNameTouched) {
+        setBranchNames([seeds[0] || ""]);
+      }
     } else {
       setBranchNames(seeds.length ? seeds : ["Branch 1", "Branch 2"]);
     }
   };
 
-  // Single-branch mode: keep following the company name as the user types it
-  // in step 0, until they explicitly edit the branch name themselves.
+  // Single-branch mode, "same as account": keep following the company name as
+  // the user types it in step 0 — this branch has no identity of its own.
   useEffect(() => {
-    if (branchMode === "single" && !singleBranchNameTouched) {
+    if (branchMode === "single" && isDefaultAccountBranch) {
       setBranchNames([companyName]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [companyName, branchMode, singleBranchNameTouched]);
+  }, [companyName, branchMode, isDefaultAccountBranch]);
 
   const isCustomValid =
     customInput.customerLabel.trim().length > 0 &&
@@ -177,27 +180,13 @@ const SetupModal = ({ open, onComplete, onSkip }: SetupModalProps) => {
           };
         });
 
-      if (apiReady && isAppointmentCrmApiConfigured()) {
-        await completeSetupViaApi({
-          companyName: companyName.trim(),
-          industryId,
-          branchMode,
-          branches: seeds.length ? seeds : [{ name: companyName.trim(), isPrimary: true }],
-        });
-        await refresh();
-      } else {
-        const createdBranches = seedBranchesFromPreset(
-          seeds.length ? seeds : [{ name: companyName.trim() }],
-          branchMode,
-        );
-        seedOrgHierarchy(createdBranches);
-        ensureActiveBranch(createdBranches);
-        completeSetup({
-          companyName: companyName.trim(),
-          industryId,
-          branchMode,
-        });
-      }
+      await completeSetup({
+        companyName: companyName.trim(),
+        industryId,
+        branchMode,
+        branches: seeds.length ? seeds : [{ name: companyName.trim(), isPrimary: true }],
+      });
+      await refresh();
       onComplete();
     } finally {
       setSaving(false);
@@ -350,13 +339,13 @@ const SetupModal = ({ open, onComplete, onSkip }: SetupModalProps) => {
                     onClick={() => {
                       setBranchMode(mode);
                       if (mode === "single") {
-                        // Collapsing back to one location: that location IS
-                        // the business, so prefer the company name unless the
-                        // user already set a custom single-branch name.
+                        // Collapsing back to one location: if it's the account
+                        // itself, always mirror the company name; otherwise
+                        // keep whatever custom name they'd already set.
                         setBranchNames([
-                          !singleBranchNameTouched
+                          isDefaultAccountBranch
                             ? companyName.trim() || preset.defaultBranches[0]?.name || ""
-                            : branchNames[0] || companyName.trim() || "",
+                            : branchNames[0] || preset.defaultBranches[0]?.name || "",
                         ]);
                       } else if (branchNames.length < 2) {
                         setBranchNames(
@@ -387,24 +376,79 @@ const SetupModal = ({ open, onComplete, onSkip }: SetupModalProps) => {
                 ))}
               </div>
 
+              {branchMode === "single" && (
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                    Is this {preset.terms.branch.toLowerCase()} your main business account, or a separate location?
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsDefaultAccountBranch(true);
+                        setBranchNames([companyName.trim()]);
+                      }}
+                      className={`p-2.5 rounded-xl border text-left transition-all ${
+                        isDefaultAccountBranch
+                          ? "border-violet-400 dark:border-violet-600 bg-violet-50 dark:bg-violet-900/25"
+                          : "border-slate-200 dark:border-slate-700 common-bg-icons"
+                      }`}
+                    >
+                      <p className="text-xs font-semibold text-slate-800 dark:text-white">Same as my account</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                        This IS {companyName.trim() || "your business"} — no separate location to manage.
+                      </p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsDefaultAccountBranch(false);
+                        setSingleBranchNameTouched(false);
+                        setBranchNames([preset.defaultBranches[0]?.name || ""]);
+                      }}
+                      className={`p-2.5 rounded-xl border text-left transition-all ${
+                        !isDefaultAccountBranch
+                          ? "border-violet-400 dark:border-violet-600 bg-violet-50 dark:bg-violet-900/25"
+                          : "border-slate-200 dark:border-slate-700 common-bg-icons"
+                      }`}
+                    >
+                      <p className="text-xs font-semibold text-slate-800 dark:text-white">A separate location</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                        This app manages one specific {preset.terms.branch.toLowerCase()}, named on its own.
+                      </p>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
                   {branchMode === "single" ? `${preset.terms.branch} name` : `${preset.terms.branch} names`}
                 </label>
-                {branchNames.map((name, i) => (
-                  <input
-                    key={i}
-                    value={name}
-                    onChange={(e) => {
-                      const next = [...branchNames];
-                      next[i] = e.target.value;
-                      setBranchNames(next);
-                      if (branchMode === "single" && i === 0) setSingleBranchNameTouched(true);
-                    }}
-                    placeholder={branchMode === "single" ? "Your business name" : `${preset.terms.branch} ${i + 1}`}
-                    className="w-full px-3 py-2 rounded-xl text-sm common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-violet-500/40"
-                  />
-                ))}
+                {branchNames.map((name, i) => {
+                  const locked = branchMode === "single" && isDefaultAccountBranch;
+                  return (
+                    <input
+                      key={i}
+                      value={name}
+                      readOnly={locked}
+                      onChange={(e) => {
+                        if (locked) return;
+                        const next = [...branchNames];
+                        next[i] = e.target.value;
+                        setBranchNames(next);
+                        if (branchMode === "single" && i === 0) setSingleBranchNameTouched(true);
+                      }}
+                      placeholder={branchMode === "single" ? "Your business name" : `${preset.terms.branch} ${i + 1}`}
+                      className={`w-full px-3 py-2 rounded-xl text-sm common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-violet-500/40 ${
+                        locked ? "opacity-70 cursor-not-allowed" : ""
+                      }`}
+                    />
+                  );
+                })}
+                {branchMode === "single" && isDefaultAccountBranch && (
+                  <p className="text-[10px] text-slate-400">Following your business name from step 1 — switch to "A separate location" above to rename it.</p>
+                )}
                 {branchMode === "multi" && branchNames.length < 5 && (
                   <button
                     type="button"

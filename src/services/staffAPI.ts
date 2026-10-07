@@ -152,10 +152,15 @@ export interface StaffInput {
   email: string;
   phone?: string;
   password?: string; // create only
+  /** Free-text display label shown in the UI (e.g. "Operations Lead"). Distinct
+   * from `designation`, which is the catalog ObjectId — the two are NOT the
+   * same value even though they're often set to similar text. */
   roleName: string;
-  /** Department name — now REQUIRED by the backend alongside designation. */
+  /** Department catalog ObjectId (24-char Mongo id from GET /departments) —
+   * REQUIRED by the backend. NOT the department's name. */
   department?: string;
-  /** Designation name — now REQUIRED by the backend. Usually equals roleName. */
+  /** Designation catalog ObjectId (24-char Mongo id from GET /designations) —
+   * REQUIRED by the backend. NOT the designation's name and NOT roleName. */
   designation?: string;
   grants: PermissionGrantMap;
   /** Per-module scope: subTenantScopes[moduleRoot] = 'all' | 'select'. */
@@ -169,11 +174,12 @@ export interface StaffInput {
 }
 
 // The backend validates strictly (unknown keys → 422), so send ONLY the
-// documented fields — now including `department` and `designation` (plain
-// names), which the backend requires. The UI's fine-grained grants are
-// flattened into `permissions[]` (a documented field). phone / grants-map /
-// managedSubTenantIds are UI-only and intentionally NOT sent until the
-// backend accepts them.
+// documented fields — including `department` and `designation`, which must
+// be the catalog ObjectIds (not names/labels) or the backend 422s with
+// "Invalid ID format" / 404s with "Department not found". The UI's
+// fine-grained grants are flattened into `permissions[]` (a documented
+// field). phone / grants-map / managedSubTenantIds are UI-only and
+// intentionally NOT sent until the backend accepts them.
 // Encode a module's sub-tenant scope INTO its permission string, e.g.
 //   module:command-center-read-subtenant-(id1,id2)
 //   module:command-center-read-subtenant-(all)
