@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { Calendar, Clock, Eye, Grid3x3, LayoutGrid, Pencil, Plus, Printer, Share2, X } from "lucide-react";
+import { CalendarPlus, Clock, Eye, Pencil, Plus, Printer, Share2, Trash2, UserPlus, X } from "lucide-react";
 import CalendarDateNav, { calendarToolbarShellClass } from "./CalendarDateNav";
 import GlassCard from "../../../components/GlassCard";
 import { SectionTitle } from "../SupportCRM/ui";
 import { useAppointmentIndustry } from "./industryConfig";
 import { useActiveBranch } from "./branchesStore";
 import { useDepartments } from "./departmentsStore";
-import { useStaff, StaffMember, staffRoleLine } from "./staffStore";
+import { useStaff, StaffMember, staffRoleLine, removeStaffMember } from "./staffStore";
 import { useBookings, bookingMatchesViewDate } from "./bookingsStore";
-import { useEnsureOrgSeeded } from "./orgSeed";
 import {
   useStaffSchedule,
   getLeaveOnDate,
@@ -28,6 +27,9 @@ import { useCalendarConfig } from "./calendarConfig";
 import type { Booking } from "./mockData";
 import BookingDetailModal from "./BookingDetailModal";
 import StaffScheduleModal from "./StaffScheduleModal";
+import IntegrateStaffModal from "./IntegrateStaffModal";
+import AddBookingModal from "./AddBookingModal";
+import RemoveStaffModal from "./RemoveStaffModal";
 import CalendarBookingCard from "./CalendarBookingCard";
 import CalendarOfflineBlockCard from "./CalendarOfflineBlockCard";
 import CalendarNowLine from "./CalendarNowLine";
@@ -68,7 +70,6 @@ interface CalendarViewProps {
 const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) => {
   const { terms } = useAppointmentIndustry();
   const { branches, activeBranchId, setActiveBranch } = useActiveBranch();
-  useEnsureOrgSeeded(branches);
   const { departments } = useDepartments();
   const { staff, displayName } = useStaff();
   const bookings = useBookings();
@@ -86,6 +87,10 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
   const [deletingBlock, setDeletingBlock] = useState(false);
   const [hiddenStaffIds, setHiddenStaffIds] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<ViewMode>(lockedStaffId ? "solo" : "multi");
+  const [integrateStaffOpen, setIntegrateStaffOpen] = useState(false);
+  const [addBookingOpen, setAddBookingOpen] = useState(false);
+  const [removeStaffTarget, setRemoveStaffTarget] = useState<StaffMember | null>(null);
+  const [removingStaff, setRemovingStaff] = useState(false);
 
   const branchId = activeBranchId ?? "";
   const { dayStartMin, dayEndMin, slotMinutes } = useCalendarConfig(branchId || null);
@@ -114,7 +119,7 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
     setDeletingBlock(true);
     const toastId = appToast.loading("Removing…");
     try {
-      await removeOfflineBlock(pendingDeleteBlock.id);
+      await removeOfflineBlock(pendingDeleteBlock.staffId, pendingDeleteBlock.id);
       appToast.dismiss(toastId);
       const label = blockTypeLabel(pendingDeleteBlock).toLowerCase();
       appToast.success(
@@ -134,10 +139,26 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
     }
   };
 
-  const branchDepts = useMemo(
-    () => departments.filter((d) => d.branchId === branchId && d.active),
-    [departments, branchId],
-  );
+  const handleConfirmRemoveStaff = async () => {
+    if (!removeStaffTarget || removingStaff) return;
+    setRemovingStaff(true);
+    const toastId = appToast.loading("Removing from calendar…");
+    try {
+      await removeStaffMember(removeStaffTarget.id);
+      appToast.dismiss(toastId);
+      appToast.success(`${displayName(removeStaffTarget)} removed from the calendar`);
+      if (focusedStaffId === removeStaffTarget.id) {
+        setFocusedStaffId(null);
+        setViewMode("multi");
+      }
+      setRemoveStaffTarget(null);
+    } catch {
+      appToast.dismiss(toastId);
+      appToast.error("Could not remove this staff member. Please try again.");
+    } finally {
+      setRemovingStaff(false);
+    }
+  };
 
   const calendarStaff = useMemo(() => {
     if (lockedStaffId) {
@@ -279,37 +300,24 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
 
       {!lockedStaffId && (
         <div className="flex flex-wrap items-center gap-2">
-          <div className={calendarToolbarShellClass()}>
-            {([
-              { key: "multi", label: "Multi-Provider", icon: LayoutGrid, enabled: true },
-              { key: "solo", label: "Solo", icon: Calendar, enabled: true },
-              { key: "week", label: "Week", icon: Grid3x3, enabled: false },
-              { key: "room", label: "Room View", icon: Grid3x3, enabled: false },
-            ] as { key: ViewMode; label: string; icon: typeof Calendar; enabled: boolean }[]).map(
-              ({ key, label, icon: Icon, enabled }) => (
-                <button
-                  key={key}
-                  type="button"
-                  disabled={!enabled}
-                  onClick={() => {
-                    setViewMode(key);
-                    if (key !== "solo") setFocusedStaffId(null);
-                  }}
-                  title={enabled ? undefined : "Coming soon"}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-colors whitespace-nowrap ${
-                    viewMode === key
-                      ? "bg-violet-600 text-white shadow-sm"
-                      : enabled
-                        ? "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-                        : "text-slate-300 dark:text-slate-600 cursor-not-allowed"
-                  }`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  {label}
-                </button>
-              ),
-            )}
-          </div>
+          {!readOnly && (
+            <>
+              <button
+                type="button"
+                onClick={() => setIntegrateStaffOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-violet-50 dark:hover:bg-violet-900/30 hover:border-violet-300 dark:hover:border-violet-700 hover:text-violet-700 dark:hover:text-violet-300 transition-colors"
+              >
+                <UserPlus className="w-3.5 h-3.5" /> Integrate Staff
+              </button>
+              <button
+                type="button"
+                onClick={() => setAddBookingOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium common-button-bg"
+              >
+                <CalendarPlus className="w-3.5 h-3.5" /> Add Booking
+              </button>
+            </>
+          )}
           <button
             type="button"
             onClick={() => window.print()}
@@ -338,34 +346,6 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
           </span>
         ))}
       </div>
-
-      {!lockedStaffId && branchDepts.length > 0 && (
-        <div className="-mx-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div className="flex items-center gap-2 px-1 pb-0.5 min-w-min">
-            <button
-              type="button"
-              onClick={() => setDeptId("all")}
-              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors whitespace-nowrap ${
-                deptId === "all" ? "bg-slate-800 dark:bg-white text-white dark:text-slate-900 border-transparent" : "border-slate-200 dark:border-slate-700 hover:border-slate-300"
-              }`}
-            >
-              All {terms.departments}
-            </button>
-            {branchDepts.map((d) => (
-              <button
-                key={d.id}
-                type="button"
-                onClick={() => setDeptId(d.id)}
-                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border transition-colors whitespace-nowrap ${
-                  deptId === d.id ? "bg-violet-600 text-white border-violet-600" : "border-slate-200 dark:border-slate-700 hover:border-slate-300"
-                }`}
-              >
-                {d.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {!lockedStaffId && viewMode === "multi" && calendarStaff.length > 1 && (
         <div className="-mx-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -426,7 +406,28 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
                 </p>
               </div>
             </div>
-            <div className="flex items-stretch gap-2 flex-shrink-0 ml-auto">
+            <div className="flex items-center gap-1.5 flex-shrink-0 ml-auto flex-wrap">
+              {!readOnly && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setScheduleStaff(focusedStaff)}
+                    className="inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 bg-white/80 dark:bg-slate-800/80 hover:bg-violet-50 dark:hover:bg-violet-900/30 hover:border-violet-300 dark:hover:border-violet-700 hover:text-violet-700 dark:hover:text-violet-300 transition-colors shrink-0"
+                  >
+                    <Pencil className="w-3 h-3" />
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRemoveStaffTarget(focusedStaff)}
+                    className="inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 bg-white/80 dark:bg-slate-800/80 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors shrink-0"
+                    title={`Remove ${displayName(focusedStaff)} from calendar`}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    Remove
+                  </button>
+                </>
+              )}
               <div className={calendarToolbarShellClass()}>
                 <button
                   type="button"
@@ -436,9 +437,7 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
                   <Share2 className="w-4 h-4 flex-shrink-0" />
                   <span className="min-w-0">
                     <span className="block text-sm font-semibold leading-tight">Share</span>
-                    <span className="block text-[10px] leading-tight opacity-90 truncate max-w-[100px] sm:max-w-[140px]">
-                      Send calendar link
-                    </span>
+
                   </span>
                 </button>
               </div>
@@ -478,6 +477,10 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
                 const leave = getLeaveOnDate(col.id, toIsoDate(viewDate));
                 const isFocused = focusedStaffId === col.id;
                 const colCount = staffBookings.get(col.id)?.length ?? 0;
+                // When this staff member's own banner card is already shown
+                // above (focused solo view), skip repeating their
+                // name/avatar/actions here to avoid a duplicate profile card.
+                const showCardDetails = !(isFocused && focusedStaff && !lockedStaffId);
                 return (
                   <div
                     key={col.id}
@@ -487,52 +490,56 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
                       background: isFocused ? `hsl(${col.hue}, 70%, 97%)` : undefined,
                     }}
                   >
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <div
-                        className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-white text-[11px] font-bold ring-2 ring-white dark:ring-slate-900"
-                        style={{ background: `linear-gradient(135deg, hsl(${col.hue},70%,55%), hsl(${col.hue + 20},65%,45%))` }}
-                      >
-                        {col.name.charAt(0)}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[11px] font-semibold text-slate-800 dark:text-white truncate leading-tight">
-                          {displayName(col)}
-                        </p>
-                        <p className="text-[9px] text-slate-500 dark:text-slate-400 truncate leading-tight">
-                          {leave ? "On leave" : `${staffRoleLine(col)} · ${colCount} Pts`}
-                        </p>
-                      </div>
-                    </div>
-                    {!readOnly && (
-                      <div className="flex flex-wrap items-center justify-start gap-1.5 w-full">
-                        {!lockedStaffId && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setFocusedStaffId(col.id);
-                              setViewMode("solo");
-                            }}
-                            className={`inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium border transition-colors shrink-0 ${
-                              focusedStaffId === col.id
-                                ? "border-violet-300 dark:border-violet-700 text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-900/30"
-                                : "border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 bg-white/80 dark:bg-slate-800/80 hover:bg-slate-50 dark:hover:bg-slate-800"
-                            }`}
-                            title={`View only ${displayName(col)}`}
+                    {showCardDetails && (
+                      <>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <div
+                            className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-white text-[11px] font-bold ring-2 ring-white dark:ring-slate-900"
+                            style={{ background: `linear-gradient(135deg, hsl(${col.hue},70%,55%), hsl(${col.hue + 20},65%,45%))` }}
                           >
-                            <Eye className="w-3 h-3" />
-                            View
-                          </button>
+                            {col.name.charAt(0)}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[11px] font-semibold text-slate-800 dark:text-white truncate leading-tight">
+                              {displayName(col)}
+                            </p>
+                            <p className="text-[9px] text-slate-500 dark:text-slate-400 truncate leading-tight">
+                              {leave ? "On leave" : `${staffRoleLine(col)} · ${colCount} Pts`}
+                            </p>
+                          </div>
+                        </div>
+                        {!readOnly && (
+                          <div className="flex flex-wrap items-center justify-start gap-1.5 w-full">
+                            {!lockedStaffId && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setFocusedStaffId(col.id);
+                                  setViewMode("solo");
+                                }}
+                                className={`inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium border transition-colors shrink-0 ${
+                                  focusedStaffId === col.id
+                                    ? "border-violet-300 dark:border-violet-700 text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-900/30"
+                                    : "border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 bg-white/80 dark:bg-slate-800/80 hover:bg-slate-50 dark:hover:bg-slate-800"
+                                }`}
+                                title={`View only ${displayName(col)}`}
+                              >
+                                <Eye className="w-3 h-3" />
+                                View
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setScheduleStaff(col)}
+                              className="inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 bg-white/80 dark:bg-slate-800/80 hover:bg-violet-50 dark:hover:bg-violet-900/30 hover:border-violet-300 dark:hover:border-violet-700 hover:text-violet-700 dark:hover:text-violet-300 transition-colors shrink-0"
+                              title={`Edit ${displayName(col)} hours & bookings`}
+                            >
+                              <Pencil className="w-3 h-3" />
+                              Edit
+                            </button>
+                          </div>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => setScheduleStaff(col)}
-                          className="inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-medium border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 bg-white/80 dark:bg-slate-800/80 hover:bg-violet-50 dark:hover:bg-violet-900/30 hover:border-violet-300 dark:hover:border-violet-700 hover:text-violet-700 dark:hover:text-violet-300 transition-colors shrink-0"
-                          title={`Edit ${displayName(col)} hours & bookings`}
-                        >
-                          <Pencil className="w-3 h-3" />
-                          Edit
-                        </button>
-                      </div>
+                      </>
                     )}
                   </div>
                 );
@@ -697,11 +704,29 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
       />
 
       {!readOnly && (
+        <RemoveStaffModal
+          open={Boolean(removeStaffTarget)}
+          staffMember={removeStaffTarget}
+          staffName={removeStaffTarget ? displayName(removeStaffTarget) : ""}
+          onClose={() => !removingStaff && setRemoveStaffTarget(null)}
+          onConfirm={handleConfirmRemoveStaff}
+          removing={removingStaff}
+        />
+      )}
+
+      {!readOnly && (
         <StaffScheduleModal
           open={Boolean(scheduleStaff)}
           staffId={scheduleStaff?.id ?? null}
           staffName={scheduleStaff ? displayName(scheduleStaff) : ""}
           onClose={() => setScheduleStaff(null)}
+          onRemoved={() => {
+            if (scheduleStaff && focusedStaffId === scheduleStaff.id) {
+              setFocusedStaffId(null);
+              setViewMode("multi");
+            }
+            setScheduleStaff(null);
+          }}
         />
       )}
 
@@ -710,6 +735,29 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
           open={Boolean(shareStaff)}
           staff={shareStaff}
           onClose={() => setShareStaff(null)}
+        />
+      )}
+
+      {!readOnly && !lockedStaffId && (
+        <IntegrateStaffModal
+          open={integrateStaffOpen}
+          onClose={() => setIntegrateStaffOpen(false)}
+          branchId={branchId}
+          branches={branches}
+          departments={departments}
+          staff={staff}
+          onIntegrated={() => {}}
+        />
+      )}
+
+      {!readOnly && !lockedStaffId && (
+        <AddBookingModal
+          open={addBookingOpen}
+          onClose={() => setAddBookingOpen(false)}
+          branches={branches}
+          departments={departments}
+          staff={staff}
+          defaultBranchId={branchId}
         />
       )}
     </div>

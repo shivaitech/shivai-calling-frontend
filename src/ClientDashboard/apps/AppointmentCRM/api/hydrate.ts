@@ -24,11 +24,11 @@ import type { Branch } from "../branchesStore";
 
 export function hydrateFromBootstrap(bootstrap: ApiBootstrap): void {
   const setup = mapSetupFromBootstrap(bootstrap);
-  writeSetup(setup, { skipEvent: false, fromApi: true });
+  writeSetup(setup);
   setActiveIndustryId(setup.industryId);
 
   const branches = (bootstrap.branches ?? []).map((b, i) => mapBranch(b, i));
-  writeBranches(branches, { fromApi: true });
+  writeBranches(branches);
 
   const activeId = bootstrap.preferences?.activeBranchId;
   if (activeId && branches.some((b) => b.id === activeId)) {
@@ -39,7 +39,7 @@ export function hydrateFromBootstrap(bootstrap: ApiBootstrap): void {
   }
 
   const departments = (bootstrap.departments ?? []).map((d, i) => mapDepartment(d, i));
-  writeDepartments(departments, { fromApi: true });
+  writeDepartments(departments);
 }
 
 export async function hydrateStaffBookingsSchedule(params: {
@@ -50,13 +50,13 @@ export async function hydrateStaffBookingsSchedule(params: {
   leaves?: Parameters<typeof mapLeave>[0][];
   blocks?: ApiOfflineBlock[];
 }): Promise<void> {
-  writeStaff(params.staff, { fromApi: true });
+  writeStaff(params.staff);
 
   const branchMap = new Map(params.branches.map((b) => [b.id, b.name]));
   const bookings = params.bookings.map((b) =>
     mapBooking(b, { branchName: branchMap.get(b.branchId ?? "") ?? "" }),
   );
-  writeBookings(bookings, { fromApi: true });
+  writeBookings(bookings);
 
   if (params.availabilities?.length) {
     const list = params.availabilities
@@ -64,33 +64,33 @@ export async function hydrateStaffBookingsSchedule(params: {
       .map((a) =>
         mapAvailability(a.staffId!, { weekly: a.weekly as never, dailyBreak: a.dailyBreak as never }),
       );
-    writeAvailabilityList(list, { fromApi: true });
+    writeAvailabilityList(list);
   }
 
   if (params.leaves?.length) {
-    writeLeavesList(params.leaves.map(mapLeave), { fromApi: true });
+    writeLeavesList(params.leaves.map(mapLeave));
   }
 
   if (params.blocks?.length) {
-    writeOfflineBlocks(params.blocks.map(mapOfflineBlock), { fromApi: true });
+    writeOfflineBlocks(params.blocks.map(mapOfflineBlock));
   }
 }
 
 export function hydrateCalendarDay(day: ApiCalendarDay, branches: Branch[]): void {
   const branchName = branches.find((b) => b.id === day.branchId)?.name ?? "";
   const staff = (day.staff ?? []).map((s, i) => mapStaff(s, i));
-  writeStaff(staff, { fromApi: true, merge: true });
+  writeStaff(staff, { merge: true });
 
   const bookings = (day.bookings ?? []).map((b) => mapBooking(b, { branchName }));
-  writeBookings(bookings, { fromApi: true, merge: true });
+  writeBookings(bookings, { merge: true });
 
   const availabilities = (day.availabilities ?? [])
     .filter((a) => a.staffId)
     .map((a) => mapAvailability(a.staffId!, { weekly: a.weekly, dailyBreak: a.dailyBreak }));
-  if (availabilities.length) writeAvailabilityList(availabilities, { fromApi: true, merge: true });
+  if (availabilities.length) writeAvailabilityList(availabilities, { merge: true });
 
-  if (day.leaves?.length) writeLeavesList(day.leaves.map(mapLeave), { fromApi: true, merge: true });
+  if (day.leaves?.length) writeLeavesList(day.leaves.map(mapLeave), { merge: true });
   if (day.blocks?.length) {
-    writeOfflineBlocks(day.blocks.map(mapOfflineBlock), { fromApi: true, merge: true });
+    writeOfflineBlocks(day.blocks.map(mapOfflineBlock), { merge: true });
   }
 }

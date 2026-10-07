@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { CalendarPlus, Search } from "lucide-react";
 import GlassCard from "../../../components/GlassCard";
 import { SectionTitle } from "../SupportCRM/ui";
 import { useAppointmentIndustry } from "./industryConfig";
@@ -10,6 +10,7 @@ import { useBookings } from "./bookingsStore";
 import { BookingStatus, bookingStatusMeta } from "./mockData";
 import { useRealSchedulingAgents } from "./realAgents";
 import { getAgentIdsForSkill } from "../../../marketplace/useAgentSkills";
+import AddBookingModal from "./AddBookingModal";
 
 const FILTERS: (BookingStatus | "all")[] = ["all", "confirmed", "pending", "checked-in", "completed", "cancelled", "no-show"];
 const ALL = "all";
@@ -19,7 +20,7 @@ const FILTER_SELECT =
 
 const BookingsView = () => {
   const { terms } = useAppointmentIndustry();
-  const { activeBranch, activeBranchId } = useActiveBranch();
+  const { branches, activeBranch, activeBranchId } = useActiveBranch();
   const { departments } = useDepartments();
   const { staff } = useStaff();
   const { rawAgents } = useRealSchedulingAgents();
@@ -35,6 +36,7 @@ const BookingsView = () => {
   const [staffFilter, setStaffFilter] = useState<string>(ALL);
   const [agentFilter, setAgentFilter] = useState<string>(ALL);
   const [q, setQ] = useState("");
+  const [addOpen, setAddOpen] = useState(false);
 
   const branchDepts = useMemo(
     () => (activeBranchId ? departments.filter((d) => d.branchId === activeBranchId) : departments),
@@ -70,14 +72,23 @@ const BookingsView = () => {
             : `All ${terms.appointments.toLowerCase()} — book, reschedule, cancel & track status`
         }
         right={
-          <div className="relative w-full sm:w-56">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Search…"
-              className="w-full pl-9 pr-3 py-2 rounded-lg text-sm common-bg-icons border border-slate-200 dark:border-slate-700"
-            />
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+            <div className="relative w-full sm:w-56">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search…"
+                className="w-full pl-9 pr-3 py-2 rounded-lg text-sm common-bg-icons border border-slate-200 dark:border-slate-700"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setAddOpen(true)}
+              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium common-button-bg flex-shrink-0"
+            >
+              <CalendarPlus className="w-3.5 h-3.5" /> Add Booking
+            </button>
           </div>
         }
       />
@@ -178,6 +189,15 @@ const BookingsView = () => {
           </table>
         </div>
       </GlassCard>
+
+      <AddBookingModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        branches={branches}
+        departments={departments}
+        staff={staff}
+        defaultBranchId={activeBranchId}
+      />
     </div>
   );
 };

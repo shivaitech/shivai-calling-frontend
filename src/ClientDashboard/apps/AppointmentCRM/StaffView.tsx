@@ -4,17 +4,19 @@ import GlassCard from "../../../components/GlassCard";
 import { SectionTitle } from "../SupportCRM/ui";
 import { useAppointmentIndustry } from "./industryConfig";
 import { useActiveBranch } from "./branchesStore";
-import { useEnsureOrgSeeded } from "./orgSeed";
 import TenantStaffModule from "./TenantStaffModule";
 
 const StaffView = () => {
   const { terms } = useAppointmentIndustry();
   const { branches, activeBranch, activeBranchId } = useActiveBranch();
-  useEnsureOrgSeeded(branches);
 
-  const [scope, setScope] = useState<"branch" | "tenant">("branch");
+  // A separate "branch staff" scope only makes sense once there's more than
+  // one real location — with a single branch, that branch IS the tenant, so
+  // showing a branch/tenant toggle would just be two views of the same org.
+  const isMultiBranch = branches.length > 1;
+  const [scope, setScope] = useState<"branch" | "tenant">("tenant");
 
-  const scopeTabs = (
+  const scopeTabs = isMultiBranch && (
     <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-800">
       {([
         { key: "branch", label: `${terms.branch} ${terms.staffPlural}`, icon: Building2 },
@@ -47,15 +49,17 @@ const StaffView = () => {
     );
   }
 
+  const effectiveScope = isMultiBranch ? scope : "tenant";
+
   return (
     <div className="space-y-5">
       {scopeTabs}
-      {scope === "tenant" ? (
+      {effectiveScope === "tenant" ? (
         <TenantStaffModule />
       ) : (
         <TenantStaffModule key={activeBranchId} branchId={activeBranchId ?? undefined} />
       )}
-      {scope === "branch" && !activeBranch && (
+      {effectiveScope === "branch" && !activeBranch && (
         <p className="text-xs text-slate-400">Select a {terms.branch.toLowerCase()} to manage its departments &amp; staff.</p>
       )}
     </div>
