@@ -4470,24 +4470,40 @@
         flex-shrink: 0;
       }
       .call-back-btn {
-        width: 32px;
-        height: 32px;
-        border-radius: 50%;
-        background: rgba(255, 255, 255, 0.6);
-        border: none;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: #0d1117;
+        width: 32px !important;
+        height: 32px !important;
+        min-width: 32px !important;
+        max-width: 32px !important;
+        min-height: 32px !important;
+        max-height: 32px !important;
+        flex: 0 0 32px !important;
+        border-radius: 50% !important;
+        background: rgba(255, 255, 255, 0.6) !important;
+        border: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        color: #0d1117 !important;
         cursor: pointer;
         flex-shrink: 0;
         backdrop-filter: blur(10px) saturate(160%);
         -webkit-backdrop-filter: blur(10px) saturate(160%);
         box-shadow: 0 2px 6px -2px rgba(0,0,0,0.15);
         transition: background 0.15s ease, transform 0.15s ease;
+        line-height: 0;
       }
       .call-back-btn:hover { background: rgba(255,255,255,0.85); transform: scale(1.06); }
-      .call-back-btn svg { display: block; }
+      .call-back-btn svg {
+        display: block !important;
+        width: 18px !important;
+        height: 18px !important;
+        flex-shrink: 0 !important;
+        stroke: #0d1117 !important;
+        fill: none !important;
+        color: #0d1117 !important;
+      }
       .call-title {
         font-size: 15px;
         font-weight: 600;
@@ -7733,7 +7749,7 @@
           console.warn("⚠️ No agentId found, using default:", agentId);
         }
       }
-
+      
       // Validate userId
       if (!userId) {
         console.warn("⚠️ No userId found, tenant_id will not be sent");
