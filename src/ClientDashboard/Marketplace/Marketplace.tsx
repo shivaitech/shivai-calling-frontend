@@ -241,6 +241,7 @@ const Marketplace = () => {
           open={Boolean(assignApp)}
           onClose={() => setAssignApp(null)}
           app={assignApp}
+          singleSelect={assignApp.id === "appointment-crm"}
         />
       )}
     </div>

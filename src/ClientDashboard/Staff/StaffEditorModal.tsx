@@ -260,10 +260,12 @@ const StaffEditorModal = ({ open, tenantId, editing, onClose, onSaved }: Props) 
     if (grantCount === 0) return appToast.error('Grant at least one feature.');
 
     // accounts[] is REQUIRED by the API for a tenant caller — at least one
-    // entry with a non-null subTenantId — regardless of which modules are
-    // granted. Scoped modules (Command Center / Sub Tenants) still control
-    // WHICH sub-tenants via their own picker; everything else defaults to
-    // every sub-tenant the tenant owns, so staff always get a valid account.
+    // entry — regardless of which modules are granted. Scoped modules
+    // (Command Center / Sub Tenants) still control WHICH sub-tenants via
+    // their own picker; everything else defaults to every sub-tenant the
+    // tenant owns. A tenant with NO sub-tenants at all (the common case for
+    // anyone not using that feature) falls back to its own account
+    // (subTenantId: null) instead of being blocked from adding staff.
     const ownerId = String(user?.id || tenantId);
     const allIds = subTenants.map((t) => t.id);
     const idsForModule = (mk: string) => (scopeOf(mk) === 'all' ? allIds : idsOf(mk));
@@ -273,10 +275,9 @@ const StaffEditorModal = ({ open, tenantId, editing, onClose, onSaved }: Props) 
     const unionIds = Array.from(
       new Set(scopedModuleKeys.length ? scopedModuleKeys.flatMap((k) => idsForModule(k)) : allIds),
     );
-    const accounts = unionIds.map((subTenantId) => ({ tenantId: ownerId, subTenantId }));
-    if (isMainTenant && accounts.length === 0) {
-      return appToast.error('Add at least one sub-tenant before assigning staff.');
-    }
+    const accounts = unionIds.length > 0
+      ? unionIds.map((subTenantId) => ({ tenantId: ownerId, subTenantId }))
+      : [{ tenantId: ownerId, subTenantId: null }];
     // Per-module scope maps → encoded into the permission strings by the service.
     const subTenantScopes = isMainTenant ? scopeMode : undefined;
     const managedSubTenantsByModule = isMainTenant ? managedIds : undefined;

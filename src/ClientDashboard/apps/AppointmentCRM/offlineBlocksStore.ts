@@ -42,21 +42,29 @@ export function readOfflineBlocks(): StaffOfflineBlock[] {
   return memoryOfflineBlocks;
 }
 
+/** Replaces the cache without dispatching OFFLINE_EVENT — for callers that
+ * are themselves reacting to that event (e.g. useIntegratedSchedules
+ * deriving blocks from the same GET /schedules response), where dispatching
+ * again would cause an infinite refetch loop. */
+export function setOfflineBlocksQuiet(list: StaffOfflineBlock[]): void {
+  memoryOfflineBlocks = list;
+}
+
 function replaceBlocksForStaff(staffId: string, blocks: StaffOfflineBlock[]): void {
   const others = readOfflineBlocks().filter((b) => b.staffId !== staffId);
   persistOfflineBlocks([...others, ...blocks]);
 }
 
+/** Adds a dated one-off break block. This is the ONLY block type the
+ * Schedule API still accepts on write (POST /schedules/:staffId/blocks
+ * rejects manual_booking/unavailable with 422) — book real appointments via
+ * the booking flow and mark absences via leaves instead. */
 export async function addOfflineBlock(params: {
   staffId: string;
   date: string;
   fromTime: string;
   toTime: string;
-  type: OfflineBlockType;
-  patientName?: string;
-  patientId?: string;
   notes?: string;
-  branchId?: string;
 }): Promise<StaffOfflineBlock> {
   const fromMin = parseTimeToMinutes(params.fromTime);
   const toMin = parseTimeToMinutes(params.toTime);
@@ -64,12 +72,9 @@ export async function addOfflineBlock(params: {
   const schedule = await scheduleAPI.addScheduleBlock(
     params.staffId,
     blockToApiBody({
-      type: params.type,
       date: params.date,
       fromTime: params.fromTime,
       toTime: params.toTime,
-      patientName: params.patientName,
-      patientId: params.patientId,
       notes: params.notes,
     }),
   );

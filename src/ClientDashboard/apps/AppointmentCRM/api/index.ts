@@ -1,11 +1,16 @@
 import { crmRequest } from "./client";
+import { appointmentsRequest } from "./appointmentsClient";
 import type {
+  ApiAiConfig,
+  ApiAiConfigDefaults,
+  ApiAiConfigResolved,
   ApiAnalyticsOverview,
   ApiAvailability,
   ApiBooking,
   ApiBootstrap,
   ApiBranch,
   ApiCalendarDay,
+  ApiCatalogOption,
   ApiCustomer,
   ApiDepartment,
   ApiLeave,
@@ -13,6 +18,7 @@ import type {
   ApiOrgConfig,
   ApiSetup,
   ApiStaff,
+  ApiStaffBookingsResponse,
   ApiStaffCalendarShare,
   ApiTemplateId,
   BranchMode,
@@ -66,6 +72,48 @@ export function fetchTemplates() {
 
 export function fetchTemplate(templateId: string) {
   return crmRequest<unknown>({ method: "GET", url: `/templates/${templateId}` });
+}
+
+// ── AI Configuration ─────────────────────────────────────────────────────────
+
+export function saveAiConfig(agentId: string, body: Record<string, unknown>) {
+  return crmRequest<ApiAiConfig>({
+    method: "POST",
+    url: "/ai-config",
+    params: { agentId },
+    data: { ...body, agentId },
+  });
+}
+
+export function fetchAiConfig(agentId: string) {
+  return crmRequest<ApiAiConfig>({ method: "GET", url: "/ai-config", params: { agentId } });
+}
+
+export function fetchAiConfigs() {
+  return crmRequest<ApiAiConfig[]>({ method: "GET", url: "/ai-config" });
+}
+
+export function fetchAiConfigDefaults() {
+  return crmRequest<ApiAiConfigDefaults>({ method: "GET", url: "/ai-config/defaults" });
+}
+
+export function fetchCatalogOptions(
+  ref: "branches" | "departments" | "staff" | "services" | "appointmentTypes" | "staffRoles",
+  params?: { branchId?: string; departmentId?: string },
+) {
+  return crmRequest<ApiCatalogOption[]>({ method: "GET", url: `/catalog-options/${ref}`, params });
+}
+
+export function fetchAiConfigResolved(agentId: string, branchId?: string) {
+  return crmRequest<ApiAiConfigResolved>({
+    method: "GET",
+    url: "/ai-config/resolved",
+    params: { agentId, branchId },
+  });
+}
+
+export function deleteAiConfig(agentId: string) {
+  return crmRequest<void>({ method: "DELETE", url: `/ai-config/${agentId}` });
 }
 
 // ── Catalogs ─────────────────────────────────────────────────────────────────
@@ -242,34 +290,42 @@ export function deleteOfflineBlock(id: string) {
   return crmRequest<void>({ method: "DELETE", url: `/offline-blocks/${id}` });
 }
 
-// ── Bookings ─────────────────────────────────────────────────────────────────
+// ── Bookings (top-level /appointments resource, not /appointment-crm) ───────
 
-export function fetchBookings(params?: {
-  branchId?: string;
-  staffId?: string;
-  date?: string;
-  dateFrom?: string;
-  dateTo?: string;
-  status?: string;
-  channel?: string;
-}) {
-  return crmRequest<ApiBooking[]>({ method: "GET", url: "/bookings", params });
+export async function createBooking(body: Record<string, unknown>) {
+  const res = await appointmentsRequest<{ appointment: ApiBooking }>({ method: "POST", url: "", data: body });
+  return res.appointment;
 }
 
-export function createBooking(body: Record<string, unknown>) {
-  return crmRequest<ApiBooking>({ method: "POST", url: "/bookings", data: body });
+export async function fetchBooking(id: string) {
+  const res = await appointmentsRequest<{ appointment: ApiBooking }>({ method: "GET", url: `/${id}` });
+  return res.appointment;
 }
 
-export function fetchBooking(id: string) {
-  return crmRequest<ApiBooking>({ method: "GET", url: `/bookings/${id}` });
+export async function fetchBookingsByStaff(staffId: string, date?: string) {
+  const res = await appointmentsRequest<{ appointments: ApiBooking[] }>({
+    method: "GET",
+    url: `/by-staff/${staffId}`,
+    params: date ? { date } : undefined,
+  });
+  return res.appointments;
 }
 
-export function patchBooking(id: string, body: Record<string, unknown>) {
-  return crmRequest<ApiBooking>({ method: "PATCH", url: `/bookings/${id}`, data: body });
+/** Cancels a booked appointment — the only status transition this API
+ * supports (no complete/no-show/delete). */
+export async function cancelBooking(id: string) {
+  const res = await appointmentsRequest<{ appointment: ApiBooking }>({ method: "PUT", url: `/${id}/cancel` });
+  return res.appointment;
 }
 
-export function deleteBooking(id: string) {
-  return crmRequest<void>({ method: "DELETE", url: `/bookings/${id}` });
+/** Batch-fetches bookings (+ breaks/leaves) for a set of staff on one date,
+ * grouped per staff — what the Calendar uses instead of per-staff fetches. */
+export function fetchStaffBookings(params: { staffIds: string[]; date: string }) {
+  return appointmentsRequest<ApiStaffBookingsResponse>({
+    method: "POST",
+    url: "/staff-bookings",
+    data: params,
+  });
 }
 
 // ── Calendar ─────────────────────────────────────────────────────────────────
@@ -391,6 +447,13 @@ export const appointmentCrmAPI = {
   applyConfigTemplate,
   fetchTemplates,
   fetchTemplate,
+  saveAiConfig,
+  fetchAiConfig,
+  fetchAiConfigs,
+  fetchAiConfigDefaults,
+  fetchCatalogOptions,
+  fetchAiConfigResolved,
+  deleteAiConfig,
   fetchCatalog,
   createCatalogItem,
   patchCatalogItem,
@@ -420,11 +483,11 @@ export const appointmentCrmAPI = {
   createOfflineBlock,
   patchOfflineBlock,
   deleteOfflineBlock,
-  fetchBookings,
   createBooking,
   fetchBooking,
-  patchBooking,
-  deleteBooking,
+  fetchBookingsByStaff,
+  cancelBooking,
+  fetchStaffBookings,
   fetchCalendarDay,
   fetchCustomers,
   createCustomer,

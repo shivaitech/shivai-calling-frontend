@@ -1,9 +1,15 @@
 import { useEffect, useState } from "react";
 import { Bot, Check, Loader2, X } from "lucide-react";
 import ModalOverlay from "../../components/ModalOverlay";
+import appToast from "../../components/AppToast";
 import type { MarketplaceApp } from "../../marketplace/apps";
 import { agentAPI, type ApiAgent } from "../../services/agentAPI";
 import { readAgentSkillIds, assignSkillToAgent, unassignSkillFromAgent } from "../../marketplace/useAgentSkills";
+import {
+  assignAgentCrmConfig,
+  deleteAgentCrmConfig,
+  fetchAssignedAgentIds,
+} from "../../marketplace/useAgentCrmConfig";
 
 /**
  * Assign this installed app (skill) to one or more agents. The agent stays
@@ -25,9 +31,21 @@ interface AssignSkillModalProps {
   allowSkip?: boolean;
   /** Called whenever an agent is toggled, with the resulting assigned count. */
   onAssignmentChange?: (assignedCount: number) => void;
+  /** This app only ever allows ONE agent assigned at a time — picking a new
+   * one replaces whichever was assigned before, instead of toggling a set.
+   * Used by apps like Appointment CRM whose AI config is per-agent, not
+   * mergeable across several. */
+  singleSelect?: boolean;
 }
 
-const AssignSkillModal = ({ open, onClose, app, allowSkip = true, onAssignmentChange }: AssignSkillModalProps) => {
+const AssignSkillModal = ({
+  open,
+  onClose,
+  app,
+  allowSkip = true,
+  onAssignmentChange,
+  singleSelect = false,
+}: AssignSkillModalProps) => {
   const [agents, setAgents] = useState<ApiAgent[]>([]);
   const [loading, setLoading] = useState(false);
   const [assignedIds, setAssignedIds] = useState<Set<string>>(new Set());
@@ -35,20 +53,64 @@ const AssignSkillModal = ({ open, onClose, app, allowSkip = true, onAssignmentCh
   useEffect(() => {
     if (!open) return;
     setLoading(true);
-    agentAPI
-      .getAgents()
-      .then((list) => {
+    const loadAssigned = singleSelect
+      ? fetchAssignedAgentIds()
+      : agentAPI.getAgents().then((list) => list.filter((a) => readAgentSkillIds(a.id).includes(app.id)).map((a) => a.id));
+
+    Promise.all([agentAPI.getAgents(), loadAssigned])
+      .then(([list, assigned]) => {
         setAgents(list);
-        setAssignedIds(new Set(list.filter((a) => readAgentSkillIds(a.id).includes(app.id)).map((a) => a.id)));
+        if (singleSelect && assigned.length > 1) {
+          // More than one somehow assigned (shouldn't happen going forward,
+          // but self-heal if it does) — keep the first, drop the rest.
+          const [keep, ...extra] = assigned;
+          extra.forEach((id) => void deleteAgentCrmConfig(id, app.id).catch(() => {}));
+          setAssignedIds(new Set([keep]));
+        } else {
+          setAssignedIds(new Set(assigned));
+        }
       })
       .catch(() => {
         setAgents([]);
         setAssignedIds(new Set());
       })
       .finally(() => setLoading(false));
-  }, [open, app.id]);
+  }, [open, app.id, singleSelect]);
 
-  const toggle = (agentId: string) => {
+  const [pendingAgentId, setPendingAgentId] = useState<string | null>(null);
+
+  const toggleSingleSelect = async (agentId: string) => {
+    if (pendingAgentId) return;
+    setPendingAgentId(agentId);
+    try {
+      if (assignedIds.has(agentId)) {
+        await deleteAgentCrmConfig(agentId, app.id);
+        setAssignedIds(new Set());
+        onAssignmentChange?.(0);
+        return;
+      }
+      const previous = [...assignedIds].find((id) => id !== agentId);
+      if (previous) {
+        try {
+          await deleteAgentCrmConfig(previous, app.id);
+        } catch {
+          /* best-effort — the new assignment below is what actually matters */
+        }
+      }
+      // There is no separate "assign" endpoint — per the API spec, a saved
+      // /ai-config record with assigned:true IS the assignment, so this
+      // writes straight to the real backend (no localStorage involved).
+      await assignAgentCrmConfig(agentId, app.id);
+      setAssignedIds(new Set([agentId]));
+      onAssignmentChange?.(1);
+    } catch {
+      appToast.error("Could not assign this agent. Please try again.");
+    } finally {
+      setPendingAgentId(null);
+    }
+  };
+
+  const toggleMultiSelect = (agentId: string) => {
     setAssignedIds((prev) => {
       const next = new Set(prev);
       if (next.has(agentId)) {
@@ -63,6 +125,14 @@ const AssignSkillModal = ({ open, onClose, app, allowSkip = true, onAssignmentCh
     });
   };
 
+  const toggle = (agentId: string) => {
+    if (singleSelect) {
+      void toggleSingleSelect(agentId);
+      return;
+    }
+    toggleMultiSelect(agentId);
+  };
+
   return (
     <ModalOverlay open={open} onClose={allowSkip ? onClose : undefined} closeOnBackdrop={allowSkip} panelClassName="max-w-md">
       <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200/80 dark:border-slate-700 overflow-hidden max-h-[85vh] flex flex-col">
@@ -72,9 +142,13 @@ const AssignSkillModal = ({ open, onClose, app, allowSkip = true, onAssignmentCh
               <app.icon className="w-5 h-5 text-white" />
             </div>
             <div className="min-w-0">
-              <h3 className="text-base font-semibold text-slate-800 dark:text-white truncate">Assign to Agents</h3>
+              <h3 className="text-base font-semibold text-slate-800 dark:text-white truncate">
+                {singleSelect ? "Assign an agent" : "Assign to Agents"}
+              </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                Give an agent the {app.name} skill
+                {singleSelect
+                  ? `Pick one agent for the ${app.name} skill — picking another replaces it`
+                  : `Give an agent the ${app.name} skill`}
               </p>
             </div>
           </div>

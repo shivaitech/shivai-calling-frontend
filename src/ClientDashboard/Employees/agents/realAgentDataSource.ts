@@ -213,7 +213,7 @@ async function previewVoice(
   const accessToken = authTokens ? JSON.parse(authTokens)?.accessToken : null;
 
   const response = await fetch(
-    "https://nodejs.service.callshivai.com/api/v1/voice/generate",
+    `${import.meta.env.VITE_API_BASE_URL}/voice/generate`,
     {
       method: "POST",
       headers: {

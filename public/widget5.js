@@ -124,6 +124,20 @@
       if (_parsed) bootScriptParams = _parsed.searchParams;
     }
   } catch (e) {}
+  // widget5.js is internal-only (dashboard "Test" preview + widget
+  // customization preview, never shown to real customers — see
+  // widgetConfig.ts), so unlike widget4.js it's safe to follow the
+  // dashboard's own environment. The customization preview renders this in a
+  // sandboxed srcdoc iframe where location.hostname is unreliable (it's the
+  // opaque "about:srcdoc" host, not the dashboard's real one), so the
+  // injecting page passes env=staging explicitly via the script src instead.
+  const _env = (bootScriptParams && bootScriptParams.get("env")) || "";
+  const API_BASE = _env === "staging"
+    ? "https://staging.nodejs.callshivai.com/api/v1"
+    : "https://nodejs.service.callshivai.com/api/v1";
+  const VOICE_BASE = _env === "staging"
+    ? "https://staging.voice.callshivai.com"
+    : "https://voice.callshivai.com";
   let aiResponseTimeout = null;
   let retryCount = 0;
   const MAX_RETRIES = 0; // No retries - terminate immediately on error
@@ -947,7 +961,7 @@
       
       _wlog('🔍 Checking agent status for ID:', agentId);
       const response = await fetchWithTimeout(
-        `https://nodejs.service.callshivai.com/api/v1/agent-configs/${agentId}?_=${Date.now()}`
+        `${API_BASE}/agent-configs/${agentId}?_=${Date.now()}`
       );
       
       if (response.ok) {
@@ -6854,7 +6868,7 @@
       languageSelect.disabled = false;
     }
     if (window.currentCallId) {
-      fetch("https://nodejs.service.callshivai.com/api/v1/calls/end-call", {
+      fetch(`${API_BASE}/calls/end-call`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ callId: window.currentCallId }),
@@ -8290,7 +8304,7 @@
       }
 
       const response = await fetchWithTimeout(
-        "https://staging.voice.callshivai.com/widget-token",
+        `${VOICE_BASE}/widget-token`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

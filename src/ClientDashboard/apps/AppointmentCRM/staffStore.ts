@@ -105,8 +105,14 @@ export async function updateStaffMember(id: string, patch: Partial<StaffMember>)
 }
 
 export async function removeStaffMember(id: string): Promise<void> {
-  await appointmentCrmAPI.deleteStaff(id);
+  // Delete the schedule FIRST: if that fails and we stop here, the branch
+  // staff record is still there to retry against. Deleting staff first (the
+  // old order) risked the opposite — the branch record gone but an orphaned
+  // schedule left behind if the schedule delete then failed, which is
+  // invisible to the Calendar (no staff record) yet still occupies the
+  // staff_id on the Schedule API.
   await removeAvailabilityForStaff(id);
+  await appointmentCrmAPI.deleteStaff(id);
   persistStaff(readStaff().filter((s) => s.id !== id));
 }
 

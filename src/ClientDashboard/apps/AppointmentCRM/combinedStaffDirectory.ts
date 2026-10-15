@@ -24,6 +24,11 @@ import { useDepartments } from "./departmentsStore";
 export interface CombinedStaffRow {
   /** Prefixed so branch-staff and global-staff ids never collide in the assignment map. */
   id: string;
+  /** The real, unprefixed id from whichever system this row came from — the
+   * branch StaffMember's own id, or the tenant-wide staff member's user id.
+   * This is what other APIs keyed on that real id (e.g. the Schedule API)
+   * must be called with — never the prefixed `id` above. */
+  rawId: string;
   source: "branch" | "tenant";
   name: string;
   designation: string; // role/title shown to the user
@@ -80,6 +85,7 @@ export function useCombinedStaffDirectory() {
       .filter((s) => s.active)
       .map((s: BranchStaffMember): CombinedStaffRow => ({
         id: branchStaffRowId(s.id),
+        rawId: s.id,
         source: "branch",
         name: staffDisplayName(s),
         designation: s.specialization ? `${s.role} · ${s.specialization}` : s.role,
@@ -93,6 +99,7 @@ export function useCombinedStaffDirectory() {
         const a = assignments.assignmentFor(s.id);
         return {
           id: tenantStaffRowId(s.id),
+          rawId: s.id,
           source: "tenant",
           name: s.name,
           designation: globalDesigName(a.designationId) ?? s.roleName ?? "Staff",

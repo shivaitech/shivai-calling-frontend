@@ -1,8 +1,15 @@
 import { useEffect, useState } from "react";
-import { getOfflineBlockAtMinute, removeOfflineBlocksForStaff } from "./offlineBlocksStore";
+import { getOfflineBlockAtMinute, removeOfflineBlocksForStaff, setOfflineBlocksQuiet } from "./offlineBlocksStore";
 import scheduleAPI from "./api/scheduleAPI";
 import { ScheduleApiError } from "./api/scheduleClient";
-import { leaveToApiBody, mapScheduleLeave, mapWeeklyFromApi, mapWeeklyToApi } from "./api/scheduleMappers";
+import type { ApiSchedule } from "./api/scheduleTypes";
+import {
+  leaveToApiBody,
+  mapScheduleLeave,
+  mapScheduleToAvailabilityAndLeaves,
+  mapWeeklyFromApi,
+  mapWeeklyToApi,
+} from "./api/scheduleMappers";
 
 export type Weekday = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
 
@@ -38,7 +45,7 @@ export interface StaffLeave {
 
 export type CalendarCellState = "leave" | "unavailable" | "available" | "booking" | "offline" | "break";
 
-const SCHEDULE_EVENT = "shivai:appointment-schedule-changed";
+export const SCHEDULE_EVENT = "shivai:appointment-schedule-changed";
 
 // Availability/leaves always come from the Schedule API — these are
 // in-memory caches of the last fetch/mutation response, never persisted to
@@ -194,6 +201,17 @@ export function writeLeavesList(list: StaffLeave[], opts?: { merge?: boolean }):
   persistLeaves(list);
 }
 
+/** Replaces the cache without dispatching SCHEDULE_EVENT — for callers that
+ * are themselves reacting to that event (e.g. useIntegratedSchedules
+ * deriving availability/leaves from the same GET /schedules response), where
+ * dispatching again would cause an infinite refetch loop. */
+export function setAvailabilityListQuiet(list: StaffAvailability[]): void {
+  memoryAvailability = list;
+}
+export function setLeavesListQuiet(list: StaffLeave[]): void {
+  memoryLeaves = list;
+}
+
 export function getAvailabilityForStaff(staffId: string): StaffAvailability {
   const found = readAvailability().find((a) => a.staffId === staffId);
   if (found) {
@@ -248,6 +266,111 @@ export function fetchScheduleFor(staffId: string): Promise<void> {
   return promise;
 }
 
+/** Every live schedule the caller can see — the Schedule API's own GET
+ * /schedules list, paginated at up to 100 per page, each with its staff
+ * summary attached. This is the backend's single source of truth for who is
+ * "integrated": the Calendar builds its staff list directly from this
+ * rather than cross-referencing a separate branch StaffMember record, so a
+ * schedule can never be orphaned-looking (visible here, invisible there) or
+ * vice versa. */
+export async function fetchIntegratedSchedules(): Promise<ApiSchedule[]> {
+  const all: ApiSchedule[] = [];
+  let page = 1;
+  const limit = 100;
+  for (;;) {
+    const schedules = await scheduleAPI.listSchedules({ page, limit });
+    all.push(...schedules);
+    if (schedules.length < limit) break;
+    page += 1;
+  }
+  return all;
+}
+
+/** Every staff id that has a real, live schedule — a thin projection of
+ * fetchIntegratedSchedules() for callers that only need membership, not the
+ * full records (e.g. the Integrate Staff picker's "already added" check). */
+export async function fetchIntegratedStaffIds(): Promise<Set<string>> {
+  const schedules = await fetchIntegratedSchedules();
+  return new Set(schedules.map((s) => s.staff_id));
+}
+
+export function useIntegratedStaffIds(): { staffIds: Set<string>; loading: boolean } {
+  const [staffIds, setStaffIds] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const sync = () => {
+      setLoading(true);
+      fetchIntegratedStaffIds()
+        .then((ids) => {
+          if (!cancelled) setStaffIds(ids);
+        })
+        .catch(() => {
+          if (!cancelled) setStaffIds(new Set());
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    };
+    sync();
+    window.addEventListener(SCHEDULE_EVENT, sync);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(SCHEDULE_EVENT, sync);
+    };
+  }, []);
+
+  return { staffIds, loading };
+}
+
+/** The Calendar's real source of truth for who to show — full schedule
+ * records (with staff summaries) rather than just ids, re-fetched whenever
+ * any schedule mutation fires SCHEDULE_EVENT.
+ *
+ * Each fetch already carries every staff member's weekly_availability,
+ * leaves and break blocks in one shot, so it also derives and quiet-caches
+ * StaffAvailability/StaffLeave/StaffOfflineBlock from it — the only other
+ * way those caches get populated is one-staff-at-a-time when their schedule
+ * panel happens to be opened, which left the main Calendar grid's "on
+ * leave"/non-working-day/break shading blank for anyone whose panel hadn't
+ * been opened yet this session. */
+export function useIntegratedSchedules(): { schedules: ApiSchedule[]; loading: boolean } {
+  const [schedules, setSchedules] = useState<ApiSchedule[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const sync = () => {
+      setLoading(true);
+      fetchIntegratedSchedules()
+        .then((list) => {
+          if (cancelled) return;
+          setSchedules(list);
+          const derived = list.map((s) => mapScheduleToAvailabilityAndLeaves(s));
+          setAvailabilityListQuiet(derived.map((d) => d.availability));
+          setLeavesListQuiet(derived.flatMap((d) => d.leaves));
+          setOfflineBlocksQuiet(derived.flatMap((d) => d.blocks));
+          list.forEach((s) => fetchedStaffIds.add(s.staff_id));
+        })
+        .catch(() => {
+          if (!cancelled) setSchedules([]);
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    };
+    sync();
+    window.addEventListener(SCHEDULE_EVENT, sync);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(SCHEDULE_EVENT, sync);
+    };
+  }, []);
+
+  return { schedules, loading };
+}
+
 export async function saveStaffAvailability(
   staffId: string,
   weekly: DaySlot[],
@@ -282,7 +405,21 @@ export function saveStaffDailyBreak(staffId: string, dailyBreak: DailyBreak): vo
  * has none yet — a real API write, not a local-only placeholder. */
 export async function ensureStaffAvailability(staffId: string): Promise<void> {
   if (readAvailability().some((a) => a.staffId === staffId)) return;
-  await saveStaffAvailability(staffId, defaultWeeklySchedule(), defaultDailyBreak());
+  // This staff member is brand new — create their schedule directly (POST)
+  // rather than probing with PUT first (which always 404s with nothing to
+  // update yet, generating a noisy failed request for no reason).
+  const weekly = defaultWeeklySchedule();
+  const dailyBreak = defaultDailyBreak();
+  const weekly_availability = mapWeeklyToApi(weekly, dailyBreak);
+  try {
+    await scheduleAPI.createSchedule({ staff_id: staffId, weekly_availability });
+  } catch (err) {
+    // A schedule already exists (409) — fine, nothing to do.
+    if (!(err instanceof ScheduleApiError) || err.statusCode !== 409) throw err;
+  }
+  const list = readAvailability().filter((a) => a.staffId !== staffId);
+  persistAvailability([...list, { staffId, weekly, dailyBreak }]);
+  fetchedStaffIds.add(staffId);
 }
 
 /** Deletes the staff member's Schedule API document (hours, breaks, leaves,

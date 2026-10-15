@@ -266,6 +266,7 @@ const AppDetail = () => {
         open={assignModalOpen}
         onClose={() => setAssignModalOpen(false)}
         app={app}
+        singleSelect={app.id === "appointment-crm"}
       />
     </div>
   );

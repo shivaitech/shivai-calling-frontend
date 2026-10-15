@@ -10,7 +10,7 @@ import {
 import { isAppointmentCrmApiConfigured } from "./api/client";
 import appointmentCrmAPI from "./api/index";
 import { hydrateFromBootstrap, hydrateStaffBookingsSchedule } from "./api/hydrate";
-import { apiId, mapBooking, mapStaff } from "./api/mappers";
+import { apiId, mapStaff } from "./api/mappers";
 import type { ApiAnalyticsOverview, ApiBootstrap } from "./api/types";
 import { writeSetup } from "./setupStore";
 import { readBranches } from "./branchesStore";
@@ -49,15 +49,17 @@ async function loadOrgData(bootstrap: ApiBootstrap) {
   hydrateFromBootstrap(bootstrap);
   const branchId =
     bootstrap.preferences?.activeBranchId ?? apiId(bootstrap.branches[0] ?? {});
-  const [staffRaw, bookingsRaw, analytics] = await Promise.all([
+  const [staffRaw, analytics] = await Promise.all([
     appointmentCrmAPI.fetchStaff(branchId ? { branchId, active: true } : { active: true }),
-    appointmentCrmAPI.fetchBookings(branchId ? { branchId } : undefined),
     appointmentCrmAPI.fetchAnalyticsOverview(branchId).catch(() => null),
   ]);
   const branches = readBranches();
+  // Bookings are no longer fetched branch-wide at bootstrap — the Calendar
+  // pulls them per-staff/per-date itself via POST /appointments/staff-bookings
+  // (see fetchStaffBookingsForCalendar in bookingsStore.ts).
   await hydrateStaffBookingsSchedule({
     staff: staffRaw.map((s, i) => mapStaff(s, i)),
-    bookings: bookingsRaw,
+    bookings: [],
     branches,
   });
   return analytics;
@@ -106,12 +108,10 @@ export function AppointmentCRMProvider({ children }: { children: ReactNode }) {
     if (!apiReady || !bootstrap?.setup.setupComplete) return;
     const day = await appointmentCrmAPI.fetchCalendarDay({ branchId, date });
     const branches = readBranches();
-    const branchName = branches.find((b) => b.id === branchId)?.name ?? "";
     const staff = (day.staff ?? []).map((s, i) => mapStaff(s, i));
-    const bookings = (day.bookings ?? []).map((b) => mapBooking(b, { branchName }));
     await hydrateStaffBookingsSchedule({
       staff,
-      bookings,
+      bookings: day.bookings ?? [],
       branches,
       availabilities: day.availabilities,
       leaves: day.leaves,

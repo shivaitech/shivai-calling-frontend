@@ -1,4 +1,4 @@
-import type { Booking, BookingChannel, BookingStatus } from "../mockData";
+import type { Booking } from "../mockData";
 import type { Branch } from "../branchesStore";
 import type { Department } from "../departmentsStore";
 import type { StaffMember } from "../staffStore";
@@ -23,6 +23,7 @@ import type {
   ApiTemplateId,
 } from "./types";
 import { toIsoDate } from "../availabilityStore";
+import { parseTimeToMinutes } from "../calendarUtils";
 
 const HUES = [220, 280, 160, 40, 310, 180, 100, 250];
 const DAY_INDEX_TO_WEEKDAY: Weekday[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
@@ -55,7 +56,7 @@ export function templateIdFromIndustry(industryId: string): ApiTemplateId {
   return "generic";
 }
 
-function hueFromSeed(seed: string, fallback = 0): number {
+export function hueFromSeed(seed: string, fallback = 0): number {
   let hash = 0;
   for (let i = 0; i < seed.length; i += 1) hash = (hash * 31 + seed.charCodeAt(i)) | 0;
   return HUES[Math.abs(hash) % HUES.length] ?? fallback;
@@ -178,30 +179,37 @@ export function mapBooking(
   ctx?: { branchName?: string; departmentName?: string; provider?: string },
 ): Booking {
   const id = apiId(b);
+  const durationMin = b.end_time
+    ? Math.max(parseTimeToMinutes(b.end_time) - parseTimeToMinutes(b.time), 5)
+    : 30;
   return {
     id,
-    customer: b.customer,
+    customer: b.name,
     phone: b.phone ?? "",
-    email: b.email,
-    service: b.serviceLabel ?? "General",
-    appointmentType: b.serviceLabel ?? "Consultation",
-    provider: b.staffLabel ?? ctx?.provider ?? "Unassigned",
+    service: b.designation ?? "General",
+    appointmentType: b.designation ?? "Consultation",
+    provider: ctx?.provider ?? "Unassigned",
     branchId: b.branchId ?? "",
     branchName: ctx?.branchName ?? "",
     departmentId: undefined,
-    departmentName: ctx?.departmentName,
-    staffId: b.staffId,
+    departmentName: b.department ?? ctx?.departmentName,
+    staffId: b.staff,
     date: formatBookingDateForUi(b.date),
     time: b.time.includes("M") ? b.time : formatTime24To12(b.time),
-    durationMin: b.durationMin ?? 30,
-    status: b.status as BookingStatus,
-    channel: (b.channel ?? "web") as BookingChannel,
-    notes: b.notes,
-    reminderSent: b.status !== "pending",
+    durationMin,
+    status: b.status,
+    notes: b.note,
   };
 }
 
-export function bookingToApiBody(b: Partial<Booking> & { dateIso?: string }) {
+export function bookingToApiBody(
+  b: Partial<Booking> & {
+    dateIso?: string;
+    endTime?: string;
+    department?: string;
+    designation?: string;
+  },
+) {
   const date =
     b.dateIso ??
     (b.date === "Today"
@@ -209,20 +217,17 @@ export function bookingToApiBody(b: Partial<Booking> & { dateIso?: string }) {
       : b.date && !["Today", "Tomorrow", "Yesterday"].includes(b.date)
         ? b.date
         : toIsoDate(new Date()));
+  const time = b.time?.includes("M") ? formatTime12To24(b.time) : b.time;
   return {
-    branchId: b.branchId,
-    staffId: b.staffId,
-    staffLabel: b.provider,
-    customer: b.customer,
+    name: b.customer,
     phone: b.phone,
-    email: b.email,
-    serviceLabel: b.service ?? b.appointmentType,
+    department: b.department,
+    designation: b.designation,
+    staff: b.staffId,
     date,
-    time: b.time?.includes("M") ? formatTime12To24(b.time) : b.time,
-    durationMin: b.durationMin,
-    status: b.status,
-    channel: b.channel,
-    notes: b.notes,
+    time,
+    end_time: b.endTime,
+    note: b.notes,
   };
 }
 

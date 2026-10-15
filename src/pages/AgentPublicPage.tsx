@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { Orb, oceanDepthsPreset } from "react-ai-orb";
 import bgNew from "../resources/AiImages/bg22.webp";
 import { isKunalPrakashClient, isNagarNigamMoradabadClient, isGrowithNovaClient } from "../lib/utils";
+import { isStagingEnv } from "../lib/widgetConfig";
 import AgentPublicPageNLP from "./AgentPublicPageNLP";
 import NagarNigamMoradabad from "./agentTestPages/NagarNigamMoradabad";
 import GrowthLive from "./agentTestPages/GrowthLive";
@@ -99,7 +100,7 @@ export default function AgentPublicPage() {
     setAgentInfoLoaded(false);
     (async () => {
       try {
-        const res = await fetch(`https://nodejs.service.callshivai.com/api/v1/agent-configs/${agentId}`);
+        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/agent-configs/${agentId}`);
         if (res.ok) {
           const data = await res.json();
           if (agentFetchRef.current === agentId) setAgentInfo(data?.data?.agent || data);
@@ -125,6 +126,7 @@ export default function AgentPublicPage() {
     if (isGrowithNovaClient(agentInfo?.name, agentInfo?.company_name)) {
       params.set("novaPage", "1");
     }
+    if (isStagingEnv()) params.set("env", "staging");
     params.set("v", Date.now().toString());
 
     const script = document.createElement("script");

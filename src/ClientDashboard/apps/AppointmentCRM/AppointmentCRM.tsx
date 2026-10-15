@@ -54,9 +54,6 @@ const AppointmentCRMContent: React.FC<Props> = ({ section = "calendar" }) => {
   // AppointmentCRMProvider never renders children until a real bootstrap has
   // loaded, so `bootstrap` is always present here.
   const [setupOpen, setSetupOpen] = useState(false);
-  // Deep-link from Overview's "open agent" shortcut — jumps to Agents and
-  // pre-selects that agent's tab. Agents itself manages tab selection after.
-  const [pendingAgentId, setPendingAgentId] = useState<string | null>(null);
   const { activeBranch } = useActiveBranch();
   const { bootstrap } = useAppointmentCRM();
 
@@ -68,19 +65,6 @@ const AppointmentCRMContent: React.FC<Props> = ({ section = "calendar" }) => {
   // Skip only hides the modal for this render — setup is still marked
   // incomplete, so it reappears on the next refresh/visit until finished.
   const handleSetupSkip = () => setSetupOpen(false);
-
-  const openAgent = (agentId: string) => setPendingAgentId(agentId);
-
-  // Overview's "open agent" shortcut jumps straight to the Agents tabs view
-  // regardless of the sidebar's current section, pre-selecting that agent.
-  if (pendingAgentId && section !== "agents") {
-    return (
-      <>
-        <SetupModal open={setupOpen} onComplete={handleSetupComplete} onSkip={handleSetupSkip} />
-        <ImportedAgentsView initialAgentId={pendingAgentId} onInitialHandled={() => setPendingAgentId(null)} />
-      </>
-    );
-  }
 
   let content: React.ReactNode;
   switch (section) {
@@ -100,7 +84,7 @@ const AppointmentCRMContent: React.FC<Props> = ({ section = "calendar" }) => {
       content = <CustomersView />;
       break;
     case "agents":
-      content = <ImportedAgentsView initialAgentId={pendingAgentId} onInitialHandled={() => setPendingAgentId(null)} />;
+      content = <ImportedAgentsView />;
       break;
     case "reminders":
       content = <RemindersView />;
@@ -109,10 +93,11 @@ const AppointmentCRMContent: React.FC<Props> = ({ section = "calendar" }) => {
       content = <SettingsView onRerunSetup={() => setSetupOpen(true)} />;
       break;
     default:
-      content = <OverviewView onOpenAgent={openAgent} />;
+      content = <OverviewView />;
   }
 
-  const showBranchBar = section !== "overview" && section !== "settings" && activeBranch;
+  // Calendar renders its own branch pill inside its header panel now.
+  const showBranchBar = section !== "overview" && section !== "settings" && section !== "calendar" && activeBranch;
 
   return (
     <>

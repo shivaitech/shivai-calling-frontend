@@ -1,7 +1,10 @@
 import type { AgentWorkflowChip } from "./AgentCardWorkflows";
 import type { AgentDocumentFile } from "../../../services/workflowAPI";
 import { readAgentSkillIds } from "../../../marketplace/useAgentSkills";
+import { fetchAssignedAgentIds } from "../../../marketplace/useAgentCrmConfig";
 import { getVisibleAppById } from "../../../marketplace/apps";
+
+const APPOINTMENT_CRM_APP_ID = "appointment-crm";
 
 type IntegrationRecord = Record<string, unknown>;
 
@@ -42,11 +45,13 @@ function rosterName(integration: IntegrationRecord): string {
 /**
  * Skill chips — installed marketplace apps assigned to this agent (see
  * useAgentSkills.ts). Read synchronously from local storage since there's no
- * backend for this yet; folded into the same chip list the workflow/document
- * chips already use so the agent list gets skill visibility for free.
+ * backend for this yet, EXCEPT Appointment CRM, whose membership
+ * (`crmAssignedAgentIds`) comes from the real /ai-config backend and is
+ * fetched once per batch by the caller rather than per agent.
  */
-function buildSkillChips(agentId: string, userEmail?: string): AgentWorkflowChip[] {
-  const skillIds = readAgentSkillIds(agentId);
+function buildSkillChips(agentId: string, crmAssignedAgentIds: Set<string>, userEmail?: string): AgentWorkflowChip[] {
+  const localSkillIds = readAgentSkillIds(agentId).filter((id) => id !== APPOINTMENT_CRM_APP_ID);
+  const skillIds = crmAssignedAgentIds.has(agentId) ? [...localSkillIds, APPOINTMENT_CRM_APP_ID] : localSkillIds;
   const chips: AgentWorkflowChip[] = [];
   for (const appId of skillIds) {
     const app = getVisibleAppById(appId, userEmail);
@@ -64,10 +69,11 @@ function buildSkillChips(agentId: string, userEmail?: string): AgentWorkflowChip
 export function buildAgentWorkflowChips(
   agentId: string,
   integrations: IntegrationRecord[],
+  crmAssignedAgentIds: Set<string>,
   documentFiles: AgentDocumentFile[] = [],
   userEmail?: string,
 ): AgentWorkflowChip[] {
-  const chips: AgentWorkflowChip[] = [...buildSkillChips(agentId, userEmail)];
+  const chips: AgentWorkflowChip[] = [...buildSkillChips(agentId, crmAssignedAgentIds, userEmail)];
   const seen = new Set<string>();
 
   const agentIntegrations = integrations.filter((i) => integrationAgentId(i) === agentId);
@@ -138,7 +144,11 @@ export async function loadWorkflowChipsForAgents(
 ): Promise<Record<string, AgentWorkflowChip[]>> {
   if (!agentIds.length) return {};
 
-  const integrations = await fetchIntegrations().catch(() => [] as IntegrationRecord[]);
+  const [integrations, crmAssignedIds] = await Promise.all([
+    fetchIntegrations().catch(() => [] as IntegrationRecord[]),
+    fetchAssignedAgentIds().catch(() => [] as string[]),
+  ]);
+  const crmAssignedAgentIds = new Set(crmAssignedIds);
   const docEntries = await Promise.all(
     agentIds.map(async (id) => {
       const files = await fetchAgentDocuments(id).catch(() => [] as AgentDocumentFile[]);
@@ -148,7 +158,7 @@ export async function loadWorkflowChipsForAgents(
 
   const result: Record<string, AgentWorkflowChip[]> = {};
   for (const [agentId, files] of docEntries) {
-    result[agentId] = buildAgentWorkflowChips(agentId, integrations, files, userEmail);
+    result[agentId] = buildAgentWorkflowChips(agentId, integrations, crmAssignedAgentIds, files, userEmail);
   }
   return result;
 }

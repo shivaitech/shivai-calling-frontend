@@ -11,6 +11,7 @@ import {
 } from "../marketplace/apps";
 import { useInstalledApps } from "../marketplace/useInstalledApps";
 import { useHasAnyAgentAssignedSkill } from "../marketplace/useAgentSkills";
+import { useHasAssignedAgentCrmConfig } from "../marketplace/useAgentCrmConfig";
 import { useAuth } from "../contexts/AuthContext";
 import AssignSkillModal from "../ClientDashboard/Marketplace/AssignSkillModal";
 
@@ -70,7 +71,13 @@ const AppWorkspace: React.FC = () => {
   // Persistent nag: as long as NO agent has this app's skill assigned, block
   // the workspace with the assign-agent modal on every visit. Called
   // unconditionally (before the guards below) to satisfy the rules of hooks.
-  const hasAgentAssigned = useHasAnyAgentAssignedSkill(app?.id ?? "");
+  // Appointment CRM checks the real backend (GET /ai-config); every other
+  // app still checks the localStorage skill flag, since they have no backend
+  // for this yet.
+  const isAppointmentCrm = app?.id === "appointment-crm";
+  const localSkillAssigned = useHasAnyAgentAssignedSkill(isAppointmentCrm ? "" : (app?.id ?? ""));
+  const { assigned: apiAgentAssigned, loading: apiAssignedLoading } = useHasAssignedAgentCrmConfig();
+  const hasAgentAssigned = isAppointmentCrm ? apiAgentAssigned || apiAssignedLoading : localSkillAssigned;
   const [nagDismissedThisVisit, setNagDismissedThisVisit] = useState(false);
 
   useEffect(() => {
@@ -177,6 +184,7 @@ const AppWorkspace: React.FC = () => {
           onClose={() => setNagDismissedThisVisit(true)}
           app={app}
           allowSkip
+          singleSelect={app.id === "appointment-crm"}
         />
       )}
     </div>

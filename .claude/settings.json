@@ -78,7 +78,9 @@
       "Bash(tee /tmp/tsc_fix2.txt)",
       "Bash(tee /tmp/tsc_password.txt)",
       "Bash(git stash *)",
-      "Bash(tee /tmp/tsc_viewas.txt)"
+      "Bash(tee /tmp/tsc_viewas.txt)",
+      "mcp__claude-in-chrome__tabs_context_mcp",
+      "ClaudeInChromeDomain(localhost:5173)"
     ]
   }
 }
