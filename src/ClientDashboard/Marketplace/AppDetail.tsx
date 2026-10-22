@@ -76,7 +76,7 @@ const AppDetail = () => {
       install(app.id);
       setInstalling(false);
       setJustInstalled(true);
-      setAssignModalOpen(true);
+      if (app.promptAssignOnInstall !== false) setAssignModalOpen(true);
       setTimeout(() => setJustInstalled(false), 1800);
     }, 600);
   };

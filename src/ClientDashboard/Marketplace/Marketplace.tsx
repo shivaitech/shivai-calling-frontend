@@ -63,7 +63,7 @@ const Marketplace = () => {
       openAppWorkspace(app.id, undefined, navigate);
     } else {
       install(app.id);
-      setAssignApp(app);
+      if (app.promptAssignOnInstall !== false) setAssignApp(app);
     }
   };
 

@@ -29,6 +29,9 @@ const appComponents: Record<string, React.LazyExoticComponent<React.ComponentTyp
   "appointment-crm": lazy(
     () => import("../ClientDashboard/apps/AppointmentCRM/AppointmentCRM")
   ),
+  "digital-card": lazy(
+    () => import("../ClientDashboard/apps/DigitalCard/DigitalCard")
+  ),
 };
 
 // Apps that render ALL their own sections (including "settings") internally.
@@ -77,7 +80,9 @@ const AppWorkspace: React.FC = () => {
   const isAppointmentCrm = app?.id === "appointment-crm";
   const localSkillAssigned = useHasAnyAgentAssignedSkill(isAppointmentCrm ? "" : (app?.id ?? ""));
   const { assigned: apiAgentAssigned, loading: apiAssignedLoading } = useHasAssignedAgentCrmConfig();
-  const hasAgentAssigned = isAppointmentCrm ? apiAgentAssigned || apiAssignedLoading : localSkillAssigned;
+  // Digital Card is a standalone tool — it needs no AI agent, so never nag.
+  const needsNoAgent = app?.id === "digital-card";
+  const hasAgentAssigned = needsNoAgent || (isAppointmentCrm ? apiAgentAssigned || apiAssignedLoading : localSkillAssigned);
   const [nagDismissedThisVisit, setNagDismissedThisVisit] = useState(false);
 
   useEffect(() => {
