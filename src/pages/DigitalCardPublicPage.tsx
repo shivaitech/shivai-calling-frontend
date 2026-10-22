@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import CardView from "../ClientDashboard/apps/DigitalCard/CardView";
-import { BusinessCardError, businessCardAPI, PublicBusinessCard } from "../services/businessCardAPI";
+import { BusinessCardError, businessCardAPI, PublicBusinessCard, publicCardUrl } from "../services/businessCardAPI";
 import "../ClientDashboard/apps/DigitalCard/digitalCard.css";
 
 type State =
@@ -57,7 +57,7 @@ export default function DigitalCardPublicPage() {
       )}
       {state.kind === "ok" && (
         <div style={{ paddingBottom: 36 }}>
-          <CardView card={state.card} />
+          <CardView card={state.card} wide shareUrl={publicCardUrl(state.card.slug)} />
           <Link className="make" to="/landing">Create your own digital card →</Link>
         </div>
       )}

@@ -1,6 +1,8 @@
 import { CSSProperties, useState } from "react";
+import QRCode from "react-qr-code";
+import { Facebook, Globe, Instagram, Linkedin, LucideIcon, Twitter, Youtube } from "lucide-react";
 import { downloadVCard, fullPhone } from "./vcard";
-import { CardData, SOCIAL_TYPES } from "./types";
+import { CardData, SOCIAL_TYPES, SocialType } from "./types";
 import { PUBLIC_APP_URL } from "../../../services/businessCardAPI";
 
 const host = (u: string) => u.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
@@ -13,6 +15,25 @@ export function socialUrl(s: Social): string {
   if (s.url.trim()) return href(s.url.trim());
   const base = SOCIAL_TYPES.find((t) => t.value === s.type)?.base ?? "";
   return s.username.trim() && base ? base + s.username.trim().replace(/^@/, "") : "";
+}
+
+/** Brand icon + colour per social type (shown as a tinted tile). */
+const SOCIAL_ICON: Record<SocialType, { Icon: LucideIcon; color: string }> = {
+  linkedin: { Icon: Linkedin, color: "#0a66c2" },
+  instagram: { Icon: Instagram, color: "#e4405f" },
+  twitter: { Icon: Twitter, color: "#111111" },
+  facebook: { Icon: Facebook, color: "#1877f2" },
+  youtube: { Icon: Youtube, color: "#ff0000" },
+  website: { Icon: Globe, color: "#475569" },
+};
+
+function LinkIcon({ type }: { type: SocialType }) {
+  const { Icon, color } = SOCIAL_ICON[type];
+  return (
+    <span className="link-ico" style={{ color, background: `${color}14` }} aria-hidden="true">
+      <Icon size={18} strokeWidth={2} />
+    </span>
+  );
 }
 
 const socialLabel = (s: Social) => SOCIAL_TYPES.find((t) => t.value === s.type)?.label ?? s.type;
@@ -33,7 +54,9 @@ function accentVars(hex: string): CSSProperties {
   } as CSSProperties;
 }
 
-export default function CardView({ card: c }: { card: CardData }) {
+/** `wide` enables the two-column desktop layout (public page only — the editor
+ *  preview stays a phone-width card). `shareUrl` adds a "scan to open on your phone" QR. */
+export default function CardView({ card: c, wide = false, shareUrl }: { card: CardData; wide?: boolean; shareUrl?: string }) {
   const [imgBroken, setImgBroken] = useState(false);
   const tel = fullPhone(c);
   const waNumber = tel.replace(/\D/g, "");
@@ -43,14 +66,17 @@ export default function CardView({ card: c }: { card: CardData }) {
   const ventures = c.ventures.filter((v) => v.name.trim());
   const initials = c.full_name.split(/\s+/).map((s) => s[0]).join("").slice(0, 2).toUpperCase();
   const showPhoto = c.image_url && !imgBroken;
+  const hasRight = connect.length > 0 || !!c.website || ventures.length > 0;
 
   return (
-    <main className="card" style={accentVars(c.color_code)}>
+    <main className={"card" + (wide ? " wide" : "")} style={accentVars(c.color_code)}>
       <div className="topline">
         <span className="wordmark">{c.full_name || "Your Name"}</span>
         <span className="toplabel">Digital Profile</span>
       </div>
 
+      <div className={"cols" + (!hasRight ? " solo" : "")}>
+      <div className="col-l">
       <header className="hero">
         <div className="portrait-wrap">
           {showPhoto ? (
@@ -78,9 +104,22 @@ export default function CardView({ card: c }: { card: CardData }) {
           <a className="action" href={`https://wa.me/${waNumber}`} target="_blank" rel="noopener noreferrer">↗ WhatsApp</a>
         )}
         {c.email && <a className="action light" href={`mailto:${c.email}`}>✉ Email</a>}
-        {linkedin && <a className="action light" href={linkedin.url} target="_blank" rel="noopener noreferrer">in LinkedIn</a>}
+        {linkedin && <a className="action light" href={linkedin.url} target="_blank" rel="noopener noreferrer"><Linkedin size={15} /> LinkedIn</a>}
         <button className="action light" type="button" disabled={!c.full_name} onClick={() => downloadVCard(c, socialUrl)}>＋ Save Contact</button>
       </nav>
+
+      {wide && shareUrl && (
+        <div className="qr-desk">
+          <div className="qr-desk-box"><QRCode value={shareUrl} size={96} /></div>
+          <div>
+            <strong>Open on your phone</strong>
+            <span>Scan to save this card and contact details.</span>
+          </div>
+        </div>
+      )}
+      </div>
+
+      <div className="col-r">
 
       {(connect.length > 0 || c.website) && (
         <section className="section">
@@ -88,12 +127,12 @@ export default function CardView({ card: c }: { card: CardData }) {
           <div className="link-list">
             {c.website && (
               <a href={href(c.website)} target="_blank" rel="noopener noreferrer">
-                <span><span className="link-title">Website</span><span className="link-sub">{host(c.website)}</span></span><span className="arrow">↗</span>
+                <span className="link-main"><LinkIcon type="website" /><span><span className="link-title">Website</span><span className="link-sub">{host(c.website)}</span></span></span><span className="arrow">↗</span>
               </a>
             )}
             {connect.map(({ s, url }, i) => (
               <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                <span><span className="link-title">{socialLabel(s)}</span><span className="link-sub">{socialSub(s)}</span></span><span className="arrow">↗</span>
+                <span className="link-main"><LinkIcon type={s.type} /><span><span className="link-title">{socialLabel(s)}</span><span className="link-sub">{socialSub(s)}</span></span></span><span className="arrow">↗</span>
               </a>
             ))}
           </div>
@@ -114,6 +153,9 @@ export default function CardView({ card: c }: { card: CardData }) {
           ))}
         </section>
       )}
+
+      </div>
+      </div>
 
       <footer className="footer"><strong>{(c.full_name || "YOUR NAME").toUpperCase()}</strong><span>{c.company_name || "Digital card"}</span></footer>
     </main>
