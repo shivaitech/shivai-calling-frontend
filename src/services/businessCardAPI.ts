@@ -180,8 +180,10 @@ export const businessCardAPI = {
   },
 };
 
-/** Shared links always use the production domain (even when running locally).
+/** Shared links always use the production host (even when running locally).
+ *  Must be www: the apex callshivai.com does not serve the app — it only
+ *  redirects "/" to www and returns 404 for every other path.
  *  Override with VITE_PUBLIC_APP_URL for staging. */
-export const PUBLIC_APP_URL = (import.meta.env.VITE_PUBLIC_APP_URL || "https://callshivai.com").replace(/\/+$/, "");
+export const PUBLIC_APP_URL = (import.meta.env.VITE_PUBLIC_APP_URL || "https://www.callshivai.com").replace(/\/+$/, "");
 
 export const publicCardUrl = (slug: string) => `${PUBLIC_APP_URL}/card/${slug}`;
