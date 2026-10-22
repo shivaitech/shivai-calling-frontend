@@ -19,7 +19,7 @@ Unknown slugs and API errors also pass through (never breaks a link).
    `AWSLambdaBasicExecutionRole` plus a trust policy for `edgelambda.amazonaws.com`.
 2. **Publish a version** (Lambda@Edge needs a numbered version, not `$LATEST`).
 3. **CloudFront** → the distribution for `www.callshivai.com` → **Behaviors** →
-   create a behavior with path pattern `/card/*` (same origin as the default one,
+   create a behavior with path pattern `/card/*` (and a second one for `/digital-card`, the shareable app-invite link — same Lambda) (same origin as the default one,
    same cache settings) → **Function associations** → *Viewer request* →
    Lambda@Edge → the version ARN from step 2.
 4. Wait for the distribution to finish deploying.

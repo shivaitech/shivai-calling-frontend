@@ -41,6 +41,12 @@ const GoogleCallback: React.FC = () => {
           navigate(calendarReturn, { replace: true });
           return;
         }
+        const postAuthReturn = sessionStorage.getItem("post_auth_return");
+        if (postAuthReturn && postAuthReturn.startsWith("/")) {
+          sessionStorage.removeItem("post_auth_return");
+          navigate(postAuthReturn, { replace: true });
+          return;
+        }
         navigate(getHomeRoute(), { replace: true });
       } catch (error: any) {
         const errorMessage = error.message || 'Authentication failed';

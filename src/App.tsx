@@ -81,6 +81,7 @@ const DoctorCalendarPublicPage = lazy(() => import("./pages/DoctorCalendarPublic
 const DoctorCalendarPWALauncher = lazy(() => import("./pages/DoctorCalendarPWALauncher"));
 const StaffPortalPage = lazy(() => import("./pages/StaffPortalPage"));
 const DigitalCardPublicPage = lazy(() => import("./pages/DigitalCardPublicPage"));
+const DigitalCardInvitePage = lazy(() => import("./pages/DigitalCardInvitePage"));
 
 function LoadingFallback() {
   return (
@@ -107,6 +108,8 @@ function AppContent() {
   const isWebsitePreview = location.pathname.startsWith("/website-preview");
   // Shared digital business card — public, no auth, no chrome.
   const isDigitalCardPage = location.pathname.startsWith("/card/");
+  // Shareable entry for the Digital Card app — sign up / sign in, then the install page.
+  const isDigitalCardInvite = location.pathname === "/digital-card";
   // Standalone app workspace — auth-protected but rendered without dashboard chrome.
   const isAppWorkspace = location.pathname.startsWith("/app/");
   // Public marketing pages — SEO-indexable, no dashboard chrome, no auth required.
@@ -127,6 +130,7 @@ function AppContent() {
       isDoctorCalendarPage ||
       isWebsitePreview ||
       isDigitalCardPage ||
+      isDigitalCardInvite ||
       isAppWorkspace ||
       isMarketingPage ||
       isInviteAcceptPage
@@ -134,11 +138,11 @@ function AppContent() {
       return;
     }
     saveLastRoute(`${location.pathname}${location.search}`);
-  }, [location.pathname, location.search, isLandingPage, isAuthCallback, isResetPassword, isAgentPublicPage, isDoctorCalendarPage, isWebsitePreview, isDigitalCardPage, isAppWorkspace, isMarketingPage, isInviteAcceptPage]);
+  }, [location.pathname, location.search, isLandingPage, isAuthCallback, isResetPassword, isAgentPublicPage, isDoctorCalendarPage, isWebsitePreview, isDigitalCardPage, isDigitalCardInvite, isAppWorkspace, isMarketingPage, isInviteAcceptPage]);
 
   return (
     <div className="min-h-dvh">
-      {isLandingPage || isAuthCallback || isResetPassword || isAgentPublicPage || isDoctorCalendarPage || isWebsitePreview || isDigitalCardPage || isAppWorkspace || isMarketingPage || isInviteAcceptPage ? (
+      {isLandingPage || isAuthCallback || isResetPassword || isAgentPublicPage || isDoctorCalendarPage || isWebsitePreview || isDigitalCardPage || isDigitalCardInvite || isAppWorkspace || isMarketingPage || isInviteAcceptPage ? (
         <Suspense fallback={<LoadingFallback />}>
           <Routes>
             <Route
@@ -179,6 +183,7 @@ function AppContent() {
 
             {/* Public digital business card - no auth required */}
             <Route path="/card/:code" element={<DigitalCardPublicPage />} />
+            <Route path="/digital-card" element={<DigitalCardInvitePage />} />
 
             {/* Website preview - no auth required, opens in new tab */}
             <Route path="/website-preview" element={<WebsitePreview />} />

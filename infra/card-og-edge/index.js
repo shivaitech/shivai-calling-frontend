@@ -1,5 +1,5 @@
 /**
- * Lambda@Edge (viewer-request) — link previews for /card/:slug
+ * Lambda@Edge (viewer-request) — link previews for /card/:slug and /digital-card
  *
  * WhatsApp, Facebook, LinkedIn, Slack, Telegram, X… build link previews by
  * fetching the URL and reading <meta property="og:*"> tags. They do NOT run
@@ -53,6 +53,29 @@ function page(card, slug) {
 </head><body><a href="${esc(url)}">${esc(title)}</a></body></html>`;
 }
 
+/** Static preview for the shareable app link /digital-card. */
+function invitePage() {
+  const url = `${SITE}/digital-card`;
+  const title = "Create your free digital business card | ShivAI";
+  const description = "Build a professional profile in minutes. Share one link or QR code — people can call, WhatsApp, email and save your contact in one tap.";
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>${esc(title)}</title>
+<meta name="description" content="${esc(description)}">
+<link rel="canonical" href="${url}">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="ShivAI">
+<meta property="og:url" content="${url}">
+<meta property="og:title" content="${esc(title)}">
+<meta property="og:description" content="${esc(description)}">
+<meta property="og:image" content="${DEFAULT_IMAGE}">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="${esc(title)}">
+<meta name="twitter:description" content="${esc(description)}">
+<meta name="twitter:image" content="${DEFAULT_IMAGE}">
+</head><body><a href="${url}">${esc(title)}</a></body></html>`;
+}
+
 const respond = (status, body, cache) => ({
   status: String(status),
   statusDescription: status === 200 ? "OK" : "Not Found",
@@ -68,6 +91,8 @@ exports.handler = async (event) => {
 
   // Humans (and unknown agents) get the normal SPA.
   if (!BOT_RE.test(header(request, "user-agent"))) return request;
+
+  if (/^\/digital-card\/?$/i.test(request.uri)) return respond(200, invitePage(), "public, max-age=3600");
 
   const m = /^\/card\/([a-z0-9][a-z0-9-]{1,98}[a-z0-9])\/?$/i.exec(request.uri);
   if (!m) return request;
