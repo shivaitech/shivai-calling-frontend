@@ -57,7 +57,7 @@ export default function NagarNigamMoradabad() {
   useEffect(() => {
     if (!agentId || agentFetchRef.current === agentId) return;
     agentFetchRef.current = agentId;
-    fetch(`https://nodejs.service.callshivai.com/api/v1/agent-configs/${agentId}`)
+    fetch(`${import.meta.env.VITE_API_BASE_URL}/agent-configs/${agentId}`)
       .then((r) => r.ok ? r.json() : null)
       .then((data) => {
         if (data && agentFetchRef.current === agentId)

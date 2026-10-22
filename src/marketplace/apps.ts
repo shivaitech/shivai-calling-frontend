@@ -22,6 +22,7 @@ import {
   Calendar,
   Bell,
   UserCog,
+  Share2,
   LucideIcon,
 } from "lucide-react";
 
@@ -76,6 +77,11 @@ export interface MarketplaceApp {
   gradient: string;
   /** Short feature bullets for the detail page. */
   features: string[];
+  /**
+   * Set to false to skip the "assign to agents" prompt right after install.
+   * Agents can still be assigned later from the app detail page.
+   */
+  promptAssignOnInstall?: boolean;
   /** Optional badge, e.g. "New", "Popular". */
   badge?: string;
   /** Whether this app is free or part of a paid plan (display only for now). */
@@ -109,6 +115,34 @@ export const CATEGORIES: { id: AppCategory | "all"; label: string }[] = [
 ];
 
 export const APPS: MarketplaceApp[] = [
+  {
+    id: "digital-card",
+    name: "Digital Business Card",
+    tagline: "Create your business profile card and share it with one link or QR code.",
+    description:
+      "Build a polished, mobile-first business card in minutes — photo, role, call / WhatsApp / email buttons, social links and your ventures. Share it as a link or QR code; anyone can open it without an account, and one tap on Save Contact adds you to their phone's address book as a .vcf file. Free for every account.",
+    icon: Contact,
+    category: "Productivity",
+    status: "live",
+    route: "/app/digital-card",
+    promptAssignOnInstall: false,
+    defaultSection: "cards",
+    gradient: "from-slate-700 to-slate-500",
+    pricing: "Free",
+    badge: "New",
+    workspaceSections: [
+      { key: "cards", label: "My Cards", icon: Contact },
+      { key: "card", label: "Create / Edit", icon: UserCog },
+      { key: "share", label: "Share & QR", icon: Share2 },
+    ],
+    features: [
+      "Live mobile preview while you edit",
+      "Call, WhatsApp, Email & LinkedIn buttons",
+      "Save Contact — downloads a .vcf to the visitor's phone",
+      "Shareable public link + downloadable QR code",
+      "No login needed to view a card",
+    ],
+  },
   {
     id: "website-builder",
     name: "Website Builder",
@@ -343,7 +377,7 @@ export function isDemoAccount(userEmail?: string): boolean {
 /** Public catalog: every app is listed; only Google Sheets stays installable. */
 function applyPublicCatalog(apps: MarketplaceApp[]): MarketplaceApp[] {
   return apps.map((app) => {
-    if (app.id === "google-sheets") return app;
+    if (app.id === "google-sheets" || app.id === "digital-card") return app;
     if (app.status === "live") {
       return { ...app, status: "coming-soon" as AppStatus };
     }
@@ -377,7 +411,7 @@ export function getVisibleAppById(
  */
 export function canInstallApp(appId: string, userEmail?: string): boolean {
   if (isDemoAccount(userEmail)) return true;
-  return appId === "google-sheets";
+  return appId === "google-sheets" || appId === "digital-card";
 }
 
 /** @deprecated Use canInstallApp */

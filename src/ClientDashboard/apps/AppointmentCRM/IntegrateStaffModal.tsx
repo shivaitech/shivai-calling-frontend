@@ -2,17 +2,16 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Loader2, UserPlus, Users } from "lucide-react";
 import ModalOverlay from "../../../components/ModalOverlay";
 import appToast from "../../../components/AppToast";
-import { useAppointmentIndustry } from "./industryConfig";
 import { Branch } from "./branchesStore";
-import { Department } from "./departmentsStore";
-import { StaffMember, addStaffMember, removeStaffMember } from "./staffStore";
 import { useCombinedStaffDirectory, type CombinedStaffRow } from "./combinedStaffDirectory";
-import { AppointmentCrmApiError } from "./api/client";
+import { ScheduleApiError } from "./api/scheduleClient";
 import {
   DaySlot,
   DailyBreak,
   defaultDailyBreak,
   defaultWeeklySchedule,
+  useIntegratedStaffIds,
+  SCHEDULE_EVENT,
 } from "./availabilityStore";
 import scheduleAPI from "./api/scheduleAPI";
 import { leaveToApiBody, mapWeeklyToApi } from "./api/scheduleMappers";
@@ -23,25 +22,22 @@ interface Props {
   onClose: () => void;
   branchId: string;
   branches: Branch[];
-  departments: Department[];
-  staff: StaffMember[];
-  /** Fires after the staff member and their schedule have been fully saved
-   * — the real branch staff record only exists from this point on. */
-  onIntegrated: (member: StaffMember) => void;
+  /** Fires once the staff member's schedule has been fully saved — the
+   * Calendar reads its staff list straight from the Schedule API, so this is
+   * purely informational for the caller (e.g. to close its own state). */
+  onIntegrated: () => void;
 }
 
-const INPUT = "mt-1 w-full px-3 py-2.5 rounded-xl text-sm common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-violet-500/40 text-slate-800 dark:text-white";
 const LABEL = "text-xs font-medium text-slate-600 dark:text-slate-400";
 
-/** Lets a user pick a Main Tenant Staff member who isn't on a branch's
- * calendar yet, set up their weekly hours/break/leave entirely locally, and
- * only then save — creating the branch staff record and their schedule
- * together in one step. Nothing is written to the backend while the user is
- * still picking or editing. */
-const IntegrateStaffModal = ({ open, onClose, branchId, branches, departments, staff, onIntegrated }: Props) => {
-  const { terms } = useAppointmentIndustry();
+/** Lets a user pick a Main Tenant Staff member who doesn't have a schedule
+ * yet, set up their weekly hours/break/leave entirely locally, and only
+ * then save. There is no separate branch staff record to create — the
+ * Schedule API is keyed directly on the tenant staff member's own id, and
+ * that id alone is what makes them show up on the Calendar. Nothing is
+ * written to the backend while the user is still picking or editing. */
+const IntegrateStaffModal = ({ open, onClose, branchId, branches, onIntegrated }: Props) => {
   const { rows: combinedStaff } = useCombinedStaffDirectory();
-  const [selectedBranchId, setSelectedBranchId] = useState(branchId);
   const [pickedRow, setPickedRow] = useState<CombinedStaffRow | null>(null);
   const [weekly, setWeekly] = useState<DaySlot[]>(() => defaultWeeklySchedule());
   const [dailyBreak, setDailyBreak] = useState<DailyBreak>(() => defaultDailyBreak());
@@ -49,11 +45,13 @@ const IntegrateStaffModal = ({ open, onClose, branchId, branches, departments, s
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isMultiBranch = branches.length > 1;
+  // The real source of truth for "already integrated" — a live Schedule API
+  // document for this staff member's own id. No branch record, no name
+  // matching: the id from the tenant staff listing IS the staff_id.
+  const { staffIds: liveScheduleStaffIds, loading: liveScheduleLoading } = useIntegratedStaffIds();
 
   useEffect(() => {
     if (open) {
-      setSelectedBranchId(branchId);
       setPickedRow(null);
       setWeekly(defaultWeeklySchedule());
       setDailyBreak(defaultDailyBreak());
@@ -61,30 +59,14 @@ const IntegrateStaffModal = ({ open, onClose, branchId, branches, departments, s
       setSaving(false);
       setError(null);
     }
-  }, [open, branchId]);
+  }, [open]);
 
-  const branch = branches.find((b) => b.id === selectedBranchId);
-  const branchDepts = useMemo(
-    () => departments.filter((d) => d.branchId === selectedBranchId && d.active),
-    [departments, selectedBranchId],
-  );
+  const branch = branches.find((b) => b.id === branchId);
 
-  // Tenant-wide staff not already wired into this branch's calendar.
-  const alreadyIntegratedNames = useMemo(
-    () => new Set(staff.filter((s) => s.branchId === selectedBranchId && s.active).map((s) => s.name)),
-    [staff, selectedBranchId],
+  const tenantRows = useMemo(
+    () => combinedStaff.filter((row) => row.source === "tenant"),
+    [combinedStaff],
   );
-  const candidates = useMemo(
-    () =>
-      combinedStaff.filter(
-        (row) => row.source === "tenant" && !alreadyIntegratedNames.has(row.name),
-      ),
-    [combinedStaff, alreadyIntegratedNames],
-  );
-
-  const resolvedDept =
-    branchDepts.find((d) => d.name.toLowerCase() === (pickedRow?.departmentName ?? "").toLowerCase()) ??
-    branchDepts[0];
 
   const handleClose = () => {
     if (saving) return;
@@ -99,47 +81,37 @@ const IntegrateStaffModal = ({ open, onClose, branchId, branches, departments, s
 
   const handleSave = async () => {
     if (!pickedRow || saving) return;
-    if (!resolvedDept) {
-      setError(`No ${terms.departments.toLowerCase()} set up in ${branch?.name ?? "this branch"} yet — add one first.`);
-      return;
-    }
     setSaving(true);
     setError(null);
-    const toastId = appToast.loading("Adding to calendar…");
-    let created: StaffMember | null = null;
+    const toastId = appToast.loading("Saving schedule…");
+    const staffId = pickedRow.rawId;
     try {
-      created = await addStaffMember({
-        branchId: selectedBranchId,
-        departmentId: resolvedDept.id,
-        name: pickedRow.name,
-        role: pickedRow.designation || "Staff",
-      });
-      // addStaffMember already created a default schedule document for the
-      // new staff member — update it with what was actually set up here.
-      await scheduleAPI.updateSchedule(created.id, {
-        weekly_availability: mapWeeklyToApi(weekly, dailyBreak),
-      });
+      const weekly_availability = mapWeeklyToApi(weekly, dailyBreak);
+      try {
+        await scheduleAPI.createSchedule({ staff_id: staffId, weekly_availability });
+      } catch (err) {
+        // A schedule already exists for this staff id (409) — fall back to
+        // updating it instead of failing.
+        if (err instanceof ScheduleApiError && err.statusCode === 409) {
+          await scheduleAPI.updateSchedule(staffId, { weekly_availability });
+        } else {
+          throw err;
+        }
+      }
       for (const l of leaves) {
-        await scheduleAPI.addScheduleLeave(created.id, leaveToApiBody({ fromDate: l.fromDate, toDate: l.toDate, reason: l.reason }));
+        await scheduleAPI.addScheduleLeave(staffId, leaveToApiBody({ fromDate: l.fromDate, toDate: l.toDate, reason: l.reason }));
       }
       appToast.dismiss(toastId);
       appToast.success(`${pickedRow.name} added to the calendar`);
+      // Tell every SCHEDULE_EVENT listener (the Calendar's staff list among
+      // them) to re-fetch — this flow writes straight through scheduleAPI,
+      // bypassing the availabilityStore functions that normally fire this.
+      window.dispatchEvent(new CustomEvent(SCHEDULE_EVENT));
       onClose();
-      onIntegrated(created);
+      onIntegrated();
     } catch (err) {
       appToast.dismiss(toastId);
-      // The staff record saved but the schedule failed (or vice versa isn't
-      // possible since staff is created first) — undo the staff record so
-      // we don't leave a half-added person with no schedule.
-      if (created) {
-        try {
-          await removeStaffMember(created.id);
-        } catch {
-          /* best-effort cleanup */
-        }
-      }
-      const message =
-        err instanceof AppointmentCrmApiError || err instanceof Error ? err.message : "Something went wrong — please try again.";
+      const message = err instanceof ScheduleApiError || err instanceof Error ? err.message : "Something went wrong — please try again.";
       appToast.error(message);
       setError(message);
     } finally {
@@ -178,65 +150,62 @@ const IntegrateStaffModal = ({ open, onClose, branchId, branches, departments, s
         </div>
 
         <div className="px-5 py-4 overflow-y-auto flex-1 space-y-3.5">
-          {!pickedRow && isMultiBranch && (
-            <div>
-              <label className={LABEL}>{terms.branch} <span className="text-red-500">*</span></label>
-              <select
-                value={selectedBranchId}
-                onChange={(e) => setSelectedBranchId(e.target.value)}
-                className={INPUT}
-              >
-                {branches.map((b) => (
-                  <option key={b.id} value={b.id}>{b.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
           {!pickedRow && (
             <div>
               <label className={LABEL}>Pick a staff member to set up <span className="text-red-500">*</span></label>
-              {candidates.length === 0 ? (
+              {tenantRows.length === 0 ? (
                 <div className="mt-1 flex flex-col items-center justify-center gap-1.5 py-6 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 text-center">
                   <Users className="w-5 h-5 text-slate-300 dark:text-slate-600" />
-                  <p className="text-xs text-slate-400">Everyone is already on this calendar</p>
-                  <p className="text-[11px] text-slate-400">Add more people under Main Tenant Staff first.</p>
+                  <p className="text-xs text-slate-400">No Main Tenant Staff yet</p>
+                  <p className="text-[11px] text-slate-400">Add people under Main Tenant Staff first.</p>
                 </div>
               ) : (
                 <div className="mt-1 space-y-1.5 max-h-[320px] overflow-y-auto pr-0.5">
-                  {candidates.map((r) => (
-                    <button
-                      key={r.id}
-                      type="button"
-                      onClick={() => setPickedRow(r)}
-                      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left transition-colors border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800/60"
-                    >
-                      <div
-                        className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold"
-                        style={{ background: `linear-gradient(135deg, hsl(${r.hue},70%,55%), hsl(${r.hue + 20},65%,45%))` }}
+                  {tenantRows.map((r) => {
+                    const alreadyAdded = !liveScheduleLoading && liveScheduleStaffIds.has(r.rawId);
+                    return (
+                      <button
+                        key={r.id}
+                        type="button"
+                        onClick={() => !alreadyAdded && setPickedRow(r)}
+                        disabled={alreadyAdded}
+                        title={alreadyAdded ? `${r.name} is already on this calendar` : undefined}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left transition-colors ${
+                          alreadyAdded
+                            ? "border-slate-100 dark:border-slate-800 opacity-50 cursor-not-allowed"
+                            : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                        }`}
                       >
-                        {r.name.charAt(0)}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-slate-800 dark:text-white truncate">{r.name}</p>
-                        <div className="mt-0.5 flex flex-wrap items-center gap-1">
-                          {r.designation && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 border border-violet-200/70 dark:border-violet-800/60">
-                              {r.designation}
-                            </span>
-                          )}
-                          {r.departmentName && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/70 dark:border-slate-700">
-                              {r.departmentName}
-                            </span>
-                          )}
-                          {!r.designation && !r.departmentName && (
-                            <span className="text-[10px] text-slate-400">Main Tenant Staff</span>
-                          )}
+                        <div
+                          className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-bold"
+                          style={{ background: `linear-gradient(135deg, hsl(${r.hue},70%,55%), hsl(${r.hue + 20},65%,45%))` }}
+                        >
+                          {r.name.charAt(0)}
                         </div>
-                      </div>
-                    </button>
-                  ))}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-slate-800 dark:text-white truncate">{r.name}</p>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                            {r.designation && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300 border border-violet-200/70 dark:border-violet-800/60">
+                                {r.designation}
+                              </span>
+                            )}
+                            {r.departmentName && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/70 dark:border-slate-700">
+                                {r.departmentName}
+                              </span>
+                            )}
+                            {!r.designation && !r.departmentName && (
+                              <span className="text-[10px] text-slate-400">Main Tenant Staff</span>
+                            )}
+                          </div>
+                        </div>
+                        {alreadyAdded && (
+                          <span className="text-[10px] font-medium text-slate-400 flex-shrink-0">Added</span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>

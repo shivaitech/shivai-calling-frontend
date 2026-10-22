@@ -87,7 +87,7 @@ export default function AgentPublicPage() {
     const fetchAgent = async () => {
       try {
         const response = await fetch(
-          `https://nodejs.service.callshivai.com/api/v1/agent-configs/${agentId}`,
+          `${import.meta.env.VITE_API_BASE_URL}/agent-configs/${agentId}`,
         );
         if (response.ok) {
           const data = await response.json();

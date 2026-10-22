@@ -85,12 +85,6 @@ export function leaveToApiBody(params: { fromDate: string; toDate: string; reaso
   };
 }
 
-const BLOCK_TYPE_TO_API: Record<OfflineBlockType, ApiScheduleBlockType> = {
-  manual_booking: "manual_booking",
-  unavailable: "unavailable",
-  break: "break",
-};
-
 export function mapScheduleBlock(staffId: string, block: ApiScheduleBlock): StaffOfflineBlock {
   return {
     id: block.id,
@@ -98,29 +92,28 @@ export function mapScheduleBlock(staffId: string, block: ApiScheduleBlock): Staf
     date: block.date,
     fromTime: block.from,
     toTime: block.to,
-    type: block.type,
+    // Derived manual_booking rows only come back when the GET carried
+    // ?date= — never writable here, see blockToApiBody below.
+    type: block.type as OfflineBlockType,
     patientName: block.patient_name || undefined,
     patientId: block.patient_id || undefined,
     notes: block.notes || undefined,
   };
 }
 
+/** Only "break" can be created via POST /schedules/:staffId/blocks —
+ * manual_booking/unavailable are rejected with 422 by the API. */
 export function blockToApiBody(params: {
-  type: OfflineBlockType;
   date: string;
   fromTime: string;
   toTime: string;
-  patientName?: string;
-  patientId?: string;
   notes?: string;
-}) {
+}): { type: ApiScheduleBlockType; date: string; from: string; to: string; notes?: string } {
   return {
-    type: BLOCK_TYPE_TO_API[params.type],
+    type: "break",
     date: params.date,
     from: params.fromTime,
     to: params.toTime,
-    patient_name: params.type === "manual_booking" ? params.patientName?.trim() || undefined : undefined,
-    patient_id: params.type === "manual_booking" ? params.patientId?.trim() || undefined : undefined,
     notes: params.notes?.trim() || undefined,
   };
 }

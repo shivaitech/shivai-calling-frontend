@@ -25,15 +25,23 @@ export interface ApiScheduleLeave {
   reason: string;
 }
 
-export type ApiScheduleBlockType = "manual_booking" | "unavailable" | "break";
+// Only "break" can be WRITTEN via POST /schedules/:staffId/blocks — manual_booking
+// and unavailable are rejected with 422 (book via POST /appointments, mark
+// absences via the leave endpoints). A GET with ?date= can still RETURN a
+// derived "manual_booking" row (that date's real appointments) that isn't
+// stored on the schedule and can't be deleted via DELETE /blocks/:blockId.
+export type ApiScheduleBlockType = "break";
+export type ApiScheduleBlockReadType = ApiScheduleBlockType | "manual_booking";
 
 export interface ApiScheduleBlock {
   id: string;
-  type: ApiScheduleBlockType;
+  type: ApiScheduleBlockReadType;
   date: string;
   from: string;
   to: string;
+  /** Derived manual_booking rows only — "" on stored breaks. */
   patient_name: string;
+  /** Derived manual_booking rows only — "" on stored breaks. */
   patient_id: string;
   notes: string;
 }

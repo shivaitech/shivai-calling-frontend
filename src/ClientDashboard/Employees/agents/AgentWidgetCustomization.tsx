@@ -17,6 +17,7 @@ const SlickNextArrow = ({ currentSlide: _c, slideCount: _s, ...props }: any) => 
 );
 import { agentAPI } from "../../../services/agentAPI";
 import { useAuth } from "../../../contexts/AuthContext";
+import { isStagingEnv } from "../../../lib/widgetConfig";
 
 const LEGACY_CALL_TO_ACTION = "📞 Call ShivAI!";
 
@@ -1874,11 +1875,11 @@ const AgentWidgetCustomization: React.FC<AgentWidgetCustomizationProps> = ({
           widgetStyle: widgetConfig.theme.widgetStyle || "original"
         })};
         var s = document.createElement('script');
-        s.src = '/widget5.js?agentId=${agentId}&userId=${user?.id || ''}&bypass=true&customizationPreview=true&companyName=${encodeURIComponent(
+        s.src = '${window.location.origin}/widget5.js?agentId=${agentId}&userId=${user?.id || ''}&bypass=true&customizationPreview=true&companyName=${encodeURIComponent(
                         widgetConfig.content.companyName
                       )}&companyDescription=${encodeURIComponent(
                         widgetConfig.content.companyDescription
-                      )}&agentName=${encodeURIComponent(agentName)}&v=' + Date.now();
+                      )}&agentName=${encodeURIComponent(agentName)}${isStagingEnv() ? '&env=staging' : ''}&v=' + Date.now();
         document.body.appendChild(s);
       })();
     </script>

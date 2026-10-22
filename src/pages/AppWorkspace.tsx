@@ -11,6 +11,7 @@ import {
 } from "../marketplace/apps";
 import { useInstalledApps } from "../marketplace/useInstalledApps";
 import { useHasAnyAgentAssignedSkill } from "../marketplace/useAgentSkills";
+import { useHasAssignedAgentCrmConfig } from "../marketplace/useAgentCrmConfig";
 import { useAuth } from "../contexts/AuthContext";
 import AssignSkillModal from "../ClientDashboard/Marketplace/AssignSkillModal";
 
@@ -27,6 +28,9 @@ const appComponents: Record<string, React.LazyExoticComponent<React.ComponentTyp
   ),
   "appointment-crm": lazy(
     () => import("../ClientDashboard/apps/AppointmentCRM/AppointmentCRM")
+  ),
+  "digital-card": lazy(
+    () => import("../ClientDashboard/apps/DigitalCard/DigitalCard")
   ),
 };
 
@@ -70,7 +74,15 @@ const AppWorkspace: React.FC = () => {
   // Persistent nag: as long as NO agent has this app's skill assigned, block
   // the workspace with the assign-agent modal on every visit. Called
   // unconditionally (before the guards below) to satisfy the rules of hooks.
-  const hasAgentAssigned = useHasAnyAgentAssignedSkill(app?.id ?? "");
+  // Appointment CRM checks the real backend (GET /ai-config); every other
+  // app still checks the localStorage skill flag, since they have no backend
+  // for this yet.
+  const isAppointmentCrm = app?.id === "appointment-crm";
+  const localSkillAssigned = useHasAnyAgentAssignedSkill(isAppointmentCrm ? "" : (app?.id ?? ""));
+  const { assigned: apiAgentAssigned, loading: apiAssignedLoading } = useHasAssignedAgentCrmConfig();
+  // Digital Card is a standalone tool — it needs no AI agent, so never nag.
+  const needsNoAgent = app?.id === "digital-card";
+  const hasAgentAssigned = needsNoAgent || (isAppointmentCrm ? apiAgentAssigned || apiAssignedLoading : localSkillAssigned);
   const [nagDismissedThisVisit, setNagDismissedThisVisit] = useState(false);
 
   useEffect(() => {
@@ -177,6 +189,7 @@ const AppWorkspace: React.FC = () => {
           onClose={() => setNagDismissedThisVisit(true)}
           app={app}
           allowSkip
+          singleSelect={app.id === "appointment-crm"}
         />
       )}
     </div>

@@ -40,7 +40,7 @@ export async function loadStaffCalendarById(staffId: string): Promise<StaffMembe
 
   const [allStaff, bookings, availability, leaves, blocks, calendarDay] = await Promise.all([
     appointmentCrmAPI.fetchStaff(branchId ? { branchId, active: true } : { active: true }),
-    appointmentCrmAPI.fetchBookings(branchId ? { branchId } : undefined),
+    appointmentCrmAPI.fetchBookingsByStaff(resolvedId).catch(() => []),
     appointmentCrmAPI.fetchAvailability(resolvedId).catch(() => null),
     appointmentCrmAPI.fetchLeaves(resolvedId).catch(() => []),
     appointmentCrmAPI.fetchOfflineBlocks({ staffId: resolvedId }).catch(() => []),

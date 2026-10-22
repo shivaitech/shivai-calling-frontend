@@ -63,7 +63,7 @@ const Marketplace = () => {
       openAppWorkspace(app.id, undefined, navigate);
     } else {
       install(app.id);
-      setAssignApp(app);
+      if (app.promptAssignOnInstall !== false) setAssignApp(app);
     }
   };
 
@@ -241,6 +241,7 @@ const Marketplace = () => {
           open={Boolean(assignApp)}
           onClose={() => setAssignApp(null)}
           app={assignApp}
+          singleSelect={assignApp.id === "appointment-crm"}
         />
       )}
     </div>

@@ -1,13 +1,26 @@
 import { useMemo, useState } from "react";
-import { Plus, Sparkles, X } from "lucide-react";
+import { Loader2, Plus, Sparkles, X } from "lucide-react";
 import { getVisibleApps, type MarketplaceApp } from "../../../marketplace/apps";
 import { useInstalledApps } from "../../../marketplace/useInstalledApps";
 import { useAgentSkills } from "../../../marketplace/useAgentSkills";
+import {
+  assignAgentCrmConfig,
+  deleteAgentCrmConfig,
+  useAssignedAgentCrmConfigIds,
+} from "../../../marketplace/useAgentCrmConfig";
+import appToast from "../../../components/AppToast";
+
+const APPOINTMENT_CRM_APP_ID = "appointment-crm";
 
 /**
  * Skills assigned to one agent. A "skill" is an installed marketplace app
  * attached to this agent — the agent stays the single conversational
  * orchestrator; skills are capabilities it can invoke, not separate agents.
+ *
+ * Appointment CRM is special-cased: it has a real backend (/ai-config) and
+ * allows only ONE agent assigned at a time, so its membership/toggle here
+ * goes through that API instead of the generic localStorage skill flag every
+ * other app still uses (they have no backend for this yet).
  */
 interface AgentSkillsPanelProps {
   agentId: string;
@@ -17,9 +30,20 @@ interface AgentSkillsPanelProps {
 }
 
 const AgentSkillsPanel = ({ agentId, userEmail, editable = false }: AgentSkillsPanelProps) => {
-  const { skillIds, toggleSkill } = useAgentSkills(agentId);
+  const { skillIds: localSkillIds, toggleSkill: toggleLocalSkill } = useAgentSkills(agentId);
+  const { agentIds: crmAssignedAgentIds } = useAssignedAgentCrmConfigIds();
   const { installedIds } = useInstalledApps();
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [crmPending, setCrmPending] = useState(false);
+
+  const crmAssignedToThisAgent = crmAssignedAgentIds.includes(agentId);
+
+  // Merge: every app's membership comes from localStorage, except Appointment
+  // CRM, whose membership comes from the real backend.
+  const skillIds = useMemo(() => {
+    const withoutCrm = localSkillIds.filter((id) => id !== APPOINTMENT_CRM_APP_ID);
+    return crmAssignedToThisAgent ? [...withoutCrm, APPOINTMENT_CRM_APP_ID] : withoutCrm;
+  }, [localSkillIds, crmAssignedToThisAgent]);
 
   const visibleApps = useMemo(() => getVisibleApps(userEmail), [userEmail]);
   const installedApps = useMemo(
@@ -35,8 +59,40 @@ const AgentSkillsPanel = ({ agentId, userEmail, editable = false }: AgentSkillsP
     [installedApps, skillIds],
   );
 
+  const toggleSkill = async (appId: string) => {
+    if (appId !== APPOINTMENT_CRM_APP_ID) {
+      toggleLocalSkill(appId);
+      return;
+    }
+    if (crmPending) return;
+    setCrmPending(true);
+    try {
+      if (crmAssignedToThisAgent) {
+        await deleteAgentCrmConfig(agentId, APPOINTMENT_CRM_APP_ID);
+      } else {
+        // Appointment CRM allows exactly one assigned agent — unassign
+        // whoever else currently has it before assigning this one.
+        const previous = crmAssignedAgentIds.find((id) => id !== agentId);
+        if (previous) {
+          try {
+            await deleteAgentCrmConfig(previous, APPOINTMENT_CRM_APP_ID);
+          } catch {
+            /* best-effort — the new assignment below is what actually matters */
+          }
+        }
+        await assignAgentCrmConfig(agentId, APPOINTMENT_CRM_APP_ID);
+      }
+    } catch {
+      appToast.error("Could not update the Appointment CRM assignment. Please try again.");
+    } finally {
+      setCrmPending(false);
+    }
+  };
+
   const renderSkillCard = (app: MarketplaceApp, assigned: boolean) => {
     const Icon = app.icon;
+    const isCrm = app.id === APPOINTMENT_CRM_APP_ID;
+    const busy = isCrm && crmPending;
     return (
       <div
         key={app.id}
@@ -52,16 +108,29 @@ const AgentSkillsPanel = ({ agentId, userEmail, editable = false }: AgentSkillsP
         {editable && (
           <button
             type="button"
-            onClick={() => toggleSkill(app.id)}
-            className={`p-1.5 rounded-lg flex-shrink-0 transition-colors ${
+            onClick={() => void toggleSkill(app.id)}
+            disabled={busy}
+            className={`p-1.5 rounded-lg flex-shrink-0 transition-colors disabled:opacity-60 ${
               assigned
                 ? "text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20"
                 : "text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
             }`}
             aria-label={assigned ? `Remove ${app.name} skill` : `Add ${app.name} skill`}
-            title={assigned ? "Remove skill" : "Add skill"}
+            title={
+              isCrm && !assigned
+                ? "Only one agent can have Appointment CRM — assigning it here replaces the current one"
+                : assigned
+                  ? "Remove skill"
+                  : "Add skill"
+            }
           >
-            {assigned ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+            {busy ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : assigned ? (
+              <X className="w-4 h-4" />
+            ) : (
+              <Plus className="w-4 h-4" />
+            )}
           </button>
         )}
       </div>

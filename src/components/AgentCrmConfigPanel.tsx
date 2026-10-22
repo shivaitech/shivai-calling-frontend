@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  AlertTriangle,
   GitBranch,
   ListChecks,
+  Loader2,
   Plus,
   Save,
   ShieldAlert,
@@ -12,14 +14,14 @@ import {
 import type { MarketplaceApp } from "../marketplace/apps";
 import type { ApiAgent } from "../services/agentAPI";
 import {
-  readAgentCrmConfig,
   useAgentCrmConfig,
-  defaultFlowsForApp,
+  fetchDefaultFlows,
   type AgentCrmConfig,
   type AgentFlow,
   type UnknownQuestionAction,
   type AgentTone,
 } from "../marketplace/useAgentCrmConfig";
+import appToast from "./AppToast";
 
 const TONE_OPTIONS: { value: AgentTone; label: string }[] = [
   { value: "friendly", label: "Friendly" },
@@ -35,13 +37,15 @@ const TONE_OPTIONS: { value: AgentTone; label: string }[] = [
  * detail page (e.g. AppointmentCRM's AgentDetail) rather than a header popup.
  */
 const AgentCrmConfigPanel = ({ app, agent }: { app: MarketplaceApp; agent: ApiAgent }) => {
-  const { config, save } = useAgentCrmConfig(agent.id, app.id);
+  const { config, loading, error, save, reload } = useAgentCrmConfig(agent.id, app.id);
   const [draft, setDraft] = useState<AgentCrmConfig>(config);
   const [savedPulse, setSavedPulse] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [resettingFlows, setResettingFlows] = useState(false);
 
   useEffect(() => {
-    setDraft(readAgentCrmConfig(agent.id, app.id));
-  }, [agent.id, app.id]);
+    setDraft(config);
+  }, [config]);
 
   const dataDomains = useMemo(
     () => (app.workspaceSections ?? []).filter((s) => !["overview", "agents", "settings"].includes(s.key)),
@@ -57,10 +61,18 @@ const AgentCrmConfigPanel = ({ app, agent }: { app: MarketplaceApp; agent: ApiAg
     }));
   };
 
-  const handleSave = () => {
-    save(draft);
-    setSavedPulse(true);
-    setTimeout(() => setSavedPulse(false), 1500);
+  const handleSave = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await save(draft);
+      setSavedPulse(true);
+      setTimeout(() => setSavedPulse(false), 1500);
+    } catch {
+      appToast.error("Couldn't save the AI configuration. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const keywordsText = draft.escalation.escalateOnKeywords.join(", ");
@@ -112,9 +124,38 @@ const AgentCrmConfigPanel = ({ app, agent }: { app: MarketplaceApp; agent: ApiAg
     updateFlow(flowId, { fields: flow.fields.filter((fld) => fld.key !== fieldKey) });
   };
 
-  const resetFlowsToDefault = () => {
-    setDraft((d) => ({ ...d, flows: defaultFlowsForApp(app.id) }));
+  const resetFlowsToDefault = async () => {
+    if (resettingFlows) return;
+    setResettingFlows(true);
+    try {
+      const flows = await fetchDefaultFlows();
+      setDraft((d) => ({ ...d, flows }));
+    } catch {
+      appToast.error("Couldn't load the default scenarios. Please try again.");
+    } finally {
+      setResettingFlows(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl bg-white dark:bg-slate-900 shadow-sm border border-slate-200/80 dark:border-slate-700 p-10 flex items-center justify-center">
+        <Loader2 className="w-6 h-6 text-violet-500 animate-spin" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-2xl bg-white dark:bg-slate-900 shadow-sm border border-slate-200/80 dark:border-slate-700 p-10 text-center">
+        <AlertTriangle className="w-6 h-6 text-rose-500 mx-auto mb-2" />
+        <p className="text-sm text-rose-600 dark:text-rose-400 mb-3">{error}</p>
+        <button onClick={reload} className="text-sm font-medium text-violet-600 dark:text-violet-400 hover:underline">
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-2xl bg-white dark:bg-slate-900 shadow-sm border border-slate-200/80 dark:border-slate-700 overflow-hidden">
@@ -132,10 +173,17 @@ const AgentCrmConfigPanel = ({ app, agent }: { app: MarketplaceApp; agent: ApiAg
         </div>
         <button
           type="button"
-          onClick={handleSave}
-          className="flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium common-button-bg"
+          onClick={() => void handleSave()}
+          disabled={saving}
+          className="flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium common-button-bg disabled:opacity-60"
         >
-          {savedPulse ? "Saved!" : <><Save className="w-4 h-4" /> Save</>}
+          {saving ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : savedPulse ? (
+            "Saved!"
+          ) : (
+            <><Save className="w-4 h-4" /> Save</>
+          )}
         </button>
       </div>
 
@@ -340,9 +388,11 @@ const AgentCrmConfigPanel = ({ app, agent }: { app: MarketplaceApp; agent: ApiAg
             </h4>
             <button
               type="button"
-              onClick={resetFlowsToDefault}
-              className="text-[11px] text-slate-400 hover:text-violet-600 dark:hover:text-violet-400 flex-shrink-0"
+              onClick={() => void resetFlowsToDefault()}
+              disabled={resettingFlows}
+              className="text-[11px] text-slate-400 hover:text-violet-600 dark:hover:text-violet-400 flex-shrink-0 disabled:opacity-60 flex items-center gap-1"
             >
+              {resettingFlows && <Loader2 className="w-3 h-3 animate-spin" />}
               Reset to defaults
             </button>
           </div>
@@ -444,10 +494,17 @@ const AgentCrmConfigPanel = ({ app, agent }: { app: MarketplaceApp; agent: ApiAg
       <div className="px-4 sm:px-5 py-3 border-t border-slate-100 dark:border-slate-800 flex justify-end">
         <button
           type="button"
-          onClick={handleSave}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium common-button-bg"
+          onClick={() => void handleSave()}
+          disabled={saving}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium common-button-bg disabled:opacity-60"
         >
-          {savedPulse ? "Saved!" : <><Save className="w-4 h-4" /> Save configuration</>}
+          {saving ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : savedPulse ? (
+            "Saved!"
+          ) : (
+            <><Save className="w-4 h-4" /> Save configuration</>
+          )}
         </button>
       </div>
     </div>

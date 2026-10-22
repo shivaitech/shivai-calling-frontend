@@ -4,16 +4,17 @@ import ModalOverlay from "../../../components/ModalOverlay";
 import appToast from "../../../components/AppToast";
 import StaffAvailabilityPanel from "./StaffAvailabilityPanel";
 import StaffOfflineBookingPanel from "./StaffOfflineBookingPanel";
-import { removeStaffMember } from "./staffStore";
+import { removeAvailabilityForStaff } from "./availabilityStore";
 
 interface Props {
   open: boolean;
   staffId: string | null;
   staffName: string;
   onClose: () => void;
-  /** Fires after the staff member's calendar integration (schedule + branch
-   * record) has been deleted, so the caller can close this modal and drop
-   * them from the calendar view. */
+  /** Fires after the staff member's schedule has been deleted, so the
+   * caller can close this modal — the Calendar reads its staff list
+   * straight from the Schedule API, so deleting the schedule IS removing
+   * them from the calendar; there is no separate branch record. */
   onRemoved?: () => void;
 }
 
@@ -28,7 +29,7 @@ const StaffScheduleModal = ({ open, staffId, staffName, onClose, onRemoved }: Pr
     setRemoving(true);
     const toastId = appToast.loading("Removing from calendar…");
     try {
-      await removeStaffMember(staffId);
+      await removeAvailabilityForStaff(staffId);
       appToast.dismiss(toastId);
       appToast.success(`${staffName} removed from the calendar`);
       setConfirmingRemove(false);

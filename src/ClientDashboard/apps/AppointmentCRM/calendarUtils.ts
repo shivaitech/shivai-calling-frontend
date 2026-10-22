@@ -22,6 +22,15 @@ export function parseTimeToMinutes(time: string): number {
   return h * 60 + m;
 }
 
+/** Minutes from midnight → "HH:mm", 24-hour zero-padded — the inverse of
+ * parseTimeToMinutes, for prefilling a <input type="time"> value. */
+export function minutesToTimeInput(mins: number): string {
+  const clamped = Math.max(0, Math.min(mins, 23 * 60 + 59));
+  const h = Math.floor(clamped / 60);
+  const m = clamped % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
 export function formatMinutesLabel(mins: number): string {
   const h = Math.floor(mins / 60);
   const m = mins % 60;
@@ -96,6 +105,49 @@ export function totalCalendarHeightPx(
   endMin = CALENDAR_DAY_END_MIN,
 ): number {
   return ((endMin - startMin) / CALENDAR_SLOT_MINUTES) * CALENDAR_SLOT_HEIGHT_PX;
+}
+
+export interface SlotStateBand<T> {
+  state: T;
+  startMin: number;
+  endMin: number;
+}
+
+/** Collapses a column's per-slot cell states into contiguous same-state
+ * bands, so a label can be centered once per run (e.g. one "On leave" label
+ * across a whole leave day) instead of repeating it on every 15-min slot. */
+export function groupContiguousStates<T>(
+  slotMins: number[],
+  slotMinutes: number,
+  stateAt: (slotMin: number) => T,
+): SlotStateBand<T>[] {
+  const bands: SlotStateBand<T>[] = [];
+  for (const slotMin of slotMins) {
+    const state = stateAt(slotMin);
+    const last = bands[bands.length - 1];
+    if (last && last.state === state && last.endMin === slotMin) {
+      last.endMin = slotMin + slotMinutes;
+    } else {
+      bands.push({ state, startMin: slotMin, endMin: slotMin + slotMinutes });
+    }
+  }
+  return bands;
+}
+
+/** Splits each band into ≤60-minute chunks so a long run (e.g. a whole leave
+ * day) repeats its label on every hour row instead of showing it once and
+ * scrolling out of view. */
+export function splitBandsHourly<T>(bands: SlotStateBand<T>[]): SlotStateBand<T>[] {
+  const chunks: SlotStateBand<T>[] = [];
+  for (const band of bands) {
+    let cursor = band.startMin;
+    while (cursor < band.endMin) {
+      const chunkEnd = Math.min(cursor + 60, band.endMin);
+      chunks.push({ state: band.state, startMin: cursor, endMin: chunkEnd });
+      cursor = chunkEnd;
+    }
+  }
+  return chunks;
 }
 
 export function getBookingStartMinutes(booking: Booking): number {

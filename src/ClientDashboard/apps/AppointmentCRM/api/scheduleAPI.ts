@@ -71,8 +71,6 @@ export function addScheduleBlock(
     date: string;
     from: string;
     to: string;
-    patient_name?: string;
-    patient_id?: string;
     notes?: string;
   },
 ) {

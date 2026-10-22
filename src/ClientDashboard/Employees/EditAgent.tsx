@@ -1675,7 +1675,7 @@ const EditAgent = () => {
       const sampleText = `Hello! I'm ${formData.name || 'your AI assistant'}. How can I help you today?`;
       const authTokens = localStorage.getItem('auth_tokens');
       const accessToken = authTokens ? JSON.parse(authTokens)?.accessToken : null;
-      const response = await fetch('https://nodejs.service.callshivai.com/api/v1/voice/generate', {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/voice/generate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

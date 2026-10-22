@@ -9,13 +9,7 @@ export type CatalogType =
   | "booking-fields"
   | "offline-block-fields";
 
-export type BookingStatus =
-  | "confirmed"
-  | "pending"
-  | "checked-in"
-  | "completed"
-  | "cancelled"
-  | "no-show";
+export type BookingStatus = "booked" | "cancelled";
 
 export type BookingChannel = "voice" | "web" | "whatsapp" | "walk-in";
 export type LeaveType = "leave" | "holiday" | "blocked";
@@ -36,6 +30,90 @@ export interface ApiSetup {
   templateId?: ApiTemplateId;
   branchMode?: BranchMode;
   completedAt?: string;
+}
+
+// ── AI Configuration ─────────────────────────────────────────────────────────
+
+export type AiConfigAgentStatus = "active" | "paused";
+export type AiWhenUnknown = "escalate" | "apologize";
+export type AiTone = "friendly" | "formal" | "concise";
+export type AiFieldType = "string" | "phone" | "email" | "date" | "time" | "select";
+export type AiFieldSource = "catalog" | null;
+
+export interface ApiAiConfigDataAccess {
+  calendar: boolean;
+  bookings: boolean;
+  branches: boolean;
+  staff: boolean;
+  customers: boolean;
+  reminders: boolean;
+}
+
+export interface ApiAiConfigResponseBehavior {
+  canTakeAction: boolean;
+  whenUnknown: AiWhenUnknown;
+  tone: AiTone;
+}
+
+export interface ApiAiConfigEscalation {
+  enabled: boolean;
+  afterUnclearReplies: number;
+  notifyEmail: string;
+  keywords: string[];
+}
+
+export interface ApiAiConfigFieldValidation {
+  pattern: string | null;
+  min: number | null;
+  max: number | null;
+  enum: string[] | null;
+}
+
+export interface ApiAiConfigField {
+  key: string;
+  label: string;
+  type: AiFieldType;
+  required: boolean;
+  prompt: string;
+  retryPrompt: string;
+  validation: ApiAiConfigFieldValidation;
+  source: AiFieldSource;
+  sourceRef?: string | null;
+}
+
+export interface ApiAiConfigScenario {
+  key: string;
+  label: string;
+  description?: string;
+  enabled: boolean;
+  fields: ApiAiConfigField[];
+}
+
+export interface ApiAiConfig {
+  agentId: string;
+  assigned: boolean;
+  status: AiConfigAgentStatus;
+  dataAccess: ApiAiConfigDataAccess;
+  responseBehavior: ApiAiConfigResponseBehavior;
+  escalation: ApiAiConfigEscalation;
+  scenarios: ApiAiConfigScenario[];
+}
+
+export interface ApiAiConfigDefaults {
+  scenarios: ApiAiConfigScenario[];
+}
+
+export interface ApiCatalogOption {
+  id: string;
+  label: string;
+  description?: string;
+}
+
+/** GET /ai-config/resolved — the saved config with every catalog-backed
+ * field's options already resolved from live data, plus org timezone. */
+export interface ApiAiConfigResolved extends ApiAiConfig {
+  timezone: string;
+  calendar?: unknown;
 }
 
 export interface ApiOrgConfig {
@@ -127,21 +205,20 @@ export interface ApiOfflineBlock {
 export interface ApiBooking {
   id?: string;
   _id?: string;
+  tenant_id?: string;
   branchId?: string;
-  staffId?: string;
-  staffLabel?: string;
-  customer: string;
+  staff?: string;
+  name: string;
   phone?: string;
-  email?: string;
-  serviceId?: string;
-  serviceLabel?: string;
+  department?: string;
+  designation?: string;
   date: string;
   time: string;
-  durationMin?: number;
+  end_time?: string;
   status: BookingStatus;
-  channel?: BookingChannel;
-  notes?: string;
-  customFields?: Record<string, unknown>;
+  note?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ApiCustomer {
@@ -181,6 +258,34 @@ export interface ApiCalendarDay {
   blocks: ApiOfflineBlock[];
   leaves: ApiLeave[];
   availabilities: (ApiAvailability & { staffId?: string })[];
+}
+
+export interface ApiStaffBookingsBreak {
+  source?: string;
+  from: string;
+  to: string;
+}
+
+export interface ApiStaffBookingsLeave {
+  id: string;
+  from_date: string;
+  to_date: string;
+  from_time: string;
+  to_time: string;
+  reason?: string;
+}
+
+export interface ApiStaffBookingsEntry {
+  id: string;
+  name: string;
+  bookings: ApiBooking[];
+  breaks: ApiStaffBookingsBreak[];
+  leaves: ApiStaffBookingsLeave[];
+}
+
+export interface ApiStaffBookingsResponse {
+  date: string;
+  staff: ApiStaffBookingsEntry[];
 }
 
 export interface ApiStaffCalendarShare {
