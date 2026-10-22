@@ -18,7 +18,7 @@ export const emptyCard = (): BusinessCardInput => ({
   tagline: "",
   image_url: "",
   color_code: "#161616",
-  country_code: "+",
+  country_code: "",
   phone_number: "",
   is_whatsapp_number: true,
   email: "",

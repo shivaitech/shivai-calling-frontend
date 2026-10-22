@@ -9,6 +9,9 @@ interface NavbarProps {
   setShowAuthModal?: (show: boolean) => void;
   showMobileMenu?: boolean;
   setShowMobileMenu?: (show: boolean) => void;
+  /** Section links (Demo / Features / Pricing / Contact Us) scroll to sections of the
+   *  landing page. Pass false on standalone pages that don't have those sections. */
+  showLinks?: boolean;
 }
 
 const Navbar: React.FC<NavbarProps> = ({
@@ -16,6 +19,7 @@ const Navbar: React.FC<NavbarProps> = ({
   setShowAuthModal,
   showMobileMenu,
   setShowMobileMenu,
+  showLinks = true,
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -181,7 +185,7 @@ const Navbar: React.FC<NavbarProps> = ({
             </motion.div>
 
             {/* Desktop Navigation */}
-            <div className="hidden lg:flex items-start space-x-6 xl:space-x-8">
+            <div className={`${showLinks ? "hidden lg:flex" : "hidden"} items-start space-x-6 xl:space-x-8`}>
               {navigationItems.map((item, index) => (
                 <motion.a
                   key={item}
@@ -220,7 +224,24 @@ const Navbar: React.FC<NavbarProps> = ({
               </motion.button>
             </div>
 
+            {/* Links-free pages: a plain Sign In button instead of the hamburger menu */}
+            {!showLinks && (
+              <button
+                onClick={() => {
+                  if (setAuthMode && setShowAuthModal) {
+                    setAuthMode("signin");
+                    setShowAuthModal(true);
+                  }
+                }}
+                className="lg:hidden flex items-center space-x-1.5 text-[#333333] text-sm sm:text-base font-normal border-b border-[#cfcfcf] pb-0.5"
+              >
+                <span>Sign In</span>
+                <ArrowUpRight className="w-4 h-4" />
+              </button>
+            )}
+
             {/* Mobile Menu Button */}
+            {showLinks && (
             <motion.button
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -247,6 +268,7 @@ const Navbar: React.FC<NavbarProps> = ({
                 />
               )}
             </motion.button>
+            )}
           </div>
         </div>
       </motion.nav>

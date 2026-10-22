@@ -48,3 +48,31 @@ Unknown slugs and API errors also pass through (never breaks a link).
   renamed card or new photo shows up in new shares within a few minutes.
 - Local test: `node -e "require('./index.js').handler(...)"` with a CloudFront
   viewer-request event (see git history of this folder for the test used).
+
+## One-command deploy (CloudFormation)
+
+`template.yaml` creates the role, the function and a published version. Needs the
+AWS CLI configured with permission for IAM, Lambda, CloudFormation and S3.
+
+```bash
+cd infra/card-og-edge
+# any bucket you own (the code zip is uploaded here); region MUST be us-east-1
+aws cloudformation package --region us-east-1 \
+  --template-file template.yaml --s3-bucket <your-bucket> \
+  --output-template-file packaged.yaml
+aws cloudformation deploy --region us-east-1 \
+  --template-file packaged.yaml --stack-name shivai-card-og-edge \
+  --capabilities CAPABILITY_IAM
+aws cloudformation describe-stacks --region us-east-1 \
+  --stack-name shivai-card-og-edge --query "Stacks[0].Outputs"
+```
+
+Copy the `VersionArn` output, then in **CloudFront → distribution for
+www.callshivai.com → Behaviors** create two behaviors (`/card/*` and
+`/digital-card`, same origin/cache settings as the default one) and add the ARN
+under **Function associations → Viewer request → Lambda@Edge**.
+The distribution itself is not created by this template, so nothing existing is modified.
+
+To ship a code change later: edit `index.js`, rename the `CardOgFunctionVersionV1`
+resource in `template.yaml` to `...V2`, re-run the three commands, and update the
+ARN on both behaviors.

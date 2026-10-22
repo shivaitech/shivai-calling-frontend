@@ -56,7 +56,18 @@ function accentVars(hex: string): CSSProperties {
 
 /** `wide` enables the two-column desktop layout (public page only — the editor
  *  preview stays a phone-width card). `shareUrl` adds a "scan to open on your phone" QR. */
-export default function CardView({ card: c, wide = false, shareUrl }: { card: CardData; wide?: boolean; shareUrl?: string }) {
+export default function CardView({
+  card: c,
+  wide = false,
+  shareUrl,
+  placeholders = false,
+}: {
+  card: CardData;
+  wide?: boolean;
+  shareUrl?: string;
+  /** Editor preview: show grey instructions for empty fields (never on the public page). */
+  placeholders?: boolean;
+}) {
   const [imgBroken, setImgBroken] = useState(false);
   const tel = fullPhone(c);
   const waNumber = tel.replace(/\D/g, "");
@@ -71,7 +82,7 @@ export default function CardView({ card: c, wide = false, shareUrl }: { card: Ca
   return (
     <main className={"card" + (wide ? " wide" : "")} style={accentVars(c.color_code)}>
       <div className="topline">
-        <span className="wordmark">{c.full_name || "Your Name"}</span>
+        <span className={"wordmark" + (!c.full_name ? " ph-text" : "")}>{c.full_name || "Your name"}</span>
         <span className="toplabel">Digital Profile</span>
       </div>
 
@@ -85,13 +96,24 @@ export default function CardView({ card: c, wide = false, shareUrl }: { card: Ca
             <div className="portrait ph">{initials || "＋"}</div>
           )}
         </div>
-        <h1>{c.full_name || "Your Name"}</h1>
-        {(c.job_title || c.company_name) && <p className="role">{[c.job_title, c.company_name].filter(Boolean).join(", ")}</p>}
-        {c.tagline && (
+        <h1 className={!c.full_name ? "ph-text" : undefined}>{c.full_name || "Your name"}</h1>
+        {c.job_title || c.company_name ? (
+          <p className="role">{[c.job_title, c.company_name].filter(Boolean).join(", ")}</p>
+        ) : (
+          placeholders && <p className="role ph-text">Job title, Company</p>
+        )}
+        {c.tagline ? (
           <>
             <div className="hero-rule" />
             <p className="tagline">{c.tagline}</p>
           </>
+        ) : (
+          placeholders && (
+            <>
+              <div className="hero-rule" />
+              <p className="tagline ph-text">Your tagline</p>
+            </>
+          )
         )}
       </header>
 
@@ -107,6 +129,9 @@ export default function CardView({ card: c, wide = false, shareUrl }: { card: Ca
         {linkedin && <a className="action light" href={linkedin.url} target="_blank" rel="noopener noreferrer"><Linkedin size={15} /> LinkedIn</a>}
         <button className="action light" type="button" disabled={!c.full_name} onClick={() => downloadVCard(c, socialUrl)}>＋ Save Contact</button>
       </nav>
+      {placeholders && !tel && !c.email && (
+        <p className="ph-hint">Add your phone and email to show Call, WhatsApp and Email buttons here.</p>
+      )}
 
       {wide && shareUrl && (
         <div className="qr-desk">

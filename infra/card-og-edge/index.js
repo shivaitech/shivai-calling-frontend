@@ -31,22 +31,25 @@ const header = (request, name) => (request.headers[name] && request.headers[name
 function page(card, slug) {
   const url = `${SITE}/card/${slug}`;
   const role = [card.job_title, card.company_name].filter(Boolean).join(", ");
-  const title = [card.full_name, role].filter(Boolean).join(" – ") || "Digital business card";
-  const description = card.tagline || `Digital business card of ${card.full_name}. Tap to call, message, or save the contact.`;
+  // e.g. "Athar Cee — Founder & CEO, Acme Studio | Digital Business Card"
+  const title = `${[card.full_name, role].filter(Boolean).join(" — ") || "Digital business card"} | Digital Business Card`;
+  const firstName = String(card.full_name || "").trim().split(/\s+/)[0] || "them";
+  const description = `${card.tagline ? card.tagline.replace(/[.\s]+$/, "") + ". " : ""}Tap to call, WhatsApp or email ${firstName}, or save the contact in one tap.`;
   const image = /^https:\/\//i.test(card.image_url || "") ? card.image_url : DEFAULT_IMAGE;
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <title>${esc(title)}</title>
 <meta name="description" content="${esc(description)}">
 <link rel="canonical" href="${esc(url)}">
-<meta property="og:type" content="profile">
+<meta property="og:type" content="website">
 <meta property="og:site_name" content="ShivAI">
 <meta property="og:url" content="${esc(url)}">
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(description)}">
 <meta property="og:image" content="${esc(image)}">
+<meta property="og:image:secure_url" content="${esc(image)}">
 <meta property="og:image:alt" content="${esc(`Photo of ${card.full_name}`)}">
-<meta name="twitter:card" content="summary">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${esc(title)}">
 <meta name="twitter:description" content="${esc(description)}">
 <meta name="twitter:image" content="${esc(image)}">

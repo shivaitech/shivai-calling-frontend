@@ -116,7 +116,7 @@ const authHeaders = () => ({
 
 // ── Payload ──────────────────────────────────────────────────────────────────
 /** Whitelists fields so stray keys (_id, slug, createdAt…) never reach Joi. */
-export const toPayload = (c: BusinessCardInput): BusinessCardInput => ({
+export const toPayload = (c: BusinessCardInput): Omit<BusinessCardInput, "agent_id"> & { agent_id?: string } => ({
   full_name: c.full_name.trim(),
   job_title: c.job_title.trim(),
   company_name: c.company_name.trim(),
@@ -130,7 +130,9 @@ export const toPayload = (c: BusinessCardInput): BusinessCardInput => ({
   website: c.website.trim(),
   social_media: c.social_media.map((s) => ({ type: s.type, url: s.url.trim(), username: s.username.trim() })),
   ventures: c.ventures.map((v) => ({ name: v.name.trim(), logo_url: v.logo_url.trim(), url: v.url.trim() })),
-  agent_id: c.agent_id,
+  // The AI agent is optional: leave the key out entirely when none is chosen
+  // (an empty string would fail the API's 24-char ObjectId check).
+  ...(c.agent_id ? { agent_id: c.agent_id } : {}),
 });
 
 // ── API ──────────────────────────────────────────────────────────────────────

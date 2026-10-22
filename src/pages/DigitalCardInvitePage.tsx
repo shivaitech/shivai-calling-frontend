@@ -5,6 +5,7 @@ import { QrCode, Share2, Smartphone, Sparkles, UserPlus } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import AuthModel from "../components/AuthModel";
 import SEO from "../components/SEO";
+import Navbar from "./Website/Navbar";
 import CardView from "../ClientDashboard/apps/DigitalCard/CardView";
 import { sampleCard } from "../ClientDashboard/apps/DigitalCard/types";
 import "../ClientDashboard/apps/DigitalCard/digitalCard.css";
@@ -107,41 +108,37 @@ export default function DigitalCardInvitePage() {
         path="/digital-card"
       />
 
-      <header className="max-w-6xl mx-auto px-5 sm:px-8 py-5 flex items-center justify-between">
-        <a href="/" className="text-sm font-bold tracking-wide">ShivAI</a>
-        <button onClick={() => open("signin")} className="text-sm font-medium text-slate-600 hover:text-slate-900">
-          Sign in
-        </button>
-      </header>
+      {/* Same header as the main website (logo, fixed bar, Sign In) */}
+      <Navbar setAuthMode={setAuthMode} setShowAuthModal={setShowAuthModal} showLinks={false} />
 
-      <main className="max-w-6xl mx-auto px-5 sm:px-8 pb-16 pt-4 lg:pt-10 grid lg:grid-cols-[1.1fr_0.9fr] gap-12 lg:gap-16 items-center">
+      <main className="max-w-6xl mx-auto px-5 sm:px-8 pb-16 pt-24 sm:pt-28 lg:pt-36 grid lg:grid-cols-[1.1fr_0.9fr] gap-10 sm:gap-12 lg:gap-16 items-center">
         <section>
           <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full bg-white border border-slate-200">
             <Sparkles className="w-3.5 h-3.5" /> Free for every ShivAI account
           </span>
-          <h1 className="mt-5 text-4xl sm:text-5xl lg:text-6xl font-semibold tracking-tight leading-[1.05]">
-            Your business card,<br />now one link.
+          <h1 className="mt-5 text-[2.1rem] leading-[1.1] sm:text-5xl lg:text-6xl font-semibold tracking-tight lg:leading-[1.05]">
+            Your business card,<br className="hidden sm:block" /> now one link.
           </h1>
           <p className="mt-5 text-base sm:text-lg text-slate-600 max-w-xl">
             Build a professional digital profile in minutes, share it on WhatsApp or as a QR code, and let people save your contact in one tap.
           </p>
 
-          <div className="mt-7 flex flex-wrap items-center gap-3">
+          <div className="mt-7 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
             <button
               onClick={() => open("signup")}
-              className="px-6 py-3.5 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 active:scale-[0.99] transition"
+              className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 active:scale-[0.99] transition"
             >
               Get started — it’s free
             </button>
             <button
               onClick={() => open("signin")}
-              className="px-6 py-3.5 rounded-xl border border-slate-300 bg-white text-sm font-semibold hover:bg-slate-50 transition"
+              className="w-full sm:w-auto px-6 py-3.5 rounded-xl border border-slate-300 bg-white text-sm font-semibold hover:bg-slate-50 transition"
             >
               I already have an account
             </button>
           </div>
 
-          <ul className="mt-10 grid sm:grid-cols-2 gap-4">
+          <ul className="mt-8 sm:mt-10 grid sm:grid-cols-2 gap-4 sm:gap-5">
             {FEATURES.map(({ icon: Icon, title, text }) => (
               <li key={title} className="flex gap-3">
                 <span className="w-10 h-10 rounded-xl bg-white border border-slate-200 grid place-items-center flex-none">
@@ -156,7 +153,7 @@ export default function DigitalCardInvitePage() {
           </ul>
         </section>
 
-        <aside className="hidden lg:block">
+        <aside className="w-full">
           <div className="dc">
             <div className="phone-frame" style={{ maxWidth: 400, margin: "0 auto", pointerEvents: "none" }} aria-hidden="true">
               <CardView card={sampleCard()} />

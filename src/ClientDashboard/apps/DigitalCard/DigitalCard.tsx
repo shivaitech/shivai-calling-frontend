@@ -3,7 +3,9 @@ import { useSearchParams } from "react-router-dom";
 import QRCode from "react-qr-code";
 import toast from "react-hot-toast";
 import CardView from "./CardView";
-import { CardData, emptyCard, sampleCard, SOCIAL_TYPES, SocialType } from "./types";
+import { CardData, emptyCard, SOCIAL_TYPES, SocialType } from "./types";
+import { optimizePhoto } from "./photo";
+import { changeType, finalizeUrl, fromUrlInput, fromUsernameInput, USERNAME_PLACEHOLDER } from "./socialLinks";
 import { useAgent } from "../../../contexts/AgentContext";
 import { agentAPI } from "../../../services/agentAPI";
 import {
@@ -56,11 +58,16 @@ const fromCard = (c: BusinessCard): CardData => ({
 const loadDraft = (): CardData => {
   try {
     const s = localStorage.getItem(DRAFT_KEY);
-    if (s) return { ...emptyCard(), ...JSON.parse(s) };
+    if (s) {
+      const d = { ...emptyCard(), ...JSON.parse(s) } as CardData;
+      // Drafts saved by an earlier version were pre-filled with a demo profile — start blank instead.
+      if (d.full_name === "Alex Morgan" && d.company_name === "Acme Studio") return emptyCard();
+      return d;
+    }
   } catch {
     /* storage unavailable */
   }
-  return sampleCard();
+  return emptyCard();
 };
 
 /** Mirrors the API's Joi rules so most mistakes are caught before the request. */
@@ -74,7 +81,6 @@ function validate(f: CardData): Record<string, string> {
   else if (f.job_title.trim().length > 150) e.job_title = "Job title must be at most 150 characters";
   if (!f.company_name.trim()) e.company_name = "Company name is required";
   else if (f.company_name.trim().length > 150) e.company_name = "Company name must be at most 150 characters";
-  if (!f.agent_id) e.agent_id = "Select the AI agent this card should open";
   if (f.tagline.length > 300) e.tagline = "Tagline must be at most 300 characters";
   if (f.image_url.length > 500) e.image_url = "Image URL must be at most 500 characters";
   if (!/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(f.color_code)) e.color_code = "Color code must be a hex color such as #ffffff";
@@ -280,7 +286,7 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
     if (!file) return;
     setUploading(true);
     try {
-      const res = await agentAPI.uploadLogo(file);
+      const res = await agentAPI.uploadLogo(await optimizePhoto(file));
       const url = res?.logo_url || res?.url || res?.data?.logo_url || res?.data?.url || res?.data?.data?.logo_url;
       if (!url) throw new Error("Upload succeeded but no URL was returned.");
       set({ image_url: url });
@@ -362,23 +368,23 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
         <section className="panel">
           <h3>Basics</h3>
           <Field label="Full name *" error={err("full_name")}>
-            <input value={form.full_name} placeholder="Alex Morgan" onChange={(e) => set({ full_name: e.target.value })} />
+            <input value={form.full_name} placeholder="Enter your full name" onChange={(e) => set({ full_name: e.target.value })} />
           </Field>
           <div className="row">
             <Field label="Job title *" error={err("job_title")}>
-              <input value={form.job_title} placeholder="Founder & CEO" onChange={(e) => set({ job_title: e.target.value })} />
+              <input value={form.job_title} placeholder="Enter your job title" onChange={(e) => set({ job_title: e.target.value })} />
             </Field>
             <Field label="Company *" error={err("company_name")}>
-              <input value={form.company_name} placeholder="Acme Studio" onChange={(e) => set({ company_name: e.target.value })} />
+              <input value={form.company_name} placeholder="Enter your company name" onChange={(e) => set({ company_name: e.target.value })} />
             </Field>
           </div>
-          <small>Your public link is built from your name and company, e.g. /card/alex-morgan-acme-studio. Changing either one later changes the link.</small>
+          <small>Your public link is built from your name and company (like /card/your-name-your-company). Changing either one later changes the link.</small>
           <Field label="Tagline" error={err("tagline")}>
-            <input value={form.tagline} placeholder="Design. Build. Ship." onChange={(e) => set({ tagline: e.target.value })} />
+            <input value={form.tagline} placeholder="A short line about what you do (optional)" onChange={(e) => set({ tagline: e.target.value })} />
           </Field>
           <Field label="Photo" error={err("image_url")}>
             <div className="photo-row">
-              <input value={form.image_url} placeholder="Image URL, or upload" onChange={(e) => set({ image_url: e.target.value })} />
+              <input value={form.image_url} placeholder="Paste an image link, or upload a photo" onChange={(e) => set({ image_url: e.target.value })} />
               <button type="button" className="btn small" disabled={uploading} onClick={() => fileRef.current?.click()}>{uploading ? "Uploading…" : "Upload"}</button>
               <input ref={fileRef} hidden type="file" accept="image/*" onChange={(e) => onUpload(e.target.files?.[0])} />
               {form.image_url && <button type="button" className="btn small ghost" onClick={() => set({ image_url: "" })}>Remove</button>}
@@ -393,54 +399,59 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
           <h3>Contact</h3>
           <div className="row phone">
             <Field label="Code" error={err("country_code")}>
-              <input className="w-cc" value={form.country_code} placeholder="+91" onChange={(e) => set({ country_code: e.target.value })} />
+              <input className="w-cc" value={form.country_code} placeholder="Code" onChange={(e) => set({ country_code: e.target.value })} />
             </Field>
             <Field label="Phone" error={err("phone_number")}>
-              <input value={form.phone_number} placeholder="98765 43210" inputMode="tel" onChange={(e) => set({ phone_number: e.target.value })} />
+              <input value={form.phone_number} placeholder="Enter your phone number" inputMode="tel" onChange={(e) => set({ phone_number: e.target.value })} />
             </Field>
           </div>
           <label className="chk"><input type="checkbox" checked={form.is_whatsapp_number} onChange={(e) => set({ is_whatsapp_number: e.target.checked })} />This number is on WhatsApp</label>
           <Field label="Email" error={err("email")}>
-            <input type="email" value={form.email} placeholder="you@company.com" onChange={(e) => set({ email: e.target.value })} />
+            <input type="email" value={form.email} placeholder="Enter your email address" onChange={(e) => set({ email: e.target.value })} />
           </Field>
           <Field label="Website" error={err("website")}>
-            <input value={form.website} placeholder="https://company.com" onChange={(e) => set({ website: e.target.value })} />
+            <input value={form.website} placeholder="Paste your website link" onChange={(e) => set({ website: e.target.value })} />
           </Field>
         </section>
 
         <section className="panel">
-          <h3>My AI</h3>
-          <Field label="AI agent *" error={err("agent_id")}>
+          <h3>My AI <small>Optional — you can add it later</small></h3>
+          <Field label="AI agent" error={err("agent_id")}>
             <select value={form.agent_id} onChange={(e) => set({ agent_id: e.target.value })}>
-              <option value="">{agentsLoading && agents.length === 0 ? "Loading agents…" : "Select an agent…"}</option>
+              <option value="">{agentsLoading && agents.length === 0 ? "Loading agents…" : "No agent — add later"}</option>
               {agents.map((a) => (
                 <option key={a.id} value={a.id}>{a.name}{a.status !== "Published" ? " (not published)" : ""}</option>
               ))}
               {form.agent_id && !agentKnown && <option value={form.agent_id}>{form.agent_id}</option>}
             </select>
           </Field>
-          <small>Adds a “My AI” button on your card that opens this agent.</small>
-          {agents.length === 0 && !agentsLoading && <small className="warn">You don’t have any AI employees yet — create one under AI Employees first, then pick it here.</small>}
+          <small>If you pick one, a “My AI” button on your card opens it. Leave it empty and the button is simply hidden.</small>
+          {agents.length === 0 && !agentsLoading && <small>You don’t have any AI employees yet — you can create one later and come back to add it.</small>}
         </section>
 
         <section className="panel">
-          <h3>Social links</h3>
+          <h3>Social links <small>Type a username or paste a link — the other fills in automatically</small></h3>
           {form.social_media.map((s, i) => (
             <div className="stack" key={i}>
               <div className="row">
-                <select className="w-type" value={s.type} onChange={(e) => set({ social_media: patchAt(form.social_media, i, { type: e.target.value as SocialType }) })}>
+                <select className="w-type" value={s.type} onChange={(e) => { const type = e.target.value as SocialType; set({ social_media: patchAt(form.social_media, i, { type, ...changeType(type, s) }) }); }}>
                   {SOCIAL_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </select>
-                <input value={s.username} placeholder="username" onChange={(e) => set({ social_media: patchAt(form.social_media, i, { username: e.target.value }) })} />
+                <input value={s.username} placeholder={USERNAME_PLACEHOLDER[s.type]} onChange={(e) => set({ social_media: patchAt(form.social_media, i, fromUsernameInput(s.type, e.target.value)) })} />
                 <button className="x" aria-label="Remove link" onClick={() => set({ social_media: form.social_media.filter((_, j) => j !== i) })}>×</button>
               </div>
-              <input value={s.url} placeholder="https://" onChange={(e) => set({ social_media: patchAt(form.social_media, i, { url: e.target.value }) })} />
+              <input
+                value={s.url}
+                placeholder="…or paste the profile link — we’ll fill in the username"
+                onChange={(e) => set({ social_media: patchAt(form.social_media, i, fromUrlInput(s.type, e.target.value, s)) })}
+                onBlur={(e) => { const fixed = finalizeUrl(s.type, e.target.value); if (fixed) set({ social_media: patchAt(form.social_media, i, fixed) }); }}
+              />
               {(err(`social_media.${i}.url`) || err(`social_media.${i}.username`) || err(`social_media.${i}.type`)) && (
                 <small className="err">{err(`social_media.${i}.url`) || err(`social_media.${i}.username`) || err(`social_media.${i}.type`)}</small>
               )}
             </div>
           ))}
-          <button className="btn small ghost" onClick={() => set({ social_media: [...form.social_media, { type: "instagram", url: "", username: "" }] })}>+ Add link</button>
+          <button className="btn small ghost" onClick={() => set({ social_media: [...form.social_media, { type: "instagram", url: "", username: "" }] })}>+ Add more social links</button>
         </section>
 
         <section className="panel">
@@ -469,7 +480,7 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
       </div>
 
       <aside className="preview">
-        <div className="phone-frame"><CardView card={form} /></div>
+        <div className="phone-frame"><CardView card={form} placeholders /></div>
       </aside>
     </div>
   );
