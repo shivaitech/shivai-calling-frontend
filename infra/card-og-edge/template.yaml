@@ -1,0 +1,47 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Lambda@Edge viewer-request function that serves per-card Open Graph tags to
+  link-preview crawlers (WhatsApp, Facebook, LinkedIn, Slack...) for /card/<slug>
+  and /digital-card. MUST be deployed in us-east-1 (Lambda@Edge requirement).
+
+Resources:
+  EdgeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+                - edgelambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  CardOgFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Link-preview tags for ShivAI digital business cards
+      Runtime: nodejs20.x
+      Handler: index.handler
+      Role: !GetAtt EdgeRole.Arn
+      Timeout: 5 # viewer-request functions have a 5 s hard limit
+      MemorySize: 128
+      # `aws cloudformation package` replaces this with an S3 location (see README).
+      Code: .
+
+  # Lambda@Edge needs a numbered version (not $LATEST).
+  # After changing index.js, rename this resource (e.g. ...V2) so CloudFormation
+  # publishes a new version, then re-attach the new ARN in CloudFront.
+  CardOgFunctionVersionV1:
+    Type: AWS::Lambda::Version
+    Properties:
+      FunctionName: !Ref CardOgFunction
+      Description: Initial release
+
+Outputs:
+  VersionArn:
+    Description: Attach this ARN as a *Viewer request* association on the /card/* and /digital-card behaviors
+    Value: !Ref CardOgFunctionVersionV1
