@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useEffect, useMemo, useState } from "react";
-import { useParams, useSearchParams, useNavigate } from "react-router-dom";
+import { Navigate, useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Settings as SettingsIcon, Sparkles } from "lucide-react";
 import Sidebar from "../components/Sidebar";
@@ -114,6 +114,10 @@ const AppWorkspace: React.FC = () => {
         onBack={() => navigate("/marketplace")}
       />
     );
+  }
+  // Digital Card: a signed-in visitor who hasn't installed it yet goes straight to its install page.
+  if (!isInstalled(app.id) && app.id === "digital-card") {
+    return <Navigate to={`/marketplace/${app.id}`} replace />;
   }
   if (!isInstalled(app.id)) {
     return (

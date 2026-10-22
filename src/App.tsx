@@ -5,10 +5,11 @@ import {
   Route,
   Navigate,
   useLocation,
+  useParams,
 } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import { HelmetProvider } from "react-helmet-async";
-import { AuthProvider } from "./contexts/AuthContext";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { ThemeProvider, useTheme } from "./contexts/ThemeContext";
 import { AgentProvider } from "./contexts/AgentContext";
 import { TenantPermissionsProvider } from "./permissions/TenantPermissionsContext";
@@ -92,6 +93,23 @@ function LoadingFallback() {
     }>
       <OrbFallback />
     </Suspense>
+  );
+}
+
+/**
+ * /app/:appId — auth required. Signed-out visitors to the Digital Card app are
+ * sent to its shareable sign-up page (/digital-card) instead of the generic
+ * landing page, so a shared workspace link still leads to sign up → install.
+ */
+function AppWorkspaceRoute() {
+  const { appId } = useParams<{ appId: string }>();
+  const { isAuthenticated, isLoading } = useAuth();
+  if (isLoading) return <LoadingFallback />;
+  if (!isAuthenticated && appId === "digital-card") return <Navigate to="/digital-card" replace />;
+  return (
+    <ProtectedRoute>
+      <AppWorkspace />
+    </ProtectedRoute>
   );
 }
 
@@ -200,9 +218,7 @@ function AppContent() {
             <Route
               path="/app/:appId"
               element={
-                <ProtectedRoute>
-                  <AppWorkspace />
-                </ProtectedRoute>
+                <AppWorkspaceRoute />
               }
             />
 
