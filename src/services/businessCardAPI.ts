@@ -188,4 +188,14 @@ export const businessCardAPI = {
  *  Override with VITE_PUBLIC_APP_URL for staging. */
 export const PUBLIC_APP_URL = (import.meta.env.VITE_PUBLIC_APP_URL || "https://www.callshivai.com").replace(/\/+$/, "");
 
-export const publicCardUrl = (slug: string) => `${PUBLIC_APP_URL}/card/${slug}`;
+/** Set VITE_CARD_SUBDOMAINS=true once *.callshivai.com is live to share short links
+ *  like https://<slug>.callshivai.com instead of https://www.callshivai.com/card/<slug>. */
+const USE_SUBDOMAINS = import.meta.env.VITE_CARD_SUBDOMAINS === "true";
+
+export const publicCardUrl = (slug: string) => {
+  if (USE_SUBDOMAINS && slug.length <= 63) {
+    const base = new URL(PUBLIC_APP_URL).hostname.replace(/^www\./, "");
+    return `https://${slug}.${base}`;
+  }
+  return `${PUBLIC_APP_URL}/card/${slug}`;
+};

@@ -1,3 +1,6 @@
+import { agentAPI } from "../../../services/agentAPI";
+import type { CardData } from "./types";
+
 /**
  * Downsizes a profile photo before upload so link previews work well:
  * WhatsApp shows the large preview only for images that are big enough
@@ -38,4 +41,31 @@ export async function optimizePhoto(file: File): Promise<File> {
   } catch {
     return file;
   }
+}
+
+/** Uploads a photo (after optimizing it) and returns its public URL. Needs a logged-in session. */
+export async function uploadPhoto(file: File): Promise<string> {
+  const res = await agentAPI.uploadLogo(await optimizePhoto(file));
+  const url = res?.logo_url || res?.url || res?.data?.logo_url || res?.data?.url || res?.data?.data?.logo_url;
+  if (!url) throw new Error("Upload succeeded but no URL was returned.");
+  return url;
+}
+
+/** Optimized photo as a data URL — lets a visitor pick a photo before they have an account. */
+export async function fileToDataUrl(file: File): Promise<string> {
+  const small = await optimizePhoto(file);
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result));
+    r.onerror = () => reject(new Error("Couldn’t read the photo"));
+    r.readAsDataURL(small);
+  });
+}
+
+/** If the card's photo is a local data URL, upload it and swap in the real URL. */
+export async function resolveCardPhoto(card: CardData): Promise<CardData> {
+  if (!card.image_url.startsWith("data:")) return card;
+  const blob = await (await fetch(card.image_url)).blob();
+  const url = await uploadPhoto(new File([blob], "photo.jpg", { type: blob.type || "image/jpeg" }));
+  return { ...card, image_url: url };
 }

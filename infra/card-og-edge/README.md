@@ -76,3 +76,23 @@ The distribution itself is not created by this template, so nothing existing is 
 To ship a code change later: edit `index.js`, rename the `CardOgFunctionVersionV1`
 resource in `template.yaml` to `...V2`, re-run the three commands, and update the
 ARN on both behaviors.
+
+## Card subdomains (`<slug>.callshivai.com`)
+
+The frontend shows a card when the site is opened on `<slug>.callshivai.com`
+(`src/utils/cardSubdomain.ts`; `www`, `api`, `app`, `admin`, … are reserved).
+To turn it on:
+
+1. **DNS + certificate:** add a wildcard record `*.callshivai.com` pointing at the
+   same site as `www` and a certificate that covers `*.callshivai.com`
+   (Amplify → Domain management → add the `*` subdomain, or CloudFront alternate
+   domain name + ACM cert in us-east-1).
+2. **Share short links:** set `VITE_CARD_SUBDOMAINS=true` in the production build
+   environment and redeploy — the app then shows `https://<slug>.callshivai.com`
+   as the card link. (Left off by default so links keep working until step 1 is done.)
+3. **WhatsApp previews on subdomains:** the Lambda@Edge function here also answers
+   crawlers on `<slug>.callshivai.com/`, but it can only be attached to a CloudFront
+   distribution you control — Amplify-managed distributions don't allow Lambda@Edge.
+
+Limits: a DNS label is at most 63 characters, so a card whose slug is longer
+(very long name + company) keeps the normal `/card/<slug>` link.
