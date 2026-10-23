@@ -199,3 +199,14 @@ export const publicCardUrl = (slug: string) => {
   }
   return `${PUBLIC_APP_URL}/card/${slug}`;
 };
+
+/**
+ * The link people actually SHARE (copy / WhatsApp / QR). When VITE_CARD_SHARE_URL
+ * is set (the card-share route from infra/card-share, e.g.
+ * https://nodejs.service.callshivai.com/api/v1/card-share), shared links look like
+ * <VITE_CARD_SHARE_URL>/<slug>: WhatsApp & co. get a rich preview with the profile
+ * photo, and people are redirected to the real card page. Unset = share the card URL directly.
+ */
+const CARD_SHARE_BASE = ((import.meta.env.VITE_CARD_SHARE_URL as string | undefined) || "").trim().replace(/\/+$/, "");
+
+export const cardShareUrl = (slug: string) => (CARD_SHARE_BASE ? `${CARD_SHARE_BASE}/${slug}` : publicCardUrl(slug));

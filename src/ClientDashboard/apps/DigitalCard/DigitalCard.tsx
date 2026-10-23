@@ -14,6 +14,7 @@ import {
   BusinessCardError,
   businessCardAPI,
   Pagination,
+  cardShareUrl,
   publicCardUrl,
   toPayload,
 } from "../../../services/businessCardAPI";
@@ -113,7 +114,7 @@ function CardsList({ go }: { go: (s: string, id?: string | null) => void }) {
   useEffect(load, [load]);
 
   const copy = async (slug: string) => {
-    await navigator.clipboard.writeText(publicCardUrl(slug));
+    await navigator.clipboard.writeText(cardShareUrl(slug));
     toast.success("Link copied");
   };
 
@@ -342,7 +343,7 @@ function SharePanel({ id, go }: { id: string | null; go: (s: string, id?: string
       </section>
     );
 
-  const link = publicCardUrl(card.slug);
+  const link = cardShareUrl(card.slug);
   const copy = async () => {
     await navigator.clipboard.writeText(link);
     setCopied(true);
