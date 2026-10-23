@@ -1,8 +1,6 @@
-import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import toast from "react-hot-toast";
 import { QrCode, Share2, Smartphone, Sparkles, UserPlus } from "lucide-react";
-import { useAuth } from "../contexts/AuthContext";
+import { useInlineAuth } from "../hooks/useInlineAuth";
 import AuthModel from "../components/AuthModel";
 import SEO from "../components/SEO";
 import Navbar from "./Website/Navbar";
@@ -10,10 +8,8 @@ import CardView from "../ClientDashboard/apps/DigitalCard/CardView";
 import { sampleCard } from "../ClientDashboard/apps/DigitalCard/types";
 import "../ClientDashboard/apps/DigitalCard/digitalCard.css";
 
-/** Where signed-in users land: the app's install page in the marketplace. */
-export const DIGITAL_CARD_INSTALL_ROUTE = "/marketplace/digital-card";
-/** Read by GoogleCallback so OAuth sign-in also ends on the install page. */
-export const POST_AUTH_RETURN_KEY = "post_auth_return";
+/** Where "Create now" leads: the card builder (no account needed to start). */
+const CREATE_ROUTE = "/digital-card/create";
 
 const FEATURES = [
   { icon: Smartphone, title: "Looks great on every phone", text: "A clean profile with call, WhatsApp, email and social buttons." },
@@ -25,80 +21,11 @@ const FEATURES = [
 /**
  * Public entry for the Digital Business Card app — meant to be shared
  * (e.g. on WhatsApp): /digital-card
- *   signed out → landing + the main site's sign-in / sign-up modal
- *   signed in  → straight to the app's install page
+ *   "Create now" → /digital-card/create (build the card first, sign up when saving)
  */
 export default function DigitalCardInvitePage() {
   const navigate = useNavigate();
-  const { isAuthenticated, isLoading: authLoading, login, register, completeOnboarding, getGoogleAuthUrl, isLoading, error, clearError } = useAuth();
-
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authMode, setAuthMode] = useState<"signin" | "signup">("signup");
-  const [showPassword, setShowPassword] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [formData, setFormData] = useState({ email: "", password: "", confirmPassword: "", name: "" });
-
-  // Already signed in → skip everything and open the install page.
-  useEffect(() => {
-    if (!authLoading && isAuthenticated) navigate(DIGITAL_CARD_INSTALL_ROUTE, { replace: true });
-  }, [authLoading, isAuthenticated, navigate]);
-
-  // Signed out → ask them to sign up / sign in right away.
-  useEffect(() => {
-    if (!authLoading && !isAuthenticated) setShowAuthModal(true);
-  }, [authLoading, isAuthenticated]);
-
-  useEffect(() => {
-    if (!showAuthModal) {
-      setFormData({ email: "", password: "", name: "", confirmPassword: "" });
-      clearError();
-    }
-  }, [showAuthModal, clearError]);
-
-  const open = (mode: "signin" | "signup") => {
-    setAuthMode(mode);
-    setShowAuthModal(true);
-  };
-
-  const handleAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    clearError();
-    setFieldErrors({});
-    try {
-      if (authMode === "signup") {
-        await register(formData.name, formData.email, formData.password, formData.confirmPassword);
-        completeOnboarding();
-        toast.success("Account created successfully! Welcome aboard.");
-      } else {
-        const response = await login(formData.email, formData.password);
-        localStorage.setItem("auth_tokens", JSON.stringify(response.tokens));
-        localStorage.setItem("auth_user", JSON.stringify(response.user));
-      }
-      setShowAuthModal(false);
-      navigate(DIGITAL_CARD_INSTALL_ROUTE, { replace: true });
-    } catch (err: any) {
-      if (err.response?.status === 422 && err.response?.data?.errors) {
-        const next: Record<string, string> = {};
-        err.response.data.errors.forEach((item: any) => {
-          next[item.field] = item.message;
-        });
-        setFieldErrors(next);
-      }
-      throw err;
-    }
-  };
-
-  const handleSocialAuth = async (provider: string) => {
-    if (provider !== "google") return;
-    try {
-      // Google sends the user away and back through /auth/google/callback —
-      // remember where to finish.
-      sessionStorage.setItem(POST_AUTH_RETURN_KEY, DIGITAL_CARD_INSTALL_ROUTE);
-      window.location.href = await getGoogleAuthUrl();
-    } catch {
-      sessionStorage.removeItem(POST_AUTH_RETURN_KEY);
-    }
-  };
+  const auth = useInlineAuth({ googleReturn: CREATE_ROUTE, onSuccess: () => navigate(CREATE_ROUTE) });
 
   return (
     <div className="min-h-screen bg-[#F0F0F0] text-slate-900">
@@ -109,7 +36,7 @@ export default function DigitalCardInvitePage() {
       />
 
       {/* Same header as the main website (logo, fixed bar, Sign In) */}
-      <Navbar setAuthMode={setAuthMode} setShowAuthModal={setShowAuthModal} showLinks={false} />
+      <Navbar setAuthMode={auth.setAuthMode} setShowAuthModal={auth.setShowAuthModal} showLinks={false} />
 
       <main className="max-w-6xl mx-auto px-5 sm:px-8 pb-16 pt-24 sm:pt-28 lg:pt-36 grid lg:grid-cols-[1.1fr_0.9fr] gap-10 sm:gap-12 lg:gap-16 items-center">
         <section>
@@ -125,18 +52,19 @@ export default function DigitalCardInvitePage() {
 
           <div className="mt-7 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3">
             <button
-              onClick={() => open("signup")}
-              className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 active:scale-[0.99] transition"
+              onClick={() => navigate(CREATE_ROUTE)}
+              className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 active:scale-[0.99] transition"
             >
-              Get started — it’s free
+              Create now
             </button>
             <button
-              onClick={() => open("signin")}
+              onClick={() => auth.open("signin")}
               className="w-full sm:w-auto px-6 py-3.5 rounded-xl border border-slate-300 bg-white text-sm font-semibold hover:bg-slate-50 transition"
             >
               I already have an account
             </button>
           </div>
+          <p className="mt-3 text-xs text-slate-500">No sign-up needed to start — you’ll create an account when you save your card.</p>
 
           <ul className="mt-8 sm:mt-10 grid sm:grid-cols-2 gap-4 sm:gap-5">
             {FEATURES.map(({ icon: Icon, title, text }) => (
@@ -162,22 +90,7 @@ export default function DigitalCardInvitePage() {
         </aside>
       </main>
 
-      {showAuthModal && (
-        <AuthModel
-          closeModal={() => setShowAuthModal(false)}
-          authMode={authMode}
-          setAuthMode={setAuthMode}
-          error={error}
-          handleAuth={handleAuth}
-          handleSocialAuth={handleSocialAuth}
-          formData={formData}
-          setFormData={setFormData}
-          showPassword={showPassword}
-          setShowPassword={setShowPassword}
-          isLoading={isLoading}
-          fieldErrors={fieldErrors}
-        />
-      )}
+      {auth.showAuthModal && <AuthModel {...auth.modalProps} />}
     </div>
   );
 }

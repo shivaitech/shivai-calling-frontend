@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import CardView from "../ClientDashboard/apps/DigitalCard/CardView";
-import { BusinessCardError, businessCardAPI, PublicBusinessCard, publicCardUrl } from "../services/businessCardAPI";
+import { BusinessCardError, businessCardAPI, PUBLIC_APP_URL, PublicBusinessCard, publicCardUrl } from "../services/businessCardAPI";
 import "../ClientDashboard/apps/DigitalCard/digitalCard.css";
 
 type State =
@@ -10,9 +10,11 @@ type State =
   | { kind: "notfound" }
   | { kind: "error"; message: string };
 
-/** Public, no-login page for a shared digital business card: /card/:slug */
-export default function DigitalCardPublicPage() {
-  const { code: slug = "" } = useParams<{ code: string }>();
+/** Public, no-login page for a shared digital business card: /card/:slug,
+ *  or <slug>.callshivai.com (App.tsx passes the slug in via `slug`). */
+export default function DigitalCardPublicPage({ slug: slugProp }: { slug?: string }) {
+  const { code } = useParams<{ code: string }>();
+  const slug = slugProp ?? code ?? "";
   const [state, setState] = useState<State>({ kind: "loading" });
 
   useEffect(() => {
@@ -58,7 +60,7 @@ export default function DigitalCardPublicPage() {
       {state.kind === "ok" && (
         <div style={{ paddingBottom: 36 }}>
           <CardView card={state.card} wide shareUrl={publicCardUrl(state.card.slug)} />
-          <Link className="make" to="/landing">Create your own digital card →</Link>
+          <a className="make" href={`${PUBLIC_APP_URL}/digital-card`}>Create your own digital card →</a>
         </div>
       )}
     </div>

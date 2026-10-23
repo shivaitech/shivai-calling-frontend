@@ -16,6 +16,7 @@ import { TenantPermissionsProvider } from "./permissions/TenantPermissionsContex
 import { TenantViewProvider } from "./permissions/TenantViewContext";
 import TenantViewBanner from "./components/TenantViewBanner";
 import ScrollToTop from "./components/ScrollToTop";
+import { getCardSubdomain } from "./utils/cardSubdomain";
 import PublicRoute from "./components/PublicRoute";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PermissionRoute from "./components/PermissionRoute";
@@ -83,6 +84,7 @@ const DoctorCalendarPWALauncher = lazy(() => import("./pages/DoctorCalendarPWALa
 const StaffPortalPage = lazy(() => import("./pages/StaffPortalPage"));
 const DigitalCardPublicPage = lazy(() => import("./pages/DigitalCardPublicPage"));
 const DigitalCardInvitePage = lazy(() => import("./pages/DigitalCardInvitePage"));
+const DigitalCardCreatePage = lazy(() => import("./pages/DigitalCardCreatePage"));
 
 function LoadingFallback() {
   return (
@@ -127,7 +129,7 @@ function AppContent() {
   // Shared digital business card — public, no auth, no chrome.
   const isDigitalCardPage = location.pathname.startsWith("/card/");
   // Shareable entry for the Digital Card app — sign up / sign in, then the install page.
-  const isDigitalCardInvite = location.pathname === "/digital-card";
+  const isDigitalCardInvite = location.pathname === "/digital-card" || location.pathname.startsWith("/digital-card/");
   // Standalone app workspace — auth-protected but rendered without dashboard chrome.
   const isAppWorkspace = location.pathname.startsWith("/app/");
   // Public marketing pages — SEO-indexable, no dashboard chrome, no auth required.
@@ -157,6 +159,16 @@ function AppContent() {
     }
     saveLastRoute(`${location.pathname}${location.search}`);
   }, [location.pathname, location.search, isLandingPage, isAuthCallback, isResetPassword, isAgentPublicPage, isDoctorCalendarPage, isWebsitePreview, isDigitalCardPage, isDigitalCardInvite, isAppWorkspace, isMarketingPage, isInviteAcceptPage]);
+
+  // <slug>.callshivai.com → that business card (the whole site is just the card)
+  const cardSubdomain = getCardSubdomain();
+  if (cardSubdomain) {
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <DigitalCardPublicPage slug={cardSubdomain} />
+      </Suspense>
+    );
+  }
 
   return (
     <div className="min-h-dvh">
@@ -202,6 +214,7 @@ function AppContent() {
             {/* Public digital business card - no auth required */}
             <Route path="/card/:code" element={<DigitalCardPublicPage />} />
             <Route path="/digital-card" element={<DigitalCardInvitePage />} />
+            <Route path="/digital-card/create" element={<DigitalCardCreatePage />} />
 
             {/* Website preview - no auth required, opens in new tab */}
             <Route path="/website-preview" element={<WebsitePreview />} />

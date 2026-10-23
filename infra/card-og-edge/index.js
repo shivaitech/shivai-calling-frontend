@@ -19,6 +19,13 @@ const DEFAULT_IMAGE = `${SITE}/Shivai1.png`;
 const BOT_RE =
   /whatsapp|facebookexternalhit|facebot|twitterbot|linkedinbot|slackbot|telegrambot|discordbot|skypeuripreview|pinterest|redditbot|embedly|vkshare|iframely|google-structured-data|bingpreview|applebot|line-poker|signal/i;
 
+/** Keep in sync with src/utils/cardSubdomain.ts */
+const RESERVED_SUBDOMAINS = new Set([
+  "www", "api", "app", "admin", "mail", "email", "dashboard", "staging", "stage", "dev", "test", "demo",
+  "nodejs", "voice", "cdn", "static", "assets", "auth", "login", "signup", "support", "help", "docs",
+  "blog", "status", "widget", "ftp", "smtp", "imap", "pop", "ns1", "ns2",
+]);
+
 const esc = (s) =>
   String(s ?? "")
     .replace(/&/g, "&amp;")
@@ -97,9 +104,16 @@ exports.handler = async (event) => {
 
   if (/^\/digital-card\/?$/i.test(request.uri)) return respond(200, invitePage(), "public, max-age=3600");
 
+  // /card/<slug>  — or, on a card subdomain, <slug>.callshivai.com/
+  let slug = null;
   const m = /^\/card\/([a-z0-9][a-z0-9-]{1,98}[a-z0-9])\/?$/i.exec(request.uri);
-  if (!m) return request;
-  const slug = m[1].toLowerCase();
+  if (m) {
+    slug = m[1].toLowerCase();
+  } else if (request.uri === "/" || request.uri === "") {
+    const h = /^([a-z0-9][a-z0-9-]{1,61}[a-z0-9])\.callshivai\.com$/.exec(header(request, "host").toLowerCase());
+    if (h && !RESERVED_SUBDOMAINS.has(h[1])) slug = h[1];
+  }
+  if (!slug) return request;
 
   try {
     const res = await fetch(`${API_BASE}/business-cards/public/${encodeURIComponent(slug)}`, {
