@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getOfflineBlockAtMinute, removeOfflineBlocksForStaff, setOfflineBlocksQuiet } from "./offlineBlocksStore";
 import scheduleAPI from "./api/scheduleAPI";
 import { ScheduleApiError } from "./api/scheduleClient";
@@ -72,8 +72,8 @@ export function defaultWeeklySchedule(): DaySlot[] {
   return WEEKDAYS.map(({ key }) => ({
     day: key,
     enabled: key !== "sun",
-    from: key === "sat" ? "09:00" : "09:00",
-    to: key === "sat" ? "13:00" : "17:00",
+    from: "09:00",
+    to: "17:00",
   }));
 }
 
@@ -294,33 +294,80 @@ export async function fetchIntegratedStaffIds(): Promise<Set<string>> {
   return new Set(schedules.map((s) => s.staff_id));
 }
 
-export function useIntegratedStaffIds(): { staffIds: Set<string>; loading: boolean } {
-  const [staffIds, setStaffIds] = useState<Set<string>>(new Set());
+/** Re-fetch helper shared by the two "integrated staff" hooks.
+ *
+ * Only the very FIRST load may report `loading = true`. Every later refetch —
+ * fired by SCHEDULE_EVENT, which a modal opening (fetchScheduleFor) emits —
+ * runs silently and keeps showing the previous data. Flipping `loading` back to
+ * true on a refetch makes CalendarView swap its whole tree for a spinner, which
+ * unmounts any open modal; the modal remounts, calls fetchScheduleFor again,
+ * which fires SCHEDULE_EVENT again... an endless "page keeps refreshing" loop.
+ *
+ * Bursts of events (persistAvailability + persistLeaves fire two back to back)
+ * are coalesced into one request, and a response that is no longer the latest
+ * is ignored. */
+function useScheduleRefetch<T>(
+  fetcher: () => Promise<T>,
+  onData: (data: T) => void,
+  onFirstError: () => void,
+): boolean {
   const [loading, setLoading] = useState(true);
+  const fetcherRef = useRef(fetcher);
+  const onDataRef = useRef(onData);
+  const onFirstErrorRef = useRef(onFirstError);
+  fetcherRef.current = fetcher;
+  onDataRef.current = onData;
+  onFirstErrorRef.current = onFirstError;
 
   useEffect(() => {
     let cancelled = false;
-    const sync = () => {
-      setLoading(true);
-      fetchIntegratedStaffIds()
-        .then((ids) => {
-          if (!cancelled) setStaffIds(ids);
+    let seq = 0;
+    let first = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const run = () => {
+      const mine = ++seq;
+      fetcherRef
+        .current()
+        .then((data) => {
+          if (cancelled || mine !== seq) return;
+          onDataRef.current(data);
         })
         .catch(() => {
-          if (!cancelled) setStaffIds(new Set());
+          // A failed background refetch keeps the previous data; only a failed first load clears it.
+          if (!cancelled && mine === seq && first) onFirstErrorRef.current();
         })
         .finally(() => {
-          if (!cancelled) setLoading(false);
+          if (cancelled || mine !== seq) return;
+          first = false;
+          setLoading(false);
         });
     };
-    sync();
+
+    const sync = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(run, 50);
+    };
+
+    run();
     window.addEventListener(SCHEDULE_EVENT, sync);
     return () => {
       cancelled = true;
+      if (timer) clearTimeout(timer);
       window.removeEventListener(SCHEDULE_EVENT, sync);
     };
   }, []);
 
+  return loading;
+}
+
+export function useIntegratedStaffIds(): { staffIds: Set<string>; loading: boolean } {
+  const [staffIds, setStaffIds] = useState<Set<string>>(new Set());
+  const loading = useScheduleRefetch<Set<string>>(
+    fetchIntegratedStaffIds,
+    (ids) => setStaffIds(ids),
+    () => setStaffIds(new Set()),
+  );
   return { staffIds, loading };
 }
 
@@ -337,37 +384,18 @@ export function useIntegratedStaffIds(): { staffIds: Set<string>; loading: boole
  * been opened yet this session. */
 export function useIntegratedSchedules(): { schedules: ApiSchedule[]; loading: boolean } {
   const [schedules, setSchedules] = useState<ApiSchedule[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    const sync = () => {
-      setLoading(true);
-      fetchIntegratedSchedules()
-        .then((list) => {
-          if (cancelled) return;
-          setSchedules(list);
-          const derived = list.map((s) => mapScheduleToAvailabilityAndLeaves(s));
-          setAvailabilityListQuiet(derived.map((d) => d.availability));
-          setLeavesListQuiet(derived.flatMap((d) => d.leaves));
-          setOfflineBlocksQuiet(derived.flatMap((d) => d.blocks));
-          list.forEach((s) => fetchedStaffIds.add(s.staff_id));
-        })
-        .catch(() => {
-          if (!cancelled) setSchedules([]);
-        })
-        .finally(() => {
-          if (!cancelled) setLoading(false);
-        });
-    };
-    sync();
-    window.addEventListener(SCHEDULE_EVENT, sync);
-    return () => {
-      cancelled = true;
-      window.removeEventListener(SCHEDULE_EVENT, sync);
-    };
-  }, []);
-
+  const loading = useScheduleRefetch<ApiSchedule[]>(
+    fetchIntegratedSchedules,
+    (list) => {
+      setSchedules(list);
+      const derived = list.map((s) => mapScheduleToAvailabilityAndLeaves(s));
+      setAvailabilityListQuiet(derived.map((d) => d.availability));
+      setLeavesListQuiet(derived.flatMap((d) => d.leaves));
+      setOfflineBlocksQuiet(derived.flatMap((d) => d.blocks));
+      list.forEach((s) => fetchedStaffIds.add(s.staff_id));
+    },
+    () => setSchedules([]),
+  );
   return { schedules, loading };
 }
 

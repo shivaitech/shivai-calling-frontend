@@ -350,6 +350,8 @@
     "/overview",
     "/monitoring",
     "/apps",
+    "/card/",
+    "/digital-card",
   ];
 
   function getLandingWidgetScriptParams() {
@@ -377,11 +379,31 @@
     );
   }
 
+  // Business cards are served on <slug>.callshivai.com with the path "/", which
+  // would otherwise look like the landing page. The ShivAI widget must never load there.
+  // Keep in sync with src/utils/cardSubdomain.ts.
+  var CARD_SUBDOMAIN_RESERVED = [
+    "www", "api", "app", "admin", "mail", "email", "dashboard", "staging", "stage", "dev", "test", "demo",
+    "nodejs", "voice", "cdn", "static", "assets", "auth", "login", "signup", "support", "help", "docs",
+    "blog", "status", "widget", "ftp", "smtp", "imap", "pop", "ns1", "ns2",
+  ];
+  function isCardSubdomainHost4() {
+    var h = (window.location.hostname || "").toLowerCase();
+    var suffix = ".callshivai.com";
+    if (h.length <= suffix.length || h.slice(-suffix.length) !== suffix) return false;
+    var label = h.slice(0, h.length - suffix.length);
+    if (label.indexOf(".") !== -1 || label.length < 3) return false; // only <label>.callshivai.com
+    return CARD_SUBDOMAIN_RESERVED.indexOf(label) === -1;
+  }
+
   // Kept the name isLandingRoute() so the rest of the file (applyRouteVisibility)
   // needs no changes — it now means "should widget4 run on this page".
   function isLandingRoute() {
     var full = window.location.pathname || "/";
     var p = full.replace(/\/+$/, "") || "/";
+
+    // Never on a business-card subdomain (<slug>.callshivai.com).
+    if (isCardSubdomainHost4()) return false;
 
     // Always hide on dashboard / app routes (covers Vercel previews whose host
     // is not listed as a ShivAI app domain).

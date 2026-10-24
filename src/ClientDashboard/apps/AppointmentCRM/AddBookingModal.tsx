@@ -49,6 +49,57 @@ function createEmptyForm(prefill?: Prefill) {
   };
 }
 
+const SLOT_STEP_MIN = 15;
+const LAST_START_MIN = 23 * 60 + 45;
+
+const fmtMinutes = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+
+/** "HH:MM" slots on a 15-minute grid from `fromMin` (rounded up) to 23:45. */
+function slotList(fromMin: number): string[] {
+  const out: string[] = [];
+  for (let m = Math.ceil(Math.max(0, fromMin) / SLOT_STEP_MIN) * SLOT_STEP_MIN; m <= LAST_START_MIN; m += SLOT_STEP_MIN) {
+    out.push(fmtMinutes(m));
+  }
+  return out;
+}
+
+const minutesNow = () => {
+  const d = new Date();
+  return d.getHours() * 60 + d.getMinutes();
+};
+
+/** Default start for a date: next free slot today (never before 09:00), 09:00 on a future date. */
+function defaultFromTime(dateIso: string, nowMin: number): string {
+  const earliest = dateIso === todayIso() ? Math.max(nowMin, 9 * 60) : 9 * 60;
+  return slotList(earliest)[0] ?? "";
+}
+
+/** A native <input type="time"> can't hide past times, so this is a plain select over the allowed slots.
+ *  `keepValue` keeps an off-grid value (e.g. a calendar slot of 09:20) selectable. */
+function TimeSelect({
+  value,
+  options,
+  onChange,
+  disabled,
+  placeholder,
+}: {
+  value: string;
+  options: string[];
+  onChange: (v: string) => void;
+  disabled?: boolean;
+  placeholder: string;
+}) {
+  const list = value && !options.includes(value) ? [...options, value].sort() : options;
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value)} className={INPUT} disabled={disabled || list.length === 0}>
+      {list.length === 0 || !value ? <option value="">{list.length === 0 ? placeholder : "Select time…"}</option> : null}
+      {list.map((t) => (
+        <option key={t} value={t}>{t}</option>
+      ))}
+    </select>
+  );
+}
+
 const INPUT = "mt-1 w-full px-3 py-2.5 rounded-xl text-sm common-bg-icons border border-slate-200 dark:border-slate-700 outline-none focus:ring-2 focus:ring-violet-500/40 text-slate-800 dark:text-white";
 const LABEL = "text-xs font-medium text-slate-600 dark:text-slate-400";
 
@@ -73,6 +124,37 @@ const AddBookingModal = ({ open, onClose, branches, defaultBranchId, prefill }: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  // Re-check "now" every minute while the form is open so slots that pass disappear.
+  const [nowMin, setNowMin] = useState(minutesNow);
+  useEffect(() => {
+    if (!open) return;
+    setNowMin(minutesNow());
+    const t = setInterval(() => setNowMin(minutesNow()), 60_000);
+    return () => clearInterval(t);
+  }, [open]);
+
+  const isToday = form.date === todayIso();
+
+  // Past start times are never valid for a new booking: when the form opens or the date
+  // changes, move to the next free slot if the chosen start has already passed (or is empty).
+  // (Not re-run on the minute tick, so a time the user picked never changes under them —
+  // if it passes while they type, the "already passed" message below asks them to re-pick.)
+  useEffect(() => {
+    if (!open || prefill) return;
+    const now = minutesNow();
+    setForm((f) => {
+      const todayNow = f.date === todayIso();
+      const startOk = f.fromTime && (!todayNow || parseTimeToMinutes(f.fromTime) >= now);
+      if (startOk) return f;
+      const first = defaultFromTime(f.date, now);
+      return { ...f, fromTime: first, toTime: first ? defaultToTime(first) : "" };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, form.date]);
+
+  const fromOptions = slotList(!prefill && isToday ? nowMin : 0);
+  const toOptions = slotList(form.fromTime ? parseTimeToMinutes(form.fromTime) + 1 : 0);
+
   const staffOptions = schedules.filter((s) => s.staff);
   const selected = staffOptions.find((s) => s.staff_id === form.staffId);
   // Department/designation aren't on the Schedule API's staff summary — look
@@ -86,8 +168,14 @@ const AddBookingModal = ({ open, onClose, branches, defaultBranchId, prefill }: 
       ? "End time must be after start time"
       : null;
 
+  const pastError =
+    !prefill && isToday && form.fromTime && parseTimeToMinutes(form.fromTime) < nowMin
+      ? "That time has already passed — pick a later slot"
+      : null;
+
   const canSubmit =
     form.customer.trim().length > 0 &&
+    !pastError &&
     Boolean(form.staffId) &&
     Boolean(form.date) &&
     Boolean(form.fromTime) &&
@@ -218,33 +306,36 @@ const AddBookingModal = ({ open, onClose, branches, defaultBranchId, prefill }: 
             </div>
             <div>
               <label className={LABEL}>From <span className="text-red-500">*</span></label>
-              <input
-                type="time"
+              <TimeSelect
                 value={form.fromTime}
-                onChange={(e) =>
+                options={fromOptions}
+                placeholder={isToday ? "No slots left today" : "No slots"}
+                disabled={Boolean(prefill)}
+                onChange={(fromTime) =>
                   setForm((f) => {
-                    const fromTime = e.target.value;
                     const toTime =
-                      parseTimeToMinutes(f.toTime) <= parseTimeToMinutes(fromTime)
+                      !f.toTime || parseTimeToMinutes(f.toTime) <= parseTimeToMinutes(fromTime)
                         ? defaultToTime(fromTime)
                         : f.toTime;
                     return { ...f, fromTime, toTime };
                   })
                 }
-                className={INPUT}
-                disabled={Boolean(prefill)}
               />
             </div>
             <div>
               <label className={LABEL}>To <span className="text-red-500">*</span></label>
-              <input
-                type="time"
+              <TimeSelect
                 value={form.toTime}
-                onChange={(e) => setForm((f) => ({ ...f, toTime: e.target.value }))}
-                className={INPUT}
+                options={toOptions}
+                placeholder="No later slot"
+                onChange={(toTime) => setForm((f) => ({ ...f, toTime }))}
               />
             </div>
           </div>
+          {isToday && !prefill && fromOptions.length === 0 && (
+            <p className="text-[11px] text-amber-600 dark:text-amber-400">No time slots left today — choose another date.</p>
+          )}
+          {pastError && <p className="text-[11px] text-red-600 dark:text-red-400">{pastError}</p>}
           {timeError && <p className="text-[11px] text-red-600 dark:text-red-400">{timeError}</p>}
 
           <div>
