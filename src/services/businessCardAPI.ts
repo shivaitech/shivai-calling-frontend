@@ -46,6 +46,10 @@ export interface BusinessCard extends BusinessCardInput {
   _id: string;
   tenant_id: string;
   slug: string;
+  /** Full public link built by the server, e.g. https://<slug>.callshivai.com. */
+  share_url?: string;
+  /** PNG of the card's QR code, generated and hosted (S3) by the server. */
+  qr_code?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -54,6 +58,7 @@ export interface BusinessCard extends BusinessCardInput {
 export interface PublicBusinessCard extends BusinessCardInput {
   tenant_id: string;
   slug: string;
+  share_url?: string;
 }
 
 export interface Pagination {
@@ -202,8 +207,25 @@ export const publicCardUrl = (slug: string) => {
   return `${PUBLIC_APP_URL}/card/${slug}`;
 };
 
-/** The link shown in the dashboard, without the scheme. */
-export const publicCardLabel = (slug: string) => publicCardUrl(slug).replace(/^https?:\/\//, "");
+/** The card's link: the API's `share_url` when it sent one (so the backend owns the
+ *  link format), otherwise built from the slug. Only https is accepted because the
+ *  value ends up in hrefs and QR codes. */
+const httpsUrl = (raw?: string): URL | null => {
+  try {
+    const u = new URL((raw || "").trim());
+    return u.protocol === "https:" ? u : null;
+  } catch {
+    return null;
+  }
+};
 
-/** The link people share (copy / WhatsApp / QR) — the card's own address. */
-export const cardShareUrl = publicCardUrl;
+export const cardUrl = (card: { slug: string; share_url?: string }): string => {
+  const u = httpsUrl(card.share_url); // URL() also lowercases the host (the API sends "CallShivAI.com")
+  return u ? u.href.replace(/\/$/, "") : publicCardUrl(card.slug);
+};
+
+/** The server-made QR image for the card, or null to generate one in the browser. */
+export const cardQrImage = (card: { qr_code?: string }): string | null => httpsUrl(card.qr_code)?.href ?? null;
+
+/** The card's link without the scheme, for display. */
+export const cardLabel = (card: { slug: string; share_url?: string }) => cardUrl(card).replace(/^https:\/\//, "");
