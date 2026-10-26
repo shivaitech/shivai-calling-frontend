@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowUpRight, X } from "lucide-react";
 import Logo from "../../resources/images/ShivaiLogo.svg";
 import bar from "../../resources/images/appMenu.svg";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../contexts/AuthContext";
 
 interface NavbarProps {
   setAuthMode?: (mode: "signin" | "signup") => void;
@@ -23,6 +25,16 @@ const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const accountLabel = isAuthenticated ? "Dashboard" : "Sign In";
+  const onAccount = () => {
+    if (isAuthenticated) return navigate("/dashboard");
+    if (setAuthMode && setShowAuthModal) {
+      setAuthMode("signin");
+      setShowAuthModal(true);
+    }
+  };
   const navigationItems = ["Demo", "Features", "Pricing", "Contact Us"];
 
   // Enhanced smooth scroll function with easing and specific demo targeting
@@ -211,15 +223,10 @@ const Navbar: React.FC<NavbarProps> = ({
                 transition={{ duration: 0.6, delay: 0.5 }}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => {
-                  if (setAuthMode && setShowAuthModal) {
-                    setAuthMode("signin");
-                    setShowAuthModal(true);
-                  }
-                }}
+                onClick={onAccount}
                 className="flex items-center space-x-2 text-[#333333] hover:text-[#000000] transition-colors duration-300 text-base lg:text-lg font-normal border-b border-[#cfcfcf] pb-0.5 hover:border-[#333333]"
               >
-                <span>Sign In</span>
+                <span>{accountLabel}</span>
                 <ArrowUpRight className="w-4 h-4" />
               </motion.button>
             </div>
@@ -227,15 +234,10 @@ const Navbar: React.FC<NavbarProps> = ({
             {/* Links-free pages: a plain Sign In button instead of the hamburger menu */}
             {!showLinks && (
               <button
-                onClick={() => {
-                  if (setAuthMode && setShowAuthModal) {
-                    setAuthMode("signin");
-                    setShowAuthModal(true);
-                  }
-                }}
+                onClick={onAccount}
                 className="lg:hidden flex items-center space-x-1.5 text-[#333333] text-sm sm:text-base font-normal border-b border-[#cfcfcf] pb-0.5"
               >
-                <span>Sign In</span>
+                <span>{accountLabel}</span>
                 <ArrowUpRight className="w-4 h-4" />
               </button>
             )}
@@ -316,10 +318,7 @@ const Navbar: React.FC<NavbarProps> = ({
               >
                 <motion.button
                   onClick={() => {
-                    if (setAuthMode && setShowAuthModal) {
-                      setAuthMode("signin");
-                      setShowAuthModal(true);
-                    }
+                    onAccount();
                     if (setShowMobileMenu) {
                       setShowMobileMenu(false);
                     } else {
@@ -328,7 +327,7 @@ const Navbar: React.FC<NavbarProps> = ({
                   }}
                   className="flex w-auto  items-center space-x-2 bg-[#333333] text-white hover:text-[#000000] active:text-black transition-colors duration-300 text-base font-medium py-2 px-6 rounded-lg hover:bg-gray-50 touch-manipulation "
                 >
-                  <span>Sign In</span>
+                  <span>{accountLabel}</span>
                   <ArrowUpRight className="w-3.5 h-3.5" />
                 </motion.button>
               </motion.div>

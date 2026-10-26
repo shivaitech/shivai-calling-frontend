@@ -83,8 +83,9 @@ export default function CardView({
   const tel = fullPhone(c);
   const waNumber = tel.replace(/\D/g, "");
   const socials = c.social_media.map((s) => ({ s, url: socialUrl(s) })).filter((x) => x.url);
+  // LinkedIn also gets a quick-action button, but stays in the list so every added link shows there.
   const linkedin = socials.find((x) => x.s.type === "linkedin");
-  const connect = socials.filter((x) => x.s.type !== "linkedin");
+  const connect = socials;
   const ventures = c.ventures.filter((v) => v.name.trim());
   const initials = c.full_name.split(/\s+/).map((s) => s[0]).join("").slice(0, 2).toUpperCase();
   const showPhoto = c.image_url && !imgBroken;

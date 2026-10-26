@@ -100,7 +100,15 @@
 .dc .pager{display:flex;align-items:center;justify-content:center;gap:14px}
 .dc .empty{align-items:flex-start}
 .dc .savebar{display:flex;gap:10px;position:sticky;bottom:0;padding:12px 0;background:linear-gradient(transparent,var(--bg) 40%)}
-.dc .w-cc{width:84px;flex:none}
+.dc .row.phone>.field:first-child{flex:0 0 118px}
+.dc .cc-select{position:relative}
+.dc .cc-display{display:flex;align-items:center;gap:6px;font-size:14px;line-height:normal;padding:10px 12px;border:1px solid #d3d3cd;border-radius:9px;background:#fff;color:var(--ink);white-space:nowrap}
+.dc .cc-flag{font-size:16px;line-height:1}
+.dc .cc-placeholder{color:#9a9a94}
+.dc .cc-caret{margin-left:auto;color:#8a8a85;font-size:11px}
+/* The real <select> covers the label invisibly: it gets the clicks, keyboard and the native picker. */
+.dc .cc-select select{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;padding:0;border:0}
+.dc .cc-select:focus-within .cc-display{outline:2px solid #16161633;border-color:#161616}
 .dc .w-type{width:130px;flex:none}
 .dc .btn:disabled{opacity:.5;cursor:not-allowed}
 

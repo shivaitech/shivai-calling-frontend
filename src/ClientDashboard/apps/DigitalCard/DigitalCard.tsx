@@ -4,7 +4,7 @@ import QRCode from "react-qr-code";
 import toast from "react-hot-toast";
 import CardView from "./CardView";
 import CardForm from "./CardForm";
-import { CardData, emptyCard } from "./types";
+import { CardData, emptyCard, withSuggestedTagline } from "./types";
 import { clearDraft, loadDraft, saveDraft } from "./draft";
 import { validateCard } from "./validate";
 import { uploadPhoto } from "./photo";
@@ -206,7 +206,7 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
       .then((c) => {
         if (!live) return;
         setSaved(c);
-        setForm(fromCard(c));
+        setForm(withSuggestedTagline(fromCard(c)));
         setLoad("ready");
       })
       .catch((e: BusinessCardError) => live && setLoad(e.status === 403 ? "forbidden" : "missing"));

@@ -9,7 +9,7 @@ import Navbar from "./Website/Navbar";
 import CardView, { LinkIcon } from "../ClientDashboard/apps/DigitalCard/CardView";
 import { sampleCard, type SocialType } from "../ClientDashboard/apps/DigitalCard/types";
 import samplePortrait from "../resources/images/sample-portrait.jpg";
-import heroImage from "../resources/images/digital-card-hero.jpg";
+import heroImage from "../resources/images/digital-card-hero-phones.webp";
 import ShivAiLogo from "../resources/images/ShivaiLogo.svg";
 import "../ClientDashboard/apps/DigitalCard/digitalCard.css";
 
@@ -347,10 +347,10 @@ export default function DigitalCardInvitePage() {
             />
             <img
               src={heroImage}
-              alt="A digital business card on a phone, next to its QR code and share link"
-              width={798}
-              height={1024}
-              className="relative w-full max-w-[280px] lg:max-w-[380px] rounded-[28px] shadow-2xl shadow-slate-900/15"
+              alt="Two phones: Alex Morgan's digital business card, and its QR code with a share link"
+              width={900}
+              height={1064}
+              className="relative w-full max-w-[320px] lg:max-w-[460px] drop-shadow-[0_30px_40px_rgba(15,23,42,0.18)]"
               fetchPriority="high"
             />
           </div>

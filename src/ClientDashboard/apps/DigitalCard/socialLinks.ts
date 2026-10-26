@@ -161,7 +161,8 @@ export function finalizeUrl(type: SocialType, value: string): SocialValue | null
 export function changeType(type: SocialType, current: SocialValue): SocialValue {
   if (current.username.trim()) return fromUsernameInput(type, current.username);
   const p = current.url.trim() ? parseProfile(type, current.url) : null;
-  return p ?? current;
+  // Only url/username — callers may pass a whole social entry, whose old `type` must not leak back.
+  return p ?? { url: current.url, username: current.username };
 }
 
 export const USERNAME_PLACEHOLDER: Record<SocialType, string> = {

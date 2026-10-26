@@ -1,4 +1,4 @@
-import { CardData, emptyCard } from "./types";
+import { CardData, emptyCard, withSuggestedTagline } from "./types";
 
 /**
  * The card being created lives in localStorage until it is saved to the API,
@@ -14,7 +14,7 @@ export function loadDraft(): CardData {
       const d = { ...emptyCard(), ...JSON.parse(s) } as CardData;
       // Drafts saved by an earlier version were pre-filled with a demo profile — start blank instead.
       if (d.full_name === "Alex Morgan" && d.company_name === "Acme Studio") return emptyCard();
-      return d;
+      return withSuggestedTagline(d);
     }
   } catch {
     /* storage unavailable / corrupt */
