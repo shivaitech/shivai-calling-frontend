@@ -66,11 +66,12 @@ export default function DigitalCardCreatePage() {
   // Autosave the draft on every change.
   useEffect(() => saveDraft(form), [form]);
 
-  // Agents are only available once there is a session.
+  // Agents only for a real signed-in user (same test as the rest of the app). A leftover
+  // token without a user would otherwise list that account's agents to a "logged out" visitor.
   useEffect(() => {
-    if (hasSession && agents.length === 0) refreshAgents();
+    if (isAuthenticated && agents.length === 0) refreshAgents();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasSession]);
+  }, [isAuthenticated]);
 
   // The review step needs a valid card and a session (e.g. after a Google round trip or a reload).
   useEffect(() => {
@@ -116,9 +117,9 @@ export default function DigitalCardCreatePage() {
       const ready = await resolveCardPhoto(form); // uploads a locally-picked photo first
       await businessCardAPI.create(ready);
       clearDraft();
-      install("digital-card"); // so it shows up under the user's apps
-      toast.success("Your digital card is ready! Find it under Digital Business Card → My Cards.", { duration: 6000 });
-      navigate("/dashboard", { replace: true });
+      install("digital-card"); // before navigating: the app page sends non-installers to the marketplace
+      toast.success("Your digital card is ready!", { duration: 5000 });
+      navigate("/app/digital-card?section=cards", { replace: true });
     } catch (e: any) {
       const be = e as BusinessCardError;
       if (be.status === 401) {
@@ -169,7 +170,7 @@ export default function DigitalCardCreatePage() {
                   set={set}
                   errors={errors}
                   onPhotoFile={onPhotoFile}
-                  agents={hasSession ? agents.map((a) => ({ id: a.id, name: a.name, status: a.status })) : null}
+                  agents={isAuthenticated ? agents.map((a) => ({ id: a.id, name: a.name, status: a.status })) : null}
                   agentsLoading={agentsLoading}
                 />
                 <div className="savebar">

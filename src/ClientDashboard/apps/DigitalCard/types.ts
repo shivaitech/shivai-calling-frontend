@@ -11,14 +11,22 @@ export const SOCIAL_TYPES: { value: SocialType; label: string; base: string }[] 
   { value: "website", label: "Website", base: "" },
 ];
 
+/** Pre-filled on new cards; doubles as a pitch for what the card does. */
+export const SUGGESTED_TAGLINE =
+  "Let's connect. Tap to call, message me on WhatsApp or save my contact in one tap — everything you need to reach me, all in one place.";
+
+/** For forms: an empty tagline starts out as the suggested one. */
+export const withSuggestedTagline = (c: BusinessCardInput): BusinessCardInput =>
+  c.tagline?.trim() ? c : { ...c, tagline: SUGGESTED_TAGLINE };
+
 export const emptyCard = (): BusinessCardInput => ({
   full_name: "",
   job_title: "",
   company_name: "",
-  tagline: "",
+  tagline: SUGGESTED_TAGLINE,
   image_url: "",
   color_code: "#161616",
-  country_code: "",
+  country_code: "+91",
   phone_number: "",
   is_whatsapp_number: true,
   email: "",

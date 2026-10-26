@@ -1,5 +1,6 @@
 import { ReactNode, useRef } from "react";
-import { CardData, SOCIAL_TYPES, SocialType } from "./types";
+import { CardData, SOCIAL_TYPES, SocialType, SUGGESTED_TAGLINE } from "./types";
+import CountryCodeSelect from "./CountryCodeSelect";
 import { changeType, finalizeUrl, fromUrlInput, fromUsernameInput, USERNAME_PLACEHOLDER } from "./socialLinks";
 
 export function Field({ label, error, children }: { label: string; error?: string; children: ReactNode }) {
@@ -56,8 +57,20 @@ export default function CardForm({ form, set, errors, onPhotoFile, uploading = f
         </div>
         <small>Your public link is built from your name and company (like your-name-your-company.callshivai.com). Changing either one later changes the link.</small>
         <Field label="Tagline" error={err("tagline")}>
-          <input value={form.tagline} placeholder="A short line about what you do (optional)" onChange={(e) => set({ tagline: e.target.value })} />
+          <textarea
+            rows={3}
+            maxLength={300}
+            value={form.tagline}
+            placeholder="A short line about what you do (optional)"
+            style={{ resize: "vertical" }}
+            onChange={(e) => set({ tagline: e.target.value })}
+          />
         </Field>
+        {!form.tagline.trim() && (
+          <button type="button" className="btn small ghost" style={{ alignSelf: "flex-start" }} onClick={() => set({ tagline: SUGGESTED_TAGLINE })}>
+            ✦ Use suggested text
+          </button>
+        )}
         <Field label="Photo" error={err("image_url")}>
           <div className="photo-row">
             <input
@@ -99,7 +112,7 @@ export default function CardForm({ form, set, errors, onPhotoFile, uploading = f
         <h3>Contact</h3>
         <div className="row phone">
           <Field label="Code" error={err("country_code")}>
-            <input className="w-cc" value={form.country_code} placeholder="Code" onChange={(e) => set({ country_code: e.target.value })} />
+            <CountryCodeSelect value={form.country_code} onChange={(country_code) => set({ country_code })} />
           </Field>
           <Field label="Phone" error={err("phone_number")}>
             <input value={form.phone_number} placeholder="Enter your phone number" inputMode="tel" onChange={(e) => set({ phone_number: e.target.value })} />
@@ -144,7 +157,7 @@ export default function CardForm({ form, set, errors, onPhotoFile, uploading = f
                 value={s.type}
                 onChange={(e) => {
                   const type = e.target.value as SocialType;
-                  set({ social_media: patchAt(form.social_media, i, { type, ...changeType(type, s) }) });
+                  set({ social_media: patchAt(form.social_media, i, { ...changeType(type, s), type }) });
                 }}
               >
                 {SOCIAL_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
