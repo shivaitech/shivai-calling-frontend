@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { QrCode, Share2, Smartphone, Sparkles, UserPlus } from "lucide-react";
+import { Bot, QrCode, Share2, Smartphone, Sparkles, UserPlus } from "lucide-react";
 import { useInlineAuth } from "../hooks/useInlineAuth";
 import AuthModel from "../components/AuthModel";
 import SEO from "../components/SEO";
@@ -16,6 +16,7 @@ const FEATURES = [
   { icon: Share2, title: "One link to share anywhere", text: "Send it on WhatsApp, email or your bio — no app needed to view it." },
   { icon: QrCode, title: "QR code included", text: "Print it on a card or show it on screen. Scanning opens your profile." },
   { icon: UserPlus, title: "Save Contact in one tap", text: "Visitors add you to their phone's contacts as a .vcf file." },
+  { icon: Bot, title: "Connect your trained AI agent in one click", text: "Link your ShivAI agent to your card and visitors can talk to it right from your profile." },
 ];
 
 /**
@@ -55,7 +56,7 @@ export default function DigitalCardInvitePage() {
               onClick={() => navigate(CREATE_ROUTE)}
               className="w-full sm:w-auto px-7 py-3.5 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 active:scale-[0.99] transition"
             >
-              Create now
+              Create your card now
             </button>
             <button
               onClick={() => auth.open("signin")}
