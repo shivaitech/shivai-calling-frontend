@@ -23,6 +23,7 @@ import PermissionRoute from "./components/PermissionRoute";
 import HomeRedirect from "./components/HomeRedirect";
 import GoogleCallback from "./components/GoogleCallback";
 import { saveLastRoute } from "./utils/homeRoute";
+import { DIGITAL_CARD_CREATE, DIGITAL_CARD_HOME } from "./pages/digitalCardRoutes";
 
 // Lazy-load orb so it is NOT in the main bundle critical path
 const OrbFallback = lazy(() =>
@@ -100,14 +101,20 @@ function LoadingFallback() {
 
 /**
  * /app/:appId — auth required. Signed-out visitors to the Digital Card app are
- * sent to its shareable sign-up page (/digital-card) instead of the generic
+ * sent to its shareable sign-up page (DIGITAL_CARD_HOME) instead of the generic
  * landing page, so a shared workspace link still leads to sign up → install.
  */
+/** Redirect that keeps ?query (e.g. ?step=review after a Google sign-in round trip). */
+function RedirectKeepingQuery({ to }: { to: string }) {
+  const { search } = useLocation();
+  return <Navigate to={`${to}${search}`} replace />;
+}
+
 function AppWorkspaceRoute() {
   const { appId } = useParams<{ appId: string }>();
   const { isAuthenticated, isLoading } = useAuth();
   if (isLoading) return <LoadingFallback />;
-  if (!isAuthenticated && appId === "digital-card") return <Navigate to="/digital-card" replace />;
+  if (!isAuthenticated && appId === "digital-card") return <Navigate to={DIGITAL_CARD_HOME} replace />;
   return (
     <ProtectedRoute>
       <AppWorkspace />
@@ -129,7 +136,9 @@ function AppContent() {
   // Shared digital business card — public, no auth, no chrome.
   const isDigitalCardPage = location.pathname.startsWith("/card/");
   // Shareable entry for the Digital Card app — sign up / sign in, then the install page.
-  const isDigitalCardInvite = location.pathname === "/digital-card" || location.pathname.startsWith("/digital-card/");
+  const isDigitalCardInvite = [DIGITAL_CARD_HOME, "/digital-card"].some(
+    (p) => location.pathname === p || location.pathname.startsWith(`${p}/`),
+  );
   // Standalone app workspace — auth-protected but rendered without dashboard chrome.
   const isAppWorkspace = location.pathname.startsWith("/app/");
   // Public marketing pages — SEO-indexable, no dashboard chrome, no auth required.
@@ -213,8 +222,11 @@ function AppContent() {
 
             {/* Public digital business card - no auth required */}
             <Route path="/card/:code" element={<DigitalCardPublicPage />} />
-            <Route path="/digital-card" element={<DigitalCardInvitePage />} />
-            <Route path="/digital-card/create" element={<DigitalCardCreatePage />} />
+            <Route path={DIGITAL_CARD_HOME} element={<DigitalCardInvitePage />} />
+            <Route path={DIGITAL_CARD_CREATE} element={<DigitalCardCreatePage />} />
+            {/* Old addresses — already shared, so keep them working */}
+            <Route path="/digital-card" element={<RedirectKeepingQuery to={DIGITAL_CARD_HOME} />} />
+            <Route path="/digital-card/create" element={<RedirectKeepingQuery to={DIGITAL_CARD_CREATE} />} />
 
             {/* Website preview - no auth required, opens in new tab */}
             <Route path="/website-preview" element={<WebsitePreview />} />

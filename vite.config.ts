@@ -2,6 +2,7 @@ import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import fs from "fs";
 import path from "path";
+import { DIGITAL_CARD_HOME } from "./src/pages/digitalCardRoutes";
 
 // Writes dist/version.json after every build.
 // The client polls this file to detect new deployments and auto-reloads.
@@ -17,11 +18,13 @@ function versionFilePlugin(): Plugin {
   };
 }
 
-// Link-preview crawlers (WhatsApp…) don't run JS, and /digital-card/ isn't a file, so the
-// host answers it with HTTP 404 + the homepage's tags. This writes a real
-// dist/digital-card/index.html — the same app shell — with the card page's own tags.
+// Link-preview crawlers (WhatsApp…) don't run JS, and these paths aren't files, so the host
+// answers them with HTTP 404 + the homepage's tags. This writes a real <path>/index.html —
+// the same app shell — with the card page's own tags. The old /digital-card address is kept
+// because links to it were already shared (the app then redirects to the new one).
 function digitalCardSharePagePlugin(): Plugin {
   const site = "https://www.callshivai.com";
+  const pagePaths = [DIGITAL_CARD_HOME, "/digital-card"];
   const title = "Create your free digital business card | ShivAI";
   const description =
     "A business card that talks back: QR code, one-tap call, WhatsApp, socials and your own AI agent on one link. Create your card now, free.";
@@ -30,7 +33,7 @@ function digitalCardSharePagePlugin(): Plugin {
     `<meta data-static-og name="description" content="${description}" />`,
     `<meta data-static-og property="og:type" content="website" />`,
     `<meta data-static-og property="og:site_name" content="ShivAI" />`,
-    `<meta data-static-og property="og:url" content="${site}/digital-card/" />`,
+    `<meta data-static-og property="og:url" content="${site}${DIGITAL_CARD_HOME}" />`,
     `<meta data-static-og property="og:title" content="${title}" />`,
     `<meta data-static-og property="og:description" content="${description}" />`,
     `<meta data-static-og property="og:image" content="${image}" />`,
@@ -56,8 +59,11 @@ function digitalCardSharePagePlugin(): Plugin {
       // Fail the build rather than silently ship the homepage's tags if index.html changes shape.
       if (!ogBlock.test(src) || !titleTag.test(src)) throw new Error("digital-card-share-page: index.html tags not found");
       const html = src.replace(ogBlock, `${tags}\n`).replace(titleTag, `<title>${title}</title>`);
-      fs.mkdirSync(path.join(outDir, "digital-card"), { recursive: true });
-      fs.writeFileSync(path.join(outDir, "digital-card", "index.html"), html);
+      for (const p of pagePaths) {
+        const dir = path.join(outDir, ...p.split("/").filter(Boolean));
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(path.join(dir, "index.html"), html);
+      }
     },
   };
 }
