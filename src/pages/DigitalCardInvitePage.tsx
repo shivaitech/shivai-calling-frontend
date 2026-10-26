@@ -6,6 +6,8 @@ import SEO from "../components/SEO";
 import Navbar from "./Website/Navbar";
 import CardView from "../ClientDashboard/apps/DigitalCard/CardView";
 import { sampleCard } from "../ClientDashboard/apps/DigitalCard/types";
+import heroImage from "../resources/images/digital-card-hero.jpg";
+import samplePortrait from "../resources/images/sample-portrait.jpg";
 import "../ClientDashboard/apps/DigitalCard/digitalCard.css";
 
 /** Where "Create now" leads: the card builder (no account needed to start). */
@@ -83,13 +85,39 @@ export default function DigitalCardInvitePage() {
         </section>
 
         <aside className="w-full">
-          <div className="dc">
-            <div className="phone-frame" style={{ maxWidth: 400, margin: "0 auto", pointerEvents: "none" }} aria-hidden="true">
-              <CardView card={sampleCard()} />
-            </div>
-          </div>
+          <img
+            src={heroImage}
+            alt="A digital business card on a phone, next to its QR code and share link"
+            width={798}
+            height={1024}
+            className="w-full max-w-[420px] lg:max-w-none mx-auto rounded-[28px] shadow-xl shadow-slate-900/10"
+            fetchPriority="high"
+          />
         </aside>
       </main>
+
+      {/* A complete sample card — the same component people's real cards use */}
+      <section className="max-w-6xl mx-auto px-5 sm:px-8 pb-20 sm:pb-24 text-center">
+        <h2 className="text-2xl sm:text-4xl font-semibold tracking-tight">See your card in action</h2>
+        <p className="mt-3 text-sm sm:text-base text-slate-600 max-w-xl mx-auto">
+          A sample card with everything on it — photo, call and WhatsApp, your AI agent, social links and one-tap Save Contact.
+        </p>
+
+        <div className="dc mt-8 sm:mt-10">
+          <div className="phone-frame" style={{ maxWidth: 420, margin: "0 auto", textAlign: "left" }} role="img" aria-label="Sample digital business card for Alex Morgan">
+            <div style={{ pointerEvents: "none" }}>
+              <CardView card={{ ...sampleCard(), image_url: samplePortrait }} poweredBy />
+            </div>
+          </div>
+        </div>
+
+        <button
+          onClick={() => navigate(CREATE_ROUTE)}
+          className="mt-8 w-full sm:w-auto px-7 py-3.5 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 active:scale-[0.99] transition"
+        >
+          Create your card now
+        </button>
+      </section>
 
       {auth.showAuthModal && <AuthModel {...auth.modalProps} />}
     </div>

@@ -61,12 +61,15 @@ export default function CardView({
   wide = false,
   shareUrl,
   placeholders = false,
+  poweredBy = false,
 }: {
   card: CardData;
   wide?: boolean;
   shareUrl?: string;
   /** Editor preview: show grey instructions for empty fields (never on the public page). */
   placeholders?: boolean;
+  /** Adds a "Powered by ShivAI" line under the card (used by the marketing sample). */
+  poweredBy?: boolean;
 }) {
   const [imgBroken, setImgBroken] = useState(false);
   const tel = fullPhone(c);
@@ -183,6 +186,11 @@ export default function CardView({
       </div>
 
       <footer className="footer"><strong>{(c.full_name || "YOUR NAME").toUpperCase()}</strong><span>{c.company_name || "Digital card"}</span></footer>
+      {poweredBy && (
+        <p className="powered">
+          Powered by <a href="https://www.callshivai.com" target="_blank" rel="noopener noreferrer"><strong>ShivAI</strong></a>
+        </p>
+      )}
     </main>
   );
 }
