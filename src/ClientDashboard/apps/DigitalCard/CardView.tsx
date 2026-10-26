@@ -1,6 +1,6 @@
 import { CSSProperties, useState } from "react";
 import QRCode from "react-qr-code";
-import { Facebook, Globe, Instagram, Linkedin, LucideIcon, Twitter, Youtube } from "lucide-react";
+import { Facebook, Instagram, Link2, Linkedin, LucideIcon, Twitter, Youtube } from "lucide-react";
 import { downloadVCard, fullPhone } from "./vcard";
 import { CardData, SOCIAL_TYPES, SocialType } from "./types";
 import { PUBLIC_APP_URL } from "../../../services/businessCardAPI";
@@ -17,21 +17,29 @@ export function socialUrl(s: Social): string {
   return s.username.trim() && base ? base + s.username.trim().replace(/^@/, "") : "";
 }
 
-/** Brand icon + colour per social type (shown as a tinted tile). */
-const SOCIAL_ICON: Record<SocialType, { Icon: LucideIcon; color: string }> = {
-  linkedin: { Icon: Linkedin, color: "#0a66c2" },
-  instagram: { Icon: Instagram, color: "#e4405f" },
-  twitter: { Icon: Twitter, color: "#111111" },
-  facebook: { Icon: Facebook, color: "#1877f2" },
-  youtube: { Icon: Youtube, color: "#ff0000" },
-  website: { Icon: Globe, color: "#475569" },
+/** Brand badge per social type: white glyph on the brand colour. Website has no
+ *  brand, so it's a plain link glyph. */
+const SOCIAL_ICON: Record<SocialType, { Icon: LucideIcon; bg?: string }> = {
+  linkedin: { Icon: Linkedin, bg: "#0a66c2" },
+  instagram: { Icon: Instagram, bg: "radial-gradient(circle at 30% 107%,#fdf497 0%,#fd5949 45%,#d6249f 60%,#285aeb 90%)" },
+  twitter: { Icon: Twitter, bg: "#111111" },
+  facebook: { Icon: Facebook, bg: "#1877f2" },
+  youtube: { Icon: Youtube, bg: "#ff0000" },
+  website: { Icon: Link2 },
 };
 
-function LinkIcon({ type }: { type: SocialType }) {
-  const { Icon, color } = SOCIAL_ICON[type];
+export function LinkIcon({ type }: { type: SocialType }) {
+  const { Icon, bg } = SOCIAL_ICON[type];
+  if (!bg) {
+    return (
+      <span className="link-ico plain" aria-hidden="true">
+        <Icon size={18} strokeWidth={2} />
+      </span>
+    );
+  }
   return (
-    <span className="link-ico" style={{ color, background: `${color}14` }} aria-hidden="true">
-      <Icon size={18} strokeWidth={2} />
+    <span className="link-ico" style={{ background: bg }} aria-hidden="true">
+      <Icon size={13} strokeWidth={2.4} />
     </span>
   );
 }

@@ -15,6 +15,7 @@ import {
   businessCardAPI,
   Pagination,
   cardShareUrl,
+  publicCardLabel,
   publicCardUrl,
   toPayload,
 } from "../../../services/businessCardAPI";
@@ -158,7 +159,7 @@ function CardsList({ go }: { go: (s: string, id?: string | null) => void }) {
             <div className="grow">
               <strong>{c.full_name}</strong>
               <div className="muted">{[c.job_title, c.company_name].filter(Boolean).join(" · ")}</div>
-              <a className="slug" href={publicCardUrl(c.slug)} target="_blank" rel="noopener noreferrer">/card/{c.slug}</a>
+              <a className="slug" href={publicCardUrl(c.slug)} target="_blank" rel="noopener noreferrer">{publicCardLabel(c.slug)}</a>
             </div>
             <div className="btns">
               <button className="btn small ghost" onClick={() => go("card", c._id)}>Edit</button>
@@ -286,7 +287,7 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
             <div className="muted">Public link</div>
             <a href={publicCardUrl(saved.slug)} target="_blank" rel="noopener noreferrer" className="slug">{publicCardUrl(saved.slug)}</a>
             {oldSlug && (
-              <small className="warn">Your name or company changed, so the link changed too. The old link (/card/{oldSlug}) no longer works — re-share the new one.</small>
+              <small className="warn">Your name or company changed, so the link changed too. The old link ({publicCardLabel(oldSlug)}) no longer works — re-share the new one.</small>
             )}
             <div className="btns"><button className="btn small ghost" onClick={() => go("share", saved._id)}>Share & QR</button></div>
           </section>

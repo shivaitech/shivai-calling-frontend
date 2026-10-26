@@ -35,8 +35,9 @@ const esc = (s) =>
 
 const header = (request, name) => (request.headers[name] && request.headers[name][0] && request.headers[name][0].value) || "";
 
-function page(card, slug) {
-  const url = `${SITE}/card/${slug}`;
+// `url` must be the address actually shared: crawlers re-fetch og:url, and the www
+// /card/ path still shows generic tags (www isn't behind this function).
+function page(card, slug, url = `${SITE}/card/${slug}`) {
   const role = [card.job_title, card.company_name].filter(Boolean).join(", ");
   // e.g. "Athar Cee — Founder & CEO, Acme Studio | Digital Business Card"
   const title = `${[card.full_name, role].filter(Boolean).join(" — ") || "Digital business card"} | Digital Business Card`;
@@ -99,32 +100,50 @@ const respond = (status, body, cache) => ({
 exports.handler = async (event) => {
   const request = event.Records[0].cf.request;
 
-  // Humans (and unknown agents) get the normal SPA.
-  if (!BOT_RE.test(header(request, "user-agent"))) return request;
+  // Humans (and unknown agents) get the normal SPA. Not logged: this is every page view.
+  const ua = header(request, "user-agent");
+  if (!BOT_RE.test(ua)) return request;
 
   if (/^\/digital-card\/?$/i.test(request.uri)) return respond(200, invitePage(), "public, max-age=3600");
 
   // /card/<slug>  — or, on a card subdomain, <slug>.callshivai.com/
   let slug = null;
+  let shareUrl;
   const m = /^\/card\/([a-z0-9][a-z0-9-]{1,98}[a-z0-9])\/?$/i.exec(request.uri);
   if (m) {
     slug = m[1].toLowerCase();
   } else if (request.uri === "/" || request.uri === "") {
     const h = /^([a-z0-9][a-z0-9-]{1,61}[a-z0-9])\.callshivai\.com$/.exec(header(request, "host").toLowerCase());
-    if (h && !RESERVED_SUBDOMAINS.has(h[1])) slug = h[1];
+    if (h && !RESERVED_SUBDOMAINS.has(h[1])) {
+      slug = h[1];
+      shareUrl = `https://${slug}.callshivai.com/`;
+    }
   }
-  if (!slug) return request;
+  // Crawler-only logging below (rare traffic), so a missing preview can be diagnosed in CloudWatch.
+  if (!slug) {
+    console.log("pass: no card slug", JSON.stringify({ host: header(request, "host"), uri: request.uri, ua }));
+    return request;
+  }
 
+  const started = Date.now();
   try {
     const res = await fetch(`${API_BASE}/business-cards/public/${encodeURIComponent(slug)}`, {
       headers: { accept: "application/json" },
-      signal: AbortSignal.timeout(2500), // viewer-request functions have a 5s hard limit
+      signal: AbortSignal.timeout(4000), // viewer-request functions have a 5s hard limit
     });
-    if (!res.ok) return request; // unknown card → let the SPA show "Card not found"
+    if (!res.ok) {
+      console.log("pass: api status", res.status, slug, `${Date.now() - started}ms`);
+      return request; // unknown card → let the SPA show "Card not found"
+    }
     const json = await res.json();
-    if (!json || !json.data) return request;
-    return respond(200, page(json.data, slug), "public, max-age=300");
+    if (!json || !json.data) {
+      console.log("pass: api returned no data", slug);
+      return request;
+    }
+    console.log("preview", slug, `${Date.now() - started}ms`);
+    return respond(200, page(json.data, slug, shareUrl), "public, max-age=300");
   } catch (e) {
+    console.log("pass: api error", slug, `${Date.now() - started}ms`, String(e && (e.cause || e)));
     return request; // API slow/down → fall back to the SPA rather than break the link
   }
 };

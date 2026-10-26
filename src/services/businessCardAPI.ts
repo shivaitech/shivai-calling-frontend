@@ -188,9 +188,11 @@ export const businessCardAPI = {
  *  Override with VITE_PUBLIC_APP_URL for staging. */
 export const PUBLIC_APP_URL = (import.meta.env.VITE_PUBLIC_APP_URL || "https://www.callshivai.com").replace(/\/+$/, "");
 
-/** Set VITE_CARD_SUBDOMAINS=true once *.callshivai.com is live to share short links
- *  like https://<slug>.callshivai.com instead of https://www.callshivai.com/card/<slug>. */
-const USE_SUBDOMAINS = import.meta.env.VITE_CARD_SUBDOMAINS === "true";
+/** Card links are https://<slug>.callshivai.com (served via infra/card-subdomain-cdn,
+ *  which also gives WhatsApp & co. a preview with the photo and tagline). A slug
+ *  longer than a DNS label (63) can't be a subdomain and keeps the /card/<slug> path.
+ *  VITE_CARD_SUBDOMAINS=false switches back to /card/<slug> links everywhere. */
+const USE_SUBDOMAINS = import.meta.env.VITE_CARD_SUBDOMAINS !== "false";
 
 export const publicCardUrl = (slug: string) => {
   if (USE_SUBDOMAINS && slug.length <= 63) {
@@ -200,13 +202,8 @@ export const publicCardUrl = (slug: string) => {
   return `${PUBLIC_APP_URL}/card/${slug}`;
 };
 
-/**
- * The link people actually SHARE (copy / WhatsApp / QR). When VITE_CARD_SHARE_URL
- * is set (the card-share route from infra/card-share, e.g.
- * https://nodejs.service.callshivai.com/api/v1/card-share), shared links look like
- * <VITE_CARD_SHARE_URL>/<slug>: WhatsApp & co. get a rich preview with the profile
- * photo, and people are redirected to the real card page. Unset = share the card URL directly.
- */
-const CARD_SHARE_BASE = ((import.meta.env.VITE_CARD_SHARE_URL as string | undefined) || "").trim().replace(/\/+$/, "");
+/** The link shown in the dashboard, without the scheme. */
+export const publicCardLabel = (slug: string) => publicCardUrl(slug).replace(/^https?:\/\//, "");
 
-export const cardShareUrl = (slug: string) => (CARD_SHARE_BASE ? `${CARD_SHARE_BASE}/${slug}` : publicCardUrl(slug));
+/** The link people share (copy / WhatsApp / QR) — the card's own address. */
+export const cardShareUrl = publicCardUrl;
