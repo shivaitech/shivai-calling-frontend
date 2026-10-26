@@ -54,7 +54,7 @@ export default function CardForm({ form, set, errors, onPhotoFile, uploading = f
             <input value={form.company_name} placeholder="Enter your company name" onChange={(e) => set({ company_name: e.target.value })} />
           </Field>
         </div>
-        <small>Your public link is built from your name and company (like /card/your-name-your-company). Changing either one later changes the link.</small>
+        <small>Your public link is built from your name and company (like your-name-your-company.callshivai.com). Changing either one later changes the link.</small>
         <Field label="Tagline" error={err("tagline")}>
           <input value={form.tagline} placeholder="A short line about what you do (optional)" onChange={(e) => set({ tagline: e.target.value })} />
         </Field>

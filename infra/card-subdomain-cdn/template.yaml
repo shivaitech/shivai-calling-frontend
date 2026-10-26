@@ -1,0 +1,66 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Your own CloudFront distribution for *.callshivai.com in front of the Amplify app,
+  with the card link-preview Lambda@Edge attached. Amplify-managed CloudFront can't run
+  per-card logic, so a shared https://<slug>.callshivai.com link only gets a rich
+  WhatsApp/Facebook preview (the card's photo + name) when it goes through this.
+  Deploy in us-east-1 (CloudFront certificates and Lambda@Edge live there).
+
+Parameters:
+  CertificateArn:
+    Type: String
+    Description: ACM certificate in us-east-1 that covers *.callshivai.com (DNS-validated).
+  AmplifyOriginDomain:
+    Type: String
+    Description: >
+      The Amplify app's default domain WITHOUT https://, e.g. main.d1a2b3c4d5e6f7.amplifyapp.com
+      (Amplify console -> App settings -> Domain management shows it, or the branch URL).
+  EdgeFunctionVersionArn:
+    Type: String
+    Description: Output "VersionArn" of the shivai-card-og-edge stack (infra/card-og-edge/template.yaml).
+  AliasDomain:
+    Type: String
+    Default: "*.callshivai.com"
+
+Resources:
+  CardSubdomainDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: ShivAI card subdomains (*.callshivai.com) -> Amplify, with link-preview edge function
+        Aliases:
+          - !Ref AliasDomain
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        PriceClass: PriceClass_All
+        ViewerCertificate:
+          AcmCertificateArn: !Ref CertificateArn
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+        Origins:
+          - Id: amplify
+            DomainName: !Ref AmplifyOriginDomain
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
+        DefaultCacheBehavior:
+          TargetOriginId: amplify
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD]
+          Compress: true
+          # Managed-CachingOptimized: follows the origin's Cache-Control (index.html is no-cache,
+          # hashed assets are immutable). The cache key has no Host header, which is fine because
+          # the app HTML is identical for every subdomain.
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          # Managed-AllViewerExceptHostHeader: Amplify must see ITS OWN host, not <slug>.callshivai.com.
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+          LambdaFunctionAssociations:
+            - EventType: viewer-request
+              LambdaFunctionARN: !Ref EdgeFunctionVersionArn
+
+Outputs:
+  DistributionDomain:
+    Description: Point the GoDaddy wildcard CNAME ( * ) at this value.
+    Value: !GetAtt CardSubdomainDistribution.DomainName
