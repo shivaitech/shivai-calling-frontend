@@ -11,10 +11,11 @@ import { sampleCard, type SocialType } from "../ClientDashboard/apps/DigitalCard
 import samplePortrait from "../resources/images/sample-portrait.jpg";
 import heroImage from "../resources/images/digital-card-hero-phones.webp";
 import ShivAiLogo from "../resources/images/ShivaiLogo.svg";
+import { DIGITAL_CARD_CREATE, DIGITAL_CARD_HOME } from "./digitalCardRoutes";
 import "../ClientDashboard/apps/DigitalCard/digitalCard.css";
 
 /** Where every "Create" CTA on this page leads (no account needed to start). */
-const CREATE_ROUTE = "/digital-card/create";
+const CREATE_ROUTE = DIGITAL_CARD_CREATE;
 
 const DEMO = { ...sampleCard(), image_url: samplePortrait };
 const DEMO_LINK = "alex-morgan-morgan-consulting.callshivai.com";
@@ -310,7 +311,7 @@ export default function DigitalCardInvitePage() {
       <SEO
         title="Free Digital Business Card — Share Your Profile on WhatsApp | ShivAI"
         description="Create a digital business card in minutes. Share by QR code or WhatsApp, connect your AI agent, and let people save your contact in one tap — free with every ShivAI account."
-        path="/digital-card"
+        path={DIGITAL_CARD_HOME}
       />
       <Navbar setAuthMode={auth.setAuthMode} setShowAuthModal={auth.setShowAuthModal} showLinks={false} />
 

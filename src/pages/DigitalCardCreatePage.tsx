@@ -15,12 +15,13 @@ import { clearDraft, loadDraft, saveDraft } from "../ClientDashboard/apps/Digita
 import { validateCard } from "../ClientDashboard/apps/DigitalCard/validate";
 import { fileToDataUrl, resolveCardPhoto } from "../ClientDashboard/apps/DigitalCard/photo";
 import { BusinessCardError, businessCardAPI } from "../services/businessCardAPI";
+import { DIGITAL_CARD_CREATE } from "./digitalCardRoutes";
 import "../ClientDashboard/apps/DigitalCard/digitalCard.css";
 
-const CREATE_ROUTE = "/digital-card/create";
+const CREATE_ROUTE = DIGITAL_CARD_CREATE;
 
 /**
- * /digital-card/create — public. The visitor builds their card with no account
+ * DIGITAL_CARD_CREATE — public. The visitor builds their card with no account
  * (everything is autosaved to localStorage). Saving asks them to sign in or
  * sign up; afterwards they see a preview, and "Save card" calls the API and
  * sends them to the dashboard.
