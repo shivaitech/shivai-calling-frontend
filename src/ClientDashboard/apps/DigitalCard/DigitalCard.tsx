@@ -14,9 +14,9 @@ import {
   BusinessCardError,
   businessCardAPI,
   Pagination,
-  cardShareUrl,
-  publicCardLabel,
-  publicCardUrl,
+  cardLabel,
+  cardQrImage,
+  cardUrl,
   toPayload,
 } from "../../../services/businessCardAPI";
 import "./digitalCard.css";
@@ -114,8 +114,8 @@ function CardsList({ go }: { go: (s: string, id?: string | null) => void }) {
 
   useEffect(load, [load]);
 
-  const copy = async (slug: string) => {
-    await navigator.clipboard.writeText(cardShareUrl(slug));
+  const copy = async (c: BusinessCard) => {
+    await navigator.clipboard.writeText(cardUrl(c));
     toast.success("Link copied");
   };
 
@@ -159,12 +159,12 @@ function CardsList({ go }: { go: (s: string, id?: string | null) => void }) {
             <div className="grow">
               <strong>{c.full_name}</strong>
               <div className="muted">{[c.job_title, c.company_name].filter(Boolean).join(" · ")}</div>
-              <a className="slug" href={publicCardUrl(c.slug)} target="_blank" rel="noopener noreferrer">{publicCardLabel(c.slug)}</a>
+              <a className="slug" href={cardUrl(c)} target="_blank" rel="noopener noreferrer">{cardLabel(c)}</a>
             </div>
             <div className="btns">
               <button className="btn small ghost" onClick={() => go("card", c._id)}>Edit</button>
               <button className="btn small ghost" onClick={() => go("share", c._id)}>Share</button>
-              <button className="btn small ghost" onClick={() => copy(c.slug)}>Copy link</button>
+              <button className="btn small ghost" onClick={() => copy(c)}>Copy link</button>
             </div>
           </section>
         ))}
@@ -190,7 +190,7 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [oldSlug, setOldSlug] = useState<string | null>(null);
+  const [oldLink, setOldLink] = useState<string | null>(null);
   const set = (patch: Partial<CardData>) => setForm((f) => ({ ...f, ...patch }));
 
   // AgentProvider only auto-loads on agent-related routes (not /app/*).
@@ -248,7 +248,7 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
       } else {
         const card = await businessCardAPI.update(id, toPayload(form));
         cardCache.set(card._id, card);
-        if (saved && card.slug !== saved.slug) setOldSlug(saved.slug);
+        if (saved && card.slug !== saved.slug) setOldLink(cardLabel(saved));
         setSaved(card);
         setErrors({});
         toast.success("Card updated");
@@ -285,9 +285,9 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
         {!isNew && saved && (
           <section className="panel notice">
             <div className="muted">Public link</div>
-            <a href={publicCardUrl(saved.slug)} target="_blank" rel="noopener noreferrer" className="slug">{publicCardUrl(saved.slug)}</a>
-            {oldSlug && (
-              <small className="warn">Your name or company changed, so the link changed too. The old link ({publicCardLabel(oldSlug)}) no longer works — re-share the new one.</small>
+            <a href={cardUrl(saved)} target="_blank" rel="noopener noreferrer" className="slug">{cardUrl(saved)}</a>
+            {oldLink && (
+              <small className="warn">Your name or company changed, so the link changed too. The old link ({oldLink}) no longer works — re-share the new one.</small>
             )}
             <div className="btns"><button className="btn small ghost" onClick={() => go("share", saved._id)}>Share & QR</button></div>
           </section>
@@ -321,6 +321,7 @@ function SharePanel({ id, go }: { id: string | null; go: (s: string, id?: string
   const [card, setCard] = useState<BusinessCard | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "none" | "missing">(id ? "loading" : "none");
   const [copied, setCopied] = useState(false);
+  const [qrImageBroken, setQrImageBroken] = useState(false);
   const qrRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -344,14 +345,32 @@ function SharePanel({ id, go }: { id: string | null; go: (s: string, id?: string
       </section>
     );
 
-  const link = cardShareUrl(card.slug);
+  const link = cardUrl(card);
+  const qrImage = qrImageBroken ? null : cardQrImage(card);
+  const qrFileName = `${card.slug}-qr.png`;
   const copy = async () => {
     await navigator.clipboard.writeText(link);
     setCopied(true);
     setTimeout(() => setCopied(false), 1800);
   };
   const share = () => navigator.share({ title: `${card.full_name} – Digital Card`, url: link }).catch(() => {});
-  const downloadQR = () => {
+  const downloadQR = async () => {
+    if (qrImage) {
+      // A cross-origin <a download> is ignored by browsers, so fetch it as a blob (S3 allows CORS).
+      try {
+        const res = await fetch(qrImage);
+        if (!res.ok) throw new Error(String(res.status));
+        const url = URL.createObjectURL(await res.blob());
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = qrFileName;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      } catch {
+        window.open(qrImage, "_blank", "noopener,noreferrer");
+      }
+      return;
+    }
     const svg = qrRef.current?.querySelector("svg");
     if (!svg) return;
     const img = new Image();
@@ -364,7 +383,7 @@ function SharePanel({ id, go }: { id: string | null; go: (s: string, id?: string
       ctx.drawImage(img, 0, 0, 1024, 1024);
       const a = document.createElement("a");
       a.href = c.toDataURL("image/png");
-      a.download = `${card.slug}-qr.png`;
+      a.download = qrFileName;
       a.click();
     };
     img.src = "data:image/svg+xml;base64," + btoa(new XMLSerializer().serializeToString(svg));
@@ -383,7 +402,20 @@ function SharePanel({ id, go }: { id: string | null; go: (s: string, id?: string
             <a className="btn ghost" href={link} target="_blank" rel="noopener noreferrer">Open card ↗</a>
           </div>
           <div className="qr">
-            <div ref={qrRef} className="qrbox"><QRCode value={link} size={168} /></div>
+            <div ref={qrRef} className="qrbox">
+              {qrImage ? (
+                <img
+                  src={qrImage}
+                  alt={`QR code for ${card.full_name}'s card`}
+                  width={168}
+                  height={168}
+                  style={{ display: "block", objectFit: "contain" }}
+                  onError={() => setQrImageBroken(true)}
+                />
+              ) : (
+                <QRCode value={link} size={168} />
+              )}
+            </div>
             <div>
               <p className="muted">Scan to open the card. The code stays valid until the name or company changes, which changes the link.</p>
               <button className="btn small" onClick={downloadQR}>Download QR (PNG)</button>
