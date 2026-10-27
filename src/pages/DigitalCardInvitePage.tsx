@@ -243,6 +243,7 @@ function Eyebrow({ children }: { children: React.ReactNode }) {
 /** One full feature section: icon, headline, body, bullets on one side; a
  *  real cropped look at the feature on the other. Alternates side by request. */
 function FeatureSection({
+  id,
   reverse,
   icon: Icon,
   eyebrow,
@@ -253,6 +254,7 @@ function FeatureSection({
   visual,
   tone = "light",
 }: {
+  id?: string;
   reverse?: boolean;
   icon: React.ElementType;
   eyebrow: string;
@@ -266,7 +268,7 @@ function FeatureSection({
 }) {
   const dark = tone === "dark";
   return (
-    <section className={dark ? "bg-slate-950 text-white" : "bg-white text-slate-900"}>
+    <section id={id} className={`scroll-mt-16 sm:scroll-mt-20 ${dark ? "bg-slate-950 text-white" : "bg-white text-slate-900"}`}>
       <div className="max-w-6xl mx-auto px-6 sm:px-8 py-12 sm:py-[68px]">
         <div className={`grid lg:grid-cols-2 gap-10 sm:gap-14 items-center ${reverse ? "lg:[&>*:first-child]:order-2" : ""}`}>
           <div className={reverse ? "lg:pl-4" : "lg:pr-4"}>
@@ -334,10 +336,78 @@ const FAQS = [
 
 // ═════════════════════════════════════════════════════════════════════════════
 
+const FIRST_FEATURE_ID = "features";
+
+function scrollToId(id: string) {
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  document.getElementById(id)?.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
+}
+
+/**
+ * "Create your card now", pinned bottom-right. The site's chat widget lives in the same
+ * corner and loads late, with a size that depends on its content — so this measures it
+ * and sits just above it (or in the corner when there's no widget).
+ */
+function FloatingCreate({ onClick }: { onClick: () => void }) {
+  const GAP = 12;
+  const [bottom, setBottom] = useState<number | null>(null);
+
+  useEffect(() => {
+    let observer: ResizeObserver | null = null;
+    const place = (el: Element | null) => {
+      if (!el) return setBottom(null);
+      const r = el.getBoundingClientRect();
+      setBottom(r.height ? window.innerHeight - r.top + GAP : null);
+    };
+    const attach = () => {
+      const el = document.querySelector(".shivai-trigger");
+      if (!el) return false;
+      place(el);
+      observer = new ResizeObserver(() => place(el));
+      observer.observe(el);
+      return true;
+    };
+    // The widget script runs after the app, so look for it for a few seconds.
+    let tries = 0;
+    const timer = window.setInterval(() => {
+      if (attach() || ++tries > 20) window.clearInterval(timer);
+    }, 500);
+    const onResize = () => place(document.querySelector(".shivai-trigger"));
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.clearInterval(timer);
+      observer?.disconnect();
+      window.removeEventListener("resize", onResize);
+    };
+  }, []);
+
+  return (
+    <div
+      className="floating-cta fixed right-4 sm:right-6 z-40"
+      style={{ bottom: bottom ?? "calc(1.25rem + env(safe-area-inset-bottom))" }}
+    >
+      <button type="button" onClick={onClick} className={`${btnPrimary} shadow-xl shadow-slate-900/25`}>
+        Create your card now
+      </button>
+    </div>
+  );
+}
+
 export default function DigitalCardInvitePage() {
   const navigate = useNavigate();
   const auth = useInlineAuth({ googleReturn: CREATE_ROUTE, onSuccess: () => navigate(CREATE_ROUTE) });
   const create = () => navigate(CREATE_ROUTE);
+
+  // Smooth scrolling for the whole page (in-page links included) while it's open.
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const html = document.documentElement;
+    const prev = html.style.scrollBehavior;
+    html.style.scrollBehavior = "smooth";
+    return () => {
+      html.style.scrollBehavior = prev;
+    };
+  }, []);
 
   return (
     // overflow-x-clip: anything wider than a phone screen makes mobile Safari zoom the
@@ -366,10 +436,16 @@ export default function DigitalCardInvitePage() {
             <p className="mt-3 text-base sm:text-lg text-slate-500 max-w-lg">
               Everything you want people to know about you, ready to share in one short link or QR Code.
             </p>
-            <div className="mt-8 flex flex-col sm:flex-row gap-3">
-              <button onClick={create} className={`w-full sm:w-auto ${btnPrimary}`}>Create your card now</button>
-              <button onClick={() => auth.open("signin")} className={`w-full sm:w-auto ${btnSecondary}`}>I already have an account</button>
-            </div>
+            <button
+              type="button"
+              onClick={() => scrollToId(FIRST_FEATURE_ID)}
+              className="mt-10 group inline-flex items-center gap-3 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors"
+            >
+              <span className="scroll-cue" aria-hidden="true">
+                <ChevronDown className="w-4 h-4" />
+              </span>
+              Scroll to learn more
+            </button>
           </div>
 
           <div className="flex justify-center lg:justify-end">
@@ -387,6 +463,7 @@ export default function DigitalCardInvitePage() {
 
       {/* ── Feature 1: QR code ── */}
       <FeatureSection
+        id={FIRST_FEATURE_ID}
         icon={QrCodeIcon}
         eyebrow="Share instantly"
         title="Your QR. Your style. Always within reach."
@@ -581,6 +658,7 @@ export default function DigitalCardInvitePage() {
         </div>
       </footer>
 
+      <FloatingCreate onClick={create} />
       {auth.showAuthModal && <AuthModel {...auth.modalProps} />}
     </div>
   );
