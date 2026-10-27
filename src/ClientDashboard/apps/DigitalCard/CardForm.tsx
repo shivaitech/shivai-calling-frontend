@@ -28,7 +28,7 @@ interface CardFormProps {
   /** Called with the photo the user picked. */
   onPhotoFile: (file?: File) => void;
   uploading?: boolean;
-  /** null = hide the "My AI" section (e.g. before the visitor has an account). */
+  /** null = hide the "Ask My AI" section (e.g. before the visitor has an account). */
   agents: AgentOption[] | null;
   agentsLoading?: boolean;
 }
@@ -132,7 +132,7 @@ export default function CardForm({ form, set, errors, onPhotoFile, uploading = f
 
       {agents !== null && (
         <section className="panel">
-          <h3>My AI <small>Optional — you can add it later</small></h3>
+          <h3>Ask My AI <small>Optional — you can add it later</small></h3>
           <Field label="AI agent" error={err("agent_id")}>
             <select value={form.agent_id} onChange={(e) => set({ agent_id: e.target.value })}>
               <option value="">{agentsLoading && agents.length === 0 ? "Loading agents…" : "No agent — add later"}</option>
@@ -142,7 +142,7 @@ export default function CardForm({ form, set, errors, onPhotoFile, uploading = f
               {form.agent_id && !agentKnown && <option value={form.agent_id}>{form.agent_id}</option>}
             </select>
           </Field>
-          <small>If you pick one, a “My AI” button on your card opens it. Leave it empty and the button is simply hidden.</small>
+          <small>If you pick one, an “Ask My AI” button on your card opens it. Leave it empty and the button is simply hidden.</small>
           {agents.length === 0 && !agentsLoading && <small>You don’t have any AI employees yet — you can create one later and come back to add it.</small>}
         </section>
       )}

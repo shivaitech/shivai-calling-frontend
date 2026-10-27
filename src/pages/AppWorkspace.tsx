@@ -51,7 +51,7 @@ const AppWorkspace: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { isInstalled } = useInstalledApps();
+  const { isInstalled, ready: installsReady } = useInstalledApps();
 
   // Same shell state as the main dashboard (App.tsx AppContent).
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -113,6 +113,15 @@ const AppWorkspace: React.FC = () => {
         subtitle="This app isn't available to open yet."
         onBack={() => navigate("/marketplace")}
       />
+    );
+  }
+  // The installed list may still be loading from the server (e.g. a new device) — wait
+  // rather than bounce someone who does have the app to the marketplace.
+  if (!isInstalled(app.id) && !installsReady) {
+    return (
+      <div className="min-h-screen flex">
+        <Spinner />
+      </div>
     );
   }
   // Digital Card: a signed-in visitor who hasn't installed it yet goes straight to its install page.

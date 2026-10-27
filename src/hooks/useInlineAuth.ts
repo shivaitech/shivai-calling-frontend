@@ -30,7 +30,15 @@ export function useInlineAuth(opts: { onSuccess: () => void; googleReturn: strin
     }
   }, [showAuthModal, clearError]);
 
-  const open = useCallback((mode: "signin" | "signup") => {
+  /** `prefill`: details the visitor already typed elsewhere (e.g. their card) — only the password is left to enter. */
+  const open = useCallback((mode: "signin" | "signup", prefill?: { name?: string; email?: string }) => {
+    if (prefill) {
+      setFormData((f) => ({
+        ...f,
+        name: mode === "signup" ? prefill.name?.trim() || f.name : f.name,
+        email: prefill.email?.trim() || f.email,
+      }));
+    }
     setAuthMode(mode);
     setShowAuthModal(true);
   }, []);
