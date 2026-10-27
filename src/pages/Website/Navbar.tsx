@@ -14,6 +14,8 @@ interface NavbarProps {
   /** Section links (Demo / Features / Pricing / Contact Us) scroll to sections of the
    *  landing page. Pass false on standalone pages that don't have those sections. */
   showLinks?: boolean;
+  /** Background while at the very top of the page — match the hero. Scrolled look is unchanged. */
+  topBgClass?: string;
 }
 
 const Navbar: React.FC<NavbarProps> = ({
@@ -22,6 +24,7 @@ const Navbar: React.FC<NavbarProps> = ({
   showMobileMenu,
   setShowMobileMenu,
   showLinks = true,
+  topBgClass = "bg-[#F0F0F0]",
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -171,10 +174,8 @@ const Navbar: React.FC<NavbarProps> = ({
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, delay: 0.2 }}
-        className={`fixed top-0 left-0 right-0 z-50  ${
-          scrolled
-            ? "backdrop-blur-md shadow-md"
-            : "backdrop-blur-sm bg-[#F0F0F0]"
+        className={`fixed top-0 left-0 right-0 z-50 transition-colors duration-300 ${
+          scrolled ? "backdrop-blur-md shadow-md" : `backdrop-blur-sm ${topBgClass}`
         }`}
       >
         <div className=" mx-auto px-6 sm:px-8 lg:px-8 py-2.5 sm:py-3 lg:py-4">

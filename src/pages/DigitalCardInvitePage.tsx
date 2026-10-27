@@ -349,7 +349,7 @@ export default function DigitalCardInvitePage() {
         description="Create a digital business card in minutes. Share by QR code or WhatsApp, connect your AI agent, and let people save your contact in one tap — free with every ShivAI account."
         path={DIGITAL_CARD_HOME}
       />
-      <Navbar setAuthMode={auth.setAuthMode} setShowAuthModal={auth.setShowAuthModal} showLinks={false} />
+      <Navbar setAuthMode={auth.setAuthMode} setShowAuthModal={auth.setShowAuthModal} showLinks={false} topBgClass="bg-white" />
 
       {/* ── Hero ── */}
       <header className="bg-white">
