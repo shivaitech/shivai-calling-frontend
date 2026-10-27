@@ -86,7 +86,7 @@ export default function DigitalCardCreatePage() {
     if (!hasSession) {
       wantsReview.current = true;
       goStep("edit");
-      auth.open("signup");
+      auth.open("signup", { name: form.full_name, email: form.email });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, authLoading, hasSession]);
@@ -108,7 +108,7 @@ export default function DigitalCardCreatePage() {
       goStep("review");
     } else {
       wantsReview.current = true;
-      auth.open("signup");
+      auth.open("signup", { name: form.full_name, email: form.email });
     }
   };
 
@@ -118,7 +118,9 @@ export default function DigitalCardCreatePage() {
       const ready = await resolveCardPhoto(form); // uploads a locally-picked photo first
       await businessCardAPI.create(ready);
       clearDraft();
-      install("digital-card"); // before navigating: the app page sends non-installers to the marketplace
+      // Shows as installed immediately (the app page sends non-installers to the marketplace);
+      // the server call finishes in the background — a failure just leaves it uninstalled.
+      install("digital-card").catch(() => {});
       toast.success("Your digital card is ready!", { duration: 5000 });
       navigate("/app/digital-card?section=cards", { replace: true });
     } catch (e: any) {
@@ -126,7 +128,7 @@ export default function DigitalCardCreatePage() {
       if (be.status === 401) {
         wantsReview.current = true;
         toast.error("Your session expired — please sign in to save your card.");
-        auth.open("signin");
+        auth.open("signin", { email: form.email });
       } else if (be.status === 403) {
         toast.error("This account type can’t create business cards (admin and tenant accounts only).");
       } else if (be.status === 422) {

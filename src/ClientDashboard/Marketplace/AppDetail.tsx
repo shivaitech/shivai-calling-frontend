@@ -16,13 +16,14 @@ import {
 } from "lucide-react";
 import { getVisibleAppById, MarketplaceApp, openAppWorkspace } from "../../marketplace/apps";
 import { useInstalledApps } from "../../marketplace/useInstalledApps";
+import toast from "react-hot-toast";
 import { useAuth } from "../../contexts/AuthContext";
 import AssignSkillModal from "./AssignSkillModal";
 
 // Per-app uninstall cleanup — apps with their own local setup wizard/data
 // must wipe it on uninstall, otherwise a reinstall silently skips the wizard
 // (it reads a "done" flag that outlives the install) and shows stale data.
-const APP_UNINSTALL_CLEANUP: Record<string, () => void> = {
+const APP_UNINSTALL_CLEANUP: Partial<Record<string, () => void>> = {
   "appointment-crm": () => {
     import("../apps/AppointmentCRM/setupStore").then((m) => m.resetAppointmentCrmData());
   },
@@ -69,28 +70,37 @@ const AppDetail = () => {
   const comingSoon = app.status === "coming-soon";
   const Icon = app.icon;
 
-  const handleInstall = () => {
+  const handleInstall = async () => {
     setInstalling(true);
-    // Small delay purely for UX polish — feels like a real install.
-    setTimeout(() => {
-      install(app.id);
+    try {
+      await install(app.id);
+    } catch (err) {
+      toast.error((err as Error).message || `Couldn't install ${app.name}`);
+      return;
+    } finally {
       setInstalling(false);
-      setJustInstalled(true);
-      if (app.promptAssignOnInstall !== false) setAssignModalOpen(true);
-      setTimeout(() => setJustInstalled(false), 1800);
-    }, 600);
+    }
+    setJustInstalled(true);
+    if (app.promptAssignOnInstall !== false) setAssignModalOpen(true);
+    setTimeout(() => setJustInstalled(false), 1800);
   };
 
-  const handleUninstall = (appId: string) => {
+  const handleUninstall = async (appId: string) => {
     const cleanup = APP_UNINSTALL_CLEANUP[appId];
     if (cleanup) {
       const ok = window.confirm(
         "Uninstalling will permanently delete this app's data (branches, staff, bookings, setup). This can't be undone. Continue?",
       );
       if (!ok) return;
-      cleanup();
     }
-    uninstall(appId);
+    try {
+      await uninstall(appId);
+    } catch (err) {
+      toast.error((err as Error).message || "Couldn't uninstall the app");
+      return;
+    }
+    // Only wipe local app data once the server has actually uninstalled it.
+    cleanup?.();
   };
 
   return (

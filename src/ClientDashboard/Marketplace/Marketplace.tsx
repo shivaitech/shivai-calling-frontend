@@ -19,6 +19,7 @@ import {
   getVisibleApps,
 } from "../../marketplace/apps";
 import { useInstalledApps } from "../../marketplace/useInstalledApps";
+import toast from "react-hot-toast";
 import { useAuth } from "../../contexts/AuthContext";
 import AssignSkillModal from "./AssignSkillModal";
 
@@ -62,7 +63,10 @@ const Marketplace = () => {
     if (isInstalled(app.id)) {
       openAppWorkspace(app.id, undefined, navigate);
     } else {
-      install(app.id);
+      install(app.id).catch((err: Error) => {
+        setAssignApp(null);
+        toast.error(err.message || `Couldn't install ${app.name}`);
+      });
       if (app.promptAssignOnInstall !== false) setAssignApp(app);
     }
   };

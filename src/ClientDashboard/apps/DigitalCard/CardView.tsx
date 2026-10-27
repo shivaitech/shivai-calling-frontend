@@ -1,7 +1,8 @@
-import { CSSProperties, useState } from "react";
+import { CSSProperties, useCallback, useState } from "react";
 import QRCode from "react-qr-code";
 import { Facebook, Instagram, Link2, Linkedin, LucideIcon, Twitter, Youtube } from "lucide-react";
 import { downloadVCard, fullPhone } from "./vcard";
+import SaveContactSheet from "./SaveContactSheet";
 import { CardData, SOCIAL_TYPES, SocialType } from "./types";
 import { PUBLIC_APP_URL } from "../../../services/businessCardAPI";
 
@@ -70,6 +71,7 @@ export default function CardView({
   shareUrl,
   placeholders = false,
   poweredBy = false,
+  slug,
 }: {
   card: CardData;
   wide?: boolean;
@@ -78,8 +80,12 @@ export default function CardView({
   placeholders?: boolean;
   /** Adds a "Powered by ShivAI" line under the card (used by the marketing sample). */
   poweredBy?: boolean;
+  /** The saved card's slug — lets "Save Contact" offer wallet passes (public page only). */
+  slug?: string;
 }) {
   const [imgBroken, setImgBroken] = useState(false);
+  const [saveOpen, setSaveOpen] = useState(false);
+  const closeSave = useCallback(() => setSaveOpen(false), []);
   const tel = fullPhone(c);
   const waNumber = tel.replace(/\D/g, "");
   const socials = c.social_media.map((s) => ({ s, url: socialUrl(s) })).filter((x) => x.url);
@@ -132,14 +138,14 @@ export default function CardView({
       <nav className="actions" aria-label="Contact actions">
         {tel && <a className="action" href={`tel:${tel}`}>↗ Call</a>}
         {c.agent_id && (
-          <a className="action" href={`${PUBLIC_APP_URL}/MyAIEmployee/${encodeURIComponent(c.agent_id)}`} target="_blank" rel="noopener noreferrer">✦ My AI</a>
+          <a className="action" href={`${PUBLIC_APP_URL}/MyAIEmployee/${encodeURIComponent(c.agent_id)}`} target="_blank" rel="noopener noreferrer">✦ Ask My AI</a>
         )}
         {tel && c.is_whatsapp_number && (
           <a className="action" href={`https://wa.me/${waNumber}`} target="_blank" rel="noopener noreferrer">↗ WhatsApp</a>
         )}
         {c.email && <a className="action light" href={`mailto:${c.email}`}>✉ Email</a>}
         {linkedin && <a className="action light" href={linkedin.url} target="_blank" rel="noopener noreferrer"><Linkedin size={15} /> LinkedIn</a>}
-        <button className="action light" type="button" disabled={!c.full_name} onClick={() => downloadVCard(c, socialUrl)}>＋ Save Contact</button>
+        <button className="action save" type="button" disabled={!c.full_name} onClick={() => setSaveOpen(true)}>＋ Save Contact</button>
       </nav>
       {placeholders && !tel && !c.email && (
         <p className="ph-hint">Add your phone and email to show Call, WhatsApp and Email buttons here.</p>
@@ -199,6 +205,9 @@ export default function CardView({
         <p className="powered">
           Powered by <a href="https://www.callshivai.com" target="_blank" rel="noopener noreferrer"><strong>ShivAI</strong></a>
         </p>
+      )}
+      {saveOpen && (
+        <SaveContactSheet name={c.full_name} slug={slug} onSaveToPhone={() => downloadVCard(c, socialUrl)} onClose={closeSave} />
       )}
     </main>
   );

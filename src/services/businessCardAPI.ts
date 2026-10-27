@@ -227,5 +227,26 @@ export const cardUrl = (card: { slug: string; share_url?: string }): string => {
 /** The server-made QR image for the card, or null to generate one in the browser. */
 export const cardQrImage = (card: { qr_code?: string }): string | null => httpsUrl(card.qr_code)?.href ?? null;
 
+/**
+ * Google Wallet: the backend route from infra/google-wallet, as a template with {slug},
+ * e.g. https://nodejs.service.callshivai.com/api/v1/business-cards/public/{slug}/google-wallet
+ * Unset = the option stays "Coming soon".
+ */
+const GOOGLE_WALLET_URL = ((import.meta.env.VITE_GOOGLE_WALLET_URL as string | undefined) || "").trim();
+export const googleWalletEnabled = GOOGLE_WALLET_URL.includes("{slug}");
+
+/** Asks the backend to create/update the card's pass and returns Google's "save" link. */
+export async function googleWalletSaveUrl(slug: string): Promise<string> {
+  const res = await axios.get(GOOGLE_WALLET_URL.replace("{slug}", encodeURIComponent(slug))).catch((e) => {
+    throw toError(e);
+  });
+  const url: unknown = res.data?.data?.saveUrl ?? res.data?.saveUrl;
+  // Only ever navigate to Google's own save page.
+  if (typeof url !== "string" || !url.startsWith("https://pay.google.com/gp/v/save/")) {
+    throw new BusinessCardError("Unexpected response from the Google Wallet service", 502);
+  }
+  return url;
+}
+
 /** The card's link without the scheme, for display. */
 export const cardLabel = (card: { slug: string; share_url?: string }) => cardUrl(card).replace(/^https:\/\//, "");

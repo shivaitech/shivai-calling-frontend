@@ -60,7 +60,7 @@ export default function DigitalCardPublicPage({ slug: slugProp }: { slug?: strin
       )}
       {state.kind === "ok" && (
         <div style={{ paddingBottom: 36 }}>
-          <CardView card={state.card} wide shareUrl={cardUrl(state.card)} />
+          <CardView card={state.card} wide shareUrl={cardUrl(state.card)} poweredBy slug={state.card.slug} />
           <a className="make" href={`${PUBLIC_APP_URL}${DIGITAL_CARD_HOME}`}>Create your own digital card →</a>
         </div>
       )}
