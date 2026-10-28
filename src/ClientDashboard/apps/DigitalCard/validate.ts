@@ -26,7 +26,8 @@ export function validateCard(f: CardData): Record<string, string> {
   f.ventures.forEach((v, i) => {
     if (!v.name.trim()) e[`ventures.${i}.name`] = "Venture name is required";
     if (v.url.length > 500) e[`ventures.${i}.url`] = "Max 500 characters";
-    if (v.logo_url.length > 500) e[`ventures.${i}.logo_url`] = "Max 500 characters";
+    // Same as the photo: a "data:" logo is a local draft, uploaded and replaced by a URL on save.
+    if (!v.logo_url.startsWith("data:") && v.logo_url.length > 500) e[`ventures.${i}.logo_url`] = "Max 500 characters";
   });
   return e;
 }

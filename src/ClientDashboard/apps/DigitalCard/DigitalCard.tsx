@@ -3,11 +3,15 @@ import { useSearchParams } from "react-router-dom";
 import QRCode from "react-qr-code";
 import toast from "react-hot-toast";
 import CardView from "./CardView";
-import CardForm from "./CardForm";
+import CardForm, { type CardPatch } from "./CardForm";
+import CardMonitoring from "./CardMonitoring";
+import CardAffiliate from "./CardAffiliate";
+import QrPlayground from "./QrPlayground";
+import { loadQrDesign, saveQrDesign } from "./qrDesignStore";
 import { CardData, emptyCard, withSuggestedTagline } from "./types";
 import { clearDraft, loadDraft, saveDraft } from "./draft";
 import { validateCard } from "./validate";
-import { uploadPhoto } from "./photo";
+import { type ImageKind, uploadPhoto } from "./photo";
 import { useAgent } from "../../../contexts/AgentContext";
 import {
   BusinessCard,
@@ -79,6 +83,10 @@ export default function DigitalCard({ section = "cards" }: { section?: string })
     <div className="dc">
       {section === "share" ? (
         <SharePanel key={id ?? "none"} id={id} go={go} />
+      ) : section === "monitoring" ? (
+        <CardMonitoring cardId={id} go={go} />
+      ) : section === "affiliate" ? (
+        <CardAffiliate go={go} />
       ) : section === "card" ? (
         <CardEditor key={id ?? "new"} id={id || "new"} go={go} />
       ) : (
@@ -189,9 +197,8 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
   const [form, setForm] = useState<CardData>(() => (isNew ? loadDraft() : emptyCard()));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [oldLink, setOldLink] = useState<string | null>(null);
-  const set = (patch: Partial<CardData>) => setForm((f) => ({ ...f, ...patch }));
+  const set = (patch: CardPatch) => setForm((f) => ({ ...f, ...(typeof patch === "function" ? patch(f) : patch) }));
 
   // AgentProvider only auto-loads on agent-related routes (not /app/*).
   useEffect(() => {
@@ -220,16 +227,15 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
     if (isNew) saveDraft(form);
   }, [form, isNew]);
 
-  const onUpload = async (file?: File) => {
-    if (!file) return;
-    setUploading(true);
+  // Signed-in editor: images upload straight away.
+  const onImageFile = async (file: File, kind: ImageKind) => {
     try {
-      set({ image_url: await uploadPhoto(file) });
-      toast.success("Photo uploaded");
+      const url = await uploadPhoto(file, kind);
+      toast.success(kind === "logo" ? "Logo uploaded" : "Photo uploaded");
+      return url;
     } catch (e: any) {
-      toast.error(e?.message || "Couldn’t upload the photo");
-    } finally {
-      setUploading(false);
+      toast.error(e?.message || "Couldn’t upload the image");
+      return null;
     }
   };
 
@@ -297,8 +303,7 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
           form={form}
           set={set}
           errors={errors}
-          onPhotoFile={onUpload}
-          uploading={uploading}
+          onImageFile={onImageFile}
           agents={agents.map((a) => ({ id: a.id, name: a.name, status: a.status }))}
           agentsLoading={agentsLoading}
         />
@@ -335,13 +340,14 @@ function SharePanel({ id, go }: { id: string | null; go: (s: string, id?: string
     };
   }, [id]);
 
+  if (state === "none") return <QrListing go={go} />;
   if (state === "loading") return <p className="muted">Loading…</p>;
-  if (state === "none" || state === "missing" || !card)
+  if (state === "missing" || !card)
     return (
       <section className="panel empty">
-        <h3>{state === "missing" ? "This card is no longer available" : "Pick a card to share"}</h3>
-        <p className="muted">Choose one of your cards to get its link and QR code.</p>
-        <button className="btn small" onClick={() => go("cards", null)}>Go to my cards</button>
+        <h3>This card is no longer available</h3>
+        <p className="muted">It may have been deleted. Pick another card to share.</p>
+        <button className="btn small" onClick={() => go("share", null)}>All QR codes</button>
       </section>
     );
 
@@ -390,8 +396,11 @@ function SharePanel({ id, go }: { id: string | null; go: (s: string, id?: string
   };
 
   return (
-    <div className="grid">
-      <div className="form">
+    <div className="stackv">
+      <button type="button" className="link-back" onClick={() => go("share", null)}>
+        ← All QR codes
+      </button>
+      <div className="qr-studio">
         <section className="panel share">
           <h3>Share {card.full_name}’s card</h3>
           <div className="linkbox"><input readOnly value={link} onFocus={(e) => e.currentTarget.select()} /></div>
@@ -423,10 +432,105 @@ function SharePanel({ id, go }: { id: string | null; go: (s: string, id?: string
           </div>
           <div className="btns"><button className="btn small ghost" onClick={() => go("card", card._id)}>Edit card</button></div>
         </section>
+
+        <section className="panel qr-studio-design">
+          <div>
+            <h3>Design your QR wallpaper</h3>
+            <p className="muted">
+              Pick a format, background and colours, place your QR anywhere, then download it for your phone, tablet, desktop or wallet.
+              Designs are saved in this browser.
+            </p>
+          </div>
+          <QrPlayground
+            key={card._id}
+            link={link}
+            initial={loadQrDesign(card._id)}
+            onSave={(d) => {
+              saveQrDesign(card._id, d);
+              toast.success("QR design saved");
+            }}
+          />
+        </section>
       </div>
-      <aside className="preview">
-        <div className="phone-frame"><CardView card={fromCard(card)} /></div>
-      </aside>
+    </div>
+  );
+}
+
+// ── QR listing: every card's QR at a glance ─────────────────────────────────
+function QrListing({ go }: { go: (s: string, id?: string | null) => void }) {
+  const [cards, setCards] = useState<BusinessCard[] | null>(null);
+  const [error, setError] = useState("");
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    businessCardAPI
+      .list({ limit: 50, sortBy: "updatedAt", sortOrder: "desc" })
+      .then(({ cards }) => {
+        cards.forEach((c) => cardCache.set(c._id, c));
+        setCards(cards);
+      })
+      .catch((e: BusinessCardError) => setError(e.message || "Couldn’t load your cards"));
+  }, []);
+
+  const copy = async (c: BusinessCard) => {
+    await navigator.clipboard.writeText(cardUrl(c));
+    setCopiedId(c._id);
+    setTimeout(() => setCopiedId((id) => (id === c._id ? null : id)), 1800);
+  };
+
+  return (
+    <div className="stackv">
+      <div className="head">
+        <div>
+          <h2 className="title">Share &amp; QR</h2>
+          <p className="muted">Your cards’ QR codes. Open one to share it or design a QR wallpaper.</p>
+        </div>
+      </div>
+
+      {error && (
+        <section className="panel">
+          <p className="err">{error}</p>
+        </section>
+      )}
+      {!cards && !error && <p className="muted">Loading…</p>}
+      {cards && cards.length === 0 && (
+        <section className="panel empty">
+          <h3>No QR codes yet</h3>
+          <p className="muted">Every card gets its own QR code. Create your card to get yours.</p>
+          <button className="btn small" onClick={() => go("card", null)}>Create a card</button>
+        </section>
+      )}
+      {cards && cards.length > 0 && (
+        <div className="qr-list">
+          {cards.map((c) => {
+            const design = loadQrDesign(c._id);
+            return (
+              <article key={c._id} className="qr-list-item">
+                <button type="button" className="qr-list-code" onClick={() => go("share", c._id)} aria-label={`Open ${c.full_name}'s QR`}>
+                  <QRCode value={cardUrl(c)} size={132} fgColor={design?.fg ?? "#161616"} />
+                </button>
+                <div className="qr-list-meta">
+                  <strong>{c.full_name}</strong>
+                  <span className="muted">{[c.job_title, c.company_name].filter(Boolean).join(" · ")}</span>
+                  <span className="qr-list-link">{cardLabel(c)}</span>
+                  {design && <span className="qr-list-badge">Custom design saved</span>}
+                </div>
+                <div className="qr-list-actions">
+                  <button className="btn small" onClick={() => go("share", c._id)}>
+                    Design QR
+                  </button>
+                  <button className="btn small ghost" onClick={() => copy(c)}>
+                    {copiedId === c._id ? "Copied ✓" : "Copy link"}
+                  </button>
+                  <a className="btn small ghost" href={cardUrl(c)} target="_blank" rel="noopener noreferrer">
+                    Open ↗
+                  </a>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

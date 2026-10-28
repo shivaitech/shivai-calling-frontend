@@ -25,10 +25,11 @@ function versionFilePlugin(): Plugin {
 function digitalCardSharePagePlugin(): Plugin {
   const site = "https://www.callshivai.com";
   const pagePaths = [DIGITAL_CARD_HOME, "/digital-card"];
-  const title = "Create your free digital business card | ShivAI";
+  const title = "Make your own digital business card | ShivAI";
   const description =
-    "A business card that talks back: QR code, one-tap call, WhatsApp, socials and your own AI agent on one link. Create your card now, free.";
-  const image = `${site}/og-digital-card.jpg`;
+    "Share your details with one link or QR code. It lets people call, message and connect with you instantly. Free to create.";
+  // Versioned name: changing the picture behind an old URL leaves stale previews in WhatsApp's cache.
+  const image = `${site}/og-digital-card-v2.jpg`;
   const tags = [
     `<meta data-static-og name="description" content="${description}" />`,
     `<meta data-static-og property="og:type" content="website" />`,

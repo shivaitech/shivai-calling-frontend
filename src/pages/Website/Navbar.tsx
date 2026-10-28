@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowUpRight, X } from "lucide-react";
+import { ArrowUpRight, Coins, X } from "lucide-react";
 import Logo from "../../resources/images/ShivaiLogo.svg";
 import bar from "../../resources/images/appMenu.svg";
 import { useNavigate } from "react-router-dom";
@@ -16,6 +16,8 @@ interface NavbarProps {
   showLinks?: boolean;
   /** Background while at the very top of the page — match the hero. Scrolled look is unchanged. */
   topBgClass?: string;
+  /** This page's own section links (label → element id). Replaces the landing-page links and turns them on. */
+  pageLinks?: { label: string; targetId: string; highlight?: boolean }[];
 }
 
 const Navbar: React.FC<NavbarProps> = ({
@@ -25,7 +27,9 @@ const Navbar: React.FC<NavbarProps> = ({
   setShowMobileMenu,
   showLinks = true,
   topBgClass = "bg-[#F0F0F0]",
+  pageLinks,
 }) => {
+  showLinks = showLinks || !!pageLinks;
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const { isAuthenticated } = useAuth();
@@ -38,7 +42,8 @@ const Navbar: React.FC<NavbarProps> = ({
       setShowAuthModal(true);
     }
   };
-  const navigationItems = ["Demo", "Features", "Pricing", "Contact Us"];
+  const navigationItems: { label: string; targetId: string; highlight?: boolean }[] =
+    pageLinks ?? ["Demo", "Features", "Pricing", "Contact Us"].map((l) => ({ label: l, targetId: l.toLowerCase() }));
 
   // Enhanced smooth scroll function with easing and specific demo targeting
   const smoothScrollToSection = (sectionId: string) => {
@@ -124,9 +129,8 @@ const Navbar: React.FC<NavbarProps> = ({
     }
   };
 
-  const handleNavClick = (item: string, event: React.MouseEvent) => {
+  const handleNavClick = (sectionId: string, event: React.MouseEvent) => {
     event.preventDefault();
-    const sectionId = item.toLowerCase();
 
     // Add a subtle visual feedback
     const target = event.currentTarget as HTMLElement;
@@ -135,7 +139,13 @@ const Navbar: React.FC<NavbarProps> = ({
       target.style.transform = "scale(1)";
     }, 150);
 
-    smoothScrollToSection(sectionId);
+    if (pageLinks) {
+      // Plain in-page anchors: the target's scroll-margin keeps it clear of this fixed bar.
+      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      document.getElementById(sectionId)?.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
+    } else {
+      smoothScrollToSection(sectionId);
+    }
 
     // Close mobile menu if it's open
     if (setShowMobileMenu && showMobileMenu) {
@@ -201,17 +211,29 @@ const Navbar: React.FC<NavbarProps> = ({
             <div className={`${showLinks ? "hidden lg:flex" : "hidden"} items-start space-x-6 xl:space-x-8`}>
               {navigationItems.map((item, index) => (
                 <motion.a
-                  key={item}
-                  href={`#${item.toLowerCase()}`}
-                  onClick={(e) => handleNavClick(item, e)}
+                  key={item.targetId}
+                  href={`#${item.targetId}`}
+                  onClick={(e) => handleNavClick(item.targetId, e)}
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 0.3 + index * 0.1 }}
                   whileHover={{ y: -2 }}
-                  className="text-[#828282] hover:text-[#333333] transition-colors duration-300 text-base lg:text-lg font-normal relative group cursor-pointer"
+                  className={
+                    item.highlight
+                      ? "relative inline-flex items-center gap-1.5 -my-1 rounded-full border border-[#e6cf8f] bg-[#fdf6e3] px-3.5 py-1 text-base lg:text-lg font-medium text-[#6b4f12] hover:bg-[#f9edcc] transition-colors duration-300 cursor-pointer"
+                      : "text-[#828282] hover:text-[#333333] transition-colors duration-300 text-base lg:text-lg font-normal relative group cursor-pointer"
+                  }
                 >
-                  {item}
-                  <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-[#333333] transition-all duration-300 group-hover:w-full"></span>
+                  {item.highlight && <Coins className="w-4 h-4 text-[#b8892c]" aria-hidden="true" />}
+                  {item.label}
+                  {item.highlight ? (
+                    <span className="absolute -top-0.5 -right-0.5 flex h-2.5 w-2.5" aria-hidden="true">
+                      <span className="absolute inline-flex h-full w-full rounded-full bg-[#d9a93a] opacity-60 motion-safe:animate-ping" />
+                      <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#d9a93a]" />
+                    </span>
+                  ) : (
+                    <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-[#333333] transition-all duration-300 group-hover:w-full"></span>
+                  )}
                 </motion.a>
               ))}
             </div>
@@ -284,21 +306,25 @@ const Navbar: React.FC<NavbarProps> = ({
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.3 }}
-            className="lg:hidden fixed top-[3rem] sm:top-[3.5rem] left-0 right-0 bg-white/98 backdrop-blur-sm border-b border-[#828282]/20 z-40 shadow-lg"
+            // Solid white (Tailwind has no /98 opacity step, so the old class drew no background at all).
+            // top = the bar's height: h-10 + py-2.5 → 60px, sm: h-12 + py-3 → 72px.
+            className="lg:hidden fixed top-[60px] sm:top-[72px] left-0 right-0 bg-white border-b border-[#828282]/20 z-40 shadow-lg"
           >
             <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2 sm:py-3">
               <div className="space-y-0.5">
                 {navigationItems?.map((item, index) => (
                   <motion.a
-                    key={item}
-                    href={`#${item.toLowerCase()}`}
+                    key={item.targetId}
+                    href={`#${item.targetId}`}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.3, delay: index * 0.1 }}
-                    className="block text-[#828282] hover:text-[#333333] active:text-[#000000] transition-colors duration-300 text-base font-medium py-2 px-2 rounded-lg hover:bg-gray-50 touch-manipulation cursor-pointer"
+                    className={`flex items-center gap-2 transition-colors duration-300 text-base font-medium py-2.5 px-2 rounded-lg touch-manipulation cursor-pointer ${
+                      item.highlight ? "bg-[#fdf6e3] text-[#6b4f12] hover:bg-[#f9edcc]" : "text-[#333333] hover:text-[#000000] hover:bg-gray-50"
+                    }`}
                     onClick={(e) => {
                       e.preventDefault();
-                      handleNavClick(item, e);
+                      handleNavClick(item.targetId, e);
                       if (setShowMobileMenu) {
                         setShowMobileMenu(false);
                       } else {
@@ -306,7 +332,8 @@ const Navbar: React.FC<NavbarProps> = ({
                       }
                     }}
                   >
-                    {item}
+                    {item.highlight && <Coins className="w-4 h-4 text-[#b8892c]" aria-hidden="true" />}
+                    {item.label}
                   </motion.a>
                 ))}
               </div>

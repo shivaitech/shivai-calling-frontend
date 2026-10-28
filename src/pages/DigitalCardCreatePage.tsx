@@ -8,12 +8,12 @@ import { useInlineAuth } from "../hooks/useInlineAuth";
 import AuthModel from "../components/AuthModel";
 import SEO from "../components/SEO";
 import Navbar from "./Website/Navbar";
-import CardForm from "../ClientDashboard/apps/DigitalCard/CardForm";
+import CardForm, { type CardPatch } from "../ClientDashboard/apps/DigitalCard/CardForm";
 import CardView from "../ClientDashboard/apps/DigitalCard/CardView";
 import { CardData } from "../ClientDashboard/apps/DigitalCard/types";
 import { clearDraft, loadDraft, saveDraft } from "../ClientDashboard/apps/DigitalCard/draft";
 import { validateCard } from "../ClientDashboard/apps/DigitalCard/validate";
-import { fileToDataUrl, resolveCardPhoto } from "../ClientDashboard/apps/DigitalCard/photo";
+import { fileToDataUrl, type ImageKind, resolveCardImages } from "../ClientDashboard/apps/DigitalCard/photo";
 import { BusinessCardError, businessCardAPI } from "../services/businessCardAPI";
 import { DIGITAL_CARD_CREATE } from "./digitalCardRoutes";
 import "../ClientDashboard/apps/DigitalCard/digitalCard.css";
@@ -44,7 +44,7 @@ export default function DigitalCardCreatePage() {
   const step: "edit" | "review" = params.get("step") === "review" ? "review" : "edit";
   const wantsReview = useRef(false); // the visitor pressed "Save & continue" before signing in
 
-  const set = (patch: Partial<CardData>) => setForm((f) => ({ ...f, ...patch }));
+  const set = (patch: CardPatch) => setForm((f) => ({ ...f, ...(typeof patch === "function" ? patch(f) : patch) }));
 
   const goStep = (next: "edit" | "review") => {
     const p = new URLSearchParams(params);
@@ -91,12 +91,13 @@ export default function DigitalCardCreatePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, authLoading, hasSession]);
 
-  const onPhotoFile = async (file?: File) => {
-    if (!file) return;
+  // No account yet: keep picked images in the browser; they're uploaded when the card is saved.
+  const onImageFile = async (file: File, kind: ImageKind) => {
     try {
-      set({ image_url: await fileToDataUrl(file) });
+      return await fileToDataUrl(file, kind);
     } catch (e: any) {
-      toast.error(e?.message || "Couldn’t use that photo");
+      toast.error(e?.message || "Couldn’t use that image");
+      return null;
     }
   };
 
@@ -115,7 +116,7 @@ export default function DigitalCardCreatePage() {
   const saveCard = async () => {
     setSaving(true);
     try {
-      const ready = await resolveCardPhoto(form); // uploads a locally-picked photo first
+      const ready = await resolveCardImages(form); // uploads a locally-picked photo/logos first
       await businessCardAPI.create(ready);
       clearDraft();
       // Shows as installed immediately (the app page sends non-installers to the marketplace);
@@ -146,7 +147,7 @@ export default function DigitalCardCreatePage() {
   return (
     <div className="min-h-screen bg-[#F0F0F0] text-slate-900">
       <SEO
-        title="Create your free digital business card | ShivAI"
+        title="Create your digital business card | ShivAI"
         description="Build a digital business card in minutes and share it with one link or QR code."
         path={CREATE_ROUTE}
       />
@@ -172,7 +173,7 @@ export default function DigitalCardCreatePage() {
                   form={form}
                   set={set}
                   errors={errors}
-                  onPhotoFile={onPhotoFile}
+                  onImageFile={onImageFile}
                   agents={isAuthenticated ? agents.map((a) => ({ id: a.id, name: a.name, status: a.status })) : null}
                   agentsLoading={agentsLoading}
                 />
