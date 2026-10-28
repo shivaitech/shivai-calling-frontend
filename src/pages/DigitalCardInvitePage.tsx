@@ -1,12 +1,10 @@
 import { useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
-import QRCode from "react-qr-code";
+import { useCallback, useEffect, useState } from "react";
 import {
   Bot,
   CalendarCheck,
   Check,
   ChevronDown,
-  ImagePlus,
   Linkedin,
   Mail,
   MessageCircle,
@@ -14,6 +12,7 @@ import {
   Plug,
   QrCode as QrCodeIcon,
   Share2,
+  Sparkles,
   UserPlus,
   Wallet,
 } from "lucide-react";
@@ -27,7 +26,14 @@ import samplePortrait from "../resources/images/sample-portrait.jpg";
 import heroImage from "../resources/images/digital-card-hero-phones.webp";
 import ShivAiLogo from "../resources/images/ShivaiLogo.svg";
 import { DIGITAL_CARD_CREATE, DIGITAL_CARD_HOME } from "./digitalCardRoutes";
+import QrPlayground from "../ClientDashboard/apps/DigitalCard/QrPlayground";
+import DigitalCardPricing from "./digitalCardPricing";
+import CreateChooser from "./digitalCardCreateChooser";
+import DigitalCardReferral from "./digitalCardReferral";
+import { useAuth } from "../contexts/AuthContext";
 import { WALLETS } from "../ClientDashboard/apps/DigitalCard/wallets";
+import WhatsAppIcon from "../ClientDashboard/apps/DigitalCard/WhatsAppIcon";
+import GmailIcon from "../ClientDashboard/apps/DigitalCard/GmailIcon";
 import "../ClientDashboard/apps/DigitalCard/digitalCard.css";
 
 /** Where every "Create" CTA on this page leads (no account needed to start). */
@@ -61,12 +67,12 @@ type ActionKey = "call" | "myAi" | "whatsapp" | "email" | "linkedin" | "saveCont
 
 // Same labels, order and light/dark variants as CardView's action grid.
 const DEMO_ACTIONS: { key: ActionKey; label: React.ReactNode; light?: boolean; save?: boolean }[] = [
-  { key: "call", label: "↗ Call" },
-  { key: "myAi", label: "✦ Ask My AI" },
-  { key: "whatsapp", label: "↗ WhatsApp" },
-  { key: "email", label: "✉ Email", light: true },
+  { key: "call", label: <><Phone size={15} /> Call</> },
+  { key: "myAi", label: <><Sparkles size={15} /> Ask My AI</> },
+  { key: "whatsapp", label: <><WhatsAppIcon /> WhatsApp</> },
+  { key: "email", label: <><GmailIcon /> Email</>, light: true },
   { key: "linkedin", label: <><Linkedin size={15} /> LinkedIn</>, light: true },
-  { key: "saveContact", label: "＋ Save Contact", save: true },
+  { key: "saveContact", label: <><UserPlus size={15} /> Save Contact</>, save: true },
 ];
 
 const DEMO_LINKS: { type: SocialType; title: string; sub: string }[] = [
@@ -115,125 +121,6 @@ function DemoCard({ focus, links }: { focus?: ActionKey; links?: boolean }) {
   );
 }
 
-const QR_COLORS = [
-  { name: "Ink", value: "#0f172a" },
-  { name: "Indigo", value: "#4338ca" },
-  { name: "Teal", value: "#0f766e" },
-  { name: "Rose", value: "#be123c" },
-  { name: "Amber", value: "#b45309" },
-];
-
-// Each gradient loops back to its first stop so the shifting animation is seamless.
-const QR_BACKGROUNDS = [
-  { name: "Aurora", value: "linear-gradient(120deg,#6366f1,#ec4899,#14b8a6,#6366f1)" },
-  { name: "Sunset", value: "linear-gradient(120deg,#f97316,#ec4899,#8b5cf6,#f97316)" },
-  { name: "Ocean", value: "linear-gradient(120deg,#0ea5e9,#22d3ee,#6366f1,#0ea5e9)" },
-  { name: "Forest", value: "linear-gradient(120deg,#10b981,#84cc16,#0d9488,#10b981)" },
-  { name: "Mono", value: "linear-gradient(120deg,#cbd5e1,#f1f5f9,#94a3b8,#cbd5e1)" },
-];
-
-function SwatchRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    // Stacked on phones: label + six swatches don't fit on one line at 375px.
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{label}</span>
-      <div className="flex flex-wrap items-center gap-2 p-1 -m-1">{children}</div>
-    </div>
-  );
-}
-
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-const PHOTO_BG = -1;
-
-/** Try-it-yourself QR styler: live QR over an animated gradient stage. Uploaded
- *  images stay in the browser as object URLs — nothing is sent anywhere. */
-function QrSandbox() {
-  const [fg, setFg] = useState(QR_COLORS[0].value);
-  const [bg, setBg] = useState(0);
-  const [bgPhoto, setBgPhoto] = useState<string | null>(null);
-  const [label, setLabel] = useState("Scan to connect");
-  const [imageError, setImageError] = useState("");
-
-  // Cleanup runs with the previous URL whenever it's replaced, and on unmount.
-  useEffect(() => () => { if (bgPhoto) URL.revokeObjectURL(bgPhoto); }, [bgPhoto]);
-
-  const pickImage = (e: React.ChangeEvent<HTMLInputElement>, onPick: (url: string) => void) => {
-    const file = e.target.files?.[0];
-    e.target.value = ""; // allow re-picking the same file
-    if (!file) return;
-    if (!file.type.startsWith("image/")) return setImageError("Please choose an image file.");
-    if (file.size > MAX_IMAGE_BYTES) return setImageError("Image must be under 5 MB.");
-    setImageError("");
-    onPick(URL.createObjectURL(file));
-  };
-
-  const photoActive = bg === PHOTO_BG && !!bgPhoto;
-  const swatch = (selected: boolean) =>
-    `w-7 h-7 rounded-full border border-black/10 transition ${selected ? "ring-2 ring-offset-2 ring-slate-900 scale-110" : "hover:scale-110"}`;
-
-  return (
-    <div className="w-full max-w-sm mx-auto">
-      <div
-        className={`qr-stage${photoActive ? " is-photo" : ""}`}
-        style={{ backgroundImage: photoActive ? `url("${bgPhoto}")` : QR_BACKGROUNDS[Math.max(bg, 0)].value }}
-      >
-        <div className="qr-stage-shine" aria-hidden="true" />
-        <div className="relative rounded-[22px] bg-white p-5 shadow-2xl shadow-slate-900/30 flex flex-col items-center">
-          <QRCode value={`https://${DEMO_LINK}`} size={180} fgColor={fg} />
-        </div>
-        {label.trim() && (
-          <p
-            className="relative mt-4 max-w-full rounded-full bg-white/90 px-4 py-1.5 text-sm font-semibold tracking-tight text-center break-words backdrop-blur shadow-sm transition-colors"
-            style={{ color: fg }}
-          >
-            {label}
-          </p>
-        )}
-      </div>
-
-      <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 space-y-4 shadow-sm">
-        <SwatchRow label="QR colour">
-          {QR_COLORS.map((c) => (
-            <button key={c.value} type="button" aria-label={c.name} aria-pressed={fg === c.value}
-              className={swatch(fg === c.value)} style={{ background: c.value }} onClick={() => setFg(c.value)} />
-          ))}
-        </SwatchRow>
-        <SwatchRow label="Background">
-          {QR_BACKGROUNDS.map((b, i) => (
-            <button key={b.name} type="button" aria-label={b.name} aria-pressed={bg === i}
-              className={swatch(bg === i)} style={{ backgroundImage: b.value }} onClick={() => setBg(i)} />
-          ))}
-          <label
-            title="Upload your own background"
-            className={`${swatch(photoActive)} cursor-pointer grid place-items-center bg-slate-100 bg-cover bg-center text-slate-500`}
-            style={bgPhoto ? { backgroundImage: `url("${bgPhoto}")` } : undefined}
-          >
-            {!bgPhoto && <ImagePlus className="w-3.5 h-3.5" />}
-            <input
-              type="file"
-              accept="image/*"
-              className="sr-only"
-              aria-label="Upload background image"
-              onChange={(e) => pickImage(e, (url) => { setBgPhoto(url); setBg(PHOTO_BG); })}
-            />
-          </label>
-        </SwatchRow>
-        <label className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider shrink-0">Label</span>
-          <input
-            value={label}
-            maxLength={24}
-            onChange={(e) => setLabel(e.target.value)}
-            placeholder="Add a label"
-            className="w-full sm:max-w-[190px] rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/15 focus:border-slate-400"
-          />
-        </label>
-        {imageError && <p role="alert" className="text-xs text-rose-600">{imageError}</p>}
-      </div>
-    </div>
-  );
-}
-
 // ── Page building blocks ────────────────────────────────────────────────────
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
@@ -244,6 +131,7 @@ function Eyebrow({ children }: { children: React.ReactNode }) {
  *  real cropped look at the feature on the other. Alternates side by request. */
 function FeatureSection({
   id,
+  stickyText,
   reverse,
   icon: Icon,
   eyebrow,
@@ -255,6 +143,8 @@ function FeatureSection({
   tone = "light",
 }: {
   id?: string;
+  /** For tall visuals: top-align and keep the text in view while the visual scrolls (desktop). */
+  stickyText?: boolean;
   reverse?: boolean;
   icon: React.ElementType;
   eyebrow: string;
@@ -270,8 +160,10 @@ function FeatureSection({
   return (
     <section id={id} className={`scroll-mt-16 sm:scroll-mt-20 ${dark ? "bg-slate-950 text-white" : "bg-white text-slate-900"}`}>
       <div className="max-w-6xl mx-auto px-6 sm:px-8 py-12 sm:py-[68px]">
-        <div className={`grid lg:grid-cols-2 gap-10 sm:gap-14 items-center ${reverse ? "lg:[&>*:first-child]:order-2" : ""}`}>
-          <div className={reverse ? "lg:pl-4" : "lg:pr-4"}>
+        <div
+          className={`grid lg:grid-cols-2 gap-10 sm:gap-14 ${stickyText ? "items-start" : "items-center"} ${reverse ? "lg:[&>*:first-child]:order-2" : ""}`}
+        >
+          <div className={`${reverse ? "lg:pl-4" : "lg:pr-4"} ${stickyText ? "lg:sticky lg:top-28" : ""}`}>
             <span className={`inline-flex items-center justify-center w-12 h-12 rounded-2xl ${dark ? "bg-white/10" : "bg-slate-900"}`}>
               <Icon className={`w-5 h-5 ${dark ? "text-white" : "text-white"}`} />
             </span>
@@ -327,7 +219,10 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 
 const FAQS = [
   { q: "What is a digital business card?", a: "A mobile page that replaces a printed card — your photo, role, contact details and links, shared with one link or QR code instead of cardstock." },
-  { q: "Is it really free?", a: "Yes — a ShivAI digital business card is included free with every ShivAI account, no separate plan." },
+  {
+    q: "How much does it cost?",
+    a: "Plans start at $6.99 a month, or $83.92 a year billed annually. Every plan includes unlimited sharing — see Pricing above for what each plan adds.",
+  },
   { q: "Do people need an app to view my card?", a: "No. Your card opens in any browser. Nothing to install to view, call, message or save your details." },
   { q: "What's the “Ask My AI” button?", a: "Connect a trained ShivAI agent to your card in one click, and visitors can talk to it directly from your profile — day or night." },
   { q: "Can I change my card after sharing it?", a: "Yes — edit any time and the same link and QR code update instantly, nothing to reprint." },
@@ -396,7 +291,11 @@ function FloatingCreate({ onClick }: { onClick: () => void }) {
 export default function DigitalCardInvitePage() {
   const navigate = useNavigate();
   const auth = useInlineAuth({ googleReturn: CREATE_ROUTE, onSuccess: () => navigate(CREATE_ROUTE) });
-  const create = () => navigate(CREATE_ROUTE);
+  // Every "create" button asks who the card is for first; plan/billing come along from the pricing cards.
+  const [chooser, setChooser] = useState<{ query: string } | null>(null);
+  const create = () => setChooser({ query: "" });
+  const closeChooser = useCallback(() => setChooser(null), []);
+  const { isAuthenticated } = useAuth();
 
   // Smooth scrolling for the whole page (in-page links included) while it's open.
   useEffect(() => {
@@ -415,11 +314,21 @@ export default function DigitalCardInvitePage() {
     // doesn't create a scroll container, so fixed/sticky elements keep working.
     <div className="min-h-screen bg-white text-slate-900 overflow-x-clip">
       <SEO
-        title="Free Digital Business Card — Share Your Profile on WhatsApp | ShivAI"
-        description="Create a digital business card in minutes. Share by QR code or WhatsApp, connect your AI agent, and let people save your contact in one tap — free with every ShivAI account."
+        title="Make your own digital business card | ShivAI"
+        description="Share your details with one link or QR code. It lets people call, message and connect with you instantly. Free to create."
         path={DIGITAL_CARD_HOME}
       />
-      <Navbar setAuthMode={auth.setAuthMode} setShowAuthModal={auth.setShowAuthModal} showLinks={false} topBgClass="bg-white" />
+      <Navbar
+        setAuthMode={auth.setAuthMode}
+        setShowAuthModal={auth.setShowAuthModal}
+        topBgClass="bg-white"
+        pageLinks={[
+          { label: "QR Card Preview", targetId: FIRST_FEATURE_ID },
+          { label: "Digital Card Preview", targetId: "preview" },
+          { label: "Pricing", targetId: "pricing" },
+          { label: "Rewards", targetId: "rewards", highlight: true },
+        ]}
+      />
 
       {/* ── Hero ── */}
       <header className="bg-white">
@@ -464,16 +373,18 @@ export default function DigitalCardInvitePage() {
       {/* ── Feature 1: QR code ── */}
       <FeatureSection
         id={FIRST_FEATURE_ID}
+        stickyText
         icon={QrCodeIcon}
         eyebrow="Share instantly"
         title="Your QR. Your style. Always within reach."
-        body="Create your own designer QR card. Customise it to match your style, then give your phone a new look with your QR code right on your wallpaper."
+        body="Create your own designer QR card. Customise it to match your style, then give your phone a new look with your QR card right on your wallpaper."
         bullets={[
-          "Customise colour, background and label",
-          "Downloadable as a high-resolution PNG",
+          "Wallpapers for phone, tablet, desktop and wallet card",
+          "Resize, drag and fade your QR on any background — even your own photo",
+          "Download in full resolution, ready to set as your wallpaper",
           "Always live — edit your card and the same QR code keeps working, nothing to reprint",
         ]}
-        visual={<QrSandbox />}
+        visual={<QrPlayground link={`https://${DEMO_LINK}`} />}
       />
 
       {/* ── Feature 2: Call ── */}
@@ -587,7 +498,7 @@ export default function DigitalCardInvitePage() {
       />
 
       {/* ── Full showcase: the card as a real object ── */}
-      <section className="bg-[#F5F5F2]">
+      <section id="preview" className="scroll-mt-16 sm:scroll-mt-20 bg-[#F5F5F2]">
         <div className="max-w-5xl mx-auto px-6 sm:px-8 py-12 sm:py-[68px] text-center">
           <Eyebrow>Preview</Eyebrow>
           <h2 className="mt-2 text-3xl sm:text-5xl font-semibold tracking-tight">This is what you're building.</h2>
@@ -622,8 +533,18 @@ export default function DigitalCardInvitePage() {
         </div>
       </section>
 
+      {/* ── Pricing ── */}
+      <DigitalCardPricing
+        signedIn={isAuthenticated}
+        // Plan + billing ride along to the creator; checkout isn't wired to them yet.
+        onChoose={(plan, billing) => setChooser({ query: `?plan=${plan}&billing=${billing}` })}
+      />
+
+      {/* ── ShivAI Points (referral program, coming soon) ── */}
+      <DigitalCardReferral />
+
       {/* ── FAQ ── */}
-      <section className="bg-[#FAFAF8] py-12 sm:py-[68px]">
+      <section id="faq" className="scroll-mt-16 sm:scroll-mt-20 bg-[#FAFAF8] py-12 sm:py-[68px]">
         <div className="max-w-2xl mx-auto px-6 sm:px-8">
           <div className="text-center">
             <Eyebrow>FAQ</Eyebrow>
@@ -641,7 +562,7 @@ export default function DigitalCardInvitePage() {
       <section className="py-12 sm:py-[68px]">
         <div className="max-w-2xl mx-auto px-6 sm:px-8 text-center">
           <h2 className="text-3xl sm:text-5xl font-semibold tracking-tight">Make yours today.</h2>
-          <p className="mt-3 text-base sm:text-lg text-slate-600">Free with every ShivAI account — no credit card, no app for your visitors.</p>
+          <p className="mt-3 text-base sm:text-lg text-slate-600">Build your card first — you'll create your account when you save it. No app needed for your visitors.</p>
           <div className="mt-8 flex flex-col sm:flex-row sm:justify-center gap-3">
             <button onClick={create} className={`w-full sm:w-auto ${btnPrimary}`}>Create your card now</button>
             <button onClick={() => auth.open("signin")} className={`w-full sm:w-auto ${btnSecondary}`}>Sign in</button>
@@ -659,6 +580,7 @@ export default function DigitalCardInvitePage() {
       </footer>
 
       <FloatingCreate onClick={create} />
+      {chooser && <CreateChooser onIndividual={() => navigate(`${CREATE_ROUTE}${chooser.query}`)} onClose={closeChooser} />}
       {auth.showAuthModal && <AuthModel {...auth.modalProps} />}
     </div>
   );

@@ -1,4 +1,6 @@
-import { ReactNode, useRef } from "react";
+import { ReactNode, useRef, useState } from "react";
+import { Camera, ImagePlus, User, X } from "lucide-react";
+import type { ImageKind } from "./photo";
 import { CardData, SOCIAL_TYPES, SocialType, SUGGESTED_TAGLINE } from "./types";
 import CountryCodeSelect from "./CountryCodeSelect";
 import { changeType, finalizeUrl, fromUrlInput, fromUsernameInput, USERNAME_PLACEHOLDER } from "./socialLinks";
@@ -21,29 +23,93 @@ export interface AgentOption {
   status?: string;
 }
 
+export type CardPatch = Partial<CardData> | ((current: CardData) => Partial<CardData>);
+
 interface CardFormProps {
   form: CardData;
-  set: (patch: Partial<CardData>) => void;
+  /** A patch, or a function of the latest form (use that after an await, so other edits aren't lost). */
+  set: (patch: CardPatch) => void;
   errors: Record<string, string>;
-  /** Called with the photo the user picked. */
-  onPhotoFile: (file?: File) => void;
-  uploading?: boolean;
+  /** Turns a picked file into a URL the card can use (uploaded now, or a local data URL until save). null = failed (caller reports it). */
+  onImageFile: (file: File, kind: ImageKind) => Promise<string | null>;
   /** null = hide the "Ask My AI" section (e.g. before the visitor has an account). */
   agents: AgentOption[] | null;
   agentsLoading?: boolean;
 }
 
 /** All the editable sections of a business card (everything except the save bar / preview). */
-export default function CardForm({ form, set, errors, onPhotoFile, uploading = false, agents, agentsLoading = false }: CardFormProps) {
+export default function CardForm({ form, set, errors, onImageFile, agents, agentsLoading = false }: CardFormProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const err = (k: string) => errors[k];
-  const photoIsLocal = form.image_url.startsWith("data:");
+  // Which image is being processed: "photo", or "logo-<venture index>".
+  const [busy, setBusy] = useState<string | null>(null);
+  const uploading = busy === "photo";
+
+  const pickImage = async (file: File | undefined, kind: ImageKind, key: string, apply: (url: string) => void) => {
+    if (!file) return;
+    setBusy(key);
+    try {
+      const url = await onImageFile(file, kind);
+      if (url) apply(url);
+    } finally {
+      setBusy(null);
+    }
+  };
+  // A photo URL that failed to load shows the placeholder instead of a broken image.
+  const [brokenUrl, setBrokenUrl] = useState("");
+  const hasPhoto = !!form.image_url && form.image_url !== brokenUrl;
   const agentKnown = (agents ?? []).some((a) => a.id === form.agent_id);
 
   return (
     <>
       <section className="panel">
         <h3>Basics</h3>
+        {/* Instagram-style profile photo: tap the avatar (or the link) to pick one. */}
+        <div className="avatar-picker">
+          <button
+            type="button"
+            className="avatar-picker-btn"
+            disabled={uploading}
+            aria-label={hasPhoto ? "Change profile photo" : "Add profile photo"}
+            onClick={() => fileRef.current?.click()}
+          >
+            <span className="avatar-picker-ring">
+              {hasPhoto ? (
+                <img src={form.image_url} alt="" onError={() => setBrokenUrl(form.image_url)} />
+              ) : (
+                <span className="avatar-picker-ph">
+                  <User size={40} strokeWidth={1.6} />
+                </span>
+              )}
+            </span>
+            <span className="avatar-picker-cam" aria-hidden="true">
+              <Camera size={14} />
+            </span>
+            {uploading && <span className="avatar-picker-busy" aria-hidden="true" />}
+          </button>
+          <div className="avatar-picker-actions">
+            <button type="button" className="link-btn" disabled={uploading} onClick={() => fileRef.current?.click()}>
+              {uploading ? "Uploading…" : hasPhoto ? "Change photo" : "Add profile photo"}
+            </button>
+            {form.image_url && !uploading && (
+              <button type="button" className="link-btn danger" onClick={() => set({ image_url: "" })}>
+                Remove
+              </button>
+            )}
+          </div>
+          {err("image_url") && <small className="err">{err("image_url")}</small>}
+          <input
+            ref={fileRef}
+            hidden
+            type="file"
+            accept="image/*"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = ""; // allow picking the same file again
+              void pickImage(file, "photo", "photo", (url) => set({ image_url: url }));
+            }}
+          />
+        </div>
         <Field label="Full name *" error={err("full_name")}>
           <input value={form.full_name} placeholder="Enter your full name" onChange={(e) => set({ full_name: e.target.value })} />
         </Field>
@@ -71,33 +137,6 @@ export default function CardForm({ form, set, errors, onPhotoFile, uploading = f
             ✦ Use suggested text
           </button>
         )}
-        <Field label="Photo" error={err("image_url")}>
-          <div className="photo-row">
-            <input
-              value={photoIsLocal ? "" : form.image_url}
-              placeholder={photoIsLocal ? "Photo selected ✓" : "Paste an image link, or upload a photo"}
-              onChange={(e) => set({ image_url: e.target.value })}
-            />
-            <button type="button" className="btn small" disabled={uploading} onClick={() => fileRef.current?.click()}>
-              {uploading ? "Uploading…" : "Upload"}
-            </button>
-            <input
-              ref={fileRef}
-              hidden
-              type="file"
-              accept="image/*"
-              onChange={(e) => {
-                onPhotoFile(e.target.files?.[0]);
-                if (fileRef.current) fileRef.current.value = "";
-              }}
-            />
-            {form.image_url && (
-              <button type="button" className="btn small ghost" onClick={() => set({ image_url: "" })}>
-                Remove
-              </button>
-            )}
-          </div>
-        </Field>
         <Field label="Accent color" error={err("color_code")}>
           <input
             type="color"
@@ -193,14 +232,36 @@ export default function CardForm({ form, set, errors, onPhotoFile, uploading = f
         {form.ventures.map((v, i) => (
           <div className="stack" key={i}>
             <div className="row">
+              {/* Logo: tap to upload; ✕ removes it. */}
+              <div className="logo-picker">
+                <label className={`logo-picker-tile${busy === `logo-${i}` ? " is-busy" : ""}`} title={v.logo_url ? "Change logo" : "Add logo"}>
+                  {v.logo_url ? <img src={v.logo_url} alt={`${v.name || "Venture"} logo`} /> : <ImagePlus size={18} />}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    aria-label={v.logo_url ? "Change logo" : "Add logo"}
+                    disabled={busy !== null}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = "";
+                      void pickImage(file, "logo", `logo-${i}`, (url) =>
+                        set((f) => ({ ventures: patchAt(f.ventures, i, { logo_url: url }) })),
+                      );
+                    }}
+                  />
+                </label>
+                {v.logo_url && busy !== `logo-${i}` && (
+                  <button type="button" className="logo-picker-x" aria-label="Remove logo" onClick={() => set({ ventures: patchAt(form.ventures, i, { logo_url: "" }) })}>
+                    <X size={11} />
+                  </button>
+                )}
+              </div>
               <input value={v.name} placeholder="Name *" onChange={(e) => set({ ventures: patchAt(form.ventures, i, { name: e.target.value }) })} />
               <button className="x" aria-label="Remove venture" onClick={() => set({ ventures: form.ventures.filter((_, j) => j !== i) })}>×</button>
             </div>
             {err(`ventures.${i}.name`) && <small className="err">{err(`ventures.${i}.name`)}</small>}
-            <div className="row">
-              <input value={v.url} placeholder="Link" onChange={(e) => set({ ventures: patchAt(form.ventures, i, { url: e.target.value }) })} />
-              <input value={v.logo_url} placeholder="Logo image URL" onChange={(e) => set({ ventures: patchAt(form.ventures, i, { logo_url: e.target.value }) })} />
-            </div>
+            <input value={v.url} placeholder="Link (e.g. yourcompany.com)" onChange={(e) => set({ ventures: patchAt(form.ventures, i, { url: e.target.value }) })} />
             {(err(`ventures.${i}.url`) || err(`ventures.${i}.logo_url`)) && (
               <small className="err">{err(`ventures.${i}.url`) || err(`ventures.${i}.logo_url`)}</small>
             )}

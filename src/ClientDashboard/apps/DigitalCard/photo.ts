@@ -43,29 +43,70 @@ export async function optimizePhoto(file: File): Promise<File> {
   }
 }
 
-/** Uploads a photo (after optimizing it) and returns its public URL. Needs a logged-in session. */
-export async function uploadPhoto(file: File): Promise<string> {
-  const res = await agentAPI.uploadLogo(await optimizePhoto(file));
+/** "photo" = the profile picture (JPEG, sized for link previews); "logo" = a venture logo (keeps transparency). */
+export type ImageKind = "photo" | "logo";
+
+const LOGO_MAX_SIDE = 512;
+
+/** Logos are often transparent PNGs — shrink them but keep PNG/WebP (and their alpha) instead of flattening to JPEG. */
+export async function optimizeLogo(file: File): Promise<File> {
+  if (!file.type.startsWith("image/") || file.type === "image/gif" || file.type === "image/svg+xml") return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, LOGO_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+    if (scale === 1 && file.size <= MAX_BYTES) {
+      bitmap.close?.();
+      return file;
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return file;
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close?.();
+    const keepAlpha = file.type === "image/png" || file.type === "image/webp";
+    const type = keepAlpha ? "image/png" : "image/jpeg";
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, 0.9));
+    if (!blob || blob.size >= file.size) return file;
+    return new File([blob], file.name.replace(/\.[^.]+$/, "") + (keepAlpha ? ".png" : ".jpg"), { type });
+  } catch {
+    return file;
+  }
+}
+
+const optimize = (file: File, kind: ImageKind) => (kind === "logo" ? optimizeLogo(file) : optimizePhoto(file));
+
+/** Uploads an image (after optimizing it) and returns its public URL. Needs a logged-in session. */
+export async function uploadPhoto(file: File, kind: ImageKind = "photo"): Promise<string> {
+  const res = await agentAPI.uploadLogo(await optimize(file, kind));
   const url = res?.logo_url || res?.url || res?.data?.logo_url || res?.data?.url || res?.data?.data?.logo_url;
   if (!url) throw new Error("Upload succeeded but no URL was returned.");
   return url;
 }
 
-/** Optimized photo as a data URL — lets a visitor pick a photo before they have an account. */
-export async function fileToDataUrl(file: File): Promise<string> {
-  const small = await optimizePhoto(file);
+/** Optimized image as a data URL — lets a visitor pick images before they have an account. */
+export async function fileToDataUrl(file: File, kind: ImageKind = "photo"): Promise<string> {
+  const small = await optimize(file, kind);
   return new Promise((resolve, reject) => {
     const r = new FileReader();
     r.onload = () => resolve(String(r.result));
-    r.onerror = () => reject(new Error("Couldn’t read the photo"));
+    r.onerror = () => reject(new Error("Couldn’t read the image"));
     r.readAsDataURL(small);
   });
 }
 
-/** If the card's photo is a local data URL, upload it and swap in the real URL. */
-export async function resolveCardPhoto(card: CardData): Promise<CardData> {
-  if (!card.image_url.startsWith("data:")) return card;
-  const blob = await (await fetch(card.image_url)).blob();
-  const url = await uploadPhoto(new File([blob], "photo.jpg", { type: blob.type || "image/jpeg" }));
-  return { ...card, image_url: url };
+async function uploadDataUrl(dataUrl: string, kind: ImageKind): Promise<string> {
+  const blob = await (await fetch(dataUrl)).blob();
+  const ext = blob.type === "image/png" ? "png" : "jpg";
+  return uploadPhoto(new File([blob], `${kind}.${ext}`, { type: blob.type || "image/jpeg" }), kind);
+}
+
+/** Uploads any images still held locally as data URLs (photo + venture logos) and swaps in their real URLs. */
+export async function resolveCardImages(card: CardData): Promise<CardData> {
+  const image_url = card.image_url.startsWith("data:") ? await uploadDataUrl(card.image_url, "photo") : card.image_url;
+  const ventures = await Promise.all(
+    card.ventures.map(async (v) => (v.logo_url.startsWith("data:") ? { ...v, logo_url: await uploadDataUrl(v.logo_url, "logo") } : v)),
+  );
+  return { ...card, image_url, ventures };
 }
