@@ -1,27 +1,12 @@
 import { useNavigate } from "react-router-dom";
 import { useCallback, useEffect, useState } from "react";
-import {
-  Bot,
-  CalendarCheck,
-  Check,
-  ChevronDown,
-  Linkedin,
-  Mail,
-  MessageCircle,
-  Phone,
-  Plug,
-  QrCode as QrCodeIcon,
-  Share2,
-  Sparkles,
-  UserPlus,
-  Wallet,
-} from "lucide-react";
+import { Check, ChevronDown, QrCode as QrCodeIcon } from "lucide-react";
 import { useInlineAuth } from "../hooks/useInlineAuth";
 import AuthModel from "../components/AuthModel";
 import SEO from "../components/SEO";
 import Navbar from "./Website/Navbar";
-import CardView, { LinkIcon } from "../ClientDashboard/apps/DigitalCard/CardView";
-import { sampleCard, type SocialType } from "../ClientDashboard/apps/DigitalCard/types";
+import CardView from "../ClientDashboard/apps/DigitalCard/CardView";
+import { sampleCard } from "../ClientDashboard/apps/DigitalCard/types";
 import samplePortrait from "../resources/images/sample-portrait.jpg";
 import heroImage from "../resources/images/digital-card-hero-phones.webp";
 import ShivAiLogo from "../resources/images/ShivaiLogo.svg";
@@ -30,10 +15,8 @@ import QrPlayground from "../ClientDashboard/apps/DigitalCard/QrPlayground";
 import DigitalCardPricing from "./digitalCardPricing";
 import CreateChooser from "./digitalCardCreateChooser";
 import DigitalCardReferral from "./digitalCardReferral";
+import FeatureCarousel from "./digitalCardFeatureCarousel";
 import { useAuth } from "../contexts/AuthContext";
-import { WALLETS } from "../ClientDashboard/apps/DigitalCard/wallets";
-import WhatsAppIcon from "../ClientDashboard/apps/DigitalCard/WhatsAppIcon";
-import GmailIcon from "../ClientDashboard/apps/DigitalCard/GmailIcon";
 import "../ClientDashboard/apps/DigitalCard/digitalCard.css";
 
 /** Where every "Create" CTA on this page leads (no account needed to start). */
@@ -58,64 +41,6 @@ function CardOnSurface({ className = "", tilt = true }: { className?: string; ti
         <div className="phone-frame" style={{ pointerEvents: "none" }} aria-hidden="true">
           <CardView card={DEMO} />
         </div>
-      </div>
-    </div>
-  );
-}
-
-type ActionKey = "call" | "myAi" | "whatsapp" | "email" | "linkedin" | "saveContact";
-
-// Same labels, order and light/dark variants as CardView's action grid.
-const DEMO_ACTIONS: { key: ActionKey; label: React.ReactNode; light?: boolean; save?: boolean }[] = [
-  { key: "call", label: <><Phone size={15} /> Call</> },
-  { key: "myAi", label: <><Sparkles size={15} /> Ask My AI</> },
-  { key: "whatsapp", label: <><WhatsAppIcon /> WhatsApp</> },
-  { key: "email", label: <><GmailIcon /> Email</>, light: true },
-  { key: "linkedin", label: <><Linkedin size={15} /> LinkedIn</>, light: true },
-  { key: "saveContact", label: <><UserPlus size={15} /> Save Contact</>, save: true },
-];
-
-const DEMO_LINKS: { type: SocialType; title: string; sub: string }[] = [
-  { type: "website", title: "Website", sub: "alexmorgan.co" },
-  { type: "linkedin", title: "LinkedIn", sub: "/alexmorgan" },
-  { type: "instagram", title: "Instagram", sub: "@alexmorgan" },
-  { type: "youtube", title: "YouTube", sub: "@alexmorgan" },
-];
-
-/** A compact card with the card's actual button UI (same .action styles) at
- *  full size. The featured button is highlighted and the rest are dimmed. */
-function DemoCard({ focus, links }: { focus?: ActionKey; links?: boolean }) {
-  return (
-    <div className="dc w-full max-w-sm mx-auto" aria-hidden="true">
-      <div className="demo-card">
-        <div className="demo-head">
-          <img className="demo-avatar" src={samplePortrait} alt="" />
-          <div className="min-w-0">
-            <strong>{DEMO.full_name}</strong>
-            <span>{DEMO.job_title}, {DEMO.company_name}</span>
-          </div>
-        </div>
-        {links ? (
-          <div className="link-list">
-            {DEMO_LINKS.map(({ type, title, sub }) => (
-              <div key={title} className="demo-link">
-                <span className="link-main">
-                  <LinkIcon type={type} />
-                  <span><span className="link-title">{title}</span><span className="link-sub">{sub}</span></span>
-                </span>
-                <span className="arrow">↗</span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="actions">
-            {DEMO_ACTIONS.map((a) => (
-              <span key={a.key} className={`action${a.light ? " light" : ""}${a.save ? " save" : ""} ${a.key === focus ? "is-focus" : "is-dim"}`}>
-                {a.label}
-              </span>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
@@ -387,115 +312,8 @@ export default function DigitalCardInvitePage() {
         visual={<QrPlayground link={`https://${DEMO_LINK}`} />}
       />
 
-      {/* ── Feature 2: Call ── */}
-      <FeatureSection
-        reverse
-        icon={Phone}
-        eyebrow="One tap"
-        title="Call, without the copy-paste."
-        body="One tap takes people straight to your call, WhatsApp or email. No copying numbers, searching for details or switching apps to find your contact information."
-        bullets={["Call directly from your digital card", "Works across phones and browsers", "Save contact details in one tap"]}
-        visual={<DemoCard focus="call" />}
-      />
-
-      {/* ── Feature 3: AI Manager (the differentiator — dark section) ── */}
-      <FeatureSection
-        tone="dark"
-        icon={Bot}
-        eyebrow="The digital card that does more"
-        title="Your card introduces you. Your AI Manager takes it from there."
-        body="Visitors can chat with your AI Manager directly from your digital business card. It can answer questions about you and your business, share information and help book appointments—even when you're unavailable."
-        items={[
-          { icon: MessageCircle, title: "Answers enquiries", text: "Give visitors useful answers without waiting for you to reply." },
-          { icon: CalendarCheck, title: "Helps book appointments", text: "Turn interest into a next step, right from your card." },
-          {
-            icon: Plug,
-            title: "Connects to your ShivAI agent",
-            text: "Link an agent you've already trained to activate the “Ask My AI” button on your card.",
-          },
-        ]}
-        visual={<DemoCard focus="myAi" />}
-      />
-
-      {/* ── Feature 4: WhatsApp ── */}
-      <FeatureSection
-        reverse
-        icon={Share2}
-        eyebrow="Start the conversation"
-        title="Straight into WhatsApp."
-        body="One tap opens a WhatsApp chat with you. Share your card in a message, and its preview helps people recognise who they're connecting with."
-        visual={<DemoCard focus="whatsapp" />}
-      />
-
-      {/* ── Feature 5: Email ── */}
-      <FeatureSection
-        icon={Mail}
-        eyebrow="Formal, when it matters"
-        title="Email, ready to write."
-        body="One tap opens a new email addressed to you. No copying, no searching for an email address."
-        visual={<DemoCard focus="email" />}
-      />
-
-      {/* ── Feature 6: Social links ── */}
-      <FeatureSection
-        reverse
-        icon={Share2}
-        eyebrow="Everywhere else you show up"
-        title="Your whole professional world. One link."
-        body="Bring your online presence together. Add LinkedIn, Instagram, YouTube, your website and more—all in one place, ready to explore."
-        bullets={[
-          "All your important links, together",
-          "Recognisable icons make every profile easy to find",
-          "Add a link or username in seconds",
-        ]}
-        visual={<DemoCard links />}
-      />
-
-      {/* ── Feature 7: Save Contact ── */}
-      <FeatureSection
-        icon={UserPlus}
-        eyebrow="Leaves a trace"
-        title="Save contact. Done in one tap."
-        body="Let people save your contact details straight to their phone—with your name, number, email and company ready to go."
-        bullets={["Works on iPhone and Android", "No app needed", "Update your card anytime"]}
-        visual={<DemoCard focus="saveContact" />}
-      />
-
-      {/* ── Feature 8: Wallet (coming soon) ── */}
-      <FeatureSection
-        reverse
-        icon={Wallet}
-        eyebrow="Coming soon"
-        title="A connection that stays with them."
-        body="Let people save your digital business card to Apple Wallet, Google Wallet or Samsung Wallet. Stay connected and send updates to your saved audience, with notifications through ShivAI."
-        visual={
-          <div className="rounded-[28px] border border-dashed border-slate-300 bg-slate-50 p-8 w-full max-w-sm text-center overflow-hidden">
-            <span className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-slate-900 mx-auto">
-              <Wallet className="w-5 h-5 text-white" />
-            </span>
-            <p className="mt-4 text-sm font-semibold text-slate-900">Add to Wallet</p>
-            {/* Phones: one swipeable row (edges fade to hint at more). Larger screens: wraps, centred. */}
-            <ul
-              aria-label="Wallets your card can be saved to"
-              className="mt-4 -mx-8 px-8 flex gap-2 overflow-x-auto snap-x snap-mandatory pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [mask-image:linear-gradient(to_right,transparent,black_28px,black_calc(100%-28px),transparent)] sm:mx-0 sm:px-0 sm:flex-wrap sm:justify-center sm:overflow-visible sm:[mask-image:none]"
-            >
-              {WALLETS.map((w) => (
-                <li
-                  key={w.name}
-                  className="snap-start flex-none inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 whitespace-nowrap"
-                >
-                  <span className="w-2 h-2 rounded-full" style={{ background: w.color }} aria-hidden="true" />
-                  {w.name}
-                </li>
-              ))}
-            </ul>
-            <p className="mt-4 text-xs text-slate-400">Coming soon — we'll let you know the moment it's ready.</p>
-            <button disabled className="mt-5 w-full px-5 py-3 rounded-full bg-slate-200 text-slate-500 text-sm font-semibold cursor-not-allowed">
-              Add to Wallet (coming soon)
-            </button>
-          </div>
-        }
-      />
+      {/* ── Features 2–8: one carousel (Call, AI, WhatsApp, Email, Links, Save Contact, Wallet) ── */}
+      <FeatureCarousel link={`https://${DEMO_LINK}`} />
 
       {/* ── Full showcase: the card as a real object ── */}
       <section id="preview" className="scroll-mt-16 sm:scroll-mt-20 bg-[#F5F5F2]">

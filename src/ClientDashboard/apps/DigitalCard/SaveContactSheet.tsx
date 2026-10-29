@@ -34,6 +34,9 @@ export default function SaveContactSheet({
     };
   }, [onClose]);
 
+  const readyWallet = WALLETS.find((w) => w.available);
+  const walletReady = !!readyWallet && !!slug;
+
   const addToWallet = async (w: WalletOption) => {
     if (!slug || w.id !== "google") return;
     setBusy(w.id);
@@ -78,29 +81,22 @@ export default function SaveContactSheet({
             </span>
           </button>
 
-          <div className="sheet-label">
-            <span>
-              <Wallet size={13} /> Add to wallet
+          {/* One "Add to Wallet" entry. It turns on with the first wallet the backend can issue (Google today). */}
+          <button
+            type="button"
+            className="sheet-option sheet-wallet"
+            disabled={!walletReady || busy !== null}
+            onClick={() => readyWallet && addToWallet(readyWallet)}
+          >
+            <span className="sheet-ico wallet" aria-hidden="true">
+              <Wallet size={18} />
             </span>
-          </div>
-          <ul className="sheet-wallets">
-            {WALLETS.map((w) => {
-              const usable = w.available && !!slug;
-              return (
-                <li key={w.id}>
-                  <button type="button" className="sheet-option" disabled={!usable || busy !== null} onClick={() => addToWallet(w)}>
-                    <span className="sheet-dot" style={{ background: w.color }} aria-hidden="true" />
-                    <span className="sheet-text">
-                      <strong>{w.name}</strong>
-                      {w.available && !slug && <small>Available once the card is saved and shared</small>}
-                    </span>
-                    {!w.available && <span className="sheet-soon">Coming soon</span>}
-                    {busy === w.id && <span className="sheet-soon">Preparing…</span>}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+            <span className="sheet-text">
+              <strong>{readyWallet ? `Add to ${readyWallet.name}` : "Add to Wallet"}</strong>
+              <small>{readyWallet && !slug ? "Available once the card is saved and shared" : "Apple, Google, Samsung & more"}</small>
+            </span>
+            {busy ? <span className="sheet-soon">Preparing…</span> : !walletReady && !readyWallet && <span className="sheet-soon">Coming soon</span>}
+          </button>
           {error && (
             <p role="alert" className="sheet-error">
               {error}

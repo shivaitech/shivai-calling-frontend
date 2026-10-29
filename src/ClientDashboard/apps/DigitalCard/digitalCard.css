@@ -515,3 +515,90 @@
 .dc .qr-list-link{font-size:12px;color:#555;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dc .qr-list-badge{align-self:flex-start;margin-top:4px;padding:2px 8px;border-radius:999px;background:#e7f6ef;color:#0f8a5f;font-size:11px;font-weight:600}
 .dc .qr-list-actions{display:flex;flex-wrap:wrap;gap:6px}
+.dc .sheet-wallet{margin-top:10px}
+.dc .sheet-ico.wallet{background:#f1f1ee;color:var(--ink)}
+
+/* ---------- Feature carousel (marketing page) ---------- */
+.fc-tab{position:relative;flex:none;display:inline-flex;align-items:center;gap:7px;padding:10px 16px 12px;border-radius:999px;border:1px solid #e2e8f0;background:#fff;font-size:14px;font-weight:600;color:#64748b;white-space:nowrap;overflow:hidden;cursor:pointer;transition:color .2s,border-color .2s,background .2s,box-shadow .2s}
+.fc-tab:hover{color:#0f172a;border-color:#cbd5e1}
+.fc-tab.is-active{color:#fff;background:#0f172a;border-color:#0f172a;box-shadow:0 10px 24px -12px rgba(15,23,42,.6)}
+.fc-tab:focus-visible{outline:2px solid #0f172a;outline-offset:2px}
+.fc-tab-soon{font-size:10px;font-weight:700;padding:1px 6px;border-radius:999px;background:rgba(217,178,90,.18);color:#a8822f}
+.fc-tab.is-active .fc-tab-soon{background:rgba(217,178,90,.3);color:#f1dca3}
+.fc-tab-track{position:absolute;left:14px;right:14px;bottom:5px;height:2px;border-radius:2px;overflow:hidden}
+.fc-tab-fill{display:block;height:100%;width:100%;background:rgba(255,255,255,.85);border-radius:2px}
+.fc-tab-fill.is-timing{width:0;animation:fc-fill linear forwards}
+@keyframes fc-fill{to{width:100%}}
+.fc-stage{position:relative;display:flex;flex-direction:column;align-items:center;gap:18px;padding:36px 20px 20px;border-radius:32px;background:#f5f5f2;perspective:1100px;overflow:hidden}
+.fc-glow{position:absolute;left:50%;top:44%;width:120%;aspect-ratio:1;transform:translate(-50%,-50%);transition:background .6s ease;pointer-events:none}
+/* Centre with flex: the card's own mx-auto loses to `.dc{margin:0}` (same specificity, later file). */
+.fc-card-reveal{position:relative;width:100%;display:flex;justify-content:center;animation:fc-reveal .7s cubic-bezier(.2,.8,.2,1) both;transform-origin:50% 60%}
+@keyframes fc-reveal{
+  0%{opacity:0;transform:rotateY(-24deg) rotateX(6deg) translateY(18px) scale(.94);filter:blur(4px)}
+  60%{opacity:1;filter:blur(0)}
+  100%{opacity:1;transform:none}
+}
+.fc-arrows{position:relative;display:flex;align-items:center;gap:12px}
+.fc-arrows button{width:36px;height:36px;border-radius:50%;border:1px solid #e2e8f0;background:#fff;display:grid;place-items:center;color:#334155;cursor:pointer;transition:background .15s,transform .15s}
+.fc-arrows button:hover{background:#f8fafc;transform:scale(1.05)}
+.fc-count{font-size:12px;font-weight:600;color:#64748b;font-variant-numeric:tabular-nums;min-width:40px;text-align:center}
+.fc-copy{animation:fc-copy-in .55s cubic-bezier(.2,.8,.2,1) both}
+@keyframes fc-copy-in{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+/* Wallet pass inside the demo card */
+.dc .fc-pass{border-radius:16px;padding:14px;background:linear-gradient(140deg,#161616,#2d2d2d);color:#fff;display:flex;flex-direction:column;gap:12px;box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
+.dc .fc-pass-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.dc .fc-pass-brand{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#e5e5e5}
+.dc .fc-pass-soon{font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;background:rgba(217,178,90,.22);color:#f1dca3}
+.dc .fc-pass-body{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}
+.dc .fc-pass-body > div:first-child{display:flex;flex-direction:column;gap:1px;font-size:13px}
+.dc .fc-pass-body strong{font-size:17px;font-weight:650;margin-bottom:6px}
+.dc .fc-pass-label{font-size:9px;letter-spacing:1.2px;text-transform:uppercase;color:#a3a3a3}
+.dc .fc-pass-qr{flex:none;padding:6px;border-radius:10px;background:#fff;line-height:0}
+.dc .fc-pass-wallets{display:flex;flex-wrap:wrap;gap:6px}
+.dc .fc-pass-wallets span{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:999px;background:rgba(255,255,255,.08);font-size:10px;color:#d4d4d4}
+.dc .fc-pass-wallets i{width:6px;height:6px;border-radius:50%}
+@media (prefers-reduced-motion: reduce){
+  .fc-card-reveal,.fc-copy{animation:none}
+  .fc-glow{transition:none}
+}
+
+/* ---------- Social links: tap-to-connect (card form) ---------- */
+.dc .soc{display:flex;flex-direction:column;gap:12px}
+.dc .soc-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+@media (min-width:640px){.dc .soc-grid{grid-template-columns:repeat(6,minmax(0,1fr))}}
+.dc .soc-tile{display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 6px 10px;border:1px solid var(--line);border-radius:14px;background:#fff;font:inherit;color:var(--ink);cursor:pointer;transition:border-color .15s,box-shadow .15s,transform .15s;min-width:0}
+.dc .soc-tile:hover{border-color:#c9c9c3;transform:translateY(-1px)}
+.dc .soc-tile:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.dc .soc-tile.is-open{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+.dc .soc-tile-ico{display:grid;place-items:center;flex:none;width:28px;height:28px}
+.dc .soc-tile-ico .link-ico{width:28px;height:28px;border-radius:8px}
+.dc .soc-tile-name{font-size:12px;font-weight:600;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dc .soc-tile-state{display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:600;color:var(--muted);padding:2px 8px;border-radius:999px;background:#f1f1ee}
+.dc .soc-tile.is-on .soc-tile-state{color:#0f8a5f;background:#e7f6ef}
+.dc .soc-connect{display:flex;flex-direction:column;gap:12px;padding:14px;border:1px solid var(--line);border-radius:14px;background:#fafaf8}
+.dc .soc-connect-head{display:flex;align-items:center;gap:10px}
+.dc .soc-connect-head strong{flex:1;font-size:14px}
+.dc .soc-close{width:28px;height:28px;border-radius:50%;border:0;background:#ececE8;color:#555;display:grid;place-items:center;cursor:pointer}
+.dc .soc-steps{list-style:none;margin:0;padding:0;display:grid;gap:10px;counter-reset:soc}
+.dc .soc-steps li{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:10px;font-size:12.5px;line-height:1.45}
+.dc .soc-steps .btn{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;justify-self:start;text-decoration:none}
+@media (max-width:480px){.dc .soc-steps li{grid-template-columns:1fr}}
+.dc .soc-manual{display:flex;gap:8px}
+.dc .soc-manual input{flex:1;min-width:0}
+.dc .soc-msg{margin:0;display:flex;align-items:center;gap:6px;font-size:12.5px;padding:8px 10px;border-radius:10px}
+.dc .soc-msg.ok{background:#e7f6ef;color:#0f8a5f}
+.dc .soc-msg.hint{background:#fff4dc;color:#7a5a12}
+.dc .soc-msg.err{background:#fdeee6;color:#b42318}
+.dc .soc-list{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#fff}
+.dc .soc-list li{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.dc .soc-list li:last-child{border-bottom:0}
+.dc .soc-list-text{flex:1;min-width:0;display:flex;flex-direction:column}
+.dc .soc-list-text strong{font-size:13.5px;font-weight:600}
+.dc .soc-list-text span{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dc .soc-list .link-btn{flex:none;font-size:12.5px}
+.dc .soc-paste{display:flex;flex-direction:column;gap:6px}
+.dc .soc-paste-label{font-size:12px;font-weight:600;color:#444}
+.dc .soc-paste-row{display:flex;gap:6px}
+.dc .soc-paste-row input{flex:1;min-width:0;background:#fff}
+.dc .soc-paste-row .btn{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;flex:none}
+@media (max-width:420px){.dc .soc-paste-btn{padding-left:10px;padding-right:10px}}

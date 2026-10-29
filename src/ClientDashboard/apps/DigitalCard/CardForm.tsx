@@ -1,9 +1,9 @@
 import { ReactNode, useRef, useState } from "react";
 import { Camera, ImagePlus, User, X } from "lucide-react";
 import type { ImageKind } from "./photo";
-import { CardData, SOCIAL_TYPES, SocialType, SUGGESTED_TAGLINE } from "./types";
+import { CardData, SUGGESTED_TAGLINE } from "./types";
 import CountryCodeSelect from "./CountryCodeSelect";
-import { changeType, finalizeUrl, fromUrlInput, fromUsernameInput, USERNAME_PLACEHOLDER } from "./socialLinks";
+import SocialLinksEditor from "./SocialLinksEditor";
 
 export function Field({ label, error, children }: { label: string; error?: string; children: ReactNode }) {
   return (
@@ -187,44 +187,12 @@ export default function CardForm({ form, set, errors, onImageFile, agents, agent
       )}
 
       <section className="panel">
-        <h3>Social links <small>Type a username or paste a link — the other fills in automatically</small></h3>
-        {form.social_media.map((s, i) => (
-          <div className="stack" key={i}>
-            <div className="row">
-              <select
-                className="w-type"
-                value={s.type}
-                onChange={(e) => {
-                  const type = e.target.value as SocialType;
-                  set({ social_media: patchAt(form.social_media, i, { ...changeType(type, s), type }) });
-                }}
-              >
-                {SOCIAL_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
-              <input
-                value={s.username}
-                placeholder={USERNAME_PLACEHOLDER[s.type]}
-                onChange={(e) => set({ social_media: patchAt(form.social_media, i, fromUsernameInput(s.type, e.target.value)) })}
-              />
-              <button className="x" aria-label="Remove link" onClick={() => set({ social_media: form.social_media.filter((_, j) => j !== i) })}>×</button>
-            </div>
-            <input
-              value={s.url}
-              placeholder="…or paste the profile link — we’ll fill in the username"
-              onChange={(e) => set({ social_media: patchAt(form.social_media, i, fromUrlInput(s.type, e.target.value, s)) })}
-              onBlur={(e) => {
-                const fixed = finalizeUrl(s.type, e.target.value);
-                if (fixed) set({ social_media: patchAt(form.social_media, i, fixed) });
-              }}
-            />
-            {(err(`social_media.${i}.url`) || err(`social_media.${i}.username`) || err(`social_media.${i}.type`)) && (
-              <small className="err">{err(`social_media.${i}.url`) || err(`social_media.${i}.username`) || err(`social_media.${i}.type`)}</small>
-            )}
-          </div>
-        ))}
-        <button className="btn small ghost" onClick={() => set({ social_media: [...form.social_media, { type: "instagram", url: "", username: "" }] })}>
-          + Add more social links
-        </button>
+        <h3>Social links <small>Tap a platform to connect it</small></h3>
+        <SocialLinksEditor
+          value={form.social_media}
+          onChange={(social_media) => set({ social_media })}
+          errorFor={(i) => err(`social_media.${i}.url`) || err(`social_media.${i}.username`) || err(`social_media.${i}.type`)}
+        />
       </section>
 
       <section className="panel">

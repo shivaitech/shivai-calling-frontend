@@ -119,6 +119,21 @@ export function parseProfile(type: SocialType, raw: string): SocialValue | null 
   }
 }
 
+/** Which platform a link belongs to (null for anything else, e.g. a personal website). */
+export function detectPlatform(raw: string): Exclude<SocialType, "website"> | null {
+  const u = toUrl(raw);
+  if (!u) return null;
+  const host = bareHost(u);
+  const hit = (Object.keys(HOSTS) as SocialType[]).find((t) => HOSTS[t].some((h) => host === h || host.endsWith(`.${h}`)));
+  return hit && hit !== "website" ? hit : null;
+}
+
+/** First link in a piece of copied text — share sheets often copy "Check out my profile https://…". */
+export function findUrl(text: string): string | null {
+  const m = text.match(/https?:\/\/[^\s"'<>]+/i) ?? text.match(/\b(?:www\.)?[a-z0-9-]+\.[a-z]{2,}(?:\/[^\s"'<>]*)?/i);
+  return m ? m[0].replace(/[).,;]+$/, "") : null;
+}
+
 /** Does this text look like a link (rather than a bare username)? */
 function looksLikeUrl(type: SocialType, v: string): boolean {
   if (/^https?:\/\//i.test(v) || v.includes("/")) return true;
@@ -141,35 +156,3 @@ export function fromUsernameInput(type: SocialType, value: string): SocialValue 
   const name = cleanName(v);
   return { username: name, url: buildUrl(type, name) };
 }
-
-/** The user edited the URL box (kept as typed so the cursor isn't disturbed). */
-export function fromUrlInput(type: SocialType, value: string, current: SocialValue): SocialValue {
-  const v = value.trim();
-  if (!v) return { url: "", username: "" };
-  const p = parseProfile(type, v);
-  if (p) return { url: value, username: p.username }; // a link we can read; "" if it isn't a profile link
-  return { url: value, username: current.username }; // still typing
-}
-
-/** On leaving the URL box: tidy it into the platform's canonical profile URL. */
-export function finalizeUrl(type: SocialType, value: string): SocialValue | null {
-  const p = parseProfile(type, value);
-  return p ? p : null;
-}
-
-/** Switching platform: rebuild the URL for the new platform from the username. */
-export function changeType(type: SocialType, current: SocialValue): SocialValue {
-  if (current.username.trim()) return fromUsernameInput(type, current.username);
-  const p = current.url.trim() ? parseProfile(type, current.url) : null;
-  // Only url/username — callers may pass a whole social entry, whose old `type` must not leak back.
-  return p ?? { url: current.url, username: current.username };
-}
-
-export const USERNAME_PLACEHOLDER: Record<SocialType, string> = {
-  linkedin: "Your LinkedIn username",
-  instagram: "Your Instagram username",
-  twitter: "Your X (Twitter) username",
-  facebook: "Your Facebook username",
-  youtube: "Your YouTube handle",
-  website: "Your website, e.g. yourcompany.com",
-};
