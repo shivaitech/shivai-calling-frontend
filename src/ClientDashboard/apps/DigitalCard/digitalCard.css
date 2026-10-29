@@ -333,15 +333,30 @@
 }
 .dc .sheet-error{margin:12px 2px 0;font-size:12px;color:#b42318}
 
-/* ---------- Hero "Scroll to learn more" cue + floating CTA entrance (marketing page only) ---------- */
+/* ---------- Hero "Scroll to learn more" cue (marketing page only) ---------- */
 .scroll-cue{width:32px;height:32px;border-radius:999px;border:1px solid #cbd5e1;display:inline-grid;place-items:center;animation:scroll-cue 1.8s ease-in-out infinite}
 .group:hover .scroll-cue{border-color:#0f172a}
 @keyframes scroll-cue{ 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(5px); } }
-.floating-cta{animation:floating-cta-in .5s cubic-bezier(.2,.8,.2,1) .6s both;transition:bottom .25s ease}
-@keyframes floating-cta-in{ from{ opacity:0; transform:translateY(16px); } to{ opacity:1; transform:none; } }
 @media (prefers-reduced-motion: reduce){
-  .scroll-cue,.floating-cta{ animation:none; }
+  .scroll-cue{ animation:none; }
 }
+
+/* ---------- Floating "Create your card now": slides up once the visitor scrolls ---------- */
+/* Phones: full-width frosted bar along the bottom. */
+.floating-cta{position:fixed;z-index:40;left:0;right:0;bottom:0;padding:8px 14px calc(8px + env(safe-area-inset-bottom));
+  background:rgba(245,245,242,.88);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+  border-radius:20px 20px 0 0;box-shadow:0 -10px 28px -14px rgba(15,23,42,.28);
+  transform:translateY(115%);opacity:0;pointer-events:none;
+  transition:transform .5s cubic-bezier(.2,.85,.25,1),opacity .35s ease}
+.floating-cta.is-shown{transform:none;opacity:1;pointer-events:auto}
+.floating-cta-btn{width:100%;padding-top:11px;padding-bottom:11px;font-size:14px}
+/* Larger screens: a pill bottom-right. */
+@media (min-width:640px){
+  .floating-cta{left:auto;right:24px;bottom:calc(20px + env(safe-area-inset-bottom));padding:0;background:none;-webkit-backdrop-filter:none;backdrop-filter:none;border-radius:0;box-shadow:none;transform:translateY(24px) scale(.96)}
+  .floating-cta.is-shown{transform:none}
+  .floating-cta-btn{width:auto;padding:14px 28px;font-size:14px;box-shadow:0 18px 40px -12px rgba(15,23,42,.45)}
+}
+@media (prefers-reduced-motion: reduce){ .floating-cta{transition:opacity .2s} }
 
 /* ---------- "Who is this card for?" chooser (marketing page) ---------- */
 .chooser-fade{animation:chooser-fade .18s ease-out}
@@ -353,29 +368,38 @@
 }
 
 /* ---------- Public card: "Create your own digital card" (above Powered by ShivAI) ---------- */
+/* Highlighted, animated text — not a button: a light sweep across the words in the card's
+   accent colour, a highlighter swash behind them, and a nudging arrow. */
 .dc .make-cta{
-  position:relative;overflow:hidden;isolation:isolate;
-  display:flex;width:fit-content;align-items:center;gap:8px;margin:28px auto 0;
-  padding:11px 20px;border-radius:999px;
-  background:var(--accent);color:var(--accent-ink,#fff);border:1px solid var(--accent-border,var(--accent));
-  font-size:13px;font-weight:600;text-decoration:none;letter-spacing:.1px;
-  box-shadow:0 6px 18px -8px rgba(0,0,0,.35);
-  animation:make-cta-lift 3.6s ease-in-out infinite;
+  position:relative;isolation:isolate;
+  display:flex;width:fit-content;align-items:center;gap:6px;margin:26px auto 0;padding:2px 2px;
+  font-size:14px;font-weight:700;letter-spacing:.1px;text-decoration:none;color:var(--ink);
 }
-.dc .make-cta::after{
-  content:"";position:absolute;top:0;bottom:0;left:-60%;width:40%;
-  background:linear-gradient(105deg,transparent,rgba(255,255,255,.3),transparent);
-  transform:skewX(-20deg);animation:make-cta-shine 3.6s ease-in-out infinite;pointer-events:none;z-index:-1;
+/* The highlighter: behind the lower half of the text (z-index -1 inside the isolated link). */
+.dc .make-cta::before{
+  content:"";position:absolute;left:-5px;right:-5px;bottom:2px;height:45%;z-index:-1;border-radius:4px;
+  background:color-mix(in srgb,var(--accent) 24%,transparent);
+  transform:scaleX(0);transform-origin:left center;
+  animation:make-cta-mark 4.2s cubic-bezier(.65,0,.35,1) infinite;
 }
-.dc .make-cta span{transition:transform .2s}
-.dc .make-cta:hover{animation-play-state:paused}
-.dc .make-cta:hover span{transform:translateX(3px)}
-.dc .make-cta:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.dc .make-cta-text{
+  background:linear-gradient(90deg,var(--ink) 0%,var(--ink) 38%,var(--accent) 50%,var(--ink) 62%,var(--ink) 100%);
+  background-size:260% 100%;
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  animation:make-cta-sheen 4.2s ease-in-out infinite;
+}
+.dc .make-cta-arrow{display:inline-block;animation:make-cta-nudge 4.2s ease-in-out infinite;transition:transform .2s}
+.dc .make-cta:hover::before{animation:none;transform:scaleX(1)}
+.dc .make-cta:hover .make-cta-arrow{animation:none;transform:translateX(4px)}
+.dc .make-cta:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:4px}
 .dc .make-cta + .powered{margin-top:12px}
-@keyframes make-cta-lift{ 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(-1px); } }
-@keyframes make-cta-shine{ 0%,40%{ left:-60%; } 80%,100%{ left:130%; } }
+@keyframes make-cta-mark{ 0%,8%{ transform:scaleX(0); opacity:1; } 35%,75%{ transform:scaleX(1); opacity:1; } 92%,100%{ transform:scaleX(1); opacity:0; } }
+@keyframes make-cta-sheen{ 0%,20%{ background-position:100% 0; } 60%,100%{ background-position:0% 0; } }
+@keyframes make-cta-nudge{ 0%,30%,60%,100%{ transform:translateX(0); } 45%{ transform:translateX(4px); } }
 @media (prefers-reduced-motion: reduce){
-  .dc .make-cta,.dc .make-cta::after{ animation:none; }
+  .dc .make-cta::before,.dc .make-cta-text,.dc .make-cta-arrow{ animation:none; }
+  .dc .make-cta::before{ transform:scaleX(1); }
+  .dc .make-cta-text{ background-position:0 0; }
 }
 
 /* ---------- Instagram-style profile photo picker (card form) ---------- */
@@ -602,3 +626,75 @@
 .dc .soc-paste-row input{flex:1;min-width:0;background:#fff}
 .dc .soc-paste-row .btn{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;flex:none}
 @media (max-width:420px){.dc .soc-paste-btn{padding-left:10px;padding-right:10px}}
+
+/* QR playground layout. Not Tailwind's `grid`: inside the dashboard `.dc .grid` (the editor's
+   one-column layout) outranks it and stacked the format tabs vertically. */
+.qr-pg-formats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
+.qr-pg-positions{display:grid;grid-template-columns:repeat(3,28px);gap:4px}
+.qr-pg-actions{display:grid;gap:8px}
+@media (min-width:640px){.qr-pg-actions.has-save{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* ---------- Image editor (crop & adjust, any uploader) ---------- */
+.ie-backdrop{position:fixed;inset:0;z-index:2000;display:flex;align-items:center;justify-content:center;background:rgba(5,5,5,.72);padding:0;font-family:inherit;animation:sheet-fade .18s ease-out}
+.ie-panel{display:flex;flex-direction:column;width:100%;height:100%;background:#0f0f10;color:#fff;overflow:hidden}
+@media (min-width:720px){.ie-backdrop{padding:24px}.ie-panel{width:min(720px,100%);height:min(720px,100%);border-radius:22px;box-shadow:0 30px 80px rgba(0,0,0,.5)}}
+.ie-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px calc(12px);padding-top:calc(12px + env(safe-area-inset-top));border-bottom:1px solid rgba(255,255,255,.08)}
+.ie-head strong{font-size:15px;font-weight:600;text-align:center;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ie-text-btn{border:0;background:none;color:rgba(255,255,255,.75);font:600 14px inherit;font-family:inherit;cursor:pointer;padding:6px 4px}
+.ie-text-btn:hover{color:#fff}
+.ie-done{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:999px;background:#fff;color:#0f0f10;font:600 14px inherit;font-family:inherit;padding:8px 16px;cursor:pointer}
+.ie-done:disabled{opacity:.5;cursor:progress}
+.ie-done:focus-visible,.ie-stage:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.ie-stage{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none;background:#0a0a0a}
+.ie-stage:active{cursor:grabbing}
+.ie-img{position:absolute;left:50%;top:50%;max-width:none;pointer-events:none;transform-origin:center}
+/* The crop window: everything outside it is darkened by the huge shadow. */
+.ie-frame{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);box-shadow:0 0 0 9999px rgba(10,10,10,.62);outline:1.5px solid rgba(255,255,255,.9);pointer-events:none}
+.ie-frame.is-rounded{border-radius:18px}
+.ie-grid{position:absolute;inset:0;border-radius:inherit;background:
+  linear-gradient(to right,transparent calc(33.33% - .5px),rgba(255,255,255,.28) calc(33.33% - .5px),rgba(255,255,255,.28) calc(33.33% + .5px),transparent calc(33.33% + .5px),transparent calc(66.66% - .5px),rgba(255,255,255,.28) calc(66.66% - .5px),rgba(255,255,255,.28) calc(66.66% + .5px),transparent calc(66.66% + .5px)),
+  linear-gradient(to bottom,transparent calc(33.33% - .5px),rgba(255,255,255,.28) calc(33.33% - .5px),rgba(255,255,255,.28) calc(33.33% + .5px),transparent calc(33.33% + .5px),transparent calc(66.66% - .5px),rgba(255,255,255,.28) calc(66.66% - .5px),rgba(255,255,255,.28) calc(66.66% + .5px),transparent calc(66.66% + .5px))}
+.ie-error{position:absolute;inset:0;display:grid;place-items:center;padding:24px;text-align:center;color:rgba(255,255,255,.8);font-size:14px}
+.ie-tools{display:flex;flex-direction:column;gap:12px;padding:14px 16px calc(14px + env(safe-area-inset-bottom));border-top:1px solid rgba(255,255,255,.08)}
+.ie-ratios{display:flex;justify-content:center;gap:4px;padding:3px;border-radius:999px;background:rgba(255,255,255,.08);align-self:center}
+.ie-row{display:flex;align-items:center;gap:8px}
+.ie-icon{flex:none;width:36px;height:36px;border-radius:50%;border:0;background:rgba(255,255,255,.08);color:#fff;display:grid;place-items:center;cursor:pointer;transition:background .15s}
+.ie-icon:hover{background:rgba(255,255,255,.16)}
+.ie-icon.is-on{background:#fff;color:#0f0f10}
+.ie-sep{width:1px;height:22px;background:rgba(255,255,255,.12);margin:0 2px}
+.ie-range{flex:1;min-width:0;accent-color:#fff;height:4px;cursor:pointer}
+.ie-adjust{display:grid;gap:10px}
+.ie-adjust-row{display:grid;grid-template-columns:86px 1fr 38px;align-items:center;gap:10px;font-size:13px;color:rgba(255,255,255,.8)}
+.ie-adjust-row b{font-weight:600;text-align:right;font-variant-numeric:tabular-nums;color:#fff}
+.ie-tabs{display:flex;justify-content:center;gap:6px}
+.ie-tabs button{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:999px;background:transparent;color:rgba(255,255,255,.65);font:600 13px inherit;font-family:inherit;padding:7px 14px;cursor:pointer}
+.ie-tabs button:hover{color:#fff}
+.ie-tabs button.is-on{background:rgba(255,255,255,.14);color:#fff}
+
+/* Username = the card's link (UsernameField) */
+.dc .un{gap:6px}
+.dc .un-label{font-size:12px;font-weight:600;color:#555}
+.dc .un-label small{font-weight:400}
+.dc .un-input{display:flex;align-items:center;border:1px solid #d3d3cd;border-radius:9px;background:#fff;transition:border-color .15s,box-shadow .15s;overflow:hidden}
+.dc .un-input:focus-within{border-color:var(--ink);box-shadow:0 0 0 3px #16161614}
+.dc .un-input.is-good{border-color:#1f9d55}
+.dc .un-input.is-good:focus-within{box-shadow:0 0 0 3px #1f9d5522}
+.dc .un-input.is-bad{border-color:#c0392b}
+.dc .un-input.is-bad:focus-within{box-shadow:0 0 0 3px #c0392b1f}
+.dc .un-at{flex:none;margin-left:12px;color:#9a9a94}
+.dc .un-input input,.dc .un-input input:focus{flex:1;width:auto;border:0;outline:0;background:transparent;padding:10px 4px 10px 6px;font-weight:550}
+.dc .un-suffix{flex:none;padding:0 12px;align-self:stretch;display:flex;align-items:center;background:#f6f6f3;border-left:1px solid #ecece7;color:#77776f;font-size:13px;white-space:nowrap}
+@media(max-width:380px){.dc .un-suffix{padding:0 8px;font-size:12px}}
+.dc .un-status{min-height:16px;font-size:12px;line-height:16px}
+.dc .un-status>span{display:inline-flex;align-items:center;gap:5px}
+.dc .un-muted{color:var(--muted)}
+.dc .un-good{color:#1f9d55;font-weight:600}
+.dc .un-bad{color:#c0392b;font-weight:600}
+.dc .un-spin{animation:un-spin .8s linear infinite}
+@keyframes un-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.dc .un-spin{animation:none}}
+.dc .un-chips{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px}
+.dc .un-chip{border:1px solid #d9d9d3;background:#fafaf8;color:var(--ink);border-radius:999px;padding:5px 11px;font:600 12px inherit;font-family:inherit;cursor:pointer;transition:background .15s,border-color .15s}
+.dc .un-chip:hover{background:#f0f0ec;border-color:#c4c4be}
+.dc .un-link{line-height:1.5;overflow-wrap:anywhere}
+.dc .un-link strong{color:var(--ink);font-weight:600}

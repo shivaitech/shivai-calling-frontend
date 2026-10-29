@@ -163,50 +163,43 @@ function scrollToId(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
 }
 
+const FINAL_CTA_ID = "make-yours";
+
 /**
- * "Create your card now", pinned bottom-right. The site's chat widget lives in the same
- * corner and loads late, with a size that depends on its content — so this measures it
- * and sits just above it (or in the corner when there's no widget).
+ * "Create your card now" that slides up once the visitor starts scrolling (past the hero's
+ * own call to action) and slides away again when the closing CTA section is on screen.
+ * Phones: a full-width bar along the bottom. Larger screens: a pill bottom-right.
  */
 function FloatingCreate({ onClick }: { onClick: () => void }) {
-  const GAP = 12;
-  const [bottom, setBottom] = useState<number | null>(null);
+  const [scrolled, setScrolled] = useState(false);
+  const [finalInView, setFinalInView] = useState(false);
 
   useEffect(() => {
-    let observer: ResizeObserver | null = null;
-    const place = (el: Element | null) => {
-      if (!el) return setBottom(null);
-      const r = el.getBoundingClientRect();
-      setBottom(r.height ? window.innerHeight - r.top + GAP : null);
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        setScrolled(window.scrollY > 320);
+        ticking = false;
+      });
     };
-    const attach = () => {
-      const el = document.querySelector(".shivai-trigger");
-      if (!el) return false;
-      place(el);
-      observer = new ResizeObserver(() => place(el));
-      observer.observe(el);
-      return true;
-    };
-    // The widget script runs after the app, so look for it for a few seconds.
-    let tries = 0;
-    const timer = window.setInterval(() => {
-      if (attach() || ++tries > 20) window.clearInterval(timer);
-    }, 500);
-    const onResize = () => place(document.querySelector(".shivai-trigger"));
-    window.addEventListener("resize", onResize);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    const target = document.getElementById(FINAL_CTA_ID);
+    const io = target ? new IntersectionObserver(([e]) => setFinalInView(e.isIntersecting), { threshold: 0.2 }) : null;
+    if (target) io!.observe(target);
     return () => {
-      window.clearInterval(timer);
-      observer?.disconnect();
-      window.removeEventListener("resize", onResize);
+      window.removeEventListener("scroll", onScroll);
+      io?.disconnect();
     };
   }, []);
 
+  const shown = scrolled && !finalInView;
+
   return (
-    <div
-      className="floating-cta fixed right-4 sm:right-6 z-40"
-      style={{ bottom: bottom ?? "calc(1.25rem + env(safe-area-inset-bottom))" }}
-    >
-      <button type="button" onClick={onClick} className={`${btnPrimary} shadow-xl shadow-slate-900/25`}>
+    <div className={`floating-cta${shown ? " is-shown" : ""}`} aria-hidden={!shown}>
+      <button type="button" onClick={onClick} tabIndex={shown ? 0 : -1} className={`${btnPrimary} floating-cta-btn`}>
         Create your card now
       </button>
     </div>
@@ -377,7 +370,7 @@ export default function DigitalCardInvitePage() {
       </section>
 
       {/* ── Final CTA ── */}
-      <section className="py-12 sm:py-[68px]">
+      <section id={FINAL_CTA_ID} className="py-12 sm:py-[68px]">
         <div className="max-w-2xl mx-auto px-6 sm:px-8 text-center">
           <h2 className="text-3xl sm:text-5xl font-semibold tracking-tight">Make yours today.</h2>
           <p className="mt-3 text-base sm:text-lg text-slate-600">Build your card first — you'll create your account when you save it. No app needed for your visitors.</p>
