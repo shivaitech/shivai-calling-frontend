@@ -33,7 +33,9 @@
       "Bash(git stash *)",
       "Bash(tee /tmp/tsc_viewas.txt)",
       "mcp__claude-in-chrome__tabs_context_mcp",
-      "ClaudeInChromeDomain(localhost:5173)"
+      "ClaudeInChromeDomain(localhost:5173)",
+      "ClaudeInChromeDomain(localhost:5183)",
+      "mcp__claude-in-chrome__tabs_create_mcp"
     ]
   }
 }

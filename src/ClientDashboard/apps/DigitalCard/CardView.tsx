@@ -5,6 +5,7 @@ import WhatsAppIcon from "./WhatsAppIcon";
 import GmailIcon from "./GmailIcon";
 import { downloadVCard, fullPhone } from "./vcard";
 import SaveContactSheet from "./SaveContactSheet";
+import { openCardAgent } from "./openCardAgent";
 import { CardData, SOCIAL_TYPES, SocialType } from "./types";
 import { PUBLIC_APP_URL } from "../../../services/businessCardAPI";
 
@@ -75,6 +76,8 @@ export default function CardView({
   poweredBy = false,
   slug,
   createCardHref,
+  inlineAgent = true,
+  agentUserId,
 }: {
   card: CardData;
   wide?: boolean;
@@ -85,11 +88,16 @@ export default function CardView({
   poweredBy?: boolean;
   /** Public page: a "Create your own digital card" button above the Powered-by line. */
   createCardHref?: string;
+  /** "Ask My AI" opens the chat widget on the page (default) instead of the agent page. */
+  inlineAgent?: boolean;
+  /** The card owner's tenant id, passed to the widget when known. */
+  agentUserId?: string;
   /** The saved card's slug — lets "Save Contact" offer wallet passes (public page only). */
   slug?: string;
 }) {
   const [imgBroken, setImgBroken] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
   const closeSave = useCallback(() => setSaveOpen(false), []);
   const tel = fullPhone(c);
   const waNumber = tel.replace(/\D/g, "");
@@ -143,7 +151,26 @@ export default function CardView({
       <nav className="actions" aria-label="Contact actions">
         {tel && <a className="action" href={`tel:${tel}`}><Phone size={15} /> Call</a>}
         {c.agent_id && (
-          <a className="action" href={`${PUBLIC_APP_URL}/MyAIEmployee/${encodeURIComponent(c.agent_id)}`} target="_blank" rel="noopener noreferrer"><Sparkles size={15} /> Ask My AI</a>
+          <a
+            className="action"
+            href={`${PUBLIC_APP_URL}/MyAIEmployee/${encodeURIComponent(c.agent_id)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-busy={aiLoading}
+            onClick={async (e) => {
+              // Open the chat widget right here; Ctrl/Cmd/Shift/middle-click still opens the agent page.
+              if (!inlineAgent || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+              e.preventDefault();
+              if (aiLoading) return;
+              const href = e.currentTarget.href;
+              setAiLoading(true);
+              const ok = await openCardAgent(c.agent_id, agentUserId);
+              setAiLoading(false);
+              if (!ok) window.open(href, "_blank", "noopener,noreferrer"); // widget unavailable → the agent page
+            }}
+          >
+            <Sparkles size={15} /> {aiLoading ? "Connecting…" : "Ask My AI"}
+          </a>
         )}
         {tel && c.is_whatsapp_number && (
           <a className="action" href={`https://wa.me/${waNumber}`} target="_blank" rel="noopener noreferrer"><WhatsAppIcon /> WhatsApp</a>
@@ -208,7 +235,8 @@ export default function CardView({
       <footer className="footer"><strong>{(c.full_name || "YOUR NAME").toUpperCase()}</strong><span>{c.company_name || "Digital card"}</span></footer>
       {createCardHref && (
         <a className="make-cta" href={createCardHref}>
-          Create your own digital card <span aria-hidden="true">→</span>
+          <span className="make-cta-text">Create your own digital card</span>
+          <span className="make-cta-arrow" aria-hidden="true">→</span>
         </a>
       )}
       {poweredBy && (

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import QRCode from "react-qr-code";
 import { Check, Download, ImagePlus, Monitor, Save, Smartphone, Tablet, Wallet } from "lucide-react";
+import { editImage } from "./ImageEditor";
 
 /**
  * QR wallpaper designer for the marketing page: pick a format (phone / tablet /
@@ -216,7 +217,14 @@ export default function QrPlayground({
     if (file.size > MAX_IMAGE_BYTES) return setError("Image must be under 8 MB.");
     setError("");
     try {
-      setPhoto(await photoToDataUrl(file));
+      // Crop it to the chosen format's shape (and adjust it) before using it.
+      const edited = await editImage(file, {
+        title: "Edit background",
+        aspects: [{ label: format.label, value: format.w / format.h }],
+        maxSide: 1600,
+      });
+      if (!edited) return;
+      setPhoto(await photoToDataUrl(edited));
       setBg(-1);
     } catch {
       setError("Couldn't read that photo. Try a JPEG or PNG.");
@@ -272,7 +280,7 @@ export default function QrPlayground({
   return (
     <div className="qr-pg w-full">
       {/* Format */}
-      <div role="tablist" aria-label="Wallpaper format" className="grid grid-cols-4 gap-1 rounded-2xl bg-slate-100 p-1">
+      <div role="tablist" aria-label="Wallpaper format" className="qr-pg-formats rounded-2xl bg-slate-100 p-1">
         {FORMATS.map(({ id, label: name, Icon }) => (
           <button
             key={id}
@@ -367,8 +375,8 @@ export default function QrPlayground({
           />
           <span className="text-xs tabular-nums text-slate-500 w-10 text-right">{Math.round(tileOpacity * 100)}%</span>
         </Row>
-        <Row label="Position">
-          <div className="grid grid-cols-3 gap-1">
+        <Row label="Set QR position">
+          <div className="qr-pg-positions">
             {POSITIONS.map((p) => {
               const active = Math.abs(shown.x - bounds(p.x, p.y).x) < 0.02 && Math.abs(shown.y - bounds(p.x, p.y).y) < 0.02;
               return (
@@ -378,7 +386,7 @@ export default function QrPlayground({
                   aria-label={p.label}
                   aria-pressed={active}
                   onClick={() => setPos(bounds(p.x, p.y))}
-                  className={`w-7 h-7 rounded-md border grid place-items-center transition ${active ? "border-slate-900 bg-slate-900" : "border-slate-200 hover:border-slate-400"}`}
+                  className={`w-7 h-7 rounded-md border flex items-center justify-center transition ${active ? "border-slate-900 bg-slate-900" : "border-slate-200 hover:border-slate-400"}`}
                 >
                   <span className={`w-1.5 h-1.5 rounded-full ${active ? "bg-white" : "bg-slate-400"}`} />
                 </button>
@@ -391,18 +399,39 @@ export default function QrPlayground({
             <button key={c.value} type="button" aria-label={c.name} aria-pressed={fg === c.value} className={swatch(fg === c.value)} style={{ background: c.value }} onClick={() => setFg(c.value)} />
           ))}
         </Row>
-        <Row label="Background">
+        <Row label="Colour background">
           {BACKGROUNDS.map((b, i) => (
             <button key={b.name} type="button" aria-label={b.name} aria-pressed={bg === i} className={swatch(bg === i)} style={{ backgroundImage: cssGradient(b.stops) }} onClick={() => setBg(i)} />
           ))}
-          <label
-            title="Use your own photo"
-            className={`${swatch(bg === -1 && !!photo)} cursor-pointer grid place-items-center bg-slate-100 bg-cover bg-center text-slate-500`}
-            style={photo ? { backgroundImage: `url("${photo}")` } : undefined}
-          >
-            {!photo && <ImagePlus className="w-3.5 h-3.5" />}
+        </Row>
+        <Row label="Image background">
+          {photo && (
+            <button
+              type="button"
+              aria-label="Use your photo as the background"
+              aria-pressed={bg === -1}
+              className={`w-9 h-9 rounded-lg border border-black/10 bg-cover bg-center transition ${bg === -1 ? "ring-2 ring-offset-2 ring-slate-900" : "hover:scale-105"}`}
+              style={{ backgroundImage: `url("${photo}")` }}
+              onClick={() => setBg(-1)}
+            />
+          )}
+          <label className="inline-flex items-center gap-1.5 cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition focus-within:ring-2 focus-within:ring-slate-900/15">
+            <ImagePlus className="w-3.5 h-3.5" />
+            {photo ? "Change photo" : "Upload photo"}
             <input type="file" accept="image/*" className="sr-only" aria-label="Upload your own background photo" onChange={pickPhoto} />
           </label>
+          {photo && (
+            <button
+              type="button"
+              className="text-xs font-semibold text-rose-600 hover:text-rose-700 px-1"
+              onClick={() => {
+                setPhoto(null);
+                if (bg === -1) setBg(0);
+              }}
+            >
+              Remove
+            </button>
+          )}
         </Row>
         <label className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider shrink-0">Label</span>
@@ -424,7 +453,7 @@ export default function QrPlayground({
             {error}
           </p>
         )}
-        <div className={onSave ? "grid gap-2 sm:grid-cols-2" : ""}>
+        <div className={onSave ? "qr-pg-actions has-save" : "qr-pg-actions"}>
           {onSave && (
             <button
               type="button"

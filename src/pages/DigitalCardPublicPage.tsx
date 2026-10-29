@@ -67,6 +67,9 @@ export default function DigitalCardPublicPage({ slug: slugProp }: { slug?: strin
             poweredBy
             slug={state.card.slug}
             createCardHref={`${PUBLIC_APP_URL}${DIGITAL_CARD_HOME}`}
+            inlineAgent
+            // The public API sometimes returns tenant_id as an object; only pass a real id.
+            agentUserId={typeof state.card.tenant_id === "string" ? state.card.tenant_id : undefined}
           />
         </div>
       )}

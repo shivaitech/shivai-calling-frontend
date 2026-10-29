@@ -4,6 +4,21 @@ import type { ImageKind } from "./photo";
 import { CardData, SUGGESTED_TAGLINE } from "./types";
 import CountryCodeSelect from "./CountryCodeSelect";
 import SocialLinksEditor from "./SocialLinksEditor";
+import UsernameField from "./UsernameField";
+import { editImage, type EditImageOptions } from "./ImageEditor";
+
+// The card shows the photo in a 4:5 portrait frame with rounded corners.
+const PHOTO_EDIT: EditImageOptions = { title: "Edit profile photo", aspects: [{ label: "Portrait", value: 4 / 5 }], rounded: true, maxSide: 1600 };
+const LOGO_EDIT: EditImageOptions = {
+  title: "Edit logo",
+  aspects: [
+    { label: "Original", value: null },
+    { label: "Square", value: 1 },
+    { label: "Wide", value: 3 },
+  ],
+  keepTransparency: true,
+  maxSide: 1024,
+};
 
 export function Field({ label, error, children }: { label: string; error?: string; children: ReactNode }) {
   return (
@@ -35,10 +50,12 @@ interface CardFormProps {
   /** null = hide the "Ask My AI" section (e.g. before the visitor has an account). */
   agents: AgentOption[] | null;
   agentsLoading?: boolean;
+  /** The card's username as last saved (editing), so it isn't reported as taken by itself. */
+  savedUsername?: string;
 }
 
 /** All the editable sections of a business card (everything except the save bar / preview). */
-export default function CardForm({ form, set, errors, onImageFile, agents, agentsLoading = false }: CardFormProps) {
+export default function CardForm({ form, set, errors, onImageFile, agents, agentsLoading = false, savedUsername }: CardFormProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const err = (k: string) => errors[k];
   // Which image is being processed: "photo", or "logo-<venture index>".
@@ -47,9 +64,12 @@ export default function CardForm({ form, set, errors, onImageFile, agents, agent
 
   const pickImage = async (file: File | undefined, kind: ImageKind, key: string, apply: (url: string) => void) => {
     if (!file) return;
+    // Crop & adjust first; cancelling the editor cancels the upload.
+    const edited = await editImage(file, kind === "logo" ? LOGO_EDIT : PHOTO_EDIT);
+    if (!edited) return;
     setBusy(key);
     try {
-      const url = await onImageFile(file, kind);
+      const url = await onImageFile(edited, kind);
       if (url) apply(url);
     } finally {
       setBusy(null);
@@ -113,6 +133,13 @@ export default function CardForm({ form, set, errors, onImageFile, agents, agent
         <Field label="Full name *" error={err("full_name")}>
           <input value={form.full_name} placeholder="Enter your full name" onChange={(e) => set({ full_name: e.target.value })} />
         </Field>
+        <UsernameField
+          value={form.username}
+          onChange={(username) => set({ username })}
+          fullName={form.full_name}
+          savedUsername={savedUsername}
+          error={err("username")}
+        />
         <div className="row">
           <Field label="Job title *" error={err("job_title")}>
             <input value={form.job_title} placeholder="Enter your job title" onChange={(e) => set({ job_title: e.target.value })} />
@@ -121,7 +148,6 @@ export default function CardForm({ form, set, errors, onImageFile, agents, agent
             <input value={form.company_name} placeholder="Enter your company name" onChange={(e) => set({ company_name: e.target.value })} />
           </Field>
         </div>
-        <small>Your public link is built from your name and company (like your-name-your-company.callshivai.com). Changing either one later changes the link.</small>
         <Field label="Tagline" error={err("tagline")}>
           <textarea
             rows={3}

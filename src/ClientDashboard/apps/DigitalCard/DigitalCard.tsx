@@ -59,6 +59,7 @@ const fromCard = (c: BusinessCard): CardData => ({
   social_media: (c.social_media ?? []).map((s) => ({ type: s.type, url: s.url ?? "", username: s.username ?? "" })),
   ventures: (c.ventures ?? []).map((v) => ({ name: v.name ?? "", logo_url: v.logo_url ?? "", url: v.url ?? "" })),
   agent_id: c.agent_id ?? "",
+  username: c.username ?? "",
 });
 
 const initials = (n: string) => n.split(/\s+/).map((s) => s[0]).join("").slice(0, 2).toUpperCase();
@@ -306,6 +307,7 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
           onImageFile={onImageFile}
           agents={agents.map((a) => ({ id: a.id, name: a.name, status: a.status }))}
           agentsLoading={agentsLoading}
+          savedUsername={saved?.username || undefined}
         />
 
         <div className="savebar">

@@ -7,7 +7,7 @@
  */
 
 /** First labels that are real services/sites, never a card. */
-const RESERVED = new Set([
+export const RESERVED = new Set([
   "www", "api", "app", "admin", "mail", "email", "dashboard", "staging", "stage", "dev", "test", "demo",
   "nodejs", "voice", "cdn", "static", "assets", "auth", "login", "signup", "support", "help", "docs",
   "blog", "status", "widget", "ftp", "smtp", "imap", "pop", "ns1", "ns2",

@@ -39,6 +39,8 @@ export interface BusinessCardInput {
   social_media: CardSocial[];
   ventures: CardVenture[];
   agent_id: string;
+  /** Chosen link name → https://<username>.callshivai.com. Empty = the server builds one from name + company. */
+  username: string;
 }
 
 /** Card as returned to the owner (list / create / update). */
@@ -115,13 +117,18 @@ const getAuthToken = (): string | null => {
   return localStorage.getItem("authToken");
 };
 
+/** Whether there's a session to call authenticated endpoints with (e.g. the availability check). */
+export const hasSession = () => !!getAuthToken();
+
 const authHeaders = () => ({
   headers: { Authorization: `Bearer ${getAuthToken()}`, "Content-Type": "application/json" },
 });
 
 // ── Payload ──────────────────────────────────────────────────────────────────
 /** Whitelists fields so stray keys (_id, slug, createdAt…) never reach Joi. */
-export const toPayload = (c: BusinessCardInput): Omit<BusinessCardInput, "agent_id"> & { agent_id?: string } => ({
+export const toPayload = (
+  c: BusinessCardInput,
+): Omit<BusinessCardInput, "agent_id" | "username"> & { agent_id?: string; username?: string } => ({
   full_name: c.full_name.trim(),
   job_title: c.job_title.trim(),
   company_name: c.company_name.trim(),
@@ -138,7 +145,16 @@ export const toPayload = (c: BusinessCardInput): Omit<BusinessCardInput, "agent_
   // The AI agent is optional: leave the key out entirely when none is chosen
   // (an empty string would fail the API's 24-char ObjectId check).
   ...(c.agent_id ? { agent_id: c.agent_id } : {}),
+  // Same for the username: omitted when blank so the server keeps building the link itself.
+  ...(c.username?.trim() ? { username: c.username.trim().toLowerCase() } : {}),
 });
+
+export interface UsernameAvailability {
+  available: boolean;
+  /** Server explanation when it isn't available (taken / reserved / invalid), if given. */
+  message?: string;
+  suggestions?: string[];
+}
 
 // ── API ──────────────────────────────────────────────────────────────────────
 export const businessCardAPI = {
@@ -171,6 +187,22 @@ export const businessCardAPI = {
         totalPages: 0,
       };
       return { cards: res.data.data?.businessCards ?? [], pagination };
+    } catch (e) {
+      throw toError(e);
+    }
+  },
+
+  /** GET /username-availability — needs a logged-in session. */
+  async usernameAvailability(username: string): Promise<UsernameAvailability> {
+    try {
+      const res = await axios.get(`${BASE}/username-availability`, { ...authHeaders(), params: { username } });
+      const d = res.data?.data ?? {};
+      const available = d.available ?? d.isAvailable ?? d.is_available;
+      return {
+        available: available === true,
+        message: available === true ? undefined : d.message ?? res.data?.message,
+        suggestions: Array.isArray(d.suggestions) ? d.suggestions.filter((s: unknown) => typeof s === "string") : undefined,
+      };
     } catch (e) {
       throw toError(e);
     }

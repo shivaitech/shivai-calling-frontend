@@ -34,6 +34,7 @@ export const emptyCard = (): BusinessCardInput => ({
   social_media: [],
   ventures: [],
   agent_id: "",
+  username: "",
 });
 
 export const sampleCard = (): BusinessCardInput => ({
