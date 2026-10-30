@@ -146,7 +146,7 @@ const FAQS = [
   { q: "What is a digital business card?", a: "A mobile page that replaces a printed card — your photo, role, contact details and links, shared with one link or QR code instead of cardstock." },
   {
     q: "How much does it cost?",
-    a: "Plans start at $6.99 a month, or $83.92 a year billed annually. Every plan includes unlimited sharing — see Pricing above for what each plan adds.",
+    a: "Plans start at $9.99 a month, or $71.93 a year billed annually (40% off). Every plan includes unlimited sharing — see Pricing above for what each plan adds.",
   },
   { q: "Do people need an app to view my card?", a: "No. Your card opens in any browser. Nothing to install to view, call, message or save your details." },
   { q: "What's the “Ask My AI” button?", a: "Connect a trained ShivAI agent to your card in one click, and visitors can talk to it directly from your profile — day or night." },
@@ -347,8 +347,13 @@ export default function DigitalCardInvitePage() {
       {/* ── Pricing ── */}
       <DigitalCardPricing
         signedIn={isAuthenticated}
-        // Plan + billing ride along to the creator; checkout isn't wired to them yet.
-        onChoose={(plan, billing) => setChooser({ query: `?plan=${plan}&billing=${billing}` })}
+        // Signed in: straight to the card's billing to check out. Otherwise the plan rides
+        // along through card creation + sign-up, which then lands on that same billing page.
+        onChoose={(plan, billing) =>
+          isAuthenticated
+            ? navigate(`/billing?view=apps&app=digital-card&plan=${plan}&billing=${billing}`)
+            : setChooser({ query: `?plan=${plan}&billing=${billing}` })
+        }
       />
 
       {/* ── ShivAI Points (referral program, coming soon) ── */}

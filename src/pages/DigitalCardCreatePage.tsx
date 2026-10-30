@@ -20,6 +20,13 @@ import "../ClientDashboard/apps/DigitalCard/digitalCard.css";
 
 const CREATE_ROUTE = DIGITAL_CARD_CREATE;
 
+/** ?plan=&billing= from the pricing page, when it's a real paid plan; otherwise {}. */
+const paidPlanQuery = (params: URLSearchParams): Record<string, string> => {
+  const plan = params.get("plan");
+  if (plan !== "essential" && plan !== "signature" && plan !== "prestige") return {};
+  return { plan, billing: params.get("billing") === "annual" ? "annual" : "monthly" };
+};
+
 /**
  * DIGITAL_CARD_CREATE — public. The visitor builds their card with no account
  * (everything is autosaved to localStorage). Saving asks them to sign in or
@@ -55,7 +62,8 @@ export default function DigitalCardCreatePage() {
   };
 
   const auth = useInlineAuth({
-    googleReturn: `${CREATE_ROUTE}?step=review`,
+    // Keep the plan picked on the pricing page through the Google round trip.
+    googleReturn: `${CREATE_ROUTE}?${new URLSearchParams({ ...paidPlanQuery(params), step: "review" })}`,
     onSuccess: () => {
       if (wantsReview.current) {
         wantsReview.current = false;
@@ -127,7 +135,12 @@ export default function DigitalCardCreatePage() {
       // the server call finishes in the background — a failure just leaves it uninstalled.
       install("digital-card").catch(() => {});
       toast.success("Your digital card is ready!", { duration: 5000 });
-      navigate("/app/digital-card?section=cards", { replace: true });
+      // A paid plan chosen on the pricing page → finish it on the card's billing page.
+      const plan = paidPlanQuery(params);
+      navigate(
+        plan.plan ? `/billing?${new URLSearchParams({ view: "apps", app: "digital-card", ...plan })}` : "/app/digital-card?section=cards",
+        { replace: true },
+      );
     } catch (e: any) {
       const be = e as BusinessCardError;
       if (be.status === 401) {
