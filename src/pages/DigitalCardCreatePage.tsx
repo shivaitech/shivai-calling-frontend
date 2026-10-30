@@ -64,8 +64,11 @@ export default function DigitalCardCreatePage() {
     },
   });
 
-  // Autosave the draft on every change.
-  useEffect(() => saveDraft(form), [form]);
+  // Autosave the draft on every change — until the card is created, then never write it back.
+  const created = useRef(false);
+  useEffect(() => {
+    if (!created.current) saveDraft(form);
+  }, [form]);
 
   // Agents only for a real signed-in user (same test as the rest of the app). A leftover
   // token without a user would otherwise list that account's agents to a "logged out" visitor.
@@ -118,6 +121,7 @@ export default function DigitalCardCreatePage() {
     try {
       const ready = await resolveCardImages(form); // uploads a locally-picked photo/logos first
       await businessCardAPI.create(ready);
+      created.current = true;
       clearDraft();
       // Shows as installed immediately (the app page sends non-installers to the marketplace);
       // the server call finishes in the background — a failure just leaves it uninstalled.
