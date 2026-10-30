@@ -6,7 +6,7 @@ import { CheckCircle2, Infinity as InfinityIcon } from "lucide-react";
 export type PlanId = "essential" | "signature" | "prestige";
 export type Billing = "annual" | "monthly";
 
-interface Plan {
+export interface Plan {
   id: PlanId;
   eyebrow: string;
   name: string;
@@ -27,17 +27,17 @@ interface Plan {
   premium?: boolean;
 }
 
-const PLANS: Plan[] = [
+export const PLANS: Plan[] = [
   {
     id: "essential",
     eyebrow: "Your professional identity",
     name: "Essential",
     pitch: "A better way to introduce yourself. One beautiful digital card, ready to share anywhere.",
     adds: "Create and share your professional card",
-    monthly: 6.99,
+    monthly: 9.99,
     monthlyWas: 9.99,
-    yearly: 83.92,
-    yearlyPerMonth: 6.99,
+    yearly: 71.93,
+    yearlyPerMonth: 5.99,
     listTitle: "Everything you need to make your mark",
     features: [
       { text: "Your personal digital business card and short link" },
@@ -58,10 +58,10 @@ const PLANS: Plan[] = [
     name: "Signature",
     pitch: "More than a digital card. Your AI Business Manager helps turn interest into meaningful conversations.",
     adds: "+ AI Business Manager · Signature silver badge",
-    monthly: 13.99,
-    monthlyWas: 19.99,
-    yearly: 143.93,
-    yearlyPerMonth: 11.99,
+    monthly: 14.99,
+    monthlyWas: 14.99,
+    yearly: 107.92,
+    yearlyPerMonth: 8.99,
     listTitle: "Everything in Essential, plus",
     features: [
       { text: "Create up to 2 digital business cards" },
@@ -83,9 +83,9 @@ const PLANS: Plan[] = [
     pitch: "A distinguished professional identity, two AI managers and exclusive privileges for those who expect more.",
     adds: "+ AI Personal Manager · gold identity · ShivAI badge · quarterly rewards",
     monthly: 34.99,
-    monthlyWas: 49.99,
-    yearly: 419.92,
-    yearlyPerMonth: 34.99,
+    monthlyWas: 34.99,
+    yearly: 251.93,
+    yearlyPerMonth: 20.99,
     listTitle: "Everything in Signature, plus",
     features: [
       { text: "AI Business Manager and AI Personal Manager" },
@@ -147,7 +147,8 @@ function PlanCard({
   const gold = plan.premium;
   const annual = billing === "annual";
   // Saving against the regular price, computed rather than rounded up.
-  const saving = Math.round((1 - (annual ? plan.yearly / (plan.monthlyWas * 12) : plan.monthly / plan.monthlyWas)) * 100);
+  const annualSaving = Math.round((1 - plan.yearly / (plan.monthlyWas * 12)) * 100);
+  const saving = annual ? annualSaving : Math.round((1 - plan.monthly / plan.monthlyWas) * 100);
 
   return (
     <article
@@ -182,11 +183,21 @@ function PlanCard({
         </p>
         <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-neutral-300">
           {annual ? `Billed annually at ${money(plan.yearly)}` : "Billed monthly"}
-          <span aria-hidden="true">·</span>
-          <span className="rounded-md bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-400">Save {saving}%</span>
+          {saving > 0 && (
+            <>
+              <span aria-hidden="true">·</span>
+              <span className="rounded-md bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-400">Save {saving}%</span>
+            </>
+          )}
         </p>
         <p className="mt-1.5 text-sm text-neutral-500">
-          Regular price <s>{money(plan.monthlyWas)}</s>/month
+          {annual ? (
+            <>
+              Regular price <s>{money(plan.monthlyWas)}</s>/month
+            </>
+          ) : (
+            `Save ${annualSaving}% with annual billing (${money(plan.yearlyPerMonth)}/month).`
+          )}
         </p>
       </div>
 
@@ -266,7 +277,7 @@ export default function DigitalCardPricing({
               Monthly
             </button>
             <button type="button" role="radio" aria-checked={billing === "annual"} className={tab("annual")} onClick={() => setBilling("annual")}>
-              Annual <span className={billing === "annual" ? "text-emerald-600" : "text-emerald-400"}>· save up to 40%</span>
+              Annual <span className={billing === "annual" ? "text-emerald-600" : "text-emerald-400"}>· save 40%</span>
             </button>
           </div>
         </div>
