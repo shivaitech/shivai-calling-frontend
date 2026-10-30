@@ -223,9 +223,10 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
     };
   }, [id, isNew]);
 
-  // Keep the not-yet-saved card as a local draft.
+  // Keep the not-yet-saved card as a local draft — until it's created, then never write it back.
+  const created = useRef(false);
   useEffect(() => {
-    if (isNew) saveDraft(form);
+    if (isNew && !created.current) saveDraft(form);
   }, [form, isNew]);
 
   // Signed-in editor: images upload straight away.
@@ -249,6 +250,7 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
       if (isNew) {
         const card = await businessCardAPI.create(form);
         cardCache.set(card._id, card);
+        created.current = true;
         clearDraft();
         toast.success("Card created");
         go("share", card._id);
