@@ -82,10 +82,10 @@ export const PLANS: Plan[] = [
     name: "Prestige",
     pitch: "A distinguished professional identity, two AI managers and exclusive privileges for those who expect more.",
     adds: "+ AI Personal Manager · gold identity · ShivAI badge · quarterly rewards",
-    monthly: 34.99,
-    monthlyWas: 34.99,
-    yearly: 251.93,
-    yearlyPerMonth: 20.99,
+    monthly: 44.99,
+    monthlyWas: 44.99,
+    yearly: 323.88,
+    yearlyPerMonth: 26.99,
     listTitle: "Everything in Signature, plus",
     features: [
       { text: "AI Business Manager and AI Personal Manager" },
@@ -249,7 +249,7 @@ export default function DigitalCardPricing({
   signedIn: boolean;
   onChoose: (plan: PlanId, billing: Billing) => void;
 }) {
-  const [billing, setBilling] = useState<Billing>("monthly");
+  const [billing, setBilling] = useState<Billing>("annual");
   const tab = (b: Billing) =>
     `rounded-full px-4 sm:px-5 py-2 text-sm font-semibold transition ${billing === b ? "bg-white text-neutral-900" : "text-neutral-400 hover:text-white"}`;
 
@@ -273,11 +273,11 @@ export default function DigitalCardPricing({
 
         <div role="radiogroup" aria-label="Billing" className="mt-8 flex justify-center">
           <div className="inline-flex rounded-full border border-white/10 bg-white/[0.06] p-1">
-            <button type="button" role="radio" aria-checked={billing === "monthly"} className={tab("monthly")} onClick={() => setBilling("monthly")}>
-              Monthly
-            </button>
             <button type="button" role="radio" aria-checked={billing === "annual"} className={tab("annual")} onClick={() => setBilling("annual")}>
               Annual <span className={billing === "annual" ? "text-emerald-600" : "text-emerald-400"}>· save 40%</span>
+            </button>
+            <button type="button" role="radio" aria-checked={billing === "monthly"} className={tab("monthly")} onClick={() => setBilling("monthly")}>
+              Monthly
             </button>
           </div>
         </div>
