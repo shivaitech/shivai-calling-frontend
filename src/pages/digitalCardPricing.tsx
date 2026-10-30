@@ -13,9 +13,13 @@ interface Plan {
   pitch: string;
   /** One line that says what this tier adds — makes the upgrade path readable at a glance. */
   adds: string;
+  /** Price when billed monthly. */
   monthly: number;
+  /** Regular (undiscounted) monthly price. */
   monthlyWas: number;
+  /** Price billed once a year, and what that works out to per month (the business's figures). */
   yearly: number;
+  yearlyPerMonth: number;
   listTitle: string;
   features: { text: string; note?: number }[];
   cta: string;
@@ -33,6 +37,7 @@ const PLANS: Plan[] = [
     monthly: 6.99,
     monthlyWas: 9.99,
     yearly: 83.92,
+    yearlyPerMonth: 6.99,
     listTitle: "Everything you need to make your mark",
     features: [
       { text: "Your personal digital business card and short link" },
@@ -52,19 +57,21 @@ const PLANS: Plan[] = [
     eyebrow: "Your presence, elevated",
     name: "Signature",
     pitch: "More than a digital card. Your AI Business Manager helps turn interest into meaningful conversations.",
-    adds: "+ AI Business Manager",
+    adds: "+ AI Business Manager · Signature silver badge",
     monthly: 13.99,
     monthlyWas: 19.99,
-    yearly: 169.92,
+    yearly: 143.93,
+    yearlyPerMonth: 11.99,
     listTitle: "Everything in Essential, plus",
     features: [
+      { text: "Create up to 2 digital business cards" },
       { text: "Your AI Business Manager on your digital card" },
       { text: "Up to 200 AI calls per month", note: 1 },
       { text: "AI assistance for enquiries about your work and services" },
       { text: "Help with appointment bookings, where configured" },
       { text: "Enhanced profile personalisation" },
-      { text: "Profile analytics and engagement insights" },
-      { text: "Signature member designation" },
+      { text: "Profile analytics: card opens and link clicks" },
+      { text: "Signature silver membership badge" },
     ],
     cta: "Choose Signature",
     footnote: "For professionals ready to do more with every connection.",
@@ -78,6 +85,7 @@ const PLANS: Plan[] = [
     monthly: 34.99,
     monthlyWas: 49.99,
     yearly: 419.92,
+    yearlyPerMonth: 34.99,
     listTitle: "Everything in Signature, plus",
     features: [
       { text: "AI Business Manager and AI Personal Manager" },
@@ -137,10 +145,9 @@ function PlanCard({
   onChoose: (id: PlanId, billing: Billing) => void;
 }) {
   const gold = plan.premium;
-  const yearlyWas = plan.monthlyWas * 12;
-  // Saving against the regular annual price (Signature works out to 29%, not 30%).
-  const saving = Math.round((1 - plan.yearly / yearlyWas) * 100);
   const annual = billing === "annual";
+  // Saving against the regular price, computed rather than rounded up.
+  const saving = Math.round((1 - (annual ? plan.yearly / (plan.monthlyWas * 12) : plan.monthly / plan.monthlyWas)) * 100);
 
   return (
     <article
@@ -167,25 +174,20 @@ function PlanCard({
         {plan.adds}
       </p>
 
-      {/* Both prices, the selected billing emphasised; annual first as the recommended option. */}
-      <div className="mt-6 space-y-3">
-        <div className={`transition-opacity ${annual ? "" : "opacity-50"}`}>
-          <p className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-            <span className={`${annual ? "text-4xl" : "text-2xl"} font-semibold tracking-tight`}>{money(plan.yearly)}</span>
-            <span className="text-neutral-400">/year</span>
-            <s className="text-neutral-500">{money(yearlyWas)}</s>
-            <span className="rounded-md bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-400">Save {saving}%</span>
-          </p>
-          <p className="mt-1 text-sm text-neutral-400">Billed once a year</p>
-        </div>
-        <div className={`transition-opacity ${annual ? "opacity-50" : ""}`}>
-          <p className="flex flex-wrap items-baseline gap-x-2">
-            <span className={`${annual ? "text-2xl" : "text-4xl"} font-semibold tracking-tight`}>{money(plan.monthly)}</span>
-            <span className="text-neutral-400">/month</span>
-            <s className="text-neutral-500">{money(plan.monthlyWas)}</s>
-          </p>
-          <p className="mt-1 text-sm text-neutral-400">Billed monthly</p>
-        </div>
+      {/* The per-month price for the selected billing, then how it's billed and the regular price. */}
+      <div className="mt-6" aria-live="polite">
+        <p className="flex items-baseline gap-2">
+          <span className="text-4xl font-semibold tracking-tight">{money(annual ? plan.yearlyPerMonth : plan.monthly)}</span>
+          <span className="text-neutral-400">/month</span>
+        </p>
+        <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-neutral-300">
+          {annual ? `Billed annually at ${money(plan.yearly)}` : "Billed monthly"}
+          <span aria-hidden="true">·</span>
+          <span className="rounded-md bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-400">Save {saving}%</span>
+        </p>
+        <p className="mt-1.5 text-sm text-neutral-500">
+          Regular price <s>{money(plan.monthlyWas)}</s>/month
+        </p>
       </div>
 
       {/* Same wording and treatment on every plan. */}
@@ -194,7 +196,7 @@ function PlanCard({
           <InfinityIcon className="w-5 h-5" />
           Unlimited sharing. Always.
         </p>
-        <p className="mt-1 text-sm leading-relaxed text-neutral-300">Share your card as often as you like. No monthly share limits.</p>
+        <p className="mt-1 text-sm leading-relaxed text-neutral-300">Share your cards as often as you like, with no monthly sharing limits.</p>
       </div>
 
       <hr className="my-6 border-white/10" />
@@ -236,7 +238,7 @@ export default function DigitalCardPricing({
   signedIn: boolean;
   onChoose: (plan: PlanId, billing: Billing) => void;
 }) {
-  const [billing, setBilling] = useState<Billing>("annual");
+  const [billing, setBilling] = useState<Billing>("monthly");
   const tab = (b: Billing) =>
     `rounded-full px-4 sm:px-5 py-2 text-sm font-semibold transition ${billing === b ? "bg-white text-neutral-900" : "text-neutral-400 hover:text-white"}`;
 
@@ -245,17 +247,26 @@ export default function DigitalCardPricing({
       <div className="max-w-6xl mx-auto px-6 sm:px-8 py-12 sm:py-[68px]">
         <div className="text-center max-w-2xl mx-auto">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-400">Pricing</p>
-          <h2 className="mt-2 text-3xl sm:text-5xl font-semibold tracking-tight">Choose the card that fits you.</h2>
-          <p className="mt-4 text-base sm:text-lg text-neutral-400">Every plan includes unlimited sharing.</p>
+          <h2 className="mt-2 text-3xl sm:text-5xl font-semibold tracking-tight">Your professional presence. Your&nbsp;way.</h2>
+          <p className="mt-4 text-base sm:text-lg text-neutral-400">
+            Start with your digital business card. Unlock more with AI, multiple cards and exclusive benefits as you grow.
+          </p>
+          <div className="mt-6 flex flex-col items-center gap-2">
+            <p className="inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-4 py-1.5 text-sm font-semibold text-emerald-300">
+              <InfinityIcon size={16} aria-hidden="true" />
+              Unlimited sharing on every plan.
+            </p>
+            <p className="text-sm text-neutral-300">A card that works for you and earns for you.</p>
+          </div>
         </div>
 
         <div role="radiogroup" aria-label="Billing" className="mt-8 flex justify-center">
           <div className="inline-flex rounded-full border border-white/10 bg-white/[0.06] p-1">
-            <button type="button" role="radio" aria-checked={billing === "annual"} className={tab("annual")} onClick={() => setBilling("annual")}>
-              Annual <span className={billing === "annual" ? "text-emerald-600" : "text-emerald-400"}>· recommended</span>
-            </button>
             <button type="button" role="radio" aria-checked={billing === "monthly"} className={tab("monthly")} onClick={() => setBilling("monthly")}>
               Monthly
+            </button>
+            <button type="button" role="radio" aria-checked={billing === "annual"} className={tab("annual")} onClick={() => setBilling("annual")}>
+              Annual <span className={billing === "annual" ? "text-emerald-600" : "text-emerald-400"}>· save up to 40%</span>
             </button>
           </div>
         </div>

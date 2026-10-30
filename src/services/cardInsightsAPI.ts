@@ -137,19 +137,18 @@ function sampleAnalytics(cardId: string, range: Range): CardAnalytics {
 
 const SAMPLE_SUMMARY: LoyaltySummary = {
   totals: { views: 1284, shares: 96, cardsCreated: 7, paidReferrals: 3 },
-  points: { available: 640, pending: 400, lifetime: 1240, redeemed: 200 },
+  points: { available: 170, pending: 40, lifetime: 210, redeemed: 0 },
   funnel: { views: 1284, referralClicks: 41, newCards: 7, paidSubscriptions: 3 },
 };
 
 const daysAgo = (n: number) => new Date(Date.now() - n * 864e5).toISOString();
 const SAMPLE_ACTIVITY: LoyaltyActivity[] = [
-  { id: "a1", date: daysAgo(1), kind: "referral_paid", status: "pending", plan: "Signature", billing: "annual", points: 400 },
+  { id: "a1", date: daysAgo(1), kind: "referral_paid", status: "pending", plan: "Signature", billing: "annual", points: 40 },
   { id: "a2", date: daysAgo(3), kind: "referral_signup", status: "available", points: 0 },
   { id: "a3", date: daysAgo(6), kind: "shares_bonus", status: "available", points: 24 },
-  { id: "a4", date: daysAgo(9), kind: "referral_paid", status: "available", plan: "Essential", billing: "monthly", points: 100 },
+  { id: "a4", date: daysAgo(9), kind: "referral_paid", status: "available", plan: "Essential", billing: "monthly", points: 10 },
   { id: "a5", date: daysAgo(14), kind: "views_bonus", status: "available", points: 116 },
-  { id: "a6", date: daysAgo(21), kind: "redeemed", status: "redeemed", points: -200 },
-  { id: "a7", date: daysAgo(30), kind: "referral_paid", status: "available", plan: "Essential", billing: "annual", points: 200 },
+  { id: "a7", date: daysAgo(30), kind: "referral_paid", status: "available", plan: "Essential", billing: "annual", points: 20 },
 ];
 
 const SAMPLE_REWARDS: LoyaltyReward[] = [

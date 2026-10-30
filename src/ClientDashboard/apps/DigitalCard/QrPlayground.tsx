@@ -109,6 +109,8 @@ export const DEFAULT_QR_DESIGN: QrDesign = {
 };
 
 const PHOTO_MAX_SIDE = 1600;
+/** The label shrinks to fit the tile's width, so longer text would get hard to read. */
+const LABEL_MAX = 30;
 
 /** Background photos are kept as a downscaled JPEG data URL, so a design can be saved and redrawn later. */
 async function photoToDataUrl(file: File): Promise<string> {
@@ -435,14 +437,34 @@ export default function QrPlayground({
         </Row>
         <label className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider shrink-0">Label</span>
-          <input
-            value={label}
-            maxLength={24}
-            onChange={(e) => setLabel(e.target.value)}
-            placeholder="No label"
-            className="w-full sm:max-w-[200px] rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/15 focus:border-slate-400"
-          />
+          <span className="relative w-full sm:max-w-[240px]">
+            <input
+              value={label}
+              maxLength={LABEL_MAX}
+              onChange={(e) => setLabel(e.target.value.slice(0, LABEL_MAX))}
+              placeholder="No label"
+              aria-describedby="qr-label-count"
+              className={`w-full rounded-lg border px-3 py-1.5 pr-14 text-sm text-slate-900 focus:outline-none focus:ring-2 ${
+                label.length >= LABEL_MAX
+                  ? "border-rose-300 focus:ring-rose-500/15 focus:border-rose-400"
+                  : "border-slate-200 focus:ring-slate-900/15 focus:border-slate-400"
+              }`}
+            />
+            <span
+              id="qr-label-count"
+              aria-live="polite"
+              className={`pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] font-semibold tabular-nums ${
+                label.length >= LABEL_MAX ? "text-rose-600" : label.length >= LABEL_MAX - 5 ? "text-amber-600" : "text-slate-400"
+              }`}
+            >
+              <span className="sr-only">Characters used: </span>
+              {label.length}/{LABEL_MAX}
+            </span>
+          </span>
         </label>
+        {label.length >= LABEL_MAX && (
+          <p className="-mt-1 text-xs text-rose-600">That’s the {LABEL_MAX}-character limit. Shorter labels are easier to read on the QR.</p>
+        )}
         {tileOpacity < 0.5 && (
           <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
             Tip: on busy photos, keep some tile behind the QR so phones can still scan it.
