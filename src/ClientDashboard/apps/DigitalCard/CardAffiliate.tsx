@@ -75,7 +75,7 @@ export default function CardAffiliate({ go }: { go: (s: string, id?: string | nu
       <section className="ins-points">
         <div className="ins-points-main">
           <span className="ins-points-label">
-            <Coins size={16} /> Available to redeem
+            <Coins size={16} /> Available
           </span>
           <strong>{fmt(s.points.available)}</strong>
           <span className="ins-points-sub">points</span>
@@ -83,7 +83,7 @@ export default function CardAffiliate({ go }: { go: (s: string, id?: string | nu
         <div className="ins-points-side">
           <div>
             <span>
-              <Hourglass size={13} /> Pending verification
+              <Hourglass size={13} /> Pending
             </span>
             <strong>{fmt(s.points.pending)}</strong>
           </div>
@@ -156,7 +156,7 @@ export default function CardAffiliate({ go }: { go: (s: string, id?: string | nu
           )}
           <ul className="ins-howto">
             <li>
-              <ShieldCheck size={15} /> Points are pending until the payment is verified, then become available.
+              <ShieldCheck size={15} /> Points stay Pending until the payment is verified, then move to your Available balance.
             </li>
             <li>
               <ShieldCheck size={15} /> Annual plans earn double. Self-referrals don't count.
@@ -192,7 +192,7 @@ export default function CardAffiliate({ go }: { go: (s: string, id?: string | nu
 
       {/* Rewards */}
       <section className="panel">
-        <h3>Redeem your points</h3>
+        <h3>What your points can do</h3>
         <div className="ins-rewards">
           {rewards.map((r) => {
             const enough = s.points.available >= r.pointsCost;
@@ -217,7 +217,7 @@ export default function CardAffiliate({ go }: { go: (s: string, id?: string | nu
 }
 
 const STATUS: Record<LoyaltyActivity["status"], string> = {
-  pending: "Pending verification",
+  pending: "Pending",
   available: "Available",
   redeemed: "Redeemed",
   reversed: "Reversed",

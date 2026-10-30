@@ -1,7 +1,11 @@
 import { useEffect, useRef } from "react";
 import { ArrowRight, User, Users, X } from "lucide-react";
 
-/** "Who is this card for?" — asked before entering the card creator. Team cards aren't built yet. */
+/**
+ * "Who are you creating a card for?" — asked before entering the card creator.
+ * Business accounts aren't built yet. Planned: team invitations, each member creating their own
+ * card, administrator roles and permissions, and optional approval before cards are published.
+ */
 export default function CreateChooser({ onIndividual, onClose }: { onIndividual: () => void; onClose: () => void }) {
   const first = useRef<HTMLButtonElement>(null);
 
@@ -29,9 +33,9 @@ export default function CreateChooser({ onIndividual, onClose }: { onIndividual:
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 id="chooser-title" className="text-xl font-semibold tracking-tight text-slate-900">
-              Who is this card for?
+              Who are you creating a card for?
             </h2>
-            <p className="mt-1 text-sm text-slate-500">You can create more cards later.</p>
+            <p className="mt-1 text-sm text-slate-500">Start with one card. You can create more anytime.</p>
           </div>
           <button
             type="button"
@@ -55,7 +59,7 @@ export default function CreateChooser({ onIndividual, onClose }: { onIndividual:
             </span>
             <span className="flex-1 min-w-0">
               <span className="block font-semibold">For myself</span>
-              <span className="block text-sm text-white/70">An individual card for you — ready in minutes.</span>
+              <span className="block text-sm text-white/70">Create your personal digital business card in minutes.</span>
             </span>
             <ArrowRight className="w-5 h-5 flex-none transition-transform group-hover:translate-x-0.5" />
           </button>
@@ -70,8 +74,8 @@ export default function CreateChooser({ onIndividual, onClose }: { onIndividual:
               <Users className="w-5 h-5" />
             </span>
             <span className="flex-1 min-w-0">
-              <span className="block font-semibold text-slate-500">For my business team</span>
-              <span className="block text-sm text-slate-400">Matching cards for everyone on your team.</span>
+              <span className="block font-semibold text-slate-500">For my business</span>
+              <span className="block text-sm text-slate-400">Create your business account and invite your team to build their own official digital identities.</span>
             </span>
             <span id="team-soon" className="flex-none rounded-full bg-slate-200 px-2.5 py-1 text-[11px] font-semibold text-slate-500">
               Coming soon
