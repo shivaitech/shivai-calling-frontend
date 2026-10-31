@@ -1,9 +1,13 @@
 import { ReactNode, useRef, useState } from "react";
-import { Camera, ImagePlus, User, X } from "lucide-react";
+import { Camera, Plus, User, X } from "lucide-react";
 import type { ImageKind } from "./photo";
-import { CardData, SUGGESTED_TAGLINE } from "./types";
+import { CardData, MAX_ADDITIONAL_PHONES, PHONE_LABELS, SUGGESTED_TAGLINE } from "./types";
+import type { CardPhone, PhoneLabel } from "../../../services/businessCardAPI";
 import CountryCodeSelect from "./CountryCodeSelect";
 import SocialLinksEditor from "./SocialLinksEditor";
+import VenturesEditor from "./VenturesEditor";
+import PayMeEditor from "./PayMeEditor";
+import { CARD_EXTRAS } from "./features";
 import UsernameField from "./UsernameField";
 import { editImage, type EditImageOptions } from "./ImageEditor";
 
@@ -52,10 +56,23 @@ interface CardFormProps {
   agentsLoading?: boolean;
   /** The card's username as last saved (editing), so it isn't reported as taken by itself. */
   savedUsername?: string;
+  /** Uploads a PDF for a document/catalog entry. Leave out before the visitor has an account (links only). */
+  onDocumentFile?: (file: File) => Promise<{ url: string; file_name: string }>;
+  onDocumentError?: (message: string) => void;
 }
 
 /** All the editable sections of a business card (everything except the save bar / preview). */
-export default function CardForm({ form, set, errors, onImageFile, agents, agentsLoading = false, savedUsername }: CardFormProps) {
+export default function CardForm({
+  form,
+  set,
+  errors,
+  onImageFile,
+  agents,
+  agentsLoading = false,
+  savedUsername,
+  onDocumentFile,
+  onDocumentError = () => {},
+}: CardFormProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const err = (k: string) => errors[k];
   // Which image is being processed: "photo", or "logo-<venture index>".
@@ -79,6 +96,11 @@ export default function CardForm({ form, set, errors, onImageFile, agents, agent
   const [brokenUrl, setBrokenUrl] = useState("");
   const hasPhoto = !!form.image_url && form.image_url !== brokenUrl;
   const agentKnown = (agents ?? []).some((a) => a.id === form.agent_id);
+  const extraPhones = form.additional_phones ?? [];
+  // Pay Me errors (ours or the API's "payment_methods.<i>.<field>"), first one wins.
+  const payError = Object.entries(errors).find(([k]) => k.startsWith("payment_methods"))?.[1];
+  const setPhone = (i: number, patch: Partial<CardPhone>) =>
+    set((f) => ({ additional_phones: patchAt(f.additional_phones ?? [], i, patch) }));
 
   return (
     <>
@@ -179,7 +201,7 @@ export default function CardForm({ form, set, errors, onImageFile, agents, agent
           <Field label="Code" error={err("country_code")}>
             <CountryCodeSelect value={form.country_code} onChange={(country_code) => set({ country_code })} />
           </Field>
-          <Field label="Phone" error={err("phone_number")}>
+          <Field label={extraPhones.length ? "Primary phone" : "Phone"} error={err("phone_number")}>
             <input value={form.phone_number} placeholder="Enter your phone number" inputMode="tel" onChange={(e) => set({ phone_number: e.target.value })} />
           </Field>
         </div>
@@ -187,6 +209,54 @@ export default function CardForm({ form, set, errors, onImageFile, agents, agent
           <input type="checkbox" checked={form.is_whatsapp_number} onChange={(e) => set({ is_whatsapp_number: e.target.checked })} />
           This number is on WhatsApp
         </label>
+        {CARD_EXTRAS && extraPhones.map((p, i) => (
+          <div className="xphone" key={i}>
+            <div className="xphone-head">
+              <select
+                aria-label="Number label"
+                value={p.label}
+                onChange={(e) => setPhone(i, { label: e.target.value as PhoneLabel })}
+              >
+                {PHONE_LABELS.map((l) => (
+                  <option key={l.value} value={l.value}>
+                    {l.label}
+                  </option>
+                ))}
+              </select>
+              <label className="chk">
+                <input type="checkbox" checked={p.is_whatsapp_number} onChange={(e) => setPhone(i, { is_whatsapp_number: e.target.checked })} />
+                On WhatsApp
+              </label>
+              <button type="button" className="xphone-x" aria-label="Remove this number" onClick={() => set((f) => ({ additional_phones: (f.additional_phones ?? []).filter((_, j) => j !== i) }))}>
+                <X size={15} />
+              </button>
+            </div>
+            <div className="row phone">
+              <Field label="Code">
+                <CountryCodeSelect value={p.country_code} onChange={(country_code) => setPhone(i, { country_code })} />
+              </Field>
+              <Field label="Phone" error={err(`additional_phones.${i}.phone_number`)}>
+                <input value={p.phone_number} placeholder="Enter the number" inputMode="tel" onChange={(e) => setPhone(i, { phone_number: e.target.value })} />
+              </Field>
+            </div>
+          </div>
+        ))}
+        {CARD_EXTRAS && extraPhones.length < MAX_ADDITIONAL_PHONES && (
+          <button
+            type="button"
+            className="xphone-add"
+            onClick={() =>
+              set((f) => ({
+                additional_phones: [
+                  ...(f.additional_phones ?? []),
+                  { label: (f.additional_phones ?? []).length ? "mobile" : "work", country_code: f.country_code || "+91", phone_number: "", is_whatsapp_number: false },
+                ],
+              }))
+            }
+          >
+            <Plus size={14} aria-hidden="true" /> Add another number
+          </button>
+        )}
         <Field label="Email" error={err("email")}>
           <input type="email" value={form.email} placeholder="Enter your email address" onChange={(e) => set({ email: e.target.value })} />
         </Field>
@@ -194,6 +264,18 @@ export default function CardForm({ form, set, errors, onImageFile, agents, agent
           <input value={form.website} placeholder="Paste your website link" onChange={(e) => set({ website: e.target.value })} />
         </Field>
       </section>
+
+      {CARD_EXTRAS && (
+        <section className="panel">
+          <h3>Pay Me <small>Optional · let people pay you from your card</small></h3>
+          <PayMeEditor
+            value={form.payment_methods ?? []}
+            update={(fn) => set((f) => ({ payment_methods: fn(f.payment_methods ?? []) }))}
+            onQrFile={(file) => onImageFile(file, "logo")}
+          />
+          {payError && <small className="err">{payError}</small>}
+        </section>
+      )}
 
       {agents !== null && (
         <section className="panel">
@@ -222,48 +304,23 @@ export default function CardForm({ form, set, errors, onImageFile, agents, agent
       </section>
 
       <section className="panel">
-        <h3>Ventures <small>Companies or projects</small></h3>
-        {form.ventures.map((v, i) => (
-          <div className="stack" key={i}>
-            <div className="row">
-              {/* Logo: tap to upload; ✕ removes it. */}
-              <div className="logo-picker">
-                <label className={`logo-picker-tile${busy === `logo-${i}` ? " is-busy" : ""}`} title={v.logo_url ? "Change logo" : "Add logo"}>
-                  {v.logo_url ? <img src={v.logo_url} alt={`${v.name || "Venture"} logo`} /> : <ImagePlus size={18} />}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="sr-only"
-                    aria-label={v.logo_url ? "Change logo" : "Add logo"}
-                    disabled={busy !== null}
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      e.target.value = "";
-                      void pickImage(file, "logo", `logo-${i}`, (url) =>
-                        set((f) => ({ ventures: patchAt(f.ventures, i, { logo_url: url }) })),
-                      );
-                    }}
-                  />
-                </label>
-                {v.logo_url && busy !== `logo-${i}` && (
-                  <button type="button" className="logo-picker-x" aria-label="Remove logo" onClick={() => set({ ventures: patchAt(form.ventures, i, { logo_url: "" }) })}>
-                    <X size={11} />
-                  </button>
-                )}
-              </div>
-              <input value={v.name} placeholder="Name *" onChange={(e) => set({ ventures: patchAt(form.ventures, i, { name: e.target.value }) })} />
-              <button className="x" aria-label="Remove venture" onClick={() => set({ ventures: form.ventures.filter((_, j) => j !== i) })}>×</button>
-            </div>
-            {err(`ventures.${i}.name`) && <small className="err">{err(`ventures.${i}.name`)}</small>}
-            <input value={v.url} placeholder="Link (e.g. yourcompany.com)" onChange={(e) => set({ ventures: patchAt(form.ventures, i, { url: e.target.value }) })} />
-            {(err(`ventures.${i}.url`) || err(`ventures.${i}.logo_url`)) && (
-              <small className="err">{err(`ventures.${i}.url`) || err(`ventures.${i}.logo_url`)}</small>
-            )}
-          </div>
-        ))}
-        <button className="btn small ghost" onClick={() => set({ ventures: [...form.ventures, { name: "", logo_url: "", url: "" }] })}>
-          + Add venture
-        </button>
+        {CARD_EXTRAS ? (
+          <h3>Ventures &amp; more <small>Companies, shop catalogs, documents, menus</small></h3>
+        ) : (
+          <h3>Ventures <small>Companies or projects</small></h3>
+        )}
+        <VenturesEditor
+          basic={!CARD_EXTRAS}
+          value={form.ventures}
+          update={(fn) => set((f) => ({ ventures: fn(f.ventures) }))}
+          busyKey={busy}
+          onPickLogo={(i, file) =>
+            void pickImage(file, "logo", `logo-${i}`, (url) => set((f) => ({ ventures: patchAt(f.ventures, i, { logo_url: url }) })))
+          }
+          onDocumentFile={onDocumentFile}
+          onDocumentError={onDocumentError}
+          errorFor={(i) => err(`ventures.${i}.name`) || err(`ventures.${i}.url`) || err(`ventures.${i}.logo_url`) || err(`ventures.${i}.type`) || err(`ventures.${i}.logo_size`) || err(`ventures.${i}.description`)}
+        />
       </section>
     </>
   );

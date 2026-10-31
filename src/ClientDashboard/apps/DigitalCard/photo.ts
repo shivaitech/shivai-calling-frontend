@@ -102,11 +102,16 @@ async function uploadDataUrl(dataUrl: string, kind: ImageKind): Promise<string> 
   return uploadPhoto(new File([blob], `${kind}.${ext}`, { type: blob.type || "image/jpeg" }), kind);
 }
 
-/** Uploads any images still held locally as data URLs (photo + venture logos) and swaps in their real URLs. */
+/** Uploads any images still held locally as data URLs (photo, venture logos, payment QRs) and swaps in their real URLs. */
 export async function resolveCardImages(card: CardData): Promise<CardData> {
   const image_url = card.image_url.startsWith("data:") ? await uploadDataUrl(card.image_url, "photo") : card.image_url;
   const ventures = await Promise.all(
     card.ventures.map(async (v) => (v.logo_url.startsWith("data:") ? { ...v, logo_url: await uploadDataUrl(v.logo_url, "logo") } : v)),
   );
-  return { ...card, image_url, ventures };
+  const payment_methods = card.payment_methods
+    ? await Promise.all(
+        card.payment_methods.map(async (m) => (m.qr_url?.startsWith("data:") ? { ...m, qr_url: await uploadDataUrl(m.qr_url, "logo") } : m)),
+      )
+    : card.payment_methods;
+  return { ...card, image_url, ventures, payment_methods };
 }

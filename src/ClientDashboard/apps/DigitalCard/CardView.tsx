@@ -1,18 +1,66 @@
 import { CSSProperties, useCallback, useState } from "react";
 import QRCode from "react-qr-code";
-import { Facebook, Instagram, Link2, Linkedin, LucideIcon, Phone, Sparkles, Twitter, UserPlus, Youtube } from "lucide-react";
+import { Award, Crown, Facebook, Instagram, Link2, Linkedin, LucideIcon, Phone, Sparkles, Twitter, UserPlus, Wallet, Youtube } from "lucide-react";
 import WhatsAppIcon from "./WhatsAppIcon";
 import GmailIcon from "./GmailIcon";
 import { downloadVCard, fullPhone } from "./vcard";
 import SaveContactSheet from "./SaveContactSheet";
+import PayMeSheet from "./PayMeSheet";
+import { visiblePayMethods } from "./payMe";
 import { openCardAgent } from "./openCardAgent";
-import { CardData, SOCIAL_TYPES, SocialType } from "./types";
+import { CardData, PHONE_LABELS, SOCIAL_TYPES, SocialType } from "./types";
+import { ventureKind } from "./ventureKinds";
 import { PUBLIC_APP_URL } from "../../../services/businessCardAPI";
 
 const host = (u: string) => u.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
 const href = (u: string) => (/^[a-z]+:/i.test(u) ? u : `https://${u}`);
 
 type Social = CardData["social_media"][number];
+
+/** A venture, or something to browse (catalog, PDF, menu, portfolio), with its logo at the chosen size. */
+function VentureItem({ v }: { v: CardData["ventures"][number] }) {
+  const kind = ventureKind(v.type);
+  const size = v.logo_size ?? "s";
+  const [broken, setBroken] = useState(false);
+  const img =
+    v.logo_url && !broken ? (
+      <img className={`company-logo size-${size}`} src={v.logo_url} alt={`${v.name} ${kind.id === "venture" ? "logo" : "cover"}`} onError={() => setBroken(true)} />
+    ) : null;
+  const cover = size === "l" && img;
+  const body = (
+    <>
+      {!cover && img && <span className={`company-thumb size-${size}`}>{img}</span>}
+      <span className="company-body">
+        {kind.id !== "venture" && (
+          <span className="company-kind">
+            <kind.Icon size={11} aria-hidden="true" />
+            {kind.label}
+          </span>
+        )}
+        <span className="company-name">{v.name}</span>
+        {v.description?.trim() && <span className="company-desc">{v.description.trim()}</span>}
+      </span>
+      {v.url && (
+        <span className="company-go" aria-hidden="true">
+          ↗
+        </span>
+      )}
+    </>
+  );
+  // One compact row (the same pattern as the Connect list); the whole row opens the link.
+  return (
+    <article className={`company kind-${kind.id}${cover ? " has-cover" : ""}`}>
+      {cover && <div className="company-cover">{img}</div>}
+      {v.url ? (
+        <a className="company-row" href={href(v.url)} target="_blank" rel="noopener noreferrer" aria-label={`${kind.cta(v.name)} (opens in a new tab)`}>
+          {body}
+        </a>
+      ) : (
+        <div className="company-row">{body}</div>
+      )}
+    </article>
+  );
+}
 
 /** Public URL for a social entry: the stored url, else built from the username. */
 export function socialUrl(s: Social): string {
@@ -78,6 +126,7 @@ export default function CardView({
   createCardHref,
   inlineAgent = true,
   agentUserId,
+  tier,
 }: {
   card: CardData;
   wide?: boolean;
@@ -90,6 +139,8 @@ export default function CardView({
   createCardHref?: string;
   /** "Ask My AI" opens the chat widget on the page (default) instead of the agent page. */
   inlineAgent?: boolean;
+  /** Plan look: "signature" adds a silver mark, "prestige" the gold premium design. */
+  tier?: "essential" | "signature" | "prestige";
   /** The card owner's tenant id, passed to the widget when known. */
   agentUserId?: string;
   /** The saved card's slug — lets "Save Contact" offer wallet passes (public page only). */
@@ -97,24 +148,38 @@ export default function CardView({
 }) {
   const [imgBroken, setImgBroken] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
+  const [payOpen, setPayOpen] = useState(false);
+  const closePay = useCallback(() => setPayOpen(false), []);
   const [aiLoading, setAiLoading] = useState(false);
   const closeSave = useCallback(() => setSaveOpen(false), []);
   const tel = fullPhone(c);
   const waNumber = tel.replace(/\D/g, "");
+  const payMethods = visiblePayMethods(c.payment_methods);
+  const extraPhones = (c.additional_phones ?? []).map((p) => ({ p, num: fullPhone(p) })).filter((x) => x.num);
   const socials = c.social_media.map((s) => ({ s, url: socialUrl(s) })).filter((x) => x.url);
   // LinkedIn also gets a quick-action button, but stays in the list so every added link shows there.
   const linkedin = socials.find((x) => x.s.type === "linkedin");
   const connect = socials;
   const ventures = c.ventures.filter((v) => v.name.trim());
+  const companies = ventures.filter((v) => ventureKind(v.type).id === "venture");
+  const resources = ventures.filter((v) => ventureKind(v.type).id !== "venture");
   const initials = c.full_name.split(/\s+/).map((s) => s[0]).join("").slice(0, 2).toUpperCase();
   const showPhoto = c.image_url && !imgBroken;
   const hasRight = connect.length > 0 || !!c.website || ventures.length > 0;
 
   return (
-    <main className={"card" + (wide ? " wide" : "")} style={accentVars(c.color_code)}>
+    <main className={"card" + (wide ? " wide" : "") + (tier && tier !== "essential" ? ` tier-${tier}` : "")} style={accentVars(c.color_code)}>
       <div className="topline">
         <span className={"wordmark" + (!c.full_name ? " ph-text" : "")}>{c.full_name || "Your name"}</span>
-        <span className="toplabel">Digital Profile</span>
+        <span className="toplabel">
+          Digital Profile
+          {(tier === "prestige" || tier === "signature") && (
+            <span className={`tier-mark ${tier}`}>
+              {tier === "prestige" ? <Crown size={11} aria-hidden="true" /> : <Award size={11} aria-hidden="true" />}
+              {tier === "prestige" ? "Prestige" : "Signature"}
+            </span>
+          )}
+        </span>
       </div>
 
       <div className={"cols" + (!hasRight ? " solo" : "")}>
@@ -127,6 +192,7 @@ export default function CardView({
             <div className="portrait ph">{initials || "＋"}</div>
           )}
         </div>
+        <div className="hero-text">
         <h1 className={!c.full_name ? "ph-text" : undefined}>{c.full_name || "Your name"}</h1>
         {c.job_title || c.company_name ? (
           <p className="role">{[c.job_title, c.company_name].filter(Boolean).join(", ")}</p>
@@ -146,6 +212,7 @@ export default function CardView({
             </>
           )
         )}
+        </div>
       </header>
 
       <nav className="actions" aria-label="Contact actions">
@@ -175,10 +242,33 @@ export default function CardView({
         {tel && c.is_whatsapp_number && (
           <a className="action" href={`https://wa.me/${waNumber}`} target="_blank" rel="noopener noreferrer"><WhatsAppIcon /> WhatsApp</a>
         )}
+        {payMethods.length > 0 && (
+          <button className="action pay" type="button" onClick={() => setPayOpen(true)}><Wallet size={15} /> Pay Me</button>
+        )}
         {c.email && <a className="action light" href={`mailto:${c.email}`}><GmailIcon /> Email</a>}
         {linkedin && <a className="action light" href={linkedin.url} target="_blank" rel="noopener noreferrer"><Linkedin size={15} /> LinkedIn</a>}
         <button className="action save" type="button" disabled={!c.full_name} onClick={() => setSaveOpen(true)}><UserPlus size={15} /> Save Contact</button>
       </nav>
+      {extraPhones.length > 0 && (
+        <ul className="xphones" aria-label="More phone numbers">
+          {extraPhones.map(({ p, num }, i) => (
+            <li key={i}>
+              <a className="xphones-call" href={`tel:${num}`}>
+                <span className="xphones-icon"><Phone size={14} /></span>
+                <span>
+                  <span className="xphones-label">{PHONE_LABELS.find((l) => l.value === p.label)?.label ?? "Phone"}</span>
+                  <span className="xphones-num">{p.country_code} {p.phone_number}</span>
+                </span>
+              </a>
+              {p.is_whatsapp_number && (
+                <a className="xphones-wa" href={`https://wa.me/${num.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer" aria-label={`WhatsApp ${p.country_code} ${p.phone_number}`}>
+                  <WhatsAppIcon />
+                </a>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
       {placeholders && !tel && !c.email && (
         <p className="ph-hint">Add your phone and email to show Call, WhatsApp and Email buttons here.</p>
       )}
@@ -214,17 +304,20 @@ export default function CardView({
         </section>
       )}
 
-      {ventures.length > 0 && (
+      {companies.length > 0 && (
         <section className="section">
           <div className="section-head"><h2>Ventures</h2><span className="section-note">What I’m building</span></div>
-          {ventures.map((v, i) => (
-            <article key={i} className="company">
-              <div className="company-top">
-                <span className="company-name">{v.name}</span>
-                {v.logo_url && <img className="company-logo" src={v.logo_url} alt={`${v.name} logo`} onError={(e) => (e.currentTarget.style.display = "none")} />}
-              </div>
-              {v.url && <a className="company-link" href={href(v.url)} target="_blank" rel="noopener noreferrer">Explore {v.name} ↗</a>}
-            </article>
+          {companies.map((v, i) => (
+            <VentureItem key={i} v={v} />
+          ))}
+        </section>
+      )}
+
+      {resources.length > 0 && (
+        <section className="section">
+          <div className="section-head"><h2>Catalogs &amp; documents</h2><span className="section-note">Take a look</span></div>
+          {resources.map((v, i) => (
+            <VentureItem key={i} v={v} />
           ))}
         </section>
       )}
@@ -244,6 +337,7 @@ export default function CardView({
           Powered by <a href="https://www.callshivai.com" target="_blank" rel="noopener noreferrer"><strong>ShivAI</strong></a>
         </p>
       )}
+      {payOpen && <PayMeSheet name={c.full_name} slug={slug} methods={payMethods} onClose={closePay} />}
       {saveOpen && (
         <SaveContactSheet name={c.full_name} slug={slug} onSaveToPhone={() => downloadVCard(c, socialUrl)} onClose={closeSave} />
       )}
