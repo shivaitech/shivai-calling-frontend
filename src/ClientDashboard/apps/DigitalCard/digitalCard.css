@@ -32,7 +32,13 @@
 .dc .company{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:17px;margin-top:10px}
 .dc .company-top{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:11px}
 .dc .company-name{font-size:17px;font-weight:650;letter-spacing:-.3px}
-.dc .company-logo{display:block;object-fit:contain;max-width:112px;max-height:34px}
+.dc .company-logo{display:block;flex:none;object-fit:contain;max-width:112px;max-height:34px}
+.dc .company-logo.size-m{max-width:180px;max-height:64px}
+.dc .company.has-cover{overflow:hidden}
+.dc .company-cover{margin:-17px -17px 14px;background:#f4f4f1;border-bottom:1px solid var(--line)}
+.dc .company-cover .company-logo{width:100%;max-width:100%;height:auto;max-height:240px;margin:0 auto}
+.dc .company-title{display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:0}
+.dc .company-kind{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);background:#f2f2ee;border-radius:999px;padding:3px 8px}
 .dc .company p{font-size:13px;color:#565656;line-height:1.6;margin:0 0 13px}
 .dc .company-link{font-size:12px;font-weight:650;text-decoration:none;border-bottom:1px solid #999;padding-bottom:2px}
 .dc .footer{border-top:1px solid var(--line);margin-top:30px;padding-top:17px;display:flex;justify-content:space-between;gap:12px;font-size:10px;color:#858585}
@@ -368,38 +374,22 @@
 }
 
 /* ---------- Public card: "Create your own digital card" (above Powered by ShivAI) ---------- */
-/* Highlighted, animated text — not a button: a light sweep across the words in the card's
-   accent colour, a highlighter swash behind them, and a nudging arrow. */
+/* Text link (not a button) with one slow, gentle pulse: it softly grows and brightens, then settles. */
 .dc .make-cta{
-  position:relative;isolation:isolate;
-  display:flex;width:fit-content;align-items:center;gap:6px;margin:26px auto 0;padding:2px 2px;
+  display:flex;width:fit-content;align-items:center;gap:6px;margin:26px auto 0;padding:4px 2px;
   font-size:14px;font-weight:700;letter-spacing:.1px;text-decoration:none;color:var(--ink);
+  transform-origin:center;animation:make-cta-pulse 3s ease-in-out infinite;
 }
-/* The highlighter: behind the lower half of the text (z-index -1 inside the isolated link). */
-.dc .make-cta::before{
-  content:"";position:absolute;left:-5px;right:-5px;bottom:2px;height:45%;z-index:-1;border-radius:4px;
-  background:color-mix(in srgb,var(--accent) 24%,transparent);
-  transform:scaleX(0);transform-origin:left center;
-  animation:make-cta-mark 4.2s cubic-bezier(.65,0,.35,1) infinite;
-}
-.dc .make-cta-text{
-  background:linear-gradient(90deg,var(--ink) 0%,var(--ink) 38%,var(--accent) 50%,var(--ink) 62%,var(--ink) 100%);
-  background-size:260% 100%;
-  -webkit-background-clip:text;background-clip:text;color:transparent;
-  animation:make-cta-sheen 4.2s ease-in-out infinite;
-}
-.dc .make-cta-arrow{display:inline-block;animation:make-cta-nudge 4.2s ease-in-out infinite;transition:transform .2s}
-.dc .make-cta:hover::before{animation:none;transform:scaleX(1)}
-.dc .make-cta:hover .make-cta-arrow{animation:none;transform:translateX(4px)}
+.dc .make-cta-text{text-decoration:underline;text-decoration-color:transparent;text-underline-offset:4px;text-decoration-thickness:1.5px;transition:text-decoration-color .2s}
+.dc .make-cta-arrow{display:inline-block;transition:transform .2s}
+.dc .make-cta:hover{animation-play-state:paused}
+.dc .make-cta:hover .make-cta-text{text-decoration-color:currentColor}
+.dc .make-cta:hover .make-cta-arrow{transform:translateX(4px)}
 .dc .make-cta:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:4px}
 .dc .make-cta + .powered{margin-top:12px}
-@keyframes make-cta-mark{ 0%,8%{ transform:scaleX(0); opacity:1; } 35%,75%{ transform:scaleX(1); opacity:1; } 92%,100%{ transform:scaleX(1); opacity:0; } }
-@keyframes make-cta-sheen{ 0%,20%{ background-position:100% 0; } 60%,100%{ background-position:0% 0; } }
-@keyframes make-cta-nudge{ 0%,30%,60%,100%{ transform:translateX(0); } 45%{ transform:translateX(4px); } }
+@keyframes make-cta-pulse{ 0%,100%{ transform:scale(1); opacity:.78; } 50%{ transform:scale(1.04); opacity:1; } }
 @media (prefers-reduced-motion: reduce){
-  .dc .make-cta::before,.dc .make-cta-text,.dc .make-cta-arrow{ animation:none; }
-  .dc .make-cta::before{ transform:scaleX(1); }
-  .dc .make-cta-text{ background-position:0 0; }
+  .dc .make-cta{ animation:none; opacity:1; }
 }
 
 /* ---------- Instagram-style profile photo picker (card form) ---------- */
@@ -698,3 +688,325 @@
 .dc .un-chip:hover{background:#f0f0ec;border-color:#c4c4be}
 .dc .un-link{line-height:1.5;overflow-wrap:anywhere}
 .dc .un-link strong{color:var(--ink);font-weight:600}
+
+/* Ventures & more editor (VenturesEditor) */
+.dc .ven{display:flex;flex-direction:column;gap:12px}
+.dc .ven-item{display:flex;flex-direction:column;gap:10px;padding:12px;border:1px solid var(--line);border-radius:12px;background:#fcfcfa}
+.dc .ven-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.dc .ven-kind{display:inline-flex;align-items:center;gap:4px;border:1px solid #e2e2dc;border-radius:999px;padding:0 4px 0 10px;background:#fff;color:#444}
+.dc .ven-kind select{width:auto;border:0;padding:5px 4px;font-size:12px;font-weight:600;background:transparent;outline:0;cursor:pointer}
+.dc .ven-remove{border:0;background:transparent;width:30px;height:30px;border-radius:8px;display:grid;place-items:center;color:#777;cursor:pointer}
+.dc .ven-remove:hover{background:#f0f0ec;color:#c0392b}
+.dc .ven-main{display:flex;gap:10px;align-items:center}
+.dc .ven-main>input{flex:1}
+.dc .ven-size{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.dc .ven-seg{display:inline-flex;background:#f0f0ec;border-radius:9px;padding:3px;gap:2px}
+.dc .ven-seg button{border:0;background:transparent;padding:5px 11px;border-radius:7px;font:600 12px inherit;font-family:inherit;color:#666;cursor:pointer}
+.dc .ven-seg button.is-on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.dc .ven-file{display:flex;align-items:center;gap:8px;padding:9px 12px;border:1px solid #d3d3cd;border-radius:9px;background:#fff;font-size:13px}
+.dc .ven-file a{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink);text-decoration:none;font-weight:600}
+.dc .ven-file button{border:0;background:transparent;cursor:pointer;color:#888;display:grid;place-items:center;padding:2px}
+.dc .ven-upload{align-self:flex-start;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#2b5fd9;cursor:pointer;padding:2px}
+.dc .ven-upload.is-busy{color:var(--muted);cursor:default}
+.dc .ven-spin{animation:un-spin .8s linear infinite}
+.dc .ven-add{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.dc .ven-add>span{font-size:12px;color:var(--muted);margin-right:2px}
+.dc .ven-add button{display:inline-flex;align-items:center;gap:4px;border:1px dashed #c9c9c3;background:#fff;border-radius:999px;padding:6px 11px;font:600 12px inherit;font-family:inherit;color:var(--ink);cursor:pointer}
+.dc .ven-add button:hover{border-style:solid;background:#fafaf8}
+
+/* Extra phone numbers — editor */
+.dc .xphone{display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid var(--line);border-radius:12px;background:#fcfcfa}
+.dc .xphone-head{display:flex;align-items:center;gap:10px}
+.dc .xphone-head select{width:auto;padding:6px 10px;font-size:12px;font-weight:600;border-radius:999px}
+.dc .xphone-head .chk{flex:1}
+.dc .xphone-x{border:0;background:transparent;width:30px;height:30px;border-radius:8px;display:grid;place-items:center;color:#777;cursor:pointer;flex:none}
+.dc .xphone-x:hover{background:#f0f0ec;color:#c0392b}
+.dc .xphone-add{align-self:flex-start;display:inline-flex;align-items:center;gap:5px;border:1px dashed #c9c9c3;background:#fff;border-radius:999px;padding:7px 12px;font:600 12px inherit;font-family:inherit;color:var(--ink);cursor:pointer}
+.dc .xphone-add:hover{border-style:solid;background:#fafaf8}
+
+/* Extra phone numbers — on the card */
+.dc .xphones{list-style:none;margin:12px 0 0;padding:0;background:var(--panel);border:1px solid var(--line);border-radius:13px;overflow:hidden}
+.dc .xphones li{display:flex;align-items:center;border-bottom:1px solid var(--line)}
+.dc .xphones li:last-child{border-bottom:0}
+.dc .xphones-call{flex:1;min-width:0;display:flex;align-items:center;gap:12px;padding:11px 14px;text-decoration:none;color:inherit;transition:background .15s}
+.dc .xphones-call:hover{background:#fafaf8}
+.dc .xphones-icon{width:30px;height:30px;flex:none;border-radius:9px;display:grid;place-items:center;background:#f2f2ee;color:var(--ink)}
+.dc .xphones-label{display:block;font-size:11px;color:var(--muted)}
+.dc .xphones-num{display:block;font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
+.dc .xphones-wa{width:44px;align-self:stretch;flex:none;display:grid;place-items:center;border-left:1px solid var(--line);transition:background .15s}
+.dc .xphones-wa:hover{background:#f1fbf4}
+
+/* Pay Me — editor */
+.dc .pm{display:flex;flex-direction:column;gap:12px}
+.dc .pm-empty{display:flex;gap:12px;align-items:flex-start;padding:14px;border-radius:12px;background:linear-gradient(135deg,#f6f7f2,#eef6f0);border:1px solid #e3ece4}
+.dc .pm-empty-ico{width:38px;height:38px;flex:none;border-radius:11px;background:var(--ink);color:#fff;display:grid;place-items:center}
+.dc .pm-empty strong{display:block;font-size:14px}
+.dc .pm-empty p{margin:3px 0 0;font-size:12.5px;color:#5a5a5a;line-height:1.5}
+.dc .pm-list{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
+.dc .pm-list li{display:flex;align-items:center;gap:10px;padding:11px 12px;border-bottom:1px solid var(--line)}
+.dc .pm-list li:last-child{border-bottom:0}
+.dc .pm-list li.is-off .pm-main,.dc .pm-list li.is-off .pm-ico{opacity:.5}
+.dc .pm-ico{width:34px;height:34px;flex:none;border-radius:10px;background:#f2f2ee;color:var(--ink);display:grid;place-items:center}
+.dc .pm-main{flex:1;min-width:0}
+.dc .pm-main strong{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:600}
+.dc .pm-main small{display:block;font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dc .pm-badge{font-size:10px;font-weight:700;color:#1f7a45;background:#e6f5ec;border-radius:999px;padding:2px 7px}
+.dc .pm-actions{display:flex;gap:2px}
+.dc .pm-actions button{width:30px;height:30px;border:0;background:transparent;border-radius:8px;display:grid;place-items:center;color:#666;cursor:pointer}
+.dc .pm-actions button:hover{background:#f0f0ec;color:var(--ink)}
+.dc .pm-actions button.danger:hover{color:#c0392b}
+.dc .pm-switch{position:relative;width:36px;height:21px;flex:none;cursor:pointer}
+.dc .pm-switch input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer;padding:0;border:0}
+.dc .pm-switch span{position:absolute;inset:0;border-radius:999px;background:#d6d6d0;transition:background .15s;pointer-events:none}
+.dc .pm-switch span::after{content:"";position:absolute;top:2px;left:2px;width:17px;height:17px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:transform .15s}
+.dc .pm-switch input:checked+span{background:#1f9d55}
+.dc .pm-switch input:checked+span::after{transform:translateX(15px)}
+.dc .pm-switch input:focus-visible+span{outline:2px solid var(--ink);outline-offset:2px}
+.dc .pm-wizard{display:flex;flex-direction:column;gap:12px;padding:14px;border:1px solid var(--line);border-radius:14px;background:#fcfcfa}
+.dc .pm-wizard-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.dc .pm-wizard-head strong{font-size:14px}
+.dc .pm-close{width:30px;height:30px;border:0;border-radius:8px;background:transparent;display:grid;place-items:center;color:#666;cursor:pointer}
+.dc .pm-close:hover{background:#f0f0ec}
+.dc .pm-back{display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;padding:4px 0;font:600 14px inherit;font-family:inherit;color:var(--ink);cursor:pointer}
+.dc .pm-providers{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
+.dc .pm-providers button{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--line);border-radius:12px;background:#fff;text-align:left;font:inherit;color:inherit;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.dc .pm-providers button:hover{border-color:#bdbdb6;box-shadow:0 4px 14px rgba(0,0,0,.05)}
+.dc .pm-providers strong{display:block;font-size:13px}
+.dc .pm-providers small{display:block;font-size:11px;color:var(--muted);line-height:1.35}
+.dc .pm-note{margin:0;font-size:11px;color:var(--muted)}
+.dc .pm-qr-drop{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1.5px dashed #c9c9c3;border-radius:12px;background:#fff;cursor:pointer}
+.dc .pm-qr-drop:hover{border-color:#999}
+.dc .pm-qr-drop.is-busy{cursor:default;opacity:.7}
+.dc .pm-qr-drop>span{flex:1;min-width:0}
+.dc .pm-qr-drop strong{display:block;font-size:13px}
+.dc .pm-qr-drop small{display:block;font-size:11px;color:var(--muted)}
+.dc .pm-qr-up{color:#888;flex:none}
+.dc .pm-qr-preview{display:flex;align-items:center;gap:14px}
+.dc .pm-qr-preview img{width:96px;height:96px;object-fit:contain;border:1px solid var(--line);border-radius:10px;background:#fff;padding:4px}
+.dc .pm-currency{flex:0 0 110px}
+.dc .pm-wizard-foot{display:flex;justify-content:flex-end;gap:8px}
+.dc .pm-wizard-foot .btn.small{align-self:auto}
+.dc .pm-safe{display:flex;gap:6px;align-items:flex-start;margin:0;font-size:11px;color:var(--muted);line-height:1.45}
+.dc .pm-safe svg{flex:none;margin-top:1px;color:#1f9d55}
+
+/* Pay Me — on the card */
+.dc .action.pay{background:#0f7b46;border-color:#0f7b46;color:#fff}
+.dc .action.pay:hover{background:#0c6a3c}
+.dc .sheet.pay .sheet-head{margin-bottom:4px}
+.dc .pay-back{display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;padding:4px 0;font:600 13px inherit;font-family:inherit;color:var(--ink);cursor:pointer}
+.dc .pay-hero{text-align:center;padding:0 6px 16px}
+.dc .pay-hero-ico{width:48px;height:48px;margin:0 auto 10px;border-radius:15px;background:var(--ink);color:#fff;display:grid;place-items:center}
+.dc .pay-hero h2{margin:0;font-size:21px;font-weight:700;letter-spacing:-.3px;color:var(--ink);text-transform:none}
+.dc .pay-hero p{margin:4px 0 0;font-size:13px;color:var(--muted)}
+.dc .pay-list{display:grid;gap:8px}
+.dc .pay-option{width:100%;display:flex;align-items:center;gap:12px;padding:13px 14px;border:1px solid var(--line);border-radius:14px;background:#fff;text-align:left;font:inherit;color:inherit;cursor:pointer;transition:background .15s,border-color .15s,transform .1s}
+.dc .pay-option:hover{background:#fafaf8;border-color:#c9c9c3}
+.dc .pay-option:active{transform:scale(.99)}
+.dc .pay-option:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.dc .pay-option.is-default{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+.dc .pay-option-ico{width:38px;height:38px;flex:none;border-radius:11px;background:#f2f2ee;display:grid;place-items:center}
+.dc .pay-option.is-default .pay-option-ico{background:var(--ink);color:#fff}
+.dc .pay-option-text{flex:1;min-width:0}
+.dc .pay-option-text strong{display:block;font-size:14.5px;font-weight:600}
+.dc .pay-option-text small{display:block;font-size:12px;color:var(--muted);margin-top:1px}
+.dc .pay-detail{display:flex;flex-direction:column;align-items:center;gap:12px;padding:6px 0 4px;text-align:center}
+.dc .pay-detail h2{margin:0;font-size:19px;font-weight:700;color:var(--ink);text-transform:none}
+.dc .pay-qr{padding:14px;border:1px solid var(--line);border-radius:18px;background:#fff;line-height:0}
+.dc .pay-qr.is-image img{width:220px;max-width:70vw;height:auto;display:block}
+.dc .pay-hint{margin:0;font-size:12.5px;color:var(--muted);max-width:300px}
+.dc .pay-cta{display:inline-flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:13px 16px;border-radius:13px;background:var(--ink);color:#fff;font-size:14px;font-weight:600;text-decoration:none}
+.dc .pay-cta.light{background:#f1f1ee;color:var(--ink)}
+.dc .pay-row{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;text-align:left}
+.dc .pay-row small{display:block;font-size:11px;color:var(--muted)}
+.dc .pay-row strong{display:block;font-size:14px;overflow-wrap:anywhere}
+.dc .pay-copy{display:inline-flex;align-items:center;gap:5px;flex:none;border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 11px;font:600 12px inherit;font-family:inherit;color:var(--ink);cursor:pointer}
+.dc .pay-copy:hover{background:#fafaf8}
+.dc .pay-bank{width:100%;margin:0;padding:14px;border:1px solid var(--line);border-radius:12px;background:#fafaf8;font:500 13.5px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;text-align:left;white-space:pre-wrap;overflow-wrap:anywhere}
+.dc .pay-foot{margin-top:18px;padding-top:12px;border-top:1px solid var(--line);text-align:center}
+.dc .pay-foot p{display:flex;gap:6px;justify-content:center;align-items:flex-start;margin:0;font-size:11.5px;color:var(--muted);line-height:1.45}
+.dc .pay-foot p svg{flex:none;margin-top:1px;color:#1f9d55}
+.dc .pay-foot a{display:inline-block;margin-top:6px;font-size:11.5px;color:#888;text-decoration:underline}
+
+/* ---------- Plan looks: Signature (silver) & Prestige (gold) ---------- */
+.dc .toplabel{display:inline-flex;align-items:center;gap:10px}
+.dc .tier-mark{display:inline-flex;align-items:center;gap:4px;padding-left:10px;border-left:1px solid var(--line);font-size:10px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase}
+.dc .tier-mark.signature{color:#6b7280}
+.dc .tier-mark.prestige{color:#a8822f}
+
+/* Signature: a cool silver ring on the portrait */
+.dc .card.tier-signature .portrait-wrap{border:2px solid #c9ced6;box-shadow:0 0 0 4px rgba(201,206,214,.25)}
+
+/* Prestige: cream paper, serif name, gold frame & accents */
+.dc .card.tier-prestige{
+  --line:#e9dfc6;--muted:#7d7466;--ink:#1d1a14;
+  width:min(100% - 24px,480px);
+  padding:22px 18px 24px;
+  background:linear-gradient(180deg,#fefcf7 0%,#faf5e9 100%);
+  border:1px solid #e6d6ac;border-radius:22px;
+  box-shadow:0 1px 0 #fff inset,0 18px 40px -22px rgba(120,90,30,.35);
+  color:var(--ink)
+}
+.dc .card.tier-prestige .topline{border-bottom-color:#e6d6ac}
+.dc .card.tier-prestige .wordmark{color:#2a251b;letter-spacing:2.4px}
+.dc .card.tier-prestige .portrait-wrap{border:2px solid #d9b25a;box-shadow:0 0 0 4px rgba(217,178,90,.16),0 12px 26px -10px rgba(120,90,30,.45);background:#efe4c8}
+.dc .card.tier-prestige .portrait.ph{background:linear-gradient(135deg,#f6e7bf,#d9b25a);color:#5a4416;font-family:"Playfair Display",Georgia,"Times New Roman",serif}
+.dc .card.tier-prestige h1{font-family:"Playfair Display",Georgia,"Times New Roman",serif;font-weight:600;letter-spacing:-.6px;color:#1d1a14}
+.dc .card.tier-prestige .role{color:#4a4336}
+.dc .card.tier-prestige .hero-rule{height:1px;background:linear-gradient(90deg,#d9b25a,rgba(217,178,90,.15))}
+.dc .card.tier-prestige .tagline{text-transform:none;letter-spacing:.1px;font-size:13px;line-height:1.55;color:#5c5446}
+
+/* Actions: white tiles with a chevron; Call in ink & gold; Pay Me outlined in gold */
+.dc .card.tier-prestige .action{background:#fff;color:#1d1a14;border-color:#e8dcbf;justify-content:flex-start;padding:12px 14px;box-shadow:0 1px 2px rgba(120,90,30,.06)}
+.dc .card.tier-prestige .action::after{content:"›";margin-left:auto;font-size:18px;line-height:1;color:#b9a77d}
+.dc .card.tier-prestige .action:first-child{background:#17140e;border-color:#17140e;color:#f3e3b8}
+.dc .card.tier-prestige .action:first-child::after{color:#d9b25a}
+.dc .card.tier-prestige .action.pay{background:linear-gradient(180deg,#fffaf0,#fbf0d6);border-color:#d9b25a;color:#1d1a14}
+.dc .card.tier-prestige .action.save{background:#fff}
+
+/* Sections & lists */
+.dc .card.tier-prestige .section-head h2{color:#8a6d2c}
+.dc .card.tier-prestige .link-list,.dc .card.tier-prestige .xphones,.dc .card.tier-prestige .company{background:#fff;border-color:#eadfc4}
+.dc .card.tier-prestige .footer{border-top:1px solid #d9b25a;color:#7d7466}
+.dc .card.tier-prestige .footer strong{color:#2a251b}
+
+/* ---------- Plan preview (PlanCardPreview) ---------- */
+.dc .pp-frame{position:relative;height:var(--pp-h,300px);overflow:hidden;border-radius:16px;background:#f7f7f5;border:1px solid #e5e5e0;cursor:pointer}
+.dc .pp-frame.is-prestige{background:#f3ecdb;border-color:#e6d6ac}
+.dc .pp-frame:focus-visible{outline:2px solid #161616;outline-offset:2px}
+.dc .pp-stage{position:absolute;top:0;left:0;width:390px;transform-origin:0 0;pointer-events:none}
+.dc .pp-fade{position:absolute;left:0;right:0;bottom:0;height:70px;background:linear-gradient(180deg,rgba(247,247,245,0),#f7f7f5 85%);pointer-events:none}
+.dc .pp-frame.is-prestige .pp-fade{background:linear-gradient(180deg,rgba(243,236,219,0),#f3ecdb 85%)}
+.dc .pp-open{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border-radius:999px;background:#161616;color:#fff;font-size:12px;font-weight:600;white-space:nowrap;box-shadow:0 6px 16px rgba(0,0,0,.18);transition:transform .15s}
+.dc .pp-frame:hover .pp-open{transform:translateX(-50%) translateY(-2px)}
+.dc .pp-modal{position:fixed;inset:0;z-index:1000;background:rgba(15,15,12,.55);display:flex;align-items:flex-end;justify-content:center;animation:sheet-fade .18s ease-out}
+.dc .pp-sheet{width:100%;max-width:460px;max-height:92vh;display:flex;flex-direction:column;background:#f7f7f5;border-radius:22px 22px 0 0;overflow:hidden;animation:sheet-up .24s cubic-bezier(.2,.8,.2,1)}
+.dc .pp-sheet.is-prestige{background:#f3ecdb}
+.dc .pp-sheet-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;border-bottom:1px solid rgba(0,0,0,.06);background:rgba(255,255,255,.7)}
+.dc .pp-sheet-head strong{font-size:15px}
+.dc .pp-sheet-head small{display:block;font-size:12px;color:#777}
+.dc .pp-sheet-body{overflow-y:auto;padding:14px 0 22px}
+@media(min-width:640px){
+  .dc .pp-modal{align-items:center;padding:24px}
+  .dc .pp-sheet{border-radius:22px}
+}
+@media(prefers-reduced-motion:reduce){.dc .pp-modal,.dc .pp-sheet{animation:none}}
+
+/* ---------- Signature & Prestige profile: photo left, name + role + short rule + tagline right ---------- */
+.dc .card.tier-signature .hero,.dc .card.tier-prestige .hero{display:flex;align-items:center;gap:18px;padding:24px 0 22px}
+.dc .card.tier-signature .portrait-wrap,.dc .card.tier-prestige .portrait-wrap{width:118px;height:132px;flex:none;margin:0;border-radius:16px;position:relative}
+.dc .card.tier-signature .hero-text,.dc .card.tier-prestige .hero-text{flex:1;min-width:0}
+.dc .card.tier-signature h1,.dc .card.tier-prestige h1{font-size:clamp(26px,7.4vw,34px);line-height:1.05;margin:0 0 6px}
+.dc .card.tier-signature .role,.dc .card.tier-prestige .role{font-size:14px;line-height:1.4}
+.dc .card.tier-signature .hero-rule,.dc .card.tier-prestige .hero-rule{width:58px;height:2px;margin:13px 0 11px;border-radius:2px}
+.dc .card.tier-signature .tagline,.dc .card.tier-prestige .tagline{font-size:12.5px;line-height:1.5;letter-spacing:.1px;text-transform:none}
+@media(min-width:900px){
+  .dc .card.wide.tier-signature .portrait-wrap,.dc .card.wide.tier-prestige .portrait-wrap{width:150px;height:168px;margin:0}
+  .dc .card.wide.tier-signature h1,.dc .card.wide.tier-prestige h1{font-size:40px;letter-spacing:-1px}
+}
+/* Very narrow phones: stack again so the name keeps its size. */
+@media(max-width:340px){
+  .dc .card.tier-signature .hero,.dc .card.tier-prestige .hero{flex-direction:column;align-items:flex-start}
+}
+
+/* ---------- Signature: brushed silver with a slow light sweep ---------- */
+.dc .card.tier-signature{
+  --line:#e1e5ea;
+  width:min(100% - 24px,480px);
+  padding:22px 18px 24px;
+  background:linear-gradient(180deg,#fdfdfe 0%,#f2f4f7 100%);
+  border:1px solid #dde2e8;border-radius:22px;
+  box-shadow:0 1px 0 #fff inset,0 18px 40px -24px rgba(60,72,90,.35)
+}
+.dc .card.tier-signature .topline{border-bottom-color:#dfe3e9}
+/* Metallic frame: silver gradient border around the photo */
+.dc .card.tier-signature .portrait-wrap{
+  border:2px solid transparent;
+  background:linear-gradient(#e9edf2,#e9edf2) padding-box,linear-gradient(135deg,#ffffff 0%,#aab3bf 28%,#f4f6f9 50%,#8f99a7 72%,#e8ecf1 100%) border-box;
+  box-shadow:0 0 0 4px rgba(170,179,191,.18),0 12px 26px -12px rgba(60,72,90,.45)
+}
+.dc .card.tier-signature .portrait.ph{background:linear-gradient(135deg,#f4f6f9,#b8c0cb);color:#4b5563}
+/* The sweep: a soft diagonal highlight crossing the photo now and then */
+.dc .card.tier-signature .portrait-wrap::after,.dc .card.tier-prestige .portrait-wrap::after{
+  content:"";position:absolute;inset:0;pointer-events:none;border-radius:inherit;
+  background:linear-gradient(115deg,transparent 35%,rgba(255,255,255,.55) 48%,rgba(255,255,255,.15) 54%,transparent 62%);
+  background-size:250% 100%;background-position:150% 0;animation:tier-sweep 5.5s ease-in-out infinite
+}
+.dc .card.tier-prestige .portrait-wrap::after{background-image:linear-gradient(115deg,transparent 35%,rgba(255,236,186,.45) 48%,rgba(255,255,255,.12) 54%,transparent 62%);animation-delay:1.2s}
+@keyframes tier-sweep{0%,55%{background-position:150% 0}85%,100%{background-position:-60% 0}}
+.dc .card.tier-signature h1{color:#1c2027;letter-spacing:-.8px}
+.dc .card.tier-signature .role{color:#4b5563}
+.dc .card.tier-signature .hero-rule{background:linear-gradient(90deg,#8f99a7,#e8ecf1,#aab3bf)}
+.dc .card.tier-signature .tagline{color:#5b6472}
+/* Shimmering silver wordmark */
+.dc .tier-mark.signature,.dc .tier-mark.prestige{background-size:220% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;animation:tier-shimmer 4s linear infinite}
+.dc .tier-mark.signature{background-image:linear-gradient(100deg,#7c8693 20%,#f4f6f9 42%,#9aa3af 58%,#7c8693 80%)}
+.dc .tier-mark.prestige{background-image:linear-gradient(100deg,#a8822f 20%,#f6e3a8 42%,#c9a24d 58%,#a8822f 80%)}
+.dc .tier-mark.signature svg{color:#8f99a7}
+.dc .tier-mark.prestige svg{color:#c9a24d}
+@keyframes tier-shimmer{from{background-position:120% 0}to{background-position:-120% 0}}
+/* Silver buttons: Call in graphite, the rest crisp white */
+.dc .card.tier-signature .action{background:#fff;color:#1c2027;border-color:#dfe3e9;justify-content:flex-start;padding:12px 14px;box-shadow:0 1px 2px rgba(60,72,90,.06)}
+.dc .card.tier-signature .action::after{content:"›";margin-left:auto;font-size:18px;line-height:1;color:#a3abb6}
+.dc .card.tier-signature .action:first-child{background:linear-gradient(180deg,#3a414c,#22272f);border-color:#22272f;color:#eef1f5}
+.dc .card.tier-signature .action:first-child::after{color:#c3cad3}
+.dc .card.tier-signature .action.pay{background:linear-gradient(180deg,#fbfcfd,#eef1f5);border-color:#b8c0cb;color:#1c2027}
+.dc .card.tier-signature .section-head h2{color:#6b7280}
+.dc .card.tier-signature .link-list,.dc .card.tier-signature .xphones,.dc .card.tier-signature .company{background:#fff;border-color:#e3e7ec}
+.dc .card.tier-signature .footer{border-top:1px solid #c9ced6}
+.dc .pp-frame.is-signature{background:#eef1f5;border-color:#dde2e8}
+.dc .pp-frame.is-signature .pp-fade{background:linear-gradient(180deg,rgba(238,241,245,0),#eef1f5 85%)}
+.dc .pp-sheet.is-signature{background:#eef1f5}
+
+@media(prefers-reduced-motion:reduce){
+  .dc .card.tier-signature .portrait-wrap::after,.dc .card.tier-prestige .portrait-wrap::after,.dc .tier-mark.signature,.dc .tier-mark.prestige{animation:none}
+}
+
+/* Desktop public page: tier cards keep the wide two-column layout. */
+@media(min-width:900px){
+  .dc .card.wide.tier-signature,.dc .card.wide.tier-prestige{width:min(100% - 80px,1080px);padding:40px 44px 48px}
+}
+
+/* Venture description — editor + card */
+.dc .ven-desc{position:relative}
+.dc .ven-desc textarea{width:100%;resize:vertical;min-height:58px;font-size:13px;line-height:1.5}
+.dc .ven-count{position:absolute;right:10px;bottom:8px;font-size:10.5px;color:var(--muted);background:#fff;padding:0 4px;pointer-events:none}
+.dc .company .company-desc{margin:-2px 0 13px;font-size:13px;line-height:1.6;color:#565656;white-space:pre-line;overflow-wrap:anywhere}
+.dc .card.tier-prestige .company .company-desc{color:#5c5446}
+
+/* Ventures as compact rows: thumb · name + description · arrow (whole row is the link) */
+.dc .company{padding:0;margin-top:8px;overflow:hidden;border-radius:13px}
+.dc .company-row{display:flex;align-items:center;gap:12px;padding:12px 14px;text-decoration:none;color:inherit;transition:background .15s}
+.dc a.company-row:hover{background:#fafaf8}
+.dc a.company-row:focus-visible{outline:2px solid var(--ink);outline-offset:-2px;border-radius:13px}
+.dc .company-thumb{flex:none;width:44px;height:44px;border-radius:10px;border:1px solid var(--line);background:#fff;display:grid;place-items:center;overflow:hidden}
+.dc .company-thumb.size-m{width:64px;height:64px;border-radius:12px}
+.dc .company-thumb .company-logo{width:100%;height:100%;max-width:none;max-height:none;object-fit:contain;padding:4px}
+.dc .company-body{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+.dc .company-body .company-name{font-size:15px;font-weight:650;letter-spacing:-.2px;line-height:1.3;overflow-wrap:anywhere}
+.dc .company-body .company-desc{margin:0;font-size:12.5px;line-height:1.45;color:var(--muted);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;white-space:normal}
+.dc .company-body .company-kind{margin-bottom:3px;font-size:9.5px;padding:2px 7px}
+.dc .company-go{flex:none;align-self:center;font-size:14px;color:#9a9a94;transition:transform .15s,color .15s}
+.dc a.company-row:hover .company-go{color:var(--ink);transform:translate(1px,-1px)}
+.dc .company.has-cover .company-cover{margin:0;border-bottom:1px solid var(--line)}
+.dc .card.tier-prestige a.company-row:hover{background:#fdf9ef}
+.dc .card.tier-signature a.company-row:hover{background:#f7f9fb}
+
+/* ---------- Profile format for every card (Essential too): photo left; name, role, short rule, tagline right ---------- */
+.dc .card .hero{display:flex;align-items:center;gap:18px;padding:24px 0 22px}
+.dc .card .portrait-wrap{width:118px;height:132px;flex:none;margin:0;border-radius:16px;position:relative}
+.dc .card .hero-text{flex:1;min-width:0}
+.dc .card h1{font-size:clamp(24px,6.6vw,30px);line-height:1.08;letter-spacing:-.7px;margin:0 0 6px}
+.dc .card .role{font-size:14px;line-height:1.4}
+.dc .card .hero-rule{width:58px;height:2px;margin:13px 0 11px;border-radius:2px;background:color-mix(in srgb,var(--accent) 75%,transparent)}
+.dc .card .tagline{font-size:12.5px;line-height:1.5;letter-spacing:.1px;text-transform:none}
+/* Same size on every plan, so names never wrap in one look and not another. */
+.dc .card.tier-signature h1{font-size:clamp(24px,6.6vw,30px)}
+.dc .card.tier-prestige h1{font-size:clamp(25px,6.9vw,32px)}
+@media(min-width:900px){
+  .dc .card.wide .portrait-wrap{width:150px;height:168px;margin:0}
+  .dc .card.wide h1{font-size:40px;letter-spacing:-1px}
+}
+@media(max-width:340px){
+  .dc .card .hero{flex-direction:column;align-items:flex-start}
+}
+.dc .ven-kind-plain{font-size:12px;font-weight:600;color:var(--muted)}

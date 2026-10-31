@@ -6,6 +6,7 @@ import CardView from "./CardView";
 import CardForm, { type CardPatch } from "./CardForm";
 import CardMonitoring from "./CardMonitoring";
 import CardAffiliate from "./CardAffiliate";
+import CardBilling from "../../Billing/CardBilling";
 import QrPlayground from "./QrPlayground";
 import { loadQrDesign, saveQrDesign } from "./qrDesignStore";
 import { CardData, emptyCard, withSuggestedTagline } from "./types";
@@ -54,10 +55,33 @@ const fromCard = (c: BusinessCard): CardData => ({
   country_code: c.country_code ?? "",
   phone_number: c.phone_number ?? "",
   is_whatsapp_number: !!c.is_whatsapp_number,
+  payment_methods: (c.payment_methods ?? []).map((m) => ({
+    provider: m.provider,
+    label: m.label ?? "",
+    value: m.value ?? "",
+    qr_url: m.qr_url ?? "",
+    currency: m.currency ?? "",
+    is_default: !!m.is_default,
+    enabled: m.enabled !== false,
+  })),
+  additional_phones: (c.additional_phones ?? []).map((p) => ({
+    label: p.label ?? "mobile",
+    country_code: p.country_code ?? "",
+    phone_number: p.phone_number ?? "",
+    is_whatsapp_number: !!p.is_whatsapp_number,
+  })),
   email: c.email ?? "",
   website: c.website ?? "",
   social_media: (c.social_media ?? []).map((s) => ({ type: s.type, url: s.url ?? "", username: s.username ?? "" })),
-  ventures: (c.ventures ?? []).map((v) => ({ name: v.name ?? "", logo_url: v.logo_url ?? "", url: v.url ?? "" })),
+  ventures: (c.ventures ?? []).map((v) => ({
+    name: v.name ?? "",
+    logo_url: v.logo_url ?? "",
+    url: v.url ?? "",
+    type: v.type ?? "venture",
+    logo_size: v.logo_size ?? "s",
+    file_name: v.file_name ?? "",
+    description: v.description ?? "",
+  })),
   agent_id: c.agent_id ?? "",
   username: c.username ?? "",
 });
@@ -79,6 +103,31 @@ export default function DigitalCard({ section = "cards" }: { section?: string })
     },
     [params, setParams],
   );
+
+  // Plan & billing reuse the dashboard's billing panel (Tailwind), so they render outside the
+  // .dc scope — its generic rules (.grid, small, button…) would restyle that panel.
+  if (section === "plan" || section === "billing") {
+    const planParam = params.get("plan");
+    const preselect =
+      planParam === "essential" || planParam === "signature" || planParam === "prestige"
+        ? { plan: planParam as "essential" | "signature" | "prestige", billing: (params.get("billing") === "monthly" ? "monthly" : "annual") as "monthly" | "annual" }
+        : null;
+    const checkout = params.get("checkout");
+    return (
+      // One "Plan & Billing" page; ?section=billing (older links) lands here too.
+      <CardBilling
+        inApp
+        returnPath="/app/digital-card?section=plan"
+        preselect={preselect}
+        checkoutResult={checkout === "success" || checkout === "cancelled" ? checkout : null}
+        onCheckoutHandled={() => {
+          const next = new URLSearchParams(params);
+          ["checkout", "plan", "billing"].forEach((k) => next.delete(k));
+          setParams(next, { replace: true });
+        }}
+      />
+    );
+  }
 
   return (
     <div className="dc">
@@ -310,6 +359,13 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
           agents={agents.map((a) => ({ id: a.id, name: a.name, status: a.status }))}
           agentsLoading={agentsLoading}
           savedUsername={saved?.username || undefined}
+          onDocumentFile={(file) =>
+            businessCardAPI.uploadDocument(file).then((r) => {
+              toast.success("PDF uploaded");
+              return r;
+            })
+          }
+          onDocumentError={(m) => toast.error(m)}
         />
 
         <div className="savebar">

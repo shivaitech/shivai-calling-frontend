@@ -24,6 +24,7 @@ import {
   UserCog,
   Share2,
   Coins,
+  Crown,
   LucideIcon,
 } from "lucide-react";
 
@@ -137,6 +138,7 @@ export const APPS: MarketplaceApp[] = [
       { key: "share", label: "Share & QR", icon: Share2 },
       { key: "monitoring", label: "Monitoring", icon: BarChart3 },
       { key: "affiliate", label: "Affiliate", icon: Coins },
+      { key: "plan", label: "Plan & Billing", icon: Crown },
     ],
     features: [
       "Live mobile preview while you edit",

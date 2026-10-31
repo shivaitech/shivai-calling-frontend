@@ -1,6 +1,17 @@
-import type { BusinessCardInput, SocialType } from "../../../services/businessCardAPI";
+import type { BusinessCardInput, PhoneLabel, SocialType } from "../../../services/businessCardAPI";
 
 export type { BusinessCardInput as CardData, SocialType };
+
+export const PHONE_LABELS: { value: PhoneLabel; label: string }[] = [
+  { value: "mobile", label: "Mobile" },
+  { value: "work", label: "Work" },
+  { value: "office", label: "Office" },
+  { value: "home", label: "Home" },
+  { value: "other", label: "Other" },
+];
+
+/** Extra numbers beyond the primary one. */
+export const MAX_ADDITIONAL_PHONES = 4;
 
 export const SOCIAL_TYPES: { value: SocialType; label: string; base: string }[] = [
   { value: "linkedin", label: "LinkedIn", base: "https://www.linkedin.com/in/" },
@@ -29,6 +40,8 @@ export const emptyCard = (): BusinessCardInput => ({
   country_code: "+91",
   phone_number: "",
   is_whatsapp_number: true,
+  additional_phones: [],
+  payment_methods: [],
   email: "",
   website: "",
   social_media: [],

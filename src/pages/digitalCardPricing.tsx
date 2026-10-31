@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { CheckCircle2, Infinity as InfinityIcon } from "lucide-react";
+import { ArrowRight, BadgePercent, CheckCircle2, Infinity as InfinityIcon, Sparkles } from "lucide-react";
+import PlanCardPreview from "../ClientDashboard/apps/DigitalCard/PlanCardPreview";
 
 /** Digital card plans for the marketing page. Prices are the business's figures; savings are computed, not rounded up. */
 
@@ -109,8 +110,12 @@ const NOTES: Record<number, string> = {
   3: "Quarterly rewards are opportunities for eligible annual members, not guaranteed prizes. Terms apply.",
 };
 
-const GOLD = "#d9b25a";
+const GOLD = "#a8822f";
 const money = (n: number) => `$${n.toFixed(2)}`;
+const yearlySaving = (p: Plan) => p.monthlyWas * 12 - p.yearly;
+const percentOff = (p: Plan) => Math.round((1 - p.yearly / (p.monthlyWas * 12)) * 100);
+const MAX_SAVING = Math.max(...PLANS.map(yearlySaving));
+const MAX_PERCENT = Math.max(...PLANS.map(percentOff));
 
 /** The custom ShivAI Prestige emblem: a gold medallion with a crown over an "S". */
 function PrestigeEmblem({ size = 28 }: { size?: number }) {
@@ -118,9 +123,9 @@ function PrestigeEmblem({ size = 28 }: { size?: number }) {
     <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true">
       <defs>
         <linearGradient id="prestige-gold" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#f3d98b" />
-          <stop offset="0.5" stopColor="#d9b25a" />
-          <stop offset="1" stopColor="#a8822f" />
+          <stop offset="0" stopColor="#e9c977" />
+          <stop offset="0.5" stopColor="#c9a24d" />
+          <stop offset="1" stopColor="#8f6d25" />
         </linearGradient>
       </defs>
       <circle cx="16" cy="16" r="15" fill="none" stroke="url(#prestige-gold)" strokeWidth="1.5" />
@@ -136,108 +141,126 @@ function PrestigeEmblem({ size = 28 }: { size?: number }) {
 function PlanCard({
   plan,
   billing,
+  onBilling,
   signedIn,
   onChoose,
 }: {
   plan: Plan;
   billing: Billing;
+  onBilling: (b: Billing) => void;
   signedIn: boolean;
   onChoose: (id: PlanId, billing: Billing) => void;
 }) {
-  const gold = plan.premium;
+  const gold = !!plan.premium;
+  const popular = plan.id === "signature";
   const annual = billing === "annual";
-  // Saving against the regular price, computed rather than rounded up.
-  const annualSaving = Math.round((1 - plan.yearly / (plan.monthlyWas * 12)) * 100);
-  const saving = annual ? annualSaving : Math.round((1 - plan.monthly / plan.monthlyWas) * 100);
+  const saving = yearlySaving(plan);
 
   return (
     <article
-      className={`flex flex-col rounded-[28px] border bg-[#0b0b0c] p-6 sm:p-7 text-white ${
-        gold ? "border-[#d9b25a]/55 shadow-[0_24px_60px_-36px_rgba(217,178,90,0.45)]" : "border-white/10"
+      className={`relative flex flex-col rounded-[28px] border p-5 sm:p-6 transition-shadow ${
+        popular
+          ? "border-slate-900 bg-white shadow-[0_24px_60px_-30px_rgba(15,23,42,0.35)]"
+          : gold
+            ? "border-[#e2cd94] bg-gradient-to-b from-[#fffaf0] to-white shadow-[0_24px_60px_-34px_rgba(168,130,47,0.45)]"
+            : "border-slate-200 bg-white shadow-sm"
       }`}
     >
-      <div className="flex items-start justify-between gap-3">
+      {popular && (
+        <span className="absolute -top-3 left-6 z-10 inline-flex items-center gap-1 rounded-full bg-slate-900 px-3 py-1 text-[11px] font-semibold text-white shadow-sm">
+          <Sparkles className="h-3 w-3" /> Most popular
+        </span>
+      )}
+
+      {/* What this plan's card looks like — tap for the full preview. */}
+      <PlanCardPreview tier={plan.id} height={188} />
+
+      <div className="mt-5 flex items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: gold ? GOLD : "rgb(163 163 163)" }}>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em]" style={{ color: gold ? GOLD : "#94a3b8" }}>
             {plan.eyebrow}
           </p>
-          <h3 className="mt-2 text-2xl font-semibold tracking-tight" style={gold ? { color: "#f1dca3" } : undefined}>
+          <h3 className="mt-1.5 text-2xl font-bold tracking-tight text-slate-900" style={gold ? { color: GOLD } : undefined}>
             {plan.name}
           </h3>
         </div>
-        {gold && <PrestigeEmblem size={36} />}
+        {gold && <PrestigeEmblem size={34} />}
       </div>
-      <p className="mt-2 text-[15px] leading-relaxed text-neutral-300">{plan.pitch}</p>
-      <p
-        className="mt-3 inline-flex self-start rounded-full px-3 py-1 text-xs font-medium"
-        style={gold ? { color: GOLD, background: "rgba(217,178,90,0.1)" } : { color: "#d4d4d4", background: "rgba(255,255,255,0.07)" }}
+      <p className="mt-2 text-[14.5px] leading-relaxed text-slate-600">{plan.pitch}</p>
+
+      {/* Price — fixed height so the three cards line up on either billing */}
+      <div className="mt-5 min-h-[124px]" aria-live="polite">
+        {annual ? (
+          <>
+            <p className="flex items-center gap-2 text-sm">
+              <s className="tabular-nums text-slate-400">{money(plan.monthlyWas)}/mo</s>
+              <span className="rounded-md bg-rose-50 px-1.5 py-0.5 text-[11px] font-bold text-rose-600">−{percentOff(plan)}%</span>
+            </p>
+            <p className="mt-0.5 flex items-baseline gap-1">
+              <span className="text-[40px] leading-none font-bold tracking-tight tabular-nums text-slate-900">{money(plan.yearlyPerMonth)}</span>
+              <span className="text-sm text-slate-500">/month</span>
+            </p>
+            <p className="mt-1.5 text-xs text-slate-500">{money(plan.yearly)} billed yearly</p>
+            <p className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+              <BadgePercent className="h-3.5 w-3.5" /> You save {money(saving)} a year
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="text-sm text-slate-400">Monthly price</p>
+            <p className="mt-0.5 flex items-baseline gap-1">
+              <span className="text-[40px] leading-none font-bold tracking-tight tabular-nums text-slate-900">{money(plan.monthly)}</span>
+              <span className="text-sm text-slate-500">/month</span>
+            </p>
+            <p className="mt-1.5 text-xs text-slate-500">Billed monthly · cancel anytime</p>
+            <button
+              type="button"
+              onClick={() => onBilling("annual")}
+              className="mt-2 inline-flex items-center gap-1 rounded-lg border border-dashed border-emerald-300 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+            >
+              Annual: {money(plan.yearlyPerMonth)}/mo · save {money(saving)}/yr
+            </button>
+          </>
+        )}
+      </div>
+
+      <button
+        type="button"
+        onClick={() => onChoose(plan.id, billing)}
+        className={`mt-5 w-full rounded-2xl px-6 py-3.5 text-[15px] font-semibold transition active:scale-[0.99] ${
+          popular ? "bg-slate-900 text-white hover:bg-slate-800" : gold ? "text-white hover:brightness-105" : "bg-slate-100 text-slate-900 hover:bg-slate-200"
+        }`}
+        style={gold ? { background: "linear-gradient(135deg,#c9a24d,#a8822f)" } : undefined}
       >
-        {plan.adds}
+        {plan.cta}
+      </button>
+      <p className="mt-2.5 text-center text-xs text-slate-500">
+        {signedIn ? `${annual ? "Annual" : "Monthly"} billing selected.` : "No account needed to start. You'll sign up when you save your card."}
       </p>
 
-      {/* The per-month price for the selected billing, then how it's billed and the regular price. */}
-      <div className="mt-6" aria-live="polite">
-        <p className="flex items-baseline gap-2">
-          <span className="text-4xl font-semibold tracking-tight">{money(annual ? plan.yearlyPerMonth : plan.monthly)}</span>
-          <span className="text-neutral-400">/month</span>
-        </p>
-        <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-neutral-300">
-          {annual ? `Billed annually at ${money(plan.yearly)}` : "Billed monthly"}
-          {saving > 0 && (
-            <>
-              <span aria-hidden="true">·</span>
-              <span className="rounded-md bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-400">Save {saving}%</span>
-            </>
-          )}
-        </p>
-        <p className="mt-1.5 text-sm text-neutral-500">
-          {annual ? (
-            <>
-              Regular price <s>{money(plan.monthlyWas)}</s>/month
-            </>
-          ) : (
-            `Save ${annualSaving}% with annual billing (${money(plan.yearlyPerMonth)}/month).`
-          )}
-        </p>
-      </div>
+      <div className="my-5 h-px bg-slate-200/80" />
 
-      {/* Same wording and treatment on every plan. */}
-      <div className="mt-5 rounded-2xl bg-white/[0.08] p-4">
-        <p className="flex items-center gap-2 font-semibold">
-          <InfinityIcon className="w-5 h-5" />
-          Unlimited sharing. Always.
-        </p>
-        <p className="mt-1 text-sm leading-relaxed text-neutral-300">Share your cards as often as you like, with no monthly sharing limits.</p>
-      </div>
+      <p className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2.5 text-[13px] text-slate-700">
+        <InfinityIcon className="h-4 w-4 flex-none text-emerald-600" />
+        <span>
+          <strong className="font-semibold">Unlimited sharing.</strong> No monthly sharing limits.
+        </span>
+      </p>
 
-      <hr className="my-6 border-white/10" />
-
-      <p className="font-semibold">{plan.listTitle}</p>
-      <ul className="mt-4 space-y-3.5 flex-1">
+      <p className="mt-5 text-sm font-semibold text-slate-900">{plan.listTitle}</p>
+      <ul className="mt-3 flex-1 space-y-2.5">
         {plan.features.map((f) => (
-          <li key={f.text} className="flex gap-3 text-[15px] leading-snug text-neutral-100">
-            <CheckCircle2 className="w-5 h-5 flex-none mt-px" style={{ color: gold ? GOLD : "#34d399" }} />
+          <li key={f.text} className="flex gap-2.5 text-[14px] leading-snug text-slate-700">
+            <CheckCircle2 className="mt-px h-[18px] w-[18px] flex-none" style={{ color: gold ? GOLD : "#10b981" }} />
             <span>
               {f.text}
-              {f.note && <sup className="ml-0.5 text-neutral-500">{f.note}</sup>}
+              {f.note && <sup className="ml-0.5 text-slate-400">{f.note}</sup>}
             </span>
           </li>
         ))}
       </ul>
 
-      <button
-        type="button"
-        onClick={() => onChoose(plan.id, billing)}
-        className={`mt-8 w-full rounded-full px-6 py-3.5 text-[15px] font-semibold transition active:scale-[0.99] ${
-          gold ? "bg-neutral-700 text-white hover:bg-neutral-600" : "bg-neutral-100 text-neutral-900 hover:bg-white"
-        }`}
-      >
-        {plan.cta}
-      </button>
-      <p className="mt-3 text-center text-xs text-neutral-500">
-        {signedIn ? `${annual ? "Annual" : "Monthly"} billing selected.` : "No account needed to start — you'll sign up when you save your card."}
-      </p>
-      <p className="mt-2 text-center text-sm text-neutral-400">{plan.footnote}</p>
+      <p className="mt-5 text-center text-[13px] italic text-slate-500">{plan.footnote}</p>
     </article>
   );
 }
@@ -250,45 +273,78 @@ export default function DigitalCardPricing({
   onChoose: (plan: PlanId, billing: Billing) => void;
 }) {
   const [billing, setBilling] = useState<Billing>("annual");
-  const tab = (b: Billing) =>
-    `rounded-full px-4 sm:px-5 py-2 text-sm font-semibold transition ${billing === b ? "bg-white text-neutral-900" : "text-neutral-400 hover:text-white"}`;
 
   return (
-    <section id="pricing" className="scroll-mt-16 sm:scroll-mt-20 bg-black text-white">
-      <div className="max-w-6xl mx-auto px-6 sm:px-8 py-12 sm:py-[68px]">
+    <section id="pricing" className="scroll-mt-16 sm:scroll-mt-20 bg-[#F0F0F0] text-slate-900">
+      <div className="max-w-6xl mx-auto px-5 sm:px-8 py-12 sm:py-[72px]">
         <div className="text-center max-w-2xl mx-auto">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-400">Pricing</p>
-          <h2 className="mt-2 text-3xl sm:text-5xl font-semibold tracking-tight">Your professional presence. Your&nbsp;way.</h2>
-          <p className="mt-4 text-base sm:text-lg text-neutral-400">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Pricing</p>
+          <h2 className="mt-2 text-3xl sm:text-5xl font-semibold tracking-tight text-balance">Your professional presence. Your&nbsp;way.</h2>
+          <p className="mt-4 text-base sm:text-lg text-slate-600">
             Start with your digital business card. Unlock more with AI, multiple cards and exclusive benefits as you grow.
           </p>
           <div className="mt-6 flex flex-col items-center gap-2">
-            <p className="inline-flex items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-4 py-1.5 text-sm font-semibold text-emerald-300">
+            <p className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1.5 text-sm font-semibold text-emerald-700">
               <InfinityIcon size={16} aria-hidden="true" />
               Unlimited sharing on every plan.
             </p>
-            <p className="text-sm text-neutral-300">A card that works for you and earns for you.</p>
+            <p className="text-sm text-slate-600">A card that works for you and earns for you.</p>
           </div>
         </div>
 
-        <div role="radiogroup" aria-label="Billing" className="mt-8 flex justify-center">
-          <div className="inline-flex rounded-full border border-white/10 bg-white/[0.06] p-1">
-            <button type="button" role="radio" aria-checked={billing === "annual"} className={tab("annual")} onClick={() => setBilling("annual")}>
-              Annual <span className={billing === "annual" ? "text-emerald-600" : "text-emerald-400"}>· save 40%</span>
-            </button>
-            <button type="button" role="radio" aria-checked={billing === "monthly"} className={tab("monthly")} onClick={() => setBilling("monthly")}>
-              Monthly
-            </button>
+        {/* Billing toggle */}
+        <div className="mt-8 flex justify-center">
+          <div role="radiogroup" aria-label="Billing" className="inline-flex rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
+            {(["annual", "monthly"] as Billing[]).map((b) => {
+              const on = billing === b;
+              return (
+                <button
+                  key={b}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() => setBilling(b)}
+                  className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold transition ${
+                    on ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:text-slate-900"
+                  }`}
+                >
+                  {b === "annual" ? "Annual" : "Monthly"}
+                  {b === "annual" && (
+                    <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold leading-none ${on ? "bg-emerald-400 text-slate-900" : "bg-emerald-100 text-emerald-700"}`}>
+                      −{MAX_PERCENT}%
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
+
+        {/* On monthly, show what annual would save */}
+        {billing === "monthly" && (
+          <button
+            type="button"
+            onClick={() => setBilling("annual")}
+            className="group mx-auto mt-5 flex w-full max-w-xl items-center gap-3 rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50 px-4 py-3 text-left transition hover:border-emerald-300"
+          >
+            <span className="grid h-9 w-9 flex-none place-items-center rounded-xl bg-emerald-500 text-white">
+              <BadgePercent className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 flex-1 text-sm">
+              <strong className="font-semibold text-emerald-800">Switch to annual and save up to {money(MAX_SAVING)} a year.</strong>
+              <span className="block text-emerald-700/80">Same plans, {MAX_PERCENT}% less than paying monthly.</span>
+            </span>
+            <ArrowRight className="hidden sm:block h-4 w-4 flex-none text-emerald-700 transition-transform group-hover:translate-x-0.5" />
+          </button>
+        )}
 
         <div className="mt-10 grid gap-6 lg:grid-cols-3 items-stretch">
           {PLANS.map((p) => (
-            <PlanCard key={p.id} plan={p} billing={billing} signedIn={signedIn} onChoose={onChoose} />
+            <PlanCard key={p.id} plan={p} billing={billing} onBilling={setBilling} signedIn={signedIn} onChoose={onChoose} />
           ))}
         </div>
 
-        <ol className="mt-10 max-w-3xl mx-auto space-y-1.5 text-xs leading-relaxed text-neutral-500">
+        <ol className="mt-10 max-w-3xl mx-auto space-y-1.5 text-xs leading-relaxed text-slate-500">
           {Object.entries(NOTES).map(([n, text]) => (
             <li key={n}>
               <sup>{n}</sup> {text}

@@ -70,6 +70,8 @@ export default function DigitalCardPublicPage({ slug: slugProp }: { slug?: strin
             inlineAgent
             // The public API sometimes returns tenant_id as an object; only pass a real id.
             agentUserId={typeof state.card.tenant_id === "string" ? state.card.tenant_id : undefined}
+            // The owner's plan look (gold for Prestige) once the API includes it.
+            tier={state.card.plan === "signature" || state.card.plan === "prestige" ? state.card.plan : undefined}
           />
         </div>
       )}

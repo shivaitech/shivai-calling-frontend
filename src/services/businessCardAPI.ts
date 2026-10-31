@@ -17,10 +17,51 @@ export interface CardSocial {
   username: string;
 }
 
+export type PhoneLabel = "mobile" | "work" | "office" | "home" | "other";
+
+/** A number beyond the primary one (country_code / phone_number / is_whatsapp_number). */
+export interface CardPhone {
+  label: PhoneLabel;
+  country_code: string;
+  phone_number: string;
+  is_whatsapp_number: boolean;
+}
+
+/** Pay Me: where visitors are sent to pay the card owner. ShivAI never processes the payment. */
+export type PayProvider = "upi" | "paypal" | "stripe" | "wise" | "bank" | "link" | "qr";
+
+export interface CardPayMethod {
+  provider: PayProvider;
+  /** Button text on the card, e.g. "Pay by UPI". */
+  label: string;
+  /** UPI ID, https payment link, or bank details text — depends on provider. Empty for "qr". */
+  value: string;
+  /** Uploaded payment QR image ("qr" provider; optional for others). */
+  qr_url?: string;
+  /** ISO 4217 the owner receives in, e.g. "INR". Display only. */
+  currency?: string;
+  is_default?: boolean;
+  /** false = kept in the editor but hidden from the card. */
+  enabled?: boolean;
+}
+
+/** What a "venture" entry is: a company/project, or something to browse (shop catalog, PDF…). */
+export type VentureType = "venture" | "catalog" | "document" | "menu" | "portfolio";
+/** How big the logo / cover shows on the card. */
+export type LogoSize = "s" | "m" | "l";
+
 export interface CardVenture {
   name: string;
   logo_url: string;
   url: string;
+  /** Omitted (= "venture") on older cards. */
+  type?: VentureType;
+  /** Omitted (= "s", the original small logo) on older cards. */
+  logo_size?: LogoSize;
+  /** Original name of an uploaded document, shown on the card. */
+  file_name?: string;
+  /** A line or two about it, shown under the name. */
+  description?: string;
 }
 
 /** The editable fields — exactly what POST / PUT accept (minus agent rules). */
@@ -34,6 +75,10 @@ export interface BusinessCardInput {
   country_code: string;
   phone_number: string;
   is_whatsapp_number: boolean;
+  /** More numbers after the primary one. Omitted on older cards. */
+  additional_phones?: CardPhone[];
+  /** Pay Me options. Omitted on older cards. */
+  payment_methods?: CardPayMethod[];
   email: string;
   website: string;
   social_media: CardSocial[];
@@ -61,6 +106,8 @@ export interface PublicBusinessCard extends BusinessCardInput {
   tenant_id: string;
   slug: string;
   share_url?: string;
+  /** The owner's card plan — picks the card's look (Prestige = gold). Omitted = standard. */
+  plan?: "free" | "essential" | "signature" | "prestige";
 }
 
 export interface Pagination {
@@ -138,10 +185,41 @@ export const toPayload = (
   country_code: c.country_code.trim(),
   phone_number: c.phone_number.trim(),
   is_whatsapp_number: c.is_whatsapp_number,
+  // Only sent when there are extra numbers, so single-number cards save the same payload as before.
+  ...(() => {
+    const phones = (c.additional_phones ?? [])
+      .filter((p) => p.phone_number.trim())
+      .map((p) => ({ label: p.label, country_code: p.country_code.trim(), phone_number: p.phone_number.trim(), is_whatsapp_number: p.is_whatsapp_number }));
+    return phones.length ? { additional_phones: phones } : {};
+  })(),
+  // Pay Me — only sent once the owner adds a method.
+  ...(c.payment_methods?.length
+    ? {
+        payment_methods: c.payment_methods.map((m) => ({
+          provider: m.provider,
+          label: m.label.trim(),
+          value: m.value.trim(),
+          ...(m.qr_url ? { qr_url: m.qr_url } : {}),
+          ...(m.currency ? { currency: m.currency } : {}),
+          is_default: !!m.is_default,
+          enabled: m.enabled !== false,
+        })),
+      }
+    : {}),
   email: c.email.trim(),
   website: c.website.trim(),
   social_media: c.social_media.map((s) => ({ type: s.type, url: s.url.trim(), username: s.username.trim() })),
-  ventures: c.ventures.map((v) => ({ name: v.name.trim(), logo_url: v.logo_url.trim(), url: v.url.trim() })),
+  // type / logo_size / file_name only go out when used, so cards that don't use them save the
+  // same payload as before.
+  ventures: c.ventures.map((v) => ({
+    name: v.name.trim(),
+    logo_url: v.logo_url.trim(),
+    url: v.url.trim(),
+    ...(v.type && v.type !== "venture" ? { type: v.type } : {}),
+    ...(v.logo_size && v.logo_size !== "s" && v.logo_url.trim() ? { logo_size: v.logo_size } : {}),
+    ...(v.file_name?.trim() ? { file_name: v.file_name.trim() } : {}),
+    ...(v.description?.trim() ? { description: v.description.trim() } : {}),
+  })),
   // The AI agent is optional: leave the key out entirely when none is chosen
   // (an empty string would fail the API's 24-char ObjectId check).
   ...(c.agent_id ? { agent_id: c.agent_id } : {}),
@@ -204,6 +282,25 @@ export const businessCardAPI = {
         suggestions: Array.isArray(d.suggestions) ? d.suggestions.filter((s: unknown) => typeof s === "string") : undefined,
       };
     } catch (e) {
+      throw toError(e);
+    }
+  },
+
+  /** POST /upload-document (multipart "file") — a PDF for a document / catalog / menu entry. */
+  async uploadDocument(file: File): Promise<{ url: string; file_name: string }> {
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await axios.post(`${BASE}/upload-document`, form, {
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
+        timeout: 60000,
+      });
+      const d = res.data?.data ?? res.data ?? {};
+      const url = d.url ?? d.file_url;
+      if (typeof url !== "string" || !url) throw new BusinessCardError("Upload finished but no file link came back.", 502);
+      return { url, file_name: d.file_name ?? file.name };
+    } catch (e) {
+      if (e instanceof BusinessCardError) throw e;
       throw toError(e);
     }
   },

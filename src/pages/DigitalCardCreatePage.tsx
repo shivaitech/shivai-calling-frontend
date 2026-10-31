@@ -16,6 +16,8 @@ import { validateCard } from "../ClientDashboard/apps/DigitalCard/validate";
 import { fileToDataUrl, type ImageKind, resolveCardImages } from "../ClientDashboard/apps/DigitalCard/photo";
 import { BusinessCardError, businessCardAPI } from "../services/businessCardAPI";
 import { DIGITAL_CARD_CREATE } from "./digitalCardRoutes";
+import CreatePlanPicker from "./digitalCardCreatePlan";
+import { PLANS, type PlanId } from "./digitalCardPricing";
 import "../ClientDashboard/apps/DigitalCard/digitalCard.css";
 
 const CREATE_ROUTE = DIGITAL_CARD_CREATE;
@@ -24,7 +26,7 @@ const CREATE_ROUTE = DIGITAL_CARD_CREATE;
 const paidPlanQuery = (params: URLSearchParams): Record<string, string> => {
   const plan = params.get("plan");
   if (plan !== "essential" && plan !== "signature" && plan !== "prestige") return {};
-  return { plan, billing: params.get("billing") === "annual" ? "annual" : "monthly" };
+  return { plan, billing: params.get("billing") === "monthly" ? "monthly" : "annual" };
 };
 
 /**
@@ -46,6 +48,11 @@ export default function DigitalCardCreatePage() {
   const hasSession = isAuthenticated || !!localStorage.getItem("auth_tokens");
 
   const [form, setForm] = useState<CardData>(loadDraft);
+  // The plan picked on the pricing page (or here): sets the preview look and the checkout after saving.
+  const chosen = paidPlanQuery(params);
+  const chosenPlan = (chosen.plan as PlanId | undefined) ?? null;
+  const chosenBilling = chosen.billing === "monthly" ? "monthly" : "annual";
+  const chosenPlanInfo = PLANS.find((p) => p.id === chosenPlan);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const step: "edit" | "review" = params.get("step") === "review" ? "review" : "edit";
@@ -182,6 +189,27 @@ export default function DigitalCardCreatePage() {
           </p>
         </div>
 
+        {step === "edit" ? (
+          <CreatePlanPicker
+            plan={chosenPlan}
+            billing={chosenBilling}
+            onChange={(p, b) => {
+              const next = new URLSearchParams(params);
+              next.set("plan", p);
+              next.set("billing", b);
+              setParams(next, { replace: true });
+            }}
+          />
+        ) : (
+          chosenPlan && (
+            <p className="mb-6 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+              Plan: <strong className="text-slate-900">{chosenPlanInfo?.name}</strong> ·{" "}
+              {chosenBilling === "annual" ? `$${chosenPlanInfo?.yearly.toFixed(2)}/year` : `$${chosenPlanInfo?.monthly.toFixed(2)}/month`}. You'll confirm
+              payment right after saving.
+            </p>
+          )
+        )}
+
         <div className="dc">
           {step === "edit" ? (
             <div className="grid">
@@ -193,13 +221,15 @@ export default function DigitalCardCreatePage() {
                   onImageFile={onImageFile}
                   agents={isAuthenticated ? agents.map((a) => ({ id: a.id, name: a.name, status: a.status })) : null}
                   agentsLoading={agentsLoading}
+                  onDocumentFile={hasSession ? (file) => businessCardAPI.uploadDocument(file) : undefined}
+                  onDocumentError={(m) => toast.error(m)}
                 />
                 <div className="savebar">
                   <button className="btn" onClick={saveAndContinue}>Save &amp; continue</button>
                 </div>
               </div>
               <aside className="preview">
-                <div className="phone-frame"><CardView card={form} placeholders /></div>
+                <div className="phone-frame"><CardView card={form} placeholders tier={chosenPlan ?? undefined} /></div>
               </aside>
             </div>
           ) : (
@@ -212,13 +242,13 @@ export default function DigitalCardCreatePage() {
                     Digital Business Card → My Cards.
                   </p>
                   <div className="btns">
-                    <button className="btn" disabled={saving} onClick={saveCard}>{saving ? "Saving…" : "Save card"}</button>
+                    <button className="btn" disabled={saving} onClick={saveCard}>{saving ? "Saving…" : chosenPlan ? "Save card & continue to payment" : "Save card"}</button>
                     <button className="btn ghost" disabled={saving} onClick={() => goStep("edit")}>← Edit details</button>
                   </div>
                 </section>
               </div>
               <aside className="preview">
-                <div className="phone-frame"><CardView card={form} /></div>
+                <div className="phone-frame"><CardView card={form} tier={chosenPlan ?? undefined} /></div>
               </aside>
             </div>
           )}

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Bot, Loader2, Plus, Search, X } from "lucide-react";
 import GlassCard from "../../../components/GlassCard";
 import appToast from "../../../components/AppToast";
@@ -40,6 +41,7 @@ const ImportedAgentsView: React.FC<Props> = ({ initialAgentId, onInitialHandled 
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [switching, setSwitching] = useState(false);
+  const changeBtnRef = useRef<HTMLButtonElement>(null);
 
   // Fetch each assigned agent directly by id (GET /agent-configs/:id) rather
   // than looking it up in rawAgents — GET /agents is paginated with no limit
@@ -194,6 +196,7 @@ const ImportedAgentsView: React.FC<Props> = ({ initialAgentId, onInitialHandled 
 
             <div className="relative">
               <button
+                ref={changeBtnRef}
                 type="button"
                 onClick={() => setAddOpen((v) => !v)}
                 disabled={switching}
@@ -209,6 +212,7 @@ const ImportedAgentsView: React.FC<Props> = ({ initialAgentId, onInitialHandled 
                   open={addOpen}
                   onToggle={() => setAddOpen(false)}
                   onPick={handleAssign}
+                  anchorRef={changeBtnRef}
                   replacing
                 />
               )}
@@ -290,6 +294,40 @@ function usePagedAgents(active: boolean) {
   return { agents, search, setSearch, query, total, loading, loadingMore, error, hasMore, loadMore, retry: loadFirst };
 }
 
+/**
+ * Fixed position for a popover under its anchor (or above it when there's more room there),
+ * kept in place while the page scrolls or resizes. Height is capped to the space available.
+ */
+function usePopoverPosition(active: boolean, anchorRef?: React.RefObject<HTMLElement>) {
+  const [pos, setPos] = useState<React.CSSProperties | null>(null);
+  useLayoutEffect(() => {
+    if (!active || !anchorRef?.current) {
+      setPos(null);
+      return;
+    }
+    const place = () => {
+      const el = anchorRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const width = Math.min(320, window.innerWidth - 16);
+      const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8));
+      const below = window.innerHeight - r.bottom - 14;
+      const above = r.top - 14;
+      const up = below < 300 && above > below;
+      const maxHeight = Math.min(460, up ? above : below);
+      setPos(up ? { left, width, bottom: window.innerHeight - r.top + 6, maxHeight } : { left, width, top: r.bottom + 6, maxHeight });
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [active, anchorRef]);
+  return pos;
+}
+
 const AddAgentControl: React.FC<{
   /** Agents already assigned — left out of the list. */
   excludeIds: Set<string>;
@@ -299,10 +337,13 @@ const AddAgentControl: React.FC<{
   inline?: boolean;
   /** One agent is already assigned — picking here replaces it. */
   replacing?: boolean;
-}> = ({ excludeIds, open, onToggle, onPick, inline, replacing }) => {
+  /** The button the popover hangs from (it renders in a portal so no parent can clip it). */
+  anchorRef?: React.RefObject<HTMLElement>;
+}> = ({ excludeIds, open, onToggle, onPick, inline, replacing, anchorRef }) => {
   const { agents, search, setSearch, query, total, loading, loadingMore, error, hasMore, loadMore, retry } = usePagedAgents(open);
   const searchRef = useRef<HTMLInputElement>(null);
   const available = agents.filter((a) => !excludeIds.has(a.id));
+  const pos = usePopoverPosition(open && !inline, anchorRef);
 
   useEffect(() => {
     if (open && !inline) searchRef.current?.focus();
@@ -343,7 +384,7 @@ const AddAgentControl: React.FC<{
 
       <div
         onScroll={onScroll}
-        className={`overflow-y-auto ${inline ? "max-h-80 rounded-xl border border-slate-200 dark:border-slate-700 p-1.5" : "max-h-72 p-2"}`}
+        className={`overflow-y-auto ${inline ? "max-h-80 rounded-xl border border-slate-200 dark:border-slate-700 p-1.5" : "min-h-0 flex-1 p-2"}`}
       >
         {loading && agents.length === 0 ? (
           <div className="flex items-center justify-center py-6">
@@ -424,10 +465,13 @@ const AddAgentControl: React.FC<{
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <>
-      <div className="fixed inset-0 z-20" onClick={onToggle} />
-      <div className="absolute top-full mt-1.5 left-0 z-30 w-[min(20rem,calc(100vw-2rem))] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl overflow-hidden">
+      <div className="fixed inset-0 z-[60]" onClick={onToggle} />
+      <div
+        style={pos ?? { visibility: "hidden" }}
+        className="fixed z-[61] flex flex-col bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl overflow-hidden"
+      >
         <div className="flex items-center justify-between px-3 py-2 border-b border-slate-100 dark:border-slate-700">
           <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
             {replacing ? "Switch to a different AI employee" : "Assign an AI employee"}
@@ -438,7 +482,8 @@ const AddAgentControl: React.FC<{
         </div>
         {body}
       </div>
-    </>
+    </>,
+    document.body,
   );
 };
 

@@ -347,13 +347,9 @@ export default function DigitalCardInvitePage() {
       {/* ── Pricing ── */}
       <DigitalCardPricing
         signedIn={isAuthenticated}
-        // Signed in: straight to the card's billing to check out. Otherwise the plan rides
-        // along through card creation + sign-up, which then lands on that same billing page.
-        onChoose={(plan, billing) =>
-          isAuthenticated
-            ? navigate(`/billing?view=apps&app=digital-card&plan=${plan}&billing=${billing}`)
-            : setChooser({ query: `?plan=${plan}&billing=${billing}` })
-        }
+        // The chosen plan rides into the card creator (its preview takes that plan's look),
+        // then on through sign-up to checkout for that plan once the card is saved.
+        onChoose={(plan, billing) => setChooser({ query: `?plan=${plan}&billing=${billing}` })}
       />
 
       {/* ── ShivAI Points (referral program, coming soon) ── */}

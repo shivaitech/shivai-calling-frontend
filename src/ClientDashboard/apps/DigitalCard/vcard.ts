@@ -9,7 +9,10 @@ const fold = (line: string) => {
   return out.join("\r\n");
 };
 
-export const fullPhone = (c: Pick<CardData, "country_code" | "phone_number">) => {
+/** Phone label → vCard TEL type, so the saved contact shows "work", "home", … */
+const VCARD_TEL_TYPE: Record<string, string> = { mobile: "CELL,VOICE", work: "WORK,VOICE", office: "WORK,VOICE", home: "HOME,VOICE", other: "VOICE" };
+
+export const fullPhone =(c: Pick<CardData, "country_code" | "phone_number">) => {
   const cc = c.country_code.replace(/[^\d]/g, "");
   const num = c.phone_number.replace(/[^\d]/g, "");
   return num ? (cc ? `+${cc}${num}` : num) : "";
@@ -22,7 +25,11 @@ export function buildVCard(c: CardData, socialUrl: (s: CardData["social_media"][
   if (c.company_name) lines.push(`ORG:${esc(c.company_name)}`);
   if (c.job_title) lines.push(`TITLE:${esc(c.job_title)}`);
   const tel = fullPhone(c);
-  if (tel) lines.push(`TEL;TYPE=CELL,VOICE:${tel}`);
+  if (tel) lines.push(`TEL;TYPE=CELL,VOICE${c.additional_phones?.length ? ",PREF" : ""}:${tel}`);
+  for (const p of c.additional_phones ?? []) {
+    const extra = fullPhone(p);
+    if (extra) lines.push(`TEL;TYPE=${VCARD_TEL_TYPE[p.label] ?? "VOICE"}:${extra}`);
+  }
   if (c.email) lines.push(`EMAIL;TYPE=INTERNET,WORK:${c.email}`);
   [c.website, ...c.social_media.map(socialUrl), ...c.ventures.map((v) => v.url)]
     .filter(Boolean)

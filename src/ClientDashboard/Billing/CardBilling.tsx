@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, ArrowUpRight, CalendarClock, Check, CreditCard, Download, FileText, Loader2, RefreshCw } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, CalendarClock, CreditCard, Download, FileText, Loader2, RefreshCw } from "lucide-react";
 import GlassCard from "../../components/GlassCard";
 import appToast from "../../components/AppToast";
 import { appWorkspacePath } from "../../marketplace/apps";
@@ -12,6 +12,7 @@ import {
   type CardSubscriptionStatus,
   type InvoiceStatus,
 } from "../../services/billingAPI";
+import CardPlanPicker from "./CardPlanPicker";
 import { ItemIcon, Pill, fmtDate, money } from "./billingUi";
 
 /**
@@ -45,7 +46,19 @@ export default function CardBilling({
   preselect,
   checkoutResult,
   onCheckoutHandled,
+  view = "all",
+  returnPath = "/billing?view=apps&app=digital-card",
+  planHref,
+  inApp = false,
 }: {
+  /** Shown inside the Digital Card app: no "Open app" link. */
+  inApp?: boolean;
+  /** "plan" = current plan + plan picker; "billing" = payment method, manage/cancel, invoices; "all" = both. */
+  view?: "all" | "plan" | "billing";
+  /** Where checkout returns to (?checkout=success|cancelled is appended). */
+  returnPath?: string;
+  /** Billing view: link to the plan picker (shown on the Free plan). */
+  planHref?: string;
   /** Plan picked on the marketing pricing page, carried here to finish checkout. */
   preselect?: { plan: PlanId; billing: Cycle } | null;
   checkoutResult?: "success" | "cancelled" | null;
@@ -63,6 +76,10 @@ export default function CardBilling({
   const [busy, setBusy] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
+  const [allHistory, setAllHistory] = useState(false);
+  // Newest first; "paid" total counts paid purchases only (refunds and failures excluded).
+  const history = [...invoices].sort((a, b) => b.date.localeCompare(a.date));
+  const totalPaid = history.filter((i) => i.status === "paid").reduce((sum, i) => sum + i.amount, 0);
 
   const load = useCallback(async () => {
     setError("");
@@ -121,7 +138,7 @@ export default function CardBilling({
   const startCheckout = async (plan: PlanId) => {
     setPending(plan);
     try {
-      const back = `${window.location.origin}/billing?view=apps&app=digital-card&checkout=`;
+      const back = `${window.location.origin}${returnPath}${returnPath.includes("?") ? "&" : "?"}checkout=`;
       const url = await cardBillingAPI.checkout(plan, cycle, { success: `${back}success`, cancel: `${back}cancelled` });
       window.location.assign(url);
     } catch (e: any) {
@@ -163,14 +180,22 @@ export default function CardBilling({
               </span>
             )}
           </div>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Your card plan, payment method and invoices.</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            {view === "plan"
+              ? "Your current plan, and what each plan adds."
+              : view === "billing"
+                ? "Payment method, renewals and invoices."
+                : "Your card plan, payment method and invoices."}
+          </p>
         </div>
-        <Link
-          to={appWorkspacePath("digital-card")}
-          className="hidden sm:inline-flex flex-none items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-        >
-          Open app <ArrowUpRight className="w-3.5 h-3.5" />
-        </Link>
+        {view === "all" && !inApp && (
+          <Link
+            to={appWorkspacePath("digital-card")}
+            className="hidden sm:inline-flex flex-none items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+          >
+            Open app <ArrowUpRight className="w-3.5 h-3.5" />
+          </Link>
+        )}
       </div>
 
       {loading ? (
@@ -242,7 +267,16 @@ export default function CardBilling({
             </div>
           </dl>
 
-          {isPaid && (
+          {view === "billing" && !isPaid && planHref && (
+            <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
+              You're on the Free plan.{" "}
+              <Link to={planHref} className="font-semibold text-slate-800 dark:text-white underline underline-offset-2">
+                See plans
+              </Link>
+            </p>
+          )}
+
+          {isPaid && view !== "plan" && (
             <div className="mt-3 flex flex-wrap items-center gap-2">
               {sub?.manage_url && (
                 <a
@@ -282,125 +316,101 @@ export default function CardBilling({
           )}
 
           {/* Plans */}
-          <div ref={pickerRef} className="mt-6 scroll-mt-24">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h4 className="font-semibold text-slate-800 dark:text-white">{isPaid ? "Change plan" : "Choose a plan"}</h4>
-              <div role="radiogroup" aria-label="Billing period" className="inline-flex rounded-lg common-bg-icons p-1 gap-1">
-                {(["annual", "monthly"] as Cycle[]).map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    role="radio"
-                    aria-checked={cycle === c}
-                    onClick={() => setCycle(c)}
-                    className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
-                      cycle === c ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm" : "text-slate-500 dark:text-slate-400"
-                    }`}
-                  >
-                    {c === "monthly" ? "Monthly" : "Annual"}
-                    {c === "annual" && <span className="ml-1 text-emerald-600 dark:text-emerald-400">· save 40%</span>}
-                  </button>
-                ))}
+          {view !== "billing" && (
+            <div ref={pickerRef} className="mt-7 scroll-mt-24">
+              <CardPlanPicker
+                cycle={cycle}
+                onCycle={setCycle}
+                current={isPaid && sub ? { plan: sub.plan, billing: sub.billing } : null}
+                preselected={preselect?.plan}
+                connected={connected}
+                pending={pending}
+                hasPaidPlan={isPaid}
+                onChoose={(id) => void startCheckout(id)}
+              />
+            </div>
+          )}
+
+          {/* Purchase history — always shown, newest first */}
+          {view !== "plan" && (
+            <div className="mt-8">
+              <div className="flex flex-wrap items-end justify-between gap-2">
+                <div>
+                  <h4 className="text-base font-semibold text-slate-800 dark:text-white">Purchase history</h4>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">Every plan purchase and renewal, with receipts.</p>
+                </div>
+                {history.length > 0 && (
+                  <p className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
+                    {history.length} purchase{history.length === 1 ? "" : "s"} · {money(totalPaid, history[0].currency)} paid
+                  </p>
+                )}
               </div>
-            </div>
 
-            <div className="mt-3 grid gap-3 md:grid-cols-3">
-              {PLANS.map((p) => {
-                const current = isPaid && sub?.plan === p.id && sub?.billing === cycle;
-                const picked = preselect?.plan === p.id && !current;
-                const perMonth = cycle === "annual" ? p.yearlyPerMonth : p.monthly;
-                const saving = Math.round((1 - (cycle === "annual" ? p.yearly / (p.monthlyWas * 12) : p.monthly / p.monthlyWas)) * 100);
-                return (
-                  <div
-                    key={p.id}
-                    className={`relative flex flex-col rounded-2xl border p-4 transition ${
-                      current
-                        ? "border-emerald-400 dark:border-emerald-600 bg-emerald-50/40 dark:bg-emerald-900/10"
-                        : picked
-                          ? "border-slate-900 dark:border-white ring-2 ring-slate-900/10 dark:ring-white/10"
-                          : "border-slate-200 dark:border-slate-700"
-                    }`}
-                  >
-                    {picked && (
-                      <span className="absolute -top-2.5 left-4 rounded-full bg-slate-900 dark:bg-white px-2 py-0.5 text-[10px] font-semibold text-white dark:text-slate-900">
-                        Your choice
-                      </span>
-                    )}
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{p.eyebrow}</p>
-                    <p className="mt-1 text-lg font-bold text-slate-800 dark:text-white" style={p.premium ? { color: "#a8822f" } : undefined}>
-                      {p.name}
-                    </p>
-                    <p className="mt-2 flex items-baseline gap-1">
-                      <span className="text-2xl font-bold tabular-nums text-slate-800 dark:text-white">{money(perMonth)}</span>
-                      <span className="text-sm text-slate-500">/month</span>
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                      {cycle === "annual" ? `Billed annually at ${money(p.yearly)}` : "Billed monthly"}
-                      {saving > 0 && (
-                        <>
-                          {" · "}
-                          <span className="text-emerald-600 dark:text-emerald-400 font-medium">Save {saving}%</span>
-                        </>
-                      )}
-                    </p>
-                    <p className="mt-3 text-xs text-slate-600 dark:text-slate-300 flex-1">{p.adds}</p>
-                    {current ? (
-                      <span className="mt-4 inline-flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-100/70 dark:bg-emerald-900/25">
-                        <Check className="w-4 h-4" /> Current plan
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled={!connected || pending !== null}
-                        title={!connected ? "Plans can be bought once card payments are switched on" : undefined}
-                        onClick={() => void startCheckout(p.id)}
-                        className={`mt-4 inline-flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                          picked || p.id === "signature"
-                            ? "bg-slate-900 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
-                            : "bg-slate-100 text-slate-800 hover:bg-slate-200 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"
-                        }`}
-                      >
-                        {pending === p.id && <Loader2 className="w-4 h-4 animate-spin" />}
-                        {!connected ? "Opens soon" : isPaid ? `Switch to ${p.name}` : `Choose ${p.name}`}
-                      </button>
-                    )}
+              {history.length === 0 ? (
+                <div className="mt-3 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 py-8 px-4 text-center">
+                  <FileText className="w-6 h-6 mx-auto text-slate-300 dark:text-slate-600" />
+                  <p className="mt-2 text-sm font-medium text-slate-600 dark:text-slate-300">No purchases yet</p>
+                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">When you buy or renew a plan, it shows here with a receipt.</p>
+                </div>
+              ) : (
+                <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
+                  {/* Column labels (wide screens) */}
+                  <div className="hidden sm:grid grid-cols-[7.5rem_minmax(0,1fr)_6rem_6rem_2.5rem] gap-3 px-4 py-2.5 bg-slate-50 dark:bg-slate-800/60 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    <span>Date</span>
+                    <span>Plan</span>
+                    <span className="text-right">Amount</span>
+                    <span>Status</span>
+                    <span className="sr-only">Receipt</span>
                   </div>
-                );
-              })}
-            </div>
-            <p className="mt-2 text-xs text-slate-400">You'll finish payment on our secure checkout page. Card details never pass through ShivAI.</p>
-          </div>
-
-          {/* Invoices */}
-          {invoices.length > 0 && (
-            <div className="mt-6">
-              <h4 className="font-semibold text-slate-800 dark:text-white">Invoices</h4>
-              <ul className="mt-2 divide-y divide-slate-200/70 dark:divide-slate-700/60">
-                {invoices.map((inv) => (
-                  <li key={inv.id} className="flex items-center gap-3 py-3">
-                    <FileText className="w-4 h-4 flex-none text-slate-400" />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-slate-800 dark:text-white truncate">{inv.description}</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                        {fmtDate(inv.date)} · {inv.number}
-                      </p>
-                    </div>
-                    <span className="text-sm font-semibold tabular-nums text-slate-800 dark:text-white">{money(inv.amount, inv.currency)}</span>
-                    <Pill {...(INVOICE_STATUS[inv.status] ?? INVOICE_STATUS.void)} />
-                    {inv.pdf_url && (
-                      <a
-                        href={inv.pdf_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        aria-label={`Download invoice ${inv.number}`}
-                        className="w-8 h-8 flex-none grid place-items-center rounded-lg common-bg-icons hover:opacity-80"
+                  <ul className="divide-y divide-slate-200/70 dark:divide-slate-700/60">
+                    {(allHistory ? history : history.slice(0, 6)).map((inv) => (
+                      <li
+                        key={inv.id}
+                        className="grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[7.5rem_minmax(0,1fr)_6rem_6rem_2.5rem] items-center gap-x-3 gap-y-1 px-4 py-3"
                       >
-                        <Download className="w-4 h-4 text-slate-600 dark:text-slate-300" />
-                      </a>
-                    )}
-                  </li>
-                ))}
-              </ul>
+                        <span className="order-2 sm:order-none col-span-2 sm:col-span-1 text-xs sm:text-sm text-slate-500 dark:text-slate-400 tabular-nums">
+                          {fmtDate(inv.date)}
+                        </span>
+                        <span className="order-1 sm:order-none min-w-0">
+                          <span className="block text-sm font-medium text-slate-800 dark:text-white truncate">{inv.description}</span>
+                          <span className="block text-[11px] text-slate-400 truncate">{inv.number}</span>
+                        </span>
+                        <span className="order-1 sm:order-none text-sm font-semibold tabular-nums text-slate-800 dark:text-white text-right">
+                          {money(inv.amount, inv.currency)}
+                        </span>
+                        <span className="order-3 sm:order-none">
+                          <Pill {...(INVOICE_STATUS[inv.status] ?? INVOICE_STATUS.void)} />
+                        </span>
+                        <span className="order-3 sm:order-none flex justify-end">
+                          {inv.pdf_url ? (
+                            <a
+                              href={inv.pdf_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              aria-label={`Download receipt ${inv.number}`}
+                              title="Download receipt"
+                              className="w-8 h-8 grid place-items-center rounded-lg common-bg-icons hover:opacity-80"
+                            >
+                              <Download className="w-4 h-4 text-slate-600 dark:text-slate-300" />
+                            </a>
+                          ) : (
+                            <span className="w-8" />
+                          )}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  {history.length > 6 && (
+                    <button
+                      type="button"
+                      onClick={() => setAllHistory((v) => !v)}
+                      className="w-full border-t border-slate-200 dark:border-slate-700 py-2.5 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                    >
+                      {allHistory ? "Show fewer" : `Show all ${history.length} purchases`}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </>
