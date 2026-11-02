@@ -375,11 +375,15 @@
 
 /* ---------- Public card: "Create your own digital card" (above Powered by ShivAI) ---------- */
 /* Text link (not a button) with one slow, gentle pulse: it softly grows and brightens, then settles. */
+/* Two lines: the action, then the Founding offer as a quiet subline (never one long wrapped sentence). */
 .dc .make-cta{
-  display:flex;width:fit-content;align-items:center;gap:6px;margin:26px auto 0;padding:4px 2px;
-  font-size:14px;font-weight:700;letter-spacing:.1px;text-decoration:none;color:var(--ink);
+  display:flex;flex-direction:column;align-items:center;gap:5px;width:fit-content;max-width:calc(100% - 32px);margin:26px auto 0;padding:4px 2px;
+  font-size:14px;font-weight:700;letter-spacing:.1px;line-height:1.3;text-align:center;text-decoration:none;color:var(--ink);
   transform-origin:center;animation:make-cta-pulse 3s ease-in-out infinite;
 }
+.dc .make-cta-main{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.dc .make-cta-sub{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:500;letter-spacing:.2px;color:var(--muted)}
+.dc .make-cta-dot{width:6px;height:6px;flex:none;border-radius:50%;background:#16a34a;box-shadow:0 0 0 3px rgba(22,163,74,.15)}
 .dc .make-cta-text{text-decoration:underline;text-decoration-color:transparent;text-underline-offset:4px;text-decoration-thickness:1.5px;transition:text-decoration-color .2s}
 .dc .make-cta-arrow{display:inline-block;transition:transform .2s}
 .dc .make-cta:hover{animation-play-state:paused}
@@ -1102,7 +1106,10 @@
 .dc .card.tier-prestige .company-pdf{border-color:#d9b25a;color:#a8822f;background:#fffaf0}
 .dc .card.tier-prestige .footer{border-top:1px solid #d9b25a}
 .dc .card.tier-prestige .footer-powered a{color:#2a251b}
-.dc .card.tier-prestige .make-cta{font-family:"Playfair Display",Georgia,serif;font-style:italic;font-weight:500;font-size:14.5px;color:#2a251b;padding-bottom:6px;border-bottom:1px solid #d9b25a}
+.dc .card.tier-prestige .make-cta{color:#2a251b}
+.dc .card.tier-prestige .make-cta-main{font-family:"Playfair Display",Georgia,serif;font-style:italic;font-weight:500;font-size:14.5px;padding-bottom:5px;border-bottom:1px solid #d9b25a}
+.dc .card.tier-prestige .make-cta-sub{color:#8a7f6c}
+.dc .card.tier-prestige .make-cta-dot{background:#c9a24a;box-shadow:0 0 0 3px rgba(201,162,74,.18)}
 
 @media(prefers-reduced-motion:reduce){.dc .ai-banner,.dc .ai-go{transition:none}}
 

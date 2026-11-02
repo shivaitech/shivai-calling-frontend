@@ -503,10 +503,16 @@ export default function CardView({
       </footer>
       {createCardHref && (
         <a className="make-cta" href={createCardHref}>
-          <span className="make-cta-text">
-            {foundingOfferActive() ? `Create your own digital card — free for life before ${FOUNDING_SHORT}` : "Create your own digital card"}
+          <span className="make-cta-main">
+            <span className="make-cta-text">Create your own digital card</span>
+            <span className="make-cta-arrow" aria-hidden="true">→</span>
           </span>
-          <span className="make-cta-arrow" aria-hidden="true">→</span>
+          {foundingOfferActive() && (
+            <span className="make-cta-sub">
+              <span className="make-cta-dot" aria-hidden="true" />
+              Free for life · Founding offer until {FOUNDING_SHORT}
+            </span>
+          )}
         </a>
       )}
       {payOpen && <PayMeSheet name={c.full_name} slug={slug} methods={payMethods} onClose={closePay} />}
