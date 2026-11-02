@@ -27,6 +27,21 @@ export interface CardPhone {
   is_whatsapp_number: boolean;
 }
 
+/** A saved QR wallpaper design (same shape as the QR studio's design). */
+export interface CardQrDesign {
+  format: string;
+  fg: string;
+  bg: number;
+  photo: string | null;
+  size: number;
+  tileOpacity: number;
+  pos: { x: number; y: number };
+  label: string;
+}
+
+/** Actions the owner can feature as the big button on the card. */
+export type CardHighlight = "ai" | "whatsapp" | "email" | "pay" | "save";
+
 /** Pay Me: where visitors are sent to pay the card owner. ShivAI never processes the payment. */
 export type PayProvider = "upi" | "paypal" | "stripe" | "wise" | "bank" | "link" | "qr";
 
@@ -79,6 +94,8 @@ export interface BusinessCardInput {
   additional_phones?: CardPhone[];
   /** Pay Me options. Omitted on older cards. */
   payment_methods?: CardPayMethod[];
+  /** The one action shown as the big featured button. Omitted = My AI when an agent is set. */
+  highlight?: CardHighlight;
   email: string;
   website: string;
   social_media: CardSocial[];
@@ -97,6 +114,8 @@ export interface BusinessCard extends BusinessCardInput {
   share_url?: string;
   /** PNG of the card's QR code, generated and hosted (S3) by the server. */
   qr_code?: string;
+  /** The owner's saved QR wallpaper design (owner responses only). */
+  qr_design?: CardQrDesign | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -108,6 +127,8 @@ export interface PublicBusinessCard extends BusinessCardInput {
   share_url?: string;
   /** The owner's card plan — picks the card's look (Prestige = gold). Omitted = standard. */
   plan?: "free" | "essential" | "signature" | "prestige";
+  /** Created under the Founding Member offer (before 31 Dec 2026): shows a small badge. */
+  founding_member?: boolean;
 }
 
 export interface Pagination {
@@ -171,6 +192,26 @@ const authHeaders = () => ({
   headers: { Authorization: `Bearer ${getAuthToken()}`, "Content-Type": "application/json" },
 });
 
+// ── Agent id ─────────────────────────────────────────────────────────────────
+/** The API sometimes returns agent_id populated ({ id, name, agent_type, … }) instead of the
+ *  id string. Everything here works with the id, so reduce it to that. */
+export const agentIdOf = (v: unknown): string => {
+  if (typeof v === "string") return v;
+  if (v && typeof v === "object") {
+    const o = v as { id?: unknown; _id?: unknown };
+    const id = o.id ?? o._id;
+    return typeof id === "string" ? id : "";
+  }
+  return "";
+};
+
+/** A card from the API with agent_id always a plain id string. */
+function normalizeCard<T>(card: T): T {
+  if (!card || typeof card !== "object") return card;
+  const c = card as T & { agent_id?: unknown };
+  return { ...c, agent_id: agentIdOf(c.agent_id) };
+}
+
 // ── Payload ──────────────────────────────────────────────────────────────────
 /** Whitelists fields so stray keys (_id, slug, createdAt…) never reach Joi. */
 export const toPayload = (
@@ -192,6 +233,8 @@ export const toPayload = (
       .map((p) => ({ label: p.label, country_code: p.country_code.trim(), phone_number: p.phone_number.trim(), is_whatsapp_number: p.is_whatsapp_number }));
     return phones.length ? { additional_phones: phones } : {};
   })(),
+  // The featured button — only sent once the owner picks one.
+  ...(c.highlight ? { highlight: c.highlight } : {}),
   // Pay Me — only sent once the owner adds a method.
   ...(c.payment_methods?.length
     ? {
@@ -222,13 +265,34 @@ export const toPayload = (
   })),
   // The AI agent is optional: leave the key out entirely when none is chosen
   // (an empty string would fail the API's 24-char ObjectId check).
-  ...(c.agent_id ? { agent_id: c.agent_id } : {}),
+  ...(agentIdOf(c.agent_id) ? { agent_id: agentIdOf(c.agent_id) } : {}),
   // Same for the username: omitted when blank so the server keeps building the link itself.
   ...(c.username?.trim() ? { username: c.username.trim().toLowerCase() } : {}),
 });
 
+/** Reads "is it free?" from whichever shape the availability endpoint answers with.
+ *  null = the answer couldn't be read (the server confirms on save instead). */
+function readAvailability(data: unknown, envelope: unknown): boolean | null {
+  if (typeof data === "boolean") return data;
+  const objs = [data, envelope].filter((o): o is Record<string, unknown> => !!o && typeof o === "object");
+  for (const o of objs) {
+    for (const k of ["available", "isAvailable", "is_available", "availability", "isUsernameAvailable"]) {
+      const v = o[k];
+      if (typeof v === "boolean") return v;
+      if (v === "true" || v === "false") return v === "true";
+    }
+    for (const k of ["taken", "isTaken", "is_taken", "exists", "already_taken", "alreadyExists"]) {
+      const v = o[k];
+      if (typeof v === "boolean") return !v;
+    }
+    if (typeof o.status === "string" && /^(available|taken|unavailable)$/i.test(o.status)) return /^available$/i.test(o.status);
+  }
+  return null;
+}
+
 export interface UsernameAvailability {
-  available: boolean;
+  /** null = couldn't tell from the response. */
+  available: boolean | null;
   /** Server explanation when it isn't available (taken / reserved / invalid), if given. */
   message?: string;
   suggestions?: string[];
@@ -239,7 +303,7 @@ export const businessCardAPI = {
   async create(input: BusinessCardInput): Promise<BusinessCard> {
     try {
       const res = await axios.post(BASE, toPayload(input), authHeaders());
-      return res.data.data;
+      return normalizeCard(res.data.data);
     } catch (e) {
       throw toError(e);
     }
@@ -249,7 +313,7 @@ export const businessCardAPI = {
   async update(id: string, input: Partial<BusinessCardInput>): Promise<BusinessCard> {
     try {
       const res = await axios.put(`${BASE}/${id}`, input, authHeaders());
-      return res.data.data;
+      return normalizeCard(res.data.data);
     } catch (e) {
       throw toError(e);
     }
@@ -264,7 +328,7 @@ export const businessCardAPI = {
         total: 0,
         totalPages: 0,
       };
-      return { cards: res.data.data?.businessCards ?? [], pagination };
+      return { cards: (res.data.data?.businessCards ?? []).map(normalizeCard), pagination };
     } catch (e) {
       throw toError(e);
     }
@@ -274,11 +338,12 @@ export const businessCardAPI = {
   async usernameAvailability(username: string): Promise<UsernameAvailability> {
     try {
       const res = await axios.get(`${BASE}/username-availability`, { ...authHeaders(), params: { username } });
-      const d = res.data?.data ?? {};
-      const available = d.available ?? d.isAvailable ?? d.is_available;
+      const available = readAvailability(res.data?.data, res.data);
+      const d = res.data?.data && typeof res.data.data === "object" ? res.data.data : {};
       return {
-        available: available === true,
-        message: available === true ? undefined : d.message ?? res.data?.message,
+        available,
+        // Only an explanation for a "no" — never the envelope's "…checked successfully" message.
+        message: available === false && typeof d.message === "string" ? d.message : undefined,
         suggestions: Array.isArray(d.suggestions) ? d.suggestions.filter((s: unknown) => typeof s === "string") : undefined,
       };
     } catch (e) {
@@ -309,7 +374,7 @@ export const businessCardAPI = {
   async getPublic(slug: string): Promise<PublicBusinessCard> {
     try {
       const res = await axios.get(`${BASE}/public/${encodeURIComponent(slug)}`);
-      return res.data.data;
+      return normalizeCard(res.data.data);
     } catch (e) {
       throw toError(e);
     }

@@ -180,6 +180,7 @@ export default function Billing() {
           onCheckoutHandled={() =>
             update((p) => {
               p.delete("checkout");
+              p.delete("session_id");
               p.delete("plan");
               p.delete("billing");
             })

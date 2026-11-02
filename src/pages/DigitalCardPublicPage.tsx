@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import CardView from "../ClientDashboard/apps/DigitalCard/CardView";
 import { BusinessCardError, businessCardAPI, PUBLIC_APP_URL, PublicBusinessCard, cardUrl } from "../services/businessCardAPI";
 import { DIGITAL_CARD_HOME } from "./digitalCardRoutes";
+import { trackCardView } from "../ClientDashboard/apps/DigitalCard/cardEvents";
 import "../ClientDashboard/apps/DigitalCard/digitalCard.css";
 
 type State =
@@ -23,7 +24,11 @@ export default function DigitalCardPublicPage({ slug: slugProp }: { slug?: strin
     setState({ kind: "loading" });
     businessCardAPI
       .getPublic(slug)
-      .then((card) => live && setState({ kind: "ok", card }))
+      .then((card) => {
+        if (!live) return;
+        setState({ kind: "ok", card });
+        trackCardView(card.slug); // one view per tab session, for the owner's Monitoring
+      })
       .catch((e: BusinessCardError) => {
         if (!live) return;
         // 404 = no such card; 422 = slug fails validation (e.g. too short) — both are "not found" to a visitor.
@@ -72,6 +77,8 @@ export default function DigitalCardPublicPage({ slug: slugProp }: { slug?: strin
             agentUserId={typeof state.card.tenant_id === "string" ? state.card.tenant_id : undefined}
             // The owner's plan look (gold for Prestige) once the API includes it.
             tier={state.card.plan === "signature" || state.card.plan === "prestige" ? state.card.plan : undefined}
+            foundingMember={!!state.card.founding_member}
+            trackSlug={state.card.slug}
           />
         </div>
       )}

@@ -96,7 +96,7 @@ export async function fileToDataUrl(file: File, kind: ImageKind = "photo"): Prom
   });
 }
 
-async function uploadDataUrl(dataUrl: string, kind: ImageKind): Promise<string> {
+export async function uploadDataUrl(dataUrl: string, kind: ImageKind): Promise<string> {
   const blob = await (await fetch(dataUrl)).blob();
   const ext = blob.type === "image/png" ? "png" : "jpg";
   return uploadPhoto(new File([blob], `${kind}.${ext}`, { type: blob.type || "image/jpeg" }), kind);

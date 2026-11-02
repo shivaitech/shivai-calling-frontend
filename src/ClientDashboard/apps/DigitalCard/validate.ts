@@ -4,7 +4,7 @@ import { ventureKind } from "./ventureKinds";
 import { payMethodProblem } from "./payMe";
 
 /** Mirrors the API's Joi rules so most mistakes are caught before the request. */
-export function validateCard(f: CardData): Record<string, string> {
+export function validateCard(f: CardData, opts: { skipUsername?: boolean } = {}): Record<string, string> {
   const e: Record<string, string> = {};
   const name = f.full_name.trim();
   if (!name) e.full_name = "Full name is required";
@@ -14,7 +14,8 @@ export function validateCard(f: CardData): Record<string, string> {
   else if (f.job_title.trim().length > 150) e.job_title = "Job title must be at most 150 characters";
   if (!f.company_name.trim()) e.company_name = "Company name is required";
   else if (f.company_name.trim().length > 150) e.company_name = "Company name must be at most 150 characters";
-  const usernameIssue = usernameProblem(f.username ?? "");
+  // Existing cards can't change their username, so it isn't re-checked when editing.
+  const usernameIssue = opts.skipUsername ? "" : usernameProblem(f.username ?? "");
   if (usernameIssue) e.username = usernameIssue;
   if (f.tagline.length > 300) e.tagline = "Tagline must be at most 300 characters";
   // A "data:" photo is a local draft — it gets uploaded (and replaced by a short URL) on save.

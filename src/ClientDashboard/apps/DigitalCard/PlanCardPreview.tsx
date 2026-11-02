@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { Eye, X } from "lucide-react";
 import CardView from "./CardView";
 import { emptyCard, type CardData } from "./types";
+import samplePortrait from "../../../resources/images/sample-portrait.jpg";
+import { foundingOfferActive } from "../../../pages/foundingOffer";
 import "./digitalCard.css";
 
 export type PlanTier = "essential" | "signature" | "prestige";
@@ -12,6 +14,7 @@ function sampleFor(tier: PlanTier): CardData {
   const base: CardData = {
     ...emptyCard(),
     full_name: "Alex Morgan",
+    image_url: samplePortrait,
     job_title: "Founder & CEO",
     company_name: "Morgan Studio",
     tagline: "Strategy, design and growth for modern brands.",
@@ -25,7 +28,7 @@ function sampleFor(tier: PlanTier): CardData {
       { type: "linkedin", url: "https://www.linkedin.com/in/alexmorgan", username: "alexmorgan" },
       { type: "instagram", url: "https://www.instagram.com/alexmorgan", username: "alexmorgan" },
     ],
-    ventures: [{ name: "Morgan Studio", logo_url: "", url: "https://morganstudio.co" }],
+    ventures: [{ name: "Morgan Studio", logo_url: "", url: "https://morganstudio.co", description: "Strategy and design studio for modern brands" }],
     agent_id: "",
   };
   if (tier === "essential") return base;
@@ -36,8 +39,8 @@ function sampleFor(tier: PlanTier): CardData {
     tagline: "Entrepreneur. Builder. Investor. Helping brands grow with AI.",
     payment_methods: [{ provider: "upi", label: "Pay Me", value: "alexmorgan@okbank", currency: "INR", is_default: true, enabled: true }],
     ventures: [
-      { name: "Morgan Studio", logo_url: "", url: "https://morganstudio.co" },
-      { name: "Northwind Capital", logo_url: "", url: "https://northwind.vc" },
+      { name: "Morgan Studio", logo_url: "", url: "https://morganstudio.co", description: "Strategy and design studio for modern brands" },
+      { name: "Northwind Capital", logo_url: "", url: "https://northwind.vc/profile.pdf", description: "Early-stage investment fund", file_name: "Northwind-Profile.pdf" },
     ],
   };
 }
@@ -58,7 +61,7 @@ function usePrestigeFont(on: boolean) {
     const l = document.createElement("link");
     l.id = "prestige-font";
     l.rel = "stylesheet";
-    l.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&display=swap";
+    l.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&display=swap";
     document.head.appendChild(l);
   }, [on]);
 }
@@ -109,7 +112,7 @@ export default function PlanCardPreview({ tier, height = 300 }: { tier: PlanTier
         onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), setOpen(true))}
       >
         <div className="pp-stage" style={{ transform: `scale(${scale})` }} aria-hidden="true">
-          <CardView card={card} tier={tier} />
+          <CardView card={card} tier={tier} foundingMember={tier === "essential" && foundingOfferActive()} />
         </div>
         <div className="pp-fade" />
         <span className="pp-open">
@@ -138,7 +141,7 @@ export default function PlanCardPreview({ tier, height = 300 }: { tier: PlanTier
                   </button>
                 </div>
                 <div className="pp-sheet-body" onClickCapture={block} onSubmitCapture={block}>
-                  <CardView card={card} tier={tier} poweredBy />
+                  <CardView card={card} tier={tier} poweredBy foundingMember={tier === "essential" && foundingOfferActive()} />
                 </div>
               </div>
             </div>

@@ -1,5 +1,6 @@
 import { Award, Check, Crown, Sparkles } from "lucide-react";
 import { PLANS, type Billing, type PlanId } from "./digitalCardPricing";
+import { isFoundingFree } from "./foundingOffer";
 
 const ICONS: Record<PlanId, typeof Crown> = { essential: Sparkles, signature: Award, prestige: Crown };
 const money = (n: number) => `$${n.toFixed(2)}`;
@@ -78,7 +79,13 @@ export default function CreatePlanPicker({
                   {p.name}
                 </span>
                 <span className="block text-xs text-slate-500 tabular-nums">
-                  {money(perMonth)}/mo{billing === "annual" ? " · billed yearly" : ""}
+                  {isFoundingFree(p.id) ? (
+                    <span className="font-semibold text-emerald-700">Free for life · Founding Member</span>
+                  ) : (
+                    <>
+                      {money(perMonth)}/mo{billing === "annual" ? " · billed yearly" : ""}
+                    </>
+                  )}
                 </span>
               </span>
               {on && (

@@ -7,6 +7,9 @@ import CardForm, { type CardPatch } from "./CardForm";
 import CardMonitoring from "./CardMonitoring";
 import CardAffiliate from "./CardAffiliate";
 import CardBilling from "../../Billing/CardBilling";
+import PlanLookSwitcher from "./PlanLookSwitcher";
+import type { PlanTier } from "./PlanCardPreview";
+import { cardBillingAPI } from "../../../services/billingAPI";
 import QrPlayground from "./QrPlayground";
 import { loadQrDesign, saveQrDesign } from "./qrDesignStore";
 import { CardData, emptyCard, withSuggestedTagline } from "./types";
@@ -55,6 +58,7 @@ const fromCard = (c: BusinessCard): CardData => ({
   country_code: c.country_code ?? "",
   phone_number: c.phone_number ?? "",
   is_whatsapp_number: !!c.is_whatsapp_number,
+  highlight: c.highlight,
   payment_methods: (c.payment_methods ?? []).map((m) => ({
     provider: m.provider,
     label: m.label ?? "",
@@ -117,12 +121,11 @@ export default function DigitalCard({ section = "cards" }: { section?: string })
       // One "Plan & Billing" page; ?section=billing (older links) lands here too.
       <CardBilling
         inApp
-        returnPath="/app/digital-card?section=plan"
         preselect={preselect}
         checkoutResult={checkout === "success" || checkout === "cancelled" ? checkout : null}
         onCheckoutHandled={() => {
           const next = new URLSearchParams(params);
-          ["checkout", "plan", "billing"].forEach((k) => next.delete(k));
+          ["checkout", "session_id", "plan", "billing"].forEach((k) => next.delete(k));
           setParams(next, { replace: true });
         }}
       />
@@ -244,10 +247,32 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
   const { agents, isLoading: agentsLoading, refreshAgents } = useAgent();
   const [load, setLoad] = useState<"loading" | "ready" | "missing" | "forbidden">(isNew ? "ready" : "loading");
   const [saved, setSaved] = useState<BusinessCard | null>(null);
-  const [form, setForm] = useState<CardData>(() => (isNew ? loadDraft() : emptyCard()));
+  const [form, setForm] = useState<CardData>(() => (isNew ? loadDraft("dashboard") : emptyCard()));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [oldLink, setOldLink] = useState<string | null>(null);
+  const [params, setParams] = useSearchParams();
+  // "Preview as": the card in each plan's look. Starts on the account's own plan.
+  const [currentTier, setCurrentTier] = useState<PlanTier>("essential");
+  const [previewTier, setPreviewTier] = useState<PlanTier>("essential");
+  useEffect(() => {
+    let live = true;
+    cardBillingAPI
+      .overview()
+      .then((o) => {
+        const key = o?.paid ? o.plan?.key : null;
+        const tier: PlanTier = key === "signature" || key === "prestige" ? key : "essential";
+        if (!live) return;
+        setCurrentTier(tier);
+        setPreviewTier(tier);
+      })
+      .catch(() => {
+        /* no billing info: preview starts on Essential */
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
   const set = (patch: CardPatch) => setForm((f) => ({ ...f, ...(typeof patch === "function" ? patch(f) : patch) }));
 
   // AgentProvider only auto-loads on agent-related routes (not /app/*).
@@ -275,7 +300,7 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
   // Keep the not-yet-saved card as a local draft — until it's created, then never write it back.
   const created = useRef(false);
   useEffect(() => {
-    if (isNew && !created.current) saveDraft(form);
+    if (isNew && !created.current) saveDraft("dashboard", form);
   }, [form, isNew]);
 
   // Signed-in editor: images upload straight away.
@@ -291,9 +316,17 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
   };
 
   const submit = async () => {
-    const v = validateCard(form);
+    const v = validateCard(form, { skipUsername: !isNew });
     setErrors(v);
-    if (Object.keys(v).length) return toast.error("Fix the highlighted fields");
+    if (Object.keys(v).length) {
+      toast.error("Fix the highlighted fields");
+      // Bring the first problem into view (it may be far down the form).
+      requestAnimationFrame(() => {
+        const first = document.querySelector<HTMLElement>(".dc .form .err");
+        first?.closest(".field, .panel")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+      return;
+    }
     setSaving(true);
     try {
       if (isNew) {
@@ -304,7 +337,9 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
         toast.success("Card created");
         go("share", card._id);
       } else {
-        const card = await businessCardAPI.update(id, toPayload(form));
+        // The username is set once, at creation: never send it on update.
+        const { username: _username, ...changes } = toPayload(form);
+        const card = await businessCardAPI.update(id, changes);
         cardCache.set(card._id, card);
         if (saved && card.slug !== saved.slug) setOldLink(cardLabel(saved));
         setSaved(card);
@@ -347,7 +382,18 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
             {oldLink && (
               <small className="warn">Your name or company changed, so the link changed too. The old link ({oldLink}) no longer works — re-share the new one.</small>
             )}
-            <div className="btns"><button className="btn small ghost" onClick={() => go("share", saved._id)}>Share & QR</button></div>
+            <div className="btns">
+              <button className="btn small" disabled={saving} onClick={submit}>
+                {saving ? "Saving…" : "Save changes"}
+              </button>
+              <button className="btn small ghost" onClick={() => go("share", saved._id)}>Share & QR</button>
+              <button
+                className="btn small ghost"
+                onClick={() => document.getElementById("card-basics")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+              >
+                Edit details ↓
+              </button>
+            </div>
           </section>
         )}
 
@@ -358,7 +404,8 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
           onImageFile={onImageFile}
           agents={agents.map((a) => ({ id: a.id, name: a.name, status: a.status }))}
           agentsLoading={agentsLoading}
-          savedUsername={saved?.username || undefined}
+          savedUsername={saved?.username || saved?.slug || undefined}
+          usernameLocked={!isNew}
           onDocumentFile={(file) =>
             businessCardAPI.uploadDocument(file).then((r) => {
               toast.success("PDF uploaded");
@@ -375,7 +422,20 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
       </div>
 
       <aside className="preview">
-        <div className="phone-frame"><CardView card={form} placeholders /></div>
+        <PlanLookSwitcher
+          value={previewTier}
+          current={currentTier}
+          onChange={setPreviewTier}
+          onUpgrade={(tier) => {
+            const next = new URLSearchParams(params);
+            next.set("section", "plan");
+            next.delete("id");
+            next.set("plan", tier);
+            next.set("billing", "annual");
+            setParams(next);
+          }}
+        />
+        <div className="phone-frame"><CardView card={form} placeholders tier={previewTier} /></div>
       </aside>
     </div>
   );
@@ -498,16 +558,18 @@ function SharePanel({ id, go }: { id: string | null; go: (s: string, id?: string
             <h3>Design your QR wallpaper</h3>
             <p className="muted">
               Pick a format, background and colours, place your QR anywhere, then download it for your phone, tablet, desktop or wallet.
-              Designs are saved in this browser.
+              Your design is saved to your card, so it’s there on any device.
             </p>
           </div>
           <QrPlayground
             key={card._id}
             link={link}
-            initial={loadQrDesign(card._id)}
-            onSave={(d) => {
-              saveQrDesign(card._id, d);
-              toast.success("QR design saved");
+            initial={loadQrDesign(card)}
+            onSave={async (d) => {
+              // Errors surface inside the studio; only success gets a toast.
+              const updated = await saveQrDesign(card, d);
+              cardCache.set(updated._id, updated);
+              toast.success("QR design saved to your card");
             }}
           />
         </section>
@@ -563,7 +625,7 @@ function QrListing({ go }: { go: (s: string, id?: string | null) => void }) {
       {cards && cards.length > 0 && (
         <div className="qr-list">
           {cards.map((c) => {
-            const design = loadQrDesign(c._id);
+            const design = loadQrDesign(c);
             return (
               <article key={c._id} className="qr-list-item">
                 <button type="button" className="qr-list-code" onClick={() => go("share", c._id)} aria-label={`Open ${c.full_name}'s QR`}>
