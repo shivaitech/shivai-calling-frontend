@@ -17,6 +17,7 @@ import { fileToDataUrl, type ImageKind, resolveCardImages } from "../ClientDashb
 import { BusinessCardError, businessCardAPI } from "../services/businessCardAPI";
 import { DIGITAL_CARD_CREATE } from "./digitalCardRoutes";
 import CreatePlanPicker from "./digitalCardCreatePlan";
+import { foundingOfferActive, isFoundingFree } from "./foundingOffer";
 import { PLANS, type PlanId } from "./digitalCardPricing";
 import "../ClientDashboard/apps/DigitalCard/digitalCard.css";
 
@@ -47,7 +48,7 @@ export default function DigitalCardCreatePage() {
   // Right after signing in, context state can lag the stored tokens by a tick.
   const hasSession = isAuthenticated || !!localStorage.getItem("auth_tokens");
 
-  const [form, setForm] = useState<CardData>(loadDraft);
+  const [form, setForm] = useState<CardData>(() => loadDraft("public"));
   // The plan picked on the pricing page (or here): sets the preview look and the checkout after saving.
   const chosen = paidPlanQuery(params);
   const chosenPlan = (chosen.plan as PlanId | undefined) ?? null;
@@ -82,7 +83,7 @@ export default function DigitalCardCreatePage() {
   // Autosave the draft on every change — until the card is created, then never write it back.
   const created = useRef(false);
   useEffect(() => {
-    if (!created.current) saveDraft(form);
+    if (!created.current) saveDraft("public", form);
   }, [form]);
 
   // Agents only for a real signed-in user (same test as the rest of the app). A leftover
@@ -145,7 +146,7 @@ export default function DigitalCardCreatePage() {
       // A paid plan chosen on the pricing page → finish it on the card's billing page.
       const plan = paidPlanQuery(params);
       navigate(
-        plan.plan ? `/billing?${new URLSearchParams({ view: "apps", app: "digital-card", ...plan })}` : "/app/digital-card?section=cards",
+        plan.plan && !isFoundingFree(plan.plan) ? `/billing?${new URLSearchParams({ view: "apps", app: "digital-card", ...plan })}` : "/app/digital-card?section=cards",
         { replace: true },
       );
     } catch (e: any) {
@@ -204,8 +205,12 @@ export default function DigitalCardCreatePage() {
           chosenPlan && (
             <p className="mb-6 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
               Plan: <strong className="text-slate-900">{chosenPlanInfo?.name}</strong> ·{" "}
-              {chosenBilling === "annual" ? `$${chosenPlanInfo?.yearly.toFixed(2)}/year` : `$${chosenPlanInfo?.monthly.toFixed(2)}/month`}. You'll confirm
-              payment right after saving.
+              {isFoundingFree(chosenPlan)
+                ? "Free for life with the Founding Member offer. No payment needed."
+                : <>
+                    {chosenBilling === "annual" ? `${chosenPlanInfo?.yearly.toFixed(2)}/year` : `${chosenPlanInfo?.monthly.toFixed(2)}/month`}. You'll confirm payment right
+                    after saving.
+                  </>}
             </p>
           )
         )}
@@ -229,7 +234,7 @@ export default function DigitalCardCreatePage() {
                 </div>
               </div>
               <aside className="preview">
-                <div className="phone-frame"><CardView card={form} placeholders tier={chosenPlan ?? undefined} /></div>
+                <div className="phone-frame"><CardView card={form} placeholders tier={chosenPlan ?? undefined} foundingMember={foundingOfferActive() && (!chosenPlan || chosenPlan === "essential")} /></div>
               </aside>
             </div>
           ) : (
@@ -242,7 +247,7 @@ export default function DigitalCardCreatePage() {
                     Digital Business Card → My Cards.
                   </p>
                   <div className="btns">
-                    <button className="btn" disabled={saving} onClick={saveCard}>{saving ? "Saving…" : chosenPlan ? "Save card & continue to payment" : "Save card"}</button>
+                    <button className="btn" disabled={saving} onClick={saveCard}>{saving ? "Saving…" : chosenPlan && !isFoundingFree(chosenPlan) ? "Save card & continue to payment" : "Save card"}</button>
                     <button className="btn ghost" disabled={saving} onClick={() => goStep("edit")}>← Edit details</button>
                   </div>
                 </section>

@@ -278,9 +278,9 @@ export default function FeatureCarousel({ link }: { link: string }) {
     <section ref={rootRef} className="bg-white text-slate-900 overflow-hidden">
       <div className="max-w-6xl mx-auto px-6 sm:px-8 py-12 sm:py-[68px]">
         <div className="text-center max-w-2xl mx-auto">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Everything in one card</p>
-          <h2 className="mt-2 text-3xl sm:text-5xl font-semibold tracking-tight">One card. Every way to connect.</h2>
-          <p className="mt-4 text-base sm:text-lg text-slate-600">Tap through what your card does for the people you meet.</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">One card. More possibilities.</p>
+          <h2 className="mt-2 text-3xl sm:text-5xl font-semibold tracking-tight">Make every connection count.</h2>
+          <p className="mt-4 text-base sm:text-lg text-slate-600">Your details, your links and your AI Manager, all in one place.</p>
         </div>
 
         {/* Tabs — the active one's line fills up while it's showing. */}

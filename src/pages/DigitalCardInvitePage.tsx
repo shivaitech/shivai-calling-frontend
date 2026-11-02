@@ -8,7 +8,7 @@ import Navbar from "./Website/Navbar";
 import CardView from "../ClientDashboard/apps/DigitalCard/CardView";
 import { sampleCard } from "../ClientDashboard/apps/DigitalCard/types";
 import samplePortrait from "../resources/images/sample-portrait.jpg";
-import heroImage from "../resources/images/digital-card-hero-phones.webp";
+import heroImage from "../resources/images/digital-card-hero-ai.webp";
 import ShivAiLogo from "../resources/images/ShivaiLogo.svg";
 import { DIGITAL_CARD_CREATE, DIGITAL_CARD_HOME } from "./digitalCardRoutes";
 import QrPlayground from "../ClientDashboard/apps/DigitalCard/QrPlayground";
@@ -146,7 +146,7 @@ const FAQS = [
   { q: "What is a digital business card?", a: "A mobile page that replaces a printed card — your photo, role, contact details and links, shared with one link or QR code instead of cardstock." },
   {
     q: "How much does it cost?",
-    a: "Plans start at $9.99 a month, or $71.93 a year billed annually (40% off). Every plan includes unlimited sharing — see Pricing above for what each plan adds.",
+    a: "Essential is free for life for Founding Members who create their card before 31 December 2026. Signature and Prestige add AI managers and premium features, from $14.99 a month billed annually. Every plan includes unlimited sharing. See Pricing above for what each plan adds.",
   },
   { q: "Do people need an app to view my card?", a: "No. Your card opens in any browser. Nothing to install to view, call, message or save your details." },
   { q: "What's the “Ask My AI” button?", a: "Connect a trained ShivAI agent to your card in one click, and visitors can talk to it directly from your profile — day or night." },
@@ -261,7 +261,8 @@ export default function DigitalCardInvitePage() {
               Meet the smartest business card you'll ever need.
             </p>
             <p className="mt-3 text-base sm:text-lg text-slate-500 max-w-lg">
-              Everything you want people to know about you, ready to share in one short link or QR Code.
+              Your digital identity, with an AI Manager built right in. Let people connect with you, discover your work and get answers from
+              your AI Manager, even when you're unavailable.
             </p>
             <button
               type="button"
@@ -275,15 +276,24 @@ export default function DigitalCardInvitePage() {
             </button>
           </div>
 
-          <div className="flex justify-center lg:justify-end">
+          <div className="flex flex-col items-center lg:items-end">
             <img
               src={heroImage}
-              alt="Two phones: Alex Morgan's digital business card, and its QR code with a share link"
-              width={900}
-              height={1064}
-              className="w-full max-w-[320px] sm:max-w-[400px] lg:max-w-[460px] drop-shadow-[0_28px_36px_rgba(15,23,42,0.18)]"
+              alt="Two phones: Alex Morgan's Prestige digital card, and his AI Manager ready to take a call"
+              width={1312}
+              height={1199}
+              className="w-full max-w-[380px] sm:max-w-[480px] lg:max-w-[560px]"
               fetchPriority="high"
             />
+            {/* Just below the image */}
+            <div className="mt-4 sm:mt-6 w-full max-w-[380px] sm:max-w-[480px] lg:max-w-[560px] text-center">
+              <p className="text-base sm:text-lg font-semibold tracking-tight text-slate-900 text-balance">
+                Your card makes the introduction. Your AI Manager takes the conversation forward.
+              </p>
+              <p className="mt-2 text-sm sm:text-base text-slate-500 text-balance">
+                Your work, your expertise and your opportunities. Always within reach, even when you aren't.
+              </p>
+            </div>
           </div>
         </div>
       </header>

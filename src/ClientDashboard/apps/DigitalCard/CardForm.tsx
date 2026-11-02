@@ -1,13 +1,15 @@
 import { ReactNode, useRef, useState } from "react";
-import { Camera, Plus, User, X } from "lucide-react";
+import { Camera, LucideIcon, Mail, Plus, Sparkles, User, UserPlus, Wallet, X } from "lucide-react";
 import type { ImageKind } from "./photo";
 import { CardData, MAX_ADDITIONAL_PHONES, PHONE_LABELS, SUGGESTED_TAGLINE } from "./types";
-import type { CardPhone, PhoneLabel } from "../../../services/businessCardAPI";
+import type { CardHighlight, CardPhone, PhoneLabel } from "../../../services/businessCardAPI";
 import CountryCodeSelect from "./CountryCodeSelect";
 import SocialLinksEditor from "./SocialLinksEditor";
 import VenturesEditor from "./VenturesEditor";
 import PayMeEditor from "./PayMeEditor";
 import { CARD_EXTRAS } from "./features";
+import { visiblePayMethods } from "./payMe";
+import WhatsAppIcon from "./WhatsAppIcon";
 import UsernameField from "./UsernameField";
 import { editImage, type EditImageOptions } from "./ImageEditor";
 
@@ -23,6 +25,16 @@ const LOGO_EDIT: EditImageOptions = {
   keepTransparency: true,
   maxSide: 1024,
 };
+
+const WaIcon = ({ size = 16 }: { size?: number }) => <WhatsAppIcon mono size={size} />;
+/** Actions that can be the card’s big featured button, and what each one needs. */
+const HIGHLIGHTS: { id: CardHighlight; label: string; Icon: LucideIcon | typeof WaIcon; needs: string }[] = [
+  { id: "ai", label: "My AI", Icon: Sparkles, needs: "Pick an AI agent below first" },
+  { id: "whatsapp", label: "WhatsApp", Icon: WaIcon, needs: "Add a phone number that’s on WhatsApp first" },
+  { id: "email", label: "Email", Icon: Mail, needs: "Add your email first" },
+  { id: "pay", label: "Pay Me", Icon: Wallet, needs: "Add a Pay Me method first" },
+  { id: "save", label: "Save Contact", Icon: UserPlus, needs: "" },
+];
 
 export function Field({ label, error, children }: { label: string; error?: string; children: ReactNode }) {
   return (
@@ -56,6 +68,8 @@ interface CardFormProps {
   agentsLoading?: boolean;
   /** The card's username as last saved (editing), so it isn't reported as taken by itself. */
   savedUsername?: string;
+  /** The card already exists: its username (link) is permanent and shown read-only. */
+  usernameLocked?: boolean;
   /** Uploads a PDF for a document/catalog entry. Leave out before the visitor has an account (links only). */
   onDocumentFile?: (file: File) => Promise<{ url: string; file_name: string }>;
   onDocumentError?: (message: string) => void;
@@ -70,6 +84,7 @@ export default function CardForm({
   agents,
   agentsLoading = false,
   savedUsername,
+  usernameLocked = false,
   onDocumentFile,
   onDocumentError = () => {},
 }: CardFormProps) {
@@ -97,6 +112,16 @@ export default function CardForm({
   const hasPhoto = !!form.image_url && form.image_url !== brokenUrl;
   const agentKnown = (agents ?? []).some((a) => a.id === form.agent_id);
   const extraPhones = form.additional_phones ?? [];
+  // Featured button: only actions the card actually has can be picked.
+  const highlightAvailable: Record<CardHighlight, boolean> = {
+    ai: !!form.agent_id,
+    whatsapp: !!form.phone_number.trim() && form.is_whatsapp_number,
+    email: !!form.email.trim(),
+    pay: visiblePayMethods(form.payment_methods).length > 0,
+    save: true,
+  };
+  const currentHighlight: CardHighlight | null =
+    form.highlight && highlightAvailable[form.highlight] ? form.highlight : highlightAvailable.ai ? "ai" : null;
   // Pay Me errors (ours or the API's "payment_methods.<i>.<field>"), first one wins.
   const payError = Object.entries(errors).find(([k]) => k.startsWith("payment_methods"))?.[1];
   const setPhone = (i: number, patch: Partial<CardPhone>) =>
@@ -104,7 +129,7 @@ export default function CardForm({
 
   return (
     <>
-      <section className="panel">
+      <section className="panel" id="card-basics">
         <h3>Basics</h3>
         {/* Instagram-style profile photo: tap the avatar (or the link) to pick one. */}
         <div className="avatar-picker">
@@ -156,7 +181,8 @@ export default function CardForm({
           <input value={form.full_name} placeholder="Enter your full name" onChange={(e) => set({ full_name: e.target.value })} />
         </Field>
         <UsernameField
-          value={form.username}
+          locked={usernameLocked}
+          value={usernameLocked ? form.username || savedUsername || "" : form.username}
           onChange={(username) => set({ username })}
           fullName={form.full_name}
           savedUsername={savedUsername}
@@ -291,6 +317,38 @@ export default function CardForm({
           </Field>
           <small>If you pick one, an “Ask My AI” button on your card opens it. Leave it empty and the button is simply hidden.</small>
           {agents.length === 0 && !agentsLoading && <small>You don’t have any AI employees yet — you can create one later and come back to add it.</small>}
+        </section>
+      )}
+
+      {CARD_EXTRAS && (
+        <section className="panel">
+          <h3>Featured button <small>Shown big at the top of your card</small></h3>
+          <div className="hl-grid" role="radiogroup" aria-label="Featured button">
+            {HIGHLIGHTS.map((h) => {
+              const ok = highlightAvailable[h.id];
+              const on = currentHighlight === h.id;
+              return (
+                <button
+                  key={h.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  disabled={!ok}
+                  title={ok ? undefined : h.needs}
+                  className={`hl-opt${on ? " is-on" : ""}`}
+                  onClick={() => set({ highlight: h.id })}
+                >
+                  <h.Icon size={16} aria-hidden="true" />
+                  <span>{h.label}</span>
+                </button>
+              );
+            })}
+          </div>
+          <small>
+            {currentHighlight
+              ? "The other actions stay in the row of icons under it."
+              : "Add an AI agent, WhatsApp number, email or Pay Me to feature one."}
+          </small>
         </section>
       )}
 

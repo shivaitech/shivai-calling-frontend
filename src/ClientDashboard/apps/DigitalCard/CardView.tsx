@@ -1,35 +1,76 @@
-import { CSSProperties, useCallback, useState } from "react";
+import { CSSProperties, MouseEvent, ReactNode, useCallback, useEffect, useState } from "react";
 import QRCode from "react-qr-code";
-import { Award, Crown, Facebook, Instagram, Link2, Linkedin, LucideIcon, Phone, Sparkles, Twitter, UserPlus, Wallet, Youtube } from "lucide-react";
+import { ArrowRight, Award, Crown, Star, Facebook, Instagram, Link2, Linkedin, LucideIcon, Mail, Phone, Sparkles, Twitter, UserPlus, Wallet, Youtube } from "lucide-react";
 import WhatsAppIcon from "./WhatsAppIcon";
-import GmailIcon from "./GmailIcon";
+import { defaultCountries } from "../../../types/country";
 import { downloadVCard, fullPhone } from "./vcard";
 import SaveContactSheet from "./SaveContactSheet";
 import PayMeSheet from "./PayMeSheet";
 import { visiblePayMethods } from "./payMe";
 import { openCardAgent } from "./openCardAgent";
+import { trackCardEvent, type CardEventType } from "./cardEvents";
 import { CardData, PHONE_LABELS, SOCIAL_TYPES, SocialType } from "./types";
 import { ventureKind } from "./ventureKinds";
-import { PUBLIC_APP_URL } from "../../../services/businessCardAPI";
+import { foundingOfferActive } from "../../../pages/foundingOffer";
+
+const FOUNDING_SHORT = "31 Dec 2026";
+import { PUBLIC_APP_URL, type CardHighlight } from "../../../services/businessCardAPI";
 
 const host = (u: string) => u.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
+
+/** A link as people read it: domain plus a short path, never the query string.
+ *  "https://www.youtube.com/watch?v=…&list=…" → "youtube.com/watch…". Capped at `max` characters. */
+export function shortLink(u: string, max = 34): string {
+  const clean = host(u.trim());
+  const cut = clean.search(/[?#]/);
+  const base = cut >= 0 ? clean.slice(0, cut) + "…" : clean;
+  return base.length > max ? base.slice(0, max - 1).replace(/[/.\-_]+$/, "") + "…" : base;
+}
 const href = (u: string) => (/^[a-z]+:/i.test(u) ? u : `https://${u}`);
 
 type Social = CardData["social_media"][number];
 
+/** A document with a folded corner and "PDF" on it — marks items that open a PDF. */
+function PdfIcon() {
+  return (
+    <svg className="company-pdf" viewBox="0 0 26 30" role="img" aria-label="PDF">
+      <path d="M4.5 1h12.5l7.5 7.5V27a2 2 0 0 1-2 2H4.5a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M17 1v6.5a1 1 0 0 0 1 1h6.5" fill="none" stroke="currentColor" strokeWidth="1.3" />
+      <text x="13.5" y="21.5" textAnchor="middle" fontSize="6.6" fontWeight="700" fill="currentColor" fontFamily="inherit" letterSpacing=".3">
+        PDF
+      </text>
+    </svg>
+  );
+}
+
 /** A venture, or something to browse (catalog, PDF, menu, portfolio), with its logo at the chosen size. */
-function VentureItem({ v }: { v: CardData["ventures"][number] }) {
+function VentureItem({ v, onOpen }: { v: CardData["ventures"][number]; onOpen?: () => void }) {
   const kind = ventureKind(v.type);
   const size = v.logo_size ?? "s";
   const [broken, setBroken] = useState(false);
+  // Sized by the image's shape: wordmarks sit bare, photos fill a square tile, the rest get a padded tile.
+  const [shape, setShape] = useState<"wide" | "photo" | "tile">("wide");
   const img =
     v.logo_url && !broken ? (
-      <img className={`company-logo size-${size}`} src={v.logo_url} alt={`${v.name} ${kind.id === "venture" ? "logo" : "cover"}`} onError={() => setBroken(true)} />
+      <img className={`company-logo size-${size}`} src={v.logo_url} alt={`${v.name} ${kind.id === "venture" ? "logo" : "cover"}`} onError={() => setBroken(true)}
+        onLoad={(e) => {
+          const { naturalWidth: w, naturalHeight: h } = e.currentTarget;
+          const r = h ? w / h : 1;
+          setShape(r >= 1.6 ? "wide" : r >= 0.8 && r <= 1.25 ? "photo" : "tile");
+        }}
+      />
     ) : null;
   const cover = size === "l" && img;
+  // Uploaded PDFs (and links straight to a .pdf) get a small PDF badge.
+  const isPdf = !!v.file_name?.trim() || /\.pdf($|[?#])/i.test(v.url ?? "");
   const body = (
     <>
-      {!cover && img && <span className={`company-thumb size-${size}`}>{img}</span>}
+      {!cover && img && (
+        <>
+          <span className={`company-thumb size-${size} shape-${shape}`}>{img}</span>
+          <span className="company-sep" aria-hidden="true" />
+        </>
+      )}
       <span className="company-body">
         {kind.id !== "venture" && (
           <span className="company-kind">
@@ -40,9 +81,10 @@ function VentureItem({ v }: { v: CardData["ventures"][number] }) {
         <span className="company-name">{v.name}</span>
         {v.description?.trim() && <span className="company-desc">{v.description.trim()}</span>}
       </span>
+      {isPdf && <PdfIcon />}
       {v.url && (
         <span className="company-go" aria-hidden="true">
-          ↗
+          ›
         </span>
       )}
     </>
@@ -52,13 +94,45 @@ function VentureItem({ v }: { v: CardData["ventures"][number] }) {
     <article className={`company kind-${kind.id}${cover ? " has-cover" : ""}`}>
       {cover && <div className="company-cover">{img}</div>}
       {v.url ? (
-        <a className="company-row" href={href(v.url)} target="_blank" rel="noopener noreferrer" aria-label={`${kind.cta(v.name)} (opens in a new tab)`}>
+        <a className="company-row" href={href(v.url)} target="_blank" rel="noopener noreferrer" aria-label={`${kind.cta(v.name)} (opens in a new tab)`} onClick={onOpen}>
           {body}
         </a>
       ) : (
         <div className="company-row">{body}</div>
       )}
     </article>
+  );
+}
+
+/** Dial code → country for the flag. Shared codes go to their most common country. */
+const DIAL_DEFAULT: Record<string, string> = { "+1": "us", "+7": "ru", "+44": "gb", "+61": "au", "+39": "it" };
+function flagIso(dialCode: string): string | null {
+  const d = dialCode.trim().startsWith("+") ? dialCode.trim() : `+${dialCode.trim()}`;
+  if (DIAL_DEFAULT[d]) return DIAL_DEFAULT[d];
+  return defaultCountries.find((x) => x.dialCode === d)?.code.toLowerCase() ?? null;
+}
+
+/** A tap-to-call tile: flag, number, "Click to call directly", call icon. */
+function PhoneTile({ code, number, tel, label, onClick }: { code: string; number: string; tel: string; label?: string; onClick?: () => void }) {
+  const iso = flagIso(code);
+  const [flagOk, setFlagOk] = useState(true);
+  return (
+    <a className="phone-tile" href={`tel:${tel}`} aria-label={`Call ${code} ${number}`} onClick={onClick}>
+      {iso && flagOk ? (
+        <img className="phone-flag" src={`https://flagcdn.com/${iso}.svg`} alt="" width={22} height={16} loading="lazy" onError={() => setFlagOk(false)} />
+      ) : (
+        <span className="phone-flag phone-flag-text">{code}</span>
+      )}
+      <span className="phone-text">
+        <span className="phone-num">
+          {code} {number}
+        </span>
+        <span className="phone-sub">{label ? `${label} · Click to call` : "Click to call directly"}</span>
+      </span>
+      <span className="phone-ico" aria-hidden="true">
+        <Phone size={13} />
+      </span>
+    </a>
   );
 }
 
@@ -98,7 +172,7 @@ export function LinkIcon({ type }: { type: SocialType }) {
 
 const socialLabel = (s: Social) => SOCIAL_TYPES.find((t) => t.value === s.type)?.label ?? s.type;
 const socialSub = (s: Social) =>
-  s.username.trim() ? (s.type === "website" ? s.username : `@${s.username.trim().replace(/^@/, "")}`) : host(s.url);
+  s.username.trim() ? (s.type === "website" ? shortLink(s.username) : `@${s.username.trim().replace(/^@/, "")}`) : shortLink(s.url);
 
 /** Accent colour → CSS vars, keeping button text readable on light/white accents
  *  (the API default colour is #ffffff). */
@@ -127,7 +201,13 @@ export default function CardView({
   inlineAgent = true,
   agentUserId,
   tier,
+  foundingMember = false,
+  trackSlug,
 }: {
+  /** Public page only: send visitor taps to the owner's Monitoring. */
+  trackSlug?: string;
+  /** Shows the small "Founding Member" badge (cards created under the offer). */
+  foundingMember?: boolean;
   card: CardData;
   wide?: boolean;
   shareUrl?: string;
@@ -147,6 +227,15 @@ export default function CardView({
   slug?: string;
 }) {
   const [imgBroken, setImgBroken] = useState(false);
+  // The Prestige look sets names in Playfair Display; load it once, only when needed.
+  useEffect(() => {
+    if (tier !== "prestige" || document.getElementById("prestige-font")) return;
+    const l = document.createElement("link");
+    l.id = "prestige-font";
+    l.rel = "stylesheet";
+    l.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&display=swap";
+    document.head.appendChild(l);
+  }, [tier]);
   const [saveOpen, setSaveOpen] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
   const closePay = useCallback(() => setPayOpen(false), []);
@@ -155,10 +244,39 @@ export default function CardView({
   const tel = fullPhone(c);
   const waNumber = tel.replace(/\D/g, "");
   const payMethods = visiblePayMethods(c.payment_methods);
+  const track = (type: CardEventType) => trackCardEvent(trackSlug, type);
+  // The featured button: the owner’s pick when that action exists on the card, else My AI.
+  const available: Record<CardHighlight, boolean> = {
+    ai: !!c.agent_id,
+    whatsapp: !!tel && c.is_whatsapp_number,
+    email: !!c.email,
+    pay: payMethods.length > 0,
+    save: true,
+  };
+  const featured: CardHighlight | null = c.highlight && available[c.highlight] ? c.highlight : available.ai ? "ai" : null;
+  const firstName = c.full_name.trim().split(/s+/)[0] || "me";
+  const BANNERS: Record<CardHighlight, { icon: ReactNode; title: string; sub: string }> = {
+    ai: { icon: <Sparkles size={20} />, title: "Talk to My AI Manager", sub: "Get answers about me, my work and my ventures" },
+    whatsapp: { icon: <WhatsAppIcon mono size={21} />, title: "Message me on WhatsApp", sub: "Start a chat with me directly" },
+    email: { icon: <Mail size={20} />, title: "Email me", sub: c.email },
+    pay: { icon: <Wallet size={20} />, title: "Pay Me", sub: "Pay me securely using your preferred payment method" },
+    save: { icon: <UserPlus size={20} />, title: "Save my contact", sub: `Add ${firstName} to your phone in one tap` },
+  };
+  const agentHref = `${PUBLIC_APP_URL}/MyAIEmployee/${encodeURIComponent(c.agent_id)}`;
+  // Open the chat widget right here; Ctrl/Cmd/Shift/middle-click still opens the agent page.
+  const openAgent = async (e: MouseEvent<HTMLAnchorElement>) => {
+    track("ask_ai");
+    if (!inlineAgent || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+    e.preventDefault();
+    if (aiLoading) return;
+    const href = e.currentTarget.href;
+    setAiLoading(true);
+    const ok = await openCardAgent(c.agent_id, agentUserId);
+    setAiLoading(false);
+    if (!ok) window.open(href, "_blank", "noopener,noreferrer"); // widget unavailable → the agent page
+  };
   const extraPhones = (c.additional_phones ?? []).map((p) => ({ p, num: fullPhone(p) })).filter((x) => x.num);
   const socials = c.social_media.map((s) => ({ s, url: socialUrl(s) })).filter((x) => x.url);
-  // LinkedIn also gets a quick-action button, but stays in the list so every added link shows there.
-  const linkedin = socials.find((x) => x.s.type === "linkedin");
   const connect = socials;
   const ventures = c.ventures.filter((v) => v.name.trim());
   const companies = ventures.filter((v) => ventureKind(v.type).id === "venture");
@@ -193,6 +311,11 @@ export default function CardView({
           )}
         </div>
         <div className="hero-text">
+        {foundingMember && (
+          <span className="founding-badge">
+            <Star size={10} aria-hidden="true" /> Founding Member
+          </span>
+        )}
         <h1 className={!c.full_name ? "ph-text" : undefined}>{c.full_name || "Your name"}</h1>
         {c.job_title || c.company_name ? (
           <p className="role">{[c.job_title, c.company_name].filter(Boolean).join(", ")}</p>
@@ -215,60 +338,106 @@ export default function CardView({
         </div>
       </header>
 
-      <nav className="actions" aria-label="Contact actions">
-        {tel && <a className="action" href={`tel:${tel}`}><Phone size={15} /> Call</a>}
-        {c.agent_id && (
-          <a
-            className="action"
-            href={`${PUBLIC_APP_URL}/MyAIEmployee/${encodeURIComponent(c.agent_id)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-busy={aiLoading}
-            onClick={async (e) => {
-              // Open the chat widget right here; Ctrl/Cmd/Shift/middle-click still opens the agent page.
-              if (!inlineAgent || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
-              e.preventDefault();
-              if (aiLoading) return;
-              const href = e.currentTarget.href;
-              setAiLoading(true);
-              const ok = await openCardAgent(c.agent_id, agentUserId);
-              setAiLoading(false);
-              if (!ok) window.open(href, "_blank", "noopener,noreferrer"); // widget unavailable → the agent page
-            }}
-          >
-            <Sparkles size={15} /> {aiLoading ? "Connecting…" : "Ask My AI"}
+      {/* Numbers: one tap-to-call tile each (primary first) */}
+      {(tel || extraPhones.length > 0) && (
+        <div className={`phones${(tel ? 1 : 0) + extraPhones.length === 1 ? " one" : ""}`} aria-label="Phone numbers">
+          {tel && <PhoneTile code={c.country_code} number={c.phone_number} tel={tel} onClick={() => track("call")} />}
+          {extraPhones.map(({ p, num }, i) => (
+            <PhoneTile
+              key={i}
+              code={p.country_code}
+              number={p.phone_number}
+              tel={num}
+              onClick={() => track("call")}
+              label={p.label !== "mobile" ? PHONE_LABELS.find((l) => l.value === p.label)?.label : undefined}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Featured button: the action the owner picked (My AI by default) */}
+      {featured &&
+        (() => {
+          const b = BANNERS[featured];
+          const inner = (
+            <>
+              <span className="ai-spark" aria-hidden="true">
+                {b.icon}
+              </span>
+              <span className="ai-div" aria-hidden="true" />
+              <span className="ai-text">
+                <span className="ai-title">{featured === "ai" && aiLoading ? "Connecting…" : b.title}</span>
+                <span className="ai-sub">{b.sub}</span>
+              </span>
+              <span className="ai-go" aria-hidden="true">
+                <ArrowRight size={15} />
+              </span>
+            </>
+          );
+          if (featured === "ai")
+            return (
+              <a className="ai-banner" href={agentHref} target="_blank" rel="noopener noreferrer" aria-busy={aiLoading} onClick={openAgent}>
+                {inner}
+              </a>
+            );
+          if (featured === "whatsapp")
+            return (
+              <a className="ai-banner" href={`https://wa.me/${waNumber}`} target="_blank" rel="noopener noreferrer" onClick={() => track("whatsapp")}>
+                {inner}
+              </a>
+            );
+          if (featured === "email")
+            return (
+              <a className="ai-banner" href={`mailto:${c.email}`} onClick={() => track("email")}>
+                {inner}
+              </a>
+            );
+          if (featured === "pay")
+            return (
+              <button type="button" className="ai-banner" onClick={() => (track("pay"), setPayOpen(true))}>
+                {inner}
+              </button>
+            );
+          return (
+            <button type="button" className="ai-banner" disabled={!c.full_name} onClick={() => setSaveOpen(true)}>
+              {inner}
+            </button>
+          );
+        })()}
+
+      {/* Quick actions: everything else, icon over label */}
+      <nav className="quick" aria-label="Contact actions">
+        {available.ai && featured !== "ai" && (
+          <a className="quick-btn" href={agentHref} target="_blank" rel="noopener noreferrer" aria-busy={aiLoading} onClick={openAgent}>
+            <Sparkles size={20} strokeWidth={1.7} />
+            {aiLoading ? "Connecting…" : "My AI"}
           </a>
         )}
-        {tel && c.is_whatsapp_number && (
-          <a className="action" href={`https://wa.me/${waNumber}`} target="_blank" rel="noopener noreferrer"><WhatsAppIcon /> WhatsApp</a>
+        {available.whatsapp && featured !== "whatsapp" && (
+          <a className="quick-btn" href={`https://wa.me/${waNumber}`} target="_blank" rel="noopener noreferrer" onClick={() => track("whatsapp")}>
+            <WhatsAppIcon mono size={20} />
+            WhatsApp
+          </a>
         )}
-        {payMethods.length > 0 && (
-          <button className="action pay" type="button" onClick={() => setPayOpen(true)}><Wallet size={15} /> Pay Me</button>
+        {available.email && featured !== "email" && (
+          <a className="quick-btn" href={`mailto:${c.email}`} onClick={() => track("email")}>
+            <Mail size={20} strokeWidth={1.7} />
+            Email
+          </a>
         )}
-        {c.email && <a className="action light" href={`mailto:${c.email}`}><GmailIcon /> Email</a>}
-        {linkedin && <a className="action light" href={linkedin.url} target="_blank" rel="noopener noreferrer"><Linkedin size={15} /> LinkedIn</a>}
-        <button className="action save" type="button" disabled={!c.full_name} onClick={() => setSaveOpen(true)}><UserPlus size={15} /> Save Contact</button>
+        {available.pay && featured !== "pay" && (
+          <button className="quick-btn" type="button" onClick={() => (track("pay"), setPayOpen(true))}>
+            <Wallet size={20} strokeWidth={1.7} />
+            Pay Me
+          </button>
+        )}
+        {featured !== "save" && (
+          <button className="quick-btn" type="button" disabled={!c.full_name} onClick={() => setSaveOpen(true)}>
+            <UserPlus size={20} strokeWidth={1.7} />
+            Save Contact
+          </button>
+        )}
       </nav>
-      {extraPhones.length > 0 && (
-        <ul className="xphones" aria-label="More phone numbers">
-          {extraPhones.map(({ p, num }, i) => (
-            <li key={i}>
-              <a className="xphones-call" href={`tel:${num}`}>
-                <span className="xphones-icon"><Phone size={14} /></span>
-                <span>
-                  <span className="xphones-label">{PHONE_LABELS.find((l) => l.value === p.label)?.label ?? "Phone"}</span>
-                  <span className="xphones-num">{p.country_code} {p.phone_number}</span>
-                </span>
-              </a>
-              {p.is_whatsapp_number && (
-                <a className="xphones-wa" href={`https://wa.me/${num.replace(/\D/g, "")}`} target="_blank" rel="noopener noreferrer" aria-label={`WhatsApp ${p.country_code} ${p.phone_number}`}>
-                  <WhatsAppIcon />
-                </a>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
       {placeholders && !tel && !c.email && (
         <p className="ph-hint">Add your phone and email to show Call, WhatsApp and Email buttons here.</p>
       )}
@@ -291,55 +460,58 @@ export default function CardView({
           <div className="section-head"><h2>Connect</h2><span className="section-note">Across platforms</span></div>
           <div className="link-list">
             {c.website && (
-              <a href={href(c.website)} target="_blank" rel="noopener noreferrer">
-                <span className="link-main"><LinkIcon type="website" /><span><span className="link-title">Website</span><span className="link-sub">{host(c.website)}</span></span></span><span className="arrow">↗</span>
+              <a href={href(c.website)} target="_blank" rel="noopener noreferrer" onClick={() => track("link")}>
+                <span className="link-main"><LinkIcon type="website" /><span><span className="link-title">Website</span><span className="link-sub">{shortLink(c.website)}</span></span></span><span className="arrow">›</span>
               </a>
             )}
             {connect.map(({ s, url }, i) => (
-              <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                <span className="link-main"><LinkIcon type={s.type} /><span><span className="link-title">{socialLabel(s)}</span><span className="link-sub">{socialSub(s)}</span></span></span><span className="arrow">↗</span>
+              <a key={i} href={url} target="_blank" rel="noopener noreferrer" onClick={() => track(s.type === "linkedin" ? "linkedin" : "link")}>
+                <span className="link-main"><LinkIcon type={s.type} /><span><span className="link-title">{socialLabel(s)}</span><span className="link-sub">{socialSub(s)}</span></span></span><span className="arrow">›</span>
               </a>
             ))}
           </div>
         </section>
       )}
 
-      {companies.length > 0 && (
+      {ventures.length > 0 && (
         <section className="section">
-          <div className="section-head"><h2>Ventures</h2><span className="section-note">What I’m building</span></div>
-          {companies.map((v, i) => (
-            <VentureItem key={i} v={v} />
-          ))}
-        </section>
-      )}
-
-      {resources.length > 0 && (
-        <section className="section">
-          <div className="section-head"><h2>Catalogs &amp; documents</h2><span className="section-note">Take a look</span></div>
-          {resources.map((v, i) => (
-            <VentureItem key={i} v={v} />
-          ))}
+          <div className="section-head"><h2>What I’m building</h2><span className="section-note">Projects, products and resources</span></div>
+          <div className="build-list">
+            {[...companies, ...resources].map((v, i) => (
+              <VentureItem key={i} v={v} onOpen={() => track("link")} />
+            ))}
+          </div>
         </section>
       )}
 
       </div>
       </div>
 
-      <footer className="footer"><strong>{(c.full_name || "YOUR NAME").toUpperCase()}</strong><span>{c.company_name || "Digital card"}</span></footer>
+      <footer className="footer">
+        <span className="footer-id">
+          <strong>{(c.full_name || "YOUR NAME").toUpperCase()}</strong>
+          <span>{[c.job_title, c.company_name].filter(Boolean).join(", ") || "Digital card"}</span>
+        </span>
+        {poweredBy && (
+          <span className="footer-powered">
+            Powered by{" "}
+            <a href="https://www.callshivai.com" target="_blank" rel="noopener noreferrer">
+              <strong>ShivAI</strong>
+            </a>
+          </span>
+        )}
+      </footer>
       {createCardHref && (
         <a className="make-cta" href={createCardHref}>
-          <span className="make-cta-text">Create your own digital card</span>
+          <span className="make-cta-text">
+            {foundingOfferActive() ? `Create your own digital card — free for life before ${FOUNDING_SHORT}` : "Create your own digital card"}
+          </span>
           <span className="make-cta-arrow" aria-hidden="true">→</span>
         </a>
       )}
-      {poweredBy && (
-        <p className="powered">
-          Powered by <a href="https://www.callshivai.com" target="_blank" rel="noopener noreferrer"><strong>ShivAI</strong></a>
-        </p>
-      )}
       {payOpen && <PayMeSheet name={c.full_name} slug={slug} methods={payMethods} onClose={closePay} />}
       {saveOpen && (
-        <SaveContactSheet name={c.full_name} slug={slug} onSaveToPhone={() => downloadVCard(c, socialUrl)} onClose={closeSave} />
+        <SaveContactSheet name={c.full_name} slug={slug} onSaveToPhone={() => (track("save_contact"), downloadVCard(c, socialUrl))} onClose={closeSave} />
       )}
     </main>
   );

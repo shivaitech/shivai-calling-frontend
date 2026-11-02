@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { ArrowRight, BadgePercent, CheckCircle2, Infinity as InfinityIcon, Sparkles } from "lucide-react";
 import PlanCardPreview from "../ClientDashboard/apps/DigitalCard/PlanCardPreview";
+import { FOUNDING_OFFER_LABEL, isFoundingFree } from "./foundingOffer";
 
 /** Digital card plans for the marketing page. Prices are the business's figures; savings are computed, not rounded up. */
 
 export type PlanId = "essential" | "signature" | "prestige";
+
+export { FOUNDING_OFFER_ENDS, FOUNDING_OFFER_LABEL, foundingOfferActive, isFoundingFree } from "./foundingOffer";
 export type Billing = "annual" | "monthly";
 
 export interface Plan {
@@ -59,10 +62,10 @@ export const PLANS: Plan[] = [
     name: "Signature",
     pitch: "More than a digital card. Your AI Business Manager helps turn interest into meaningful conversations.",
     adds: "+ AI Business Manager · Signature silver badge",
-    monthly: 14.99,
-    monthlyWas: 14.99,
-    yearly: 107.92,
-    yearlyPerMonth: 8.99,
+    monthly: 24.99,
+    monthlyWas: 24.99,
+    yearly: 179.93,
+    yearlyPerMonth: 14.99,
     listTitle: "Everything in Essential, plus",
     features: [
       { text: "Create up to 2 digital business cards" },
@@ -83,10 +86,10 @@ export const PLANS: Plan[] = [
     name: "Prestige",
     pitch: "A distinguished professional identity, two AI managers and exclusive privileges for those who expect more.",
     adds: "+ AI Personal Manager · gold identity · ShivAI badge · quarterly rewards",
-    monthly: 44.99,
-    monthlyWas: 44.99,
-    yearly: 323.88,
-    yearlyPerMonth: 26.99,
+    monthly: 49.99,
+    monthlyWas: 49.99,
+    yearly: 359.93,
+    yearlyPerMonth: 29.99,
     listTitle: "Everything in Signature, plus",
     features: [
       { text: "AI Business Manager and AI Personal Manager" },
@@ -142,17 +145,16 @@ function PlanCard({
   plan,
   billing,
   onBilling,
-  signedIn,
   onChoose,
 }: {
   plan: Plan;
   billing: Billing;
   onBilling: (b: Billing) => void;
-  signedIn: boolean;
   onChoose: (id: PlanId, billing: Billing) => void;
 }) {
   const gold = !!plan.premium;
   const popular = plan.id === "signature";
+  const founding = isFoundingFree(plan.id);
   const annual = billing === "annual";
   const saving = yearlySaving(plan);
 
@@ -166,6 +168,11 @@ function PlanCard({
             : "border-slate-200 bg-white shadow-sm"
       }`}
     >
+      {founding && (
+        <span className="absolute -top-3 left-6 z-10 inline-flex items-center gap-1 rounded-full bg-emerald-600 px-3 py-1 text-[11px] font-semibold text-white shadow-sm">
+          <Sparkles className="h-3 w-3" /> Founding Member offer · until 31 Dec 2026
+        </span>
+      )}
       {popular && (
         <span className="absolute -top-3 left-6 z-10 inline-flex items-center gap-1 rounded-full bg-slate-900 px-3 py-1 text-[11px] font-semibold text-white shadow-sm">
           <Sparkles className="h-3 w-3" /> Most popular
@@ -190,7 +197,17 @@ function PlanCard({
 
       {/* Price — fixed height so the three cards line up on either billing */}
       <div className="mt-5 min-h-[124px]" aria-live="polite">
-        {annual ? (
+        {founding ? (
+          <>
+            <p className="text-[34px] leading-none font-extrabold uppercase tracking-tight text-emerald-600">Free for life</p>
+            <p className="mt-2.5 text-sm text-slate-400">
+              <s className="tabular-nums">Regularly {money(plan.monthlyWas)}/month</s>
+            </p>
+            <p className="mt-2 text-[13px] font-medium leading-snug text-emerald-700">
+              Create your card by {FOUNDING_OFFER_LABEL} and keep Essential free for life.
+            </p>
+          </>
+        ) : annual ? (
           <>
             <p className="flex items-center gap-2 text-sm">
               <s className="tabular-nums text-slate-400">{money(plan.monthlyWas)}/mo</s>
@@ -232,11 +249,16 @@ function PlanCard({
         }`}
         style={gold ? { background: "linear-gradient(135deg,#c9a24d,#a8822f)" } : undefined}
       >
-        {plan.cta}
+        {founding ? "Create my free card" : plan.cta}
       </button>
       <p className="mt-2.5 text-center text-xs text-slate-500">
-        {signedIn ? `${annual ? "Annual" : "Monthly"} billing selected.` : "No account needed to start. You'll sign up when you save your card."}
+        {founding ? `Founding Member offer. Available until ${FOUNDING_OFFER_LABEL}.` : `${annual ? "Annual" : "Monthly"} billing selected.`}
       </p>
+      {founding && (
+        <p className="mt-1 text-center text-[11px] leading-snug text-slate-400">
+          Free for life covers the Essential plan only, not future paid upgrades or add-ons.
+        </p>
+      )}
 
       <div className="my-5 h-px bg-slate-200/80" />
 
@@ -266,10 +288,10 @@ function PlanCard({
 }
 
 export default function DigitalCardPricing({
-  signedIn,
   onChoose,
 }: {
-  signedIn: boolean;
+  /** Accepted for existing callers; the plan cards read the same either way. */
+  signedIn?: boolean;
   onChoose: (plan: PlanId, billing: Billing) => void;
 }) {
   const [billing, setBilling] = useState<Billing>("annual");
@@ -340,7 +362,7 @@ export default function DigitalCardPricing({
 
         <div className="mt-10 grid gap-6 lg:grid-cols-3 items-stretch">
           {PLANS.map((p) => (
-            <PlanCard key={p.id} plan={p} billing={billing} onBilling={setBilling} signedIn={signedIn} onChoose={onChoose} />
+            <PlanCard key={p.id} plan={p} billing={billing} onBilling={setBilling} onChoose={onChoose} />
           ))}
         </div>
 
