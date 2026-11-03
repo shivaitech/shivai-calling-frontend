@@ -100,7 +100,7 @@ export default function Billing() {
 
   const planParam = params.get("plan") as PlanId | null;
   const preselect =
-    planParam && PLAN_IDS.includes(planParam) ? { plan: planParam, billing: (params.get("billing") === "annual" ? "annual" : "monthly") as Cycle } : null;
+    planParam && PLAN_IDS.includes(planParam) ? { plan: planParam, billing: (params.get("billing") === "monthly" ? "monthly" : "annual") as Cycle } : null;
   const checkout = params.get("checkout");
   const checkoutResult = checkout === "success" || checkout === "cancelled" ? checkout : null;
 

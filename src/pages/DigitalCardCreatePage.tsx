@@ -18,6 +18,7 @@ import { BusinessCardError, businessCardAPI } from "../services/businessCardAPI"
 import { DIGITAL_CARD_CREATE } from "./digitalCardRoutes";
 import CreatePlanPicker from "./digitalCardCreatePlan";
 import { foundingOfferActive, isFoundingFree } from "./foundingOffer";
+import { complimentaryPlan, complimentarySavePlan } from "./complimentaryPlans";
 import { PLANS, type PlanId } from "./digitalCardPricing";
 import "../ClientDashboard/apps/DigitalCard/digitalCard.css";
 
@@ -41,7 +42,7 @@ const paidPlanQuery = (params: URLSearchParams): Record<string, string> => {
 export default function DigitalCardCreatePage() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   const { agents, isLoading: agentsLoading, refreshAgents } = useAgent();
   const { install } = useInstalledApps();
 
@@ -54,6 +55,11 @@ export default function DigitalCardCreatePage() {
   const chosenPlan = (chosen.plan as PlanId | undefined) ?? null;
   const chosenBilling = chosen.billing === "monthly" ? "monthly" : "annual";
   const chosenPlanInfo = PLANS.find((p) => p.id === chosenPlan);
+  // Complimentary accounts: their plan (or Signature, if picked) with no payment step.
+  const comp = complimentaryPlan(user?.email);
+  const compPlan = complimentarySavePlan(comp, chosenPlan);
+  const lookTier = compPlan ?? chosenPlan ?? undefined;
+  const needsPayment = !comp && !!chosenPlan && !isFoundingFree(chosenPlan);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const step: "edit" | "review" = params.get("step") === "review" ? "review" : "edit";
@@ -136,7 +142,7 @@ export default function DigitalCardCreatePage() {
     setSaving(true);
     try {
       const ready = await resolveCardImages(form); // uploads a locally-picked photo/logos first
-      await businessCardAPI.create(ready);
+      await businessCardAPI.create(ready, { plan: compPlan });
       created.current = true;
       clearDraft();
       // Shows as installed immediately (the app page sends non-installers to the marketplace);
@@ -146,7 +152,7 @@ export default function DigitalCardCreatePage() {
       // A paid plan chosen on the pricing page → finish it on the card's billing page.
       const plan = paidPlanQuery(params);
       navigate(
-        plan.plan && !isFoundingFree(plan.plan) ? `/billing?${new URLSearchParams({ view: "apps", app: "digital-card", ...plan })}` : "/app/digital-card?section=cards",
+        needsPayment ? `/billing?${new URLSearchParams({ view: "apps", app: "digital-card", ...plan })}` : "/app/digital-card?section=cards",
         { replace: true },
       );
     } catch (e: any) {
@@ -201,6 +207,10 @@ export default function DigitalCardCreatePage() {
               setParams(next, { replace: true });
             }}
           />
+        ) : compPlan ? (
+          <p className="mb-6 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+            Plan: <strong className="text-slate-900">{PLANS.find((p) => p.id === compPlan)?.name}</strong> · Free on your account. No payment needed.
+          </p>
         ) : (
           chosenPlan && (
             <p className="mb-6 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
@@ -234,7 +244,7 @@ export default function DigitalCardCreatePage() {
                 </div>
               </div>
               <aside className="preview">
-                <div className="phone-frame"><CardView card={form} placeholders tier={chosenPlan ?? undefined} foundingMember={foundingOfferActive() && (!chosenPlan || chosenPlan === "essential")} /></div>
+                <div className="phone-frame"><CardView card={form} placeholders tier={lookTier} foundingMember={foundingOfferActive() && !comp && (!chosenPlan || chosenPlan === "essential")} /></div>
               </aside>
             </div>
           ) : (
@@ -247,13 +257,13 @@ export default function DigitalCardCreatePage() {
                     Digital Business Card → My Cards.
                   </p>
                   <div className="btns">
-                    <button className="btn" disabled={saving} onClick={saveCard}>{saving ? "Saving…" : chosenPlan && !isFoundingFree(chosenPlan) ? "Save card & continue to payment" : "Save card"}</button>
+                    <button className="btn" disabled={saving} onClick={saveCard}>{saving ? "Saving…" : needsPayment ? "Save card & continue to payment" : "Save card"}</button>
                     <button className="btn ghost" disabled={saving} onClick={() => goStep("edit")}>← Edit details</button>
                   </div>
                 </section>
               </div>
               <aside className="preview">
-                <div className="phone-frame"><CardView card={form} tier={chosenPlan ?? undefined} /></div>
+                <div className="phone-frame"><CardView card={form} tier={lookTier} /></div>
               </aside>
             </div>
           )}

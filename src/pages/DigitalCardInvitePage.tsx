@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useCallback, useEffect, useState } from "react";
-import { Check, ChevronDown, QrCode as QrCodeIcon } from "lucide-react";
+import { Check, ChevronDown, PenLine, QrCode as QrCodeIcon, Send, Sparkles } from "lucide-react";
 import { useInlineAuth } from "../hooks/useInlineAuth";
 import AuthModel from "../components/AuthModel";
 import SEO from "../components/SEO";
@@ -33,13 +33,13 @@ const btnSecondary =
 // ── Card-on-a-surface + feature-window helpers ─────────────────────────────
 
 /** The realistic "card sitting on a surface" presentation — a tilted CardView
- *  over a textured background, used for the hero and the full showcase. */
+ *  over a textured background, shown in the Prestige look (the best we offer). */
 function CardOnSurface({ className = "", tilt = true }: { className?: string; tilt?: boolean }) {
   return (
     <div className={`dc card-surface ${className}`}>
       <div className={tilt ? "card-tilt" : undefined}>
         <div className="phone-frame" style={{ pointerEvents: "none" }} aria-hidden="true">
-          <CardView card={DEMO} />
+          <CardView card={DEMO} tier="prestige" />
         </div>
       </div>
     </div>
@@ -338,19 +338,39 @@ export default function DigitalCardInvitePage() {
         <div className="max-w-5xl mx-auto px-6 sm:px-8 text-center">
           <Eyebrow>How it works</Eyebrow>
           <h2 className="mt-2 text-3xl sm:text-4xl font-semibold tracking-tight">Three steps. A few minutes.</h2>
-          <div className="mt-14 grid sm:grid-cols-3 gap-10 text-left">
+          <p className="mt-3 text-base text-slate-600 max-w-md mx-auto">No design skills, no sign-up to start. Most people are sharing their card in under five minutes.</p>
+          <ol className="mt-9 sm:mt-12 grid sm:grid-cols-3 gap-3 sm:gap-5 text-left">
             {[
-              { n: "1", title: "Build it", body: "Open the card builder — no sign-up needed to start filling it in." },
-              { n: "2", title: "Connect your AI (optional)", body: "Link a trained agent so visitors can talk to it directly." },
-              { n: "3", title: "Share it", body: "Save your account, get your link and QR code, send it anywhere." },
-            ].map(({ n, title, body }) => (
-              <div key={n}>
-                <span className="flex items-center justify-center w-10 h-10 rounded-full bg-slate-900 text-white text-sm font-semibold">{n}</span>
-                <h3 className="mt-4 text-base font-semibold text-slate-900">{title}</h3>
-                <p className="mt-1.5 text-sm text-slate-600">{body}</p>
-              </div>
+              { n: 1, icon: PenLine, title: "Build it", time: "About 2 min", body: "Open the card builder and fill it in. No sign-up needed to start." },
+              { n: 2, icon: Sparkles, title: "Connect your AI", optional: true, time: "1 min", body: "Link a trained agent so visitors can talk to it directly." },
+              { n: 3, icon: Send, title: "Share it", time: "Instant", body: "Save your account, get your link and QR code, and send it anywhere." },
+            ].map(({ n, icon: Icon, title, optional, time, body }) => (
+              <li
+                key={n}
+                className="flex sm:flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-slate-300 hover:shadow-[0_8px_24px_-12px_rgba(15,23,42,0.18)]"
+              >
+                <div className="flex shrink-0 items-center justify-between">
+                  <span className="flex items-center justify-center w-11 h-11 rounded-xl bg-slate-900 text-white">
+                    <Icon size={19} strokeWidth={2} aria-hidden="true" />
+                  </span>
+                  <span className="hidden sm:inline text-xs font-medium text-slate-400">{time}</span>
+                </div>
+                <div className="min-w-0">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                    Step {n}
+                    <span className="sm:hidden font-medium normal-case tracking-normal"> · {time}</span>
+                  </span>
+                  <h3 className="mt-1 flex flex-wrap items-center gap-2 text-base font-semibold text-slate-900">
+                    {title}
+                    {optional && (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">Optional</span>
+                    )}
+                  </h3>
+                  <p className="mt-1 text-sm leading-relaxed text-slate-600">{body}</p>
+                </div>
+              </li>
             ))}
-          </div>
+          </ol>
         </div>
       </section>
 

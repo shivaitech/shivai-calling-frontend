@@ -17,6 +17,8 @@ import { clearDraft, loadDraft, saveDraft } from "./draft";
 import { validateCard } from "./validate";
 import { type ImageKind, uploadPhoto } from "./photo";
 import { useAgent } from "../../../contexts/AgentContext";
+import { useAuth } from "../../../contexts/AuthContext";
+import { complimentaryPlan, complimentarySavePlan } from "../../../pages/complimentaryPlans";
 import {
   BusinessCard,
   BusinessCardError,
@@ -255,7 +257,18 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
   // "Preview as": the card in each plan's look. Starts on the account's own plan.
   const [currentTier, setCurrentTier] = useState<PlanTier>("essential");
   const [previewTier, setPreviewTier] = useState<PlanTier>("essential");
+  // Complimentary accounts: their plan without billing; the card's saved look (Signature) wins.
+  const { user } = useAuth();
+  const comp = complimentaryPlan(user?.email);
+  const savedPlan = saved?.plan;
   useEffect(() => {
+    if (!comp) return;
+    const tier = complimentarySavePlan(comp, savedPlan) ?? comp;
+    setCurrentTier(tier);
+    setPreviewTier(tier);
+  }, [comp, savedPlan]);
+  useEffect(() => {
+    if (comp) return;
     let live = true;
     cardBillingAPI
       .overview()
@@ -272,7 +285,7 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
     return () => {
       live = false;
     };
-  }, []);
+  }, [comp]);
   const set = (patch: CardPatch) => setForm((f) => ({ ...f, ...(typeof patch === "function" ? patch(f) : patch) }));
 
   // AgentProvider only auto-loads on agent-related routes (not /app/*).
@@ -328,9 +341,11 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
       return;
     }
     setSaving(true);
+    // Complimentary accounts save the look they're previewing (Prestige, or Signature).
+    const plan = complimentarySavePlan(comp, previewTier);
     try {
       if (isNew) {
-        const card = await businessCardAPI.create(form);
+        const card = await businessCardAPI.create(form, { plan });
         cardCache.set(card._id, card);
         created.current = true;
         clearDraft();
@@ -339,8 +354,9 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
       } else {
         // The username is set once, at creation: never send it on update.
         const { username: _username, ...changes } = toPayload(form);
-        const card = await businessCardAPI.update(id, changes);
+        const card = await businessCardAPI.update(id, changes, { plan });
         cardCache.set(card._id, card);
+        if (plan) setCurrentTier(plan);
         if (saved && card.slug !== saved.slug) setOldLink(cardLabel(saved));
         setSaved(card);
         setErrors({});
@@ -425,6 +441,7 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
         <PlanLookSwitcher
           value={previewTier}
           current={currentTier}
+          included={comp ?? undefined}
           onChange={setPreviewTier}
           onUpgrade={(tier) => {
             const next = new URLSearchParams(params);

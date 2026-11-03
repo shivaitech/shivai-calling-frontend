@@ -17,6 +17,8 @@ import {
   type SubStatus,
 } from "../../services/billingAPI";
 import CardPlanPicker, { toInterval } from "./CardPlanPicker";
+import { useAuth } from "../../contexts/AuthContext";
+import { complimentaryPlan } from "../../pages/complimentaryPlans";
 import { ItemIcon, Pill, fmtDate } from "./billingUi";
 
 /**
@@ -137,9 +139,22 @@ export default function CardBilling({
     void load();
   }, [load]);
 
-  // Back from Stripe. Only the webhook changes the plan, so poll the overview (every 2 s, ~30 s).
+  // Polling outlives the URL cleanup below, so it's stopped by unmount only.
+  const mounted = useRef(true);
   useEffect(() => {
-    if (!checkoutResult) return;
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const checkoutHandled = useRef(false);
+
+  // Back from Stripe. Only the webhook changes the plan, so poll the overview (every 2 s, ~30 s).
+  // onCheckoutHandled() strips ?checkout= from the URL, which flips checkoutResult back to null —
+  // so this must not stop on that change (it used to, leaving "Confirming your payment…" forever).
+  useEffect(() => {
+    if (!checkoutResult || checkoutHandled.current) return;
+    checkoutHandled.current = true;
     onCheckoutHandled();
     if (checkoutResult === "cancelled") {
       appToast.info("No payment was made.");
@@ -147,17 +162,16 @@ export default function CardBilling({
     }
     setConfirming(true);
     setProcessingNote("");
-    let stopped = false;
     let tries = 0;
     const tick = async () => {
-      if (stopped) return;
+      if (!mounted.current) return;
       let ov: Overview | null = null;
       try {
         ov = await cardBillingAPI.overview();
       } catch {
         /* keep polling */
       }
-      if (stopped) return;
+      if (!mounted.current) return;
       if (ov && (ov.status === "active" || ov.paid)) {
         setConfirming(false);
         await load();
@@ -173,16 +187,18 @@ export default function CardBilling({
       setTimeout(tick, 2000);
     };
     void tick();
-    return () => {
-      stopped = true;
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [checkoutResult]);
 
-  // A plan chosen on the pricing page / creator: bring the picker into view.
+  // A plan chosen on the pricing page / creator: bring the picker into view, once. (preselect is a
+  // new object every render, so keying on it scrolled the page on every keystroke and toggle.)
+  const preselectKey = preselect?.plan;
+  const scrolledFor = useRef<string | null>(null);
   useEffect(() => {
-    if (preselect && !loading) pickerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [preselect, loading]);
+    if (!preselectKey || loading || scrolledFor.current === preselectKey) return;
+    scrolledFor.current = preselectKey;
+    pickerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [preselectKey, loading]);
 
   const handleError = (e: BillingError, fallback?: () => void) => {
     if (e.status === 401) appToast.error("Your session has expired. Please sign in again.");
@@ -198,7 +214,11 @@ export default function CardBilling({
 
   const status: SubStatus = overview?.status ?? "free";
   const hasPaidPlan = !!overview?.plan && !overview.plan.is_free && !NOT_PAYING.includes(status);
-  const currentKey = hasPaidPlan ? overview!.plan!.key : "free";
+  // A plan given free to this account (complimentaryPlans.ts) — unless it's actually paying.
+  const { user } = useAuth();
+  const compKey = hasPaidPlan ? null : complimentaryPlan(user?.email);
+  const compName = compKey ? PLANS.find((p) => p.id === compKey)?.name ?? compKey : "";
+  const currentKey = hasPaidPlan ? overview!.plan!.key : compKey ?? "free";
   // Live plans when the API answers; otherwise the built-in ones (view only).
   const livePlans = !!plans?.plans?.length;
   const shownPlans = livePlans ? plans!.plans : FALLBACK_PLANS;
@@ -206,6 +226,7 @@ export default function CardBilling({
   const currency = overview?.price.currency || plans?.currency || "usd";
 
   const choose = async (plan: PlanCard) => {
+    if (compKey) return;
     const interval = toInterval(cycle);
     if (hasPaidPlan) {
       setChange({ plan, interval });
@@ -275,7 +296,11 @@ export default function CardBilling({
     }
   };
 
-  const pill = overview?.cancel_at_period_end && hasPaidPlan ? { label: "Ends soon", cls: STATUS.canceled.cls } : STATUS[status] ?? STATUS.free;
+  const pill = compKey
+    ? { label: "Complimentary", cls: STATUS.active.cls }
+    : overview?.cancel_at_period_end && hasPaidPlan
+      ? { label: "Ends soon", cls: STATUS.canceled.cls }
+      : STATUS[status] ?? STATUS.free;
   const pm = overview?.payment_method;
   const history = [...invoices].sort((a, b) => invoiceIso(b.created).localeCompare(invoiceIso(a.created)));
   const totalPaid = history.filter((i) => i.status === "paid").reduce((s, i) => s + (i.amount_paid || 0), 0);
@@ -320,7 +345,13 @@ export default function CardBilling({
                 {error} Plans are shown below; buying opens once billing loads.
               </Notice>
             )}
-            {!error && !paymentsOn && canPay && (
+            {compKey && (
+              <Notice tone="slate">
+                {compName} is free on your account. No payment needed: your cards get the {compName} look
+                {compKey === "prestige" ? " (or Signature, if you prefer it in the card editor)" : ""}.
+              </Notice>
+            )}
+            {!compKey && !error && !paymentsOn && canPay && (
               <Notice tone="amber">Card payments are being switched on. You're on the Free plan until then. Plans can be bought here as soon as it's live.</Notice>
             )}
             {!canPay && <Notice tone="slate">Admin and staff accounts can't buy plans. The plans below are shown for reference.</Notice>}
@@ -337,7 +368,7 @@ export default function CardBilling({
 
           {/* Current plan */}
           <dl className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <SummaryTile label="Current plan" value={hasPaidPlan ? overview!.plan!.name : "Free"} strong />
+            <SummaryTile label="Current plan" value={hasPaidPlan ? overview!.plan!.name : compKey ? compName : "Free"} strong />
             <SummaryTile
               label="Price"
               value={
@@ -346,6 +377,8 @@ export default function CardBilling({
                     {formatCents(overview.price.amount, currency)}
                     {overview.price.interval && <span className="text-xs font-medium text-slate-500"> / {overview.price.interval}</span>}
                   </>
+                ) : compKey ? (
+                  "Free"
                 ) : (
                   formatCents(0, currency)
                 )
@@ -443,6 +476,7 @@ export default function CardBilling({
                 preselectedKey={preselect?.plan}
                 pending={pending}
                 onChoose={(p) => void choose(p)}
+                complimentaryKey={compKey ?? undefined}
               />
             ) : (
               <p className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
@@ -451,7 +485,7 @@ export default function CardBilling({
             )}
 
             {/* Promo code — first payment only */}
-            {!hasPaidPlan && paymentsOn && canPay && livePlans && (
+            {!hasPaidPlan && !compKey && paymentsOn && canPay && livePlans && (
               <div className="mt-4">
                 {promoOpen ? (
                   <div className="max-w-sm">
