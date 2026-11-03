@@ -509,6 +509,8 @@ import AgentSkillsPanel from './agents/AgentSkillsPanel';
 import { formatAgentLanguages } from '../../lib/utils';
 import SearchableSelect from '../../components/SearchableSelect';
 import TTSVoiceSelector, { TTSVoiceSelectorValue, toTtsConfig } from '../../components/TTSVoiceSelector';
+import { GeminiVoiceOptions, defaultGeminiVoice, toGeminiVoice } from './agents/geminiVoices';
+import { canUseMultilingual as canUseMultilingualFor } from './agents/multilingualAccess';
 
 // Voice style → short instruction for voice_config.voice_instruction
 const VOICE_STYLE_SHORT_MAP: Record<string, string> = {
@@ -656,8 +658,7 @@ const EditAgent = () => {
   const navigate = useNavigate();
   const { currentAgent, setCurrentAgent, refreshAgents } = useAgent();
   const { user } = useAuth();
-  const MULTILINGUAL_ALLOWED_EMAILS = ['demo@callshivai.com', 'atharkatheri@gmail.com'];
-  const canUseMultilingual = MULTILINGUAL_ALLOWED_EMAILS.includes((user?.email || '').toLowerCase());
+  const canUseMultilingual = canUseMultilingualFor(user?.email);
   const canRegenerateTemplate = usePermission('module:employees.page:edit-agent.action:regenerate-template');
   const canImproveWithAI = usePermission('module:employees.page:edit-agent.action:improve-with-ai');
 
@@ -680,7 +681,7 @@ const EditAgent = () => {
     contextWindow: "Standard (8K tokens)",
     temperature: 0.7,
     countries: [] as string[],
-    realtimeVoice: "alloy",
+    realtimeVoice: defaultGeminiVoice(),
   });
 
   // Primary channel — how this agent communicates (Web widget / Inbound calls / Outbound calls)
@@ -976,7 +977,7 @@ const EditAgent = () => {
           contextWindow: mapContextWindow(agentData.context_window),
           temperature: agentData.temperature !== undefined ? agentData.temperature : 0.7,
           countries: Array.isArray((agentData as any).countries) ? (agentData as any).countries : [],
-          realtimeVoice: (agentData as any).multilingual_voice || "alloy",
+          realtimeVoice: toGeminiVoice((agentData as any).multilingual_voice, agentData.gender),
         });
         setAgentType((agentData as any).agent_type || "webrtc");
 
@@ -1532,21 +1533,6 @@ const EditAgent = () => {
     { value: "vi",     label: "Vietnamese",          flag: "🇻🇳", countryCodes: ["VN"] },
     { value: "id",     label: "Indonesian",          flag: "🇮🇩", countryCodes: ["ID"] },
   ];
-
-  const realtimeTTSVoices: Record<string, { value: string; label: string }[]> = {
-    female: [
-      { value: "alloy",   label: "Alloy" },
-      { value: "coral",   label: "Coral" },
-      { value: "sage",    label: "Sage" },
-      { value: "shimmer", label: "Shimmer" },
-    ],
-    male: [
-      { value: "ash",    label: "Ash" },
-      { value: "ballad", label: "Ballad" },
-      { value: "echo",   label: "Echo" },
-      { value: "verse",  label: "Verse" },
-    ],
-  };
 
   const ALL_COUNTRIES = [
     { code: "IN",  name: "India",                 flag: "🇮🇳" },
@@ -3655,15 +3641,12 @@ const EditAgent = () => {
                               ? prev.languages.filter((l) => l !== "multilingual")
                               : [...prev.languages, "multilingual"];
                             if (!isOn) {
-                              // Enabling multilingual: make sure realtimeVoice is a valid
-                              // option for the current gender so the visible pre-selection
-                              // matches what actually gets saved in multilingual_voice.
-                              const validVoices = realtimeTTSVoices[prev.gender] || realtimeTTSVoices.female;
-                              const isCurrentValid = validVoices.some((v) => v.value === prev.realtimeVoice);
+                              // Enabling multilingual: make sure realtimeVoice is a Gemini voice
+                              // so the visible pre-selection matches what gets saved in multilingual_voice.
                               return {
                                 ...prev,
                                 languages: newLangs,
-                                realtimeVoice: isCurrentValid ? prev.realtimeVoice : validVoices[0].value,
+                                realtimeVoice: toGeminiVoice(prev.realtimeVoice, prev.gender),
                               };
                             }
                             return { ...prev, languages: newLangs };
@@ -3698,9 +3681,7 @@ const EditAgent = () => {
                             onChange={(e) => setFormData({ ...formData, realtimeVoice: e.target.value })}
                             className="flex-1 py-1 bg-transparent text-sm text-slate-800 dark:text-white focus:outline-none"
                           >
-                            {(realtimeTTSVoices[formData.gender] || realtimeTTSVoices.female).map((v) => (
-                              <option key={v.value} value={v.value}>{v.label}</option>
-                            ))}
+                            <GeminiVoiceOptions gender={formData.gender} />
                           </select>
                         </div>
                       )}

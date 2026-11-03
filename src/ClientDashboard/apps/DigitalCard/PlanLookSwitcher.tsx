@@ -17,14 +17,17 @@ export default function PlanLookSwitcher({
   current,
   onChange,
   onUpgrade,
+  included,
 }: {
   value: PlanTier;
   /** The account's plan look today. */
   current: PlanTier;
   onChange: (tier: PlanTier) => void;
   onUpgrade: (tier: PlanTier) => void;
+  /** A complimentary plan: every look up to it is free to switch to (saved with the card). */
+  included?: PlanTier;
 }) {
-  const upgrade = RANK[value] > RANK[current];
+  const upgrade = RANK[value] > RANK[included ?? current];
   const name = LOOKS.find((l) => l.id === value)?.label ?? "";
   return (
     <div className="plook">
@@ -55,7 +58,11 @@ export default function PlanLookSwitcher({
           </button>
         </div>
       ) : (
-        <p className="plook-note">{value === current ? "This is how your card looks today." : `Your plan includes everything in ${name}.`}</p>
+        <p className="plook-note">{value === current
+            ? "This is how your card looks today."
+            : included && value !== "essential" && RANK[value] <= RANK[included]
+              ? `${name} is free on your account. Save to use this look.`
+              : `Your plan includes everything in ${name}.`}</p>
       )}
     </div>
   );

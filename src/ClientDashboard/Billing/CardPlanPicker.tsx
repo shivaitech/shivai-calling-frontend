@@ -31,6 +31,7 @@ export default function CardPlanPicker({
   preselectedKey,
   pending,
   onChoose,
+  complimentaryKey,
 }: {
   plans: PlanCard[];
   cycle: Cycle;
@@ -46,6 +47,8 @@ export default function CardPlanPicker({
   preselectedKey?: string;
   pending: string | null;
   onChoose: (plan: PlanCard) => void;
+  /** The account has this plan free (complimentary): it's marked current and nothing is for sale. */
+  complimentaryKey?: string;
 }) {
   const annual = cycle === "annual";
   const interval = toInterval(cycle);
@@ -112,7 +115,9 @@ export default function CardPlanPicker({
           // Founding Member offer: Essential is free (no checkout) — everyone not paying is on it.
           const founding = isFoundingFree(p.key);
           // Paid plans are "current" for their own period; switching period is a plan change.
-          const isCurrent = (onThisPlan && (p.is_free || !hasPaidPlan || currentInterval === interval)) || (founding && !hasPaidPlan);
+          const isCurrent = complimentaryKey
+            ? p.key === complimentaryKey
+            : (onThisPlan && (p.is_free || !hasPaidPlan || currentInterval === interval)) || (founding && !hasPaidPlan);
           const popular = p.key === "signature";
           const gold = p.key === "prestige";
           const picked = preselectedKey === p.key && !isCurrent;
@@ -121,7 +126,12 @@ export default function CardPlanPicker({
 
           let label = "";
           let disabled = false;
-          if (founding) {
+          if (complimentaryKey) {
+            // Free on this account: nothing to buy.
+            const tiers = ["essential", "signature", "prestige"];
+            label = p.key === complimentaryKey ? "Your plan · Free" : tiers.indexOf(p.key) < tiers.indexOf(complimentaryKey) ? "Included free" : "Not included";
+            disabled = true;
+          } else if (founding) {
             label = "Free for Founding Members";
             disabled = true;
           } else if (p.is_free) {

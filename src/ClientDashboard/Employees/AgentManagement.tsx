@@ -31,6 +31,7 @@ import { authAPI } from "../../services/authAPI";
 import { workflowAPI } from "../../services/workflowAPI";
 import AgentCardWorkflows from "./agents/AgentCardWorkflows";
 import QuickCreateAgentWizard from "./agents/QuickCreateAgentWizard";
+import { MULTILINGUAL_ALLOWED_EMAILS } from "./agents/multilingualAccess";
 import realAgentDataSource from "./agents/realAgentDataSource";
 import { loadWorkflowChipsForAgents } from "./agents/agentWorkflowSummary";
 import type { AgentWorkflowChip } from "./agents/AgentCardWorkflows";
@@ -2967,7 +2968,7 @@ const AgentManagement = () => {
           onClose={() => setShowQuickCreateModal(false)}
           onRequestOpen={() => setShowQuickCreateModal(true)}
           dataSource={realAgentDataSource}
-          publishAllowedEmails={PUBLISH_ALLOWED_EMAILS}
+          publishAllowedEmails={MULTILINGUAL_ALLOWED_EMAILS}
           userEmail={user?.email}
           isModalMinimized={isModalMinimized}
           setIsModalMinimized={setIsModalMinimized}

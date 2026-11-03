@@ -8,6 +8,7 @@ import TTSVoiceSelector, {
   TTSVoiceSelectorValue,
   toTtsConfig,
 } from "../../../components/TTSVoiceSelector";
+import { GeminiVoiceOptions, defaultGeminiVoice, toGeminiVoice } from "./geminiVoices";
 import {
   aiEmployeeTemplates,
   getMatchingTemplatesWithScore,
@@ -406,7 +407,7 @@ const QuickCreateAgentWizard = ({
 
   /** Multilingual Mode feature gate — was hardcoded inline 4x before extraction. */
   const isMultilingualAllowed = publishAllowedEmails.includes(
-    (userEmail || "").toLowerCase(),
+    (userEmail || "").trim().toLowerCase(),
   );
 
   // ── Wizard state ──────────────────────────────────────────────────────────
@@ -423,7 +424,7 @@ const QuickCreateAgentWizard = ({
     countries: [],
     languages: ["en-US"],
     voice: "Achernar",
-    realtimeVoice: "alloy",
+    realtimeVoice: defaultGeminiVoice(),
     voiceSpeed: 1.0,
     voiceStyle: "friendly",
     tts: {
@@ -662,22 +663,6 @@ const QuickCreateAgentWizard = ({
     setTemplateGenerationError(null);
     setBusinessProcessSlideIndex(0);
   }, [quickCreateData.agentType]);
-
-  // Realtime Preview API TTS voices (used when "multilingual" language is selected)
-  const realtimeTTSVoices = {
-    female: [
-      { value: "alloy",   label: "Alloy" },
-      { value: "coral",   label: "Coral" },
-      { value: "sage",    label: "Sage" },
-      { value: "shimmer", label: "Shimmer" },
-    ],
-    male: [
-      { value: "ash",     label: "Ash" },
-      { value: "ballad",  label: "Ballad" },
-      { value: "echo",    label: "Echo" },
-      { value: "verse",   label: "Verse" },
-    ],
-  };
 
   // Multilingual voices - these voices support non-English languages
   const multilingualVoices = {
@@ -1150,7 +1135,7 @@ const QuickCreateAgentWizard = ({
       countries: [],
       languages: ["en-US"],
       voice: "Achernar",
-      realtimeVoice: "alloy",
+      realtimeVoice: defaultGeminiVoice(),
       voiceSpeed: 1.0,
       voiceStyle: "friendly",
       tts: {
@@ -1509,7 +1494,7 @@ const QuickCreateAgentWizard = ({
         countries: quickCreateData.countries?.length ? quickCreateData.countries : undefined,
         voice: quickCreateData.tts.voice_id || quickCreateData.voice || "Achernar",
         tts: quickCreateData.tts.voice_id ? toTtsConfig(quickCreateData.tts) : undefined,
-        multilingual_voice: quickCreateData.languages.includes("multilingual") ? (quickCreateData.realtimeVoice || "alloy") : undefined,
+        multilingual_voice: quickCreateData.languages.includes("multilingual") ? toGeminiVoice(quickCreateData.realtimeVoice, quickCreateData.gender) : undefined,
         voice_config: {
           voice_instruction: voiceInstruction,
           voice_speed: clampedVoiceSpeed,
@@ -2307,9 +2292,7 @@ const QuickCreateAgentWizard = ({
                             onFocus={() => setRealtimeVoiceSelectOpen(true)}
                             onBlur={() => setRealtimeVoiceSelectOpen(false)}
                           >
-                            {realtimeTTSVoices[quickCreateData.gender as 'female' | 'male'].map(v => (
-                              <option key={v.value} value={v.value}>{v.label}</option>
-                            ))}
+                            <GeminiVoiceOptions gender={quickCreateData.gender} />
                           </select>
                         </div>
                       )}
