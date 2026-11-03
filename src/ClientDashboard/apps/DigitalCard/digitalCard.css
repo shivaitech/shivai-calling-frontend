@@ -969,6 +969,14 @@
 @media(min-width:900px){
   .dc .card.wide.tier-signature,.dc .card.wide.tier-prestige{width:min(100% - 80px,1080px);padding:40px 44px 48px}
 }
+/* Public page: framed tier cards float on the page instead of touching the top edge. */
+.dc-public .card.tier-signature,.dc-public .card.tier-prestige{margin-top:14px}
+@media(min-width:600px){
+  .dc-public .card.tier-signature,.dc-public .card.tier-prestige{margin-top:28px}
+}
+@media(min-width:900px){
+  .dc-public .card.tier-signature,.dc-public .card.tier-prestige{margin-top:44px}
+}
 
 /* Venture description — editor + card */
 .dc .ven-desc{position:relative}
@@ -1093,6 +1101,36 @@
 .dc .card.tier-prestige .ai-title{font-family:"Playfair Display",Georgia,"Times New Roman",serif;font-weight:600;font-size:18px;letter-spacing:-.1px}
 .dc .card.tier-prestige .ai-sub{color:#6b6150;opacity:1}
 .dc .card.tier-prestige .ai-go{border-color:#c9a24d;color:#a8822f;opacity:1}
+/* Featured button on Signature / Prestige: a glint of light travels round the button's edge,
+   corner to corner, and the sparkle twinkles. The glint is a conic gradient spun by a registered
+   angle, masked down to a thin ring over the border. */
+@property --ai-angle{syntax:"<angle>";inherits:false;initial-value:0deg}
+.dc .card.tier-signature .ai-banner,.dc .card.tier-prestige .ai-banner{position:relative;isolation:isolate}
+.dc .card.tier-signature .ai-banner > *,.dc .card.tier-prestige .ai-banner > *{position:relative;z-index:1}
+.dc .card.tier-signature .ai-banner::after,.dc .card.tier-prestige .ai-banner::after{
+  content:"";position:absolute;inset:-1px;z-index:2;pointer-events:none;
+  padding:1.5px;border-radius:17px;
+  background:conic-gradient(from var(--ai-angle),transparent 0deg,transparent 250deg,var(--glint) 300deg,var(--glint-hi) 330deg,var(--glint) 345deg,transparent 360deg);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;
+  mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);mask-composite:exclude;
+  filter:drop-shadow(0 0 3px var(--glint));
+  animation:ai-orbit 4.2s linear infinite
+}
+.dc .card.tier-signature .ai-banner{--glint:rgba(148,163,184,.9);--glint-hi:#ffffff}
+.dc .card.tier-prestige .ai-banner{--glint:rgba(201,162,74,.95);--glint-hi:#fff6d8}
+.dc .card.tier-signature .ai-spark,.dc .card.tier-prestige .ai-spark{animation:ai-twinkle 2.8s ease-in-out infinite}
+.dc .card.tier-prestige .ai-spark{filter:drop-shadow(0 0 0 rgba(217,178,90,0))}
+.dc .card.tier-prestige .ai-banner:hover{box-shadow:0 1px 0 #fff inset,0 16px 34px -16px rgba(120,90,30,.6)}
+@keyframes ai-orbit{to{--ai-angle:360deg}}
+@keyframes ai-twinkle{
+  0%,100%{transform:scale(1) rotate(0deg);filter:drop-shadow(0 0 0 rgba(217,178,90,0))}
+  50%{transform:scale(1.14) rotate(10deg);filter:drop-shadow(0 0 6px rgba(217,178,90,.55))}
+}
+@media(prefers-reduced-motion:reduce){
+  .dc .card.tier-signature .ai-banner::after,.dc .card.tier-prestige .ai-banner::after{animation:none;display:none}
+  .dc .card.tier-signature .ai-spark,.dc .card.tier-prestige .ai-spark{animation:none}
+}
 .dc .card.tier-prestige .quick-btn{color:#2a251b}
 .dc .card.tier-prestige .quick-btn + .quick-btn{border-left-color:#e6d6ac}
 .dc .card.tier-prestige .quick-btn:hover{background:rgba(217,178,90,.08)}
