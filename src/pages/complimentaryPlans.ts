@@ -11,6 +11,16 @@ const COMPLIMENTARY: Record<string, CardPlan> = {
 
 export const complimentaryPlan = (email?: string | null): CardPlan | null => COMPLIMENTARY[(email || "").trim().toLowerCase()] ?? null;
 
+/**
+ * The public card page doesn't know the owner, so complimentary accounts' cards are also listed
+ * by link (slug). Used only when the API doesn't send the card's plan.
+ */
+const COMPLIMENTARY_CARDS: Record<string, CardPlan> = {
+  raminder: "prestige", // rs@shivaitech.com
+};
+
+export const complimentaryCardPlan = (slug?: string | null): CardPlan | null => COMPLIMENTARY_CARDS[(slug || "").trim().toLowerCase()] ?? null;
+
 /** The plan to save for a complimentary account: the look they picked, if their plan includes it. */
 export function complimentarySavePlan(comp: CardPlan | null, picked?: string | null): CardPlan | undefined {
   if (!comp) return undefined;
