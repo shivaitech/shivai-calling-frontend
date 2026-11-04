@@ -853,8 +853,8 @@
 .dc .card.tier-prestige .topline{border-bottom-color:#e6d6ac}
 .dc .card.tier-prestige .wordmark{color:#2a251b;letter-spacing:2.4px}
 .dc .card.tier-prestige .portrait-wrap{border:2px solid #d9b25a;box-shadow:0 0 0 4px rgba(217,178,90,.16),0 12px 26px -10px rgba(120,90,30,.45);background:#efe4c8}
-.dc .card.tier-prestige .portrait.ph{background:linear-gradient(135deg,#f6e7bf,#d9b25a);color:#5a4416;font-family:"Playfair Display",Georgia,"Times New Roman",serif}
-.dc .card.tier-prestige h1{font-family:"Playfair Display",Georgia,"Times New Roman",serif;font-weight:600;letter-spacing:-.6px;color:#1d1a14}
+.dc .card.tier-prestige .portrait.ph{background:linear-gradient(135deg,#f6e7bf,#d9b25a);color:#5a4416;font-family:var(--prestige-serif)}
+.dc .card.tier-prestige h1{font-family:var(--prestige-serif);font-weight:600;letter-spacing:-.6px;color:#1d1a14}
 .dc .card.tier-prestige .role{color:#4a4336}
 .dc .card.tier-prestige .hero-rule{height:1px;background:linear-gradient(90deg,#d9b25a,rgba(217,178,90,.15))}
 .dc .card.tier-prestige .tagline{text-transform:none;letter-spacing:.1px;font-size:13px;line-height:1.55;color:#5c5446}
@@ -1098,7 +1098,7 @@
 }
 .dc .card.tier-prestige .ai-spark{color:#a8822f}
 .dc .card.tier-prestige .ai-div{background:#d9b25a;opacity:.7}
-.dc .card.tier-prestige .ai-title{font-family:"Playfair Display",Georgia,"Times New Roman",serif;font-weight:600;font-size:18px;letter-spacing:-.1px}
+.dc .card.tier-prestige .ai-title{font-family:var(--prestige-serif);font-weight:600;font-size:18px;letter-spacing:-.1px}
 .dc .card.tier-prestige .ai-sub{color:#6b6150;opacity:1}
 .dc .card.tier-prestige .ai-go{border-color:#c9a24d;color:#a8822f;opacity:1}
 /* Featured button on Signature / Prestige: a glint of light travels round the button's edge,
@@ -1135,17 +1135,17 @@
 .dc .card.tier-prestige .quick-btn + .quick-btn{border-left-color:#e6d6ac}
 .dc .card.tier-prestige .quick-btn:hover{background:rgba(217,178,90,.08)}
 .dc .card.tier-prestige .section-head h2{letter-spacing:2px}
-.dc .card.tier-prestige .section-note{font-family:"Playfair Display",Georgia,serif;font-style:italic;color:#8a7f6c}
+.dc .card.tier-prestige .section-note{font-family:var(--prestige-serif);font-style:italic;color:#8a7f6c}
 .dc .card.tier-prestige .link-ico,.dc .card.tier-prestige .link-ico.plain{background:#fffaf0!important;color:#a8822f;border:1px solid #ecdcb4}
 .dc .card.tier-prestige .link-list .arrow,.dc .card.tier-prestige .build-list .company-go{color:#b9a77d}
 .dc .card.tier-prestige .build-list{background:#fff;border-color:#eadfc4}
 .dc .card.tier-prestige .build-list .company{border-bottom-color:#efe6cf}
-.dc .card.tier-prestige .company-body .company-name{font-family:"Playfair Display",Georgia,serif;font-weight:600}
+.dc .card.tier-prestige .company-body .company-name{font-family:var(--prestige-serif);font-weight:600}
 .dc .card.tier-prestige .company-pdf{border-color:#d9b25a;color:#a8822f;background:#fffaf0}
 .dc .card.tier-prestige .footer{border-top:1px solid #d9b25a}
 .dc .card.tier-prestige .footer-powered a{color:#2a251b}
 .dc .card.tier-prestige .make-cta{color:#2a251b}
-.dc .card.tier-prestige .make-cta-main{font-family:"Playfair Display",Georgia,serif;font-style:italic;font-weight:500;font-size:14.5px;padding-bottom:5px;border-bottom:1px solid #d9b25a}
+.dc .card.tier-prestige .make-cta-main{font-family:var(--prestige-serif);font-style:italic;font-weight:500;font-size:14.5px;padding-bottom:5px;border-bottom:1px solid #d9b25a}
 .dc .card.tier-prestige .make-cta-sub{color:#8a7f6c}
 .dc .card.tier-prestige .make-cta-dot{background:#c9a24a;box-shadow:0 0 0 3px rgba(201,162,74,.18)}
 
@@ -1186,7 +1186,7 @@
 .dc .card.tier-prestige .build-list{border-color:#eadfc4;box-shadow:0 1px 0 #fff inset,0 10px 26px -18px rgba(120,90,30,.45)}
 .dc .card.tier-prestige .company-sep{background:#e6d6ac}
 .dc .card.tier-prestige .company-body .company-name{font-size:16px;color:#1d1a14}
-.dc .card.tier-prestige .company-body .company-desc{font-family:"Playfair Display",Georgia,serif;color:#6b6150;font-size:12.5px}
+.dc .card.tier-prestige .company-body .company-desc{font-family:var(--prestige-serif);color:#6b6150;font-size:12.5px}
 .dc .card.tier-prestige .company-pdf{color:#b08a3a}
 .dc .card.tier-prestige .build-list .company-go{color:#a8822f}
 .dc .card.tier-signature .company-sep{background:#dfe3e9}
@@ -1284,3 +1284,189 @@
 .dc .card .link-main>span:last-child{min-width:0;overflow:hidden}
 .dc .card .link-title,.dc .card .link-sub{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal}
 .dc .card .link-list .arrow{flex:none}
+
+/* =====================================================================
+   Prestige v3: matched to the client's Prestige design (Raminder Singh mockup).
+   Measured from the 971px reference at a 390px phone width (x2.49); the smallest
+   texts are held at 10.5px or more for legibility. One serif (Source Serif 4) throughout.
+   Overrides every earlier Prestige rule, so it stays last in the file.
+   ===================================================================== */
+.dc{--prestige-serif:"Source Serif 4","Source Serif Pro",Georgia,"Times New Roman",serif}
+.dc .card.tier-prestige{
+  --pg:#b87908;--pg-l:#e7b64a;--ink:#171717;--navy:#252a42;--muted:#77736e;--line:#e6d9c8;
+  width:100%;max-width:430px;margin:0 auto;padding:13px 18px 24px;
+  border:0;border-radius:0;box-shadow:none;
+  background:linear-gradient(180deg,#fdf9f5 0%,#fbf8f2 55%,#fcf9f6 100%);
+  font-family:var(--prestige-serif);color:var(--ink)
+}
+.dc-public:has(.card.tier-prestige){background:#fbf8f2}
+.dc-public .card.tier-prestige{margin-top:0}
+
+/* Header: tracked name, Digital Profile | crown PRESTIGE, grey rule with a gold lead */
+.dc .card.tier-prestige .topline{position:relative;margin:0 7px;padding:4px 0 11px;border-bottom:1px solid #dcd6ce;gap:12px}
+.dc .card.tier-prestige .topline::after{content:"";position:absolute;left:0;bottom:-1.5px;width:63px;height:2px;border-radius:2px;background:linear-gradient(90deg,#b87908,#d49a2a)}
+.dc .card.tier-prestige .wordmark{font-size:10px;font-weight:700;letter-spacing:.22em;color:var(--ink)}
+.dc .card.tier-prestige .toplabel{display:inline-flex;align-items:center;font-size:11.5px;letter-spacing:0;color:var(--navy)}
+.dc .card.tier-prestige .tier-mark.prestige{
+  margin-left:11px;padding-left:11px;gap:7px;border-left:1px solid #cfc6b8;
+  font-size:9.5px;font-weight:700;letter-spacing:.14em;color:var(--pg);
+  background:none;-webkit-text-fill-color:currentColor;animation:none
+}
+.dc .card.tier-prestige .tier-mark.prestige svg{width:13px;height:13px;color:var(--pg);fill:var(--pg-l);stroke-width:1.6}
+
+/* Profile: 110px gold-framed photo, name, role, short gold rule, tagline */
+.dc .card.tier-prestige .hero{display:flex;flex-direction:row;align-items:center;gap:19px;padding:16px 0 0 11px}
+.dc .card.tier-prestige .portrait-wrap{
+  width:110px;height:110px;flex:none;margin:0;border-radius:13px;
+  border:2px solid #e3b25a;background:#efe4c8;
+  box-shadow:0 0 0 3px rgba(231,182,74,.12),0 9px 18px -7px rgba(184,121,8,.42)
+}
+.dc .card.tier-prestige .portrait.ph{background:linear-gradient(135deg,#f6e7bf,#e3b25a);color:#5a4416;font-family:var(--prestige-serif)}
+.dc .card.tier-prestige h1{font-family:var(--prestige-serif);font-size:27px;line-height:1.05;font-weight:600;letter-spacing:-.4px;color:var(--ink);margin:0 0 4px}
+.dc .card.tier-prestige .role{font-size:13.5px;line-height:1.3;color:var(--navy)}
+.dc .card.tier-prestige .hero-rule{width:46px;height:2px;margin:9px 0 8px;border-radius:2px;background:linear-gradient(90deg,#b87908,#e7b64a)}
+.dc .card.tier-prestige .tagline{font-size:11.5px;line-height:1.13;letter-spacing:0;color:var(--navy)}
+
+/* Phones: two tiles side by side with a round flag, number, "Click to call directly", gold handset */
+.dc .card.tier-prestige .phones{grid-template-columns:1fr 1fr;gap:12px;margin:13px 1px 0 4px}
+.dc .card.tier-prestige .phones.one{grid-template-columns:1fr}
+.dc .card.tier-prestige .phone-tile{
+  gap:10px;min-height:38px;padding:6px 12px;border:1px solid #ede4d8;border-radius:10px;
+  background:linear-gradient(180deg,#fffefc,#fbf6ee);box-shadow:0 2px 5px rgba(120,90,30,.09)
+}
+.dc .card.tier-prestige .phone-tile:hover{border-color:#e3c98f}
+.dc .card.tier-prestige .phone-flag{width:19px;height:19px;border-radius:50%;object-fit:cover;box-shadow:0 0 0 1px rgba(0,0,0,.07)}
+.dc .card.tier-prestige .phone-num{font-size:11.5px;font-weight:500;letter-spacing:0;font-variant-numeric:normal;color:var(--ink)}
+.dc .card.tier-prestige .phone-sub{font-size:10.5px;color:#45424d}
+.dc .card.tier-prestige .phone-ico{width:auto;height:auto;border:0;color:var(--pg)}
+.dc .card.tier-prestige .phone-ico svg{width:15px;height:15px;stroke-width:1.6}
+@media(max-width:340px){.dc .card.tier-prestige .phones{grid-template-columns:1fr}}
+
+/* Talk to My AI Manager: cream, gold edge (light top, deep bottom), white swoosh bottom-right */
+.dc .card.tier-prestige .ai-banner{
+  margin-top:15px;min-height:46px;gap:0;padding:6px 14px 6px 25px;border-radius:14px;
+  border:1.3px solid #d8a64a;border-top-color:#edcf8f;border-bottom-color:#b9822f;
+  background:
+    radial-gradient(135% 125% at 100% 150%,rgba(255,255,255,.95) 0 33%,rgba(255,255,255,0) 34.5%),
+    linear-gradient(100deg,#fdf0dc 0%,#fbf3e6 45%,#f8efe3 100%);
+  color:var(--ink);box-shadow:0 1px 0 #fff inset,0 7px 14px -6px rgba(150,105,30,.35)
+}
+.dc .card.tier-prestige .ai-banner::after{border-radius:15px}
+.dc .card.tier-prestige .ai-spark{color:var(--pg)}
+.dc .card.tier-prestige .ai-spark svg{width:23px;height:23px;stroke-width:1.4}
+.dc .card.tier-prestige .ai-div{width:1px;height:22px;margin:0 13px 0 15px;background:#cf9a3a;opacity:.7}
+.dc .card.tier-prestige .ai-title{font-family:var(--prestige-serif);font-size:17px;line-height:1.15;font-weight:500;letter-spacing:-.1px;color:var(--ink)}
+.dc .card.tier-prestige .ai-sub{margin-top:2px;font-size:10.5px;line-height:1.25;color:#2b2b33;opacity:1}
+.dc .card.tier-prestige .ai-go{width:21px;height:21px;margin-left:10px;border:1.3px solid var(--pg);color:var(--pg);opacity:1}
+.dc .card.tier-prestige .ai-go svg{width:12px;height:12px}
+
+/* WhatsApp, Email, Pay Me, Save Contact: thin gold glyphs, serif labels, hairline dividers */
+.dc .card.tier-prestige .quick{margin-top:13px;padding:0}
+.dc .card.tier-prestige .quick-btn{gap:5px;padding:3px 2px;font-size:11.5px;font-weight:500;line-height:1.2;color:var(--ink)}
+.dc .card.tier-prestige .quick-btn svg{width:17px;height:17px;color:var(--pg);stroke-width:1.5}
+.dc .card.tier-prestige .quick-btn + .quick-btn{border-left:1px solid #ddd8d3}
+.dc .card.tier-prestige .quick-btn:hover{background:rgba(231,182,74,.08)}
+
+/* Section heads: tracked caps left, italic note right */
+.dc .card.tier-prestige .section{margin-top:14px}
+.dc .card.tier-prestige .section-head{align-items:baseline;margin:0 2px 5px 7px}
+.dc .card.tier-prestige .section-head h2{font-size:9.5px;font-weight:700;letter-spacing:.2em;color:var(--ink)}
+.dc .card.tier-prestige .section-note{font-family:var(--prestige-serif);font-style:italic;font-size:11.5px;color:#6f6a64}
+.dc .card.tier-prestige .section + .section .section-head{margin-bottom:8px}
+
+/* Connect: one cream panel, bare gold glyphs, title over handle, hairlines inset 12px */
+.dc .card.tier-prestige .link-list{
+  display:block;padding:0 12px;border:1px solid #e9e2d8;border-radius:13px;
+  background:linear-gradient(180deg,#fefcf9,#fcf8f3);box-shadow:0 4px 12px -4px rgba(120,90,30,.12)
+}
+.dc .card.tier-prestige .link-list a{min-height:0;padding:3px 3px 3px 6px;gap:8px;border-bottom:1px solid #efe9e2;border-right:0}
+.dc .card.tier-prestige .link-list a:last-child{border-bottom:0}
+.dc .card.tier-prestige .link-list a:hover{background:transparent}
+.dc .card.tier-prestige .link-list a:hover .link-title{color:#000}
+.dc .card.tier-prestige .link-main{gap:15px}
+.dc .card.tier-prestige .link-ico,.dc .card.tier-prestige .link-ico.plain{width:26px;height:24px;border:0;border-radius:0;background:transparent!important;color:var(--pg)}
+.dc .card.tier-prestige .link-ico svg{width:17px;height:17px;stroke-width:2}
+.dc .card.tier-prestige .link-title{font-size:11.5px;font-weight:600;line-height:1.2;color:var(--ink)}
+.dc .card.tier-prestige .link-sub{font-size:10.5px;line-height:1.2;margin-top:0;color:#3f3c45}
+.dc .card.tier-prestige .link-list .arrow{font-size:17px;font-weight:300;color:#33302c}
+
+/* What I'm building: logo column, hairline, description, PDF, chevron */
+.dc .card.tier-prestige .build-list{padding:0 12px;border:1px solid #e9e2d8;border-radius:13px;background:linear-gradient(180deg,#fefcfa,#fcf9f5);box-shadow:0 4px 12px -4px rgba(120,90,30,.12)}
+.dc .card.tier-prestige .build-list .company{background:transparent;border-bottom:1px solid #efe9e2}
+.dc .card.tier-prestige .build-list .company:last-child{border-bottom:0}
+.dc .card.tier-prestige .build-list .company-row{gap:0;padding:5px 3px 5px 0;min-height:30px}
+.dc .card.tier-prestige a.company-row:hover{background:transparent}
+.dc .card.tier-prestige .build-list .company-thumb{width:78px;height:20px;flex:none}
+.dc .card.tier-prestige .build-list .company-thumb .company-logo{max-width:74px;max-height:17px}
+/* Real uploaded logos, in their own colours. cleanLogo.ts trims them and removes a white box (.is-clean),
+   so they sit bare on the panel at one height. Until then (or if the image can't be read) a white
+   box is multiplied away. */
+.dc .card.tier-prestige .build-list .company-thumb.shape-wide .company-logo.is-clean{max-width:74px;max-height:15px}
+.dc .card.tier-prestige .build-list .company-thumb .company-logo:not(.is-clean){mix-blend-mode:multiply}
+.dc .card.tier-prestige .build-list .company-thumb.size-m{width:78px;height:30px}
+.dc .card.tier-prestige .build-list .company-thumb.size-m .company-logo{max-height:22px}
+.dc .card.tier-prestige .build-list .company-thumb.shape-photo .company-logo,
+.dc .card.tier-prestige .build-list .company-thumb.shape-tile .company-logo{width:24px;height:24px;border-radius:6px}
+.dc .card.tier-prestige .company-sep{width:1px;height:14px;align-self:center;margin:0 14px 0 0;background:#cbc4bb}
+.dc .card.tier-prestige .company-body{gap:1px}
+.dc .card.tier-prestige .company.has-logo.has-desc .company-name{display:none}
+/* Logo but no description: the name stands in for it, set like a description (not a bold title). */
+.dc .card.tier-prestige .company.has-logo:not(.has-desc) .company-body .company-name{font-size:11px;font-weight:400;line-height:1.25;color:#2e3040}
+.dc .card.tier-prestige .company-body .company-name{font-family:var(--prestige-serif);font-size:12px;font-weight:600;line-height:1.25;color:var(--ink)}
+.dc .card.tier-prestige .company-body .company-desc{font-family:var(--prestige-serif);font-size:11px;line-height:1.25;color:#2e3040}
+.dc .card.tier-prestige .company-kind{background:transparent;padding:0;color:var(--pg);font-size:9.5px}
+.dc .card.tier-prestige .company-pdf{width:16px;height:19px;margin-left:10px;padding:0;border:0;border-radius:0;background:none;color:var(--pg)}
+.dc .card.tier-prestige .build-list .company-go{margin-left:22px;font-size:17px;font-weight:300;color:#33302c}
+
+/* Footer: gold rule, tracked name + role, Powered by ShivAI */
+.dc .card.tier-prestige .footer{
+  margin:23px 2px 0 4px;padding:10px 0 0 2px;font-size:11px;color:var(--navy);align-items:flex-start;
+  border-top:1.2px solid transparent;border-image:linear-gradient(90deg,#d79a1c,#efcf7a 50%,#de9c12) 1
+}
+.dc .card.tier-prestige .footer-id{gap:4px}
+.dc .card.tier-prestige .footer-id strong{font-size:9.5px;font-weight:700;letter-spacing:.18em;color:var(--ink)}
+.dc .card.tier-prestige .footer-id span{font-size:11px;color:var(--navy)}
+.dc .card.tier-prestige .footer-powered{display:inline-flex;align-items:baseline;gap:5px;font-size:11.5px;color:#4b4752}
+.dc .card.tier-prestige .footer-powered a{color:var(--ink)}
+.dc .card.tier-prestige .footer-powered strong{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Arial,sans-serif;font-size:14.5px;font-weight:800;letter-spacing:-.3px}
+
+/* "Create your own digital card, Free for a limited time": italic, gold underline on the words */
+.dc .card.tier-prestige .make-cta{margin:14px auto 0;padding:2px;animation:none;opacity:1;color:var(--ink)}
+.dc .card.tier-prestige .make-cta-main{gap:7px;padding:0;border:0;font-family:var(--prestige-serif);font-style:italic;font-weight:400;font-size:12.5px}
+.dc .card.tier-prestige .make-cta-text{padding-bottom:4px;border-bottom:1.2px solid transparent;border-image:linear-gradient(90deg,#d79a1c,#ecb736) 1;text-decoration:none}
+.dc .card.tier-prestige .make-cta-arrow{font-style:normal;font-size:15px}
+
+/* Wider screens: the same phone-width design, floating on the ivory page in a soft gold frame. */
+@media(min-width:600px){
+  .dc .card.tier-prestige{border:1px solid #eadcb8;border-radius:24px;box-shadow:0 1px 0 #fff inset,0 24px 50px -28px rgba(120,90,30,.4)}
+  .dc-public .card.tier-prestige{margin-top:44px}
+  .dc .phone-frame .card.tier-prestige,.dc .pp-stage .card.tier-prestige,.dc .pp-sheet-body .card.tier-prestige{max-width:none;border:0;border-radius:0;box-shadow:none;margin:0}
+}
+/* Desktop public page: Prestige keeps the single-column design (no two-column split). */
+@media(min-width:900px){
+  .dc .card.wide.tier-prestige{width:100%;max-width:430px;padding:13px 18px 24px}
+  .dc .card.wide.tier-prestige .topline{padding-bottom:11px}
+  .dc .card.wide.tier-prestige .wordmark{font-size:10px}
+  .dc .card.wide.tier-prestige .cols{display:block;margin-top:0}
+  .dc .card.wide.tier-prestige .col-l{position:static}
+  .dc .card.wide.tier-prestige .col-r{padding-top:0}
+  .dc .card.wide.tier-prestige .hero{padding:16px 0 0 11px}
+  .dc .card.wide.tier-prestige .portrait-wrap{width:110px;height:110px;margin:0;box-shadow:0 0 0 3px rgba(231,182,74,.12),0 9px 18px -7px rgba(184,121,8,.42)}
+  .dc .card.wide.tier-prestige h1{font-size:27px;letter-spacing:-.4px}
+  .dc .card.wide.tier-prestige .role{font-size:13.5px}
+  .dc .card.wide.tier-prestige .section-head{margin-bottom:5px}
+  .dc .card.wide.tier-prestige .link-list{display:block}
+  .dc .card.wide.tier-prestige .link-list a,.dc .card.wide.tier-prestige .link-list a:nth-child(2n){border-right:0}
+  .dc .card.wide.tier-prestige .section .company{display:block;width:auto;margin:0}
+  .dc .card.wide.tier-prestige .company:hover{box-shadow:none;transform:none}
+  .dc .card.wide.tier-prestige .footer{margin-top:23px}
+  .dc .card.wide.tier-prestige .qr-desk{margin-top:14px;padding:10px 12px;border-color:#e9e2d8;border-radius:13px;background:linear-gradient(180deg,#fefcf9,#fcf8f3)}
+  .dc .card.wide.tier-prestige .qr-desk strong{font-size:11.5px}
+  .dc .card.wide.tier-prestige .qr-desk span{font-size:10.5px;color:#45424d}
+}
+
+/* Prestige verified seal after the name, joined to the last word so it never wraps alone. */
+.dc .card.tier-prestige h1 .name-last{white-space:nowrap}
+.dc .card.tier-prestige h1 .prestige-badge{display:inline-block;width:.74em;height:.74em;margin-left:.22em;vertical-align:-.06em;filter:drop-shadow(0 1px 1.5px rgba(150,105,30,.35))}
+/* Header PRESTIGE label: the same gold seal in place of the crown. */
+.dc .card.tier-prestige .tier-mark.prestige .tier-seal{width:14px;height:14px;flex:none;filter:drop-shadow(0 .5px 1px rgba(150,105,30,.35))}

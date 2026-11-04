@@ -244,7 +244,7 @@ export default function DigitalCardCreatePage() {
                 </div>
               </div>
               <aside className="preview">
-                <div className="phone-frame"><CardView card={form} placeholders tier={lookTier} foundingMember={foundingOfferActive() && !comp && (!chosenPlan || chosenPlan === "essential")} /></div>
+                <div className="phone-frame"><CardView card={form} placeholders poweredBy tier={lookTier} foundingMember={foundingOfferActive() && !comp && (!chosenPlan || chosenPlan === "essential")} /></div>
               </aside>
             </div>
           ) : (
@@ -263,7 +263,7 @@ export default function DigitalCardCreatePage() {
                 </section>
               </div>
               <aside className="preview">
-                <div className="phone-frame"><CardView card={form} tier={lookTier} /></div>
+                <div className="phone-frame"><CardView card={form} poweredBy tier={lookTier} /></div>
               </aside>
             </div>
           )}
