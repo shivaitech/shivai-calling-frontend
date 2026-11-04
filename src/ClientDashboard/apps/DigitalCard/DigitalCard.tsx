@@ -452,7 +452,7 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
             setParams(next);
           }}
         />
-        <div className="phone-frame"><CardView card={form} placeholders poweredBy tier={previewTier} /></div>
+        <div className="phone-frame"><CardView card={form} placeholders tier={previewTier} /></div>
       </aside>
     </div>
   );

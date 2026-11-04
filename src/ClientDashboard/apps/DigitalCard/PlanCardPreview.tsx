@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Eye, X } from "lucide-react";
-import CardView, { loadPrestigeFont } from "./CardView";
+import CardView from "./CardView";
 import { emptyCard, type CardData } from "./types";
 import samplePortrait from "../../../resources/images/sample-portrait.jpg";
 import { foundingOfferActive } from "../../../pages/foundingOffer";
@@ -54,10 +54,15 @@ const block = (e: React.SyntheticEvent) => {
   e.stopPropagation();
 };
 
-/** Loads the Prestige typeface, once. */
+/** Loads the serif used by the Prestige name, once. */
 function usePrestigeFont(on: boolean) {
   useEffect(() => {
-    if (on) loadPrestigeFont();
+    if (!on || document.getElementById("prestige-font")) return;
+    const l = document.createElement("link");
+    l.id = "prestige-font";
+    l.rel = "stylesheet";
+    l.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..700;1,400..600&family=Inter:wght@400..700&family=Cinzel:wght@500..700&display=swap";
+    document.head.appendChild(l);
   }, [on]);
 }
 
