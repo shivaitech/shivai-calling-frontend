@@ -11,32 +11,20 @@ import { openCardAgent } from "./openCardAgent";
 import { trackCardEvent, type CardEventType } from "./cardEvents";
 import { CardData, PHONE_LABELS, SOCIAL_TYPES, SocialType } from "./types";
 import { ventureKind } from "./ventureKinds";
-import { cleanLogo } from "./cleanLogo";
 import prestigeBadge from "../../../resources/images/prestige-badge.webp";
 import { foundingOfferActive } from "../../../pages/foundingOffer";
 
 const FOUNDING_SHORT = "31 Dec 2026";
 import { PUBLIC_APP_URL, type CardHighlight } from "../../../services/businessCardAPI";
 
-/** The Prestige typeface (headings and body), added to the page once. */
-export function loadPrestigeFont() {
-  if (document.getElementById("prestige-font")) return;
-  const l = document.createElement("link");
-  l.id = "prestige-font";
-  l.rel = "stylesheet";
-  l.href = "https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400..700;1,8..60,400..600&display=swap";
-  document.head.appendChild(l);
-}
-
 const host = (u: string) => u.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
 
 /** A link as people read it: domain plus a short path, never the query string.
- *  "https://www.youtube.com/watch?v=…&list=…" → "youtube.com/watch". Capped at `max` characters. */
+ *  "https://www.youtube.com/watch?v=…&list=…" → "youtube.com/watch…". Capped at `max` characters. */
 export function shortLink(u: string, max = 34): string {
   const clean = host(u.trim());
-  // Tracking queries (?mibextid=…) are dropped silently: "facebook.com/share/19bENQwjFa".
   const cut = clean.search(/[?#]/);
-  const base = cut >= 0 ? clean.slice(0, cut).replace(/\/$/, "") : clean;
+  const base = cut >= 0 ? clean.slice(0, cut) + "…" : clean;
   return base.length > max ? base.slice(0, max - 1).replace(/[/.\-_]+$/, "") + "…" : base;
 }
 const href = (u: string) => (/^[a-z]+:/i.test(u) ? u : `https://${u}`);
@@ -57,30 +45,15 @@ function PdfIcon() {
 }
 
 /** A venture, or something to browse (catalog, PDF, menu, portfolio), with its logo at the chosen size. */
-function VentureItem({ v, onOpen, clean = false }: { v: CardData["ventures"][number]; onOpen?: () => void; clean?: boolean }) {
+function VentureItem({ v, onOpen }: { v: CardData["ventures"][number]; onOpen?: () => void }) {
   const kind = ventureKind(v.type);
   const size = v.logo_size ?? "s";
   const [broken, setBroken] = useState(false);
   // Sized by the image's shape: wordmarks sit bare, photos fill a square tile, the rest get a padded tile.
   const [shape, setShape] = useState<"wide" | "photo" | "tile">("wide");
-  // Prestige: the real logo, trimmed and with its white box removed, so it sits bare on the panel.
-  const [cleaned, setCleaned] = useState<string | null>(null);
-  useEffect(() => {
-    setCleaned(null);
-    if (!clean || !v.logo_url || size === "l") return;
-    let live = true;
-    void cleanLogo(v.logo_url).then((r) => live && r && setCleaned(r.src));
-    return () => {
-      live = false;
-    };
-  }, [clean, v.logo_url, size]);
   const img =
     v.logo_url && !broken ? (
-      <img
-        className={`company-logo size-${size}${cleaned ? " is-clean" : ""}`}
-        src={cleaned ?? v.logo_url}
-        alt={`${v.name} ${kind.id === "venture" ? "logo" : "cover"}`}
-        onError={() => (cleaned ? setCleaned(null) : setBroken(true))}
+      <img className={`company-logo size-${size}`} src={v.logo_url} alt={`${v.name} ${kind.id === "venture" ? "logo" : "cover"}`} onError={() => setBroken(true)}
         onLoad={(e) => {
           const { naturalWidth: w, naturalHeight: h } = e.currentTarget;
           const r = h ? w / h : 1;
@@ -119,7 +92,7 @@ function VentureItem({ v, onOpen, clean = false }: { v: CardData["ventures"][num
   );
   // One compact row (the same pattern as the Connect list); the whole row opens the link.
   return (
-    <article className={`company kind-${kind.id}${cover ? " has-cover" : ""}${!cover && img ? " has-logo" : ""}${v.description?.trim() ? " has-desc" : ""}`}>
+    <article className={`company kind-${kind.id}${cover ? " has-cover" : ""}`}>
       {cover && <div className="company-cover">{img}</div>}
       {v.url ? (
         <a className="company-row" href={href(v.url)} target="_blank" rel="noopener noreferrer" aria-label={`${kind.cta(v.name)} (opens in a new tab)`} onClick={onOpen}>
@@ -255,9 +228,14 @@ export default function CardView({
   slug?: string;
 }) {
   const [imgBroken, setImgBroken] = useState(false);
-  // The Prestige look is set in Source Serif 4; load it once, only when needed.
+  // The Prestige look uses the client's fonts (Playfair Display, Inter, Cinzel); load them once, only when needed.
   useEffect(() => {
-    if (tier === "prestige") loadPrestigeFont();
+    if (tier !== "prestige" || document.getElementById("prestige-font")) return;
+    const l = document.createElement("link");
+    l.id = "prestige-font";
+    l.rel = "stylesheet";
+    l.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..700;1,400..600&family=Inter:wght@400..700&family=Cinzel:wght@500..700&display=swap";
+    document.head.appendChild(l);
   }, [tier]);
   const [saveOpen, setSaveOpen] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
@@ -326,11 +304,17 @@ export default function CardView({
       <div className={"cols" + (!hasRight ? " solo" : "")}>
       <div className="col-l">
       <header className="hero">
-        <div className="portrait-wrap">
-          {showPhoto ? (
-            <img className="portrait" src={c.image_url} alt={`Portrait of ${c.full_name}`} onError={() => setImgBroken(true)} />
-          ) : (
-            <div className="portrait ph">{initials || "＋"}</div>
+        <div className="portrait-box">
+          <div className="portrait-wrap">
+            {showPhoto ? (
+              <img className="portrait" src={c.image_url} alt={`Portrait of ${c.full_name}`} onError={() => setImgBroken(true)} />
+            ) : (
+              <div className="portrait ph">{initials || "＋"}</div>
+            )}
+          </div>
+          {/* Prestige: the gold verified seal on the photo's bottom-right corner. */}
+          {tier === "prestige" && (
+            <img className="portrait-seal" src={prestigeBadge} alt="Verified Prestige member" title="Verified Prestige member" width={30} height={30} />
           )}
         </div>
         <div className="hero-text">
@@ -339,26 +323,7 @@ export default function CardView({
             <Star size={10} aria-hidden="true" /> Founding Member
           </span>
         )}
-        <h1 className={!c.full_name ? "ph-text" : undefined}>
-          {tier === "prestige" ? (
-            // The gold verified seal, kept on the same line as the last word of the name.
-            (() => {
-              const name = c.full_name.trim() || "Your name";
-              const cut = name.lastIndexOf(" ");
-              return (
-                <>
-                  {cut > 0 && name.slice(0, cut + 1)}
-                  <span className="name-last">
-                    {name.slice(cut + 1)}
-                    <img className="prestige-badge" src={prestigeBadge} alt="Verified Prestige member" title="Verified Prestige member" width={20} height={20} />
-                  </span>
-                </>
-              );
-            })()
-          ) : (
-            c.full_name || "Your name"
-          )}
-        </h1>
+        <h1 className={!c.full_name ? "ph-text" : undefined}>{c.full_name || "Your name"}</h1>
         {c.job_title || c.company_name ? (
           <p className="role">{[c.job_title, c.company_name].filter(Boolean).join(", ")}</p>
         ) : (
@@ -520,7 +485,7 @@ export default function CardView({
           <div className="section-head"><h2>What I’m building</h2><span className="section-note">Projects, products and resources</span></div>
           <div className="build-list">
             {[...companies, ...resources].map((v, i) => (
-              <VentureItem key={i} v={v} clean={tier === "prestige"} onOpen={() => track("link")} />
+              <VentureItem key={i} v={v} onOpen={() => track("link")} />
             ))}
           </div>
         </section>
@@ -547,7 +512,7 @@ export default function CardView({
         <a className="make-cta" href={createCardHref}>
           <span className="make-cta-main">
             <span className="make-cta-text">
-              {/* Prestige: one italic line, as in its design. */}
+              {/* Prestige: one italic line, as in the client's design. */}
               {tier === "prestige" && foundingOfferActive() ? "Create your own digital card — Free for a limited time" : "Create your own digital card"}
             </span>
             <span className="make-cta-arrow" aria-hidden="true">→</span>
