@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, ArrowUpRight, CalendarClock, CreditCard, Download, ExternalLink, FileText, Info, Loader2, Tag } from "lucide-react";
+import { AlertTriangle, ArrowRight, ArrowUpRight, CalendarClock, CreditCard, Download, ExternalLink, FileText, Info, Loader2, Lock, Tag } from "lucide-react";
 import GlassCard from "../../components/GlassCard";
 import appToast from "../../components/AppToast";
 import { appWorkspacePath } from "../../marketplace/apps";
@@ -19,6 +19,7 @@ import {
 import CardPlanPicker, { toInterval } from "./CardPlanPicker";
 import { useAuth } from "../../contexts/AuthContext";
 import { complimentaryPlan } from "../../pages/complimentaryPlans";
+import { clearPendingPlan, loadPendingPlan, type PendingPlan } from "./pendingPlan";
 import { ItemIcon, Pill, fmtDate } from "./billingUi";
 
 /**
@@ -28,7 +29,8 @@ import { ItemIcon, Pill, fmtDate } from "./billingUi";
  */
 
 const STATUS: Record<SubStatus, { label: string; cls: string }> = {
-  free: { label: "Free", cls: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300" },
+  // No paid plan = Essential (free for Founding Members until 31 Dec 2026). There is no "Free" plan.
+  free: { label: "Essential", cls: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300" },
   active: { label: "Active", cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/25 dark:text-emerald-300" },
   trialing: { label: "Trial", cls: "bg-sky-100 text-sky-700 dark:bg-sky-900/25 dark:text-sky-300" },
   past_due: { label: "Payment failed", cls: "bg-rose-100 text-rose-700 dark:bg-rose-900/25 dark:text-rose-300" },
@@ -81,7 +83,10 @@ export default function CardBilling({
   checkoutResult,
   onCheckoutHandled,
   inApp = false,
+  askToPay = false,
 }: {
+  /** Came from creating a card on a paid plan (?pay=1): ask to pay for the preselected plan first. */
+  askToPay?: boolean;
   /** Plan picked on the pricing page / in the card creator, carried here to finish checkout. */
   preselect?: { plan: PlanId; billing: Cycle } | null;
   checkoutResult?: "success" | "cancelled" | null;
@@ -102,6 +107,14 @@ export default function CardBilling({
   const [pending, setPending] = useState<string | null>(null);
   const [promoOpen, setPromoOpen] = useState(false);
   const [promo, setPromo] = useState("");
+  // A paid plan chosen when the card was created and not paid for yet (see pendingPlan.ts).
+  const [pendingPlan, setPendingPlan] = useState<PendingPlan | null>(() => {
+    const saved = loadPendingPlan();
+    if (askToPay && preselect && preselect.plan !== "essential") return { plan: preselect.plan, billing: preselect.billing, at: Date.now() };
+    return saved;
+  });
+  const [finishLater, setFinishLater] = useState(false);
+  const finishRef = useRef<HTMLDivElement>(null);
   const [promoError, setPromoError] = useState("");
   const [change, setChange] = useState<{ plan: PlanCard; interval: Interval } | null>(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
@@ -157,7 +170,7 @@ export default function CardBilling({
     checkoutHandled.current = true;
     onCheckoutHandled();
     if (checkoutResult === "cancelled") {
-      appToast.info("No payment was made.");
+      appToast.info(loadPendingPlan() ? "No payment was made. Your plan is waiting whenever you're ready." : "No payment was made.");
       return;
     }
     setConfirming(true);
@@ -195,10 +208,10 @@ export default function CardBilling({
   const preselectKey = preselect?.plan;
   const scrolledFor = useRef<string | null>(null);
   useEffect(() => {
-    if (!preselectKey || loading || scrolledFor.current === preselectKey) return;
+    if (!preselectKey || loading || askToPay || scrolledFor.current === preselectKey) return;
     scrolledFor.current = preselectKey;
     pickerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [preselectKey, loading]);
+  }, [preselectKey, loading, askToPay]);
 
   const handleError = (e: BillingError, fallback?: () => void) => {
     if (e.status === 401) appToast.error("Your session has expired. Please sign in again.");
@@ -218,16 +231,39 @@ export default function CardBilling({
   const { user } = useAuth();
   const compKey = hasPaidPlan ? null : complimentaryPlan(user?.email);
   const compName = compKey ? PLANS.find((p) => p.id === compKey)?.name ?? compKey : "";
-  const currentKey = hasPaidPlan ? overview!.plan!.key : compKey ?? "free";
+  const currentKey = hasPaidPlan ? overview!.plan!.key : compKey ?? "essential";
   // Live plans when the API answers; otherwise the built-in ones (view only).
   const livePlans = !!plans?.plans?.length;
-  const shownPlans = livePlans ? plans!.plans : FALLBACK_PLANS;
+  // The API may still list a "free" plan; there isn't one to sell (Essential is the free tier), so it's hidden.
+  const shownPlans = (livePlans ? plans!.plans : FALLBACK_PLANS).filter((p) => !p.is_free && p.key !== "free");
   const paymentsOn = livePlans && !unavailable && !!plans?.payments_enabled && (overview?.payments_enabled ?? true);
   const currency = overview?.price.currency || plans?.currency || "usd";
 
-  const choose = async (plan: PlanCard) => {
+  useEffect(() => {
+    if (loading || !pendingPlan) return;
+    if (hasPaidPlan || compKey) {
+      clearPendingPlan();
+      setPendingPlan(null);
+    }
+  }, [loading, hasPaidPlan, compKey, pendingPlan]);
+
+  // Arriving to pay: bring the panel into view (it sits above the plans).
+  useEffect(() => {
+    if (!loading && askToPay && pendingPlan) finishRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
+
+  const finishCard = pendingPlan ? shownPlans.find((p) => p.key === pendingPlan.plan) ?? null : null;
+  const finishInterval: Interval = pendingPlan?.billing === "monthly" ? "month" : "year";
+  const finishPrice = finishCard?.prices[finishInterval] ?? null;
+  const showFinish = !!pendingPlan && !!finishCard && !hasPaidPlan && !compKey && canPay && !finishLater && !confirming;
+  const dropPendingPlan = () => {
+    clearPendingPlan();
+    setPendingPlan(null);
+  };
+
+  const choose = async (plan: PlanCard, interval: Interval = toInterval(cycle)) => {
     if (compKey) return;
-    const interval = toInterval(cycle);
     if (hasPaidPlan) {
       setChange({ plan, interval });
       return;
@@ -338,6 +374,50 @@ export default function CardBilling({
         </div>
       ) : (
         <>
+          {/* Finish the plan chosen when the card was created */}
+          {showFinish && finishCard && (
+            <div ref={finishRef} className="mt-4 rounded-2xl border border-slate-900/15 dark:border-white/15 bg-slate-50 dark:bg-slate-800/60 p-4 sm:p-5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">One step left</p>
+              <h4 className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">Complete your {finishCard.name} plan</h4>
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                Your card is created. Pay securely to unlock {finishCard.name}
+                {finishPrice && (
+                  <>
+                    {": "}
+                    <strong className="font-semibold text-slate-900 dark:text-white">
+                      {formatCents(finishPrice.amount, finishCard.currency || currency)} {finishInterval === "year" ? "a year" : "a month"}
+                    </strong>
+                    {finishInterval === "year" && <> ({formatCents(finishPrice.monthly_equivalent, finishCard.currency || currency)} a month)</>}
+                  </>
+                )}
+                . Until then your card stays on Essential.
+              </p>
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  disabled={!paymentsOn || !finishCard.purchasable || !finishPrice || pending !== null}
+                  onClick={() => void choose(finishCard, finishInterval)}
+                  className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {pending === finishCard.key ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
+                  Continue to secure payment
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+                <button type="button" onClick={() => setFinishLater(true)} className="rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-700">
+                  Not now
+                </button>
+                <button type="button" onClick={dropPendingPlan} className="ml-auto text-xs font-medium text-slate-500 hover:text-slate-800 dark:hover:text-white underline-offset-2 hover:underline">
+                  Stay on Essential
+                </button>
+              </div>
+              <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                {paymentsOn && finishCard.purchasable
+                  ? "Payment is handled by Stripe. Have a promo code? Add it below the plans before you continue."
+                  : "Card payments are opening soon. We'll keep your choice and ask you again here."}
+              </p>
+            </div>
+          )}
+
           {/* Notices */}
           <div className="mt-4 space-y-2 empty:hidden">
             {error && (
@@ -352,7 +432,7 @@ export default function CardBilling({
               </Notice>
             )}
             {!compKey && !error && !paymentsOn && canPay && (
-              <Notice tone="amber">Card payments are being switched on. You're on the Free plan until then. Plans can be bought here as soon as it's live.</Notice>
+              <Notice tone="amber">Card payments are being switched on. You're on Essential until then. Plans can be bought here as soon as it's live.</Notice>
             )}
             {!canPay && <Notice tone="slate">Admin and staff accounts can't buy plans. The plans below are shown for reference.</Notice>}
             {(status === "past_due" || status === "unpaid") && (
@@ -368,7 +448,7 @@ export default function CardBilling({
 
           {/* Current plan */}
           <dl className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <SummaryTile label="Current plan" value={hasPaidPlan ? overview!.plan!.name : compKey ? compName : "Free"} strong />
+            <SummaryTile label="Current plan" value={hasPaidPlan ? overview!.plan!.name : compKey ? compName : "Essential"} strong />
             <SummaryTile
               label="Price"
               value={
@@ -377,8 +457,6 @@ export default function CardBilling({
                     {formatCents(overview.price.amount, currency)}
                     {overview.price.interval && <span className="text-xs font-medium text-slate-500"> / {overview.price.interval}</span>}
                   </>
-                ) : compKey ? (
-                  "Free"
                 ) : (
                   formatCents(0, currency)
                 )
@@ -419,7 +497,7 @@ export default function CardBilling({
               ) : confirmCancel ? (
                 <div className="flex flex-wrap items-center gap-2 rounded-xl border border-rose-200 dark:border-rose-900/50 bg-rose-50/70 dark:bg-rose-900/10 px-3 py-2 text-xs text-rose-800 dark:text-rose-200">
                   <span>
-                    Cancel {overview?.plan?.name}? It stays active until {fmtDate(overview?.current_period_end ?? undefined)}, then your card moves to Free. Nothing is
+                    Cancel {overview?.plan?.name}? It stays active until {fmtDate(overview?.current_period_end ?? undefined)}, then your card moves to Essential. Nothing is
                     refunded.
                   </span>
                   <button type="button" onClick={() => setConfirmCancel(false)} className="font-semibold text-slate-700 dark:text-slate-200 hover:underline">

@@ -970,7 +970,7 @@
   .dc .card.wide.tier-signature,.dc .card.wide.tier-prestige{width:min(100% - 80px,1080px);padding:40px 44px 48px}
 }
 /* Public page: framed tier cards float on the page instead of touching the top edge. */
-.dc-public .card.tier-signature,.dc-public .card.tier-prestige{margin-top:14px}
+.dc-public .card.tier-signature,.dc-public .card.tier-prestige{margin-top:20px}
 @media(min-width:600px){
   .dc-public .card.tier-signature,.dc-public .card.tier-prestige{margin-top:28px}
 }
@@ -1286,14 +1286,13 @@
 .dc .card .link-list .arrow{flex:none}
 
 /* Prestige verified seal: on the photo's bottom-right corner (overlapping the gold frame)
-   and in the header's PRESTIGE label, in place of the crown. */
+   (the header's PRESTIGE label keeps the crown). */
 .dc .portrait-box{position:relative;flex:none;line-height:0}
 .dc .card.tier-prestige .portrait-seal{
   position:absolute;right:-9px;bottom:-9px;z-index:2;width:30px;height:30px;pointer-events:auto;
   filter:drop-shadow(0 2px 3px rgba(120,85,20,.38)) drop-shadow(0 0 1px rgba(255,250,235,.9))
 }
 @media(min-width:900px){.dc .card.wide.tier-prestige .portrait-seal{width:36px;height:36px;right:-11px;bottom:-11px}}
-.dc .card.tier-prestige .tier-mark.prestige .tier-seal{width:14px;height:14px;flex:none;filter:drop-shadow(0 .5px 1px rgba(150,105,30,.35))}
 
 /* =====================================================================
    Prestige colours from the client's design. Colours only: sizes, fonts and
@@ -1453,3 +1452,45 @@
 /* "Preview card" button on the plan previews: a light gold tint. */
 .dc .pp-open{background:linear-gradient(180deg,#fbf4e2,#f2e4c1);color:#3b2f14;border:1px solid #e3cd96;box-shadow:0 6px 16px rgba(120,90,30,.16)}
 .dc .pp-frame:hover .pp-open{background:linear-gradient(180deg,#fdf7e8,#f4e7c8)}
+
+/* Featured button now sits above the phone numbers: give the numbers the gap the button used to have. */
+.dc .card .ai-banner + .phones{margin-top:12px}
+
+/* Buttons 10% smaller (phone tiles, the featured button, the icon row): text, icons and padding
+   all scale together, while each row still spans the card's full width. */
+.dc .card .phones,.dc .card .ai-banner,.dc .card .quick{zoom:.9}
+
+/* WhatsApp: pick a number when the card has several WhatsApp numbers. */
+.dc .wa-pick-note{margin:-8px 0 12px;font-size:12.5px;color:var(--muted)}
+.dc .wa-pick-list{display:flex;flex-direction:column;gap:8px}
+.dc .wa-pick-option{text-decoration:none}
+.dc .wa-pick-flag{width:24px;height:24px;flex:none;border-radius:50%;object-fit:cover;box-shadow:0 0 0 1px rgba(0,0,0,.08)}
+.dc .wa-pick-flag-none{background:#ececea}
+.dc .wa-pick-option .sheet-text strong{font-variant-numeric:tabular-nums}
+.dc .wa-pick-go{width:34px;height:34px;flex:none;border-radius:50%;display:grid;place-items:center;background:#25d366;color:#fff}
+
+/* Bottom sheets (Save contact, Pay Me, WhatsApp): capped by the visible screen, not vh, so on
+   iPhone the header and close button never sit above the top edge. */
+.dc .sheet{max-height:min(88dvh,calc(100% - 12px))}
+
+/* Venture description: an always-visible count under the box (no longer overlapping the text). */
+.dc .ven-count{position:static;display:flex;justify-content:space-between;gap:10px;margin-top:5px;padding:0 2px;background:none;font-size:11px;color:var(--muted);pointer-events:auto}
+.dc .ven-count-num{flex:none;font-variant-numeric:tabular-nums;font-weight:600}
+.dc .ven-count.is-near .ven-count-num{color:#b45309}
+.dc .ven-count.is-over{color:#b91c1c}
+.dc .ven-desc textarea.is-over{border-color:#f0a3a3}
+
+/* On the card a description (80 characters at most) always shows whole: up to 3 lines, no "…". */
+.dc .card .company-body .company-desc{-webkit-line-clamp:3}
+
+/* "Complete your Signature / Prestige plan" reminder on My cards. */
+.dc .pend-plan{display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;border-color:#161616;background:#fbfbf9}
+.dc .pend-plan.is-prestige{border-color:#d9b25a;background:linear-gradient(180deg,#fffcf3,#fbf4e2)}
+.dc .pend-plan.is-signature{border-color:#c3cad3;background:linear-gradient(180deg,#ffffff,#f1f4f7)}
+.dc .pend-plan strong{display:block;font-size:15px}
+.dc .pend-plan .muted{margin:3px 0 0;font-size:13px}
+.dc .pend-plan .btns{display:flex;flex-wrap:wrap;gap:8px}
+
+/* Public page: keep the framed card's top margin inside the page background. Without this the
+   margin collapsed through .dc-public and pushed it down, leaving a white strip at the top. */
+.dc-public{display:flow-root}

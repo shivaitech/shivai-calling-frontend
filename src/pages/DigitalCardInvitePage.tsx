@@ -238,8 +238,8 @@ export default function DigitalCardInvitePage() {
     // doesn't create a scroll container, so fixed/sticky elements keep working.
     <div className="min-h-screen bg-white text-slate-900 overflow-x-clip">
       <SEO
-        title="Make your own digital business card | ShivAI"
-        description="Share your details with one link or QR code. It lets people call, message and connect with you instantly. Free to create."
+        title="Meet Your New Digital Business Card | ShivAI"
+        description="One link does it all. Share your details, showcase your work, connect instantly and let your AI Manager help you turn introductions into opportunities through conversation. Free to create."
         path={DIGITAL_CARD_HOME}
       />
       <Navbar

@@ -1,6 +1,6 @@
 import type { CardData } from "./types";
 import { usernameProblem } from "./username";
-import { ventureKind } from "./ventureKinds";
+import { DESCRIPTION_MAX, ventureKind } from "./ventureKinds";
 import { payMethodProblem } from "./payMe";
 
 /** Mirrors the API's Joi rules so most mistakes are caught before the request. */
@@ -42,7 +42,8 @@ export function validateCard(f: CardData, opts: { skipUsername?: boolean } = {})
     if (!v.name.trim()) e[`ventures.${i}.name`] = `Give this ${ventureKind(v.type).label.toLowerCase()} a name`;
     else if (v.name.trim().length > 150) e[`ventures.${i}.name`] = "Max 150 characters";
     if (v.type && v.type !== "venture" && !v.url.trim()) e[`ventures.${i}.url`] = "Add a link or upload a PDF";
-    if ((v.description ?? "").trim().length > 300) e[`ventures.${i}.description`] = "Keep the description under 300 characters";
+    if ((v.description ?? "").trim().length > DESCRIPTION_MAX)
+      e[`ventures.${i}.description`] = `Keep the description to ${DESCRIPTION_MAX} characters so it shows in full on your card`;
     if (v.url.length > 500) e[`ventures.${i}.url`] = "Max 500 characters";
     // Same as the photo: a "data:" logo is a local draft, uploaded and replaced by a URL on save.
     if (!v.logo_url.startsWith("data:") && v.logo_url.length > 500) e[`ventures.${i}.logo_url`] = "Max 500 characters";

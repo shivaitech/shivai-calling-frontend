@@ -25,11 +25,11 @@ function versionFilePlugin(): Plugin {
 function digitalCardSharePagePlugin(): Plugin {
   const site = "https://www.callshivai.com";
   const pagePaths = [DIGITAL_CARD_HOME, "/digital-card"];
-  const title = "Make your own digital business card | ShivAI";
+  const title = "Meet Your New Digital Business Card | ShivAI";
   const description =
-    "Share your details with one link or QR code. It lets people call, message and connect with you instantly. Free to create.";
+    "One link does it all. Share your details, showcase your work, connect instantly and let your AI Manager help you turn introductions into opportunities through conversation. Free to create.";
   // Versioned name: changing the picture behind an old URL leaves stale previews in WhatsApp's cache.
-  const image = `${site}/og-digital-card-v2.jpg`;
+  const image = `${site}/og-digital-card-v3.jpg`;
   const tags = [
     `<meta data-static-og name="description" content="${description}" />`,
     `<meta data-static-og property="og:type" content="website" />`,
@@ -42,7 +42,7 @@ function digitalCardSharePagePlugin(): Plugin {
     `<meta data-static-og property="og:image:type" content="image/jpeg" />`,
     `<meta data-static-og property="og:image:width" content="1200" />`,
     `<meta data-static-og property="og:image:height" content="630" />`,
-    `<meta data-static-og property="og:image:alt" content="A ShivAI digital business card on a phone, with its QR code" />`,
+    `<meta data-static-og property="og:image:alt" content="Two phones: a ShivAI Prestige digital business card and its AI Manager ready to take a call" />`,
     `<meta data-static-og name="twitter:card" content="summary_large_image" />`,
     `<meta data-static-og name="twitter:title" content="${title}" />`,
     `<meta data-static-og name="twitter:description" content="${description}" />`,

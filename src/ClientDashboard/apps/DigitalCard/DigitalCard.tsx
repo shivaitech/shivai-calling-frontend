@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import QRCode from "react-qr-code";
 import toast from "react-hot-toast";
 import CardView from "./CardView";
@@ -10,6 +10,7 @@ import CardBilling from "../../Billing/CardBilling";
 import PlanLookSwitcher from "./PlanLookSwitcher";
 import type { PlanTier } from "./PlanCardPreview";
 import { cardBillingAPI } from "../../../services/billingAPI";
+import { clearPendingPlan, loadPendingPlan, pendingPlanHref, type PendingPlan } from "../../Billing/pendingPlan";
 import QrPlayground from "./QrPlayground";
 import { loadQrDesign, saveQrDesign } from "./qrDesignStore";
 import { CardData, emptyCard, withSuggestedTagline } from "./types";
@@ -124,10 +125,11 @@ export default function DigitalCard({ section = "cards" }: { section?: string })
       <CardBilling
         inApp
         preselect={preselect}
+        askToPay={params.get("pay") === "1"}
         checkoutResult={checkout === "success" || checkout === "cancelled" ? checkout : null}
         onCheckoutHandled={() => {
           const next = new URLSearchParams(params);
-          ["checkout", "session_id", "plan", "billing"].forEach((k) => next.delete(k));
+          ["checkout", "session_id", "plan", "billing", "pay"].forEach((k) => next.delete(k));
           setParams(next, { replace: true });
         }}
       />
@@ -152,6 +154,63 @@ export default function DigitalCard({ section = "cards" }: { section?: string })
 }
 
 // ── My Cards ─────────────────────────────────────────────────────────────────
+/**
+ * A paid plan chosen when the card was created but not paid for yet (closed Stripe, came back
+ * later, logged in again…): ask to finish it. Checks billing first, so it never asks someone who
+ * has already paid; and it clears itself then.
+ */
+function PendingPlanBanner() {
+  const [pending, setPending] = useState<PendingPlan | null>(() => loadPendingPlan());
+  const [checked, setChecked] = useState(false);
+
+  useEffect(() => {
+    if (!pending) return;
+    let live = true;
+    cardBillingAPI
+      .overview()
+      .then((o) => {
+        if (!live) return;
+        if (o?.paid) {
+          clearPendingPlan();
+          setPending(null);
+        }
+        setChecked(true);
+      })
+      .catch(() => live && setChecked(true));
+    return () => {
+      live = false;
+    };
+    // Checked once per visit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (!pending || !checked) return null;
+  const name = pending.plan === "prestige" ? "Prestige" : "Signature";
+  return (
+    <section className={`panel pend-plan is-${pending.plan}`} role="status">
+      <div className="grow">
+        <strong>Complete your {name} plan</strong>
+        <p className="muted">Your card is ready. Finish payment to unlock {name}. Until then your card stays on Essential.</p>
+      </div>
+      <div className="btns">
+        <Link className="btn small" to={pendingPlanHref(pending)}>
+          Continue to payment
+        </Link>
+        <button
+          type="button"
+          className="btn small ghost"
+          onClick={() => {
+            clearPendingPlan();
+            setPending(null);
+          }}
+        >
+          Stay on Essential
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function CardsList({ go }: { go: (s: string, id?: string | null) => void }) {
   const [page, setPage] = useState(1);
   const [cards, setCards] = useState<BusinessCard[]>([]);
@@ -191,6 +250,8 @@ function CardsList({ go }: { go: (s: string, id?: string | null) => void }) {
         </div>
         <button className="btn" onClick={() => go("card", null)}>+ New card</button>
       </div>
+
+      <PendingPlanBanner />
 
       {state === "loading" && <p className="muted">Loading cards…</p>}
 
