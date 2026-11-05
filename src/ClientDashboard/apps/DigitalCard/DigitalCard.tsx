@@ -27,6 +27,7 @@ import {
   Pagination,
   cardLabel,
   cardQrImage,
+  cardErrorMessage,
   cardUrl,
   toPayload,
 } from "../../../services/businessCardAPI";
@@ -429,8 +430,14 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
         cardCache.delete(id);
         setLoad("missing");
       } else {
-        if (be.status === 422) setErrors(be.fieldErrors);
-        toast.error(be.message || "Couldn’t save the card");
+        if (be.status === 422) {
+          setErrors(be.fieldErrors);
+          requestAnimationFrame(() => {
+            const first = document.querySelector<HTMLElement>(".dc .form .err");
+            first?.closest(".field, .panel")?.scrollIntoView({ behavior: "smooth", block: "center" });
+          });
+        }
+        toast.error(cardErrorMessage(be, "Couldn’t save the card"));
       }
     } finally {
       setSaving(false);

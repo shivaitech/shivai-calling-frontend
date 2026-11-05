@@ -101,7 +101,7 @@ export interface BusinessCardInput {
   social_media: CardSocial[];
   ventures: CardVenture[];
   agent_id: string;
-  /** Chosen link name → https://<username>.callshivai.com. Empty = the server builds one from name + company. */
+  /** Chosen link name → https://<username>.callshivai.com. Required when creating a card; fixed after that. */
   username: string;
 }
 
@@ -163,11 +163,25 @@ export class BusinessCardError extends Error {
   }
 }
 
+/** The API's validator wording ('"ventures[0].url" must be a valid uri with a scheme matching
+ *  the https pattern') in plain words, without the field path. */
+function plainMessage(raw: string): string {
+  const m = String(raw ?? "").trim();
+  if (/valid uri|scheme matching/i.test(m)) return "Enter a valid link, like https://example.com";
+  if (/is required|is not allowed to be empty/i.test(m) && /^"/.test(m)) return "This field is required";
+  const rest = m.replace(/^"[^"]*"\s*/, "");
+  return rest ? rest.charAt(0).toUpperCase() + rest.slice(1) : m;
+}
+
 const toError = (e: any): BusinessCardError => {
   const body = e?.response?.data;
   const fields: Record<string, string> = {};
   if (Array.isArray(body?.errors)) {
-    for (const x of body.errors) if (x?.field && !fields[x.field]) fields[x.field] = x.message;
+    for (const x of body.errors) {
+      // "ventures[0].url" → "ventures.0.url", the form's key for that field.
+      const key = typeof x?.field === "string" ? x.field.replace(/\[(\d+)\]/g, ".$1") : "";
+      if (key && !fields[key]) fields[key] = plainMessage(x.message);
+    }
   }
   return new BusinessCardError(
     body?.message || e?.message || "Request failed",
@@ -175,6 +189,14 @@ const toError = (e: any): BusinessCardError => {
     fields,
   );
 };
+
+/** What to tell the person: the server's first field problem ("Username is required"), plus how many
+ *  more; else its message, unless that's only the generic "Validation failed". */
+export function cardErrorMessage(e: BusinessCardError, fallback = "Some details need fixing"): string {
+  const problems = Object.values(e.fieldErrors ?? {}).filter(Boolean);
+  if (problems.length) return problems.length > 1 ? `${problems[0]} (and ${problems.length - 1} more to fix)` : problems[0];
+  return e.message && !/^validation failed\.?$/i.test(e.message.trim()) ? e.message : fallback;
+}
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
 const getAuthToken = (): string | null => {
@@ -213,11 +235,28 @@ export const agentIdOf = (v: unknown): string => {
 /** A card from the API with agent_id always a plain id string. */
 function normalizeCard<T>(card: T): T {
   if (!card || typeof card !== "object") return card;
-  const c = card as T & { agent_id?: unknown };
-  return { ...c, agent_id: agentIdOf(c.agent_id) };
+  const c = card as T & { agent_id?: unknown; payment_methods?: CardPayMethod[] };
+  return {
+    ...c,
+    agent_id: agentIdOf(c.agent_id),
+    // A value that is just the QR's own link (possible on methods saved that way earlier) reads as
+    // "no value", so the method is shown and edited as a QR, not as a payment link.
+    ...(Array.isArray(c.payment_methods)
+      ? { payment_methods: c.payment_methods.map((m) => (m.qr_url && m.value === m.qr_url ? { ...m, value: "" } : m)) }
+      : {}),
+  };
 }
 
 // ── Payload ──────────────────────────────────────────────────────────────────
+/** Links in the form the API accepts (https only): "athar.com" → "https://athar.com",
+ *  "http://athar.com" → "https://athar.com"; "https://…" is kept as typed; empty stays empty. */
+export function httpsLink(raw: string | undefined | null): string {
+  const u = (raw ?? "").trim();
+  if (!u) return "";
+  if (/^https:\/\//i.test(u)) return u;
+  if (/^http:\/\//i.test(u)) return "https://" + u.slice(7);
+  return "https://" + u.replace(/^\/+/, "");
+}
 /** Whitelists fields so stray keys (_id, slug, createdAt…) never reach Joi. */
 export const toPayload = (
   c: BusinessCardInput,
@@ -247,7 +286,8 @@ export const toPayload = (
           provider: m.provider,
           label: m.label.trim(),
           value: m.value.trim(),
-          ...(m.qr_url ? { qr_url: m.qr_url } : {}),
+          // The uploaded QR goes in qr_url: its S3 link, never image data (photo.ts uploads it first).
+          ...(/^https:\/\//i.test(m.qr_url ?? "") ? { qr_url: m.qr_url!.trim() } : {}),
           ...(m.currency ? { currency: m.currency } : {}),
           is_default: !!m.is_default,
           enabled: m.enabled !== false,
@@ -255,14 +295,14 @@ export const toPayload = (
       }
     : {}),
   email: c.email.trim(),
-  website: c.website.trim(),
-  social_media: c.social_media.map((s) => ({ type: s.type, url: s.url.trim(), username: s.username.trim() })),
+  website: httpsLink(c.website),
+  social_media: c.social_media.map((s) => ({ type: s.type, url: httpsLink(s.url), username: s.username.trim() })),
   // type / logo_size / file_name only go out when used, so cards that don't use them save the
   // same payload as before.
   ventures: c.ventures.map((v) => ({
     name: v.name.trim(),
     logo_url: v.logo_url.trim(),
-    url: v.url.trim(),
+    url: httpsLink(v.url),
     ...(v.type && v.type !== "venture" ? { type: v.type } : {}),
     ...(v.logo_size && v.logo_size !== "s" && v.logo_url.trim() ? { logo_size: v.logo_size } : {}),
     ...(v.file_name?.trim() ? { file_name: v.file_name.trim() } : {}),

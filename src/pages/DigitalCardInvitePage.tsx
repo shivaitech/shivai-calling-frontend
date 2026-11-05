@@ -9,6 +9,7 @@ import CardView from "../ClientDashboard/apps/DigitalCard/CardView";
 import { sampleCard } from "../ClientDashboard/apps/DigitalCard/types";
 import samplePortrait from "../resources/images/sample-portrait.jpg";
 import heroImage from "../resources/images/digital-card-hero-ai.webp";
+import heroImageMobile from "../resources/images/digital-card-hero-ai-mobile.webp";
 import ShivAiLogo from "../resources/images/ShivaiLogo.svg";
 import { DIGITAL_CARD_CREATE, DIGITAL_CARD_HOME } from "./digitalCardRoutes";
 import QrPlayground from "../ClientDashboard/apps/DigitalCard/QrPlayground";
@@ -283,20 +284,20 @@ export default function DigitalCardInvitePage() {
           </div>
 
           <div className="flex flex-col items-center lg:items-end">
-            {/* Phones: the image bleeds past both screen edges, so the phones' rounded sides are cut
-                by the screen and only their bottom edge shows. The phones fill 13.9%–87.8% of the
-                image's width; at 146% wide, shifted 24.3% left, they run ~4% past each edge.
-                Tablet and desktop keep the framed image. */}
-            <div className="-mx-6 w-[calc(100%+3rem)] overflow-hidden sm:mx-0 sm:w-full sm:overflow-visible">
+            {/* Phones: on phones, a copy cropped to the phones' full outline (plus a little air),
+                at most 340px wide and centred inside the page margins. Tablet and desktop keep the
+                framed image. */}
+            <picture className="block w-full max-w-[340px] self-center sm:max-w-none">
+              <source media="(max-width: 639px)" srcSet={heroImageMobile} width={999} height={1153} />
               <img
                 src={heroImage}
                 alt="Two phones: Alex Morgan's Prestige digital card, and his AI Manager ready to take a call"
                 width={1312}
                 height={1199}
-                className="block w-[146%] max-w-none -ml-[24.3%] sm:mx-auto sm:w-full sm:max-w-[480px] lg:mr-0 lg:max-w-[560px]"
+                className="block w-full h-auto sm:mx-auto sm:max-w-[480px] lg:mr-0 lg:max-w-[560px]"
                 fetchPriority="high"
               />
-            </div>
+            </picture>
             {/* Just below the image */}
             <div className="mt-4 sm:mt-6 w-full max-w-[400px] sm:max-w-[500px] lg:max-w-[560px] text-center">
               <p className="text-[17px] sm:text-xl font-semibold tracking-tight text-slate-900 text-balance">

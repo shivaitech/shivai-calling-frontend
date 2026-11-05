@@ -148,7 +148,7 @@ export default function UsernameField({
             Your link: <strong>{cardLabel({ slug: value })}</strong>. Choose carefully: you can’t change it after the card is created.
           </>
         ) : (
-          "Pick the name for your card’s link. You can’t change it after the card is created. Leave it empty and we’ll make one from your name and company."
+          "Pick the name for your card’s link. It’s required, and you can’t change it after the card is created."
         )}
       </small>
     </div>

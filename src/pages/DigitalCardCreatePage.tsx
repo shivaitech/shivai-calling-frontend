@@ -14,7 +14,7 @@ import { CardData } from "../ClientDashboard/apps/DigitalCard/types";
 import { clearDraft, loadDraft, saveDraft } from "../ClientDashboard/apps/DigitalCard/draft";
 import { validateCard } from "../ClientDashboard/apps/DigitalCard/validate";
 import { fileToDataUrl, type ImageKind, resolveCardImages } from "../ClientDashboard/apps/DigitalCard/photo";
-import { BusinessCardError, businessCardAPI } from "../services/businessCardAPI";
+import { BusinessCardError, businessCardAPI, cardErrorMessage } from "../services/businessCardAPI";
 import { DIGITAL_CARD_CREATE } from "./digitalCardRoutes";
 import CreatePlanPicker from "./digitalCardCreatePlan";
 import { foundingOfferActive, isFoundingFree } from "./foundingOffer";
@@ -168,10 +168,15 @@ export default function DigitalCardCreatePage() {
         toast.error("This account type can’t create business cards (admin and tenant accounts only).");
       } else if (be.status === 422) {
         setErrors(be.fieldErrors);
-        toast.error(be.message || "Some details need fixing");
+        toast.error(cardErrorMessage(be));
         goStep("edit");
+        // Bring the first problem into view once the form is back.
+        setTimeout(() => {
+          const first = document.querySelector<HTMLElement>(".dc .form .err");
+          first?.closest(".field, .panel")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 120);
       } else {
-        toast.error(be.message || "Couldn’t save your card. Please try again.");
+        toast.error(cardErrorMessage(be, "Couldn’t save your card. Please try again."));
       }
     } finally {
       setSaving(false);
