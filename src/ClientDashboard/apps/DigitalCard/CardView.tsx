@@ -1,11 +1,12 @@
 import { CSSProperties, MouseEvent, ReactNode, useCallback, useEffect, useState } from "react";
 import QRCode from "react-qr-code";
-import { ArrowRight, Award, Star, Facebook, Instagram, Link2, Linkedin, LucideIcon, Mail, Phone, Sparkles, Twitter, UserPlus, Wallet, Youtube } from "lucide-react";
+import { ArrowRight, Award, Crown, Star, Facebook, Instagram, Link2, Linkedin, LucideIcon, Mail, Phone, Sparkles, Twitter, UserPlus, Wallet, Youtube } from "lucide-react";
 import WhatsAppIcon from "./WhatsAppIcon";
 import { defaultCountries } from "../../../types/country";
 import { downloadVCard, fullPhone } from "./vcard";
 import SaveContactSheet from "./SaveContactSheet";
 import PayMeSheet from "./PayMeSheet";
+import WhatsAppPickerSheet, { type WhatsAppNumber } from "./WhatsAppPickerSheet";
 import { visiblePayMethods } from "./payMe";
 import { openCardAgent } from "./openCardAgent";
 import { trackCardEvent, type CardEventType } from "./cardEvents";
@@ -239,17 +240,18 @@ export default function CardView({
   }, [tier]);
   const [saveOpen, setSaveOpen] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
+  const [waOpen, setWaOpen] = useState(false);
+  const closeWa = useCallback(() => setWaOpen(false), []);
   const closePay = useCallback(() => setPayOpen(false), []);
   const [aiLoading, setAiLoading] = useState(false);
   const closeSave = useCallback(() => setSaveOpen(false), []);
   const tel = fullPhone(c);
-  const waNumber = tel.replace(/\D/g, "");
   const payMethods = visiblePayMethods(c.payment_methods);
   const track = (type: CardEventType) => trackCardEvent(trackSlug, type);
   // The featured button: the owner’s pick when that action exists on the card, else My AI.
   const available: Record<CardHighlight, boolean> = {
     ai: !!c.agent_id,
-    whatsapp: !!tel && c.is_whatsapp_number,
+    whatsapp: (!!tel && c.is_whatsapp_number) || (c.additional_phones ?? []).some((p) => p.is_whatsapp_number && !!fullPhone(p)),
     email: !!c.email,
     pay: payMethods.length > 0,
     save: true,
@@ -277,6 +279,27 @@ export default function CardView({
     if (!ok) window.open(href, "_blank", "noopener,noreferrer"); // widget unavailable → the agent page
   };
   const extraPhones = (c.additional_phones ?? []).map((p) => ({ p, num: fullPhone(p) })).filter((x) => x.num);
+  const extraWa = extraPhones.filter(({ p }) => p.is_whatsapp_number);
+  const waNumbers: WhatsAppNumber[] = [
+    ...(tel && c.is_whatsapp_number
+      ? [{ display: `${c.country_code} ${c.phone_number}`, iso: flagIso(c.country_code), href: `https://wa.me/${tel.replace(/\D/g, "")}`, label: extraWa.length ? "Main number" : undefined }]
+      : []),
+    ...extraWa.map(({ p, num }) => ({
+      display: `${p.country_code} ${p.phone_number}`,
+      iso: flagIso(p.country_code),
+      href: `https://wa.me/${num.replace(/\D/g, "")}`,
+      label: PHONE_LABELS.find((l) => l.value === p.label)?.label,
+    })),
+  ].filter((n, i, all) => all.findIndex((m) => m.href === n.href) === i);
+  // One WhatsApp number opens the chat; several open a picker so the visitor chooses.
+  const openWhatsApp = (e: MouseEvent<HTMLAnchorElement>) => {
+    if (waNumbers.length > 1) {
+      e.preventDefault();
+      setWaOpen(true);
+      return;
+    }
+    track("whatsapp");
+  };
   const socials = c.social_media.map((s) => ({ s, url: socialUrl(s) })).filter((x) => x.url);
   const connect = socials;
   const ventures = c.ventures.filter((v) => v.name.trim());
@@ -294,7 +317,7 @@ export default function CardView({
           Digital Profile
           {(tier === "prestige" || tier === "signature") && (
             <span className={`tier-mark ${tier}`}>
-              {tier === "prestige" ? <img className="tier-seal" src={prestigeBadge} alt="" width={14} height={14} /> : <Award size={11} aria-hidden="true" />}
+              {tier === "prestige" ? <Crown size={11} aria-hidden="true" /> : <Award size={11} aria-hidden="true" />}
               {tier === "prestige" ? "Prestige" : "Signature"}
             </span>
           )}
@@ -345,24 +368,7 @@ export default function CardView({
         </div>
       </header>
 
-      {/* Numbers: one tap-to-call tile each (primary first) */}
-      {(tel || extraPhones.length > 0) && (
-        <div className={`phones${(tel ? 1 : 0) + extraPhones.length === 1 ? " one" : ""}`} aria-label="Phone numbers">
-          {tel && <PhoneTile code={c.country_code} number={c.phone_number} tel={tel} onClick={() => track("call")} />}
-          {extraPhones.map(({ p, num }, i) => (
-            <PhoneTile
-              key={i}
-              code={p.country_code}
-              number={p.phone_number}
-              tel={num}
-              onClick={() => track("call")}
-              label={p.label !== "mobile" ? PHONE_LABELS.find((l) => l.value === p.label)?.label : undefined}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Featured button: the action the owner picked (My AI by default) */}
+      {/* Featured button: the action the owner picked (My AI by default), first under the profile */}
       {featured &&
         (() => {
           const b = BANNERS[featured];
@@ -389,7 +395,7 @@ export default function CardView({
             );
           if (featured === "whatsapp")
             return (
-              <a className="ai-banner" href={`https://wa.me/${waNumber}`} target="_blank" rel="noopener noreferrer" onClick={() => track("whatsapp")}>
+              <a className="ai-banner" href={waNumbers[0]?.href} target="_blank" rel="noopener noreferrer" onClick={openWhatsApp}>
                 {inner}
               </a>
             );
@@ -412,6 +418,23 @@ export default function CardView({
           );
         })()}
 
+      {/* Numbers: one tap-to-call tile each (primary first) */}
+      {(tel || extraPhones.length > 0) && (
+        <div className={`phones${(tel ? 1 : 0) + extraPhones.length === 1 ? " one" : ""}`} aria-label="Phone numbers">
+          {tel && <PhoneTile code={c.country_code} number={c.phone_number} tel={tel} onClick={() => track("call")} />}
+          {extraPhones.map(({ p, num }, i) => (
+            <PhoneTile
+              key={i}
+              code={p.country_code}
+              number={p.phone_number}
+              tel={num}
+              onClick={() => track("call")}
+              label={p.label !== "mobile" ? PHONE_LABELS.find((l) => l.value === p.label)?.label : undefined}
+            />
+          ))}
+        </div>
+      )}
+
       {/* Quick actions: everything else, icon over label */}
       <nav className="quick" aria-label="Contact actions">
         {available.ai && featured !== "ai" && (
@@ -421,7 +444,7 @@ export default function CardView({
           </a>
         )}
         {available.whatsapp && featured !== "whatsapp" && (
-          <a className="quick-btn" href={`https://wa.me/${waNumber}`} target="_blank" rel="noopener noreferrer" onClick={() => track("whatsapp")}>
+          <a className="quick-btn" href={waNumbers[0]?.href} target="_blank" rel="noopener noreferrer" onClick={openWhatsApp}>
             <WhatsAppIcon mono size={20} />
             WhatsApp
           </a>
@@ -526,6 +549,7 @@ export default function CardView({
         </a>
       )}
       {payOpen && <PayMeSheet name={c.full_name} slug={slug} methods={payMethods} onClose={closePay} />}
+      {waOpen && <WhatsAppPickerSheet name={c.full_name} numbers={waNumbers} onPick={() => track("whatsapp")} onClose={closeWa} />}
       {saveOpen && (
         <SaveContactSheet name={c.full_name} slug={slug} onSaveToPhone={() => (track("save_contact"), downloadVCard(c, socialUrl))} onClose={closeSave} />
       )}

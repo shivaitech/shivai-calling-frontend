@@ -110,18 +110,32 @@ export default function VenturesEditor({
 
             {!basic && (
             <div className="ven-desc">
-              <textarea
-                rows={2}
-                maxLength={DESCRIPTION_MAX}
-                value={v.description ?? ""}
-                placeholder={kind.descriptionPlaceholder}
-                onChange={(e) => set(i, { description: e.target.value })}
-              />
-              {(v.description?.length ?? 0) > DESCRIPTION_MAX - 40 && (
-                <span className="ven-count">
-                  {v.description?.length ?? 0}/{DESCRIPTION_MAX}
-                </span>
-              )}
+              {(() => {
+                // Always-visible count; the limit keeps the description whole on the card.
+                const len = v.description?.length ?? 0;
+                const over = len > DESCRIPTION_MAX;
+                return (
+                  <>
+                    <textarea
+                      rows={2}
+                      // Typing stops at the limit; an older, longer description stays editable so it can be shortened.
+                      maxLength={over ? undefined : DESCRIPTION_MAX}
+                      value={v.description ?? ""}
+                      placeholder={kind.descriptionPlaceholder}
+                      aria-invalid={over || undefined}
+                      aria-describedby={`ven-desc-count-${i}`}
+                      className={over ? "is-over" : undefined}
+                      onChange={(e) => set(i, { description: e.target.value })}
+                    />
+                    <div id={`ven-desc-count-${i}`} className={`ven-count${over ? " is-over" : len >= DESCRIPTION_MAX - 10 ? " is-near" : ""}`}>
+                      <span>{over ? `Too long to show in full. Shorten it by ${len - DESCRIPTION_MAX}.` : "Shown in full on your card."}</span>
+                      <span className="ven-count-num">
+                        {len}/{DESCRIPTION_MAX}
+                      </span>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
             )}
 

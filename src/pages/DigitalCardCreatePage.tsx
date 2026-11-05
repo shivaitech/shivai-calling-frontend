@@ -19,6 +19,7 @@ import { DIGITAL_CARD_CREATE } from "./digitalCardRoutes";
 import CreatePlanPicker from "./digitalCardCreatePlan";
 import { foundingOfferActive, isFoundingFree } from "./foundingOffer";
 import { complimentaryPlan, complimentarySavePlan } from "./complimentaryPlans";
+import { pendingPlanHref, savePendingPlan } from "../ClientDashboard/Billing/pendingPlan";
 import { PLANS, type PlanId } from "./digitalCardPricing";
 import "../ClientDashboard/apps/DigitalCard/digitalCard.css";
 
@@ -149,12 +150,14 @@ export default function DigitalCardCreatePage() {
       // the server call finishes in the background — a failure just leaves it uninstalled.
       install("digital-card").catch(() => {});
       toast.success("Your digital card is ready!", { duration: 5000 });
-      // A paid plan chosen on the pricing page → finish it on the card's billing page.
-      const plan = paidPlanQuery(params);
-      navigate(
-        needsPayment ? `/billing?${new URLSearchParams({ view: "apps", app: "digital-card", ...plan })}` : "/app/digital-card?section=cards",
-        { replace: true },
-      );
+      // A paid plan chosen on the pricing page → straight on to pay for it. It's also remembered,
+      // so if they leave before paying, Billing and the Digital Card app ask them to finish later.
+      if (needsPayment && chosenPlan) {
+        savePendingPlan(chosenPlan, chosenBilling);
+        navigate(pendingPlanHref({ plan: chosenPlan as "signature" | "prestige", billing: chosenBilling }), { replace: true });
+      } else {
+        navigate("/app/digital-card?section=cards", { replace: true });
+      }
     } catch (e: any) {
       const be = e as BusinessCardError;
       if (be.status === 401) {

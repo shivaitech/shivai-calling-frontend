@@ -77,8 +77,8 @@ export const LOGO_SIZES: { id: LogoSize; label: string }[] = [
   { id: "l", label: "Large" },
 ];
 
-/** Description length limit on the card. */
-export const DESCRIPTION_MAX = 300;
+/** Description length limit: short enough to show in full on the card (3 lines on the narrowest card), never cut off. */
+export const DESCRIPTION_MAX = 80;
 
 /** PDFs only, up to 10 MB. */
 export const DOCUMENT_MAX_BYTES = 10 * 1024 * 1024;
