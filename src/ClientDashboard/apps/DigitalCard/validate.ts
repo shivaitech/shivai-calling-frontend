@@ -15,7 +15,11 @@ export function validateCard(f: CardData, opts: { skipUsername?: boolean } = {})
   if (!f.company_name.trim()) e.company_name = "Company name is required";
   else if (f.company_name.trim().length > 150) e.company_name = "Company name must be at most 150 characters";
   // Existing cards can't change their username, so it isn't re-checked when editing.
-  const usernameIssue = opts.skipUsername ? "" : usernameProblem(f.username ?? "");
+  const usernameIssue = opts.skipUsername
+    ? ""
+    : !(f.username ?? "").trim()
+      ? "Choose a username. It becomes your card's link."
+      : usernameProblem(f.username ?? "");
   if (usernameIssue) e.username = usernameIssue;
   if (f.tagline.length > 300) e.tagline = "Tagline must be at most 300 characters";
   // A "data:" photo is a local draft — it gets uploaded (and replaced by a short URL) on save.
