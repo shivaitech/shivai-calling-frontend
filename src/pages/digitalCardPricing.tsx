@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ArrowRight, BadgePercent, CheckCircle2, Infinity as InfinityIcon, Sparkles } from "lucide-react";
 import PlanCardPreview from "../ClientDashboard/apps/DigitalCard/PlanCardPreview";
+import prestigeSeal from "../resources/images/prestige-badge.webp";
 import { FOUNDING_OFFER_LABEL, isFoundingFree } from "./foundingOffer";
 
 /** Digital card plans for the marketing page. Prices are the business's figures; savings are computed, not rounded up. */
@@ -46,11 +47,11 @@ export const PLANS: Plan[] = [
     features: [
       { text: "Your personal digital business card and short link" },
       { text: "Custom designer QR card with colours, backgrounds and labels" },
-      { text: "Downloadable, high-resolution QR image" },
+      { text: "Downloadable, high resolution QR image" },
       { text: "QR card designed for your phone wallpaper" },
       { text: "Direct Call, WhatsApp and Email buttons" },
       { text: "All your professional and social links in one place" },
-      { text: "One-tap contact saving for visitors" },
+      { text: "One tap contact saving for visitors" },
       { text: "Your QR code continues to work when you update your card" },
     ],
     cta: "Create my card",
@@ -94,7 +95,7 @@ export const PLANS: Plan[] = [
     features: [
       { text: "AI Business Manager and AI Personal Manager" },
       { text: "Up to 1,000 AI calls per month across your plan", note: 1 },
-      { text: "Gold-framed profile photo and premium visual styling" },
+      { text: "Gold framed profile photo and premium visual styling" },
       { text: "Exclusive ShivAI Prestige membership badge" },
       { text: "Advanced profile analytics and engagement insights" },
       { text: "Eligibility for verified professional rankings and recognition", note: 2 },
@@ -120,25 +121,9 @@ const percentOff = (p: Plan) => Math.round((1 - p.yearly / (p.monthlyWas * 12)) 
 const MAX_SAVING = Math.max(...PLANS.map(yearlySaving));
 const MAX_PERCENT = Math.max(...PLANS.map(percentOff));
 
-/** The custom ShivAI Prestige emblem: a gold medallion with a crown over an "S". */
+/** The Prestige seal: the same gold badge the Prestige card shows in its membership title. */
 function PrestigeEmblem({ size = 28 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true">
-      <defs>
-        <linearGradient id="prestige-gold" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#e9c977" />
-          <stop offset="0.5" stopColor="#c9a24d" />
-          <stop offset="1" stopColor="#8f6d25" />
-        </linearGradient>
-      </defs>
-      <circle cx="16" cy="16" r="15" fill="none" stroke="url(#prestige-gold)" strokeWidth="1.5" />
-      <circle cx="16" cy="16" r="11.5" fill="none" stroke="url(#prestige-gold)" strokeWidth="0.75" opacity="0.6" />
-      <path d="M10.5 12.5l2 1.8 3.5-3.8 3.5 3.8 2-1.8-1 4h-9z" fill="url(#prestige-gold)" />
-      <text x="16" y="24.2" textAnchor="middle" fontSize="7.5" fontWeight="700" fill="url(#prestige-gold)" fontFamily="Georgia, serif">
-        S
-      </text>
-    </svg>
-  );
+  return <img src={prestigeSeal} alt="" aria-hidden="true" width={size} height={size} className="flex-none drop-shadow-[0_2px_3px_rgba(150,105,30,0.35)]" />;
 }
 
 function PlanCard({
@@ -169,7 +154,7 @@ function PlanCard({
       }`}
     >
       {founding && (
-        <span className="absolute -top-3 left-6 z-10 inline-flex items-center gap-1 rounded-full bg-emerald-600 px-3 py-1 text-[11px] font-semibold text-white shadow-sm">
+        <span className="absolute -top-3 left-6 z-10 inline-flex items-center gap-1 rounded-full bg-slate-900 px-3 py-1 text-[11px] font-semibold text-white shadow-sm">
           <Sparkles className="h-3 w-3" /> Founding Member offer · until 31 Dec 2026
         </span>
       )}
@@ -199,26 +184,27 @@ function PlanCard({
       <div className="mt-5 min-h-[124px]" aria-live="polite">
         {founding ? (
           <>
-            <p className="text-[34px] leading-none font-extrabold uppercase tracking-tight text-emerald-600">Free for life</p>
-            <p className="mt-2.5 text-sm text-slate-400">
-              <s className="tabular-nums">Regularly {money(plan.monthlyWas)}/month</s>
+            <p className="text-[34px] leading-none font-extrabold uppercase tracking-tight text-slate-900">Free for life</p>
+            <p className="mt-2.5 text-[17px] text-slate-500">
+              {/* Larger, with a thin line, so the struck-through 99 still reads as 99. */}
+              <s className="tabular-nums decoration-1 decoration-slate-400">Regularly {money(plan.monthlyWas)}/month</s>
             </p>
-            <p className="mt-2 text-[13px] font-medium leading-snug text-emerald-700">
+            <p className="mt-2 text-[13px] font-medium leading-snug text-slate-600">
               Create your card by {FOUNDING_OFFER_LABEL} and keep Essential free for life.
             </p>
           </>
         ) : annual ? (
           <>
             <p className="flex items-center gap-2 text-sm">
-              <s className="tabular-nums text-slate-400">{money(plan.monthlyWas)}/mo</s>
-              <span className="rounded-md bg-rose-50 px-1.5 py-0.5 text-[11px] font-bold text-rose-600">−{percentOff(plan)}%</span>
+              <s className="tabular-nums text-[15px] text-slate-400 decoration-1">{money(plan.monthlyWas)}/mo</s>
+              <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-[11px] font-bold text-emerald-700">−{percentOff(plan)}%</span>
             </p>
             <p className="mt-0.5 flex items-baseline gap-1">
               <span className="text-[40px] leading-none font-bold tracking-tight tabular-nums text-slate-900">{money(plan.yearlyPerMonth)}</span>
               <span className="text-sm text-slate-500">/month</span>
             </p>
             <p className="mt-1.5 text-xs text-slate-500">{money(plan.yearly)} billed yearly</p>
-            <p className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+            <p className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
               <BadgePercent className="h-3.5 w-3.5" /> You save {money(saving)} a year
             </p>
           </>
@@ -233,7 +219,7 @@ function PlanCard({
             <button
               type="button"
               onClick={() => onBilling("annual")}
-              className="mt-2 inline-flex items-center gap-1 rounded-lg border border-dashed border-emerald-300 px-2.5 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+              className="mt-2 inline-flex items-center gap-1 rounded-lg border border-dashed border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
             >
               Annual: {money(plan.yearlyPerMonth)}/mo · save {money(saving)}/yr
             </button>
@@ -256,14 +242,14 @@ function PlanCard({
       </p>
       {founding && (
         <p className="mt-1 text-center text-[11px] leading-snug text-slate-400">
-          Free for life covers the Essential plan only, not future paid upgrades or add-ons.
+          Free for life covers the Essential plan only. It doesn't include future paid upgrades or extras.
         </p>
       )}
 
       <div className="my-5 h-px bg-slate-200/80" />
 
       <p className="flex items-center gap-2 rounded-xl bg-slate-50 px-3 py-2.5 text-[13px] text-slate-700">
-        <InfinityIcon className="h-4 w-4 flex-none text-emerald-600" />
+        <InfinityIcon className="h-4 w-4 flex-none text-slate-500" />
         <span>
           <strong className="font-semibold">Unlimited sharing.</strong> No monthly sharing limits.
         </span>
@@ -273,7 +259,7 @@ function PlanCard({
       <ul className="mt-3 flex-1 space-y-2.5">
         {plan.features.map((f) => (
           <li key={f.text} className="flex gap-2.5 text-[14px] leading-snug text-slate-700">
-            <CheckCircle2 className="mt-px h-[18px] w-[18px] flex-none" style={{ color: gold ? GOLD : "#10b981" }} />
+            <CheckCircle2 className="mt-px h-[18px] w-[18px] flex-none" style={{ color: gold ? GOLD : "#334155" }} />
             <span>
               {f.text}
               {f.note && <sup className="ml-0.5 text-slate-400">{f.note}</sup>}
@@ -289,7 +275,10 @@ function PlanCard({
 
 export default function DigitalCardPricing({
   onChoose,
+  sectionY = "py-12 sm:py-[72px]",
 }: {
+  /** The page's shared section padding. */
+  sectionY?: string;
   /** Accepted for existing callers; the plan cards read the same either way. */
   signedIn?: boolean;
   onChoose: (plan: PlanId, billing: Billing) => void;
@@ -298,7 +287,7 @@ export default function DigitalCardPricing({
 
   return (
     <section id="pricing" className="scroll-mt-16 sm:scroll-mt-20 bg-[#F0F0F0] text-slate-900">
-      <div className="max-w-6xl mx-auto px-5 sm:px-8 py-12 sm:py-[72px]">
+      <div className={`max-w-6xl mx-auto px-5 sm:px-8 ${sectionY}`}>
         <div className="text-center max-w-2xl mx-auto">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Pricing</p>
           <h2 className="mt-2 text-3xl sm:text-5xl font-semibold tracking-tight text-balance">Your professional presence. Your&nbsp;way.</h2>
@@ -306,7 +295,7 @@ export default function DigitalCardPricing({
             Start with your digital business card. Unlock more with AI, multiple cards and exclusive benefits as you grow.
           </p>
           <div className="mt-6 flex flex-col items-center gap-2">
-            <p className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1.5 text-sm font-semibold text-emerald-700">
+            <p className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-1.5 text-sm font-semibold text-slate-800">
               <InfinityIcon size={16} aria-hidden="true" />
               Unlimited sharing on every plan.
             </p>
@@ -347,16 +336,18 @@ export default function DigitalCardPricing({
           <button
             type="button"
             onClick={() => setBilling("annual")}
-            className="group mx-auto mt-5 flex w-full max-w-xl items-center gap-3 rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50 px-4 py-3 text-left transition hover:border-emerald-300"
+            className="group mx-auto mt-5 flex w-full max-w-xl items-center gap-3 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-left transition hover:border-slate-400"
           >
-            <span className="grid h-9 w-9 flex-none place-items-center rounded-xl bg-emerald-500 text-white">
+            <span className="grid h-9 w-9 flex-none place-items-center rounded-xl bg-slate-900 text-white">
               <BadgePercent className="h-5 w-5" />
             </span>
             <span className="min-w-0 flex-1 text-sm">
-              <strong className="font-semibold text-emerald-800">Switch to annual and save up to {money(MAX_SAVING)} a year.</strong>
-              <span className="block text-emerald-700/80">Same plans, {MAX_PERCENT}% less than paying monthly.</span>
+              <strong className="font-semibold text-slate-900">Switch to annual and save up to {money(MAX_SAVING)} a year.</strong>
+              <span className="block text-slate-600">
+                Same plans, <span className="font-semibold text-emerald-700">{MAX_PERCENT}% less</span> than paying monthly.
+              </span>
             </span>
-            <ArrowRight className="hidden sm:block h-4 w-4 flex-none text-emerald-700 transition-transform group-hover:translate-x-0.5" />
+            <ArrowRight className="hidden sm:block h-4 w-4 flex-none text-slate-500 transition-transform group-hover:translate-x-0.5" />
           </button>
         )}
 

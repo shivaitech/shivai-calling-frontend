@@ -41,7 +41,7 @@ const REWARDS = [
 /** The status words match the dashboard's labels: Pending, Available, Redeemed. */
 const FINE_PRINT = [
   <>
-    Points remain <strong className="font-semibold text-slate-900">Pending</strong> until the referred customer’s payment is verified (typically 14–30 days).
+    Points remain <strong className="font-semibold text-slate-900">Pending</strong> until the referred customer’s payment is verified (typically 14 to 30 days).
   </>,
   <>
     Verified points move to your <strong className="font-semibold text-slate-900">Available</strong> balance.
@@ -53,10 +53,10 @@ const FINE_PRINT = [
 const pts = (n: number) => n.toLocaleString("en-US");
 const num = (i: number) => String(i + 1).padStart(2, "0");
 
-export default function DigitalCardReferral() {
+export default function DigitalCardReferral({ sectionY = "py-12 sm:py-[68px]" }: { sectionY?: string } = {}) {
   return (
     <section id="rewards" className="scroll-mt-16 sm:scroll-mt-20 bg-[#F5F5F2] text-slate-900">
-      <div className="max-w-6xl mx-auto px-6 sm:px-8 py-12 sm:py-[68px]">
+      <div className={`max-w-6xl mx-auto px-6 sm:px-8 ${sectionY}`}>
         {/* Header */}
         <div className="text-center max-w-2xl mx-auto">
           <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
@@ -132,7 +132,7 @@ export default function DigitalCardReferral() {
                   <Eye className="w-4 h-4" />
                 </span>
                 <span className="pt-0.5">
-                  <strong className="font-semibold text-slate-900">1 point</strong> for every new person who views your card — up to 20 qualifying views per
+                  <strong className="font-semibold text-slate-900">1 point</strong> for every new person who views your card, up to 20 qualifying views per
                   day.
                 </span>
               </li>
@@ -141,7 +141,7 @@ export default function DigitalCardReferral() {
                   <Share2 className="w-4 h-4" />
                 </span>
                 <span className="pt-0.5">
-                  <strong className="font-semibold text-slate-900">2 points</strong> for each qualifying card share — up to 20 rewarded shares per day. Sharing
+                  <strong className="font-semibold text-slate-900">2 points</strong> for each qualifying card share, up to 20 rewarded shares per day. Sharing
                   itself remains unlimited.
                 </span>
               </li>
@@ -160,7 +160,7 @@ export default function DigitalCardReferral() {
               <p className="mt-2 text-[15px] leading-relaxed text-slate-300">Turn your points into more value from your ShivAI membership.</p>
               <p className="mt-5 flex items-start gap-2.5 rounded-2xl bg-white/[0.06] p-4 text-sm text-slate-300">
                 <LayoutDashboard className="w-4 h-4 mt-0.5 flex-none text-slate-400" />
-                Your dashboard keeps track of your card views, shares, referrals and points — all in one place.
+                Your dashboard keeps track of your card views, shares, referrals and points, all in one place.
               </p>
             </div>
             <ul className="grid gap-3">
