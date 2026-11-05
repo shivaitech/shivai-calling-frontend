@@ -25,6 +25,9 @@ const CREATE_ROUTE = DIGITAL_CARD_CREATE;
 const DEMO = { ...sampleCard(), image_url: samplePortrait };
 const DEMO_LINK = "alex-morgan-morgan-consulting.callshivai.com";
 
+/** The one vertical padding every section uses, so the gap between any two sections is the same. */
+const SECTION_Y = "py-10 sm:py-14";
+
 const btnPrimary =
   "cta-glow inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-full bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 active:scale-[0.99] transition";
 const btnSecondary =
@@ -84,7 +87,7 @@ function FeatureSection({
   const dark = tone === "dark";
   return (
     <section id={id} className={`scroll-mt-16 sm:scroll-mt-20 ${dark ? "bg-slate-950 text-white" : "bg-white text-slate-900"}`}>
-      <div className="max-w-6xl mx-auto px-6 sm:px-8 py-12 sm:py-[68px]">
+      <div className={`max-w-6xl mx-auto px-6 sm:px-8 ${SECTION_Y}`}>
         <div
           className={`grid lg:grid-cols-2 gap-10 sm:gap-14 ${stickyText ? "items-start" : "items-center"} ${reverse ? "lg:[&>*:first-child]:order-2" : ""}`}
         >
@@ -143,20 +146,23 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 }
 
 const FAQS = [
-  { q: "What is a digital business card?", a: "A mobile page that replaces a printed card — your photo, role, contact details and links, shared with one link or QR code instead of cardstock." },
+  { q: "What is a digital business card?", a: "A mobile page that replaces a printed card. Your photo, role, contact details and links, shared with one link or QR code instead of cardstock." },
   {
     q: "How much does it cost?",
     a: "Essential is free for life for Founding Members who create their card before 31 December 2026. Signature and Prestige add AI managers and premium features, from $14.99 a month billed annually. Every plan includes unlimited sharing. See Pricing above for what each plan adds.",
   },
   { q: "Do people need an app to view my card?", a: "No. Your card opens in any browser. Nothing to install to view, call, message or save your details." },
-  { q: "What's the “Ask My AI” button?", a: "Connect a trained ShivAI agent to your card in one click, and visitors can talk to it directly from your profile — day or night." },
-  { q: "Can I change my card after sharing it?", a: "Yes — edit any time and the same link and QR code update instantly, nothing to reprint." },
-  { q: "Will Apple/Google Wallet work?", a: "It's on the way — the explainer below shows how it will work. The button goes live the moment it ships." },
+  { q: "What's the “Ask My AI” button?", a: "Connect a trained ShivAI agent to your card in one click, and visitors can talk to it directly from your profile, day or night." },
+  { q: "Can I change my card after sharing it?", a: "Yes. Edit it any time and the same link and QR code update instantly. There's nothing to reprint." },
+  { q: "Will Apple/Google Wallet work?", a: "It's on the way, and the explainer above shows how it will work. The button goes live the moment it ships." },
 ];
 
 // ═════════════════════════════════════════════════════════════════════════════
 
+/** The Share instantly (QR) section — the navbar's "QR Card Preview" link. */
 const FIRST_FEATURE_ID = "features";
+/** "One card. More possibilities." — first section under the hero ("Scroll to learn more"). */
+const POSSIBILITIES_ID = "possibilities";
 
 function scrollToId(id: string) {
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -250,7 +256,7 @@ export default function DigitalCardInvitePage() {
 
       {/* ── Hero ── */}
       <header className="bg-white">
-        <div className="max-w-6xl mx-auto px-6 sm:px-8 pt-24 sm:pt-32 lg:pt-36 pb-12 sm:pb-16 lg:pb-24 grid lg:grid-cols-2 gap-8 sm:gap-10 lg:gap-16 items-center">
+        <div className="max-w-6xl mx-auto px-6 sm:px-8 pt-24 sm:pt-32 lg:pt-36 pb-10 sm:pb-14 grid lg:grid-cols-2 gap-8 sm:gap-10 lg:gap-16 items-center">
           <div>
             <h1 className="text-[2.6rem] leading-[1.04] sm:text-6xl lg:text-[4.5rem] font-semibold tracking-tight">
               Your business card.
@@ -266,7 +272,7 @@ export default function DigitalCardInvitePage() {
             </p>
             <button
               type="button"
-              onClick={() => scrollToId(FIRST_FEATURE_ID)}
+              onClick={() => scrollToId(POSSIBILITIES_ID)}
               className="mt-10 group inline-flex items-center gap-3 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors"
             >
               <span className="scroll-cue" aria-hidden="true">
@@ -277,20 +283,26 @@ export default function DigitalCardInvitePage() {
           </div>
 
           <div className="flex flex-col items-center lg:items-end">
-            <img
-              src={heroImage}
-              alt="Two phones: Alex Morgan's Prestige digital card, and his AI Manager ready to take a call"
-              width={1312}
-              height={1199}
-              className="w-full max-w-[380px] sm:max-w-[480px] lg:max-w-[560px]"
-              fetchPriority="high"
-            />
+            {/* Phones: the image bleeds past both screen edges, so the phones' rounded sides are cut
+                by the screen and only their bottom edge shows. The phones fill 13.9%–87.8% of the
+                image's width; at 146% wide, shifted 24.3% left, they run ~4% past each edge.
+                Tablet and desktop keep the framed image. */}
+            <div className="-mx-6 w-[calc(100%+3rem)] overflow-hidden sm:mx-0 sm:w-full sm:overflow-visible">
+              <img
+                src={heroImage}
+                alt="Two phones: Alex Morgan's Prestige digital card, and his AI Manager ready to take a call"
+                width={1312}
+                height={1199}
+                className="block w-[146%] max-w-none -ml-[24.3%] sm:mx-auto sm:w-full sm:max-w-[480px] lg:mr-0 lg:max-w-[560px]"
+                fetchPriority="high"
+              />
+            </div>
             {/* Just below the image */}
-            <div className="mt-4 sm:mt-6 w-full max-w-[380px] sm:max-w-[480px] lg:max-w-[560px] text-center">
-              <p className="text-base sm:text-lg font-semibold tracking-tight text-slate-900 text-balance">
+            <div className="mt-4 sm:mt-6 w-full max-w-[400px] sm:max-w-[500px] lg:max-w-[560px] text-center">
+              <p className="text-[17px] sm:text-xl font-semibold tracking-tight text-slate-900 text-balance">
                 Your card makes the introduction. Your AI Manager takes the conversation forward.
               </p>
-              <p className="mt-2 text-sm sm:text-base text-slate-500 text-balance">
+              <p className="mt-2 text-[15px] sm:text-[17px] text-slate-500 text-balance">
                 Your work, your expertise and your opportunities. Always within reach, even when you aren't.
               </p>
             </div>
@@ -298,7 +310,10 @@ export default function DigitalCardInvitePage() {
         </div>
       </header>
 
-      {/* ── Feature 1: QR code ── */}
+      {/* ── One card, more possibilities: the feature carousel (Call, AI, WhatsApp, Email, Links, Save Contact, Wallet) ── */}
+      <FeatureCarousel id={POSSIBILITIES_ID} link={`https://${DEMO_LINK}`} sectionY={SECTION_Y} />
+
+      {/* ── Share instantly: the QR card ── */}
       <FeatureSection
         id={FIRST_FEATURE_ID}
         stickyText
@@ -308,25 +323,22 @@ export default function DigitalCardInvitePage() {
         body="Create your own designer QR card. Customise it to match your style, then give your phone a new look with your QR card right on your wallpaper."
         bullets={[
           "Wallpapers for phone, tablet, desktop and wallet card",
-          "Resize, drag and fade your QR on any background — even your own photo",
+          "Resize, drag and fade your QR on any background, even your own photo",
           "Download in full resolution, ready to set as your wallpaper",
-          "Always live — edit your card and the same QR code keeps working, nothing to reprint",
+          "Always live. Edit your card and the same QR code keeps working, so there's nothing to reprint",
         ]}
         visual={<QrPlayground link={`https://${DEMO_LINK}`} />}
       />
 
-      {/* ── Features 2–8: one carousel (Call, AI, WhatsApp, Email, Links, Save Contact, Wallet) ── */}
-      <FeatureCarousel link={`https://${DEMO_LINK}`} />
-
       {/* ── Full showcase: the card as a real object ── */}
       <section id="preview" className="scroll-mt-16 sm:scroll-mt-20 bg-[#F5F5F2]">
-        <div className="max-w-5xl mx-auto px-6 sm:px-8 py-12 sm:py-[68px] text-center">
+        <div className={`max-w-5xl mx-auto px-6 sm:px-8 ${SECTION_Y} text-center`}>
           <Eyebrow>Preview</Eyebrow>
-          <h2 className="mt-2 text-3xl sm:text-5xl font-semibold tracking-tight">This is what you're building.</h2>
+          <h2 className="mt-2 text-3xl sm:text-5xl font-semibold tracking-tight">All yours. All in one card.</h2>
           <p className="mt-4 text-base sm:text-lg text-slate-600 max-w-xl mx-auto">
-            Every feature above, together, on one card — photo, buttons, AI agent, socials and Save Contact.
+            A professional profile designed to help people discover you, connect with you and interact with your AI Manager.
           </p>
-          <div className="mt-12 sm:mt-16 max-w-md mx-auto">
+          <div className="mt-10 sm:mt-14 max-w-md mx-auto">
             <CardOnSurface />
           </div>
           <button onClick={create} className={`mt-10 w-full sm:w-auto ${btnPrimary}`}>Create your card now</button>
@@ -334,38 +346,41 @@ export default function DigitalCardInvitePage() {
       </section>
 
       {/* ── How it works ── */}
-      <section className="py-12 sm:py-[68px]">
+      <section className={SECTION_Y}>
         <div className="max-w-5xl mx-auto px-6 sm:px-8 text-center">
           <Eyebrow>How it works</Eyebrow>
-          <h2 className="mt-2 text-3xl sm:text-4xl font-semibold tracking-tight">Three steps. A few minutes.</h2>
-          <p className="mt-3 text-base text-slate-600 max-w-md mx-auto">No design skills, no sign-up to start. Most people are sharing their card in under five minutes.</p>
+          <h2 className="mt-2 text-3xl sm:text-4xl font-semibold tracking-tight text-balance">Three steps to your smarter business card.</h2>
           <ol className="mt-9 sm:mt-12 grid sm:grid-cols-3 gap-3 sm:gap-5 text-left">
             {[
-              { n: 1, icon: PenLine, title: "Build it", time: "About 2 min", body: "Open the card builder and fill it in. No sign-up needed to start." },
-              { n: 2, icon: Sparkles, title: "Connect your AI", optional: true, time: "1 min", body: "Link a trained agent so visitors can talk to it directly." },
-              { n: 3, icon: Send, title: "Share it", time: "Instant", body: "Save your account, get your link and QR code, and send it anywhere." },
-            ].map(({ n, icon: Icon, title, optional, time, body }) => (
+              {
+                n: 1,
+                icon: PenLine,
+                title: "Create your card",
+                body: "Add your details, photo, social links and contact options. No sign up needed to get started.",
+              },
+              {
+                n: 2,
+                icon: Sparkles,
+                title: "Add your AI Manager",
+                body: "Give people a smarter way to learn about you, your work and your services. (Optional)",
+              },
+              {
+                n: 3,
+                icon: Send,
+                title: "Share it everywhere",
+                body: "Get your personal link and QR code. Share once or a thousand times. It's yours to use.",
+              },
+            ].map(({ n, icon: Icon, title, body }) => (
               <li
                 key={n}
                 className="flex sm:flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:border-slate-300 hover:shadow-[0_8px_24px_-12px_rgba(15,23,42,0.18)]"
               >
-                <div className="flex shrink-0 items-center justify-between">
-                  <span className="flex items-center justify-center w-11 h-11 rounded-xl bg-slate-900 text-white">
-                    <Icon size={19} strokeWidth={2} aria-hidden="true" />
-                  </span>
-                  <span className="hidden sm:inline text-xs font-medium text-slate-400">{time}</span>
-                </div>
+                <span className="flex shrink-0 items-center justify-center w-11 h-11 rounded-xl bg-slate-900 text-white">
+                  <Icon size={19} strokeWidth={2} aria-hidden="true" />
+                </span>
                 <div className="min-w-0">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-                    Step {n}
-                    <span className="sm:hidden font-medium normal-case tracking-normal"> · {time}</span>
-                  </span>
-                  <h3 className="mt-1 flex flex-wrap items-center gap-2 text-base font-semibold text-slate-900">
-                    {title}
-                    {optional && (
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">Optional</span>
-                    )}
-                  </h3>
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-400">Step {n}</span>
+                  <h3 className="mt-1 text-base font-semibold text-slate-900">{title}</h3>
                   <p className="mt-1 text-sm leading-relaxed text-slate-600">{body}</p>
                 </div>
               </li>
@@ -377,16 +392,17 @@ export default function DigitalCardInvitePage() {
       {/* ── Pricing ── */}
       <DigitalCardPricing
         signedIn={isAuthenticated}
+        sectionY={SECTION_Y}
         // The chosen plan rides into the card creator (its preview takes that plan's look),
         // then on through sign-up to checkout for that plan once the card is saved.
         onChoose={(plan, billing) => setChooser({ query: `?plan=${plan}&billing=${billing}` })}
       />
 
       {/* ── ShivAI Points (referral program, coming soon) ── */}
-      <DigitalCardReferral />
+      <DigitalCardReferral sectionY={SECTION_Y} />
 
       {/* ── FAQ ── */}
-      <section id="faq" className="scroll-mt-16 sm:scroll-mt-20 bg-[#FAFAF8] py-12 sm:py-[68px]">
+      <section id="faq" className={`scroll-mt-16 sm:scroll-mt-20 bg-[#FAFAF8] ${SECTION_Y}`}>
         <div className="max-w-2xl mx-auto px-6 sm:px-8">
           <div className="text-center">
             <Eyebrow>FAQ</Eyebrow>
@@ -401,10 +417,10 @@ export default function DigitalCardInvitePage() {
       </section>
 
       {/* ── Final CTA ── */}
-      <section id={FINAL_CTA_ID} className="py-12 sm:py-[68px]">
+      <section id={FINAL_CTA_ID} className={SECTION_Y}>
         <div className="max-w-2xl mx-auto px-6 sm:px-8 text-center">
           <h2 className="text-3xl sm:text-5xl font-semibold tracking-tight">Make yours today.</h2>
-          <p className="mt-3 text-base sm:text-lg text-slate-600">Build your card first — you'll create your account when you save it. No app needed for your visitors.</p>
+          <p className="mt-3 text-base sm:text-lg text-slate-600">Build your card first. You'll create your account when you save it. No app needed for your visitors.</p>
           <div className="mt-8 flex flex-col sm:flex-row sm:justify-center gap-3">
             <button onClick={create} className={`w-full sm:w-auto ${btnPrimary}`}>Create your card now</button>
             <button onClick={() => auth.open("signin")} className={`w-full sm:w-auto ${btnSecondary}`}>Sign in</button>
@@ -417,7 +433,7 @@ export default function DigitalCardInvitePage() {
           <a href="/" className="flex items-center gap-2">
             <img src={ShivAiLogo} alt="ShivAI" className="h-6 w-auto" />
           </a>
-          <p className="text-xs text-slate-400">© {new Date().getFullYear()} ShivAI — a ShivAI product</p>
+          <p className="text-xs text-slate-400">© {new Date().getFullYear()} ShivAI. A ShivAI product.</p>
         </div>
       </footer>
 

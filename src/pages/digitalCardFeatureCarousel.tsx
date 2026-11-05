@@ -57,7 +57,7 @@ const FEATURES: Feature[] = [
     Icon: Phone,
     glow: "rgba(16,185,129,.28)",
     eyebrow: "One tap",
-    title: "Call, without the copy-paste.",
+    title: "Call, without copying and pasting.",
     body: "One tap takes people straight to your call, WhatsApp or email. No copying numbers, searching for details or switching apps to find your contact information.",
     bullets: ["Call directly from your digital card", "Works across phones and browsers", "Save contact details in one tap"],
     view: { kind: "actions", focus: "call" },
@@ -69,7 +69,7 @@ const FEATURES: Feature[] = [
     glow: "rgba(99,102,241,.32)",
     eyebrow: "The digital card that does more",
     title: "Your card introduces you. Your AI Manager takes it from there.",
-    body: "Visitors can chat with your AI Manager directly from your digital business card. It can answer questions about you and your business, share information and help book appointments—even when you're unavailable.",
+    body: "Visitors can chat with your AI Manager directly from your digital business card. It can answer questions about you and your business, share information and help book appointments, even when you're unavailable.",
     items: [
       { Icon: MessageCircle, title: "Answers enquiries", text: "Give visitors useful answers without waiting for you to reply." },
       { Icon: CalendarCheck, title: "Helps book appointments", text: "Turn interest into a next step, right from your card." },
@@ -104,7 +104,7 @@ const FEATURES: Feature[] = [
     glow: "rgba(14,165,233,.28)",
     eyebrow: "Everywhere else you show up",
     title: "Your whole professional world. One link.",
-    body: "Bring your online presence together. Add LinkedIn, Instagram, YouTube, your website and more—all in one place, ready to explore.",
+    body: "Bring your online presence together. Add LinkedIn, Instagram, YouTube, your website and more, all in one place and ready to explore.",
     bullets: ["All your important links, together", "Recognisable icons make every profile easy to find", "Add a link or username in seconds"],
     view: { kind: "links" },
   },
@@ -115,7 +115,7 @@ const FEATURES: Feature[] = [
     glow: "rgba(15,23,42,.22)",
     eyebrow: "Leaves a trace",
     title: "Save contact. Done in one tap.",
-    body: "Let people save your contact details straight to their phone—with your name, number, email and company ready to go.",
+    body: "Let people save your contact details straight to their phone, with your name, number, email and company ready to go.",
     bullets: ["Works on iPhone and Android", "No app needed", "Update your card anytime"],
     view: { kind: "actions", focus: "saveContact" },
   },
@@ -224,7 +224,7 @@ function DemoCardView({ view, link }: { view: View; link: string }) {
   );
 }
 
-export default function FeatureCarousel({ link }: { link: string }) {
+export default function FeatureCarousel({ link, id, sectionY = "py-12 sm:py-[68px]" }: { link: string; id?: string; sectionY?: string }) {
   const [index, setIndex] = useState(0);
   const [auto, setAuto] = useState(true);
   const [inView, setInView] = useState(false);
@@ -275,8 +275,8 @@ export default function FeatureCarousel({ link }: { link: string }) {
   const running = auto && inView && !hover;
 
   return (
-    <section ref={rootRef} className="bg-white text-slate-900 overflow-hidden">
-      <div className="max-w-6xl mx-auto px-6 sm:px-8 py-12 sm:py-[68px]">
+    <section ref={rootRef} id={id} className="scroll-mt-16 sm:scroll-mt-20 bg-white text-slate-900 overflow-hidden">
+      <div className={`max-w-6xl mx-auto px-6 sm:px-8 ${sectionY}`}>
         <div className="text-center max-w-2xl mx-auto">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">One card. More possibilities.</p>
           <h2 className="mt-2 text-3xl sm:text-5xl font-semibold tracking-tight">Make every connection count.</h2>
