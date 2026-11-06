@@ -27,6 +27,14 @@ export interface CardPhone {
   is_whatsapp_number: boolean;
 }
 
+export type EmailLabel = "work" | "personal" | "other";
+
+/** An email beyond the primary one (e.g. personal + official). */
+export interface CardEmail {
+  label: EmailLabel;
+  email: string;
+}
+
 /** A saved QR wallpaper design (same shape as the QR studio's design). */
 export interface CardQrDesign {
   format: string;
@@ -92,6 +100,8 @@ export interface BusinessCardInput {
   is_whatsapp_number: boolean;
   /** More numbers after the primary one. Omitted on older cards. */
   additional_phones?: CardPhone[];
+  /** More emails after the primary one. Omitted on older cards. */
+  additional_emails?: CardEmail[];
   /** Pay Me options. Omitted on older cards. */
   payment_methods?: CardPayMethod[];
   /** The one action shown as the big featured button. Omitted = My AI when an agent is set. */
@@ -155,6 +165,8 @@ export class BusinessCardError extends Error {
   status: number;
   /** 422 only — keyed by the API's dot path, e.g. "social_media.0.url". */
   fieldErrors: Record<string, string>;
+  /** The raw HTTP response, when there was one. */
+  response?: { status?: number; data?: unknown };
   constructor(message: string, status: number, fieldErrors: Record<string, string> = {}) {
     super(message);
     this.name = "BusinessCardError";
@@ -183,11 +195,10 @@ const toError = (e: any): BusinessCardError => {
       if (key && !fields[key]) fields[key] = plainMessage(x.message);
     }
   }
-  return new BusinessCardError(
-    body?.message || e?.message || "Request failed",
-    e?.response?.status ?? 0,
-    fields,
-  );
+  const err = new BusinessCardError(body?.message || e?.message || "Request failed", e?.response?.status ?? 0, fields);
+  // Kept so a plan-limit refusal (403, errors[0].code "PLAN_LIMIT_REACHED") can be recognised (Billing/planLimit.ts).
+  err.response = e?.response;
+  return err;
 };
 
 /** What to tell the person: the server's first field problem ("Username is required"), plus how many
@@ -276,6 +287,11 @@ export const toPayload = (
       .filter((p) => p.phone_number.trim())
       .map((p) => ({ label: p.label, country_code: p.country_code.trim(), phone_number: p.phone_number.trim(), is_whatsapp_number: p.is_whatsapp_number }));
     return phones.length ? { additional_phones: phones } : {};
+  })(),
+  // Only sent when there are extra emails, so single-email cards save the same payload as before.
+  ...(() => {
+    const emails = (c.additional_emails ?? []).filter((m) => m.email.trim()).map((m) => ({ label: m.label, email: m.email.trim() }));
+    return emails.length ? { additional_emails: emails } : {};
   })(),
   // The featured button — only sent once the owner picks one.
   ...(c.highlight ? { highlight: c.highlight } : {}),

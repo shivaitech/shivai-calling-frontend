@@ -30,7 +30,10 @@ export function buildVCard(c: CardData, socialUrl: (s: CardData["social_media"][
     const extra = fullPhone(p);
     if (extra) lines.push(`TEL;TYPE=${VCARD_TEL_TYPE[p.label] ?? "VOICE"}:${extra}`);
   }
-  if (c.email) lines.push(`EMAIL;TYPE=INTERNET,WORK:${c.email}`);
+  if (c.email) lines.push(`EMAIL;TYPE=INTERNET,WORK${c.additional_emails?.length ? ",PREF" : ""}:${c.email}`);
+  for (const m of c.additional_emails ?? []) {
+    if (m.email.trim()) lines.push(`EMAIL;TYPE=INTERNET,${m.label === "personal" ? "HOME" : m.label === "work" ? "WORK" : "OTHER"}:${m.email.trim()}`);
+  }
   [c.website, ...c.social_media.map(socialUrl), ...c.ventures.map((v) => v.url)]
     .filter(Boolean)
     .forEach((u) => lines.push(`URL:${u}`));

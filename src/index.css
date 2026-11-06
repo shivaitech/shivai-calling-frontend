@@ -47,6 +47,27 @@ body {
   /* box-sizing: border-box; */
 }
 
+/* Responsive text on small devices.
+   - Browsers must not inflate text on their own (Android font boosting, iOS landscape text
+     boost): that overflows fixed layouts. Pinch-zoom still works, so people can always zoom in.
+   - On very small screens (and devices whose display/font setting leaves a narrow viewport) the
+     rem-based sizes step down a little, so text, spacing and controls shrink together and the
+     layout keeps its proportions instead of wrapping and overflowing. */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+@media (max-width: 360px) {
+  html {
+    font-size: 15px;
+  }
+}
+@media (max-width: 330px) {
+  html {
+    font-size: 14px;
+  }
+}
+
 /* Fix dropdown arrow positioning */
 .dropdown-menu select,
 .dropdown-menu button {

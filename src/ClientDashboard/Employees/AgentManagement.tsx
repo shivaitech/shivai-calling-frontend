@@ -36,6 +36,7 @@ import realAgentDataSource from "./agents/realAgentDataSource";
 import { loadWorkflowChipsForAgents } from "./agents/agentWorkflowSummary";
 import type { AgentWorkflowChip } from "./agents/AgentCardWorkflows";
 import { openInNewBrowserTab } from "../../utils/openInBrowser";
+import { limitLabel, showLimitFor, usePlanLimits } from "../Billing/planLimit";
 import {
   Bot,
   Play,
@@ -102,6 +103,16 @@ const AgentManagement = () => {
   const isDeveloper = true; // Open to all users
 
   const canCreateAgent = usePermission("module:employees.page:list.action:create");
+  // Plan limit on AI agents (GET /billing/limits): when full, Create offers the upgrade instead.
+  const planLimits = usePlanLimits();
+  const agentLimit = planLimits.agents;
+  const openCreateAgent = () => {
+    if (agentLimit && !agentLimit.allowed) {
+      showLimitFor("ai_agents", agentLimit, planLimits.planName);
+      return;
+    }
+    setShowQuickCreateModal(true);
+  };
   const canDeleteAgent = usePermission("module:employees.page:list.action:delete");
 
   const isTrain = location.pathname.includes("/train");
@@ -530,7 +541,7 @@ const AgentManagement = () => {
   // Auto-open create modal when navigated with openCreate state (e.g. from dashboard)
   useEffect(() => {
     if (location.state?.openCreate) {
-      setShowQuickCreateModal(true);
+      openCreateAgent();
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, [location.state?.openCreate, navigate, location.pathname]);
@@ -1818,7 +1829,7 @@ const AgentManagement = () => {
           <button
             onClick={() => {
               if (!isDeveloper || !canCreateAgent || (isCreatingAgent && isModalMinimized)) return;
-              setShowQuickCreateModal(true);
+              openCreateAgent();
             }}
             disabled={!isDeveloper || !canCreateAgent || (isCreatingAgent && isModalMinimized)}
             title={
@@ -1826,6 +1837,8 @@ const AgentManagement = () => {
                 ? "Not included in your access"
                 : isCreatingAgent && isModalMinimized
                 ? 'Knowledge base training in progress…'
+                : agentLimit
+                ? `AI agents: ${limitLabel(agentLimit)}`
                 : undefined
             }
             className={`relative overflow-hidden flex items-center justify-center gap-2 px-4 lg:px-6 py-2.5 lg:py-3 rounded-xl transition-all duration-200 shadow-sm whitespace-nowrap ${
@@ -2333,7 +2346,7 @@ const AgentManagement = () => {
             {!searchTerm && genderFilter === "all" && isDeveloper && (
               <div className="space-y-3">
                 <button
-                  onClick={() => canCreateAgent && setShowQuickCreateModal(true)}
+                  onClick={() => canCreateAgent && openCreateAgent()}
                   disabled={!canCreateAgent}
                   title={!canCreateAgent ? "Not included in your access" : undefined}
                   className={`w-full sm:w-auto px-6 py-3 rounded-xl shadow-sm transform ${

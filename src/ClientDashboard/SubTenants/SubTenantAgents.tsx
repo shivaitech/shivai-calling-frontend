@@ -31,6 +31,7 @@ import QuickCreateAgentWizard, { type KbCreationProgress } from '../Employees/ag
 import { createSubTenantAgentDataSource } from '../Employees/agents/subTenantAgentDataSource';
 import TenantAgentTrainModal from './TenantAgentTrainModal';
 import TenantAgentQRModal from './TenantAgentQRModal';
+import { limitLabel, showLimitFor, usePlanLimits } from '../Billing/planLimit';
 
 const AGENTS_PER_PAGE = 6;
 
@@ -59,6 +60,13 @@ const SubTenantAgents = ({ tenantId, companyName }: SubTenantAgentsProps) => {
   const [deleteTarget, setDeleteTarget] = useState<MockAgentRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  // A sub-tenant's agents count against the parent account's plan (GET /billing/limits).
+  const planLimits = usePlanLimits();
+  const openCreateAgent = () => {
+    const a = planLimits.agents;
+    if (a && !a.allowed) return showLimitFor("ai_agents", a, planLimits.planName);
+    setShowCreateModal(true);
+  };
   const [trainAgent, setTrainAgent] = useState<MockAgentRecord | null>(null);
   const [qrAgent, setQrAgent] = useState<MockAgentRecord | null>(null);
 
@@ -193,7 +201,8 @@ const SubTenantAgents = ({ tenantId, companyName }: SubTenantAgentsProps) => {
         </div>
 
         <button
-          onClick={() => setShowCreateModal(true)}
+          onClick={openCreateAgent}
+          title={planLimits.agents ? `AI agents: ${limitLabel(planLimits.agents)}` : undefined}
           className="inline-flex items-center justify-center gap-2 px-4 lg:px-6 py-2.5 lg:py-3 rounded-xl text-sm lg:text-base font-medium bg-violet-600 hover:bg-violet-700 text-white transition-all shadow-sm flex-shrink-0"
         >
           <Plus className="w-4 h-4 lg:w-5 lg:h-5" />

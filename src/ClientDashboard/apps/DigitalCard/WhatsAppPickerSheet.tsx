@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { ReactNode, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import WhatsAppIcon from "./WhatsAppIcon";
@@ -14,15 +14,26 @@ export interface WhatsAppNumber {
   href: string;
 }
 
-/** The card has several WhatsApp numbers: the visitor picks which one to message. */
+/**
+ * The card has several WhatsApp numbers (or emails): the visitor picks which one to use.
+ * Defaults are for WhatsApp; `heading`, `icon` and `tone` adapt it for email.
+ */
 export default function WhatsAppPickerSheet({
   name,
   numbers,
   onPick,
   onClose,
+  heading,
+  icon,
+  tone = "wa",
 }: {
   name: string;
   numbers: WhatsAppNumber[];
+  /** Defaults to "Message <first name> on WhatsApp". */
+  heading?: string;
+  /** The round badge on each row (defaults to the WhatsApp glyph). */
+  icon?: ReactNode;
+  tone?: "wa" | "mail";
   /** Called as a chat opens (for the owner's Monitoring). */
   onPick?: () => void;
   onClose: () => void;
@@ -49,12 +60,12 @@ export default function WhatsAppPickerSheet({
       <div className="sheet-backdrop" onClick={onClose}>
         <div className="sheet wa-pick" role="dialog" aria-modal="true" aria-labelledby="wa-sheet-title" onClick={(e) => e.stopPropagation()}>
           <div className="sheet-head">
-            <h2 id="wa-sheet-title">Message {firstName} on WhatsApp</h2>
+            <h2 id="wa-sheet-title">{heading ?? `Message ${firstName} on WhatsApp`}</h2>
             <button type="button" className="sheet-x" aria-label="Close" onClick={onClose}>
               <X size={18} />
             </button>
           </div>
-          <p className="wa-pick-note">Choose a number</p>
+          <p className="wa-pick-note">{tone === "mail" ? "Choose an email" : "Choose a number"}</p>
           <div className="wa-pick-list">
             {numbers.map((n, i) => (
               <a
@@ -62,8 +73,8 @@ export default function WhatsAppPickerSheet({
                 ref={i === 0 ? first : undefined}
                 className="sheet-option wa-pick-option"
                 href={n.href}
-                target="_blank"
-                rel="noopener noreferrer"
+                target={tone === "mail" ? undefined : "_blank"}
+                rel={tone === "mail" ? undefined : "noopener noreferrer"}
                 onClick={() => {
                   onPick?.();
                   onClose();
@@ -78,8 +89,8 @@ export default function WhatsAppPickerSheet({
                   <strong>{n.display}</strong>
                   {n.label && <small>{n.label}</small>}
                 </span>
-                <span className="wa-pick-go" aria-hidden="true">
-                  <WhatsAppIcon mono size={18} />
+                <span className={`wa-pick-go${tone === "mail" ? " is-mail" : ""}`} aria-hidden="true">
+                  {icon ?? <WhatsAppIcon mono size={18} />}
                 </span>
               </a>
             ))}

@@ -172,7 +172,7 @@ const FAQS = [
   },
   {
     q: "What counts as an AI call?",
-    a: "Each conversation a visitor has with one of your AI managers counts as one call. Your allowance resets at the start of every calendar month.",
+    a: "Each conversation a visitor has with your AI Manager counts as one call. Your allowance resets at the start of every calendar month.",
   },
   {
     q: "Can I upgrade or change my plan later?",
@@ -187,16 +187,28 @@ const FAQS = [
     a: "Payments are handled by Stripe, so your card details never touch ShivAI. You can update your card, see every invoice and download receipts from Plan & Billing. Have a promo code? Add it before you pay; it applies to your first payment.",
   },
   {
-    q: "Is there a limit on how often I can share my card?",
-    a: "No. Every plan includes unlimited sharing, with no monthly limits on views, scans or shares.",
+    q: "Are there any limits on how many times I can share my card?",
+    a: "No. All plans include unlimited card sharing.",
+  },
+  {
+    q: "Can I use my digital business card internationally?",
+    a: "Yes. Your card can be shared and accessed through its link or QR code from anywhere with an internet connection.",
   },
   {
     q: "Can I have more than one card?",
     a: "Signature includes up to 2 digital business cards, for example one for each business you run. Each card gets its own link and QR code.",
   },
   {
-    q: "What are ShivAI Points?",
-    a: "Our rewards programme, launching soon. You'll earn points when people view and share your card and when someone you refer becomes a paying member, then redeem them for rewards. See ShivAI Points above for how it works.",
+    q: "What are Loyalty Points?",
+    a: "Our rewards programme, launching soon. You'll earn points when people view and share your card and when someone you refer becomes a paying member, then redeem them for rewards. See Loyalty Points above for how it works.",
+  },
+  {
+    q: "Can I earn rewards by sharing my digital business card?",
+    a: "Yes. Through the upcoming Loyalty Points programme, you can earn points when people discover your card and subscribe through your referral link.",
+  },
+  {
+    q: "How can I use my earned reward points?",
+    a: "You can use available points towards subscription discounts, eligible plan upgrades and other benefits.",
   },
 ];
 
@@ -441,7 +453,7 @@ export default function DigitalCardInvitePage() {
         onChoose={(plan, billing) => setChooser({ query: `?plan=${plan}&billing=${billing}` })}
       />
 
-      {/* ── ShivAI Points (referral program, coming soon) ── */}
+      {/* ── Loyalty Points (referral program, coming soon) ── */}
       <DigitalCardReferral sectionY={SECTION_Y} />
 
       {/* ── FAQ ── */}

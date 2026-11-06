@@ -10,7 +10,7 @@ import WhatsAppPickerSheet, { type WhatsAppNumber } from "./WhatsAppPickerSheet"
 import { visiblePayMethods } from "./payMe";
 import { openCardAgent } from "./openCardAgent";
 import { trackCardEvent, type CardEventType } from "./cardEvents";
-import { CardData, PHONE_LABELS, SOCIAL_TYPES, SocialType } from "./types";
+import { CardData, EMAIL_LABELS, PHONE_LABELS, SOCIAL_TYPES, SocialType } from "./types";
 import { ventureKind } from "./ventureKinds";
 import prestigeBadge from "../../../resources/images/prestige-badge.webp";
 import { foundingOfferActive } from "../../../pages/foundingOffer";
@@ -93,7 +93,7 @@ function VentureItem({ v, onOpen }: { v: CardData["ventures"][number]; onOpen?: 
   );
   // One compact row (the same pattern as the Connect list); the whole row opens the link.
   return (
-    <article className={`company kind-${kind.id}${cover ? " has-cover" : ""}`}>
+    <article className={`company kind-${kind.id}${cover ? " has-cover" : ""}${!cover && img ? " has-logo" : ""}${v.description?.trim() ? " has-desc" : ""}`}>
       {cover && <div className="company-cover">{img}</div>}
       {v.url ? (
         <a className="company-row" href={href(v.url)} target="_blank" rel="noopener noreferrer" aria-label={`${kind.cta(v.name)} (opens in a new tab)`} onClick={onOpen}>
@@ -235,12 +235,28 @@ export default function CardView({
     const l = document.createElement("link");
     l.id = "prestige-font";
     l.rel = "stylesheet";
-    l.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..700;1,400..600&family=Inter:wght@400..700&family=Cinzel:wght@500..700&display=swap";
+    l.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..700;1,400..600&family=Inter:wght@400..700&family=Cinzel:wght@500..700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400..700;1,8..60,400..600&display=swap";
     document.head.appendChild(l);
   }, [tier]);
   const [saveOpen, setSaveOpen] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
   const [waOpen, setWaOpen] = useState(false);
+  // Several emails: the Email button opens a picker, like WhatsApp with several numbers.
+  const [mailOpen, setMailOpen] = useState(false);
+  const closeMail = useCallback(() => setMailOpen(false), []);
+  const emails = [c.email, ...(c.additional_emails ?? []).map((m) => m.email)]
+    .map((e) => (e ?? "").trim())
+    .filter((e, i, all) => e && all.indexOf(e) === i);
+  const emailLabels = [c.additional_emails?.length ? "Main email" : undefined, ...(c.additional_emails ?? []).map((m) => EMAIL_LABELS.find((l) => l.value === m.label)?.label)];
+  const emailOptions = emails.map((e, i) => ({ display: e, label: emailLabels[i], href: `mailto:${e}` }));
+  const openEmail = (e: MouseEvent<HTMLAnchorElement>) => {
+    if (emails.length > 1) {
+      e.preventDefault();
+      setMailOpen(true);
+      return;
+    }
+    track("email");
+  };
   // Share: the phone's own share sheet where there is one, else copy the link (shown as "Link copied").
   const [shared, setShared] = useState(false);
   const shareLink = shareUrl || (slug ? publicCardUrl(slug) : "");
@@ -276,16 +292,16 @@ export default function CardView({
   const available: Record<CardHighlight, boolean> = {
     ai: !!c.agent_id,
     whatsapp: (!!tel && c.is_whatsapp_number) || (c.additional_phones ?? []).some((p) => p.is_whatsapp_number && !!fullPhone(p)),
-    email: !!c.email,
+    email: emails.length > 0,
     pay: payMethods.length > 0,
     save: true,
   };
   const featured: CardHighlight | null = c.highlight && available[c.highlight] ? c.highlight : available.ai ? "ai" : null;
-  const firstName = c.full_name.trim().split(/s+/)[0] || "me";
+  const firstName = c.full_name.trim().split(/\s+/)[0] || "me";
   const BANNERS: Record<CardHighlight, { icon: ReactNode; title: string; sub: string }> = {
     ai: { icon: <Sparkles size={20} />, title: "Talk to My AI Manager", sub: "Get answers about me, my work and my ventures" },
     whatsapp: { icon: <WhatsAppIcon mono size={21} />, title: "Message me on WhatsApp", sub: "Start a chat with me directly" },
-    email: { icon: <Mail size={20} />, title: "Email me", sub: c.email },
+    email: { icon: <Mail size={20} />, title: "Email me", sub: emails.length > 1 ? `${emails.length} email addresses` : emails[0] ?? "" },
     pay: { icon: <Wallet size={20} />, title: "Pay Me", sub: "Pay me securely using your preferred payment method" },
     save: { icon: <UserPlus size={20} />, title: "Save my contact", sub: `Add ${firstName} to your phone in one tap` },
   };
@@ -425,7 +441,7 @@ export default function CardView({
             );
           if (featured === "email")
             return (
-              <a className="ai-banner" href={`mailto:${c.email}`} onClick={() => track("email")}>
+              <a className="ai-banner" href={`mailto:${emails[0] ?? ""}`} onClick={openEmail}>
                 {inner}
               </a>
             );
@@ -474,7 +490,7 @@ export default function CardView({
           </a>
         )}
         {available.email && featured !== "email" && (
-          <a className="quick-btn" href={`mailto:${c.email}`} onClick={() => track("email")}>
+          <a className="quick-btn" href={`mailto:${emails[0] ?? ""}`} onClick={openEmail}>
             <Mail size={20} strokeWidth={1.7} />
             Email
           </a>
@@ -580,6 +596,17 @@ export default function CardView({
       )}
       {payOpen && <PayMeSheet name={c.full_name} slug={slug} methods={payMethods} onClose={closePay} />}
       {waOpen && <WhatsAppPickerSheet name={c.full_name} numbers={waNumbers} onPick={() => track("whatsapp")} onClose={closeWa} />}
+      {mailOpen && (
+        <WhatsAppPickerSheet
+          name={c.full_name}
+          numbers={emailOptions}
+          heading={`Email ${c.full_name.trim().split(/\s+/)[0] || "them"}`}
+          icon={<Mail size={17} />}
+          tone="mail"
+          onPick={() => track("email")}
+          onClose={closeMail}
+        />
+      )}
       {saveOpen && (
         <SaveContactSheet name={c.full_name} slug={slug} onSaveToPhone={() => (track("save_contact"), downloadVCard(c, socialUrl))} onClose={closeSave} />
       )}

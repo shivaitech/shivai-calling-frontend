@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { ArrowRight, BadgePercent, CheckCircle2, Infinity as InfinityIcon, Sparkles } from "lucide-react";
+import { ArrowRight, BadgePercent, CheckCircle2, Crown, Infinity as InfinityIcon, Sparkles } from "lucide-react";
 import PlanCardPreview from "../ClientDashboard/apps/DigitalCard/PlanCardPreview";
-import prestigeSeal from "../resources/images/prestige-badge.webp";
 import { FOUNDING_OFFER_LABEL, isFoundingFree } from "./foundingOffer";
 
 /** Digital card plans for the marketing page. Prices are the business's figures; savings are computed, not rounded up. */
@@ -109,7 +108,7 @@ export const PLANS: Plan[] = [
 ];
 
 const NOTES: Record<number, string> = {
-  1: "AI calls: each conversation a visitor has with one of your AI managers counts as one call. Allowances reset each calendar month.",
+  1: "Each conversation a visitor has with your AI Manager counts as one call.",
   2: "Rankings and recognition are based on published, transparent criteria.",
   3: "Quarterly rewards are opportunities for eligible annual members, not guaranteed prizes. Terms apply.",
 };
@@ -121,9 +120,9 @@ const percentOff = (p: Plan) => Math.round((1 - p.yearly / (p.monthlyWas * 12)) 
 const MAX_SAVING = Math.max(...PLANS.map(yearlySaving));
 const MAX_PERCENT = Math.max(...PLANS.map(percentOff));
 
-/** The Prestige seal: the same gold badge the Prestige card shows in its membership title. */
+/** The Prestige mark: the same gold crown the Prestige card shows in its PRESTIGE title. */
 function PrestigeEmblem({ size = 28 }: { size?: number }) {
-  return <img src={prestigeSeal} alt="" aria-hidden="true" width={size} height={size} className="flex-none drop-shadow-[0_2px_3px_rgba(150,105,30,0.35)]" />;
+  return <Crown size={size} strokeWidth={1.7} aria-hidden="true" className="flex-none" style={{ color: GOLD, fill: "rgba(231,182,74,.22)" }} />;
 }
 
 function PlanCard({

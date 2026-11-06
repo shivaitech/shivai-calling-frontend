@@ -16,6 +16,7 @@ import { TenantPermissionsProvider } from "./permissions/TenantPermissionsContex
 import { TenantViewProvider } from "./permissions/TenantViewContext";
 import TenantViewBanner from "./components/TenantViewBanner";
 import ScrollToTop from "./components/ScrollToTop";
+import PlanLimitDialog from "./ClientDashboard/Billing/PlanLimitDialog";
 import { getCardSubdomain } from "./utils/cardSubdomain";
 import PublicRoute from "./components/PublicRoute";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -435,6 +436,8 @@ function App() {
                 <AgentProvider>
                   <ScrollToTop />
                   <AppContent />
+                  {/* Upgrade dialog for plan limits (cards, AI agents), opened from any screen. */}
+                  <PlanLimitDialog />
                   <Toaster
                     position="top-right"
                     toastOptions={{ duration: 4000 }}

@@ -4,6 +4,9 @@ import { Eye, X } from "lucide-react";
 import CardView from "./CardView";
 import { emptyCard, type CardData } from "./types";
 import samplePortrait from "../../../resources/images/sample-portrait.jpg";
+import raminderPortrait from "../../../resources/images/sample-raminder.webp";
+import shivaiLogo from "../../../resources/images/sample-logo-shivai.webp";
+import celebfieLogo from "../../../resources/images/sample-logo-celebfie.webp";
 import { foundingOfferActive } from "../../../pages/foundingOffer";
 import "./digitalCard.css";
 
@@ -34,16 +37,38 @@ function sampleFor(tier: PlanTier): CardData {
   if (tier === "essential") return base;
   const withAi = { ...base, agent_id: "demo" };
   if (tier === "signature") return withAi;
+  // Prestige: the client's reference card (Raminder Singh), as in the DBC design.
   return {
-    ...withAi,
-    tagline: "Entrepreneur. Builder. Investor. Helping brands grow with AI.",
-    payment_methods: [{ provider: "upi", label: "Pay Me", value: "alexmorgan@okbank", currency: "INR", is_default: true, enabled: true }],
-    ventures: [
-      { name: "Morgan Studio", logo_url: "", url: "https://morganstudio.co", description: "Strategy and design studio for modern brands" },
-      { name: "Northwind Capital", logo_url: "", url: "https://northwind.vc/profile.pdf", description: "Early-stage investment fund", file_name: "Northwind-Profile.pdf" },
+    ...emptyCard(),
+    full_name: "Raminder Singh",
+    image_url: raminderPortrait,
+    job_title: "Founder & Co-CEO",
+    company_name: "ShivAI Tech",
+    tagline: "Entrepreneur. Builder. Investor. Driving AI for Business and Entertainment.",
+    color_code: "#161616",
+    country_code: "+91",
+    phone_number: "98100 12345",
+    is_whatsapp_number: true,
+    additional_phones: [{ label: "mobile", country_code: "+971", phone_number: "50 123 4567", is_whatsapp_number: false }],
+    email: "rs@shivaitech.com",
+    website: "https://www.callshivai.com",
+    social_media: [
+      { type: "linkedin", url: "https://www.linkedin.com/in/Raminders", username: "Raminders" },
+      { type: "instagram", url: "https://www.instagram.com/Ramindersinggh", username: "Ramindersinggh" },
+      { type: "facebook", url: "https://www.facebook.com/share/19bENQwjFa", username: "" },
     ],
+    ventures: [
+      { name: "ShivAI", logo_url: shivaiLogo, url: "https://www.callshivai.com/profile.pdf", description: "AI Employees for Real Workflows", file_name: "ShivAI-Profile.pdf" },
+      { name: "Celebfie AI", logo_url: celebfieLogo, url: "https://celebfie.ai/profile.pdf", description: "Celebrity & Talent Booking Platform", file_name: "Celebfie-Profile.pdf" },
+    ],
+    payment_methods: [{ provider: "upi", label: "Pay Me", value: "raminder@okbank", currency: "INR", is_default: true, enabled: true }],
+    highlight: "ai",
+    agent_id: "demo",
   };
 }
+
+/** Prestige previews follow the client's reference design (styles scoped to .pp-ref). */
+const refClass = (tier: PlanTier) => (tier === "prestige" ? " pp-ref" : "");
 
 const TITLES: Record<PlanTier, string> = { essential: "Essential", signature: "Signature", prestige: "Prestige" };
 const STAGE_W = 390;
@@ -61,7 +86,7 @@ function usePrestigeFont(on: boolean) {
     const l = document.createElement("link");
     l.id = "prestige-font";
     l.rel = "stylesheet";
-    l.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..700;1,400..600&family=Inter:wght@400..700&family=Cinzel:wght@500..700&display=swap";
+    l.href = "https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..700;1,400..600&family=Inter:wght@400..700&family=Cinzel:wght@500..700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400..700;1,8..60,400..600&display=swap";
     document.head.appendChild(l);
   }, [on]);
 }
@@ -111,8 +136,14 @@ export default function PlanCardPreview({ tier, height = 300 }: { tier: PlanTier
         onClick={() => setOpen(true)}
         onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), setOpen(true))}
       >
-        <div className="pp-stage" style={{ transform: `scale(${scale})` }} aria-hidden="true">
-          <CardView card={card} tier={tier} foundingMember={tier === "essential" && foundingOfferActive()} />
+        <div className={`pp-stage${refClass(tier)}`} style={{ transform: `scale(${scale})` }} aria-hidden="true">
+          <CardView
+            card={card}
+            tier={tier}
+            poweredBy={tier === "prestige"}
+            createCardHref={tier === "prestige" ? "#" : undefined}
+            foundingMember={tier === "essential" && foundingOfferActive()}
+          />
         </div>
         <div className="pp-fade" />
         <span className="pp-open">
@@ -140,8 +171,14 @@ export default function PlanCardPreview({ tier, height = 300 }: { tier: PlanTier
                     <X size={18} />
                   </button>
                 </div>
-                <div className="pp-sheet-body" onClickCapture={block} onSubmitCapture={block}>
-                  <CardView card={card} tier={tier} poweredBy foundingMember={tier === "essential" && foundingOfferActive()} />
+                <div className={`pp-sheet-body${refClass(tier)}`} onClickCapture={block} onSubmitCapture={block}>
+                  <CardView
+                    card={card}
+                    tier={tier}
+                    poweredBy
+                    createCardHref={tier === "prestige" ? "#" : undefined}
+                    foundingMember={tier === "essential" && foundingOfferActive()}
+                  />
                 </div>
               </div>
             </div>

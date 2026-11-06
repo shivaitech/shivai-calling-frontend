@@ -21,6 +21,8 @@ import CreatePlanPicker from "./digitalCardCreatePlan";
 import { foundingOfferActive, isFoundingFree } from "./foundingOffer";
 import { complimentaryPlan, complimentarySavePlan } from "./complimentaryPlans";
 import { pendingPlanHref, savePendingPlan } from "../ClientDashboard/Billing/pendingPlan";
+import { handlePlanLimit } from "../ClientDashboard/Billing/planLimit";
+import { createWithUsername } from "../ClientDashboard/apps/DigitalCard/autoUsername";
 import { PLANS, type PlanId } from "./digitalCardPricing";
 import "../ClientDashboard/apps/DigitalCard/digitalCard.css";
 
@@ -61,6 +63,8 @@ export default function DigitalCardCreatePage() {
   const comp = complimentaryPlan(user?.email);
   const compPlan = complimentarySavePlan(comp, chosenPlan);
   const lookTier = compPlan ?? chosenPlan ?? undefined;
+  // Choosing the card's link is a Prestige option; other plans get one made from the name on save.
+  const chooseUsername = lookTier === "prestige";
   const needsPayment = !comp && !!chosenPlan && !isFoundingFree(chosenPlan);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -104,7 +108,7 @@ export default function DigitalCardCreatePage() {
   // The review step needs a valid card and a session (e.g. after a Google round trip or a reload).
   useEffect(() => {
     if (step !== "review" || authLoading) return;
-    const v = validateCard(form);
+    const v = validateCard(form, { skipUsername: !chooseUsername });
     if (Object.keys(v).length) {
       setErrors(v);
       goStep("edit");
@@ -129,7 +133,7 @@ export default function DigitalCardCreatePage() {
   };
 
   const saveAndContinue = () => {
-    const v = validateCard(form);
+    const v = validateCard(form, { skipUsername: !chooseUsername });
     setErrors(v);
     if (Object.keys(v).length) return toast.error("Fix the highlighted fields");
     if (hasSession) {
@@ -144,7 +148,7 @@ export default function DigitalCardCreatePage() {
     setSaving(true);
     try {
       const ready = await resolveCardImages(form); // uploads a locally-picked photo/logos first
-      await businessCardAPI.create(ready, { plan: compPlan });
+      await createWithUsername(ready, chooseUsername, { plan: compPlan });
       created.current = true;
       clearDraft();
       // Shows as installed immediately (the app page sends non-installers to the marketplace);
@@ -161,7 +165,10 @@ export default function DigitalCardCreatePage() {
       }
     } catch (e: any) {
       const be = e as BusinessCardError;
-      if (be.status === 401) {
+      if (handlePlanLimit(be)) {
+        // This account already has as many cards as its plan allows: the upgrade dialog explains.
+        // The draft is kept, so nothing typed is lost.
+      } else if (be.status === 401) {
         wantsReview.current = true;
         toast.error("Your session expired — please sign in to save your card.");
         auth.open("signin", { email: form.email });
@@ -258,6 +265,7 @@ export default function DigitalCardCreatePage() {
             <div className="grid">
               <div className="form">
                 <CardForm
+                  chooseUsername={chooseUsername}
                   form={form}
                   set={set}
                   errors={errors}
