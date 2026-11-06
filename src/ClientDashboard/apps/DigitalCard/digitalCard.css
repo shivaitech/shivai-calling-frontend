@@ -1494,3 +1494,237 @@
 /* Public page: keep the framed card's top margin inside the page background. Without this the
    margin collapsed through .dc-public and pushed it down, leaving a white strip at the top. */
 .dc-public{display:flow-root}
+
+/* "Upgrade" on each card in My cards: a light gold tint, so it reads as the next step up. */
+.dc .btn.upgrade{background:linear-gradient(180deg,#fbf4e2,#f2e4c1);border-color:#e3cd96;color:#3b2f14}
+.dc .btn.upgrade:hover{background:linear-gradient(180deg,#fdf7e8,#f4e7c8);border-color:#d9b25a}
+
+/* ---------- My cards: one informative tile per card ---------- */
+.dc .cardrow{gap:14px}
+.dc .cardrow-main{display:flex;align-items:flex-start;gap:14px;min-width:0}
+.dc .cardrow-main .grow{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.dc .cardrow .avatar{width:56px;height:70px}
+.dc .cardrow-title{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
+.dc .cardrow-title strong{font-size:16px;letter-spacing:-.2px}
+.dc .plan-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:999px;border:1px solid #deded9;background:#f4f4f1;color:#4a4a45;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap}
+.dc .plan-chip.is-signature{border-color:#c9ced6;background:linear-gradient(180deg,#ffffff,#eef1f5);color:#4b5563}
+.dc .plan-chip.is-prestige{border-color:#e3cd96;background:linear-gradient(180deg,#fffaf0,#f6e9c8);color:#8a6a1f}
+.dc .plan-chip-note{font-weight:600;text-transform:none;letter-spacing:0}
+.dc .cardrow-meta{display:flex;flex-wrap:wrap;gap:4px 14px;margin:6px 0 0;padding:0;list-style:none;font-size:12px;color:var(--muted)}
+.dc .cardrow-meta li{display:inline-flex;align-items:center;gap:5px}
+.dc .cardrow-meta li.is-on{color:#15803d}
+.dc .cardrow-meta li.is-stat{color:var(--ink);font-weight:600}
+.dc .cardrow-qr{flex:none;width:76px;height:76px;padding:5px;border:1px solid var(--line);border-radius:12px;background:#fff;line-height:0;transition:border-color .15s,box-shadow .15s}
+.dc .cardrow-qr:hover{border-color:#c9c9c3;box-shadow:0 4px 12px rgba(0,0,0,.06)}
+.dc .cardrow-qr img{width:100%;height:100%;object-fit:contain}
+.dc .cardrow .btns{padding-top:12px;border-top:1px solid var(--line)}
+.dc .cardrow .btn{gap:6px}
+@media(max-width:520px){.dc .cardrow-qr{display:none}}
+/* The card's photo in My cards: a thin frame, so light or transparent photos don't melt into the tile. */
+.dc .cardrow .avatar{border:1px solid #d9d9d3;box-shadow:0 1px 2px rgba(0,0,0,.05);background:#f4f4f1}
+
+/* =====================================================================
+   Card builder v2 (CardForm): collapsible section cards with an icon, title and
+   one-line description; compact inputs; round profile photo; colour swatches; phone row
+   with a WhatsApp switch; icon inputs; featured-button grid. Scoped to .form so the
+   public card and other pages are untouched.
+   Tokens: bg #F7F7F7 · card #FFF · text #171717 · muted #777 · border #E8E8E8 · success #269C63
+   ===================================================================== */
+.dc .form{gap:12px}
+.dc .form .fsec{padding:0;gap:0;border:1px solid #e8e8e8;border-radius:16px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+.dc .form .fsec-head{width:100%;display:flex;align-items:center;gap:12px;padding:14px 16px;border:0;background:none;font:inherit;color:#171717;text-align:left;cursor:pointer;border-radius:16px}
+.dc .form .fsec-head:focus-visible{outline:2px solid #171717;outline-offset:-2px}
+.dc .form .fsec-ico{width:38px;height:38px;flex:none;display:grid;place-items:center;border-radius:50%;background:#f4f4f3;color:#171717}
+.dc .form .fsec-titles{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.dc .form .fsec-titles strong{font-size:16px;font-weight:650;letter-spacing:-.2px}
+.dc .form .fsec-titles small{font-size:12.5px;color:#777;line-height:1.35}
+.dc .form .fsec-chev{flex:none;color:#555;transition:transform .2s}
+.dc .form .fsec.is-open .fsec-chev{transform:rotate(180deg)}
+.dc .form .fsec-body{display:flex;flex-direction:column;gap:14px;padding:14px 16px 16px;border-top:1px solid #f0f0ee}
+
+/* Fields */
+.dc .form .field>span:first-child{font-size:12.5px;font-weight:600;color:#171717}
+.dc .form .req{color:#e5484d;font-weight:700}
+.dc .form .field-help{font-size:11.5px;line-height:1.45;color:#777}
+.dc .form input:not([type=checkbox]):not([type=color]):not([type=file]),.dc .form select,.dc .form textarea{border:1px solid #e8e8e8;border-radius:10px;font-size:14px;background:#fff;color:#171717}
+.dc .form input:not([type=checkbox]):not([type=color]):not([type=file]),.dc .form select{min-height:44px}
+.dc .form input:focus,.dc .form select:focus,.dc .form textarea:focus{outline:none;border-color:#171717;box-shadow:0 0 0 3px rgba(23,23,23,.08)}
+.dc .form .row.two{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+@media(max-width:360px){.dc .form .row.two{grid-template-columns:1fr}}
+
+/* Profile photo: round preview, copy and actions beside it */
+.dc .form .photo-row{display:flex;align-items:center;gap:16px}
+.dc .form .photo-avatar{position:relative;width:84px;height:84px;flex:none;padding:0;border:0;background:none;border-radius:50%;cursor:pointer}
+.dc .form .photo-avatar-img{width:100%;height:100%;display:grid;place-items:center;overflow:hidden;border-radius:50%;background:#f1f1ef;color:#9a9a96;box-shadow:0 0 0 1px #e8e8e8}
+.dc .form .photo-avatar-img img{width:100%;height:100%;object-fit:cover}
+.dc .form .photo-avatar-cam{position:absolute;right:-2px;bottom:2px;width:28px;height:28px;display:grid;place-items:center;border-radius:50%;background:#171717;color:#fff;border:2px solid #fff}
+.dc .form .photo-copy{flex:1;min-width:0}
+.dc .form .photo-copy strong{display:block;font-size:15px;font-weight:650}
+.dc .form .photo-copy p{margin:2px 0 10px;font-size:12.5px;line-height:1.4;color:#777}
+.dc .form .photo-actions{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px}
+.dc .form .pill-btn{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:0 14px;border:1px solid #d8d8d8;border-radius:999px;background:#fff;font:inherit;font-size:13px;font-weight:600;color:#171717;cursor:pointer}
+.dc .form .pill-btn:hover:not(:disabled){border-color:#171717}
+.dc .form .text-btn{border:0;background:none;padding:6px 2px;font:inherit;font-size:13px;font-weight:600;color:#171717;cursor:pointer}
+.dc .form .text-btn:hover{text-decoration:underline}
+
+/* Tagline with a counter inside the box */
+.dc .form .textarea-wrap{position:relative;display:block}
+.dc .form .textarea-wrap textarea{width:100%;min-height:96px;padding:11px 12px 26px;resize:vertical;line-height:1.5}
+.dc .form .textarea-count{position:absolute;right:12px;bottom:8px;font-size:11px;color:#9a9a96;font-variant-numeric:tabular-nums;pointer-events:none}
+
+/* Accent colour swatches */
+.dc .form .swatches{position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:6px}
+.dc .form .swatch{width:36px;height:36px;padding:0;display:grid;place-items:center;border:2px solid #fff;border-radius:50%;color:#fff;cursor:pointer;box-shadow:0 0 0 1px #e1e1df}
+.dc .form .swatch.is-on{box-shadow:0 0 0 2px #171717}
+.dc .form .swatch-add{background:#fff;color:#171717;border:1px solid #d8d8d8;box-shadow:none}
+.dc .form .swatch-input{position:absolute;left:0;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none}
+
+/* Phone row: code · number · WhatsApp switch */
+.dc .form .phone-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:center}
+.dc .form .phone-row .cc-select{min-width:92px}
+.dc .form .wa-switch{display:inline-flex;align-items:center;gap:8px;padding:0 2px 0 4px;border:0;background:none;color:#a3a3a0;cursor:pointer}
+.dc .form .wa-switch.is-on{color:#25d366}
+.dc .form .wa-switch-track{position:relative;width:42px;height:24px;border-radius:999px;background:#d9d9d6;transition:background .2s}
+.dc .form .wa-switch.is-on .wa-switch-track{background:#171717}
+.dc .form .wa-switch-knob{position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:transform .2s}
+.dc .form .wa-switch.is-on .wa-switch-knob{transform:translateX(18px)}
+.dc .form .wa-switch:focus-visible{outline:2px solid #171717;outline-offset:2px;border-radius:999px}
+.dc .form .wa-note{display:inline-flex;align-items:center;gap:5px;margin-top:6px;font-size:12px;color:#777}
+.dc .form .wa-note.is-on{color:#269c63}
+.dc .form .xphone{display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid #efefed;border-radius:12px;background:#fafafa}
+.dc .form .dash-btn{align-self:flex-start;display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:0 16px;border:1px dashed #cfcfcc;border-radius:999px;background:#fff;font:inherit;font-size:13px;font-weight:600;color:#171717;cursor:pointer}
+.dc .form .dash-btn:hover{border-color:#171717}
+
+/* Inputs with an icon (email, website) */
+.dc .form .icon-input{position:relative;display:block}
+.dc .form .icon-input svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:#777;pointer-events:none}
+.dc .form .icon-input input{width:100%;padding-left:40px}
+
+/* Username: green check inside the box when it's free */
+.dc .form .un-ok-ico{flex:none;color:#269c63;margin-right:6px}
+.dc .form .un-label{font-size:12.5px;font-weight:600;color:#171717}
+.dc .form .un-label small{font-weight:500;color:#777}
+
+/* Featured button: two-column choices; the picked one is black with a check */
+.dc .form .hl-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.dc .form .hl-opt{position:relative;min-height:46px;display:flex;align-items:center;gap:10px;padding:0 14px;border:1px solid #e8e8e8;border-radius:12px;background:#fff;font:inherit;font-size:14px;font-weight:600;color:#171717;text-align:left;cursor:pointer}
+.dc .form .hl-opt:hover:not(:disabled){border-color:#171717}
+.dc .form .hl-opt.is-on{background:#171717;border-color:#171717;color:#fff}
+.dc .form .hl-opt:disabled{opacity:.45;cursor:not-allowed}
+.dc .form .hl-check{margin-left:auto;width:22px;height:22px;flex:none;display:grid;place-items:center;border-radius:50%;background:#fff;color:#171717}
+
+/* Social links: a compact row of brand icons; a green check marks connected ones */
+.dc .form .soc-grid{grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+.dc .form .soc-tile{position:relative;aspect-ratio:1;padding:0;justify-content:center;border-radius:14px;border-color:#ececea}
+.dc .form .soc-tile:hover{transform:none;border-color:#171717}
+.dc .form .soc-tile-ico,.dc .form .soc-tile-ico .link-ico{width:34px;height:34px;border-radius:10px}
+.dc .form .soc-tile-name{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.dc .form .soc-tile-state{display:none}
+.dc .form .soc-tile.is-on .soc-tile-state{position:absolute;top:-6px;right:-6px;width:20px;height:20px;padding:0;display:grid;place-items:center;border-radius:50%;background:#269c63;color:#fff;font-size:0;border:2px solid #fff}
+.dc .form .soc-tile.is-on .soc-tile-state svg{width:11px;height:11px}
+@media(max-width:360px){.dc .form .soc-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+/* Pay Me intro: a soft grey box with a black icon tile */
+.dc .form .pm-empty{border:1px solid #ececea;border-radius:12px;background:#f7f7f7}
+.dc .form .pm-empty-ico{background:#171717;color:#fff}
+
+/* Sticky action bar: full width, two equal buttons on phones */
+.dc .savebar .btn{min-height:48px;border-radius:14px;font-size:15px}
+.dc .savebar .preview-jump{display:none}
+@media(max-width:899px){
+  .dc .savebar{padding:12px 0 calc(12px + env(safe-area-inset-bottom))}
+  .dc .savebar .btn{flex:1}
+  .dc .savebar .preview-jump{display:inline-flex;gap:8px;background:#fff;color:#171717;border-color:#d8d8d8}
+  .dc .savebar .cancel-btn{display:none}
+}
+
+/* Preview heading (the section people jump to from the action bar) */
+.dc .preview-head{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.dc .preview-head .fsec-ico{width:38px;height:38px;flex:none;display:grid;place-items:center;border-radius:50%;background:#fff;border:1px solid #e8e8e8;color:#171717}
+.dc .preview-head strong{display:block;font-size:16px;font-weight:650}
+.dc .preview-head small{display:block;font-size:12.5px;color:#777}
+.dc .preview{scroll-margin-top:80px}
+
+/* Composite controls keep a single outer border: the username box and the country-code picker. */
+.dc .form .un-input input:not([type=checkbox]):not([type=color]):not([type=file]),
+.dc .form .un-input input:not([type=checkbox]):not([type=color]):not([type=file]):focus{border:0;box-shadow:none;min-height:42px;border-radius:0}
+.dc .form .un-input{min-height:44px;border-color:#e8e8e8;border-radius:10px}
+.dc .form .cc-select select,.dc .form .cc-select select:focus{border:0;box-shadow:none;min-height:0}
+.dc .form .cc-display{min-height:44px;border-color:#e8e8e8;border-radius:10px}
+
+/* Card creator header: a tilted phone showing a live miniature of the card being built. */
+.dc .create-hero-phone{position:relative;width:118px;height:150px;margin-right:-14px;border:5px solid #1b1b1b;border-radius:22px;background:#fff;overflow:hidden;transform:rotate(8deg);box-shadow:0 18px 30px -16px rgba(0,0,0,.35);pointer-events:none}
+.dc .create-hero-stage{position:absolute;top:0;left:0;width:390px;transform:scale(.276);transform-origin:0 0}
+.dc .create-hero-stage .card{width:100%;margin:0;border:0;border-radius:0;box-shadow:none}
+@media(min-width:640px){
+  .dc .create-hero-phone{width:150px;height:190px;border-radius:26px;margin-right:0}
+  .dc .create-hero-stage{transform:scale(.359)}
+}
+
+/* Builder fields: a little shorter, with tighter corners. */
+.dc .form input:not([type=checkbox]):not([type=color]):not([type=file]),.dc .form select{min-height:40px;height:40px;padding-top:0;padding-bottom:0;border-radius:8px}
+.dc .form textarea,.dc .form .textarea-wrap textarea{border-radius:8px}
+.dc .form .un-input,.dc .form .cc-display{min-height:40px;border-radius:8px}
+.dc .form .cc-display{padding-top:0;padding-bottom:0;height:40px}
+.dc .form .un-input input:not([type=checkbox]):not([type=color]):not([type=file]),
+.dc .form .un-input input:not([type=checkbox]):not([type=color]):not([type=file]):focus{min-height:38px;height:38px}
+.dc .form .hl-opt{min-height:42px;border-radius:10px}
+
+/* ---------- My cards v2: calmer tile, stats strip, one action row, plan footer ---------- */
+.dc .cards-head{align-items:center}
+.dc .cards-head .title{font-size:22px;font-weight:700;letter-spacing:-.3px;text-transform:none;color:#171717}
+.dc .cards-head .muted{margin-top:2px;font-size:13px}
+.dc .cards-head .btn{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 16px;border-radius:10px;font-size:14px}
+
+.dc .cardrow{gap:0;padding:0;border:1px solid #e8e8e8;border-radius:16px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.03);overflow:hidden}
+.dc .cardrow-main{padding:16px 16px 14px;gap:14px;align-items:center}
+.dc .cardrow .avatar{width:60px;height:60px;border-radius:14px}
+.dc .cardrow-title{gap:6px 8px}
+.dc .cardrow-title strong{font-size:17px;font-weight:700;color:#171717}
+.dc .plan-chip{padding:2px 8px;font-size:10px;letter-spacing:.06em}
+.dc .cardrow-role{font-size:13px;color:#555;line-height:1.35}
+.dc .cardrow-link{display:flex;align-items:center;gap:6px;min-width:0}
+.dc .cardrow-link .slug{font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dc .cardrow-copy{flex:none;width:24px;height:24px;display:grid;place-items:center;border:0;border-radius:6px;background:transparent;color:#777;cursor:pointer}
+.dc .cardrow-copy:hover{background:#f2f2f0;color:#171717}
+.dc .cardrow-updated{display:inline-flex;align-items:center;gap:5px;margin-top:1px;font-size:11.5px;color:#8a8a86}
+
+/* At a glance */
+.dc .cardrow-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;margin:0;background:#efefed;border-top:1px solid #efefed;border-bottom:1px solid #efefed}
+.dc .cardrow-stats>div{background:#fafafa;padding:10px 12px;min-width:0}
+.dc .cardrow-stats dt{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:#777}
+.dc .cardrow-stats dd{margin:3px 0 0;font-size:18px;font-weight:700;color:#171717;line-height:1.1;font-variant-numeric:tabular-nums}
+.dc .cardrow-stats small{display:block;margin-top:1px;font-size:11px;color:#9a9a96;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dc .cardrow-stats>div.is-on dd{color:#269c63}
+
+/* Actions */
+.dc .cardrow-actions{display:flex;align-items:center;gap:8px;padding:12px 16px}
+.dc .cardrow-actions>.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:38px;padding:0 14px;border-radius:10px;font-size:13.5px}
+.dc .cardrow-actions>.btn:first-child{flex:1 1 auto;max-width:180px}
+.dc .cardrow-icons{display:inline-flex;gap:6px;margin-left:auto}
+.dc .icon-btn{width:38px;height:38px;display:grid;place-items:center;border:1px solid #e3e3e0;border-radius:10px;background:#fff;color:#171717;cursor:pointer;text-decoration:none}
+.dc .icon-btn:hover{border-color:#171717}
+
+/* Plan footer */
+.dc .cardrow-plan{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px;border-top:1px solid #efefed;background:#fcfcfb;font-size:12.5px;color:#555}
+.dc .cardrow-plan>span{display:inline-flex;align-items:center;gap:6px;font-weight:600}
+.dc .cardrow-plan.is-prestige{background:linear-gradient(90deg,#fffaf0,#fdf6e6)}
+.dc .cardrow-plan.is-prestige>span{color:#8a6a1f}
+.dc .cardrow-plan.is-signature>span{color:#4b5563}
+.dc .cardrow-plan-cta{display:inline-flex;align-items:center;gap:5px;font-weight:600;color:#171717;text-decoration:none;white-space:nowrap}
+.dc .cardrow-plan-cta:hover{text-decoration:underline}
+.dc .cardrow-plan-cta.is-upgrade{padding:5px 12px;border-radius:999px;border:1px solid #e3cd96;background:linear-gradient(180deg,#fbf4e2,#f2e4c1);color:#3b2f14;text-decoration:none}
+@media(max-width:420px){
+  .dc .cardrow-main{padding:14px 14px 12px}
+  .dc .cardrow-actions{padding:12px 14px}
+  .dc .cardrow-stats>div{padding:9px 10px}
+  .dc .cardrow-plan{padding:10px 14px}
+}
+
+/* My cards header: compact title with a count, a smaller New card button. */
+.dc .cards-head{align-items:center;gap:12px;padding:2px 2px 4px}
+.dc .cards-head .title{display:flex;align-items:center;gap:8px;font-size:20px;font-weight:700;letter-spacing:-.3px}
+.dc .cards-count{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 7px;border-radius:999px;background:#ececea;color:#555;font-size:12px;font-weight:700;letter-spacing:0}
+.dc .cards-head .muted{font-size:12.5px;color:#777}
+.dc .cards-head .btn{min-height:36px;height:36px;padding:0 14px 0 12px;border-radius:9px;font-size:13.5px;font-weight:600;gap:5px;box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.dc .cards-head .btn svg{width:15px;height:15px}

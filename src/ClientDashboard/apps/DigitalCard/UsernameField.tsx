@@ -69,7 +69,7 @@ export default function UsernameField({
     return (
       <div className="field un">
         <span className="un-label">
-          Username <small>— your card’s link</small>
+          Username <small>· your card’s link</small>
         </span>
         <div className="un-input is-locked" aria-readonly="true">
           <Lock size={14} className="un-at" aria-hidden="true" />
@@ -84,7 +84,8 @@ export default function UsernameField({
   return (
     <div className="field un">
       <label htmlFor="card-username" className="un-label">
-        Username <small>— your card’s link</small>
+        Username <small>· your card’s link</small>
+        <b className="req" aria-hidden="true"> *</b>
       </label>
       <div className={`un-input${shownError || status.kind === "taken" ? " is-bad" : status.kind === "ok" ? " is-good" : ""}`}>
         <AtSign size={15} className="un-at" aria-hidden="true" />
@@ -101,6 +102,7 @@ export default function UsernameField({
           onChange={(e) => onChange(normalizeUsername(e.target.value))}
           onBlur={() => value !== value.replace(/^-+|-+$/g, "") && onChange(value.replace(/^-+|-+$/g, ""))}
         />
+        {status.kind === "ok" && !shownError && <Check size={16} className="un-ok-ico" aria-hidden="true" />}
         <span className="un-suffix">.callshivai.com</span>
       </div>
 

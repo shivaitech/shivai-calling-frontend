@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
+import { Eye } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useAgent } from "../contexts/AgentContext";
 import { useInstalledApps } from "../marketplace/useInstalledApps";
@@ -193,15 +194,34 @@ export default function DigitalCardCreatePage() {
       <Navbar setAuthMode={auth.setAuthMode} setShowAuthModal={auth.setShowAuthModal} showLinks={false} />
 
       <main className="max-w-6xl mx-auto px-4 sm:px-8 pt-24 sm:pt-28 lg:pt-32 pb-16">
-        <div className="mb-6">
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
-            {step === "review" ? "Preview your card" : "Create your digital card"}
-          </h1>
-          <p className="mt-1.5 text-sm sm:text-base text-slate-600 max-w-2xl">
-            {step === "review"
-              ? "This is how people will see your card. Happy with it? Save it."
-              : "Fill in your details — your progress is saved on this device. You’ll sign in or create an account when you save."}
-          </p>
+        <div className="mb-6 flex items-center justify-between gap-4 overflow-hidden">
+          <div className="min-w-0">
+            <h1 className="text-[28px] leading-[1.1] sm:text-4xl font-bold tracking-tight text-[#171717]">
+              {step === "review" ? (
+                "Preview your card"
+              ) : (
+                <>
+                  Create your
+                  <br className="sm:hidden" /> digital business card
+                </>
+              )}
+            </h1>
+            <p className="mt-2 text-[13px] sm:text-base text-[#777] max-w-xl">
+              {step === "review"
+                ? "This is how people will see your card. Happy with it? Save it."
+                : "One link for everything: your profile, contact, payments and more. Your progress is saved on this device."}
+            </p>
+          </div>
+          {/* A tilted phone with a live miniature of the card being built (phones and tablets; desktop has the full preview beside the form). */}
+          {step === "edit" && (
+            <div className="dc lg:hidden flex-none" aria-hidden="true">
+              <div className="create-hero-phone">
+                <div className="create-hero-stage">
+                  <CardView card={form} placeholders tier={lookTier} />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {step === "edit" ? (
@@ -249,9 +269,21 @@ export default function DigitalCardCreatePage() {
                 />
                 <div className="savebar">
                   <button className="btn" onClick={saveAndContinue}>Save &amp; continue</button>
+                  <button type="button" className="btn ghost preview-jump" onClick={() => document.querySelector(".dc .preview")?.scrollIntoView({ behavior: "smooth", block: "start" })}>
+                    <Eye size={17} aria-hidden="true" /> Preview
+                  </button>
                 </div>
               </div>
               <aside className="preview">
+                <div className="preview-head">
+                  <span className="fsec-ico" aria-hidden="true">
+                    <Eye size={19} strokeWidth={1.8} />
+                  </span>
+                  <span>
+                    <strong>Preview your card</strong>
+                    <small>Updates as you type</small>
+                  </span>
+                </div>
                 <div className="phone-frame"><CardView card={form} placeholders tier={lookTier} foundingMember={foundingOfferActive() && !comp && (!chosenPlan || chosenPlan === "essential")} /></div>
               </aside>
             </div>

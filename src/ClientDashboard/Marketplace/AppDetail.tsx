@@ -19,6 +19,7 @@ import { useInstalledApps } from "../../marketplace/useInstalledApps";
 import toast from "react-hot-toast";
 import { useAuth } from "../../contexts/AuthContext";
 import AssignSkillModal from "./AssignSkillModal";
+import { agentRequirementProblem, usePublishedAgents } from "../../marketplace/usePublishedAgents";
 
 // Per-app uninstall cleanup — apps with their own local setup wizard/data
 // must wipe it on uninstall, otherwise a reinstall silently skips the wizard
@@ -46,6 +47,8 @@ const AppDetail = () => {
   const [installing, setInstalling] = useState(false);
   const [justInstalled, setJustInstalled] = useState(false);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
+  // Some apps (e.g. Appointment CRM) need at least one published AI employee.
+  const agentCheck = usePublishedAgents();
 
   const app = appId ? getVisibleAppById(appId, user?.email) : undefined;
 
@@ -71,6 +74,12 @@ const AppDetail = () => {
   const Icon = app.icon;
 
   const handleInstall = async () => {
+    const problem = agentRequirementProblem(app, agentCheck);
+    if (problem) {
+      if (agentCheck.ready) toast.error(problem, { duration: 5000 });
+      else toast(problem);
+      return;
+    }
     setInstalling(true);
     try {
       await install(app.id);
@@ -149,8 +158,9 @@ const AppDetail = () => {
               </div>
             </div>
 
-            {/* Primary CTA */}
-            <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Primary CTA (a hint about missing requirements wraps underneath) */}
+            <div className="flex flex-wrap items-center justify-end gap-2 flex-shrink-0 max-w-sm">
+
               {comingSoon ? (
                 <button
                   disabled
@@ -200,6 +210,14 @@ const AppDetail = () => {
                     </>
                   )}
                 </button>
+              )}
+              {!installed && !comingSoon && app.requiresPublishedAgent && agentCheck.ready && agentCheck.published === 0 && (
+                <p className="basis-full text-right text-xs font-medium text-amber-700 dark:text-amber-400">
+                  This app needs at least one published AI employee.{" "}
+                  <button type="button" onClick={() => navigate("/agents")} className="underline underline-offset-2 hover:text-amber-800">
+                    Create and publish one
+                  </button>
+                </p>
               )}
             </div>
           </div>

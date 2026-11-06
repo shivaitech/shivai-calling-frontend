@@ -22,6 +22,7 @@ import { useInstalledApps } from "../../marketplace/useInstalledApps";
 import toast from "react-hot-toast";
 import { useAuth } from "../../contexts/AuthContext";
 import AssignSkillModal from "./AssignSkillModal";
+import { agentRequirementProblem, usePublishedAgents } from "../../marketplace/usePublishedAgents";
 
 const pricingStyles: Record<MarketplaceApp["pricing"], string> = {
   Free: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200/70 dark:border-emerald-800/60",
@@ -35,6 +36,8 @@ const Marketplace = () => {
   const navigate = useNavigate();
   const { isInstalled, install } = useInstalledApps();
   const { user } = useAuth();
+  // Some apps (e.g. Appointment CRM) need at least one published AI employee.
+  const agentCheck = usePublishedAgents();
 
   const [query, setQuery] = useState("");
   const [activeCat, setActiveCat] = useState<AppCategory | "all">("all");
@@ -63,6 +66,12 @@ const Marketplace = () => {
     if (isInstalled(app.id)) {
       openAppWorkspace(app.id, undefined, navigate);
     } else {
+      const problem = agentRequirementProblem(app, agentCheck);
+      if (problem) {
+        if (agentCheck.ready) toast.error(problem, { duration: 5000 });
+        else toast(problem);
+        return;
+      }
       install(app.id).catch((err: Error) => {
         setAssignApp(null);
         toast.error(err.message || `Couldn't install ${app.name}`);
@@ -198,6 +207,21 @@ const Marketplace = () => {
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed line-clamp-2">
                     {app.tagline}
                   </p>
+                  {app.requiresPublishedAgent && !installed && !comingSoon && agentCheck.ready && agentCheck.published === 0 && (
+                    <p className="mt-2 text-[11px] font-medium text-amber-700 dark:text-amber-400">
+                      Needs a published AI employee.{" "}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate("/agents");
+                        }}
+                        className="underline underline-offset-2 hover:text-amber-800"
+                      >
+                        Create one
+                      </button>
+                    </p>
+                  )}
                 </div>
 
                 {/* Footer: pricing + CTA */}

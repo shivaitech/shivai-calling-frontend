@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import QRCode from "react-qr-code";
 import toast from "react-hot-toast";
+import { Award, BarChart3, Bot, Clock, Copy, CreditCard, Crown, ExternalLink, Eye, Pencil, Plus, Share2, Sparkles } from "lucide-react";
+import { cardInsightsAPI } from "../../../services/cardInsightsAPI";
 import CardView from "./CardView";
 import CardForm, { type CardPatch } from "./CardForm";
 import CardMonitoring from "./CardMonitoring";
@@ -212,12 +214,190 @@ function PendingPlanBanner() {
   );
 }
 
+const PLAN_LOOK: Record<PlanTier, { label: string; Icon: typeof Crown }> = {
+  essential: { label: "Essential", Icon: Sparkles },
+  signature: { label: "Signature", Icon: Award },
+  prestige: { label: "Prestige", Icon: Crown },
+};
+
+/** "today", "yesterday", "3 days ago", "2 weeks ago", "5 Mar 2026". */
+function updatedAgo(iso?: string): string {
+  const t = iso ? Date.parse(iso) : NaN;
+  if (Number.isNaN(t)) return "";
+  const days = Math.floor((Date.now() - t) / 864e5);
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 14) return `${days} days ago`;
+  if (days < 60) return `${Math.floor(days / 7)} weeks ago`;
+  return new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+
+/**
+ * One card in My cards: who it is, its plan, what's set up, how it's doing this week (real
+ * numbers only, never sample data), its QR code, and every action in one row.
+ */
+function CardRow({
+  card: c,
+  plan,
+  complimentary,
+  go,
+  onCopy,
+}: {
+  card: BusinessCard;
+  /** null while the plan is still being checked: plan bits wait, so nothing flickers. */
+  plan: PlanTier | null;
+  complimentary: boolean;
+  go: (s: string, id?: string | null) => void;
+  onCopy: () => void;
+}) {
+  const [week, setWeek] = useState<{ views: number; taps: number } | null>(null);
+  useEffect(() => {
+    let live = true;
+    cardInsightsAPI
+      .analytics(c._id, "7d")
+      .then((r) => {
+        if (!live || !r.live) return; // sample data (stats not served yet) is never shown here
+        const taps = Object.values(r.data.actions ?? {}).reduce((s, n) => s + (Number(n) || 0), 0);
+        setWeek({ views: r.data.totals?.views ?? 0, taps });
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [c._id]);
+
+  const look = plan ? PLAN_LOOK[plan] : null;
+  const planButton = !plan
+    ? null
+    : complimentary || plan === "prestige"
+      ? { label: "Manage plan", href: "/app/digital-card?section=plan", upgrade: false }
+      : plan === "signature"
+        ? { label: "Upgrade to Prestige", href: "/app/digital-card?section=plan&plan=prestige&billing=annual", upgrade: true }
+        : { label: "Upgrade", href: "/app/digital-card?section=plan", upgrade: true };
+  const numbers = (c.phone_number ? 1 : 0) + (c.additional_phones?.length ?? 0);
+  const ago = updatedAgo(c.updatedAt);
+
+  return (
+    <section className="panel cardrow">
+      {/* Who: photo, name + plan, role, link, last update — QR on the right (wider screens) */}
+      <div className="cardrow-main">
+        <div className="avatar">
+          {c.image_url ? <img src={c.image_url} alt="" onError={(e) => (e.currentTarget.style.display = "none")} /> : initials(c.full_name)}
+        </div>
+        <div className="grow">
+          <div className="cardrow-title">
+            <strong>{c.full_name}</strong>
+            {look && (
+              <span className={`plan-chip is-${plan}`}>
+                <look.Icon size={11} aria-hidden="true" /> {look.label}
+              </span>
+            )}
+          </div>
+          {(c.job_title || c.company_name) && <div className="cardrow-role">{[c.job_title, c.company_name].filter(Boolean).join(" · ")}</div>}
+          <div className="cardrow-link">
+            <a className="slug" href={cardUrl(c)} target="_blank" rel="noopener noreferrer">
+              {cardLabel(c)}
+            </a>
+            <button type="button" className="cardrow-copy" onClick={onCopy} aria-label="Copy link" title="Copy link">
+              <Copy size={13} aria-hidden="true" />
+            </button>
+          </div>
+          {ago && (
+            <div className="cardrow-updated">
+              <Clock size={12} aria-hidden="true" /> Updated {ago}
+            </div>
+          )}
+        </div>
+        {c.qr_code && (
+          <a className="cardrow-qr" href={c.qr_code} target="_blank" rel="noopener noreferrer" title="Open the QR code">
+            <img src={c.qr_code} alt={`QR code for ${cardLabel(c)}`} />
+          </a>
+        )}
+      </div>
+
+      {/* At a glance: this week's views and taps (real numbers only), and the AI Manager */}
+      <dl className="cardrow-stats">
+        <div>
+          <dt>
+            <Eye size={13} aria-hidden="true" /> Views
+          </dt>
+          <dd>{week ? week.views : "—"}</dd>
+          <small>this week</small>
+        </div>
+        <div>
+          <dt>
+            <BarChart3 size={13} aria-hidden="true" /> Taps
+          </dt>
+          <dd>{week ? week.taps : "—"}</dd>
+          <small>this week</small>
+        </div>
+        <div className={c.agent_id ? "is-on" : undefined}>
+          <dt>
+            <Bot size={13} aria-hidden="true" /> AI Manager
+          </dt>
+          <dd>{c.agent_id ? "On" : "Off"}</dd>
+          <small>{c.agent_id ? "connected" : numbers ? `${numbers} number${numbers === 1 ? "" : "s"}` : "not set"}</small>
+        </div>
+      </dl>
+
+      {/* Actions: the two main ones, then quick icons */}
+      <div className="cardrow-actions">
+        <button className="btn small" onClick={() => go("card", c._id)}>
+          <Pencil size={14} aria-hidden="true" /> Edit card
+        </button>
+        <button className="btn small ghost" onClick={() => go("share", c._id)}>
+          <Share2 size={14} aria-hidden="true" /> Share
+        </button>
+        <span className="cardrow-icons">
+          <a className="icon-btn" href={cardUrl(c)} target="_blank" rel="noopener noreferrer" aria-label="Open card" title="Open card">
+            <ExternalLink size={16} aria-hidden="true" />
+          </a>
+          <button type="button" className="icon-btn" onClick={() => go("monitoring", c._id)} aria-label="Insights" title="Insights">
+            <BarChart3 size={16} aria-hidden="true" />
+          </button>
+        </span>
+      </div>
+
+      {/* Plan */}
+      {planButton && look && (
+        <div className={`cardrow-plan is-${plan}`}>
+          <span>
+            <look.Icon size={13} aria-hidden="true" /> {look.label} plan{complimentary ? " · Complimentary" : ""}
+          </span>
+          <Link className={planButton.upgrade ? "cardrow-plan-cta is-upgrade" : "cardrow-plan-cta"} to={planButton.href}>
+            {planButton.upgrade ? <Crown size={13} aria-hidden="true" /> : <CreditCard size={13} aria-hidden="true" />} {planButton.label} ›
+          </Link>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function CardsList({ go }: { go: (s: string, id?: string | null) => void }) {
   const [page, setPage] = useState(1);
   const [cards, setCards] = useState<BusinessCard[]>([]);
   const [pg, setPg] = useState<Pagination | null>(null);
   const [state, setState] = useState<"loading" | "ok" | "error">("loading");
   const [error, setError] = useState<BusinessCardError | null>(null);
+
+  // The account's card plan (plans are per account): shown on each card, and picks its plan button.
+  const { user } = useAuth();
+  const comp = complimentaryPlan(user?.email);
+  const [tier, setTier] = useState<PlanTier | null>(null);
+  useEffect(() => {
+    if (comp) return setTier(comp);
+    let live = true;
+    cardBillingAPI
+      .overview()
+      .then((o) => {
+        const key = o?.paid ? o.plan?.key : null;
+        if (live) setTier(key === "signature" || key === "prestige" ? key : "essential");
+      })
+      .catch(() => live && setTier("essential"));
+    return () => {
+      live = false;
+    };
+  }, [comp]);
 
   const load = useCallback(() => {
     setState("loading");
@@ -244,12 +424,17 @@ function CardsList({ go }: { go: (s: string, id?: string | null) => void }) {
 
   return (
     <div className="stackv">
-      <div className="head">
+      <div className="head cards-head">
         <div>
-          <h2 className="title">My cards</h2>
+          <h2 className="title">
+            My cards
+            {state === "ok" && pg && pg.total > 0 && <span className="cards-count">{pg.total}</span>}
+          </h2>
           <p className="muted">Each card gets its own public link and QR code.</p>
         </div>
-        <button className="btn" onClick={() => go("card", null)}>+ New card</button>
+        <button className="btn" onClick={() => go("card", null)}>
+          <Plus size={16} aria-hidden="true" /> New card
+        </button>
       </div>
 
       <PendingPlanBanner />
@@ -277,21 +462,15 @@ function CardsList({ go }: { go: (s: string, id?: string | null) => void }) {
 
       {state === "ok" &&
         cards.map((c) => (
-          <section className="panel listrow" key={c._id}>
-            <div className="avatar">
-              {c.image_url ? <img src={c.image_url} alt="" onError={(e) => (e.currentTarget.style.display = "none")} /> : initials(c.full_name)}
-            </div>
-            <div className="grow">
-              <strong>{c.full_name}</strong>
-              <div className="muted">{[c.job_title, c.company_name].filter(Boolean).join(" · ")}</div>
-              <a className="slug" href={cardUrl(c)} target="_blank" rel="noopener noreferrer">{cardLabel(c)}</a>
-            </div>
-            <div className="btns">
-              <button className="btn small ghost" onClick={() => go("card", c._id)}>Edit</button>
-              <button className="btn small ghost" onClick={() => go("share", c._id)}>Share</button>
-              <button className="btn small ghost" onClick={() => copy(c)}>Copy link</button>
-            </div>
-          </section>
+          <CardRow
+            key={c._id}
+            card={c}
+            // Complimentary accounts may keep a card on Signature (saved on the card).
+            plan={tier && comp ? complimentarySavePlan(comp, c.plan) ?? comp : tier}
+            complimentary={!!comp}
+            go={go}
+            onCopy={() => copy(c)}
+          />
         ))}
 
       {pg && pg.totalPages > 1 && (
@@ -501,11 +680,23 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
 
         <div className="savebar">
           <button className="btn" disabled={saving} onClick={submit}>{saving ? "Saving…" : isNew ? "Create card" : "Save changes"}</button>
-          <button className="btn ghost" disabled={saving} onClick={() => go("cards", null)}>Cancel</button>
+          <button type="button" className="btn ghost preview-jump" onClick={() => document.querySelector(".dc .preview")?.scrollIntoView({ behavior: "smooth", block: "start" })}>
+            <Eye size={17} aria-hidden="true" /> Preview
+          </button>
+          <button className="btn ghost cancel-btn" disabled={saving} onClick={() => go("cards", null)}>Cancel</button>
         </div>
       </div>
 
       <aside className="preview">
+        <div className="preview-head">
+          <span className="fsec-ico" aria-hidden="true">
+            <Eye size={19} strokeWidth={1.8} />
+          </span>
+          <span>
+            <strong>Preview your card</strong>
+            <small>See how it looks on each plan</small>
+          </span>
+        </div>
         <PlanLookSwitcher
           value={previewTier}
           current={currentTier}

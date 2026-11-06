@@ -1,6 +1,6 @@
 import { CSSProperties, MouseEvent, ReactNode, useCallback, useEffect, useState } from "react";
 import QRCode from "react-qr-code";
-import { ArrowRight, Award, Crown, Star, Facebook, Instagram, Link2, Linkedin, LucideIcon, Mail, Phone, Sparkles, Twitter, UserPlus, Wallet, Youtube } from "lucide-react";
+import { ArrowRight, Award, Check, Crown, Star, Facebook, Instagram, Link2, Linkedin, LucideIcon, Mail, Phone, Share2, Sparkles, Twitter, UserPlus, Wallet, Youtube } from "lucide-react";
 import WhatsAppIcon from "./WhatsAppIcon";
 import { defaultCountries } from "../../../types/country";
 import { downloadVCard, fullPhone } from "./vcard";
@@ -16,7 +16,7 @@ import prestigeBadge from "../../../resources/images/prestige-badge.webp";
 import { foundingOfferActive } from "../../../pages/foundingOffer";
 
 const FOUNDING_SHORT = "31 Dec 2026";
-import { PUBLIC_APP_URL, type CardHighlight } from "../../../services/businessCardAPI";
+import { PUBLIC_APP_URL, publicCardUrl, type CardHighlight } from "../../../services/businessCardAPI";
 
 const host = (u: string) => u.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
 
@@ -241,6 +241,30 @@ export default function CardView({
   const [saveOpen, setSaveOpen] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
   const [waOpen, setWaOpen] = useState(false);
+  // Share: the phone's own share sheet where there is one, else copy the link (shown as "Link copied").
+  const [shared, setShared] = useState(false);
+  const shareLink = shareUrl || (slug ? publicCardUrl(slug) : "");
+  const shareCard = async () => {
+    if (!shareLink) return;
+    track("share");
+    const role = [c.job_title, c.company_name].filter(Boolean).join(", ");
+    const data = { title: c.full_name ? `${c.full_name}, digital business card` : "Digital business card", text: [c.full_name, role].filter(Boolean).join(" · "), url: shareLink };
+    if (navigator.share) {
+      try {
+        await navigator.share(data);
+        return;
+      } catch (e) {
+        if ((e as DOMException)?.name === "AbortError") return; // closed the sheet
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(shareLink);
+      setShared(true);
+      setTimeout(() => setShared(false), 1800);
+    } catch {
+      /* clipboard blocked: nothing more we can do quietly */
+    }
+  };
   const closeWa = useCallback(() => setWaOpen(false), []);
   const closePay = useCallback(() => setPayOpen(false), []);
   const [aiLoading, setAiLoading] = useState(false);
@@ -465,6 +489,12 @@ export default function CardView({
           <button className="quick-btn" type="button" disabled={!c.full_name} onClick={() => setSaveOpen(true)}>
             <UserPlus size={20} strokeWidth={1.7} />
             Save Contact
+          </button>
+        )}
+        {shareLink && (
+          <button className="quick-btn" type="button" onClick={() => void shareCard()} aria-label="Share this card">
+            {shared ? <Check size={20} strokeWidth={1.9} /> : <Share2 size={20} strokeWidth={1.7} />}
+            {shared ? "Link copied" : "Share"}
           </button>
         )}
       </nav>
