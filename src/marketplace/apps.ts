@@ -84,6 +84,8 @@ export interface MarketplaceApp {
    * Agents can still be assigned later from the app detail page.
    */
   promptAssignOnInstall?: boolean;
+  /** The app only works with an AI employee: installing needs at least one published one. */
+  requiresPublishedAgent?: boolean;
   /** Optional badge, e.g. "New", "Popular". */
   badge?: string;
   /** Whether this app is free or part of a paid plan (display only for now). */
@@ -259,6 +261,7 @@ export const APPS: MarketplaceApp[] = [
     icon: CalendarClock,
     category: "Scheduling",
     status: "live",
+    requiresPublishedAgent: true,
     route: "/app/appointment-crm",
     defaultSection: "calendar",
     gradient: "from-violet-500 to-purple-400",
@@ -379,10 +382,13 @@ export function isDemoAccount(userEmail?: string): boolean {
   return !!userEmail && DEMO_ACCOUNTS.includes(userEmail);
 }
 
-/** Public catalog: every app is listed; only Google Sheets stays installable. */
+/** Apps every account can install (the rest show as "Coming soon" outside demo accounts). */
+const PUBLIC_APPS = ["google-sheets", "digital-card", "appointment-crm"];
+
+/** Public catalog: every app is listed; only the public apps stay installable. */
 function applyPublicCatalog(apps: MarketplaceApp[]): MarketplaceApp[] {
   return apps.map((app) => {
-    if (app.id === "google-sheets" || app.id === "digital-card") return app;
+    if (PUBLIC_APPS.includes(app.id)) return app;
     if (app.status === "live") {
       return { ...app, status: "coming-soon" as AppStatus };
     }
@@ -392,7 +398,7 @@ function applyPublicCatalog(apps: MarketplaceApp[]): MarketplaceApp[] {
 
 /**
  * Get visible apps based on user email.
- * - Public (everyone except demo accounts): All apps visible, only Google Sheets is live & installable
+ * - Public (everyone except demo accounts): All apps visible, only the PUBLIC_APPS are live & installable
  * - Demo accounts: All apps visible as live & installable
  */
 export function getVisibleApps(userEmail?: string): MarketplaceApp[] {
@@ -412,11 +418,12 @@ export function getVisibleAppById(
 
 /**
  * Whether the user may install a given app.
- * Public users can only install Google Sheets; demo accounts can install any app.
+ * Public users can install the PUBLIC_APPS; demo accounts can install any app.
+ * (Apps that need a published AI employee are checked where installs start: usePublishedAgents.)
  */
 export function canInstallApp(appId: string, userEmail?: string): boolean {
   if (isDemoAccount(userEmail)) return true;
-  return appId === "google-sheets" || appId === "digital-card";
+  return PUBLIC_APPS.includes(appId);
 }
 
 /** @deprecated Use canInstallApp */

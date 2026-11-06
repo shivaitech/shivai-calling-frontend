@@ -156,6 +156,48 @@ const FAQS = [
   { q: "What's the “Ask My AI” button?", a: "Connect a trained ShivAI agent to your card in one click, and visitors can talk to it directly from your profile, day or night." },
   { q: "Can I change my card after sharing it?", a: "Yes. Edit it any time and the same link and QR code update instantly. There's nothing to reprint." },
   { q: "Will Apple/Google Wallet work?", a: "It's on the way, and the explainer above shows how it will work. The button goes live the moment it ships." },
+
+  // Plans, pricing and billing (figures match the Pricing section).
+  {
+    q: "What is the Founding Member offer?",
+    a: "Create your card before 31 December 2026 and the Essential plan stays free for life. It covers Essential only. Paid upgrades such as Signature or Prestige are charged at their normal price.",
+  },
+  {
+    q: "What's the difference between Essential, Signature and Prestige?",
+    a: "Essential is your professional card with call, WhatsApp and email buttons, your links, a designer QR card and one tap contact saving. Signature adds your AI Business Manager, up to 2 cards, up to 200 AI calls a month, profile analytics and a silver Signature badge. Prestige adds an AI Personal Manager as well, up to 1,000 AI calls a month, gold premium styling, a Prestige badge, advanced analytics and quarterly rewards for annual members.",
+  },
+  {
+    q: "How much do Signature and Prestige cost?",
+    a: "Signature is $24.99 a month, or $179.93 a year ($14.99 a month). Prestige is $49.99 a month, or $359.93 a year ($29.99 a month). Paying yearly saves 40% compared with paying monthly.",
+  },
+  {
+    q: "What counts as an AI call?",
+    a: "Each conversation a visitor has with one of your AI managers counts as one call. Your allowance resets at the start of every calendar month.",
+  },
+  {
+    q: "Can I upgrade or change my plan later?",
+    a: "Yes, any time from Plan & Billing in your dashboard. Moving to a higher plan charges the difference straight away. Moving to a lower plan gives you a credit on your next invoice.",
+  },
+  {
+    q: "Can I cancel? What happens to my card?",
+    a: "You can cancel any time. Your plan stays active until the end of the period you've paid for, then your card moves to Essential. Your link and QR code keep working, so nothing you've shared breaks.",
+  },
+  {
+    q: "How do I pay, and is it secure?",
+    a: "Payments are handled by Stripe, so your card details never touch ShivAI. You can update your card, see every invoice and download receipts from Plan & Billing. Have a promo code? Add it before you pay; it applies to your first payment.",
+  },
+  {
+    q: "Is there a limit on how often I can share my card?",
+    a: "No. Every plan includes unlimited sharing, with no monthly limits on views, scans or shares.",
+  },
+  {
+    q: "Can I have more than one card?",
+    a: "Signature includes up to 2 digital business cards, for example one for each business you run. Each card gets its own link and QR code.",
+  },
+  {
+    q: "What are ShivAI Points?",
+    a: "Our rewards programme, launching soon. You'll earn points when people view and share your card and when someone you refer becomes a paying member, then redeem them for rewards. See ShivAI Points above for how it works.",
+  },
 ];
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -434,7 +476,7 @@ export default function DigitalCardInvitePage() {
           <a href="/" className="flex items-center gap-2">
             <img src={ShivAiLogo} alt="ShivAI" className="h-6 w-auto" />
           </a>
-          <p className="text-xs text-slate-400">© {new Date().getFullYear()} ShivAI. A ShivAI product.</p>
+          <p className="text-xs text-slate-400">© {new Date().getFullYear()} All rights reserved.</p>
         </div>
       </footer>
 

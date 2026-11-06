@@ -1,5 +1,24 @@
 import { ReactNode, useRef, useState } from "react";
-import { Camera, LucideIcon, Mail, Plus, Sparkles, User, UserPlus, Wallet, X } from "lucide-react";
+import {
+  Camera,
+  Check,
+  ChevronDown,
+  Globe,
+  Layers,
+  LucideIcon,
+  Mail,
+  Phone,
+  Plus,
+  Share2,
+  Sparkles,
+  Star,
+  Upload,
+  User,
+  UserPlus,
+  UserRound,
+  Wallet,
+  X,
+} from "lucide-react";
 import type { ImageKind } from "./photo";
 import { CardData, MAX_ADDITIONAL_PHONES, PHONE_LABELS, SUGGESTED_TAGLINE } from "./types";
 import type { CardHighlight, CardPhone, PhoneLabel } from "../../../services/businessCardAPI";
@@ -26,23 +45,78 @@ const LOGO_EDIT: EditImageOptions = {
   maxSide: 1024,
 };
 
+/** Accent colours offered as swatches; any other colour comes from the "+" picker. */
+const ACCENTS = ["#161616", "#1f4f9b", "#2a8c7b", "#7c4bab", "#b4702e"];
+const TAGLINE_MAX = 300;
+
 const WaIcon = ({ size = 16 }: { size?: number }) => <WhatsAppIcon mono size={size} />;
 /** Actions that can be the card’s big featured button, and what each one needs. */
 const HIGHLIGHTS: { id: CardHighlight; label: string; Icon: LucideIcon | typeof WaIcon; needs: string }[] = [
-  { id: "ai", label: "My AI", Icon: Sparkles, needs: "Pick an AI agent below first" },
+  { id: "ai", label: "Ask My AI", Icon: Sparkles, needs: "Pick an AI agent below first" },
   { id: "whatsapp", label: "WhatsApp", Icon: WaIcon, needs: "Add a phone number that’s on WhatsApp first" },
   { id: "email", label: "Email", Icon: Mail, needs: "Add your email first" },
   { id: "pay", label: "Pay Me", Icon: Wallet, needs: "Add a Pay Me method first" },
   { id: "save", label: "Save Contact", Icon: UserPlus, needs: "" },
 ];
 
-export function Field({ label, error, children }: { label: string; error?: string; children: ReactNode }) {
+export function Field({ label, error, required, children }: { label: string; error?: string; required?: boolean; children: ReactNode }) {
   return (
     <label className="field">
-      <span>{label}</span>
+      <span>
+        {label}
+        {required && (
+          <b className="req" aria-hidden="true">
+            {" "}
+            *
+          </b>
+        )}
+      </span>
       {children}
       {error && <small className="err">{error}</small>}
     </label>
+  );
+}
+
+/**
+ * One builder section: an icon, a title and a one-line description, collapsible. A section
+ * holding an error is always open, so a problem is never hidden behind a closed header.
+ */
+function FormSection({
+  id,
+  icon: Icon,
+  title,
+  subtitle,
+  hasError = false,
+  children,
+}: {
+  id?: string;
+  icon: LucideIcon;
+  title: string;
+  subtitle: string;
+  hasError?: boolean;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(true);
+  const shown = open || hasError;
+  const bodyId = `${id ?? title.toLowerCase().replace(/\W+/g, "-")}-body`;
+  return (
+    <section className={`panel fsec${shown ? " is-open" : ""}`} id={id}>
+      <button type="button" className="fsec-head" aria-expanded={shown} aria-controls={bodyId} onClick={() => setOpen((v) => !v || hasError)}>
+        <span className="fsec-ico" aria-hidden="true">
+          <Icon size={19} strokeWidth={1.8} />
+        </span>
+        <span className="fsec-titles">
+          <strong>{title}</strong>
+          <small>{subtitle}</small>
+        </span>
+        <ChevronDown className="fsec-chev" size={18} aria-hidden="true" />
+      </button>
+      {shown && (
+        <div className="fsec-body" id={bodyId}>
+          {children}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -89,7 +163,9 @@ export default function CardForm({
   onDocumentError = () => {},
 }: CardFormProps) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const colorRef = useRef<HTMLInputElement>(null);
   const err = (k: string) => errors[k];
+  const errIn = (...prefixes: string[]) => Object.keys(errors).some((k) => prefixes.some((p) => k === p || k.startsWith(`${p}.`)));
   // Which image is being processed: "photo", or "logo-<venture index>".
   const [busy, setBusy] = useState<string | null>(null);
   const uploading = busy === "photo";
@@ -126,45 +202,54 @@ export default function CardForm({
   const payError = Object.entries(errors).find(([k]) => k.startsWith("payment_methods"))?.[1];
   const setPhone = (i: number, patch: Partial<CardPhone>) =>
     set((f) => ({ additional_phones: patchAt(f.additional_phones ?? [], i, patch) }));
+  const accent = /^#[0-9a-f]{6}$/i.test(form.color_code) ? form.color_code.toLowerCase() : "#161616";
+  const customAccent = !ACCENTS.includes(accent);
 
   return (
     <>
-      <section className="panel" id="card-basics">
-        <h3>Basics</h3>
-        {/* Instagram-style profile photo: tap the avatar (or the link) to pick one. */}
-        <div className="avatar-picker">
+      <FormSection
+        id="card-basics"
+        icon={UserRound}
+        title="Basics"
+        subtitle="Your identity on the card"
+        hasError={errIn("image_url", "full_name", "username", "job_title", "company_name", "tagline", "color_code")}
+      >
+        {/* Profile photo: round preview, with Upload / Remove beside it. */}
+        <div className="photo-row">
           <button
             type="button"
-            className="avatar-picker-btn"
+            className="photo-avatar"
             disabled={uploading}
             aria-label={hasPhoto ? "Change profile photo" : "Add profile photo"}
             onClick={() => fileRef.current?.click()}
           >
-            <span className="avatar-picker-ring">
+            <span className="photo-avatar-img">
               {hasPhoto ? (
                 <img src={form.image_url} alt="" onError={() => setBrokenUrl(form.image_url)} />
               ) : (
-                <span className="avatar-picker-ph">
-                  <User size={40} strokeWidth={1.6} />
-                </span>
+                <User size={34} strokeWidth={1.6} aria-hidden="true" />
               )}
             </span>
-            <span className="avatar-picker-cam" aria-hidden="true">
-              <Camera size={14} />
+            <span className="photo-avatar-cam" aria-hidden="true">
+              <Camera size={13} />
             </span>
             {uploading && <span className="avatar-picker-busy" aria-hidden="true" />}
           </button>
-          <div className="avatar-picker-actions">
-            <button type="button" className="link-btn" disabled={uploading} onClick={() => fileRef.current?.click()}>
-              {uploading ? "Uploading…" : hasPhoto ? "Change photo" : "Add profile photo"}
-            </button>
-            {form.image_url && !uploading && (
-              <button type="button" className="link-btn danger" onClick={() => set({ image_url: "" })}>
-                Remove
+          <div className="photo-copy">
+            <strong>Profile photo</strong>
+            <p>A clear photo helps people recognise you.</p>
+            <div className="photo-actions">
+              <button type="button" className="pill-btn" disabled={uploading} onClick={() => fileRef.current?.click()}>
+                <Upload size={14} aria-hidden="true" /> {uploading ? "Uploading…" : hasPhoto ? "Change photo" : "Upload photo"}
               </button>
-            )}
+              {form.image_url && !uploading && (
+                <button type="button" className="text-btn" onClick={() => set({ image_url: "" })}>
+                  Remove
+                </button>
+              )}
+            </div>
+            {err("image_url") && <small className="err">{err("image_url")}</small>}
           </div>
-          {err("image_url") && <small className="err">{err("image_url")}</small>}
           <input
             ref={fileRef}
             hidden
@@ -177,7 +262,8 @@ export default function CardForm({
             }}
           />
         </div>
-        <Field label="Full name *" error={err("full_name")}>
+
+        <Field label="Full name" required error={err("full_name")}>
           <input value={form.full_name} placeholder="Enter your full name" onChange={(e) => set({ full_name: e.target.value })} />
         </Field>
         <UsernameField
@@ -188,89 +274,147 @@ export default function CardForm({
           savedUsername={savedUsername}
           error={err("username")}
         />
-        <div className="row">
-          <Field label="Job title *" error={err("job_title")}>
-            <input value={form.job_title} placeholder="Enter your job title" onChange={(e) => set({ job_title: e.target.value })} />
+        <div className="row two">
+          <Field label="Job title" required error={err("job_title")}>
+            <input value={form.job_title} placeholder="Your job title" onChange={(e) => set({ job_title: e.target.value })} />
           </Field>
-          <Field label="Company *" error={err("company_name")}>
-            <input value={form.company_name} placeholder="Enter your company name" onChange={(e) => set({ company_name: e.target.value })} />
+          <Field label="Company" required error={err("company_name")}>
+            <input value={form.company_name} placeholder="Your company" onChange={(e) => set({ company_name: e.target.value })} />
           </Field>
         </div>
         <Field label="Tagline" error={err("tagline")}>
-          <textarea
-            rows={3}
-            maxLength={300}
-            value={form.tagline}
-            placeholder="A short line about what you do (optional)"
-            style={{ resize: "vertical" }}
-            onChange={(e) => set({ tagline: e.target.value })}
-          />
+          <span className="textarea-wrap">
+            <textarea
+              rows={3}
+              maxLength={TAGLINE_MAX}
+              value={form.tagline}
+              placeholder="A short line about what you do (optional)"
+              onChange={(e) => set({ tagline: e.target.value })}
+            />
+            <span className="textarea-count" aria-hidden="true">
+              {form.tagline.length} / {TAGLINE_MAX}
+            </span>
+          </span>
         </Field>
         {!form.tagline.trim() && (
-          <button type="button" className="btn small ghost" style={{ alignSelf: "flex-start" }} onClick={() => set({ tagline: SUGGESTED_TAGLINE })}>
+          <button type="button" className="text-btn" style={{ alignSelf: "flex-start" }} onClick={() => set({ tagline: SUGGESTED_TAGLINE })}>
             ✦ Use suggested text
           </button>
         )}
-        <Field label="Accent color" error={err("color_code")}>
-          <input
-            type="color"
-            value={/^#[0-9a-f]{6}$/i.test(form.color_code) ? form.color_code : "#161616"}
-            onChange={(e) => set({ color_code: e.target.value })}
-            className="color"
-          />
-        </Field>
-      </section>
 
-      <section className="panel">
-        <h3>Contact</h3>
-        <div className="row phone">
-          <Field label="Code" error={err("country_code")}>
-            <CountryCodeSelect value={form.country_code} onChange={(country_code) => set({ country_code })} />
-          </Field>
-          <Field label={extraPhones.length ? "Primary phone" : "Phone"} error={err("phone_number")}>
-            <input value={form.phone_number} placeholder="Enter your phone number" inputMode="tel" onChange={(e) => set({ phone_number: e.target.value })} />
-          </Field>
-        </div>
-        <label className="chk">
-          <input type="checkbox" checked={form.is_whatsapp_number} onChange={(e) => set({ is_whatsapp_number: e.target.checked })} />
-          This number is on WhatsApp
-        </label>
-        {CARD_EXTRAS && extraPhones.map((p, i) => (
-          <div className="xphone" key={i}>
-            <div className="xphone-head">
-              <select
-                aria-label="Number label"
-                value={p.label}
-                onChange={(e) => setPhone(i, { label: e.target.value as PhoneLabel })}
+        <div className="field">
+          <span>Accent colour</span>
+          <small className="field-help">Used for buttons, links and highlights on your public card.</small>
+          <div className="swatches" role="radiogroup" aria-label="Accent colour">
+            {ACCENTS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                role="radio"
+                aria-checked={accent === c}
+                aria-label={c}
+                className={`swatch${accent === c ? " is-on" : ""}`}
+                style={{ background: c }}
+                onClick={() => set({ color_code: c })}
               >
-                {PHONE_LABELS.map((l) => (
-                  <option key={l.value} value={l.value}>
-                    {l.label}
-                  </option>
-                ))}
-              </select>
-              <label className="chk">
-                <input type="checkbox" checked={p.is_whatsapp_number} onChange={(e) => setPhone(i, { is_whatsapp_number: e.target.checked })} />
-                On WhatsApp
-              </label>
-              <button type="button" className="xphone-x" aria-label="Remove this number" onClick={() => set((f) => ({ additional_phones: (f.additional_phones ?? []).filter((_, j) => j !== i) }))}>
-                <X size={15} />
+                {accent === c && <Check size={15} strokeWidth={3} aria-hidden="true" />}
               </button>
-            </div>
-            <div className="row phone">
-              <Field label="Code">
-                <CountryCodeSelect value={p.country_code} onChange={(country_code) => setPhone(i, { country_code })} />
-              </Field>
-              <Field label="Phone" error={err(`additional_phones.${i}.phone_number`)}>
-                <input value={p.phone_number} placeholder="Enter the number" inputMode="tel" onChange={(e) => setPhone(i, { phone_number: e.target.value })} />
-              </Field>
-            </div>
+            ))}
+            {customAccent && (
+              <button type="button" role="radio" aria-checked className="swatch is-on" style={{ background: accent }} aria-label={`Custom ${accent}`} onClick={() => colorRef.current?.click()}>
+                <Check size={15} strokeWidth={3} aria-hidden="true" />
+              </button>
+            )}
+            <button type="button" className="swatch swatch-add" aria-label="Choose another colour" onClick={() => colorRef.current?.click()}>
+              <Plus size={16} aria-hidden="true" />
+            </button>
+            <input ref={colorRef} type="color" className="swatch-input" value={accent} tabIndex={-1} aria-hidden="true" onChange={(e) => set({ color_code: e.target.value })} />
           </div>
-        ))}
+          {err("color_code") && <small className="err">{err("color_code")}</small>}
+        </div>
+      </FormSection>
+
+      <FormSection
+        icon={Phone}
+        title="Contact"
+        subtitle="How people can reach you"
+        hasError={errIn("country_code", "phone_number", "additional_phones", "email", "website")}
+      >
+        <div className="field">
+          <span>Phone number</span>
+          <div className="phone-row">
+            <CountryCodeSelect value={form.country_code} onChange={(country_code) => set({ country_code })} />
+            <input value={form.phone_number} placeholder="Phone number" inputMode="tel" aria-label="Phone number" onChange={(e) => set({ phone_number: e.target.value })} />
+            <button
+              type="button"
+              role="switch"
+              aria-checked={form.is_whatsapp_number}
+              aria-label="This number is on WhatsApp"
+              className={`wa-switch${form.is_whatsapp_number ? " is-on" : ""}`}
+              onClick={() => set({ is_whatsapp_number: !form.is_whatsapp_number })}
+            >
+              <WhatsAppIcon mono size={18} />
+              <span className="wa-switch-track" aria-hidden="true">
+                <span className="wa-switch-knob" />
+              </span>
+            </button>
+          </div>
+          <span className={`wa-note${form.is_whatsapp_number ? " is-on" : ""}`}>
+            {form.is_whatsapp_number ? (
+              <>
+                <Check size={12} strokeWidth={3} aria-hidden="true" /> This number is on WhatsApp
+              </>
+            ) : (
+              "Turn on if people can message this number on WhatsApp"
+            )}
+          </span>
+          {(err("country_code") || err("phone_number")) && <small className="err">{err("country_code") || err("phone_number")}</small>}
+        </div>
+
+        {CARD_EXTRAS &&
+          extraPhones.map((p, i) => (
+            <div className="xphone" key={i}>
+              <div className="xphone-head">
+                <select aria-label="Number label" value={p.label} onChange={(e) => setPhone(i, { label: e.target.value as PhoneLabel })}>
+                  {PHONE_LABELS.map((l) => (
+                    <option key={l.value} value={l.value}>
+                      {l.label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="xphone-x"
+                  aria-label="Remove this number"
+                  onClick={() => set((f) => ({ additional_phones: (f.additional_phones ?? []).filter((_, j) => j !== i) }))}
+                >
+                  <X size={15} />
+                </button>
+              </div>
+              <div className="phone-row">
+                <CountryCodeSelect value={p.country_code} onChange={(country_code) => setPhone(i, { country_code })} />
+                <input value={p.phone_number} placeholder="Phone number" inputMode="tel" aria-label="Phone number" onChange={(e) => setPhone(i, { phone_number: e.target.value })} />
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={p.is_whatsapp_number}
+                  aria-label="This number is on WhatsApp"
+                  className={`wa-switch${p.is_whatsapp_number ? " is-on" : ""}`}
+                  onClick={() => setPhone(i, { is_whatsapp_number: !p.is_whatsapp_number })}
+                >
+                  <WhatsAppIcon mono size={18} />
+                  <span className="wa-switch-track" aria-hidden="true">
+                    <span className="wa-switch-knob" />
+                  </span>
+                </button>
+              </div>
+              {err(`additional_phones.${i}.phone_number`) && <small className="err">{err(`additional_phones.${i}.phone_number`)}</small>}
+            </div>
+          ))}
         {CARD_EXTRAS && extraPhones.length < MAX_ADDITIONAL_PHONES && (
           <button
             type="button"
-            className="xphone-add"
+            className="dash-btn"
             onClick={() =>
               set((f) => ({
                 additional_phones: [
@@ -283,46 +427,53 @@ export default function CardForm({
             <Plus size={14} aria-hidden="true" /> Add another number
           </button>
         )}
+
         <Field label="Email" error={err("email")}>
-          <input type="email" value={form.email} placeholder="Enter your email address" onChange={(e) => set({ email: e.target.value })} />
+          <span className="icon-input">
+            <Mail size={16} aria-hidden="true" />
+            <input type="email" value={form.email} placeholder="you@company.com" onChange={(e) => set({ email: e.target.value })} />
+          </span>
         </Field>
         <Field label="Website" error={err("website")}>
-          <input value={form.website} placeholder="Paste your website link" onChange={(e) => set({ website: e.target.value })} />
+          <span className="icon-input">
+            <Globe size={16} aria-hidden="true" />
+            <input value={form.website} placeholder="https://yourcompany.com" inputMode="url" onChange={(e) => set({ website: e.target.value })} />
+          </span>
         </Field>
-      </section>
+      </FormSection>
 
       {CARD_EXTRAS && (
-        <section className="panel">
-          <h3>Pay Me <small>Optional · let people pay you from your card</small></h3>
+        <FormSection icon={Wallet} title="Pay Me" subtitle="Let people pay you from your card" hasError={!!payError}>
           <PayMeEditor
             value={form.payment_methods ?? []}
             update={(fn) => set((f) => ({ payment_methods: fn(f.payment_methods ?? []) }))}
             onQrFile={(file) => onImageFile(file, "logo")}
           />
           {payError && <small className="err">{payError}</small>}
-        </section>
+        </FormSection>
       )}
 
       {agents !== null && (
-        <section className="panel">
-          <h3>Ask My AI <small>Optional — you can add it later</small></h3>
+        <FormSection icon={Sparkles} title="Ask My AI" subtitle="Optional. You can add it later" hasError={errIn("agent_id")}>
           <Field label="AI agent" error={err("agent_id")}>
             <select value={form.agent_id} onChange={(e) => set({ agent_id: e.target.value })}>
-              <option value="">{agentsLoading && agents.length === 0 ? "Loading agents…" : "No agent — add later"}</option>
+              <option value="">{agentsLoading && agents.length === 0 ? "Loading agents…" : "No agent, add later"}</option>
               {agents.map((a) => (
-                <option key={a.id} value={a.id}>{a.name}{a.status && a.status !== "Published" ? " (not published)" : ""}</option>
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                  {a.status && a.status !== "Published" ? " (not published)" : ""}
+                </option>
               ))}
               {form.agent_id && !agentKnown && <option value={form.agent_id}>{form.agent_id}</option>}
             </select>
           </Field>
-          <small>If you pick one, an “Ask My AI” button on your card opens it. Leave it empty and the button is simply hidden.</small>
-          {agents.length === 0 && !agentsLoading && <small>You don’t have any AI employees yet — you can create one later and come back to add it.</small>}
-        </section>
+          <small className="field-help">Choose an AI agent to let visitors talk to your AI directly from your card. Leave it empty and the button is simply hidden.</small>
+          {agents.length === 0 && !agentsLoading && <small className="field-help">You don’t have any AI employees yet. Create one later and come back to add it.</small>}
+        </FormSection>
       )}
 
       {CARD_EXTRAS && (
-        <section className="panel">
-          <h3>Featured button <small>Shown big at the top of your card</small></h3>
+        <FormSection icon={Star} title="Featured button" subtitle="Shown big at the top of your card">
           <div className="hl-grid" role="radiogroup" aria-label="Featured button">
             {HIGHLIGHTS.map((h) => {
               const ok = highlightAvailable[h.id];
@@ -338,35 +489,37 @@ export default function CardForm({
                   className={`hl-opt${on ? " is-on" : ""}`}
                   onClick={() => set({ highlight: h.id })}
                 >
-                  <h.Icon size={16} aria-hidden="true" />
+                  <h.Icon size={17} aria-hidden="true" />
                   <span>{h.label}</span>
+                  {on && (
+                    <span className="hl-check" aria-hidden="true">
+                      <Check size={13} strokeWidth={3} />
+                    </span>
+                  )}
                 </button>
               );
             })}
           </div>
-          <small>
-            {currentHighlight
-              ? "The other actions stay in the row of icons under it."
-              : "Add an AI agent, WhatsApp number, email or Pay Me to feature one."}
+          <small className="field-help">
+            {currentHighlight ? "Choose the main action you want visitors to see first. The others stay in the row of icons under it." : "Add an AI agent, WhatsApp number, email or Pay Me to feature one."}
           </small>
-        </section>
+        </FormSection>
       )}
 
-      <section className="panel">
-        <h3>Social links <small>Tap a platform to connect it</small></h3>
+      <FormSection icon={Share2} title="Social links" subtitle="Add your social profiles" hasError={errIn("social_media")}>
         <SocialLinksEditor
           value={form.social_media}
           onChange={(social_media) => set({ social_media })}
           errorFor={(i) => err(`social_media.${i}.url`) || err(`social_media.${i}.username`) || err(`social_media.${i}.type`)}
         />
-      </section>
+      </FormSection>
 
-      <section className="panel">
-        {CARD_EXTRAS ? (
-          <h3>Ventures &amp; more <small>Companies, shop catalogs, documents, menus</small></h3>
-        ) : (
-          <h3>Ventures <small>Companies or projects</small></h3>
-        )}
+      <FormSection
+        icon={Layers}
+        title={CARD_EXTRAS ? "Ventures & more" : "Ventures"}
+        subtitle={CARD_EXTRAS ? "Companies, shop catalogs, documents, menus and more" : "Companies or projects"}
+        hasError={errIn("ventures")}
+      >
         <VenturesEditor
           basic={!CARD_EXTRAS}
           value={form.ventures}
@@ -377,9 +530,16 @@ export default function CardForm({
           }
           onDocumentFile={onDocumentFile}
           onDocumentError={onDocumentError}
-          errorFor={(i) => err(`ventures.${i}.name`) || err(`ventures.${i}.url`) || err(`ventures.${i}.logo_url`) || err(`ventures.${i}.type`) || err(`ventures.${i}.logo_size`) || err(`ventures.${i}.description`)}
+          errorFor={(i) =>
+            err(`ventures.${i}.name`) ||
+            err(`ventures.${i}.url`) ||
+            err(`ventures.${i}.logo_url`) ||
+            err(`ventures.${i}.type`) ||
+            err(`ventures.${i}.logo_size`) ||
+            err(`ventures.${i}.description`)
+          }
         />
-      </section>
+      </FormSection>
     </>
   );
 }

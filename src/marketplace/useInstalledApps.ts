@@ -2,10 +2,12 @@ import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { canInstallApp } from "./apps";
 import { useAuth } from "../contexts/AuthContext";
 import {
-  APP_ID_TO_SKILL_NAME,
-  SKILL_NAME_TO_APP_ID,
+  SERVER_APP_IDS,
+  SkillApp,
   SkillAppsError,
+  catalogIdFor,
   hasAuthToken,
+  marketplaceIdOf,
   skillAppsAPI,
 } from "../services/skillAppsAPI";
 
@@ -17,12 +19,17 @@ import {
  * keeps a per-user copy so the sidebar and app guards render instantly on load
  * and keep working for accounts the API refuses (403 — e.g. sub-tenant staff).
  *
+ * Installing needs the app's catalog record id. Until it's known (learned from the installed
+ * list, or listed in skillAppsAPI.ts) an install is kept as "pending" in this browser and
+ * uploaded as soon as the id turns up, so it never disappears on reload.
+ *
  * One module-level store shared by every hook instance; changes are broadcast with
  * a window event (same tab) and the storage event (other tabs).
  */
 
 const STORAGE_PREFIX = "shivai_installed_apps_";
 const MIGRATED_PREFIX = "shivai_installed_apps_migrated_";
+const PENDING_PREFIX = "shivai_installed_apps_pending_";
 const INSTALLED_APPS_EVENT = "shivai:installed-apps-changed";
 
 interface Store {
@@ -41,22 +48,36 @@ let loading: Promise<void> | null = null;
 
 // ── local copy ───────────────────────────────────────────────────────────────
 
-function readLocal(userKey: string): string[] {
+function readList(key: string): string[] {
   try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_PREFIX + userKey) || "[]");
+    const parsed = JSON.parse(localStorage.getItem(key) || "[]");
     return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : [];
   } catch {
     return [];
   }
 }
 
-function writeLocal(userKey: string, ids: string[]) {
+function writeList(key: string, ids: string[]) {
+  try {
+    if (ids.length) localStorage.setItem(key, JSON.stringify(ids));
+    else localStorage.removeItem(key);
+  } catch {
+    /* storage full / unavailable */
+  }
+}
+
+const readLocal = (userKey: string) => readList(STORAGE_PREFIX + userKey);
+const writeLocal = (userKey: string, ids: string[]) => {
   try {
     localStorage.setItem(STORAGE_PREFIX + userKey, JSON.stringify(ids));
   } catch {
     /* storage full / unavailable */
   }
-}
+};
+
+/** Installs waiting to be uploaded (their catalog id wasn't known when they were made). */
+const readPending = (userKey: string) => readList(PENDING_PREFIX + userKey);
+const writePending = (userKey: string, ids: string[]) => writeList(PENDING_PREFIX + userKey, [...new Set(ids)]);
 
 function setStore(patch: Partial<Store>) {
   store = { ...store, ...patch };
@@ -66,20 +87,40 @@ function setStore(patch: Partial<Store>) {
 
 // ── server sync ──────────────────────────────────────────────────────────────
 
-const byApp = (apps: { _id: string; name: string }[]) => {
+/** Installed records grouped by marketplace app (matched by the catalog record's name). */
+const byApp = (apps: SkillApp[]) => {
   const docs: Record<string, string[]> = {};
   for (const a of apps) {
-    const id = SKILL_NAME_TO_APP_ID[a.name as keyof typeof SKILL_NAME_TO_APP_ID];
+    const id = marketplaceIdOf(a);
     if (id) (docs[id] ??= []).push(a._id);
   }
   return docs;
 };
 
-/** Replaces the list with the server's — unless the account changed while we waited. */
+/** Uploads pending installs whose catalog id is now known. Returns true if any were sent. */
+async function uploadPending(userKey: string): Promise<boolean> {
+  const pending = readPending(userKey);
+  const ready = pending.filter((id) => !store.docs[id] && catalogIdFor(id));
+  if (!ready.length) return false;
+  const results = await Promise.allSettled(ready.map((id) => skillAppsAPI.install(catalogIdFor(id)!)));
+  // Sent (or already there — 409): no longer pending.
+  const done = ready.filter((_, i) => {
+    const r = results[i];
+    return r.status === "fulfilled" || (r.reason as SkillAppsError)?.status === 409;
+  });
+  writePending(
+    userKey,
+    pending.filter((id) => !done.includes(id)),
+  );
+  return done.length > 0;
+}
+
+/** Replaces the list with the server's (plus installs still waiting to upload) — unless the account changed while we waited. */
 async function refresh(userKey = store.userKey) {
   const docs = byApp(await skillAppsAPI.list());
   if (store.userKey !== userKey) return;
-  setStore({ docs, ids: Object.keys(docs), ready: true, source: "server" });
+  const pending = readPending(userKey).filter((id) => !docs[id]);
+  setStore({ docs, ids: [...new Set([...Object.keys(docs), ...pending])], ready: true, source: "server" });
 }
 
 /** Loads the server list for this user; installs made before the API existed are uploaded once. */
@@ -97,17 +138,20 @@ function load(userKey: string): Promise<void> {
   loading = (async () => {
     try {
       await refresh(userKey);
+      if (store.userKey !== userKey) return;
+      // Once per account: apps installed in this browser before the API existed join the
+      // pending list, then everything pending with a known catalog id is uploaded.
       const migratedKey = MIGRATED_PREFIX + userKey;
-      if (store.userKey === userKey && !localStorage.getItem(migratedKey)) {
-        const missing = local.filter((id) => !store.ids.includes(id) && APP_ID_TO_SKILL_NAME[id]);
-        await Promise.allSettled(missing.map((id) => skillAppsAPI.install(APP_ID_TO_SKILL_NAME[id])));
+      if (!localStorage.getItem(migratedKey)) {
+        const missing = local.filter((id) => !store.ids.includes(id) && SERVER_APP_IDS.includes(id));
+        writePending(userKey, [...readPending(userKey), ...missing]);
         localStorage.setItem(migratedKey, "1");
-        if (missing.length) await refresh(userKey);
       }
+      if (await uploadPending(userKey)) await refresh(userKey);
     } catch (e) {
       // 403: this role can't use the API. 404: the API isn't deployed yet on this server.
-      // Either way keep the browser-only list (the one-time upload above runs once the API
-      // answers). 401/network: show the cached list; the next load tries again.
+      // Either way keep the browser-only list (pending installs upload once the API answers).
+      // 401/network: show the cached list; the next load tries again.
       if (store.userKey !== userKey) return;
       const status = (e as SkillAppsError).status;
       setStore({ ready: true, source: status === 403 || status === 404 ? "local" : "server" });
@@ -124,17 +168,21 @@ async function installApp(appId: string, email?: string): Promise<void> {
   if (!canInstallApp(appId, email) || store.ids.includes(appId)) return;
   const before = store.ids;
   setStore({ ids: [...before, appId] }); // instant: callers may navigate into the app right away
-  const name = APP_ID_TO_SKILL_NAME[appId];
-  if (store.source === "local" || !name) return;
+  if (store.source === "local" || !SERVER_APP_IDS.includes(appId)) return;
+  const catalogId = catalogIdFor(appId);
+  if (!catalogId) {
+    // Catalog id not known yet: keep the install and upload it as soon as the id is known.
+    writePending(store.userKey, [...readPending(store.userKey), appId]);
+    return;
+  }
   try {
-    const created = await skillAppsAPI.install(name);
+    const created = await skillAppsAPI.install(catalogId);
     setStore({ docs: { ...store.docs, [appId]: [...(store.docs[appId] ?? []), created._id] } });
   } catch (e) {
     const status = (e as SkillAppsError).status;
     if (status === 409) return void refresh().catch(() => {}); // already installed
-    // 404 without an agent_id = the endpoint isn't deployed: keep the local install;
-    // it's uploaded once the API is live (see load()).
-    if (status === 404) return setStore({ source: "local" });
+    // 404 = this catalog app (or the endpoint) wasn't found: keep the install here and retry later.
+    if (status === 404) return writePending(store.userKey, [...readPending(store.userKey), appId]);
     setStore({ ids: store.ids.filter((id) => id !== appId) });
     throw e;
   }
@@ -144,7 +192,11 @@ async function uninstallApp(appId: string): Promise<void> {
   if (!store.ids.includes(appId)) return;
   const before = { ids: store.ids, docs: store.docs };
   setStore({ ids: store.ids.filter((id) => id !== appId) });
-  if (store.source === "local" || !APP_ID_TO_SKILL_NAME[appId]) return;
+  writePending(
+    store.userKey,
+    readPending(store.userKey).filter((id) => id !== appId),
+  );
+  if (store.source === "local" || !SERVER_APP_IDS.includes(appId)) return;
   try {
     let docIds = before.docs[appId];
     if (!docIds?.length) docIds = byApp(await skillAppsAPI.list())[appId] ?? [];
