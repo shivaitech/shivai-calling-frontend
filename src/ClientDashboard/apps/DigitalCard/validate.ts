@@ -31,6 +31,12 @@ export function validateCard(f: CardData, opts: { skipUsername?: boolean } = {})
     const problem = payMethodProblem(m);
     if (problem) e[`payment_methods.${i}`] = `${m.label || "A payment option"}: ${problem}`;
   });
+  (f.additional_emails ?? []).forEach((m, i) => {
+    const v = m.email.trim();
+    if (!v) e[`additional_emails.${i}.email`] = "Enter the email, or remove this row";
+    else if (v.length > 254) e[`additional_emails.${i}.email`] = "Max 254 characters";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) e[`additional_emails.${i}.email`] = "Enter a valid email address";
+  });
   (f.additional_phones ?? []).forEach((p, i) => {
     if (!p.phone_number.trim()) e[`additional_phones.${i}.phone_number`] = "Enter the number, or remove this row";
     else if (p.phone_number.length > 20) e[`additional_phones.${i}.phone_number`] = "Max 20 characters";

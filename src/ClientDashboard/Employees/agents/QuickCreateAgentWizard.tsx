@@ -8,6 +8,7 @@ import TTSVoiceSelector, {
   TTSVoiceSelectorValue,
   toTtsConfig,
 } from "../../../components/TTSVoiceSelector";
+import { handlePlanLimit, refreshPlanLimits } from "../../Billing/planLimit";
 import { GeminiVoiceOptions, defaultGeminiVoice, toGeminiVoice } from "./geminiVoices";
 import {
   aiEmployeeTemplates,
@@ -1550,6 +1551,7 @@ const QuickCreateAgentWizard = ({
 
       const agentId = newAgent?.id || '';
       setCreatingAgentId(agentId);
+      refreshPlanLimits(); // one more agent counted against the plan
       // Refresh context agents and re-fetch the filtered list so the new agent card
       // (with KB loading overlay) appears in the grid immediately when modal is minimized.
       onAgentListRefresh();
@@ -1585,6 +1587,9 @@ const QuickCreateAgentWizard = ({
 
       setIsCreatingAgent(false);
       setKbCreationProgress(null);
+
+      // Over the plan's AI agent limit (403 PLAN_LIMIT_REACHED): the upgrade dialog explains.
+      if (handlePlanLimit(error)) return;
 
       // Show error toast
       const errorMessage =

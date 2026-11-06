@@ -11,6 +11,7 @@
 // 409 already installed (for this agent assignment), 422 bad body or id.
 
 import axios from "axios";
+import { BILLING_APP_ID } from "./billingAPI";
 
 const BASE = `${import.meta.env.VITE_API_BASE_URL}/skill-apps`;
 
@@ -58,7 +59,9 @@ export const SERVER_APP_IDS = Object.keys(APP_NAMES);
  * Catalog record ids, when known up front (from the App catalog in the admin panel).
  * Optional: ids are also learned from the installed-apps list (see rememberCatalogIds).
  */
-const CATALOG_IDS: Partial<Record<string, string>> = {};
+const CATALOG_IDS: Partial<Record<string, string>> = {
+  "digital-card": BILLING_APP_ID,
+};
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
 const NAME_TO_APP_ID = new Map<string, string>();

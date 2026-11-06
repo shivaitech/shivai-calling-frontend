@@ -6,6 +6,7 @@ import GlassCard from "../../components/GlassCard";
 import SearchableSelect from "../../components/SearchableSelect";
 import TTSVoiceSelector, { TTSVoiceSelectorValue, toTtsConfig } from "../../components/TTSVoiceSelector";
 import { useAgent } from "../../contexts/AgentContext";
+import { handlePlanLimit, refreshPlanLimits } from "../Billing/planLimit";
 import {
   ArrowLeft,
   Bot,
@@ -513,6 +514,7 @@ const CreateAgent = () => {
 
       // Refresh agents list from API
       await refreshAgents();
+      refreshPlanLimits(); // one more agent counted against the plan
 
       // Navigate to agents list
       setTimeout(() => {
@@ -520,6 +522,9 @@ const CreateAgent = () => {
       }, 500);
     } catch (error: any) {
       appToast.dismiss(loadingToast);
+
+      // Over the plan's AI agent limit (403 PLAN_LIMIT_REACHED): the upgrade dialog explains.
+      if (handlePlanLimit(error)) return;
 
       let errorMessage = "Failed to create AI agent. Please try again.";
 

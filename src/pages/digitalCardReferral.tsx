@@ -1,7 +1,7 @@
 import { ArrowUpCircle, Bot, Coins, CreditCard, Eye, LayoutDashboard, Send, Share2, ShieldCheck, UserPlus } from "lucide-react";
 
 /**
- * ShivAI Points — the referral/loyalty program, explained for members on the marketing page.
+ * Loyalty Points — the referral/loyalty program, explained for members on the marketing page.
  * Not live yet: the values are the proposed launch configuration and not final commercial
  * commitments, so the copy says so too. Views and shares only earn when they "qualify"
  * (unique, genuine visitors; duplicates, the owner's own visits and automated traffic excluded).
@@ -15,7 +15,7 @@ const STEPS = [
   },
   {
     Icon: UserPlus,
-    title: "They join ShivAI",
+    title: "They join your network",
     text: "When someone discovers your card and subscribes through your referral, you get rewarded.",
   },
   {
@@ -60,7 +60,7 @@ export default function DigitalCardReferral({ sectionY = "py-12 sm:py-[68px]" }:
         {/* Header */}
         <div className="text-center max-w-2xl mx-auto">
           <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-            ShivAI Points
+            Loyalty Points
             <span className="rounded-full bg-slate-900 px-2.5 py-0.5 text-[10px] tracking-normal normal-case text-white">Coming soon</span>
           </p>
           <h2 className="mt-3 text-3xl sm:text-5xl font-semibold tracking-tight">Share your card. Earn as you&nbsp;connect.</h2>

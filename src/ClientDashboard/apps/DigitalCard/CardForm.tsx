@@ -20,8 +20,8 @@ import {
   X,
 } from "lucide-react";
 import type { ImageKind } from "./photo";
-import { CardData, MAX_ADDITIONAL_PHONES, PHONE_LABELS, SUGGESTED_TAGLINE } from "./types";
-import type { CardHighlight, CardPhone, PhoneLabel } from "../../../services/businessCardAPI";
+import { CardData, EMAIL_LABELS, MAX_ADDITIONAL_EMAILS, MAX_ADDITIONAL_PHONES, PHONE_LABELS, SUGGESTED_TAGLINE } from "./types";
+import type { CardEmail, CardHighlight, CardPhone, EmailLabel, PhoneLabel } from "../../../services/businessCardAPI";
 import CountryCodeSelect from "./CountryCodeSelect";
 import SocialLinksEditor from "./SocialLinksEditor";
 import VenturesEditor from "./VenturesEditor";
@@ -30,6 +30,7 @@ import { CARD_EXTRAS } from "./features";
 import { visiblePayMethods } from "./payMe";
 import WhatsAppIcon from "./WhatsAppIcon";
 import UsernameField from "./UsernameField";
+import { suggestUsername } from "./username";
 import { editImage, type EditImageOptions } from "./ImageEditor";
 
 // The card shows the photo in a 4:5 portrait frame with rounded corners.
@@ -144,6 +145,8 @@ interface CardFormProps {
   savedUsername?: string;
   /** The card already exists: its username (link) is permanent and shown read-only. */
   usernameLocked?: boolean;
+  /** New card: may the owner choose their link? (Prestige only; other plans get one made from the name.) */
+  chooseUsername?: boolean;
   /** Uploads a PDF for a document/catalog entry. Leave out before the visitor has an account (links only). */
   onDocumentFile?: (file: File) => Promise<{ url: string; file_name: string }>;
   onDocumentError?: (message: string) => void;
@@ -159,6 +162,7 @@ export default function CardForm({
   agentsLoading = false,
   savedUsername,
   usernameLocked = false,
+  chooseUsername = true,
   onDocumentFile,
   onDocumentError = () => {},
 }: CardFormProps) {
@@ -202,6 +206,9 @@ export default function CardForm({
   const payError = Object.entries(errors).find(([k]) => k.startsWith("payment_methods"))?.[1];
   const setPhone = (i: number, patch: Partial<CardPhone>) =>
     set((f) => ({ additional_phones: patchAt(f.additional_phones ?? [], i, patch) }));
+  const extraEmails = form.additional_emails ?? [];
+  const setEmail = (i: number, patch: Partial<CardEmail>) =>
+    set((f) => ({ additional_emails: patchAt(f.additional_emails ?? [], i, patch) }));
   const accent = /^#[0-9a-f]{6}$/i.test(form.color_code) ? form.color_code.toLowerCase() : "#161616";
   const customAccent = !ACCENTS.includes(accent);
 
@@ -266,14 +273,26 @@ export default function CardForm({
         <Field label="Full name" required error={err("full_name")}>
           <input value={form.full_name} placeholder="Enter your full name" onChange={(e) => set({ full_name: e.target.value })} />
         </Field>
-        <UsernameField
-          locked={usernameLocked}
-          value={usernameLocked ? form.username || savedUsername || "" : form.username}
-          onChange={(username) => set({ username })}
-          fullName={form.full_name}
-          savedUsername={savedUsername}
-          error={err("username")}
-        />
+        {usernameLocked || chooseUsername ? (
+          <UsernameField
+            locked={usernameLocked}
+            value={usernameLocked ? form.username || savedUsername || "" : form.username}
+            onChange={(username) => set({ username })}
+            fullName={form.full_name}
+            savedUsername={savedUsername}
+            error={err("username")}
+          />
+        ) : (
+          // Choosing the link is a Prestige option; other plans get one made from the name on save.
+          <div className="field">
+            <span>Your card’s link</span>
+            <small className="field-help">
+              Your link is created from your name when you save, like <strong>{suggestUsername(form.full_name) || "your-name"}.callshivai.com</strong>. Choose your
+              own link with Prestige.
+            </small>
+            {err("username") && <small className="err">{err("username")}</small>}
+          </div>
+        )}
         <div className="row two">
           <Field label="Job title" required error={err("job_title")}>
             <input value={form.job_title} placeholder="Your job title" onChange={(e) => set({ job_title: e.target.value })} />
@@ -295,6 +314,7 @@ export default function CardForm({
               {form.tagline.length} / {TAGLINE_MAX}
             </span>
           </span>
+          <small className="field-help">A short line about you. It appears on your card below your name and title.</small>
         </Field>
         {!form.tagline.trim() && (
           <button type="button" className="text-btn" style={{ alignSelf: "flex-start" }} onClick={() => set({ tagline: SUGGESTED_TAGLINE })}>
@@ -304,7 +324,10 @@ export default function CardForm({
 
         <div className="field">
           <span>Accent colour</span>
-          <small className="field-help">Used for buttons, links and highlights on your public card.</small>
+          <small className="field-help">
+            Your card’s highlight colour. It is used for the featured button (such as Talk to My AI Manager) and the short line under your title.
+            Signature and Prestige cards use their own silver and gold styling.
+          </small>
           <div className="swatches" role="radiogroup" aria-label="Accent colour">
             {ACCENTS.map((c) => (
               <button
@@ -338,7 +361,7 @@ export default function CardForm({
         icon={Phone}
         title="Contact"
         subtitle="How people can reach you"
-        hasError={errIn("country_code", "phone_number", "additional_phones", "email", "website")}
+        hasError={errIn("country_code", "phone_number", "additional_phones", "email", "additional_emails", "website")}
       >
         <div className="field">
           <span>Phone number</span>
@@ -434,6 +457,47 @@ export default function CardForm({
             <input type="email" value={form.email} placeholder="you@company.com" onChange={(e) => set({ email: e.target.value })} />
           </span>
         </Field>
+
+        {/* More emails (optional), e.g. a personal and an official one, like extra numbers. */}
+        {extraEmails.map((m, i) => (
+          <div className="xphone" key={i}>
+            <div className="xphone-head">
+              <select aria-label="Email label" value={m.label} onChange={(e) => setEmail(i, { label: e.target.value as EmailLabel })}>
+                {EMAIL_LABELS.map((l) => (
+                  <option key={l.value} value={l.value}>
+                    {l.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="xphone-x"
+                aria-label="Remove this email"
+                onClick={() => set((f) => ({ additional_emails: (f.additional_emails ?? []).filter((_, j) => j !== i) }))}
+              >
+                <X size={15} />
+              </button>
+            </div>
+            <span className="icon-input">
+              <Mail size={16} aria-hidden="true" />
+              <input type="email" value={m.email} placeholder="another@email.com" aria-label="Email" onChange={(e) => setEmail(i, { email: e.target.value })} />
+            </span>
+            {err(`additional_emails.${i}.email`) && <small className="err">{err(`additional_emails.${i}.email`)}</small>}
+          </div>
+        ))}
+        {CARD_EXTRAS && extraEmails.length < MAX_ADDITIONAL_EMAILS && (
+          <button
+            type="button"
+            className="dash-btn"
+            onClick={() =>
+              set((f) => ({
+                additional_emails: [...(f.additional_emails ?? []), { label: (f.additional_emails ?? []).length ? "other" : "personal", email: "" }],
+              }))
+            }
+          >
+            <Plus size={14} aria-hidden="true" /> Add another email
+          </button>
+        )}
         <Field label="Website" error={err("website")}>
           <span className="icon-input">
             <Globe size={16} aria-hidden="true" />

@@ -1,4 +1,4 @@
-// Digital card Monitoring (analytics) + Affiliate (ShivAI Points) data.
+// Digital card Monitoring (analytics) + Affiliate (Loyalty Points) data.
 //
 // The backend doesn't serve these yet. Each call tries the real endpoint; a 404
 // (route not deployed) returns clearly-flagged SAMPLE data (`live: false`) so the

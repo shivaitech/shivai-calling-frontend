@@ -20,6 +20,11 @@ import CardPlanPicker, { toInterval } from "./CardPlanPicker";
 import { useAuth } from "../../contexts/AuthContext";
 import { complimentaryPlan } from "../../pages/complimentaryPlans";
 import { clearPendingPlan, loadPendingPlan, type PendingPlan } from "./pendingPlan";
+import { usePlanLimits } from "./planLimit";
+import type { ResourceLimit } from "../../services/billingAPI";
+
+/** "1 of 2 used" · "Not included" · "Unlimited". */
+const usageText = (r?: ResourceLimit) => (!r || r.limit === null ? "Unlimited" : r.limit === 0 ? "Not included" : `${r.used} of ${r.limit} used`);
 import { ItemIcon, Pill, fmtDate } from "./billingUi";
 
 /**
@@ -50,28 +55,32 @@ const INVOICE_STATUS: Record<string, { label: string; cls: string }> = {
 };
 
 /**
- * The built-in plans (same table as the marketing page), in the API's shape. Shown whenever
- * GET /billing/plans can't answer — the plans are always visible; buying waits for the API.
+ * The backend's plans (prices and limits), shown whenever GET /billing/plans can't answer — the plans are
+ * always visible; buying waits for the API.
  */
-const FALLBACK_PLANS: PlanCard[] = PLANS.map((p) => {
-  const cents = (n: number) => Math.round(n * 100);
-  return {
-    id: p.id,
-    key: p.id,
-    name: p.name,
-    tagline: p.eyebrow,
-    description: p.pitch,
-    features: p.features.map((f) => f.text),
-    is_free: false,
-    currency: "usd",
-    prices: {
-      month: { amount: cents(p.monthly), monthly_equivalent: cents(p.monthly) },
-      year: { amount: cents(p.yearly), monthly_equivalent: cents(p.yearlyPerMonth) },
-    },
-    annual_savings_percent: Math.round((1 - p.yearly / (p.monthlyWas * 12)) * 100),
-    purchasable: false,
-  };
-});
+const FALLBACK_PLANS: PlanCard[] = [
+  {
+    id: "essential", key: "essential", name: "Essential", tagline: "Your professional identity",
+    description: "Create and share your professional card", features: PLANS.find((p) => p.id === "essential")?.features.map((f) => f.text) ?? [],
+    is_free: true, currency: "usd",
+    prices: { month: { amount: 0, monthly_equivalent: 0 }, year: { amount: 0, monthly_equivalent: 0 } },
+    annual_savings_percent: null, purchasable: false, limits: { business_cards: 1, ai_agents: 0 },
+  },
+  {
+    id: "signature", key: "signature", name: "Signature", tagline: "Your presence, elevated",
+    description: PLANS.find((p) => p.id === "signature")?.pitch ?? "", features: PLANS.find((p) => p.id === "signature")?.features.map((f) => f.text) ?? [],
+    is_free: false, currency: "usd",
+    prices: { month: { amount: 1499, monthly_equivalent: 1499 }, year: { amount: 10792, monthly_equivalent: 899 } },
+    annual_savings_percent: 40, purchasable: false, limits: { business_cards: 2, ai_agents: 2 },
+  },
+  {
+    id: "prestige", key: "prestige", name: "Prestige", tagline: "The premium experience",
+    description: PLANS.find((p) => p.id === "prestige")?.pitch ?? "", features: PLANS.find((p) => p.id === "prestige")?.features.map((f) => f.text) ?? [],
+    is_free: false, currency: "usd",
+    prices: { month: { amount: 4499, monthly_equivalent: 4499 }, year: { amount: 32388, monthly_equivalent: 2699 } },
+    annual_savings_percent: 40, purchasable: false, limits: { business_cards: 5, ai_agents: 5 },
+  },
+];
 
 const BRAND: Record<string, string> = { visa: "Visa", mastercard: "Mastercard", amex: "American Express", rupay: "RuPay", discover: "Discover", jcb: "JCB", unionpay: "UnionPay" };
 /** No paid plan in these states — show the free view. */
@@ -226,7 +235,11 @@ export default function CardBilling({
   };
 
   const status: SubStatus = overview?.status ?? "free";
-  const hasPaidPlan = !!overview?.plan && !overview.plan.is_free && !NOT_PAYING.includes(status);
+  // Founding members have no billing and no limits: a label, and no Choose / Switch / Cancel.
+  const founding = !!overview?.founding_member;
+  const hasPaidPlan = !founding && !!overview?.plan && !overview.plan.is_free && !NOT_PAYING.includes(status);
+  // Cards / AI agents used against the plan (GET /billing/limits).
+  const planLimits = usePlanLimits();
   // A plan given free to this account (complimentaryPlans.ts) — unless it's actually paying.
   const { user } = useAuth();
   const compKey = hasPaidPlan ? null : complimentaryPlan(user?.email);
@@ -234,8 +247,8 @@ export default function CardBilling({
   const currentKey = hasPaidPlan ? overview!.plan!.key : compKey ?? "essential";
   // Live plans when the API answers; otherwise the built-in ones (view only).
   const livePlans = !!plans?.plans?.length;
-  // The API may still list a "free" plan; there isn't one to sell (Essential is the free tier), so it's hidden.
-  const shownPlans = (livePlans ? plans!.plans : FALLBACK_PLANS).filter((p) => !p.is_free && p.key !== "free");
+  // Essential is the free plan everyone starts on; the old "free" plan is retired, so it is hidden if it ever appears.
+  const shownPlans = (livePlans ? plans!.plans : FALLBACK_PLANS).filter((p) => p.key !== "free");
   const paymentsOn = livePlans && !unavailable && !!plans?.payments_enabled && (overview?.payments_enabled ?? true);
   const currency = overview?.price.currency || plans?.currency || "usd";
 
@@ -256,14 +269,14 @@ export default function CardBilling({
   const finishCard = pendingPlan ? shownPlans.find((p) => p.key === pendingPlan.plan) ?? null : null;
   const finishInterval: Interval = pendingPlan?.billing === "monthly" ? "month" : "year";
   const finishPrice = finishCard?.prices[finishInterval] ?? null;
-  const showFinish = !!pendingPlan && !!finishCard && !hasPaidPlan && !compKey && canPay && !finishLater && !confirming;
+  const showFinish = !!pendingPlan && !!finishCard && !hasPaidPlan && !compKey && !founding && canPay && !finishLater && !confirming;
   const dropPendingPlan = () => {
     clearPendingPlan();
     setPendingPlan(null);
   };
 
   const choose = async (plan: PlanCard, interval: Interval = toInterval(cycle)) => {
-    if (compKey) return;
+    if (compKey || founding) return;
     if (hasPaidPlan) {
       setChange({ plan, interval });
       return;
@@ -332,7 +345,9 @@ export default function CardBilling({
     }
   };
 
-  const pill = compKey
+  const pill = founding
+    ? { label: "Founding member", cls: STATUS.active.cls }
+    : compKey
     ? { label: "Complimentary", cls: STATUS.active.cls }
     : overview?.cancel_at_period_end && hasPaidPlan
       ? { label: "Ends soon", cls: STATUS.canceled.cls }
@@ -448,7 +463,7 @@ export default function CardBilling({
 
           {/* Current plan */}
           <dl className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <SummaryTile label="Current plan" value={hasPaidPlan ? overview!.plan!.name : compKey ? compName : "Essential"} strong />
+            <SummaryTile label="Current plan" value={founding ? "Founding member" : hasPaidPlan ? overview!.plan!.name : compKey ? compName : "Essential"} strong />
             <SummaryTile
               label="Price"
               value={
@@ -474,6 +489,22 @@ export default function CardBilling({
               value={pm ? `${BRAND[pm.brand?.toLowerCase()] ?? pm.brand} ending ${pm.last4}` : "—"}
             />
           </dl>
+          {planLimits.loaded && planLimits.data && (
+            <p className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+              {founding || !planLimits.data.enforced ? (
+                <span>No limits on business cards or AI agents.</span>
+              ) : (
+                <>
+                  <span>
+                    Business cards: <strong className="font-semibold text-slate-700 dark:text-slate-200">{usageText(planLimits.data.resources?.business_cards)}</strong>
+                  </span>
+                  <span>
+                    AI agents: <strong className="font-semibold text-slate-700 dark:text-slate-200">{usageText(planLimits.data.resources?.ai_agents)}</strong>
+                  </span>
+                </>
+              )}
+            </p>
+          )}
 
           {hasPaidPlan && canPay && (
             <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -555,6 +586,7 @@ export default function CardBilling({
                 pending={pending}
                 onChoose={(p) => void choose(p)}
                 complimentaryKey={compKey ?? undefined}
+                foundingAccount={founding}
               />
             ) : (
               <p className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 py-8 text-center text-sm text-slate-500 dark:text-slate-400">

@@ -19,6 +19,13 @@ const TIERS: Record<string, PlanTier> = { essential: "essential", signature: "si
 /** Cents saved a year by paying annually, or 0 when there's nothing to compare. */
 const yearlySaving = (p: PlanCard) => (p.prices.month && p.prices.year ? Math.max(0, p.prices.month.amount * 12 - p.prices.year.amount) : 0);
 
+/** "1 business card", "Up to 2 business cards", "No AI agents", "Unlimited AI agents". */
+function limitText(n: number | null, one: string, many: string): string {
+  if (n === null) return `Unlimited ${many}`;
+  if (n === 0) return `No ${many}`;
+  return n === 1 ? `1 ${one}` : `Up to ${n} ${many}`;
+}
+
 export default function CardPlanPicker({
   plans,
   cycle,
@@ -32,11 +39,12 @@ export default function CardPlanPicker({
   pending,
   onChoose,
   complimentaryKey,
+  foundingAccount = false,
 }: {
   plans: PlanCard[];
   cycle: Cycle;
   onCycle: (c: Cycle) => void;
-  /** The account's plan key ("free" when none). */
+  /** The account's plan key ("essential" when not paying). */
   currentKey: string;
   currentInterval: Interval | null;
   hasPaidPlan: boolean;
@@ -49,6 +57,8 @@ export default function CardPlanPicker({
   onChoose: (plan: PlanCard) => void;
   /** The account has this plan free (complimentary): it's marked current and nothing is for sale. */
   complimentaryKey?: string;
+  /** A founding member: no limits and no billing, so every plan is simply included. */
+  foundingAccount?: boolean;
 }) {
   const annual = cycle === "annual";
   const interval = toInterval(cycle);
@@ -115,7 +125,9 @@ export default function CardPlanPicker({
           // Founding Member offer: Essential is free (no checkout) — everyone not paying is on it.
           const founding = isFoundingFree(p.key);
           // Paid plans are "current" for their own period; switching period is a plan change.
-          const isCurrent = complimentaryKey
+          const isCurrent = foundingAccount
+            ? false
+            : complimentaryKey
             ? p.key === complimentaryKey
             : (onThisPlan && (p.is_free || !hasPaidPlan || currentInterval === interval)) || (founding && !hasPaidPlan);
           const popular = p.key === "signature";
@@ -126,7 +138,10 @@ export default function CardPlanPicker({
 
           let label = "";
           let disabled = false;
-          if (complimentaryKey) {
+          if (foundingAccount) {
+            label = "Included";
+            disabled = true;
+          } else if (complimentaryKey) {
             // Free on this account: nothing to buy.
             const tiers = ["essential", "signature", "prestige"];
             label = p.key === complimentaryKey ? "Your plan · Free" : tiers.indexOf(p.key) < tiers.indexOf(complimentaryKey) ? "Included free" : "Not included";
@@ -266,6 +281,13 @@ export default function CardPlanPicker({
                   </>
                 )}
               </div>
+
+              {/* What the plan allows: cards and AI agents (0 = not included, null = unlimited) */}
+              {p.limits && (
+                <p className="mt-3 text-[12.5px] font-semibold text-slate-700 dark:text-slate-200">
+                  {[limitText(p.limits.business_cards, "business card", "business cards"), limitText(p.limits.ai_agents, "AI agent", "AI agents")].join(" · ")}
+                </p>
+              )}
 
               <div className="my-4 h-px bg-slate-200/80 dark:bg-slate-700/70" />
 

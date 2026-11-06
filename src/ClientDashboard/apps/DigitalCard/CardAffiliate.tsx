@@ -4,7 +4,7 @@ import { businessCardAPI, cardUrl } from "../../../services/businessCardAPI";
 import { LoyaltyActivity, LoyaltyReward, LoyaltySummary, cardInsightsAPI } from "../../../services/cardInsightsAPI";
 import { SampleBanner, StatTile, fmt } from "./insightsUi";
 
-/** ShivAI Points — the member's referral & loyalty dashboard (program in pre-launch). */
+/** Loyalty Points — the member's referral & loyalty dashboard (program in pre-launch). */
 export default function CardAffiliate({ go }: { go: (s: string, id?: string | null) => void }) {
   const [summary, setSummary] = useState<{ s: LoyaltySummary; live: boolean } | null>(null);
   const [activity, setActivity] = useState<LoyaltyActivity[]>([]);
@@ -63,13 +63,13 @@ export default function CardAffiliate({ go }: { go: (s: string, id?: string | nu
       <div className="head">
         <div>
           <h2 className="title">
-            Affiliate <span className="ins-soon">ShivAI Points · {live ? "Live" : "Coming soon"}</span>
+            Affiliate <span className="ins-soon">Loyalty Points · {live ? "Live" : "Coming soon"}</span>
           </h2>
           <p className="muted">Your network is building your rewards.</p>
         </div>
       </div>
 
-      {!live && <SampleBanner>The ShivAI Points program launches soon. This is how your rewards dashboard will look.</SampleBanner>}
+      {!live && <SampleBanner>The Loyalty Points programme launches soon. This is how your rewards dashboard will look.</SampleBanner>}
 
       {/* Points */}
       <section className="ins-points">

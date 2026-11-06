@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import QRCode from "react-qr-code";
 import toast from "react-hot-toast";
-import { Award, BarChart3, Bot, Clock, Copy, CreditCard, Crown, ExternalLink, Eye, Pencil, Plus, Share2, Sparkles } from "lucide-react";
+import { Award, BarChart3, Bot, Clock, Copy, CreditCard, Crown, ExternalLink, Eye, Lock, Pencil, Plus, Share2, Sparkles } from "lucide-react";
 import { cardInsightsAPI } from "../../../services/cardInsightsAPI";
 import CardView from "./CardView";
 import CardForm, { type CardPatch } from "./CardForm";
@@ -13,6 +13,8 @@ import PlanLookSwitcher from "./PlanLookSwitcher";
 import type { PlanTier } from "./PlanCardPreview";
 import { cardBillingAPI } from "../../../services/billingAPI";
 import { clearPendingPlan, loadPendingPlan, pendingPlanHref, type PendingPlan } from "../../Billing/pendingPlan";
+import { handlePlanLimit, limitLabel, refreshPlanLimits, showLimitFor, usePlanLimits } from "../../Billing/planLimit";
+import { createWithUsername } from "./autoUsername";
 import QrPlayground from "./QrPlayground";
 import { loadQrDesign, saveQrDesign } from "./qrDesignStore";
 import { CardData, emptyCard, withSuggestedTagline } from "./types";
@@ -80,6 +82,7 @@ const fromCard = (c: BusinessCard): CardData => ({
     phone_number: p.phone_number ?? "",
     is_whatsapp_number: !!p.is_whatsapp_number,
   })),
+  additional_emails: (c.additional_emails ?? []).map((m) => ({ label: m.label ?? "work", email: m.email ?? "" })),
   email: c.email ?? "",
   website: c.website ?? "",
   social_media: (c.social_media ?? []).map((s) => ({ type: s.type, url: s.url ?? "", username: s.username ?? "" })),
@@ -374,6 +377,8 @@ function CardRow({
 }
 
 function CardsList({ go }: { go: (s: string, id?: string | null) => void }) {
+  // How many cards this plan allows (GET /billing/limits).
+  const limits = usePlanLimits();
   const [page, setPage] = useState(1);
   const [cards, setCards] = useState<BusinessCard[]>([]);
   const [pg, setPg] = useState<Pagination | null>(null);
@@ -430,11 +435,21 @@ function CardsList({ go }: { go: (s: string, id?: string | null) => void }) {
             My cards
             {state === "ok" && pg && pg.total > 0 && <span className="cards-count">{pg.total}</span>}
           </h2>
-          <p className="muted">Each card gets its own public link and QR code.</p>
+          <p className="muted">
+            Each card gets its own public link and QR code.
+            {limits.cards && <span className="cards-usage"> · {limitLabel(limits.cards)}</span>}
+          </p>
         </div>
-        <button className="btn" onClick={() => go("card", null)}>
-          <Plus size={16} aria-hidden="true" /> New card
-        </button>
+        {limits.cards && !limits.cards.allowed ? (
+          // Full: say so, and offer the upgrade instead of opening an empty form.
+          <button className="btn is-limit" onClick={() => showLimitFor("business_cards", limits.cards!, limits.planName)}>
+            <Lock size={15} aria-hidden="true" /> {limits.cards.limit === 0 ? "Not in your plan" : `Limit reached (${limits.cards.used} of ${limits.cards.limit})`}
+          </button>
+        ) : (
+          <button className="btn" onClick={() => go("card", null)}>
+            <Plus size={16} aria-hidden="true" /> New card
+          </button>
+        )}
       </div>
 
       <PendingPlanBanner />
@@ -497,6 +512,8 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
   const [params, setParams] = useSearchParams();
   // "Preview as": the card in each plan's look. Starts on the account's own plan.
   const [currentTier, setCurrentTier] = useState<PlanTier>("essential");
+  // Choosing the card's link is a Prestige option; other plans get one made from the name.
+  const chooseUsername = currentTier === "prestige";
   const [previewTier, setPreviewTier] = useState<PlanTier>("essential");
   // Complimentary accounts: their plan without billing; the card's saved look (Signature) wins.
   const { user } = useAuth();
@@ -570,7 +587,7 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
   };
 
   const submit = async () => {
-    const v = validateCard(form, { skipUsername: !isNew });
+    const v = validateCard(form, { skipUsername: !isNew || !chooseUsername });
     setErrors(v);
     if (Object.keys(v).length) {
       toast.error("Fix the highlighted fields");
@@ -586,8 +603,9 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
     const plan = complimentarySavePlan(comp, previewTier);
     try {
       if (isNew) {
-        const card = await businessCardAPI.create(form, { plan });
+        const card = await createWithUsername(form, chooseUsername, { plan });
         cardCache.set(card._id, card);
+        refreshPlanLimits();
         created.current = true;
         clearDraft();
         toast.success("Card created");
@@ -605,7 +623,9 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
       }
     } catch (e: any) {
       const be = e as BusinessCardError;
-      if (be.status === 404 && !isNew) {
+      if (handlePlanLimit(be)) {
+        // Over the plan's card limit: the upgrade dialog explains (the form stays as typed).
+      } else if (be.status === 404 && !isNew) {
         cardCache.delete(id);
         setLoad("missing");
       } else {
@@ -669,6 +689,7 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
           agentsLoading={agentsLoading}
           savedUsername={saved?.username || saved?.slug || undefined}
           usernameLocked={!isNew}
+          chooseUsername={chooseUsername}
           onDocumentFile={(file) =>
             businessCardAPI.uploadDocument(file).then((r) => {
               toast.success("PDF uploaded");
