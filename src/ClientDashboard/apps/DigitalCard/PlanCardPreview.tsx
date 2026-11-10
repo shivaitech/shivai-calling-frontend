@@ -4,9 +4,6 @@ import { Eye, X } from "lucide-react";
 import CardView from "./CardView";
 import { emptyCard, type CardData } from "./types";
 import samplePortrait from "../../../resources/images/sample-portrait.jpg";
-import raminderPortrait from "../../../resources/images/sample-raminder.webp";
-import shivaiLogo from "../../../resources/images/sample-logo-shivai.webp";
-import celebfieLogo from "../../../resources/images/sample-logo-celebfie.webp";
 import { foundingOfferActive } from "../../../pages/foundingOffer";
 import "./digitalCard.css";
 
@@ -37,33 +34,18 @@ function sampleFor(tier: PlanTier): CardData {
   if (tier === "essential") return base;
   const withAi = { ...base, agent_id: "demo" };
   if (tier === "signature") return withAi;
-  // Prestige: the client's reference card (Raminder Singh), as in the DBC design.
+  // Prestige: the same sample person with everything the plan adds, in the reference design.
   return {
-    ...emptyCard(),
-    full_name: "Raminder Singh",
-    image_url: raminderPortrait,
-    job_title: "Founder & Co-CEO",
-    company_name: "ShivAI Tech",
-    tagline: "Entrepreneur. Builder. Investor. Driving AI for Business and Entertainment.",
-    color_code: "#161616",
-    country_code: "+91",
-    phone_number: "98100 12345",
-    is_whatsapp_number: true,
-    additional_phones: [{ label: "mobile", country_code: "+971", phone_number: "50 123 4567", is_whatsapp_number: false }],
-    email: "rs@shivaitech.com",
-    website: "https://www.callshivai.com",
-    social_media: [
-      { type: "linkedin", url: "https://www.linkedin.com/in/Raminders", username: "Raminders" },
-      { type: "instagram", url: "https://www.instagram.com/Ramindersinggh", username: "Ramindersinggh" },
-      { type: "facebook", url: "https://www.facebook.com/share/19bENQwjFa", username: "" },
-    ],
+    ...withAi,
+    tagline: "Founder. Strategist. Investor. Helping modern brands grow with design and AI.",
+    additional_phones: [{ label: "work", country_code: "+44", phone_number: "20 7946 0958", is_whatsapp_number: false }],
+    social_media: [...base.social_media, { type: "facebook", url: "https://www.facebook.com/alexmorgan", username: "alexmorgan" }],
     ventures: [
-      { name: "ShivAI", logo_url: shivaiLogo, url: "https://www.callshivai.com/profile.pdf", description: "AI Employees for Real Workflows", file_name: "ShivAI-Profile.pdf" },
-      { name: "Celebfie AI", logo_url: celebfieLogo, url: "https://celebfie.ai/profile.pdf", description: "Celebrity & Talent Booking Platform", file_name: "Celebfie-Profile.pdf" },
+      { name: "Morgan Studio", logo_url: "", url: "https://morganstudio.co", description: "Strategy and design studio for modern brands" },
+      { name: "Morgan Capital", logo_url: "", url: "https://morgancapital.co", description: "Early-stage investments in AI and design" },
     ],
-    payment_methods: [{ provider: "upi", label: "Pay Me", value: "raminder@okbank", currency: "INR", is_default: true, enabled: true }],
+    payment_methods: [{ provider: "paypal", label: "Pay Me", value: "https://paypal.me/alexmorgan", currency: "USD", is_default: true, enabled: true }],
     highlight: "ai",
-    agent_id: "demo",
   };
 }
 

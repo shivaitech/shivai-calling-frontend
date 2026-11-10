@@ -1,3 +1,4 @@
+import { TAGLINE_MAX } from "./taglineTemplates";
 import type { CardData } from "./types";
 import { usernameProblem } from "./username";
 import { DESCRIPTION_MAX, ventureKind } from "./ventureKinds";
@@ -21,7 +22,7 @@ export function validateCard(f: CardData, opts: { skipUsername?: boolean } = {})
       ? "Choose a username. It becomes your card's link."
       : usernameProblem(f.username ?? "");
   if (usernameIssue) e.username = usernameIssue;
-  if (f.tagline.length > 300) e.tagline = "Tagline must be at most 300 characters";
+  if (f.tagline.trim().length > TAGLINE_MAX) e.tagline = `Keep your tagline to ${TAGLINE_MAX} characters or less (it's ${f.tagline.trim().length} now)`;
   // A "data:" photo is a local draft — it gets uploaded (and replaced by a short URL) on save.
   if (!f.image_url.startsWith("data:") && f.image_url.length > 500) e.image_url = "Image URL must be at most 500 characters";
   if (!/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(f.color_code)) e.color_code = "Color code must be a hex color such as #ffffff";

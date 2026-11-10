@@ -71,7 +71,7 @@ export default function DigitalCardPublicPage({ slug: slugProp }: { slug?: strin
         <div style={{ paddingBottom: 36 }}>
           <CardView
             card={state.card}
-            wide
+            // No `wide`: desktop shows the same single card as phones and the editor preview.
             shareUrl={cardUrl(state.card)}
             poweredBy
             slug={state.card.slug}

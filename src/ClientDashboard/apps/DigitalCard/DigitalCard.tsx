@@ -85,6 +85,7 @@ const fromCard = (c: BusinessCard): CardData => ({
   })),
   additional_emails: (c.additional_emails ?? []).map((m) => ({ label: m.label ?? "work", email: m.email ?? "" })),
   ...(c.card_name != null ? { card_name: c.card_name } : {}),
+  ...(c.video_url != null ? { video_url: c.video_url } : {}),
   email: c.email ?? "",
   website: c.website ?? "",
   social_media: (c.social_media ?? []).map((s) => ({ type: s.type, url: s.url ?? "", username: s.username ?? "" })),
@@ -96,6 +97,7 @@ const fromCard = (c: BusinessCard): CardData => ({
     logo_size: v.logo_size ?? "s",
     file_name: v.file_name ?? "",
     description: v.description ?? "",
+    ...(v.document_url ? { document_url: v.document_url, document_name: v.document_name ?? "" } : {}),
   })),
   agent_id: c.agent_id ?? "",
   username: c.username ?? "",
@@ -114,10 +116,21 @@ export default function DigitalCard({ section = "cards" }: { section?: string })
       next.set("section", sec);
       if (cardId) next.set("id", cardId);
       else next.delete("id");
+      // Opening the editor from another section remembers where from, for its Back button.
+      if (sec === "card" && section !== "card") {
+        next.set("from", section);
+        if (id) next.set("fromId", id);
+        else next.delete("fromId");
+      } else if (sec !== "card") {
+        next.delete("from");
+        next.delete("fromId");
+      }
       setParams(next);
     },
-    [params, setParams],
+    [params, setParams, section, id],
   );
+  const from = params.get("from");
+  const back = from && BACK_LABELS[from] ? { label: BACK_LABELS[from], go: () => go(from, params.get("fromId")) } : undefined;
 
   // Plan & billing reuse the dashboard's billing panel (Tailwind), so they render outside the
   // .dc scope — its generic rules (.grid, small, button…) would restyle that panel.
@@ -154,7 +167,7 @@ export default function DigitalCard({ section = "cards" }: { section?: string })
         <CardAffiliate go={go} />
       ) : section === "card" ? (
         // "Edit" opens the owner's card; creating is only from My cards (id "new").
-        id ? <CardEditor key={id} id={id} go={go} /> : <EditLanding go={go} />
+        id ? <CardEditor key={id} id={id} go={go} back={back} /> : <EditLanding go={go} />
       ) : (
         <CardsList go={go} />
       )}
@@ -552,7 +565,25 @@ function EditLanding({ go }: { go: (s: string, id?: string | null) => void }) {
 }
 
 // ── Editor ───────────────────────────────────────────────────────────────────
-function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null) => void }) {
+/** Where the editor's Back button returns to, by the section it was opened from. */
+const BACK_LABELS: Record<string, string> = {
+  cards: "My cards",
+  share: "Share & QR",
+  monitoring: "Monitoring",
+  affiliate: "Affiliate",
+  plan: "Plan & Billing",
+};
+
+function CardEditor({
+  id,
+  go,
+  back,
+}: {
+  id: string;
+  go: (s: string, id?: string | null) => void;
+  /** Shown when the editor was opened from another section. */
+  back?: { label: string; go: () => void };
+}) {
   const isNew = id === "new";
   const { agents, isLoading: agentsLoading, refreshAgents } = useAgent();
   const [load, setLoad] = useState<"loading" | "ready" | "missing" | "forbidden">(isNew ? "ready" : "loading");
@@ -566,6 +597,7 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
   const [currentTier, setCurrentTier] = useState<PlanTier>("essential");
   // Choosing the card's link is a Prestige option; other plans get one made from the name.
   const chooseUsername = currentTier === "prestige";
+  const [sigOpen, setSigOpen] = useState(false);
   const [previewTier, setPreviewTier] = useState<PlanTier>("essential");
   // Complimentary accounts: their plan without billing; the card's saved look (Signature) wins.
   const { user } = useAuth();
@@ -710,6 +742,11 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
   return (
     <div className="grid">
       <div className="form">
+        {back && (
+          <button type="button" className="link-back" onClick={back.go}>
+            ← Back to {back.label}
+          </button>
+        )}
         {!isNew && saved && (
           <section className="panel notice">
             <div className="muted">Public link</div>
@@ -722,6 +759,9 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
                 {saving ? "Saving…" : "Save changes"}
               </button>
               <button className="btn small ghost" onClick={() => go("share", saved._id)}>Share & QR</button>
+              <button className="btn small ghost" onClick={() => setSigOpen(true)}>
+                <Mail size={14} aria-hidden="true" /> Email signature
+              </button>
               <button
                 className="btn small ghost"
                 onClick={() => document.getElementById("card-basics")?.scrollIntoView({ behavior: "smooth", block: "start" })}
@@ -729,6 +769,8 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
                 Edit details ↓
               </button>
             </div>
+            {/* Built from the saved card, so it matches what people see at the public link. */}
+            {sigOpen && <EmailSignatureSheet card={saved} tier={currentTier} onClose={() => setSigOpen(false)} />}
           </section>
         )}
 
@@ -750,6 +792,14 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
             })
           }
           onDocumentError={(m) => toast.error(m)}
+          onVideoFile={(file, onProgress) => businessCardAPI.uploadVideo(file, onProgress)}
+          videoLocked={currentTier === "essential"}
+          onUpgrade={() => {
+            const next = new URLSearchParams(params);
+            next.set("section", "plan");
+            next.delete("id");
+            setParams(next);
+          }}
         />
 
         <div className="savebar">

@@ -1,6 +1,6 @@
 import { CSSProperties, MouseEvent, ReactNode, useCallback, useEffect, useState } from "react";
 import QRCode from "react-qr-code";
-import { ArrowRight, Award, Check, Crown, Star, Facebook, Instagram, Link2, Linkedin, LucideIcon, Mail, Phone, Share2, Sparkles, Twitter, UserPlus, Wallet, Youtube } from "lucide-react";
+import { ArrowRight, Award, Check, Crown, ExternalLink, Star, Facebook, Instagram, Link2, Linkedin, LucideIcon, Mail, Phone, Share2, Sparkles, Twitter, UserPlus, Wallet, Youtube } from "lucide-react";
 import WhatsAppIcon from "./WhatsAppIcon";
 import { defaultCountries } from "../../../types/country";
 import { downloadVCard, fullPhone } from "./vcard";
@@ -12,6 +12,7 @@ import { openCardAgent } from "./openCardAgent";
 import { trackCardEvent, type CardEventType } from "./cardEvents";
 import { CardData, EMAIL_LABELS, PHONE_LABELS, SOCIAL_TYPES, SocialType } from "./types";
 import { ventureKind } from "./ventureKinds";
+import { parseVideo, type CardVideo } from "./cardVideo";
 import prestigeBadge from "../../../resources/images/prestige-badge.webp";
 import { foundingOfferActive } from "../../../pages/foundingOffer";
 
@@ -63,9 +64,13 @@ function VentureItem({ v, onOpen }: { v: CardData["ventures"][number]; onOpen?: 
       />
     ) : null;
   const cover = size === "l" && img;
-  // Uploaded PDFs (and links straight to a .pdf) get a small PDF badge.
-  const isPdf = !!v.file_name?.trim() || /\.pdf($|[?#])/i.test(v.url ?? "");
-  const body = (
+  // A Project can carry a PDF beside its link (document_url): the row then shows a link icon and a
+  // PDF icon, each opening its own target, while the row itself opens the link.
+  const doc = v.document_url?.trim() ?? "";
+  const target = v.url?.trim() ? href(v.url) : doc;
+  // PDF entries, uploaded PDFs and links straight to a .pdf get the PDF icon.
+  const isPdf = kind.id === "document" || !!doc || !!v.file_name?.trim() || /\.pdf($|[?#])/i.test(v.url ?? "");
+  const lead = (
     <>
       {!cover && img && (
         <>
@@ -74,7 +79,8 @@ function VentureItem({ v, onOpen }: { v: CardData["ventures"][number]; onOpen?: 
         </>
       )}
       <span className="company-body">
-        {kind.id !== "venture" && (
+        {/* PDFs are marked by the PDF icon on the right; other types by a small label. */}
+        {kind.id !== "venture" && kind.id !== "document" && (
           <span className="company-kind">
             <kind.Icon size={11} aria-hidden="true" />
             {kind.label}
@@ -83,19 +89,53 @@ function VentureItem({ v, onOpen }: { v: CardData["ventures"][number]; onOpen?: 
         <span className="company-name">{v.name}</span>
         {v.description?.trim() && <span className="company-desc">{v.description.trim()}</span>}
       </span>
+    </>
+  );
+  const body = (
+    <>
+      {lead}
       {isPdf && <PdfIcon />}
-      {v.url && (
+      {target && (
         <span className="company-go" aria-hidden="true">
           ›
         </span>
       )}
     </>
   );
-  // One compact row (the same pattern as the Connect list); the whole row opens the link.
+  // logo-<shape>: a wordmark logo (wide) already says the name, so the row can show just the description.
+  const articleClass = `company kind-${kind.id}${cover ? " has-cover" : ""}${!cover && img ? ` has-logo logo-${shape}` : ""}${v.description?.trim() ? " has-desc" : ""}`;
+  // Link and PDF: the row's main area opens the link; the link and PDF icons open their own targets.
+  if (doc && v.url?.trim()) {
+    const site = href(v.url);
+    return (
+      <article className={articleClass}>
+        {cover && <div className="company-cover">{img}</div>}
+        <div className="company-row has-actions">
+          <a className="company-main" href={site} target="_blank" rel="noopener noreferrer" aria-label={`${kind.cta(v.name)} (opens in a new tab)`} onClick={onOpen}>
+            {lead}
+          </a>
+          <a className="company-act" href={site} target="_blank" rel="noopener noreferrer" aria-label={`${v.name} website (opens in a new tab)`} onClick={onOpen}>
+            <ExternalLink size={15} strokeWidth={1.7} aria-hidden="true" />
+          </a>
+          <a className="company-act" href={doc} target="_blank" rel="noopener noreferrer" aria-label={`${v.document_name || `${v.name} PDF`} (opens in a new tab)`} onClick={onOpen}>
+            <PdfIcon />
+          </a>
+          <a className="company-go" href={site} target="_blank" rel="noopener noreferrer" tabIndex={-1} aria-hidden="true" onClick={onOpen}>
+            ›
+          </a>
+        </div>
+      </article>
+    );
+  }
+  // One compact row (the same pattern as the Connect list); the whole row opens the link (or the PDF).
   return (
-    <article className={`company kind-${kind.id}${cover ? " has-cover" : ""}${!cover && img ? " has-logo" : ""}${v.description?.trim() ? " has-desc" : ""}`}>
+    <article className={articleClass}>
       {cover && <div className="company-cover">{img}</div>}
-      {v.url ? (
+      {!v.url?.trim() && doc ? (
+        <a className="company-row" href={doc} target="_blank" rel="noopener noreferrer" aria-label={`${v.document_name || `${v.name} PDF`} (opens in a new tab)`} onClick={onOpen}>
+          {body}
+        </a>
+      ) : v.url ? (
         <a className="company-row" href={href(v.url)} target="_blank" rel="noopener noreferrer" aria-label={`${kind.cta(v.name)} (opens in a new tab)`} onClick={onOpen}>
           {body}
         </a>
@@ -169,6 +209,44 @@ export function LinkIcon({ type }: { type: SocialType }) {
     <span className="link-ico" style={{ background: bg }} aria-hidden="true">
       <Icon size={13} strokeWidth={2.4} />
     </span>
+  );
+}
+
+/**
+ * The card's video. YouTube shows its thumbnail and only loads the player when tapped (the
+ * embed is heavy and would slow every card); Vimeo and video files load lazily as they are.
+ */
+function VideoPlayer({ video, title }: { video: CardVideo; title: string }) {
+  const [playing, setPlaying] = useState(false);
+  const vertical = video.kind === "youtube" && video.vertical;
+  return (
+    <div className={"video-frame" + (vertical ? " is-vertical" : "")}>
+      {video.kind === "file" ? (
+        <video src={video.src} controls playsInline preload="metadata" title={title} />
+      ) : video.kind === "vimeo" ? (
+        <iframe
+          src={`https://player.vimeo.com/video/${video.id}?dnt=1&title=0&byline=0`}
+          title={title}
+          loading="lazy"
+          allow="autoplay; fullscreen; picture-in-picture"
+          allowFullScreen
+        />
+      ) : playing ? (
+        <iframe
+          src={`https://www.youtube-nocookie.com/embed/${video.id}?autoplay=1&rel=0&playsinline=1`}
+          title={title}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowFullScreen
+        />
+      ) : (
+        <button type="button" className="video-poster" onClick={() => setPlaying(true)} aria-label={`Play: ${title}`}>
+          <img src={`https://i.ytimg.com/vi/${video.id}/hqdefault.jpg`} alt="" loading="lazy" />
+          <span className="video-play" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22"><path d="M8 5.5v13l11-6.5z" fill="currentColor" /></svg>
+          </span>
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -296,12 +374,15 @@ export default function CardView({
     pay: payMethods.length > 0,
     save: true,
   };
-  const featured: CardHighlight | null = c.highlight && available[c.highlight] ? c.highlight : available.ai ? "ai" : null;
+  // In the editor preview the owner's pick shows straight away (as a look-only button) even before
+  // it's set up, so they can see how it will look; the live card only shows it once it works.
+  const previewOnly = placeholders && !!c.highlight && !available[c.highlight];
+  const featured: CardHighlight | null = previewOnly ? c.highlight! : c.highlight && available[c.highlight] ? c.highlight : available.ai ? "ai" : null;
   const firstName = c.full_name.trim().split(/\s+/)[0] || "me";
   const BANNERS: Record<CardHighlight, { icon: ReactNode; title: string; sub: string }> = {
     ai: { icon: <Sparkles size={20} />, title: "Talk to My AI Manager", sub: "Get answers about me, my work and my ventures" },
     whatsapp: { icon: <WhatsAppIcon mono size={21} />, title: "Message me on WhatsApp", sub: "Start a chat with me directly" },
-    email: { icon: <Mail size={20} />, title: "Email me", sub: emails.length > 1 ? `${emails.length} email addresses` : emails[0] ?? "" },
+    email: { icon: <Mail size={20} />, title: "Email me", sub: emails.length > 1 ? `${emails.length} email addresses` : emails[0] ?? (placeholders ? "you@company.com" : "") },
     pay: { icon: <Wallet size={20} />, title: "Pay Me", sub: "Pay me securely using your preferred payment method" },
     save: { icon: <UserPlus size={20} />, title: "Save my contact", sub: `Add ${firstName} to your phone in one tap` },
   };
@@ -347,7 +428,8 @@ export default function CardView({
   const resources = ventures.filter((v) => ventureKind(v.type).id !== "venture");
   const initials = c.full_name.split(/\s+/).map((s) => s[0]).join("").slice(0, 2).toUpperCase();
   const showPhoto = c.image_url && !imgBroken;
-  const hasRight = connect.length > 0 || !!c.website || ventures.length > 0;
+  const video = parseVideo(c.video_url);
+  const hasRight = connect.length > 0 || !!c.website || ventures.length > 0 || !!video;
 
   return (
     <main className={"card" + (wide ? " wide" : "") + (tier && tier !== "essential" ? ` tier-${tier}` : "")} style={accentVars(c.color_code)}>
@@ -427,6 +509,12 @@ export default function CardView({
               </span>
             </>
           );
+          if (previewOnly)
+            return (
+              <div className="ai-banner is-preview" title="Preview: finish setting this up in the editor to make it work">
+                {inner}
+              </div>
+            );
           if (featured === "ai")
             return (
               <a className="ai-banner" href={agentHref} target="_blank" rel="noopener noreferrer" aria-busy={aiLoading} onClick={openAgent}>
@@ -530,6 +618,13 @@ export default function CardView({
       </div>
 
       <div className="col-r">
+
+      {video && (
+        <section className="section">
+          <div className="section-head"><h2>Watch</h2><span className="section-note">A quick intro</span></div>
+          <VideoPlayer video={video} title={`Video from ${c.full_name || "this card"}`} />
+        </section>
+      )}
 
       {(connect.length > 0 || c.website) && (
         <section className="section">

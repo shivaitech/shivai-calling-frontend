@@ -1614,7 +1614,7 @@
 .dc .form .hl-check{margin-left:auto;width:22px;height:22px;flex:none;display:grid;place-items:center;border-radius:50%;background:#fff;color:#171717}
 
 /* Social links: a compact row of brand icons; a green check marks connected ones */
-.dc .form .soc-grid{grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+.dc .form .soc-grid{grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}
 .dc .form .soc-tile{position:relative;aspect-ratio:1;padding:0;justify-content:center;border-radius:14px;border-color:#ececea}
 .dc .form .soc-tile:hover{transform:none;border-color:#171717}
 .dc .form .soc-tile-ico,.dc .form .soc-tile-ico .link-ico{width:34px;height:34px;border-radius:10px}
@@ -1622,7 +1622,7 @@
 .dc .form .soc-tile-state{display:none}
 .dc .form .soc-tile.is-on .soc-tile-state{position:absolute;top:-6px;right:-6px;width:20px;height:20px;padding:0;display:grid;place-items:center;border-radius:50%;background:#269c63;color:#fff;font-size:0;border:2px solid #fff}
 .dc .form .soc-tile.is-on .soc-tile-state svg{width:11px;height:11px}
-@media(max-width:360px){.dc .form .soc-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:420px){.dc .form .soc-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 
 /* Pay Me intro: a soft grey box with a black icon tile */
 .dc .form .pm-empty{border:1px solid #ececea;border-radius:12px;background:#f7f7f7}
@@ -1935,3 +1935,170 @@
 
 /* Owner-only card name (My cards, QR list) — never on the public card */
 .dc .card-label{display:block;font-size:10.5px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:#6b7280;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Email signature: open the mail app's signature settings */
+.dc .sig-open{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.dc .sig-open .btn{display:inline-flex;align-items:center;gap:6px;text-decoration:none}
+
+/* Email signature: style picker */
+.dc .sig-layouts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:12px}
+@media(min-width:520px){.dc .sig-layouts{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.dc .sig-layout{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:9px 11px;border:1px solid #e3e3e0;border-radius:11px;background:#fff;font:inherit;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.dc .sig-layout strong{font-size:13px;color:#171717}
+.dc .sig-layout span{font-size:11px;line-height:1.35;color:#777}
+.dc .sig-layout:hover{border-color:#c9c9c4}
+.dc .sig-layout.is-on{border-color:#171717;box-shadow:0 0 0 1px #171717}
+
+/* Email signature: colour swatches */
+.dc .sig-colors{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:12px}
+.dc .sig-colors-label{font-size:12.5px;font-weight:600;color:#555;margin-right:2px}
+.dc .sig-swatch{position:relative;width:26px;height:26px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1px #d9d9d4;padding:0;cursor:pointer;transition:box-shadow .15s}
+.dc .sig-swatch.is-on{box-shadow:0 0 0 2px #171717}
+.dc .sig-swatch.is-custom{background:conic-gradient(#ef4444,#f59e0b,#22c55e,#06b6d4,#6366f1,#d946ef,#ef4444);overflow:hidden}
+.dc .sig-swatch.is-custom input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0}
+
+/* Card video: 16:9 (Shorts 9:16), YouTube poster with a play button until tapped */
+.dc .video-frame{position:relative;aspect-ratio:16/9;border-radius:14px;overflow:hidden;background:#0f0f0f;box-shadow:0 8px 22px -14px rgba(0,0,0,.45)}
+.dc .video-frame.is-vertical{aspect-ratio:9/16;max-width:300px;margin:0 auto}
+.dc .video-frame iframe,.dc .video-frame video,.dc .video-poster{position:absolute;inset:0;width:100%;height:100%;border:0;display:block}
+.dc .video-frame video{object-fit:contain;background:#000}
+.dc .video-poster{padding:0;background:#0f0f0f;cursor:pointer}
+.dc .video-poster img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .3s}
+.dc .video-poster:hover img{transform:scale(1.03)}
+.dc .video-play{position:absolute;left:50%;top:50%;width:58px;height:58px;margin:-29px 0 0 -29px;display:grid;place-items:center;border-radius:50%;background:rgba(255,255,255,.94);color:#111;box-shadow:0 6px 20px rgba(0,0,0,.35);transition:transform .15s}
+.dc .video-play svg{margin-left:3px}
+.dc .video-poster:hover .video-play{transform:scale(1.07)}
+.dc .video-poster:focus-visible{outline:3px solid var(--accent,#171717);outline-offset:-3px}
+.dc .link-ico.video-ico{background:linear-gradient(135deg,#ff4d4d,#c026d3);color:#fff}
+
+/* Phones: the action bar floats as a white bar (no grey fade strip where the form ends), and the
+   preview sits in its own panel like the form sections above it. */
+@media(max-width:899px){
+  .dc .savebar{bottom:calc(10px + env(safe-area-inset-bottom));z-index:20;margin-top:2px;padding:10px;background:rgba(255,255,255,.96);border:1px solid #e8e8e8;border-radius:18px;box-shadow:0 12px 30px -14px rgba(0,0,0,.3);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+  .dc .savebar .btn{min-height:46px}
+  .dc .preview{background:#fff;border:1px solid #e8e8e8;border-radius:16px;padding:16px 14px 14px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+  .dc .preview-head{padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid #f0f0ee}
+}
+
+/* Featured button: options not available yet look faded but explain themselves when tapped */
+.dc .form .hl-opt.is-locked{opacity:.45;cursor:pointer}
+.dc .form .hl-opt.is-locked:hover{border-color:#c9c9c4}
+.dc .form .hl-note{display:flex;gap:8px;align-items:flex-start;margin:10px 0 0;padding:10px 12px;border-radius:10px;background:#fff8e6;border:1px solid #f3e1b0;color:#5c4510;font-size:12.5px;line-height:1.5}
+.dc .form .hl-note svg{flex:none;margin-top:2px}
+.dc .form .hl-note a{color:#171717;font-weight:600;text-decoration:underline}
+
+/* Auto link (non-Prestige): the live "your link will be…" line */
+.dc .auto-link{display:flex;align-items:center;flex-wrap:wrap;gap:5px;overflow-wrap:anywhere}
+.dc .auto-link strong{color:var(--ink);font-weight:600}
+.dc .auto-link.is-ok{color:#1f7a4d}
+.dc .auto-link.is-ok svg{color:#269c63}
+
+/* Tagline: over-limit counter, and the ideas box under it */
+.dc .form .textarea-count.is-over{color:#c0392b;font-weight:600}
+.dc .tg-ideas{margin-top:-2px;padding:12px;border:1px dashed #dcdcd7;border-radius:12px;background:#fafaf8}
+.dc .tg-ideas-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.dc .tg-ideas-title{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:650;color:#171717}
+.dc .tg-regen{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border:1px solid #e3e3e0;border-radius:999px;background:#fff;font:inherit;font-size:12px;font-weight:600;color:#333;cursor:pointer}
+.dc .tg-regen:hover{border-color:#171717}
+.dc .tg-regen:active svg{transform:rotate(180deg);transition:transform .3s}
+.dc .tg-styles{display:flex;gap:6px;overflow-x:auto;margin-bottom:10px;scrollbar-width:none}
+.dc .tg-styles button{flex:none;padding:5px 11px;border:1px solid #e3e3e0;border-radius:999px;background:#fff;font:inherit;font-size:12px;font-weight:600;color:#666;cursor:pointer}
+.dc .tg-styles button.is-on{background:#171717;border-color:#171717;color:#fff}
+.dc .tg-list{display:flex;flex-direction:column;gap:6px}
+.dc .tg-idea{text-align:left;padding:9px 12px;border:1px solid #ececea;border-radius:10px;background:#fff;font:inherit;font-size:13px;line-height:1.45;color:#333;cursor:pointer;transition:border-color .15s,background .15s}
+.dc .tg-idea:hover{border-color:#171717}
+.dc .tg-idea.is-on{border-color:#171717;background:#f4f4f2;color:#171717;font-weight:600}
+
+/* Quick actions row: labels never break mid-word ("WhatsAp p"); with 5+ actions they get a size
+   smaller so each still fits on narrow phones. */
+.dc .card .quick-btn{overflow-wrap:normal;word-break:normal;hyphens:none}
+.dc .card .quick:has(>:nth-child(5)) .quick-btn{padding-left:1px;padding-right:1px;font-size:10.5px;letter-spacing:-.1px}
+@media(max-width:380px){.dc .card .quick:has(>:nth-child(5)) .quick-btn{font-size:10px}}
+
+/* Video panel: "or Upload a video" under the link box, with a progress bar while uploading */
+.dc .vid-upload{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;margin-top:12px;padding-top:12px;border-top:1px dashed #e3e3e0}
+.dc .vid-or{font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#9a9a96}
+.dc .vid-upload .btn{display:inline-flex;align-items:center;gap:6px}
+.dc .vid-progress{flex-basis:100%;height:5px;border-radius:999px;background:#ececea;overflow:hidden}
+.dc .vid-progress span{display:block;height:100%;background:#171717;border-radius:inherit;transition:width .2s}
+
+/* Video tile on Essential: faded with a small lock; its panel explains the plans */
+.dc .form .soc-tile.is-locked .soc-tile-ico{opacity:.5}
+.dc .soc-tile-lock{position:absolute;right:-5px;bottom:-5px;width:18px;height:18px;display:grid;place-items:center;border-radius:50%;background:#171717;color:#fff;border:2px solid #fff}
+.dc .vid-locked-text{margin:2px 0 12px;font-size:13px;line-height:1.5;color:#555}
+
+/* Featured button: every option selectable; ones still to set up carry a small tag */
+.dc .form .hl-setup{margin-left:auto;padding:2px 7px;border-radius:999px;background:#f1f1ef;color:#777;font-size:10.5px;font-weight:600;letter-spacing:.2px}
+.dc .form .hl-note b{color:#3d2d06}
+.dc .form .hl-note-action{display:block;margin-top:8px}
+.dc .form .hl-note-action .btn{display:inline-flex;text-decoration:none}
+
+/* Editor preview: a featured button chosen but not set up yet shows as it will look, not clickable */
+.dc .ai-banner.is-preview{cursor:default}
+
+/* Projects rows, like the reference: logo · hairline · description · link icon · PDF icon · chevron.
+   The PDF mark is an outline document (no box); a row with both a link and a PDF gets separate
+   tap targets for each. */
+.dc .card .build-list .company.has-logo .company-sep{flex:none;width:1px;align-self:stretch;margin:4px 2px;background:var(--line)}
+.dc .card .company-pdf{flex:none;width:19px;height:23px;padding:0;border:0;border-radius:0;background:none;color:#8a8a85}
+.dc .card.tier-prestige .company-pdf,.dc .card.tier-prestige .company-act{color:#b87908}
+.dc .card.tier-signature .company-pdf,.dc .card.tier-signature .company-act{color:#5b6472}
+.dc .card .company-row.has-actions{gap:0;padding:0 8px 0 0}
+.dc .card .company-main{display:flex;align-items:center;gap:12px;flex:1;min-width:0;padding:12px 6px 12px 14px;color:inherit;text-decoration:none}
+.dc .card .company-act{flex:none;display:grid;place-items:center;width:34px;height:40px;border-radius:8px;color:#6b6b66;text-decoration:none;transition:background .15s}
+.dc .card .company-act:hover{background:rgba(0,0,0,.04)}
+.dc .card .company-act:focus-visible,.dc .card .company-main:focus-visible{outline:2px solid var(--ink);outline-offset:-2px}
+.dc .card .company-row.has-actions .company-go{padding:0 2px 0 6px;text-decoration:none}
+.dc .ven-file+.ven-upload,.dc .ven-upload+.ven-upload{margin-top:0}
+
+/* Project: "Attach a PDF" as a clear dashed button under the link */
+.dc .ven-attach{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px dashed #cfcfca;border-radius:10px;background:#fff;color:#171717;cursor:pointer;transition:border-color .15s,background .15s}
+.dc .ven-attach:hover{border-color:#171717;background:#fafaf8}
+.dc .ven-attach svg{flex:none;color:#555}
+.dc .ven-attach strong{display:block;font-size:13px;font-weight:650}
+.dc .ven-attach small{display:block;font-size:11.5px;line-height:1.4;color:#777}
+.dc .ven-attach.is-busy{cursor:default;opacity:.7}
+.dc .ven-attach.is-off{cursor:default;opacity:.65}
+.dc .ven-attach.is-off:hover{border-color:#cfcfca;background:#fff}
+
+/* =====================================================================
+   Live Prestige "What I'm building", matched to the client's reference:
+   one cream panel; logo column · short gold-grey hairline · serif description ·
+   (link icon) · gold outline PDF · light chevron. A wordmark logo stands in for the
+   name; icon/photo logos keep it. (.pp-ref sample previews keep their own rules.)
+   ===================================================================== */
+.dc .card.tier-prestige .build-list{padding:0 14px;border:1px solid #e9e2d8;border-radius:14px;background:linear-gradient(180deg,#fefcfa,#fcf9f5);box-shadow:0 4px 14px -6px rgba(120,90,30,.16)}
+.dc .card.tier-prestige .build-list .company{background:transparent;border-bottom:1px solid #efe9e2}
+.dc .card.tier-prestige .build-list .company:last-child{border-bottom:0}
+.dc .card.tier-prestige .build-list .company-row{gap:0;padding:11px 0;min-height:52px}
+.dc .card.tier-prestige .build-list .company-row.has-actions{padding:0}
+.dc .card.tier-prestige .build-list .company-main{gap:0;padding:11px 0}
+.dc .card.tier-prestige .build-list a.company-row:hover,.dc .card.tier-prestige .build-list .company-main:hover{background:transparent}
+/* Logo column: wordmarks sit bare and centred; icon / photo logos in a small rounded tile */
+.dc .card.tier-prestige .build-list .company-thumb{width:96px;height:30px;flex:none;display:flex;align-items:center;justify-content:center}
+.dc .card.tier-prestige .build-list .company-thumb .company-logo{max-width:88px;max-height:24px}
+.dc .card.tier-prestige .build-list .company-thumb.size-m{height:38px}
+.dc .card.tier-prestige .build-list .company-thumb.size-m .company-logo{max-height:32px}
+.dc .card.tier-prestige .build-list .company-thumb.shape-photo .company-logo,
+.dc .card.tier-prestige .build-list .company-thumb.shape-tile .company-logo{width:34px;height:34px;border-radius:9px;border:1px solid #eadcb8}
+.dc .card.tier-prestige .build-list .company.has-logo .company-sep{width:1px;height:22px;align-self:center;margin:0 16px 0 0;background:#d6cdbf}
+/* Text: a wordmark logo + description → just the description; otherwise name (and description) */
+.dc .card.tier-prestige .build-list .company.logo-wide.has-desc .company-name{display:none}
+.dc .card.tier-prestige .build-list .company-body{gap:2px}
+.dc .card.tier-prestige .build-list .company-body .company-name{font-family:var(--prestige-serif);font-size:15px;font-weight:600;letter-spacing:-.1px;color:#171717}
+.dc .card.tier-prestige .build-list .company-body .company-desc{font-family:var(--prestige-serif);font-size:13.5px;line-height:1.35;color:#2e3040}
+.dc .card.tier-prestige .build-list .company-kind{background:transparent;padding:0;color:#b87908}
+/* Right side: gold outline icons, then a thin dark chevron */
+.dc .card.tier-prestige .build-list .company-pdf{width:20px;height:24px;margin-left:12px;color:#b87908}
+.dc .card.tier-prestige .build-list .company-act{width:34px;color:#b87908}
+.dc .card.tier-prestige .build-list .company-act:hover{background:rgba(184,121,8,.07)}
+.dc .card.tier-prestige .build-list .company-act .company-pdf{margin-left:0}
+.dc .card.tier-prestige .build-list .company-go{margin-left:18px;font-size:20px;font-weight:300;color:#33302c}
+.dc .card.tier-prestige .build-list .company-row.has-actions .company-go{margin-left:8px}
+@media(max-width:380px){
+  .dc .card.tier-prestige .build-list{padding:0 10px}
+  .dc .card.tier-prestige .build-list .company-thumb{width:76px}
+  .dc .card.tier-prestige .build-list .company-thumb .company-logo{max-width:70px}
+  .dc .card.tier-prestige .build-list .company.has-logo .company-sep{margin-right:12px}
+  .dc .card.tier-prestige .build-list .company-go{margin-left:12px}
+}

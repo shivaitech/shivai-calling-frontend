@@ -1,15 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, Code2, Copy, X } from "lucide-react";
+import { Check, Code2, Copy, ExternalLink, X } from "lucide-react";
 import type { BusinessCard } from "../../../services/businessCardAPI";
-import { buildSignatureHtml, buildSignatureText, type SignatureOptions } from "./emailSignature";
+import {
+  buildSignatureHtml,
+  buildSignatureText,
+  defaultSignatureColor,
+  layoutHasImages,
+  SIGNATURE_COLORS,
+  SIGNATURE_LAYOUTS, type SignatureLayout, type SignatureOptions } from "./emailSignature";
 
 type Client = "gmail" | "outlook" | "apple" | "iphone";
 
-const CLIENTS: { id: Client; label: string; steps: string[] }[] = [
+/** `open`: links straight to the app's signature settings (web apps only; Apple Mail has none). */
+const CLIENTS: { id: Client; label: string; steps: string[]; open?: { label: string; href: string }[] }[] = [
   {
     id: "gmail",
     label: "Gmail",
+    open: [{ label: "Open Gmail signature settings", href: "https://mail.google.com/mail/u/0/#settings/general" }],
     steps: [
       "Copy your signature with the button above.",
       "In Gmail, open Settings (the gear) → See all settings → General.",
@@ -20,6 +28,10 @@ const CLIENTS: { id: Client; label: string; steps: string[] }[] = [
   {
     id: "outlook",
     label: "Outlook",
+    open: [
+      { label: "Open Outlook signature settings", href: "https://outlook.office.com/mail/options/mail/messageContent" },
+      { label: "Outlook.com (personal)", href: "https://outlook.live.com/mail/0/options/mail/messageContent" },
+    ],
     steps: [
       "Copy your signature with the button above.",
       "Outlook on the web: Settings → Mail → Compose and reply → Email signature. Paste and Save.",
@@ -59,10 +71,19 @@ export default function EmailSignatureSheet({
 }) {
   const [photo, setPhoto] = useState(!!card.image_url);
   const [qr, setQr] = useState(false);
+  const [layout, setLayout] = useState<SignatureLayout>("business");
+  const [border, setBorder] = useState(true);
+  // Black by default; the card's own colour (gold on Prestige…) is the next swatch.
+  const startColor = "#171717";
+  const [color, setColor] = useState(startColor);
+  const cardColor = defaultSignatureColor(card, tier).toLowerCase();
+  const swatches = [...new Set([startColor, cardColor, ...SIGNATURE_COLORS])];
+  const customColor = !swatches.includes(color);
+  const images = layoutHasImages(layout);
   const [copied, setCopied] = useState<"rich" | "html" | null>(null);
   const [client, setClient] = useState<Client>("gmail");
   const previewRef = useRef<HTMLDivElement>(null);
-  const html = useMemo(() => buildSignatureHtml(card, { photo, qr, tier }), [card, photo, qr, tier]);
+  const html = useMemo(() => buildSignatureHtml(card, { photo, qr, tier, layout, border, color }), [card, photo, qr, tier, layout, border, color]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -116,7 +137,7 @@ export default function EmailSignatureSheet({
     }
   };
 
-  const steps = CLIENTS.find((c) => c.id === client)!.steps;
+  const { steps, open } = CLIENTS.find((c) => c.id === client)!;
 
   return createPortal(
     <div className="dc">
@@ -130,12 +151,52 @@ export default function EmailSignatureSheet({
           </div>
           <p className="sig-intro">Every email you send carries your card. Copy it once and paste it into your mail app’s signature settings.</p>
 
+          <div className="sig-layouts" role="radiogroup" aria-label="Signature style">
+            {SIGNATURE_LAYOUTS.map((l) => (
+              <button
+                key={l.id}
+                type="button"
+                role="radio"
+                aria-checked={layout === l.id}
+                className={`sig-layout${layout === l.id ? " is-on" : ""}`}
+                onClick={() => setLayout(l.id)}
+              >
+                <strong>{l.label}</strong>
+                <span>{l.hint}</span>
+              </button>
+            ))}
+          </div>
+
           <div className="sig-options" role="group" aria-label="Signature options">
-            <label className={`sig-toggle${!card.image_url ? " is-off" : ""}`}>
-              <input type="checkbox" checked={photo} disabled={!card.image_url} onChange={(e) => setPhoto(e.target.checked)} /> Photo
+            <label className={`sig-toggle${!card.image_url || !images ? " is-off" : ""}`}>
+              <input type="checkbox" checked={photo && images} disabled={!card.image_url || !images} onChange={(e) => setPhoto(e.target.checked)} /> Photo
             </label>
-            <label className={`sig-toggle${!card.qr_code ? " is-off" : ""}`}>
-              <input type="checkbox" checked={qr} disabled={!card.qr_code} onChange={(e) => setQr(e.target.checked)} /> QR code
+            <label className={`sig-toggle${!card.qr_code || !images ? " is-off" : ""}`}>
+              <input type="checkbox" checked={qr && images} disabled={!card.qr_code || !images} onChange={(e) => setQr(e.target.checked)} /> QR code
+            </label>
+            <label className="sig-toggle">
+              <input type="checkbox" checked={border} onChange={(e) => setBorder(e.target.checked)} /> Border
+            </label>
+          </div>
+
+          <div className="sig-colors" role="radiogroup" aria-label="Signature colour">
+            <span className="sig-colors-label">Colour</span>
+            {swatches.map((c, i) => (
+              <button
+                key={c}
+                type="button"
+                role="radio"
+                aria-checked={color === c}
+                aria-label={i === 0 ? "Black" : c === cardColor ? `Your card colour ${c}` : c}
+                title={i === 0 ? "Black" : c === cardColor ? "Your card colour" : c}
+                className={`sig-swatch${color === c ? " is-on" : ""}`}
+                style={{ background: c }}
+                onClick={() => setColor(c)}
+              />
+            ))}
+            {/* Any other colour: the native picker behind a rainbow swatch. */}
+            <label className={`sig-swatch is-custom${customColor ? " is-on" : ""}`} title="Custom colour" style={customColor ? { background: color } : undefined}>
+              <input type="color" value={color} aria-label="Custom colour" onChange={(e) => setColor(e.target.value.toLowerCase())} />
             </label>
           </div>
 
@@ -166,6 +227,15 @@ export default function EmailSignatureSheet({
                 <li key={s}>{s}</li>
               ))}
             </ol>
+            {open && (
+              <div className="sig-open">
+                {open.map((o, i) => (
+                  <a key={o.href} className={`btn small${i ? " ghost" : ""}`} href={o.href} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink size={14} aria-hidden="true" /> {o.label}
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
