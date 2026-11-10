@@ -4,6 +4,7 @@
  */
 
 import { useEffect, useState } from "react";
+import type { ApiIndustrySelection } from "./api/types";
 
 export interface CustomField {
   key: string;
@@ -556,6 +557,194 @@ export const APPOINTMENT_INDUSTRY_PRESETS: AppointmentIndustryPreset[] = [
     reminderChannels: ["email", "sms", "voice"],
   },
   {
+    id: "therapy",
+    name: "Therapy / Mental Health",
+    tagline: "Counselling, psychotherapy & psychiatry sessions — in person or online.",
+    icon: "therapy",
+    terms: {
+      customer: "Client",
+      customers: "Clients",
+      appointment: "Session",
+      appointments: "Sessions",
+      provider: "Therapist",
+      providers: "Therapists",
+      branch: "Practice",
+      branches: "Practices",
+      agent: "Intake Coordinator",
+      department: "Department",
+      departments: "Departments",
+      staff: "Therapist",
+      staffPlural: "Therapists",
+    },
+    appointmentTypes: ["Intake Assessment", "Individual Therapy", "Couples Therapy", "Family Session", "Group Session", "Follow-up"],
+    services: ["Psychotherapy", "Counselling", "Psychiatry", "CBT", "Child Psychology"],
+    staffRoles: ["Psychiatrist", "Clinical Psychologist", "Counsellor", "Therapist", "Intake Coordinator"],
+    defaultFields: [
+      { key: "concern", label: "Main Concern", type: "text" },
+      { key: "session_mode", label: "Session Mode", type: "select", options: ["In person", "Video call", "Phone call"] },
+    ],
+    defaultBranches: [{ name: "Main Practice" }],
+    slotDurationMin: 50,
+    reminderChannels: ["sms", "email", "whatsapp"],
+  },
+  {
+    id: "physio",
+    name: "Physiotherapy / Rehab",
+    tagline: "Assessments, treatment plans, sports rehab & home visits.",
+    icon: "physio",
+    terms: {
+      customer: "Patient",
+      customers: "Patients",
+      appointment: "Session",
+      appointments: "Sessions",
+      provider: "Physiotherapist",
+      providers: "Physiotherapists",
+      branch: "Center",
+      branches: "Centers",
+      agent: "Front Desk",
+      department: "Department",
+      departments: "Departments",
+      staff: "Physiotherapist",
+      staffPlural: "Physiotherapists",
+    },
+    appointmentTypes: ["Initial Assessment", "Treatment Session", "Follow-up", "Home Visit", "Sports Rehab"],
+    services: ["Orthopedic Physio", "Sports Rehab", "Neuro Rehab", "Post-surgery Rehab", "Pain Management"],
+    staffRoles: ["Senior Physiotherapist", "Physiotherapist", "Rehab Assistant", "Receptionist"],
+    defaultFields: [
+      { key: "condition", label: "Condition / Injury", type: "text", required: true },
+      { key: "referred_by", label: "Referred By", type: "text" },
+    ],
+    defaultBranches: [{ name: "Main Center" }],
+    slotDurationMin: 45,
+    reminderChannels: ["sms", "whatsapp", "voice"],
+  },
+  {
+    id: "diagnostics",
+    name: "Diagnostic Lab / Imaging",
+    tagline: "Sample collection, home pickups, scans & health packages.",
+    icon: "diagnostics",
+    terms: {
+      customer: "Patient",
+      customers: "Patients",
+      appointment: "Test Booking",
+      appointments: "Test Bookings",
+      provider: "Technician",
+      providers: "Technicians",
+      branch: "Collection Center",
+      branches: "Collection Centers",
+      agent: "Booking Desk",
+      department: "Department",
+      departments: "Departments",
+      staff: "Technician",
+      staffPlural: "Technicians",
+    },
+    appointmentTypes: ["Home Sample Collection", "Walk-in Sample", "X-Ray", "Ultrasound", "MRI / CT Scan", "Health Package"],
+    services: ["Pathology", "Radiology", "Cardiac Tests", "Health Check-ups"],
+    staffRoles: ["Phlebotomist", "Lab Technician", "Radiographer", "Sonologist", "Receptionist"],
+    defaultFields: [
+      { key: "tests", label: "Tests Requested", type: "text", required: true },
+      { key: "fasting", label: "Fasting Required", type: "select", options: ["Yes", "No", "Not sure"] },
+      { key: "prescription_ref", label: "Doctor / Prescription Ref", type: "text" },
+    ],
+    defaultBranches: [{ name: "Main Lab" }],
+    slotDurationMin: 15,
+    reminderChannels: ["sms", "whatsapp", "voice"],
+  },
+  {
+    id: "tutoring",
+    name: "Tutoring / Classes",
+    tagline: "Tuition, music, dance, language & driving lessons.",
+    icon: "tutoring",
+    terms: {
+      customer: "Student",
+      customers: "Students",
+      appointment: "Lesson",
+      appointments: "Lessons",
+      provider: "Instructor",
+      providers: "Instructors",
+      branch: "Center",
+      branches: "Centers",
+      agent: "Admissions Desk",
+      department: "Course",
+      departments: "Courses",
+      staff: "Instructor",
+      staffPlural: "Instructors",
+    },
+    appointmentTypes: ["Trial Lesson", "Regular Lesson", "Doubt Session", "Assessment", "Parent Meeting"],
+    services: ["Academic Tutoring", "Music", "Dance", "Language", "Driving"],
+    staffRoles: ["Senior Instructor", "Instructor", "Tutor", "Coordinator"],
+    defaultFields: [
+      { key: "level", label: "Level / Grade", type: "text" },
+      { key: "guardian_phone", label: "Guardian Phone", type: "phone" },
+    ],
+    defaultBranches: [{ name: "Main Center" }],
+    slotDurationMin: 60,
+    reminderChannels: ["sms", "whatsapp", "voice"],
+  },
+  {
+    id: "recruitment",
+    name: "Recruitment / HR Interviews",
+    tagline: "Screening calls, interview rounds & onboarding meetings.",
+    icon: "recruitment",
+    terms: {
+      customer: "Candidate",
+      customers: "Candidates",
+      appointment: "Interview",
+      appointments: "Interviews",
+      provider: "Interviewer",
+      providers: "Interviewers",
+      branch: "Office",
+      branches: "Offices",
+      agent: "Recruiting Coordinator",
+      department: "Team",
+      departments: "Teams",
+      staff: "Interviewer",
+      staffPlural: "Interviewers",
+    },
+    appointmentTypes: ["Screening Call", "Technical Interview", "HR Round", "Final Round", "Onboarding"],
+    services: ["Engineering", "Sales", "Operations", "Design", "Support"],
+    staffRoles: ["Hiring Manager", "Interviewer", "Recruiter", "HR Partner"],
+    defaultFields: [
+      { key: "position", label: "Position Applied For", type: "text", required: true },
+      { key: "experience", label: "Experience (years)", type: "number" },
+      { key: "resume_link", label: "Resume Link", type: "text" },
+    ],
+    defaultBranches: [{ name: "Head Office" }],
+    slotDurationMin: 45,
+    reminderChannels: ["email", "sms", "voice"],
+  },
+  {
+    id: "government",
+    name: "Government / Public Services",
+    tagline: "Document submission, verification, biometrics & certificate pickups.",
+    icon: "government",
+    terms: {
+      customer: "Applicant",
+      customers: "Applicants",
+      appointment: "Appointment",
+      appointments: "Appointments",
+      provider: "Officer",
+      providers: "Officers",
+      branch: "Office",
+      branches: "Offices",
+      agent: "Help Desk",
+      department: "Department",
+      departments: "Departments",
+      staff: "Officer",
+      staffPlural: "Officers",
+    },
+    appointmentTypes: ["Document Submission", "Verification", "Biometrics", "Certificate Collection", "Grievance Hearing"],
+    services: ["Certificates", "Licences", "Permits", "Registrations"],
+    staffRoles: ["Officer", "Verification Officer", "Counter Staff", "Help Desk"],
+    defaultFields: [
+      { key: "application_no", label: "Application Number", type: "text", required: true },
+      { key: "id_proof", label: "ID Proof Type", type: "select", options: ["Aadhaar", "PAN", "Passport", "Voter ID", "Driving Licence"] },
+    ],
+    defaultBranches: [{ name: "Main Office" }],
+    slotDurationMin: 15,
+    reminderChannels: ["sms", "voice", "whatsapp"],
+  },
+  {
     id: "generic",
     name: "Other / Custom",
     tagline: "Set up your own terminology, services & booking types from scratch.",
@@ -681,6 +870,34 @@ export function readCustomPresetInput(): CustomPresetInput | null {
   } catch {
     return null;
   }
+}
+
+/** Naming convention for every screen in this app:
+ *   terms.provider / providers  — the person who TAKES bookings (calendar
+ *                                 columns, booking forms, the AI agent).
+ *   terms.staff / staffPlural   — team management only (Staff & Departments).
+ *   terms.customer / customers  — the person who books.
+ *   terms.appointment(s)        — the thing being booked.
+ *   terms.branch(es)            — a location.
+ * Never append "member" to a term ("a Staff Member member"), and use
+ * withArticle() instead of a hard-coded "a" ("an Instructor"). */
+export function withArticle(word: string): string {
+  return `${/^[aeiou]/i.test(word.trim()) ? "an" : "a"} ${word}`;
+}
+
+/** What setup sends the backend for the chosen business type — the id, the
+ * fully resolved words, and (for "Other / Custom") what the user typed, so
+ * other devices and the AI agent get the same vocabulary. */
+export function industrySelectionPayload(industryId: string, customInput?: CustomPresetInput | null): ApiIndustrySelection {
+  const isCustom = industryId === "generic" && Boolean(customInput);
+  const preset = isCustom
+    ? buildCustomPreset(customInput!)
+    : APPOINTMENT_INDUSTRY_PRESETS.find((p) => p.id === industryId) ?? APPOINTMENT_INDUSTRY_PRESETS[1];
+  return {
+    industryId: preset.id,
+    terms: { ...preset.terms },
+    customPreset: isCustom ? customInput! : null,
+  };
 }
 
 export function getActivePreset(): AppointmentIndustryPreset {

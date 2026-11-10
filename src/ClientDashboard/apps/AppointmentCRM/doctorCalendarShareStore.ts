@@ -241,7 +241,7 @@ Your personal appointment calendar is ready. Open the link on your phone, tablet
 Calendar link:
 ${url}
 
-Sign in with your ShivAI clinic account (same email and password as your ShivAI panel).
+Sign in with your ShivAI account (same email and password as your ShivAI panel).
 
 Install as an app (recommended):
 • iPhone/iPad: Open in Safari → Share → Add to Home Screen

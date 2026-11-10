@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { cardBillingAPI, type LimitResource, type LimitsData, type ResourceLimit } from "../../services/billingAPI";
 
 /**
- * Plan limits — how many business cards and AI agents an account may create.
+ * Digital Card plan limits — how many business cards an account may create, and on how many of
+ * them an AI agent may be connected ("ai_agents"). These are app-only: they never limit creating
+ * AI agents anywhere else in the dashboard.
  *
- * Screens with a Create button read GET /billing/limits (usePlanLimits) and disable or redirect the
- * button before a form is filled in. The create calls themselves can still be refused (two tabs, a
- * stale page): 403 with errors[0].code === "PLAN_LIMIT_REACHED", from the Node API (business cards)
- * or the Python API (agents). handlePlanLimit() turns that into the upgrade dialog.
+ * Digital Card screens read GET /billing/limits (usePlanLimits) and redirect Create / Connect to the
+ * upgrade dialog before a form is filled in. The card save itself can still be refused (two tabs, a
+ * stale page): 403 with errors[0].code === "PLAN_LIMIT_REACHED". handlePlanLimit() turns that into
+ * the upgrade dialog.
  */
 
 export interface PlanLimitHit {
@@ -80,6 +82,14 @@ export function showLimitFor(resource: LimitResource, r: ResourceLimit, planName
       used: r.used,
       plan: planName,
     });
+  }
+  if (resource === "ai_agents") {
+    // Digital Card only: the limit is how many cards may have an AI agent connected.
+    const message =
+      r.limit === 0
+        ? `${plan} doesn't include Ask My AI on business cards. Upgrade${upgradeTo ? ` to ${upgradeTo}` : ""} to connect an AI agent to your card.`
+        : `${plan} lets you connect an AI agent to ${r.limit} ${r.limit === 1 ? "card" : "cards"}, and ${r.used} already ${r.used === 1 ? "has" : "have"} one.${upgradeTo ? ` Upgrade to ${upgradeTo} to add AI to more cards.` : ""}`;
+    return showPlanLimit({ message, resource, limit: r.limit, used: r.used, plan: planName });
   }
   const message =
     r.limit === 0

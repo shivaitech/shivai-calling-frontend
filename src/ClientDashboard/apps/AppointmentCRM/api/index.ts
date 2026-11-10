@@ -13,9 +13,11 @@ import type {
   ApiCatalogOption,
   ApiCustomer,
   ApiDepartment,
+  ApiIndustrySelection,
   ApiLeave,
   ApiOfflineBlock,
   ApiOrgConfig,
+  ApiReminderRule,
   ApiSetup,
   ApiStaff,
   ApiStaffBookingsResponse,
@@ -35,7 +37,7 @@ export function fetchSetup() {
   return crmRequest<ApiSetup>({ method: "GET", url: "/setup" });
 }
 
-export function completeSetup(body: {
+export function completeSetup(body: ApiIndustrySelection & {
   templateId: ApiTemplateId;
   companyName: string;
   timezone: string;
@@ -45,7 +47,7 @@ export function completeSetup(body: {
   return crmRequest<ApiSetup>({ method: "POST", url: "/setup", data: body });
 }
 
-export function patchSetup(body: { companyName?: string; timezone?: string }) {
+export function patchSetup(body: { companyName?: string; timezone?: string } & Partial<ApiIndustrySelection>) {
   return crmRequest<ApiSetup>({ method: "PATCH", url: "/setup", data: body });
 }
 
@@ -311,10 +313,25 @@ export async function fetchBookingsByStaff(staffId: string, date?: string) {
   return res.appointments;
 }
 
-/** Cancels a booked appointment — the only status transition this API
- * supports (no complete/no-show/delete). */
+/** Cancels a booked appointment. */
 export async function cancelBooking(id: string) {
   const res = await appointmentsRequest<{ appointment: ApiBooking }>({ method: "PUT", url: `/${id}/cancel` });
+  return res.appointment;
+}
+
+/** Moves a booked appointment to a new date/time (and optionally another
+ * provider). The server re-checks the slot against the schedule. */
+export async function rescheduleBooking(
+  id: string,
+  body: { date: string; time: string; end_time: string; staff?: string },
+) {
+  const res = await appointmentsRequest<{ appointment: ApiBooking }>({ method: "PUT", url: `/${id}/reschedule`, data: body });
+  return res.appointment;
+}
+
+/** Marks what actually happened to a booked appointment. */
+export async function setBookingOutcome(id: string, status: "completed" | "no_show") {
+  const res = await appointmentsRequest<{ appointment: ApiBooking }>({ method: "PUT", url: `/${id}/status`, data: { status } });
   return res.appointment;
 }
 
@@ -363,6 +380,24 @@ export function patchCustomer(id: string, body: Record<string, unknown>) {
 
 export function fetchCustomerBookings(id: string) {
   return crmRequest<ApiBooking[]>({ method: "GET", url: `/customers/${id}/bookings` });
+}
+
+// ── Reminder rules ───────────────────────────────────────────────────────────
+
+export function fetchReminderRules() {
+  return crmRequest<ApiReminderRule[]>({ method: "GET", url: "/reminder-rules" });
+}
+
+export function createReminderRule(body: Omit<ApiReminderRule, "id" | "_id">) {
+  return crmRequest<ApiReminderRule>({ method: "POST", url: "/reminder-rules", data: body });
+}
+
+export function patchReminderRule(id: string, body: Partial<Omit<ApiReminderRule, "id" | "_id">>) {
+  return crmRequest<ApiReminderRule>({ method: "PATCH", url: `/reminder-rules/${id}`, data: body });
+}
+
+export function deleteReminderRule(id: string) {
+  return crmRequest<void>({ method: "DELETE", url: `/reminder-rules/${id}` });
 }
 
 // ── Analytics ────────────────────────────────────────────────────────────────
@@ -487,6 +522,12 @@ export const appointmentCrmAPI = {
   fetchBooking,
   fetchBookingsByStaff,
   cancelBooking,
+  rescheduleBooking,
+  setBookingOutcome,
+  fetchReminderRules,
+  createReminderRule,
+  patchReminderRule,
+  deleteReminderRule,
   fetchStaffBookings,
   fetchCalendarDay,
   fetchCustomers,

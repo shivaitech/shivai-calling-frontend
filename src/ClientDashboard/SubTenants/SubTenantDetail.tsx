@@ -25,6 +25,7 @@ import {
   Upload,
   X,
   Save,
+  Eye,
 } from 'lucide-react';
 import GlassCard from '../../components/GlassCard';
 import SearchableSelect from '../../components/SearchableSelect';
@@ -42,19 +43,10 @@ import PermissionMatrixEditor from './PermissionMatrixEditor';
 import SubTenantAgents from './SubTenantAgents';
 import Analytics from '../Analytics/Analytics';
 import CallSetup from '../Workflows/CallSetup';
+import { industryLabelOptions } from '../../constants/agentIndustries';
 
-const INDUSTRY_OPTIONS = [
-  'Healthcare',
-  'Real Estate',
-  'Legal Services',
-  'Automotive Services',
-  'Retail / E-commerce',
-  'Hospitality',
-  'Education',
-  'Finance & Insurance',
-  'Home Services',
-  'Other',
-].map((v) => ({ value: v, label: v }));
+// Same industries as AI agents (constants/agentIndustries.ts), stored by label.
+const industryOptionsFor = industryLabelOptions;
 
 const COUNTRY_OPTIONS = defaultCountries
   .map((c) => ({ value: c.name, label: `${c.flag} ${c.name}` }))
@@ -504,7 +496,7 @@ const SubTenantDetail = () => {
               </div>
               <div>
                 <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5"><Briefcase className="w-3 h-3 text-slate-400" /> Industry</label>
-                <SearchableSelect options={INDUSTRY_OPTIONS} value={business.industry} onChange={(v) => setBusiness({ ...business, industry: v })} placeholder="Select industry…" />
+                <SearchableSelect options={industryOptionsFor(business.industry)} value={business.industry} onChange={(v) => setBusiness({ ...business, industry: v })} placeholder="Select industry…" />
               </div>
               <div>
                 <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5"><Phone className="w-3 h-3 text-slate-400" /> Phone</label>

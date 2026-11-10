@@ -203,6 +203,7 @@ const DoctorPublicCalendar = ({ snapshot: initialSnapshot, shareToken, useJwtApi
                 booking={booking}
                 dayStartMin={dayStartMin}
                 dayEndMin={dayEndMin}
+                hue={staff.hue}
                 onClick={() => {}}
               />
             ))}

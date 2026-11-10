@@ -60,7 +60,7 @@ export default function PlanLimitDialog() {
     }))
     .sort((a, b) => ORDER.indexOf(a.key) - ORDER.indexOf(b.key));
   const current = (hit.plan ?? "").toLowerCase();
-  const title = hit.resource === "ai_agents" ? "Upgrade to add more AI agents" : hit.resource === "business_cards" ? "Upgrade to add more cards" : "Upgrade your plan";
+  const title = hit.resource === "ai_agents" ? "Upgrade to add AI to more cards" : hit.resource === "business_cards" ? "Upgrade to add more cards" : "Upgrade your plan";
 
   const choose = (key: string) => {
     setHit(null);

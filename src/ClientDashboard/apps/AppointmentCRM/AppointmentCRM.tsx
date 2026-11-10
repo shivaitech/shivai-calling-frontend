@@ -2,10 +2,6 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
-  Bell,
-  Mail,
-  MessageSquare,
-  Phone,
   Save,
   Settings2,
   Trash2,
@@ -14,6 +10,7 @@ import GlassCard from "../../../components/GlassCard";
 import AgentCrmConfigPanel from "../../../components/AgentCrmConfigPanel";
 import appToast from "../../../components/AppToast";
 import { getAppById } from "../../../marketplace/apps";
+import { setWorkspaceSectionLabels } from "../../../marketplace/workspaceSectionLabels";
 import { SectionTitle, StatusPill } from "../SupportCRM/ui";
 import type { AgentStatus } from "../SupportCRM/mockData";
 import {
@@ -23,6 +20,8 @@ import {
   CustomPresetInput,
   readCustomPresetInput,
   saveCustomPreset,
+  buildCustomPreset,
+  industrySelectionPayload,
 } from "./industryConfig";
 import { useActiveBranch } from "./branchesStore";
 import { useAppointmentSetup, writeSetup } from "./setupStore";
@@ -38,7 +37,10 @@ import BranchesView from "./BranchesView";
 import CustomersView from "./CustomersView";
 import StaffView from "./StaffView";
 import ImportedAgentsView from "./ImportedAgentsView";
+import RemindersView from "./RemindersView";
 import { useRealSchedulingAgents } from "./realAgents";
+
+const APP_ID = "appointment-crm";
 
 interface Props {
   section?: string;
@@ -56,10 +58,22 @@ const AppointmentCRMContent: React.FC<Props> = ({ section = "calendar" }) => {
   const [setupOpen, setSetupOpen] = useState(false);
   const { activeBranch } = useActiveBranch();
   const { bootstrap } = useAppointmentCRM();
+  const { terms } = useAppointmentIndustry();
 
   useEffect(() => {
     setSetupOpen(!bootstrap?.setup.setupComplete);
   }, [bootstrap?.setup.setupComplete]);
+
+  // Side menu speaks the tenant's language too ("Sessions", "Campuses", …).
+  useEffect(() => {
+    setWorkspaceSectionLabels(APP_ID, {
+      bookings: terms.appointments,
+      branches: terms.branches,
+      staff: `${terms.staffPlural} & ${terms.departments}`,
+      customers: terms.customers,
+    });
+  }, [terms.appointments, terms.branches, terms.staffPlural, terms.departments, terms.customers]);
+  useEffect(() => () => setWorkspaceSectionLabels(APP_ID, null), []);
 
   const handleSetupComplete = () => setSetupOpen(false);
   // Skip only hides the modal for this render — setup is still marked
@@ -161,60 +175,6 @@ export const AgentDetail: React.FC<{ agentId: string; onBack?: () => void; onUna
 
 const appointmentCrmApp = getAppById("appointment-crm");
 
-// ── Reminders ────────────────────────────────────────────────────────────────
-const RemindersView = () => {
-  const { preset, terms } = useAppointmentIndustry();
-  const rules = [
-    { id: "r1", name: "24h confirmation", channel: "voice", timing: "24 hours before", active: true },
-    { id: "r2", name: "2h SMS reminder", channel: "sms", timing: "2 hours before", active: true },
-    { id: "r3", name: "Same-day WhatsApp", channel: "whatsapp", timing: "Morning of appointment", active: preset.reminderChannels.includes("whatsapp") },
-    { id: "r4", name: "No-show follow-up", channel: "voice", timing: "30 min after missed slot", active: true },
-  ];
-
-  const channelIcon: Record<string, React.ElementType> = {
-    voice: Phone,
-    sms: MessageSquare,
-    email: Mail,
-    whatsapp: MessageSquare,
-  };
-
-  return (
-    <div className="space-y-5">
-      <SectionTitle
-        title="Reminders & Confirmations"
-        subtitle="Reduce no-shows with automated voice, SMS & messaging"
-      />
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {rules.map((r) => {
-          const Icon = channelIcon[r.channel] ?? Bell;
-          return (
-            <GlassCard key={r.id}>
-              <div className="p-5 flex items-start gap-4">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${r.active ? "bg-violet-50 dark:bg-violet-900/30 text-violet-600" : "bg-slate-100 dark:bg-slate-800 text-slate-400"}`}>
-                  <Icon className="w-5 h-5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-semibold text-slate-800 dark:text-white">{r.name}</p>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold uppercase ${r.active ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400" : "bg-slate-100 text-slate-500"}`}>
-                      {r.active ? "Active" : "Off"}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 mt-0.5">{r.timing}</p>
-                  <p className="text-[11px] text-slate-400 mt-1">Channel: {r.channel}</p>
-                </div>
-              </div>
-            </GlassCard>
-          );
-        })}
-      </div>
-      <p className="text-xs text-slate-500">
-        Reminders reference your {terms.appointment.toLowerCase()} types and {terms.branch.toLowerCase()} hours automatically.
-      </p>
-    </div>
-  );
-};
-
 // ── Settings ───────────────────────────────────────────────────────────────────
 const emptyCustomInput = (): CustomPresetInput => ({
   customerLabel: "",
@@ -234,6 +194,12 @@ const SettingsView: React.FC<{ onRerunSetup: () => void }> = ({ onRerunSetup }) 
   const [saving, setSaving] = useState(false);
   const [customInput, setCustomInput] = useState<CustomPresetInput>(() => readCustomPresetInput() ?? emptyCustomInput());
 
+  // Preview what the app WILL say once saved, not what it says now.
+  const draftPreset =
+    draftIndustry === "generic"
+      ? buildCustomPreset(customInput)
+      : APPOINTMENT_INDUSTRY_PRESETS.find((p) => p.id === draftIndustry) ?? preset;
+
   const isCustomValid =
     draftIndustry !== "generic" ||
     (customInput.customerLabel.trim() &&
@@ -245,6 +211,11 @@ const SettingsView: React.FC<{ onRerunSetup: () => void }> = ({ onRerunSetup }) 
   const save = async () => {
     setSaving(true);
     try {
+      // Save the business type + words on the server first — locally-only
+      // changes used to revert to the template's default on the next load.
+      await appointmentCrmAPI.patchSetup(
+        industrySelectionPayload(draftIndustry, draftIndustry === "generic" ? customInput : null),
+      );
       if (draftIndustry === "generic") saveCustomPreset(customInput);
       setActiveIndustryId(draftIndustry);
       writeSetup({ industryId: draftIndustry });
@@ -288,7 +259,7 @@ const SettingsView: React.FC<{ onRerunSetup: () => void }> = ({ onRerunSetup }) 
               <dd className="font-medium text-slate-800 dark:text-white">{setup.companyName || "—"}</dd>
             </div>
             <div>
-              <dt className="text-slate-500 text-xs">Branches</dt>
+              <dt className="text-slate-500 text-xs">{preset.terms.branches}</dt>
               <dd className="font-medium text-slate-800 dark:text-white capitalize">{setup.branchMode}</dd>
             </div>
             <div>
@@ -328,19 +299,36 @@ const SettingsView: React.FC<{ onRerunSetup: () => void }> = ({ onRerunSetup }) 
 
         {draftIndustry === "generic" && (
           <div className="mt-3">
-            <CustomPresetForm value={customInput} onChange={setCustomInput} />
+            <CustomPresetForm
+              value={customInput}
+              onChange={(next) => {
+                setCustomInput(next);
+                setDirty(true);
+              }}
+            />
           </div>
         )}
       </div>
 
       <GlassCard>
         <div className="p-5">
-          <h3 className="text-sm font-semibold text-slate-800 dark:text-white mb-2">Terminology preview</h3>
-          <p className="text-xs text-slate-500">
-            {preset.terms.customer} · {preset.terms.appointment} · {preset.terms.provider} · {preset.terms.branch}
-          </p>
-          <p className="text-[11px] text-slate-400 mt-2">
-            {preset.appointmentTypes.slice(0, 4).join(" · ")}…
+          <h3 className="text-sm font-semibold text-slate-800 dark:text-white mb-1">Terminology preview</h3>
+          <p className="text-[11px] text-slate-400 mb-3">Every screen, the side menu and your AI agent use these words.</p>
+          <dl className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {([
+              ["Who books", draftPreset.terms.customers],
+              ["What's booked", draftPreset.terms.appointments],
+              ["Who takes bookings", draftPreset.terms.providers],
+              ["Locations", draftPreset.terms.branches],
+            ] as const).map(([label, value]) => (
+              <div key={label} className="px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700">
+                <dt className="text-[10px] uppercase tracking-wide text-slate-400">{label}</dt>
+                <dd className="text-sm font-medium text-slate-800 dark:text-white truncate">{value}</dd>
+              </div>
+            ))}
+          </dl>
+          <p className="text-[11px] text-slate-400 mt-3">
+            {draftPreset.appointmentTypes.slice(0, 4).join(" · ")}…
           </p>
         </div>
       </GlassCard>
@@ -352,7 +340,15 @@ const SettingsView: React.FC<{ onRerunSetup: () => void }> = ({ onRerunSetup }) 
           className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-2xl"
         >
           <span className="text-sm font-medium">Unsaved industry change</span>
-          <button type="button" onClick={() => { setDraftIndustry(activeId); setDirty(false); }} className="text-sm opacity-80 hover:opacity-100">
+          <button
+            type="button"
+            onClick={() => {
+              setDraftIndustry(activeId);
+              setCustomInput(readCustomPresetInput() ?? emptyCustomInput());
+              setDirty(false);
+            }}
+            className="text-sm opacity-80 hover:opacity-100"
+          >
             Discard
           </button>
           <button

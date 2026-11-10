@@ -3,6 +3,8 @@ import { Check, Copy, Mail, Share2, Smartphone, X } from "lucide-react";
 import ModalOverlay from "../../../components/ModalOverlay";
 import type { StaffMember } from "./staffStore";
 import { staffDisplayName } from "./staffStore";
+import { useAppointmentIndustry } from "./industryConfig";
+import { useAppointmentSetup } from "./setupStore";
 import {
   buildInviteEmailBody,
   getDoctorCalendarUrl,
@@ -16,6 +18,9 @@ interface Props {
 }
 
 const ShareDoctorCalendarModal = ({ open, staff, onClose }: Props) => {
+  const { terms } = useAppointmentIndustry();
+  const setup = useAppointmentSetup();
+  const companyFallback = setup.companyName || "Your team";
   const [shareUrl, setShareUrl] = useState("");
   const [copied, setCopied] = useState<"link" | "all" | null>(null);
 
@@ -40,7 +45,7 @@ const ShareDoctorCalendarModal = ({ open, staff, onClose }: Props) => {
     const share = getShareForStaff(staff.id);
     const recipient = staff.email?.trim() || share?.doctorEmail?.trim();
     const subject = encodeURIComponent(
-      `${share?.companyName ?? "Your clinic"} — Your appointment calendar`,
+      `${share?.companyName ?? companyFallback} — Your ${terms.appointment.toLowerCase()} calendar`,
     );
     const body = encodeURIComponent(
       buildInviteEmailBody(
@@ -51,7 +56,7 @@ const ShareDoctorCalendarModal = ({ open, staff, onClose }: Props) => {
           doctorEmail: recipient ?? "",
           passwordHash: "",
           branchId: staff.branchId,
-          companyName: "Your clinic",
+          companyName: companyFallback,
           createdAt: new Date().toISOString(),
           snapshot: {
             staff,
@@ -82,7 +87,7 @@ const ShareDoctorCalendarModal = ({ open, staff, onClose }: Props) => {
       doctorEmail: staff.email ?? "",
       passwordHash: "",
       branchId: staff.branchId,
-      companyName: "Your clinic",
+      companyName: companyFallback,
       createdAt: new Date().toISOString(),
       snapshot: {
         staff,

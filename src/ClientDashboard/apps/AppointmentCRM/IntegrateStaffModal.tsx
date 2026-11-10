@@ -26,18 +26,22 @@ interface Props {
    * Calendar reads its staff list straight from the Schedule API, so this is
    * purely informational for the caller (e.g. to close its own state). */
   onIntegrated: () => void;
+  /** Skip the picker and open straight into the account owner's own setup. */
+  startWithOwner?: boolean;
 }
 
 const LABEL = "text-xs font-medium text-slate-600 dark:text-slate-400";
 
-/** Lets a user pick a Main Tenant Staff member who doesn't have a schedule
- * yet, set up their weekly hours/break/leave entirely locally, and only
- * then save. There is no separate branch staff record to create — the
- * Schedule API is keyed directly on the tenant staff member's own id, and
- * that id alone is what makes them show up on the Calendar. Nothing is
- * written to the backend while the user is still picking or editing. */
-const IntegrateStaffModal = ({ open, onClose, branchId, branches, onIntegrated }: Props) => {
+/** Lets a user pick the account owner (themselves) or a Main Tenant Staff
+ * member who doesn't have a schedule yet, set up their weekly hours/break/
+ * leave entirely locally, and only then save. There is no separate branch
+ * staff record to create — the Schedule API is keyed directly on the
+ * person's own user id, and that id alone is what makes them show up on the
+ * Calendar. Nothing is written to the backend while the user is still
+ * picking or editing. */
+const IntegrateStaffModal = ({ open, onClose, branchId, branches, onIntegrated, startWithOwner = false }: Props) => {
   const { rows: combinedStaff } = useCombinedStaffDirectory();
+  const ownerRow = combinedStaff.find((row) => row.source === "owner") ?? null;
   const [pickedRow, setPickedRow] = useState<CombinedStaffRow | null>(null);
   const [weekly, setWeekly] = useState<DaySlot[]>(() => defaultWeeklySchedule());
   const [dailyBreak, setDailyBreak] = useState<DailyBreak>(() => defaultDailyBreak());
@@ -52,13 +56,14 @@ const IntegrateStaffModal = ({ open, onClose, branchId, branches, onIntegrated }
 
   useEffect(() => {
     if (open) {
-      setPickedRow(null);
+      setPickedRow(startWithOwner ? ownerRow : null);
       setWeekly(defaultWeeklySchedule());
       setDailyBreak(defaultDailyBreak());
       setLeaves([]);
       setSaving(false);
       setError(null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const branch = branches.find((b) => b.id === branchId);
@@ -102,7 +107,7 @@ const IntegrateStaffModal = ({ open, onClose, branchId, branches, onIntegrated }
         await scheduleAPI.addScheduleLeave(staffId, leaveToApiBody({ fromDate: l.fromDate, toDate: l.toDate, reason: l.reason }));
       }
       appToast.dismiss(toastId);
-      appToast.success(`${pickedRow.name} added to the calendar`);
+      appToast.success(pickedRow.isSelf ? "Your calendar is live" : `${pickedRow.name} added to the calendar`);
       // Tell every SCHEDULE_EVENT listener (the Calendar's staff list among
       // them) to re-fetch — this flow writes straight through scheduleAPI,
       // bypassing the availabilityStore functions that normally fire this.
@@ -139,25 +144,70 @@ const IntegrateStaffModal = ({ open, onClose, branchId, branches, onIntegrated }
           </div>
           <div className="min-w-0">
             <h2 className="text-base font-semibold text-slate-900 dark:text-white">
-              {pickedRow ? `Set up ${pickedRow.name}` : "Integrate staff"}
+              {pickedRow ? (pickedRow.isSelf ? "Set up your calendar" : `Set up ${pickedRow.name}`) : "Add to calendar"}
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               {pickedRow
                 ? "Hours, breaks & leave — saved once you tap Save"
-                : `Add a Main Tenant Staff member to ${branch?.name ?? "this calendar"}`}
+                : `Add yourself or a teammate to ${branch?.name ?? "this calendar"}`}
             </p>
           </div>
         </div>
 
         <div className="px-5 py-4 overflow-y-auto flex-1 space-y-3.5">
+          {!pickedRow && ownerRow && (() => {
+            const ownerAdded = !liveScheduleLoading && liveScheduleStaffIds.has(ownerRow.rawId);
+            return (
+              <button
+                type="button"
+                onClick={() => !ownerAdded && setPickedRow(ownerRow)}
+                disabled={ownerAdded}
+                className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-xl border text-left transition-colors ${
+                  ownerAdded
+                    ? "border-slate-100 dark:border-slate-800 opacity-60 cursor-not-allowed"
+                    : "border-violet-200 dark:border-violet-800/70 bg-gradient-to-r from-violet-50/80 to-white dark:from-violet-950/30 dark:to-slate-900 hover:border-violet-300 dark:hover:border-violet-700"
+                }`}
+              >
+                <div
+                  className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-white text-sm font-bold"
+                  style={{ background: `linear-gradient(135deg, hsl(${ownerRow.hue},70%,58%), hsl(${ownerRow.hue + 20},65%,45%))` }}
+                >
+                  {ownerRow.name.charAt(0)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <p className="text-sm font-semibold text-slate-800 dark:text-white truncate">{ownerRow.name}</p>
+                    {ownerRow.isSelf && (
+                      <span className="flex-shrink-0 px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-violet-600 text-white">You</span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                    {ownerAdded
+                      ? "Already on the calendar"
+                      : ownerRow.isSelf
+                        ? "Take bookings yourself — your AI agent can book into your calendar too"
+                        : "Put the account owner's own calendar up for booking"}
+                  </p>
+                </div>
+                {ownerAdded ? (
+                  <span className="text-[10px] font-medium text-slate-400 flex-shrink-0">Added</span>
+                ) : (
+                  <span className="text-xs font-medium text-violet-600 dark:text-violet-400 flex-shrink-0">Set up →</span>
+                )}
+              </button>
+            );
+          })()}
+
           {!pickedRow && (
             <div>
-              <label className={LABEL}>Pick a staff member to set up <span className="text-red-500">*</span></label>
+              <label className={LABEL}>{ownerRow ? "Your team" : "Pick a staff member to set up"}</label>
               {tenantRows.length === 0 ? (
                 <div className="mt-1 flex flex-col items-center justify-center gap-1.5 py-6 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 text-center">
                   <Users className="w-5 h-5 text-slate-300 dark:text-slate-600" />
                   <p className="text-xs text-slate-400">No Main Tenant Staff yet</p>
-                  <p className="text-[11px] text-slate-400">Add people under Main Tenant Staff first.</p>
+                  <p className="text-[11px] text-slate-400">
+                    {ownerRow ? "Working solo? Just add yourself above." : "Add people under Main Tenant Staff first."}
+                  </p>
                 </div>
               ) : (
                 <div className="mt-1 space-y-1.5 max-h-[320px] overflow-y-auto pr-0.5">

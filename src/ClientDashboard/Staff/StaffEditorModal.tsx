@@ -252,6 +252,11 @@ const StaffEditorModal = ({ open, tenantId, editing, onClose, onSaved }: Props) 
     if (!designationId) return appToast.error('Select or create a designation.');
     if (!roleName.trim()) return appToast.error('Enter a display role/title.');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return appToast.error('Enter a valid email.');
+    // The owner never needs a staff record of their own — e.g. to take
+    // appointments they add themselves straight from the Calendar.
+    if (!editing && user?.email && email.trim().toLowerCase() === user.email.trim().toLowerCase()) {
+      return appToast.error('That’s your own account email. To take bookings yourself, use “Add my calendar” in Appointments → Calendar.');
+    }
     if (phone.trim() && phone.trim().replace(/\D/g, '').length < 7) return appToast.error('Enter a valid phone number, or leave it blank.');
     if (!editing) {
       if (!password) return appToast.error('Set a password — required for them to sign in.');

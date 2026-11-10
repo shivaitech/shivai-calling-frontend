@@ -1,4 +1,4 @@
-import { setActiveIndustryId } from "../industryConfig";
+import { saveCustomPreset, setActiveIndustryId } from "../industryConfig";
 import { writeBranches, setActiveBranchId } from "../branchesStore";
 import { writeDepartments } from "../departmentsStore";
 import { writeStaff } from "../staffStore";
@@ -25,6 +25,9 @@ import type { Branch } from "../branchesStore";
 export function hydrateFromBootstrap(bootstrap: ApiBootstrap): void {
   const setup = mapSetupFromBootstrap(bootstrap);
   writeSetup(setup);
+  // Custom words live on the server — restore them before switching, so a
+  // new device never shows the generic defaults for an "Other / Custom" org.
+  if (bootstrap.setup.customPreset) saveCustomPreset(bootstrap.setup.customPreset);
   setActiveIndustryId(setup.industryId);
 
   const branches = (bootstrap.branches ?? []).map((b, i) => mapBranch(b, i));

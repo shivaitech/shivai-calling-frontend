@@ -11,6 +11,7 @@ import {
 } from "./offlineBlocksStore";
 import { fetchScheduleFor, toIsoDate } from "./availabilityStore";
 import { parseTimeToMinutes } from "./calendarUtils";
+import { useAppointmentIndustry, withArticle } from "./industryConfig";
 import DeleteOfflineBlockModal from "./DeleteOfflineBlockModal";
 
 interface Props {
@@ -87,6 +88,7 @@ const EMPTY_FORM = createEmptyForm();
  * Schedule API.
  */
 const StaffOfflineBookingPanel = ({ staffId, staffName }: Props) => {
+  const { terms } = useAppointmentIndustry();
   const [blocks, setBlocks] = useState<StaffOfflineBlock[]>(() => getOfflineBlocksForStaff(staffId));
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -200,7 +202,7 @@ const StaffOfflineBookingPanel = ({ staffId, staffName }: Props) => {
           </div>
           <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed flex items-start gap-1">
             <Info className="w-3 h-3 flex-shrink-0 mt-0.5" />
-            To book {staffName} for a patient, use <strong>Add Booking</strong> on the Calendar
+            To book {staffName} for {withArticle(terms.customer.toLowerCase())}, use <strong>Add {terms.appointment}</strong> on the Calendar
             toolbar. For time off, use Leaves &amp; time off below.
           </p>
         </div>

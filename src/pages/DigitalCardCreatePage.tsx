@@ -283,6 +283,7 @@ export default function DigitalCardCreatePage() {
                   onDocumentFile={hasSession ? (file) => businessCardAPI.uploadDocument(file) : undefined}
                   onVideoFile={hasSession ? (file, onProgress) => businessCardAPI.uploadVideo(file, onProgress) : undefined}
                   videoLocked={lookTier !== "signature" && lookTier !== "prestige"}
+                  onRefreshAgents={isAuthenticated ? () => void refreshAgents() : undefined}
                   onDocumentError={(m) => toast.error(m)}
                 />
                 <div className="savebar">

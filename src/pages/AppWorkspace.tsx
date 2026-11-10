@@ -10,6 +10,7 @@ import {
   WorkspaceSection,
 } from "../marketplace/apps";
 import { useInstalledApps } from "../marketplace/useInstalledApps";
+import { useWorkspaceSectionLabels } from "../marketplace/workspaceSectionLabels";
 import { useHasAnyAgentAssignedSkill } from "../marketplace/useAgentSkills";
 import { useHasAssignedAgentCrmConfig } from "../marketplace/useAgentCrmConfig";
 import { useAuth } from "../contexts/AuthContext";
@@ -62,10 +63,11 @@ const AppWorkspace: React.FC = () => {
     [appId, user?.email]
   );
 
-  const sections: WorkspaceSection[] = useMemo(
-    () => (app?.workspaceSections?.length ? app.workspaceSections : [DEFAULT_WORKSPACE_SECTION]),
-    [app]
-  );
+  const sectionLabels = useWorkspaceSectionLabels(app?.id);
+  const sections: WorkspaceSection[] = useMemo(() => {
+    const base = app?.workspaceSections?.length ? app.workspaceSections : [DEFAULT_WORKSPACE_SECTION];
+    return sectionLabels ? base.map((s) => ({ ...s, label: sectionLabels[s.key] ?? s.label })) : base;
+  }, [app, sectionLabels]);
 
   const activeSection =
     searchParams.get("section") || app?.defaultSection || sections[0].key;

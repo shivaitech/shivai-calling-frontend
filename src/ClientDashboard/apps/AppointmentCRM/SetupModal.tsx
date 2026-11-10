@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  Activity,
+  BookOpen,
+  Brain,
+  FlaskConical,
+  Landmark,
+  UserSearch,
+  Search,
   Briefcase,
   Building2,
   Calculator,
@@ -87,6 +94,18 @@ const industryIcon = (id: string) => {
       return <Plane className={cls} />;
     case "financial":
       return <Calculator className={cls} />;
+    case "therapy":
+      return <Brain className={cls} />;
+    case "physio":
+      return <Activity className={cls} />;
+    case "diagnostics":
+      return <FlaskConical className={cls} />;
+    case "tutoring":
+      return <BookOpen className={cls} />;
+    case "recruitment":
+      return <UserSearch className={cls} />;
+    case "government":
+      return <Landmark className={cls} />;
     default:
       return <Sparkles className={cls} />;
   }
@@ -125,6 +144,22 @@ const SetupModal = ({ open, onComplete, onSkip }: SetupModalProps) => {
     if (industryId === "generic") return buildCustomPreset(customInput);
     return APPOINTMENT_INDUSTRY_PRESETS.find((p) => p.id === industryId) ?? APPOINTMENT_INDUSTRY_PRESETS[1];
   }, [industryId, customInput]);
+
+  // Search over everything a preset says about itself (name, words, services,
+  // roles), matching each typed word on its first 4 letters so "dentist"
+  // finds Dental and "tuition" finds Tutoring. "Other / Custom" always stays.
+  const [industryQuery, setIndustryQuery] = useState("");
+  const visiblePresets = useMemo(() => {
+    const tokens = industryQuery.toLowerCase().split(/\s+/).filter(Boolean).map((t) => t.slice(0, 4));
+    if (!tokens.length) return APPOINTMENT_INDUSTRY_PRESETS;
+    return APPOINTMENT_INDUSTRY_PRESETS.filter((p) => {
+      if (p.id === "generic") return true;
+      const haystack = [p.name, p.tagline, ...Object.values(p.terms), ...p.services, ...p.appointmentTypes, ...p.staffRoles]
+        .join(" ")
+        .toLowerCase();
+      return tokens.some((t) => haystack.includes(t));
+    });
+  }, [industryQuery]);
 
   const selectIndustry = (p: AppointmentIndustryPreset) => {
     setIndustryId(p.id);
@@ -183,6 +218,7 @@ const SetupModal = ({ open, onComplete, onSkip }: SetupModalProps) => {
       await completeSetup({
         companyName: companyName.trim(),
         industryId,
+        customPreset: industryId === "generic" ? customInput : null,
         branchMode,
         branches: seeds.length ? seeds : [{ name: companyName.trim(), isPrimary: true }],
       });
@@ -285,11 +321,20 @@ const SetupModal = ({ open, onComplete, onSkip }: SetupModalProps) => {
               <div>
                 <h3 className="text-sm font-semibold text-slate-800 dark:text-white mb-1">Choose your industry</h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Templates adjust terminology, services, and default booking fields.
+                  Your pick renames the whole app — menus, screens and your AI agent — to match how you talk.
                 </p>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[240px] overflow-y-auto pr-1">
-                {APPOINTMENT_INDUSTRY_PRESETS.map((p) => {
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  value={industryQuery}
+                  onChange={(e) => setIndustryQuery(e.target.value)}
+                  placeholder="Search — e.g. dentist, gym, tuition, interviews…"
+                  className="w-full pl-8 pr-3 py-2 rounded-xl text-sm common-bg-icons border border-slate-200 dark:border-slate-700"
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[320px] overflow-y-auto pr-1">
+                {visiblePresets.map((p) => {
                   const active = industryId === p.id;
                   return (
                     <button
@@ -314,8 +359,16 @@ const SetupModal = ({ open, onComplete, onSkip }: SetupModalProps) => {
                 })}
               </div>
 
-              {industryId === "generic" && (
+              {industryId === "generic" ? (
                 <CustomPresetForm value={customInput} onChange={setCustomInput} />
+              ) : (
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700">
+                  Your app will say{" "}
+                  <strong className="text-slate-700 dark:text-slate-200">
+                    {preset.terms.customers} · {preset.terms.appointments} · {preset.terms.providers} · {preset.terms.branches}
+                  </strong>
+                  . Not quite right? Pick <strong>Other / Custom</strong> to use your own words.
+                </p>
               )}
             </div>
           )}

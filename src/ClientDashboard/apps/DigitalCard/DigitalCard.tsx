@@ -630,6 +630,20 @@ function CardEditor({
   }, [comp]);
   const set = (patch: CardPatch) => setForm((f) => ({ ...f, ...(typeof patch === "function" ? patch(f) : patch) }));
 
+  // The plan's "AI agents" limit counts cards with an AI agent connected (Essential: none,
+  // Signature: 2, Prestige: 5). It only applies here — creating agents elsewhere in the
+  // dashboard is never limited by this app's plan. A card that already has an agent can
+  // switch to another one without using up a new slot.
+  const planLimits = usePlanLimits();
+  const setCardField = (patch: CardPatch) => {
+    const slot = planLimits.agents;
+    if (typeof patch !== "function" && patch.agent_id && !saved?.agent_id && slot && !slot.allowed) {
+      showLimitFor("ai_agents", slot, planLimits.planName);
+      return;
+    }
+    set(patch);
+  };
+
   // AgentProvider only auto-loads on agent-related routes (not /app/*).
   useEffect(() => {
     if (agents.length === 0) refreshAgents();
@@ -776,7 +790,7 @@ function CardEditor({
 
         <CardForm
           form={form}
-          set={set}
+          set={setCardField}
           errors={errors}
           onImageFile={onImageFile}
           agents={agents.map((a) => ({ id: a.id, name: a.name, status: a.status }))}
@@ -794,6 +808,7 @@ function CardEditor({
           onDocumentError={(m) => toast.error(m)}
           onVideoFile={(file, onProgress) => businessCardAPI.uploadVideo(file, onProgress)}
           videoLocked={currentTier === "essential"}
+          onRefreshAgents={() => void refreshAgents()}
           onUpgrade={() => {
             const next = new URLSearchParams(params);
             next.set("section", "plan");

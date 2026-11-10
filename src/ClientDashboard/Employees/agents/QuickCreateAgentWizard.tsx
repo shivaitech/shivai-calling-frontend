@@ -8,8 +8,9 @@ import TTSVoiceSelector, {
   TTSVoiceSelectorValue,
   toTtsConfig,
 } from "../../../components/TTSVoiceSelector";
-import { handlePlanLimit, refreshPlanLimits } from "../../Billing/planLimit";
 import { GeminiVoiceOptions, defaultGeminiVoice, toGeminiVoice } from "./geminiVoices";
+import { AGENT_INDUSTRIES, AGENT_SUB_INDUSTRIES, searchIndustries } from "../../../constants/agentIndustries";
+import { AGENT_COUNTRIES, AGENT_LANGUAGES } from "../../../constants/agentLocales";
 import {
   aiEmployeeTemplates,
   getMatchingTemplatesWithScore,
@@ -87,136 +88,9 @@ import {
  * `realAgentDataSource.ts` for the production implementation.
  * ═══════════════════════════════════════════════════════════════════════════ */
 
-// Country list with flags and STT provider info
-// stt: "deepgram" = Deepgram STT (major languages), "sarvam" = Deepgram (major) + Sarvam (regional) for India
-export const ALL_COUNTRIES = [
-  { code: "IN",  name: "India",          flag: "🇮🇳", stt: "sarvam" },
-  { code: "US",  name: "United States",  flag: "🇺🇸", stt: "deepgram" },
-  { code: "GB",  name: "United Kingdom", flag: "🇬🇧", stt: "deepgram" },
-  { code: "AU",  name: "Australia",      flag: "🇦🇺", stt: "deepgram" },
-  { code: "CA",  name: "Canada",         flag: "🇨🇦", stt: "deepgram" },
-  { code: "ES",  name: "Spain",          flag: "🇪🇸", stt: "deepgram" },
-  { code: "MX",  name: "Mexico",         flag: "🇲🇽", stt: "deepgram" },
-  { code: "AR",  name: "Argentina",      flag: "🇦🇷", stt: "deepgram" },
-  { code: "CO",  name: "Colombia",       flag: "🇨🇴", stt: "deepgram" },
-  { code: "FR",  name: "France",         flag: "🇫🇷", stt: "deepgram" },
-  { code: "BE",  name: "Belgium",        flag: "🇧🇪", stt: "deepgram" },
-  { code: "DE",  name: "Germany",        flag: "🇩🇪", stt: "deepgram" },
-  { code: "AT",  name: "Austria",        flag: "🇦🇹", stt: "deepgram" },
-  { code: "CH",  name: "Switzerland",    flag: "🇨🇭", stt: "deepgram" },
-  { code: "IT",  name: "Italy",          flag: "🇮🇹", stt: "deepgram" },
-  { code: "PT",  name: "Portugal",       flag: "🇵🇹", stt: "deepgram" },
-  { code: "BR",  name: "Brazil",         flag: "🇧🇷", stt: "deepgram" },
-  { code: "NL",  name: "Netherlands",    flag: "🇳🇱", stt: "deepgram" },
-  { code: "PL",  name: "Poland",         flag: "🇵🇱", stt: "deepgram" },
-  { code: "RU",  name: "Russia",         flag: "🇷🇺", stt: "deepgram" },
-  { code: "UA",  name: "Ukraine",        flag: "🇺🇦", stt: "deepgram" },
-  { code: "JP",  name: "Japan",          flag: "🇯🇵", stt: "deepgram" },
-  { code: "KR",  name: "South Korea",    flag: "🇰🇷", stt: "deepgram" },
-  { code: "CN",  name: "China",          flag: "🇨🇳", stt: "deepgram" },
-  { code: "TW",  name: "Taiwan",         flag: "🇹🇼", stt: "deepgram" },
-  { code: "SA",  name: "Saudi Arabia",   flag: "🇸🇦", stt: "deepgram" },
-  { code: "AE",  name: "United Arab Emirates", flag: "🇦🇪", stt: "deepgram" },
-  { code: "EG",  name: "Egypt",          flag: "🇪🇬", stt: "deepgram" },
-  { code: "BD",  name: "Bangladesh",     flag: "🇧🇩", stt: "deepgram" },
-  { code: "PK",  name: "Pakistan",       flag: "🇵🇰", stt: "deepgram" },
-  { code: "TR",  name: "Turkey",         flag: "🇹🇷", stt: "deepgram" },
-  { code: "IL",  name: "Israel",         flag: "🇮🇱", stt: "deepgram" },
-  { code: "SE",  name: "Sweden",         flag: "🇸🇪", stt: "deepgram" },
-  { code: "NO",  name: "Norway",         flag: "🇳🇴", stt: "deepgram" },
-  { code: "DK",  name: "Denmark",        flag: "🇩🇰", stt: "deepgram" },
-  { code: "FI",  name: "Finland",        flag: "🇫🇮", stt: "deepgram" },
-  { code: "GR",  name: "Greece",         flag: "🇬🇷", stt: "deepgram" },
-  { code: "CZ",  name: "Czech Republic", flag: "🇨🇿", stt: "deepgram" },
-  { code: "HU",  name: "Hungary",        flag: "🇭🇺", stt: "deepgram" },
-  { code: "RO",  name: "Romania",        flag: "🇷🇴", stt: "deepgram" },
-  { code: "TH",  name: "Thailand",       flag: "🇹🇭", stt: "deepgram" },
-  { code: "VN",  name: "Vietnam",        flag: "🇻🇳", stt: "deepgram" },
-  { code: "ID",  name: "Indonesia",      flag: "🇮🇩", stt: "deepgram" },
-  { code: "MY",  name: "Malaysia",       flag: "🇲🇾", stt: "deepgram" },
-  { code: "PH",  name: "Philippines",    flag: "🇵🇭", stt: "deepgram" },
-  { code: "BG",  name: "Bulgaria",       flag: "🇧🇬", stt: "deepgram" },
-  { code: "HR",  name: "Croatia",        flag: "🇭🇷", stt: "deepgram" },
-  { code: "RS",  name: "Serbia",         flag: "🇷🇸", stt: "deepgram" },
-  { code: "SK",  name: "Slovakia",       flag: "🇸🇰", stt: "deepgram" },
-  { code: "SI",  name: "Slovenia",       flag: "🇸🇮", stt: "deepgram" },
-  { code: "EE",  name: "Estonia",        flag: "🇪🇪", stt: "deepgram" },
-  { code: "LV",  name: "Latvia",         flag: "🇱🇻", stt: "deepgram" },
-  { code: "LT",  name: "Lithuania",      flag: "🇱🇹", stt: "deepgram" },
-];
-
-// Language list — each entry maps to one or more countryCodes
-export const ALL_LANGUAGES: { value: string; label: string; flag: string; countryCodes: string[] }[] = [
-  // English
-  { value: "en-US",  label: "English (US)",        flag: "🇺🇸", countryCodes: ["US"] },
-  { value: "en-GB",  label: "English (UK)",         flag: "🇬🇧", countryCodes: ["GB"] },
-  { value: "en-AU",  label: "English (Australia)",  flag: "🇦🇺", countryCodes: ["AU"] },
-  { value: "en-CA",  label: "English (Canada)",     flag: "🇨🇦", countryCodes: ["CA"] },
-  // Spanish (one code covers all Spanish-speaking countries)
-  { value: "es",     label: "Spanish",              flag: "🇪🇸", countryCodes: ["ES", "MX", "AR", "CO"] },
-  // French
-  { value: "fr",     label: "French",               flag: "🇫🇷", countryCodes: ["FR", "CA", "BE"] },
-  // German
-  { value: "de",     label: "German",               flag: "🇩🇪", countryCodes: ["DE", "AT", "CH"] },
-  // Italian
-  { value: "it",     label: "Italian",              flag: "🇮🇹", countryCodes: ["IT"] },
-  // Portuguese
-  { value: "pt",     label: "Portuguese",           flag: "🇵🇹", countryCodes: ["PT", "BR"] },
-  // Dutch
-  { value: "nl",     label: "Dutch",                flag: "🇳🇱", countryCodes: ["NL", "BE"] },
-  // Polish
-  { value: "pl",     label: "Polish",               flag: "🇵🇱", countryCodes: ["PL"] },
-  // Russian
-  { value: "ru",     label: "Russian",              flag: "🇷🇺", countryCodes: ["RU"] },
-  // Ukrainian
-  { value: "uk",     label: "Ukrainian",            flag: "🇺🇦", countryCodes: ["UA"] },
-  // Japanese
-  { value: "ja",     label: "Japanese",             flag: "🇯🇵", countryCodes: ["JP"] },
-  // Korean
-  { value: "ko",     label: "Korean",               flag: "🇰🇷", countryCodes: ["KR"] },
-  // Chinese
-  { value: "zh",     label: "Chinese",              flag: "🇨🇳", countryCodes: ["CN", "TW"] },
-  // Arabic
-  { value: "ar",     label: "Arabic",               flag: "🇸🇦", countryCodes: ["SA", "AE", "EG"] },
-  // Turkish
-  { value: "tr",     label: "Turkish",              flag: "🇹🇷", countryCodes: ["TR"] },
-  // Hebrew
-  { value: "he",     label: "Hebrew",               flag: "🇮🇱", countryCodes: ["IL"] },
-  // Scandinavian
-  { value: "sv",     label: "Swedish",              flag: "🇸🇪", countryCodes: ["SE"] },
-  { value: "nb",     label: "Norwegian",            flag: "🇳🇴", countryCodes: ["NO"] },
-  { value: "da",     label: "Danish",               flag: "🇩🇰", countryCodes: ["DK"] },
-  { value: "fi",     label: "Finnish",              flag: "🇫🇮", countryCodes: ["FI"] },
-  // Eastern European
-  { value: "el",     label: "Greek",                flag: "🇬🇷", countryCodes: ["GR"] },
-  { value: "cs",     label: "Czech",                flag: "🇨🇿", countryCodes: ["CZ"] },
-  { value: "hu",     label: "Hungarian",            flag: "🇭🇺", countryCodes: ["HU"] },
-  { value: "ro",     label: "Romanian",             flag: "🇷🇴", countryCodes: ["RO"] },
-  { value: "bg",     label: "Bulgarian",            flag: "🇧🇬", countryCodes: ["BG"] },
-  { value: "hr",     label: "Croatian",             flag: "🇭🇷", countryCodes: ["HR"] },
-  { value: "sr",     label: "Serbian",              flag: "🇷🇸", countryCodes: ["RS"] },
-  { value: "sk",     label: "Slovak",               flag: "🇸🇰", countryCodes: ["SK"] },
-  { value: "sl",     label: "Slovenian",            flag: "🇸🇮", countryCodes: ["SI"] },
-  { value: "et",     label: "Estonian",             flag: "🇪🇪", countryCodes: ["EE"] },
-  { value: "lv",     label: "Latvian",              flag: "🇱🇻", countryCodes: ["LV"] },
-  { value: "lt",     label: "Lithuanian",           flag: "🇱🇹", countryCodes: ["LT"] },
-  // South-East Asian
-  { value: "th",     label: "Thai",                 flag: "🇹🇭", countryCodes: ["TH"] },
-  { value: "vi",     label: "Vietnamese",           flag: "🇻🇳", countryCodes: ["VN"] },
-  { value: "id",     label: "Indonesian",           flag: "🇮🇩", countryCodes: ["ID"] },
-  // Indian languages (Sarvam STT + Google TTS)
-  { value: "en-IN",  label: "English (India)",      flag: "🇮🇳", countryCodes: ["IN"] },
-  { value: "hi",         label: "Hinglish",             flag: "🇮🇳", countryCodes: ["IN"] },
-  { value: "hi-formal",  label: "Hindi",                flag: "🇮🇳", countryCodes: ["IN"] },
-  { value: "ta",     label: "Tamil",                flag: "🇮🇳", countryCodes: ["IN"] },
-  { value: "te",     label: "Telugu",               flag: "🇮🇳", countryCodes: ["IN"] },
-  { value: "mr",     label: "Marathi",              flag: "🇮🇳", countryCodes: ["IN"] },
-  { value: "bn",     label: "Bengali",              flag: "🇮🇳", countryCodes: ["IN", "BD"] },
-  { value: "gu",     label: "Gujarati",             flag: "🇮🇳", countryCodes: ["IN"] },
-  { value: "kn",     label: "Kannada",              flag: "🇮🇳", countryCodes: ["IN"] },
-  { value: "ml",     label: "Malayalam",            flag: "🇮🇳", countryCodes: ["IN"] },
-  { value: "pa",     label: "Punjabi",              flag: "🇮🇳", countryCodes: ["IN"] },
-];
+// Countries + languages: shared with Edit (constants/agentLocales.ts).
+const ALL_COUNTRIES = AGENT_COUNTRIES;
+const ALL_LANGUAGES = AGENT_LANGUAGES;
 
 // Detailed voice-style descriptions — used both in the system prompt and as voice_instruction
 export const VOICE_STYLE_SP_MAP: Record<string, string> = {
@@ -414,7 +288,7 @@ const QuickCreateAgentWizard = ({
   // ── Wizard state ──────────────────────────────────────────────────────────
   const [quickCreateStep, setQuickCreateStep] = useState(1);
   const [businessProcessSlideIndex, setBusinessProcessSlideIndex] = useState(0);
-  const [industrySlideIndex, setIndustrySlideIndex] = useState(0);
+  const [industryQuery, setIndustryQuery] = useState("");
   const [subIndustrySlideIndex, setSubIndustrySlideIndex] = useState(0);
   const [templateSlideIndex, setTemplateSlideIndex] = useState(0);
   const [quickCreateData, setQuickCreateData] = useState<QuickCreateData>({
@@ -677,232 +551,10 @@ const QuickCreateAgentWizard = ({
   // True when user selects the special "multilingual" option → use Realtime TTS voices
   const isMultilingualMode = quickCreateData.languages.includes("multilingual");
 
-  // Industry Options
-  const industryOptions = [
-    { value: "real-estate", label: "Real Estate", icon: "🏠" },
-    { value: "healthcare", label: "Healthcare", icon: "🏥" },
-    { value: "dental", label: "Dental", icon: "🦷" },
-    { value: "fitness", label: "Fitness & Wellness", icon: "💪" },
-    { value: "education", label: "Education", icon: "🎓" },
-    { value: "finance", label: "Finance & Banking", icon: "🏦" },
-    { value: "insurance", label: "Insurance", icon: "🛡️" },
-    { value: "ecommerce", label: "E-commerce", icon: "🛒" },
-    { value: "retail", label: "Retail", icon: "🏪" },
-    { value: "technology", label: "Technology", icon: "💻" },
-    { value: "saas", label: "SaaS", icon: "☁️" },
-    { value: "legal", label: "Legal Services", icon: "⚖️" },
-    { value: "hospitality", label: "Hospitality", icon: "🏨" },
-    { value: "restaurants", label: "Restaurants", icon: "🍽️" },
-    { value: "automotive", label: "Automotive", icon: "🚗" },
-    { value: "beauty", label: "Beauty & Salon", icon: "💇" },
-    { value: "home-services", label: "Home Services", icon: "🏠" },
-    { value: "entertainment", label: "Entertainment", icon: "🎬" },
-    { value: "other", label: "Other", icon: "📋" },
-  ];
-
-  // Sub-Industry Options
-  const subIndustryOptions: Record<string, { value: string; label: string }[]> =
-    {
-      "real-estate": [
-        { value: "residential", label: "Residential Sales" },
-        { value: "commercial", label: "Commercial Real Estate" },
-        { value: "property-management", label: "Property Management" },
-        { value: "luxury-real-estate", label: "Luxury Real Estate" },
-        { value: "vacation-rentals", label: "Vacation Rentals" },
-        { value: "real-estate-investment", label: "Real Estate Investment" },
-        { value: "land-sales", label: "Land & Lot Sales" },
-        { value: "real-estate-appraisal", label: "Real Estate Appraisal" },
-      ],
-      healthcare: [
-        { value: "hospitals", label: "Hospitals" },
-        { value: "clinics", label: "General Clinics" },
-        { value: "mental-health", label: "Mental Health Services" },
-        { value: "home-healthcare", label: "Home Healthcare" },
-        { value: "urgent-care", label: "Urgent Care Centers" },
-        { value: "specialized-clinics", label: "Specialized Clinics" },
-        { value: "diagnostic-centers", label: "Diagnostic Centers" },
-        { value: "rehabilitation", label: "Rehabilitation Centers" },
-        { value: "telemedicine", label: "Telemedicine" },
-        { value: "nursing-homes", label: "Nursing Homes" },
-      ],
-      dental: [
-        { value: "general-dentistry", label: "General Dentistry" },
-        { value: "orthodontics", label: "Orthodontics" },
-        { value: "cosmetic-dentistry", label: "Cosmetic Dentistry" },
-        { value: "pediatric-dentistry", label: "Pediatric Dentistry" },
-        { value: "periodontics", label: "Periodontics" },
-        { value: "endodontics", label: "Endodontics" },
-        { value: "oral-surgery", label: "Oral Surgery" },
-        { value: "dental-implants", label: "Dental Implants" },
-      ],
-      fitness: [
-        { value: "gyms", label: "Gyms & Fitness Centers" },
-        { value: "yoga-studios", label: "Yoga Studios" },
-        { value: "personal-training", label: "Personal Training" },
-        { value: "crossfit", label: "CrossFit Gyms" },
-        { value: "pilates", label: "Pilates Studios" },
-        { value: "martial-arts", label: "Martial Arts & Boxing" },
-        { value: "dance-studios", label: "Dance Studios" },
-        { value: "sports-facilities", label: "Sports Facilities" },
-        { value: "wellness-centers", label: "Wellness Centers" },
-      ],
-      education: [
-        { value: "k12", label: "K-12 Schools" },
-        { value: "higher-education", label: "Higher Education" },
-        { value: "online-learning", label: "Online Learning Platforms" },
-        { value: "tutoring", label: "Tutoring Services" },
-        { value: "vocational-training", label: "Vocational Training" },
-        { value: "language-schools", label: "Language Schools" },
-        { value: "test-prep", label: "Test Preparation" },
-        { value: "preschool", label: "Preschool & Daycare" },
-      ],
-      finance: [
-        { value: "banking", label: "Banking Services" },
-        { value: "investment", label: "Investment Services" },
-        { value: "wealth-management", label: "Wealth Management" },
-        { value: "accounting", label: "Accounting Services" },
-        { value: "financial-planning", label: "Financial Planning" },
-        { value: "tax-services", label: "Tax Services" },
-        { value: "mortgage-lending", label: "Mortgage Lending" },
-        { value: "credit-unions", label: "Credit Unions" },
-      ],
-      insurance: [
-        { value: "health-insurance", label: "Health Insurance" },
-        { value: "life-insurance", label: "Life Insurance" },
-        { value: "auto-insurance", label: "Auto Insurance" },
-        { value: "property-insurance", label: "Property Insurance" },
-        { value: "business-insurance", label: "Business Insurance" },
-        { value: "travel-insurance", label: "Travel Insurance" },
-        { value: "disability-insurance", label: "Disability Insurance" },
-      ],
-      ecommerce: [
-        { value: "fashion", label: "Fashion & Apparel" },
-        { value: "electronics", label: "Electronics" },
-        { value: "food-beverage", label: "Food & Beverage" },
-        { value: "home-decor", label: "Home Decor" },
-        { value: "beauty-products", label: "Beauty Products" },
-        { value: "sporting-goods", label: "Sporting Goods" },
-        { value: "toys-games", label: "Toys & Games" },
-        { value: "books-media", label: "Books & Media" },
-        { value: "pet-supplies", label: "Pet Supplies" },
-      ],
-      retail: [
-        { value: "grocery", label: "Grocery Stores" },
-        { value: "fashion-retail", label: "Fashion Retail" },
-        { value: "electronics-retail", label: "Electronics Retail" },
-        { value: "home-improvement", label: "Home Improvement" },
-        { value: "department-stores", label: "Department Stores" },
-        { value: "specialty-retail", label: "Specialty Retail" },
-        { value: "convenience-stores", label: "Convenience Stores" },
-        { value: "furniture-stores", label: "Furniture Stores" },
-      ],
-      technology: [
-        { value: "software-development", label: "Software Development" },
-        { value: "it-services", label: "IT Services & Consulting" },
-        { value: "cybersecurity", label: "Cybersecurity" },
-        { value: "cloud-services", label: "Cloud Services" },
-        { value: "data-analytics", label: "Data Analytics" },
-        { value: "ai-ml", label: "AI & Machine Learning" },
-        { value: "mobile-development", label: "Mobile App Development" },
-        { value: "web-development", label: "Web Development" },
-      ],
-      saas: [
-        { value: "crm", label: "CRM Software" },
-        { value: "erp", label: "ERP Software" },
-        { value: "marketing-automation", label: "Marketing Automation" },
-        { value: "project-management", label: "Project Management" },
-        { value: "hr-software", label: "HR & Payroll Software" },
-        { value: "accounting-software", label: "Accounting Software" },
-        { value: "collaboration-tools", label: "Collaboration Tools" },
-        { value: "analytics-platforms", label: "Analytics Platforms" },
-      ],
-      legal: [
-        { value: "corporate-law", label: "Corporate Law" },
-        { value: "family-law", label: "Family Law" },
-        { value: "immigration-law", label: "Immigration Law" },
-        { value: "criminal-law", label: "Criminal Defense" },
-        { value: "real-estate-law", label: "Real Estate Law" },
-        { value: "estate-planning", label: "Estate Planning" },
-        { value: "personal-injury", label: "Personal Injury" },
-        { value: "intellectual-property", label: "Intellectual Property" },
-      ],
-      hospitality: [
-        { value: "hotels", label: "Hotels & Motels" },
-        { value: "resorts", label: "Resorts & Spas" },
-        { value: "event-venues", label: "Event Venues" },
-        { value: "bed-breakfast", label: "Bed & Breakfast" },
-        { value: "vacation-rentals", label: "Vacation Rentals" },
-        { value: "hostels", label: "Hostels" },
-        { value: "conference-centers", label: "Conference Centers" },
-      ],
-      restaurants: [
-        { value: "fine-dining", label: "Fine Dining" },
-        { value: "casual-dining", label: "Casual Dining" },
-        { value: "fast-food", label: "Fast Food & QSR" },
-        { value: "cafes", label: "Cafes & Coffee Shops" },
-        { value: "food-trucks", label: "Food Trucks" },
-        { value: "bakeries", label: "Bakeries & Pastry Shops" },
-        { value: "catering", label: "Catering Services" },
-        { value: "bars-pubs", label: "Bars & Pubs" },
-        { value: "buffets", label: "Buffets" },
-      ],
-      automotive: [
-        { value: "dealerships", label: "Car Dealerships" },
-        { value: "auto-repair", label: "Auto Repair & Maintenance" },
-        { value: "car-rental", label: "Car Rental Services" },
-        { value: "auto-parts", label: "Auto Parts & Accessories" },
-        { value: "car-wash", label: "Car Wash & Detailing" },
-        { value: "body-shops", label: "Body Shops & Collision Repair" },
-        { value: "tire-services", label: "Tire Services" },
-        { value: "oil-change", label: "Oil Change & Lube" },
-        { value: "auto-glass", label: "Auto Glass Repair" },
-        { value: "towing", label: "Towing Services" },
-      ],
-      beauty: [
-        { value: "hair-salons", label: "Hair Salons" },
-        { value: "nail-salons", label: "Nail Salons" },
-        { value: "med-spas", label: "Medical Spas" },
-        { value: "barbershops", label: "Barbershops" },
-        { value: "day-spas", label: "Day Spas" },
-        { value: "cosmetics", label: "Cosmetics & Makeup" },
-        { value: "tattoo-piercing", label: "Tattoo & Piercing" },
-        { value: "waxing", label: "Waxing & Threading" },
-        { value: "aesthetic-clinics", label: "Aesthetic Clinics" },
-      ],
-      "home-services": [
-        { value: "plumbing", label: "Plumbing Services" },
-        { value: "electrical", label: "Electrical Services" },
-        { value: "hvac", label: "HVAC Services" },
-        { value: "cleaning", label: "Cleaning Services" },
-        { value: "landscaping", label: "Landscaping & Lawn Care" },
-        { value: "pest-control", label: "Pest Control" },
-        { value: "roofing", label: "Roofing Services" },
-        { value: "painting", label: "Painting Services" },
-        { value: "moving", label: "Moving Services" },
-        { value: "handyman", label: "Handyman Services" },
-        { value: "carpet-cleaning", label: "Carpet Cleaning" },
-        { value: "window-cleaning", label: "Window Cleaning" },
-      ],
-      entertainment: [
-        { value: "media", label: "Media & Broadcasting" },
-        { value: "gaming", label: "Gaming" },
-        { value: "events", label: "Events & Concerts" },
-        { value: "sports", label: "Sports" },
-        { value: "film-tv-production", label: "Film & TV Production" },
-        { value: "actors-talent", label: "Actors & Talent" },
-        { value: "directors-producers", label: "Directors & Producers" },
-        { value: "talent-management", label: "Talent Management Agency" },
-        { value: "music-artists", label: "Music & Artists" },
-        { value: "influencers-creators", label: "Influencers & Content Creators" },
-        { value: "modeling", label: "Modeling Agency" },
-      ],
-      other: [
-        { value: "general", label: "General Business" },
-        { value: "custom", label: "Custom Industry" },
-        { value: "non-profit", label: "Non-Profit Organization" },
-        { value: "government", label: "Government Services" },
-      ],
-    };
+  // Industry catalog: shared with Create and Edit (constants/agentIndustries.ts).
+  const industryOptions = AGENT_INDUSTRIES;
+  const subIndustryOptions = AGENT_SUB_INDUSTRIES;
+  const visibleIndustries = searchIndustries(industryQuery);
 
   // Get matching templates with scoring based on all user selections
   const getMatchingTemplatesScored = (): TemplateMatchResult[] => {
@@ -1107,7 +759,7 @@ const QuickCreateAgentWizard = ({
     onClose();
     setQuickCreateStep(1);
     setBusinessProcessSlideIndex(0);
-    setIndustrySlideIndex(0);
+    setIndustryQuery("");
     setSubIndustrySlideIndex(0);
     setTemplateSlideIndex(0);
     setAIGeneratedTemplates([]);
@@ -1551,7 +1203,6 @@ const QuickCreateAgentWizard = ({
 
       const agentId = newAgent?.id || '';
       setCreatingAgentId(agentId);
-      refreshPlanLimits(); // one more agent counted against the plan
       // Refresh context agents and re-fetch the filtered list so the new agent card
       // (with KB loading overlay) appears in the grid immediately when modal is minimized.
       onAgentListRefresh();
@@ -1588,8 +1239,6 @@ const QuickCreateAgentWizard = ({
       setIsCreatingAgent(false);
       setKbCreationProgress(null);
 
-      // Over the plan's AI agent limit (403 PLAN_LIMIT_REACHED): the upgrade dialog explains.
-      if (handlePlanLimit(error)) return;
 
       // Show error toast
       const errorMessage =
@@ -2887,119 +2536,51 @@ const QuickCreateAgentWizard = ({
                   </p>
                 </div>
 
-                <div className="relative">
-                  <button
-                    onClick={() =>
-                      setIndustrySlideIndex(
-                        Math.max(0, industrySlideIndex - 1),
-                      )
-                    }
-                    disabled={industrySlideIndex === 0}
-                    className={`absolute -left-2 sm:-left-3 top-1/2 -translate-y-1/2 z-10 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white dark:bg-slate-800 shadow-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center transition-all ${
-                      industrySlideIndex === 0
-                        ? "opacity-40 cursor-not-allowed"
-                        : "hover:bg-slate-50 dark:hover:bg-slate-700 hover:scale-110"
-                    }`}
-                  >
-                    <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 text-slate-600 dark:text-slate-300" />
-                  </button>
-
-                  <button
-                    onClick={() =>
-                      setIndustrySlideIndex(
-                        Math.min(
-                          Math.ceil(industryOptions.length / 6) - 1,
-                          industrySlideIndex + 1,
-                        ),
-                      )
-                    }
-                    disabled={
-                      industrySlideIndex >=
-                      Math.ceil(industryOptions.length / 6) - 1
-                    }
-                    className={`absolute -right-2 sm:-right-3 top-1/2 -translate-y-1/2 z-10 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-white dark:bg-slate-800 shadow-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center transition-all ${
-                      industrySlideIndex >=
-                      Math.ceil(industryOptions.length / 6) - 1
-                        ? "opacity-40 cursor-not-allowed"
-                        : "hover:bg-slate-50 dark:hover:bg-slate-700 hover:scale-110"
-                    }`}
-                  >
-                    <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 text-slate-600 dark:text-slate-300" />
-                  </button>
-
-                  {/* Cards Container */}
-                  <div 
-                    className="overflow-x-auto px-1 sm:px-2 touch-pan-x snap-x [&::-webkit-scrollbar]:hidden"
-                    style={{
-                      scrollbarWidth: 'none',
-                      msOverflowStyle: 'none'
-                    }}
-                  >
-                    <div
-                      className="flex transition-transform duration-300 ease-out"
-                      style={{
-                        transform: `translateX(-${industrySlideIndex * 100}%)`,
-                      }}
-                    >
-                      {Array.from({
-                        length: Math.ceil(industryOptions.length / 6),
-                      }).map((_, slideIdx) => (
-                        <div
-                          key={slideIdx}
-                          className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 min-w-full"
-                        >
-                          {industryOptions
-                            .slice(slideIdx * 6, slideIdx * 6 + 6)
-                            .map((option) => (
-                              <button
-                                key={option.value}
-                                onClick={() =>
-                                  setQuickCreateData((prev) => ({
-                                    ...prev,
-                                    industry: option.value,
-                                    subIndustry: "",
-                                  }))
-                                }
-                                className={`p-2 sm:p-3 rounded-xl border-2 text-center transition-colors duration-200 relative ${
-                                  quickCreateData.industry ===
-                                  option.value
-                                    ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-md"
-                                    : "border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600 bg-white dark:bg-slate-800/50"
-                                }`}
-                              >
-                                {quickCreateData.industry ===
-                                  option.value && (
-                                  <CheckCircle className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-500 absolute top-1 right-1 sm:top-1.5 sm:right-1.5" />
-                                )}
-                                <span className="text-xl sm:text-2xl mb-0.5 sm:mb-1 block">
-                                  {option.icon}
-                                </span>
-                                <span className="text-[10px] sm:text-xs font-medium text-slate-800 dark:text-white leading-tight">
-                                  {option.label}
-                                </span>
-                              </button>
-                            ))}
-                        </div>
-                      ))}
-                    </div>
+                <div className="space-y-2.5">
+                  <div className="relative">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      value={industryQuery}
+                      onChange={(e) => setIndustryQuery(e.target.value)}
+                      placeholder="Search, e.g. dentist, gym, solar, wedding…"
+                      aria-label="Search industries"
+                      className="w-full pl-9 pr-3 py-2.5 rounded-xl text-sm bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                    />
                   </div>
 
-                  {/* Dots Indicator */}
-                  <div className="flex justify-center gap-1.5 sm:gap-2 mt-3 sm:mt-4">
-                    {Array.from({
-                      length: Math.ceil(industryOptions.length / 6),
-                    }).map((_, idx) => (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 max-h-[340px] overflow-y-auto p-0.5 pr-1">
+                    {visibleIndustries.map((option) => (
                       <button
-                        key={idx}
-                        onClick={() => setIndustrySlideIndex(idx)}
-                        className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full transition-all ${
-                          industrySlideIndex === idx
-                            ? "bg-blue-500 w-4 sm:w-6"
-                            : "bg-slate-300 dark:bg-slate-600 hover:bg-slate-400"
+                        key={option.value}
+                        onClick={() =>
+                          setQuickCreateData((prev) => ({
+                            ...prev,
+                            industry: option.value,
+                            subIndustry: "",
+                          }))
+                        }
+                        className={`p-2 sm:p-3 rounded-xl border-2 text-center transition-colors duration-200 relative ${
+                          quickCreateData.industry === option.value
+                            ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20 shadow-md"
+                            : "border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-600 bg-white dark:bg-slate-800/50"
                         }`}
-                      />
+                      >
+                        {quickCreateData.industry === option.value && (
+                          <CheckCircle className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-500 absolute top-1 right-1 sm:top-1.5 sm:right-1.5" />
+                        )}
+                        <span className="text-xl sm:text-2xl mb-0.5 sm:mb-1 block">{option.icon}</span>
+                        <span className="text-[10px] sm:text-xs font-medium text-slate-800 dark:text-white leading-tight">
+                          {option.label}
+                        </span>
+                      </button>
                     ))}
                   </div>
+
+                  <p className="text-[11px] text-slate-400 text-center">
+                    {industryQuery.trim()
+                      ? "Can't find yours? Pick Other."
+                      : `${industryOptions.length} industries. Search by your business, e.g. "yoga" finds Fitness & Wellness.`}
+                  </p>
                 </div>
               </div>
             )}
