@@ -38,13 +38,18 @@ export default function VenturesEditor({
   const add = (type: VentureType) =>
     update((list) => [...list, { name: "", logo_url: "", url: "", type, logo_size: type === "venture" ? "s" : "m", file_name: "", description: "" }]);
 
-  const uploadPdf = async (i: number, file: File | undefined) => {
+  /** `attach`: a Project's extra PDF (kept beside its link) rather than the entry's own document. */
+  const uploadPdf = async (i: number, file: File | undefined, attach = false) => {
     if (!file || !onDocumentFile) return;
     if (file.type !== "application/pdf" && !/\.pdf$/i.test(file.name)) return onDocumentError("Please choose a PDF file.");
     if (file.size > DOCUMENT_MAX_BYTES) return onDocumentError("That PDF is over 10 MB. Try a smaller file or paste a link instead.");
     setUploadingAt(i);
     try {
       const { url, file_name } = await onDocumentFile(file);
+      if (attach) {
+        update((list) => patchAt(list, i, { document_url: url, document_name: file_name }));
+        return;
+      }
       update((list) => patchAt(list, i, { url, file_name, ...(list[i]?.name.trim() ? {} : { name: file_name.replace(/\.pdf$/i, "") }) }));
     } catch (e: any) {
       onDocumentError(e?.message || "Couldn't upload the PDF.");
@@ -194,6 +199,47 @@ export default function VenturesEditor({
                 <small>Paste a link for now. You can upload a PDF once your card is saved.</small>
               )
             )}
+
+            {/* Projects keep their link and can add a PDF too (company profile, deck…). */}
+            {!basic && kind.id === "venture" &&
+              (v.document_url ? (
+                <div className="ven-file">
+                  <FileText size={16} aria-hidden="true" />
+                  <a href={v.document_url} target="_blank" rel="noopener noreferrer">
+                    {v.document_name || "Attached PDF"}
+                  </a>
+                  <button type="button" aria-label="Remove PDF" onClick={() => set(i, { document_url: undefined, document_name: undefined })}>
+                    <X size={13} />
+                  </button>
+                </div>
+              ) : onDocumentFile ? (
+                <label className={`ven-attach${uploadingAt === i ? " is-busy" : ""}`}>
+                  {uploadingAt === i ? <Loader2 size={15} className="ven-spin" /> : <FileText size={15} />}
+                  <span>
+                    <strong>{uploadingAt === i ? "Uploading PDF…" : "Attach a PDF"}</strong>
+                    <small>Optional. Company profile, deck or brochure, shown with a PDF icon on your card.</small>
+                  </span>
+                  <input
+                    type="file"
+                    accept="application/pdf,.pdf"
+                    className="sr-only"
+                    disabled={uploadingAt !== null}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = "";
+                      void uploadPdf(i, file, true);
+                    }}
+                  />
+                </label>
+              ) : (
+                <div className="ven-attach is-off">
+                  <FileText size={15} />
+                  <span>
+                    <strong>Attach a PDF</strong>
+                    <small>Available once your card is saved. Add a company profile, deck or brochure.</small>
+                  </span>
+                </div>
+              ))}
 
             {errorFor(i) && <small className="err">{errorFor(i)}</small>}
           </div>

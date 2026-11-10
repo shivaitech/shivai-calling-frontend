@@ -85,6 +85,10 @@ export interface CardVenture {
   file_name?: string;
   /** A line or two about it, shown under the name. */
   description?: string;
+  /** A PDF attached to a Project alongside its link (company profile, deck…). */
+  document_url?: string;
+  /** That PDF's original file name. */
+  document_name?: string;
 }
 
 /** The editable fields — exactly what POST / PUT accept (minus agent rules). */
@@ -115,6 +119,8 @@ export interface BusinessCardInput {
   username: string;
   /** Private name the owner tells cards apart by ("Official card"). Shown in the dashboard only, never on the card. */
   card_name?: string;
+  /** Intro video (YouTube, Vimeo or an .mp4 link), played on the card. */
+  video_url?: string;
 }
 
 /** The card plans. */
@@ -297,6 +303,8 @@ export const toPayload = (
   })(),
   // Owner-only label: sent once it's been set (an empty string clears it), so older cards save as before.
   ...(c.card_name !== undefined ? { card_name: c.card_name.trim() } : {}),
+  // Same for the intro video: only once it's been set, "" removes it.
+  ...(c.video_url !== undefined ? { video_url: c.video_url.trim() } : {}),
   // The featured button — only sent once the owner picks one.
   ...(c.highlight ? { highlight: c.highlight } : {}),
   // Pay Me — only sent once the owner adds a method.
@@ -327,6 +335,7 @@ export const toPayload = (
     ...(v.logo_size && v.logo_size !== "s" && v.logo_url.trim() ? { logo_size: v.logo_size } : {}),
     ...(v.file_name?.trim() ? { file_name: v.file_name.trim() } : {}),
     ...(v.description?.trim() ? { description: v.description.trim() } : {}),
+    ...(v.document_url?.trim() ? { document_url: v.document_url.trim(), document_name: (v.document_name ?? "").trim() } : {}),
   })),
   // The AI agent is optional: leave the key out entirely when none is chosen
   // (an empty string would fail the API's 24-char ObjectId check).
@@ -458,6 +467,32 @@ export const businessCardAPI = {
     } catch (e) {
       if (e instanceof BusinessCardError) throw e;
       throw toError(e);
+    }
+  },
+
+  /**
+   * POST /upload-video (multipart "file") — the card's intro video (mp4 / webm / mov). Same shape as
+   * /upload-document; the returned link should keep the file's extension so the card can play it.
+   */
+  async uploadVideo(file: File, onProgress?: (percent: number) => void): Promise<{ url: string; file_name: string }> {
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await axios.post(`${BASE}/upload-video`, form, {
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
+        timeout: 5 * 60000,
+        onUploadProgress: (e) => e.total && onProgress?.(Math.round((e.loaded / e.total) * 100)),
+      });
+      const d = res.data?.data ?? res.data ?? {};
+      const url = d.url ?? d.file_url ?? d.video_url;
+      if (typeof url !== "string" || !url) throw new BusinessCardError("Upload finished but no video link came back.", 502);
+      return { url, file_name: d.file_name ?? file.name };
+    } catch (e) {
+      if (e instanceof BusinessCardError) throw e;
+      const err = toError(e);
+      // Until the server has the endpoint, say so plainly instead of "Not found".
+      if (err.status === 404) throw new BusinessCardError("Video upload isn’t available yet. Paste a YouTube or Vimeo link for now.", 404);
+      throw err;
     }
   },
 

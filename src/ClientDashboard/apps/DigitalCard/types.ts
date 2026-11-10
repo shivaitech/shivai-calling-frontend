@@ -31,13 +31,16 @@ export const SOCIAL_TYPES: { value: SocialType; label: string; base: string }[] 
   { value: "website", label: "Website", base: "" },
 ];
 
-/** Pre-filled on new cards; doubles as a pitch for what the card does. */
-export const SUGGESTED_TAGLINE =
+/** Pre-filled on new cards; doubles as a pitch for what the card does. Within the 99-character limit. */
+export const SUGGESTED_TAGLINE = "Let's connect. Call, WhatsApp or save my contact in one tap.";
+
+/** The earlier, longer suggestion (over today's limit). Cards still carrying it get the new one. */
+const OLD_SUGGESTED_TAGLINE =
   "Let's connect. Tap to call, message me on WhatsApp or save my contact in one tap — everything you need to reach me, all in one place.";
 
-/** For forms: an empty tagline starts out as the suggested one. */
+/** For forms: an empty tagline (or the old default) starts out as the suggested one. */
 export const withSuggestedTagline = (c: BusinessCardInput): BusinessCardInput =>
-  c.tagline?.trim() ? c : { ...c, tagline: SUGGESTED_TAGLINE };
+  c.tagline?.trim() && c.tagline.trim() !== OLD_SUGGESTED_TAGLINE ? c : { ...c, tagline: SUGGESTED_TAGLINE };
 
 export const emptyCard = (): BusinessCardInput => ({
   full_name: "",

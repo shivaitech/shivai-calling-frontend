@@ -19,6 +19,7 @@ import DigitalCardReferral from "./digitalCardReferral";
 import FeatureCarousel from "./digitalCardFeatureCarousel";
 import { useAuth } from "../contexts/AuthContext";
 import "../ClientDashboard/apps/DigitalCard/digitalCard.css";
+import { scrollToSection } from "../utils/scrollToSection";
 
 /** Where every "Create" CTA on this page leads (no account needed to start). */
 const CREATE_ROUTE = DIGITAL_CARD_CREATE;
@@ -219,10 +220,7 @@ const FIRST_FEATURE_ID = "features";
 /** "One card. More possibilities." — first section under the hero ("Scroll to learn more"). */
 const POSSIBILITIES_ID = "possibilities";
 
-function scrollToId(id: string) {
-  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  document.getElementById(id)?.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
-}
+const scrollToId = scrollToSection;
 
 const FINAL_CTA_ID = "make-yours";
 

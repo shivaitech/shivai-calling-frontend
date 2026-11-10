@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, ClipboardPaste, ExternalLink, X } from "lucide-react";
+import { Check, ClipboardPaste, ExternalLink, Lock, Play, Upload, X } from "lucide-react";
 import { LinkIcon } from "./CardView";
 import type { CardData, SocialType } from "./types";
 import { detectPlatform, findUrl, fromUsernameInput, parseProfile } from "./socialLinks";
+import { parseVideo, VIDEO_HELP, videoLink } from "./cardVideo";
 
 type Social = CardData["social_media"][number];
 
@@ -64,17 +65,67 @@ const subOf = (s: Social) =>
 
 type Msg = { tone: "ok" | "hint" | "err"; text: string } | null;
 
+/** Largest video file accepted for upload (longer videos belong on YouTube / Vimeo). */
+const VIDEO_MAX_MB = 50;
+
 export default function SocialLinksEditor({
   value,
   onChange,
   errorFor,
+  video,
+  onVideo,
+  onVideoFile,
+  videoLocked = false,
+  onVideoUpgrade,
 }: {
   value: Social[];
   onChange: (next: Social[]) => void;
   /** Validation message for the entry at index i, if any. */
   errorFor: (i: number) => string | undefined;
+  /** The card's intro video link, played on the card. Leave `onVideo` out to hide the Video tile. */
+  video?: string;
+  onVideo?: (url: string) => void;
+  /** Uploads a video file; left out before the visitor has an account (the button then explains). */
+  onVideoFile?: (file: File, onProgress: (percent: number) => void) => Promise<{ url: string; file_name: string }>;
+  /** Video is a Signature / Prestige feature: the tile shows, locked, and explains how to get it. */
+  videoLocked?: boolean;
+  onVideoUpgrade?: () => void;
 }) {
-  const [open, setOpen] = useState<SocialType | null>(null);
+  const [open, setOpen] = useState<SocialType | "video" | null>(null);
+  const [videoDraft, setVideoDraft] = useState("");
+  const [uploadPct, setUploadPct] = useState<number | null>(null);
+  const videoFileRef = useRef<HTMLInputElement>(null);
+  const hasVideo = !!video?.trim();
+  const uploadedName = (() => {
+    const v = parseVideo(video);
+    return v?.kind === "file" ? decodeURIComponent(v.src.split(/[?#]/)[0].split("/").pop() ?? "") : "";
+  })();
+
+  const pickVideoFile = () => {
+    if (onVideoFile) return videoFileRef.current?.click();
+    setMsg({ tone: "hint", text: "You can upload a video once your card is created. For now, paste a YouTube or Vimeo link, or add the video later from your card editor." });
+  };
+
+  const uploadVideo = async (file?: File) => {
+    if (!file || !onVideoFile || !onVideo) return;
+    if (!/^video\/(mp4|webm|quicktime)$/i.test(file.type) && !/\.(mp4|webm|mov|m4v)$/i.test(file.name))
+      return setMsg({ tone: "err", text: "Choose an MP4, WebM or MOV video." });
+    if (file.size > VIDEO_MAX_MB * 1024 * 1024)
+      return setMsg({ tone: "err", text: `That video is ${Math.round(file.size / 1024 / 1024)} MB. Keep it under ${VIDEO_MAX_MB} MB, or upload it to YouTube and paste the link.` });
+    setMsg(null);
+    setUploadPct(0);
+    try {
+      const { url } = await onVideoFile(file, setUploadPct);
+      onVideo(url);
+      setVideoDraft("");
+      setMsg({ tone: "ok", text: "Video uploaded. It plays right on your card." });
+      setTimeout(() => setOpen((o) => (o === "video" ? null : o)), 1400);
+    } catch (e) {
+      setMsg({ tone: "err", text: (e as Error)?.message || "Couldn’t upload the video. Please try again." });
+    } finally {
+      setUploadPct(null);
+    }
+  };
   const [awaiting, setAwaiting] = useState(false);
   const [draft, setDraft] = useState("");
   const [msg, setMsg] = useState<Msg>(null);
@@ -91,6 +142,22 @@ export default function SocialLinksEditor({
     setDraft(existing ? existing.url || existing.username : "");
     setMsg(null);
     if (type === "website") setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
+  const startVideo = () => {
+    setOpen("video");
+    setAwaiting(false);
+    setVideoDraft(video ?? "");
+    setMsg(null);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
+  const saveVideo = (text: string) => {
+    if (!onVideo) return;
+    if (!parseVideo(text)) return setMsg({ tone: "err", text: text.trim() ? `That link can't be played. ${VIDEO_HELP}` : VIDEO_HELP });
+    onVideo(videoLink(text));
+    setMsg({ tone: "ok", text: "Video added. It plays right on your card." });
+    setTimeout(() => setOpen((o) => (o === "video" ? null : o)), 1100);
   };
 
   const close = () => {
@@ -147,7 +214,7 @@ export default function SocialLinksEditor({
 
   // Back from the other app/tab: look for the copied profile link on the clipboard.
   useEffect(() => {
-    if (!awaiting || !open) return;
+    if (!awaiting || !open || open === "video") return;
     const type = open;
     const onBack = async () => {
       if (document.visibilityState !== "visible") return;
@@ -171,7 +238,7 @@ export default function SocialLinksEditor({
   }, [awaiting, open]);
 
   const paste = async () => {
-    if (!open) return;
+    if (!open || open === "video") return;
     try {
       const text = await navigator.clipboard.readText();
       const result = apply(open, text, false);
@@ -190,7 +257,7 @@ export default function SocialLinksEditor({
   };
 
   const submitDraft = () => {
-    if (!open) return;
+    if (!open || open === "video") return;
     const result = apply(open, draft, false);
     if (result === "ok") succeed(open);
     else setMsg({ tone: "err", text: result || (open === "website" ? "Enter a website, like yourcompany.com." : "Enter your username or paste your profile link.") });
@@ -218,7 +285,127 @@ export default function SocialLinksEditor({
             </button>
           );
         })}
+        {onVideo && (
+          <button
+            type="button"
+            role="listitem"
+            className={`soc-tile${open === "video" ? " is-open" : ""}${hasVideo && !videoLocked ? " is-on" : ""}${videoLocked ? " is-locked" : ""}`}
+            onClick={() => (open === "video" ? close() : startVideo())}
+            aria-expanded={open === "video"}
+          >
+            <span className="soc-tile-ico">
+              <span className="link-ico video-ico" aria-hidden="true">
+                <Play size={12} strokeWidth={2.4} fill="currentColor" />
+              </span>
+            </span>
+            <span className="soc-tile-name">Video{videoLocked ? " (Signature and Prestige)" : ""}</span>
+            <span className="soc-tile-state">{hasVideo ? <><Check size={12} /> Added</> : "Add"}</span>
+            {videoLocked && (
+              <span className="soc-tile-lock" aria-hidden="true">
+                <Lock size={10} strokeWidth={2.6} />
+              </span>
+            )}
+          </button>
+        )}
       </div>
+
+      {open === "video" && onVideo && videoLocked && (
+        <div className="soc-connect" role="region" aria-label="Video">
+          <div className="soc-connect-head">
+            <span className="soc-tile-ico">
+              <span className="link-ico video-ico" aria-hidden="true">
+                <Play size={12} strokeWidth={2.4} fill="currentColor" />
+              </span>
+            </span>
+            <strong>Video is a Signature and Prestige feature</strong>
+            <button type="button" className="soc-close" aria-label="Close" onClick={close}>
+              <X size={14} />
+            </button>
+          </div>
+          <p className="vid-locked-text">Add an intro, a product demo or a showreel that plays right on your card. Upgrade to Signature or Prestige to add one.</p>
+          {onVideoUpgrade && (
+            <button type="button" className="btn small" onClick={onVideoUpgrade}>
+              See plans
+            </button>
+          )}
+        </div>
+      )}
+
+      {open === "video" && onVideo && !videoLocked && (
+        <div className="soc-connect" role="region" aria-label="Add a video">
+          <div className="soc-connect-head">
+            <span className="soc-tile-ico">
+              <span className="link-ico video-ico" aria-hidden="true">
+                <Play size={12} strokeWidth={2.4} fill="currentColor" />
+              </span>
+            </span>
+            <strong>Add a video</strong>
+            <button type="button" className="soc-close" aria-label="Close" onClick={close}>
+              <X size={14} />
+            </button>
+          </div>
+          <form
+            className="soc-paste"
+            onSubmit={(e) => {
+              e.preventDefault();
+              saveVideo(videoDraft);
+            }}
+          >
+            <label className="soc-paste-label" htmlFor="soc-input-video">
+              Video link, played right on your card
+            </label>
+            <div className="soc-paste-row">
+              <input
+                id="soc-input-video"
+                ref={inputRef}
+                value={videoDraft}
+                inputMode="url"
+                autoComplete="off"
+                placeholder="youtube.com/watch?v=… or vimeo.com/…"
+                onChange={(e) => {
+                  setVideoDraft(e.target.value);
+                  setMsg(null);
+                }}
+                onPaste={(e) => {
+                  const text = e.clipboardData.getData("text").trim();
+                  if (!text) return;
+                  e.preventDefault();
+                  setVideoDraft(text);
+                  saveVideo(text);
+                }}
+              />
+              <button type="submit" className="btn small">
+                Save
+              </button>
+            </div>
+            <small className="muted">{VIDEO_HELP} An intro, a product demo or a showreel works well.</small>
+          </form>
+          <div className="vid-upload">
+              <span className="vid-or">or</span>
+              <button type="button" className="btn small ghost" disabled={uploadPct !== null} onClick={pickVideoFile}>
+                <Upload size={14} aria-hidden="true" /> {uploadPct !== null ? `Uploading… ${uploadPct}%` : "Upload a video"}
+              </button>
+              <small className="muted">MP4, WebM or MOV, up to {VIDEO_MAX_MB} MB.</small>
+              {uploadPct !== null && (
+                <span className="vid-progress" role="progressbar" aria-valuenow={uploadPct} aria-valuemin={0} aria-valuemax={100}>
+                  <span style={{ width: `${uploadPct}%` }} />
+                </span>
+              )}
+              <input
+                ref={videoFileRef}
+                hidden
+                type="file"
+                accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov,.m4v"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = ""; // allow picking the same file again
+                  void uploadVideo(file);
+                }}
+              />
+            </div>
+          {msg && <p className={`soc-msg ${msg.tone}`}>{msg.tone === "ok" && <Check size={14} />} {msg.text}</p>}
+        </div>
+      )}
 
       {platform && (
         <div className="soc-connect" role="region" aria-label={`Connect ${platform.name}`}>
@@ -300,8 +487,34 @@ export default function SocialLinksEditor({
         </div>
       )}
 
-      {value.length > 0 && (
+      {(value.length > 0 || (hasVideo && onVideo)) && (
         <ul className="soc-list">
+          {hasVideo && onVideo && (
+            <li>
+              <span className="soc-tile-ico">
+                <span className="link-ico video-ico" aria-hidden="true">
+                  <Play size={12} strokeWidth={2.4} fill="currentColor" />
+                </span>
+              </span>
+              <span className="soc-list-text">
+                <strong>Video</strong>
+                <span>{uploadedName ? `Uploaded: ${uploadedName}` : video!.replace(/^https?:\/\/(www\.)?/, "")}</span>
+              </span>
+              <button type="button" className="link-btn" onClick={startVideo}>
+                Change
+              </button>
+              <button
+                type="button"
+                className="link-btn danger"
+                onClick={() => {
+                  onVideo("");
+                  if (open === "video") close();
+                }}
+              >
+                Remove
+              </button>
+            </li>
+          )}
           {value.map((s, i) => (
             <li key={`${s.type}-${i}`}>
               <span className="soc-tile-ico">

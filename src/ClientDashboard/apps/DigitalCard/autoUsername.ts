@@ -1,4 +1,4 @@
-import { businessCardAPI, BusinessCardError, type BusinessCard, type CardPlan, type BusinessCardInput } from "../../../services/businessCardAPI";
+import { businessCardAPI, BusinessCardError, hasSession, type BusinessCard, type CardPlan, type BusinessCardInput } from "../../../services/businessCardAPI";
 import { USERNAME_MAX, suggestUsername } from "./username";
 
 /**
@@ -18,19 +18,37 @@ function candidates(card: Pick<BusinessCardInput, "full_name" | "company_name">,
   return [...new Set([...(suffixOnly ? [] : [name, withCompany]), ...suffixed])].filter(Boolean);
 }
 
+/**
+ * Is this link free? Signed in: the availability endpoint. Signed out (it needs a token): a public
+ * card already at that link means taken, "not found" means free. null = couldn't tell.
+ */
+async function isFree(username: string): Promise<boolean | null> {
+  if (hasSession()) {
+    try {
+      return (await businessCardAPI.usernameAvailability(username)).available;
+    } catch {
+      return null;
+    }
+  }
+  try {
+    await businessCardAPI.getPublic(username);
+    return false;
+  } catch (e) {
+    return (e as BusinessCardError)?.status === 404 ? true : null;
+  }
+}
+
 /** A free username for this card, made from its name. */
 export async function pickUsername(card: Pick<BusinessCardInput, "full_name" | "company_name">, suffixOnly = false): Promise<string> {
   const list = candidates(card, suffixOnly);
   for (const u of list) {
-    try {
-      const r = await businessCardAPI.usernameAvailability(u);
-      if (r.available !== false) return u; // free, or can't tell (the server checks on save)
-    } catch {
-      return u;
-    }
+    if ((await isFree(u)) !== false) return u; // free, or can't tell (the server checks on save)
   }
   return list[list.length - 1];
 }
+
+/** The first candidate, i.e. the link people hope for (shown when it turns out to be taken). */
+export const preferredUsername = (card: Pick<BusinessCardInput, "full_name" | "company_name">) => candidates(card, false)[0] ?? "";
 
 const usernameTaken = (e: unknown) => {
   const be = e as BusinessCardError;
@@ -39,12 +57,14 @@ const usernameTaken = (e: unknown) => {
 
 /**
  * Creates a card. `chooseUsername` = the owner picked their own link (Prestige); otherwise one is
- * made from the name, and if the server says it was just taken, a fresh one is tried once.
+ * made from the name (the form shows it live and passes it in `card.username`), and if the server
+ * says it was just taken, a fresh one is tried once.
  */
 export async function createWithUsername(card: BusinessCardInput, chooseUsername: boolean, opts: { plan?: CardPlan } = {}): Promise<BusinessCard> {
   if (chooseUsername) return businessCardAPI.create(card, opts);
   try {
-    return await businessCardAPI.create({ ...card, username: await pickUsername(card) }, opts);
+    // The link the form already showed (checked live while typing), else pick one now.
+    return await businessCardAPI.create({ ...card, username: card.username || (await pickUsername(card)) }, opts);
   } catch (e) {
     if (!usernameTaken(e)) throw e;
     return businessCardAPI.create({ ...card, username: await pickUsername(card, true) }, opts);

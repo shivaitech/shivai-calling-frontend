@@ -5,6 +5,7 @@ import Logo from "../../resources/images/ShivaiLogo.svg";
 import bar from "../../resources/images/appMenu.svg";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
+import { scrollToSection } from "../../utils/scrollToSection";
 
 interface NavbarProps {
   setAuthMode?: (mode: "signin" | "signup") => void;
@@ -140,9 +141,8 @@ const Navbar: React.FC<NavbarProps> = ({
     }, 150);
 
     if (pageLinks) {
-      // Plain in-page anchors: the target's scroll-margin keeps it clear of this fixed bar.
-      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      document.getElementById(sectionId)?.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
+      // In-page anchors: the target's scroll-margin keeps it clear of this fixed bar.
+      scrollToSection(sectionId);
     } else {
       smoothScrollToSection(sectionId);
     }

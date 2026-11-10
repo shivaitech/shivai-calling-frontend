@@ -4,6 +4,7 @@ import {
   Check,
   ChevronDown,
   Globe,
+  Info,
   Layers,
   LucideIcon,
   Mail,
@@ -20,7 +21,7 @@ import {
   X,
 } from "lucide-react";
 import type { ImageKind } from "./photo";
-import { CardData, EMAIL_LABELS, MAX_ADDITIONAL_EMAILS, MAX_ADDITIONAL_PHONES, PHONE_LABELS, SUGGESTED_TAGLINE } from "./types";
+import { CardData, EMAIL_LABELS, MAX_ADDITIONAL_EMAILS, MAX_ADDITIONAL_PHONES, PHONE_LABELS } from "./types";
 import type { CardEmail, CardHighlight, CardPhone, EmailLabel, PhoneLabel } from "../../../services/businessCardAPI";
 import CountryCodeSelect from "./CountryCodeSelect";
 import SocialLinksEditor from "./SocialLinksEditor";
@@ -30,7 +31,9 @@ import { CARD_EXTRAS } from "./features";
 import { visiblePayMethods } from "./payMe";
 import WhatsAppIcon from "./WhatsAppIcon";
 import UsernameField from "./UsernameField";
-import { suggestUsername } from "./username";
+import AutoLinkNote from "./AutoLinkNote";
+import TaglineIdeas from "./TaglineIdeas";
+import { TAGLINE_MAX } from "./taglineTemplates";
 import { editImage, type EditImageOptions } from "./ImageEditor";
 
 // The card shows the photo in a 4:5 portrait frame with rounded corners.
@@ -48,16 +51,15 @@ const LOGO_EDIT: EditImageOptions = {
 
 /** Accent colours offered as swatches; any other colour comes from the "+" picker. */
 const ACCENTS = ["#161616", "#1f4f9b", "#2a8c7b", "#7c4bab", "#b4702e"];
-const TAGLINE_MAX = 300;
 
 const WaIcon = ({ size = 16 }: { size?: number }) => <WhatsAppIcon mono size={size} />;
-/** Actions that can be the card’s big featured button, and what each one needs. */
-const HIGHLIGHTS: { id: CardHighlight; label: string; Icon: LucideIcon | typeof WaIcon; needs: string }[] = [
-  { id: "ai", label: "Ask My AI", Icon: Sparkles, needs: "Pick an AI agent below first" },
-  { id: "whatsapp", label: "WhatsApp", Icon: WaIcon, needs: "Add a phone number that’s on WhatsApp first" },
-  { id: "email", label: "Email", Icon: Mail, needs: "Add your email first" },
-  { id: "pay", label: "Pay Me", Icon: Wallet, needs: "Add a Pay Me method first" },
-  { id: "save", label: "Save Contact", Icon: UserPlus, needs: "" },
+/** Actions that can be the card’s big featured button (what each needs is in setupNote below). */
+const HIGHLIGHTS: { id: CardHighlight; label: string; Icon: LucideIcon | typeof WaIcon }[] = [
+  { id: "ai", label: "Ask My AI", Icon: Sparkles },
+  { id: "whatsapp", label: "WhatsApp", Icon: WaIcon },
+  { id: "email", label: "Email", Icon: Mail },
+  { id: "pay", label: "Pay Me", Icon: Wallet },
+  { id: "save", label: "Save Contact", Icon: UserPlus },
 ];
 
 export function Field({ label, error, required, children }: { label: string; error?: string; required?: boolean; children: ReactNode }) {
@@ -151,6 +153,12 @@ interface CardFormProps {
   cardName?: boolean;
   /** Uploads a PDF for a document/catalog entry. Leave out before the visitor has an account (links only). */
   onDocumentFile?: (file: File) => Promise<{ url: string; file_name: string }>;
+  /** Video is a Signature / Prestige feature: on other plans the Video tile is shown locked. */
+  videoLocked?: boolean;
+  /** Where "See plans" goes from the locked Video tile (left out = no button). */
+  onUpgrade?: () => void;
+  /** Uploads the card's video. Leave out before the visitor has an account (links only). */
+  onVideoFile?: (file: File, onProgress: (percent: number) => void) => Promise<{ url: string; file_name: string }>;
   onDocumentError?: (message: string) => void;
 }
 
@@ -167,6 +175,9 @@ export default function CardForm({
   chooseUsername = true,
   cardName = false,
   onDocumentFile,
+  onVideoFile,
+  videoLocked = false,
+  onUpgrade,
   onDocumentError = () => {},
 }: CardFormProps) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -203,8 +214,30 @@ export default function CardForm({
     pay: visiblePayMethods(form.payment_methods).length > 0,
     save: true,
   };
-  const currentHighlight: CardHighlight | null =
+  // Featured button: any option can be chosen. One that isn't set up yet gets the steps to finish
+  // it; until then the card falls back the way CardView does (Ask My AI if set, else none).
+  const chosenHighlight: CardHighlight | null = form.highlight ?? (highlightAvailable.ai ? "ai" : null);
+  const featuredOnCard: CardHighlight | null =
     form.highlight && highlightAvailable[form.highlight] ? form.highlight : highlightAvailable.ai ? "ai" : null;
+  const setupNote: { text: string; action?: { label: string; section?: string; href?: string } } | null = (() => {
+    if (!chosenHighlight || highlightAvailable[chosenHighlight]) return null;
+    switch (chosenHighlight) {
+      case "ai":
+        if (agents === null) return { text: "Ask My AI needs an AI agent. Create your card first, then create an AI agent and pick it in your card editor." };
+        if (agents.length === 0 && !agentsLoading)
+          return { text: "You don’t have an AI agent yet. Create and publish one, then pick it in Ask My AI.", action: { label: "Create an AI agent", href: "/agents" } };
+        return { text: "Pick your AI agent in Ask My AI to show this button.", action: { label: "Go to Ask My AI", section: "card-ai" } };
+      case "pay":
+        return { text: "Add a payment method in Pay Me to show this button.", action: { label: "Set up Pay Me", section: "card-payme" } };
+      case "whatsapp":
+        return { text: "Turn on WhatsApp for your phone number in Contact to show this button.", action: { label: "Go to Contact", section: "card-contact" } };
+      case "email":
+        return { text: "Add your email in Contact to show this button.", action: { label: "Go to Contact", section: "card-contact" } };
+      default:
+        return null;
+    }
+  })();
+  const goToSection = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
   // Pay Me errors (ours or the API's "payment_methods.<i>.<field>"), first one wins.
   const payError = Object.entries(errors).find(([k]) => k.startsWith("payment_methods"))?.[1];
   const setPhone = (i: number, patch: Partial<CardPhone>) =>
@@ -298,15 +331,13 @@ export default function CardForm({
             error={err("username")}
           />
         ) : (
-          // Choosing the link is a Prestige option; other plans get one made from the name on save.
-          <div className="field">
-            <span>Your card’s link</span>
-            <small className="field-help">
-              Your link is created from your name when you save, like <strong>{suggestUsername(form.full_name) || "your-name"}.callshivai.com</strong>. Choose your
-              own link with Prestige.
-            </small>
-            {err("username") && <small className="err">{err("username")}</small>}
-          </div>
+          // Choosing the link is a Prestige option; other plans get one made from the name, checked live.
+          <AutoLinkNote
+            fullName={form.full_name}
+            companyName={form.company_name}
+            onUsername={(username) => set({ username })}
+            error={err("username")}
+          />
         )}
         <div className="row two">
           <Field label="Job title" required error={err("job_title")}>
@@ -325,24 +356,17 @@ export default function CardForm({
               placeholder="A short line about what you do (optional)"
               onChange={(e) => set({ tagline: e.target.value })}
             />
-            <span className="textarea-count" aria-hidden="true">
+            <span className={`textarea-count${form.tagline.length > TAGLINE_MAX ? " is-over" : ""}`} aria-hidden="true">
               {form.tagline.length} / {TAGLINE_MAX}
             </span>
           </span>
-          <small className="field-help">A short line about you. It appears on your card below your name and title.</small>
+          <small className="field-help">One short line about you, shown under your name and title.</small>
         </Field>
-        {!form.tagline.trim() && (
-          <button type="button" className="text-btn" style={{ alignSelf: "flex-start" }} onClick={() => set({ tagline: SUGGESTED_TAGLINE })}>
-            ✦ Use suggested text
-          </button>
-        )}
+        <TaglineIdeas title={form.job_title} company={form.company_name} current={form.tagline} onPick={(tagline) => set({ tagline })} />
 
         <div className="field">
           <span>Accent colour</span>
-          <small className="field-help">
-            Your card’s highlight colour. It is used for the featured button (such as Talk to My AI Manager) and the short line under your title.
-            Signature and Prestige cards use their own silver and gold styling.
-          </small>
+          <small className="field-help">Colours your card’s main button and the line under your title.</small>
           <div className="swatches" role="radiogroup" aria-label="Accent colour">
             {ACCENTS.map((c) => (
               <button
@@ -373,6 +397,7 @@ export default function CardForm({
       </FormSection>
 
       <FormSection
+        id="card-contact"
         icon={Phone}
         title="Contact"
         subtitle="These details show as your primary contact on your card."
@@ -522,7 +547,7 @@ export default function CardForm({
       </FormSection>
 
       {CARD_EXTRAS && (
-        <FormSection icon={Wallet} title="Pay Me" subtitle="Let people pay you from your card" hasError={!!payError}>
+        <FormSection id="card-payme" icon={Wallet} title="Pay Me" subtitle="Let people pay you from your card" hasError={!!payError}>
           <PayMeEditor
             value={form.payment_methods ?? []}
             update={(fn) => set((f) => ({ payment_methods: fn(f.payment_methods ?? []) }))}
@@ -533,7 +558,7 @@ export default function CardForm({
       )}
 
       {agents !== null && (
-        <FormSection icon={Sparkles} title="Ask My AI" subtitle="Optional. You can add it later" hasError={errIn("agent_id")}>
+        <FormSection id="card-ai" icon={Sparkles} title="Ask My AI" subtitle="Optional. You can add it later" hasError={errIn("agent_id")}>
           <Field label="AI agent" error={err("agent_id")}>
             <select value={form.agent_id} onChange={(e) => set({ agent_id: e.target.value })}>
               <option value="">{agentsLoading && agents.length === 0 ? "Loading agents…" : "No agent, add later"}</option>
@@ -556,20 +581,19 @@ export default function CardForm({
           <div className="hl-grid" role="radiogroup" aria-label="Featured button">
             {HIGHLIGHTS.map((h) => {
               const ok = highlightAvailable[h.id];
-              const on = currentHighlight === h.id;
+              const on = chosenHighlight === h.id;
               return (
                 <button
                   key={h.id}
                   type="button"
                   role="radio"
                   aria-checked={on}
-                  disabled={!ok}
-                  title={ok ? undefined : h.needs}
                   className={`hl-opt${on ? " is-on" : ""}`}
                   onClick={() => set({ highlight: h.id })}
                 >
                   <h.Icon size={17} aria-hidden="true" />
                   <span>{h.label}</span>
+                  {!ok && !on && <span className="hl-setup">Set up</span>}
                   {on && (
                     <span className="hl-check" aria-hidden="true">
                       <Check size={13} strokeWidth={3} />
@@ -579,18 +603,44 @@ export default function CardForm({
               );
             })}
           </div>
-          <small className="field-help">
-            {currentHighlight ? "Choose the main action you want visitors to see first. The others stay in the row of icons under it." : "Add an AI agent, WhatsApp number, email or Pay Me to feature one."}
-          </small>
+          {setupNote && (
+            <div className="hl-note" role="status">
+              <Info size={15} aria-hidden="true" />
+              <span>
+                <b>One more step.</b> {setupNote.text}{" "}
+                {featuredOnCard === "ai" ? "Until then, your card features Ask My AI." : "Until then, your card shows no featured button."}
+                {setupNote.action && (
+                  <span className="hl-note-action">
+                    {setupNote.action.href ? (
+                      <a className="btn small" href={setupNote.action.href} target="_blank" rel="noopener noreferrer">
+                        {setupNote.action.label}
+                      </a>
+                    ) : (
+                      <button type="button" className="btn small" onClick={() => goToSection(setupNote.action!.section!)}>
+                        {setupNote.action.label}
+                      </button>
+                    )}
+                  </span>
+                )}
+              </span>
+            </div>
+          )}
+          <small className="field-help">Pick the main action visitors see first. The others stay in the row of icons under it.</small>
         </FormSection>
       )}
 
-      <FormSection icon={Share2} title="Social links" subtitle="Add your social profiles" hasError={errIn("social_media")}>
+      <FormSection icon={Share2} title="Social links" subtitle={videoLocked ? "Add your social profiles" : "Add your social profiles and a video"} hasError={errIn("social_media", "video_url")}>
         <SocialLinksEditor
           value={form.social_media}
           onChange={(social_media) => set({ social_media })}
           errorFor={(i) => err(`social_media.${i}.url`) || err(`social_media.${i}.username`) || err(`social_media.${i}.type`)}
+          video={form.video_url}
+          onVideo={(video_url) => set({ video_url })}
+          onVideoFile={onVideoFile}
+          videoLocked={videoLocked}
+          onVideoUpgrade={onUpgrade}
         />
+        {err("video_url") && <small className="err">{err("video_url")}</small>}
       </FormSection>
 
       <FormSection

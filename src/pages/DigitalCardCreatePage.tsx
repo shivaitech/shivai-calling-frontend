@@ -281,6 +281,8 @@ export default function DigitalCardCreatePage() {
                   agents={isAuthenticated ? agents.map((a) => ({ id: a.id, name: a.name, status: a.status })) : null}
                   agentsLoading={agentsLoading}
                   onDocumentFile={hasSession ? (file) => businessCardAPI.uploadDocument(file) : undefined}
+                  onVideoFile={hasSession ? (file, onProgress) => businessCardAPI.uploadVideo(file, onProgress) : undefined}
+                  videoLocked={lookTier !== "signature" && lookTier !== "prestige"}
                   onDocumentError={(m) => toast.error(m)}
                 />
                 <div className="savebar">
