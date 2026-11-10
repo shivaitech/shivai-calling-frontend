@@ -1,4 +1,4 @@
-import { ReactNode, useRef, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import {
   Camera,
   Check,
@@ -153,6 +153,8 @@ interface CardFormProps {
   cardName?: boolean;
   /** Uploads a PDF for a document/catalog entry. Leave out before the visitor has an account (links only). */
   onDocumentFile?: (file: File) => Promise<{ url: string; file_name: string }>;
+  /** Reloads the owner's AI agents (after they create one in another tab). */
+  onRefreshAgents?: () => void;
   /** Video is a Signature / Prestige feature: on other plans the Video tile is shown locked. */
   videoLocked?: boolean;
   /** Where "See plans" goes from the locked Video tile (left out = no button). */
@@ -176,6 +178,7 @@ export default function CardForm({
   cardName = false,
   onDocumentFile,
   onVideoFile,
+  onRefreshAgents,
   videoLocked = false,
   onUpgrade,
   onDocumentError = () => {},
@@ -219,14 +222,16 @@ export default function CardForm({
   const chosenHighlight: CardHighlight | null = form.highlight ?? (highlightAvailable.ai ? "ai" : null);
   const featuredOnCard: CardHighlight | null =
     form.highlight && highlightAvailable[form.highlight] ? form.highlight : highlightAvailable.ai ? "ai" : null;
-  const setupNote: { text: string; action?: { label: string; section?: string; href?: string } } | null = (() => {
+  // "pickAgent": choose the agent right in the note; "createAgent": no agents yet, create one.
+  const setupNote: { text: string; action?: { label: string; section?: string; href?: string }; agent?: "pick" | "create" } | null = (() => {
     if (!chosenHighlight || highlightAvailable[chosenHighlight]) return null;
     switch (chosenHighlight) {
       case "ai":
         if (agents === null) return { text: "Ask My AI needs an AI agent. Create your card first, then create an AI agent and pick it in your card editor." };
-        if (agents.length === 0 && !agentsLoading)
-          return { text: "You don’t have an AI agent yet. Create and publish one, then pick it in Ask My AI.", action: { label: "Create an AI agent", href: "/agents" } };
-        return { text: "Pick your AI agent in Ask My AI to show this button.", action: { label: "Go to Ask My AI", section: "card-ai" } };
+        if (agents.length === 0 && agentsLoading) return { text: "Loading your AI agents…" };
+        if (agents.length === 0)
+          return { text: "You don’t have an AI agent yet. Create one (it opens in a new tab), then come back here and pick it.", agent: "create" };
+        return { text: "Choose the AI agent visitors will talk to.", agent: "pick" };
       case "pay":
         return { text: "Add a payment method in Pay Me to show this button.", action: { label: "Set up Pay Me", section: "card-payme" } };
       case "whatsapp":
@@ -237,6 +242,20 @@ export default function CardForm({
         return null;
     }
   })();
+  // Back from creating an agent in another tab: reload the list so it can be picked right here.
+  const waitingForAgent = setupNote?.agent === "create";
+  useEffect(() => {
+    if (!waitingForAgent || !onRefreshAgents) return;
+    const onBack = () => {
+      if (document.visibilityState === "visible") onRefreshAgents();
+    };
+    window.addEventListener("focus", onBack);
+    document.addEventListener("visibilitychange", onBack);
+    return () => {
+      window.removeEventListener("focus", onBack);
+      document.removeEventListener("visibilitychange", onBack);
+    };
+  }, [waitingForAgent, onRefreshAgents]);
   const goToSection = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
   // Pay Me errors (ours or the API's "payment_methods.<i>.<field>"), first one wins.
   const payError = Object.entries(errors).find(([k]) => k.startsWith("payment_methods"))?.[1];
@@ -608,7 +627,32 @@ export default function CardForm({
               <Info size={15} aria-hidden="true" />
               <span>
                 <b>One more step.</b> {setupNote.text}{" "}
-                {featuredOnCard === "ai" ? "Until then, your card features Ask My AI." : "Until then, your card shows no featured button."}
+                {!setupNote.agent && (featuredOnCard === "ai" ? "Until then, your card features Ask My AI." : "Until then, your card shows no featured button.")}
+                {setupNote.agent === "pick" && agents && (
+                  <span className="hl-note-action">
+                    <select className="hl-agent" aria-label="AI agent" value={form.agent_id} onChange={(e) => set({ agent_id: e.target.value })}>
+                      <option value="">Select an AI agent</option>
+                      {agents.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.name}
+                          {a.status && a.status !== "Published" ? " (not published)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </span>
+                )}
+                {setupNote.agent === "create" && (
+                  <span className="hl-note-action">
+                    <a className="btn small" href="/agents" target="_blank" rel="noopener noreferrer">
+                      Create an AI agent
+                    </a>
+                    {onRefreshAgents && (
+                      <button type="button" className="text-btn" onClick={onRefreshAgents}>
+                        I’ve created one
+                      </button>
+                    )}
+                  </span>
+                )}
                 {setupNote.action && (
                   <span className="hl-note-action">
                     {setupNote.action.href ? (

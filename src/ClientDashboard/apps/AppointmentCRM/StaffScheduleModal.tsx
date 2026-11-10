@@ -5,6 +5,7 @@ import appToast from "../../../components/AppToast";
 import StaffAvailabilityPanel from "./StaffAvailabilityPanel";
 import StaffOfflineBookingPanel from "./StaffOfflineBookingPanel";
 import { removeAvailabilityForStaff } from "./availabilityStore";
+import { useAppointmentIndustry } from "./industryConfig";
 
 interface Props {
   open: boolean;
@@ -19,6 +20,7 @@ interface Props {
 }
 
 const StaffScheduleModal = ({ open, staffId, staffName, onClose, onRemoved }: Props) => {
+  const { terms } = useAppointmentIndustry();
   const [confirmingRemove, setConfirmingRemove] = useState(false);
   const [removing, setRemoving] = useState(false);
 
@@ -36,7 +38,7 @@ const StaffScheduleModal = ({ open, staffId, staffName, onClose, onRemoved }: Pr
       onRemoved?.();
     } catch {
       appToast.dismiss(toastId);
-      appToast.error("Could not remove this staff member. Please try again.");
+      appToast.error("Could not remove them from the calendar. Please try again.");
     } finally {
       setRemoving(false);
     }
@@ -53,7 +55,7 @@ const StaffScheduleModal = ({ open, staffId, staffName, onClose, onRemoved }: Pr
             </div>
             <div className="min-w-0">
               <h2 className="text-base font-semibold text-slate-900 dark:text-white truncate">{staffName}</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Hours, manual bookings & leave</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Hours, manual {terms.appointments.toLowerCase()} & leave</p>
             </div>
           </div>
           <button

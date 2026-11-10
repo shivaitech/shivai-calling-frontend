@@ -2,7 +2,18 @@ import { useEffect, useState } from "react";
 import type { Booking } from "./mockData";
 import { toIsoDate } from "./availabilityStore";
 import { mapBooking, bookingToApiBody } from "./api/mappers";
+import type { ApiBooking } from "./api/types";
 import appointmentCrmAPI from "./api/index";
+
+/** The booking's real ISO date — undoes the "Today"/"Tomorrow"/"Yesterday"
+ * display labels mapBooking applies. */
+export function bookingIsoDate(booking: Booking): string {
+  const offset = { Today: 0, Tomorrow: 1, Yesterday: -1 }[booking.date as "Today" | "Tomorrow" | "Yesterday"];
+  if (offset === undefined) return booking.date;
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  return toIsoDate(d);
+}
 
 export function bookingMatchesViewDate(booking: Booking, viewDate: Date): boolean {
   const iso = toIsoDate(viewDate);
@@ -54,6 +65,10 @@ export interface ManualBookingInput {
   time: string;
   endTime: string;
   notes?: string;
+  customFields?: Record<string, string>;
+  branchId?: string;
+  service?: string;
+  appointmentType?: string;
 }
 
 /** Creates a manual (staff-side) booking — same record shape and list the
@@ -62,6 +77,9 @@ export async function addBooking(input: ManualBookingInput): Promise<Booking> {
   const created = await appointmentCrmAPI.createBooking(
     bookingToApiBody({
       staffId: input.staffId,
+      branchId: input.branchId,
+      service: input.service,
+      appointmentType: input.appointmentType,
       customer: input.customer,
       phone: input.phone,
       department: input.department,
@@ -70,6 +88,7 @@ export async function addBooking(input: ManualBookingInput): Promise<Booking> {
       time: input.time,
       endTime: input.endTime,
       notes: input.notes,
+      customFields: input.customFields,
     }),
   );
   const booking = mapBooking(created, {
@@ -81,19 +100,43 @@ export async function addBooking(input: ManualBookingInput): Promise<Booking> {
   return booking;
 }
 
-/** Cancels a booked appointment via PUT /appointments/:id/cancel — the only
- * status transition this API supports — and syncs the local cache from the
- * response. */
-export async function cancelBookingRecord(id: string): Promise<Booking> {
+/** Replaces one cached booking with the server's updated copy, carrying over
+ * the display-only context the API doesn't return. */
+function syncUpdatedBooking(id: string, updated: ApiBooking, provider?: string): Booking {
   const existing = readBookings().find((b) => b.id === id);
-  const updated = await appointmentCrmAPI.cancelBooking(id);
   const booking = mapBooking(updated, {
     branchName: existing?.branchName,
     departmentName: existing?.departmentName,
-    provider: existing?.provider,
+    provider: provider ?? existing?.provider,
   });
   writeBookings([...readBookings().filter((b) => b.id !== id), booking], { merge: true });
   return booking;
+}
+
+/** Cancels a booked appointment via PUT /appointments/:id/cancel. */
+export async function cancelBookingRecord(id: string): Promise<Booking> {
+  return syncUpdatedBooking(id, await appointmentCrmAPI.cancelBooking(id));
+}
+
+/** Moves a booking to a new slot (optionally another provider) via
+ * PUT /appointments/:id/reschedule. */
+export async function rescheduleBookingRecord(
+  id: string,
+  next: { dateIso: string; time: string; endTime: string; staffId?: string; provider?: string },
+): Promise<Booking> {
+  const updated = await appointmentCrmAPI.rescheduleBooking(id, {
+    date: next.dateIso,
+    time: next.time,
+    end_time: next.endTime,
+    staff: next.staffId,
+  });
+  return syncUpdatedBooking(id, updated, next.provider);
+}
+
+/** Records what happened — attended or didn't show — via
+ * PUT /appointments/:id/status. */
+export async function setBookingOutcomeRecord(id: string, status: "completed" | "no_show"): Promise<Booking> {
+  return syncUpdatedBooking(id, await appointmentCrmAPI.setBookingOutcome(id, status));
 }
 
 /** Fetches bookings for exactly the staff shown on the Calendar, scoped to

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { industrySelectionPayload, type CustomPresetInput } from "./industryConfig";
 
 export type BranchMode = "single" | "multi";
 
@@ -48,6 +49,7 @@ export function isSetupComplete(): boolean {
 export async function completeSetup(params: {
   companyName: string;
   industryId: string;
+  customPreset?: CustomPresetInput | null;
   branchMode: BranchMode;
   timezone?: string;
   branches?: { name: string; address?: string; phone?: string; isPrimary?: boolean }[];
@@ -56,6 +58,7 @@ export async function completeSetup(params: {
   const { templateIdFromIndustry } = await import("./api/mappers");
   const { hydrateFromBootstrap } = await import("./api/hydrate");
   await appointmentCrmAPI.completeSetup({
+    ...industrySelectionPayload(params.industryId, params.customPreset),
     templateId: templateIdFromIndustry(params.industryId),
     companyName: params.companyName,
     timezone: params.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,

@@ -24,6 +24,7 @@ import type {
 } from "./types";
 import { toIsoDate } from "../availabilityStore";
 import { parseTimeToMinutes } from "../calendarUtils";
+import { APPOINTMENT_INDUSTRY_PRESETS } from "../industryConfig";
 
 const HUES = [220, 280, 160, 40, 310, 180, 100, 250];
 const DAY_INDEX_TO_WEEKDAY: Weekday[] = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
@@ -42,10 +43,17 @@ export function apiId(value?: { id?: string; _id?: string } | string): string {
   return String(value?.id ?? value?._id ?? "");
 }
 
-export function industryIdFromTemplate(templateId?: ApiTemplateId): string {
+/** Prefer the business type saved with the setup; fall back to the (much
+ * coarser) template only for tenants set up before industryId was stored.
+ * A "generic" template must stay generic — mapping it to "clinic" is what
+ * made schools, law firms, etc. read "Patients" after a reload. */
+export function industryIdFromTemplate(templateId?: ApiTemplateId, savedIndustryId?: string): string {
+  if (savedIndustryId && APPOINTMENT_INDUSTRY_PRESETS.some((p) => p.id === savedIndustryId)) {
+    return savedIndustryId;
+  }
   if (templateId === "template_retail") return "salon";
   if (templateId === "template_healthcare") return "clinic";
-  return "clinic";
+  return "generic";
 }
 
 export function templateIdFromIndustry(industryId: string): ApiTemplateId {
@@ -186,8 +194,8 @@ export function mapBooking(
     id,
     customer: b.name,
     phone: b.phone ?? "",
-    service: b.designation ?? "General",
-    appointmentType: b.designation ?? "Consultation",
+    service: b.service ?? "",
+    appointmentType: b.appointment_type ?? "",
     provider: ctx?.provider ?? "Unassigned",
     branchId: b.branchId ?? "",
     branchName: ctx?.branchName ?? "",
@@ -199,6 +207,7 @@ export function mapBooking(
     durationMin,
     status: b.status,
     notes: b.note,
+    customFields: b.custom_fields,
   };
 }
 
@@ -224,10 +233,14 @@ export function bookingToApiBody(
     department: b.department,
     designation: b.designation,
     staff: b.staffId,
+    branchId: b.branchId || undefined,
+    service: b.service || undefined,
+    appointment_type: b.appointmentType || undefined,
     date,
     time,
     end_time: b.endTime,
     note: b.notes,
+    custom_fields: b.customFields && Object.keys(b.customFields).length ? b.customFields : undefined,
   };
 }
 
@@ -310,7 +323,7 @@ export function mapSetupFromBootstrap(bootstrap: ApiBootstrap): AppointmentSetup
   return {
     setupComplete: Boolean(bootstrap.setup.setupComplete),
     companyName: bootstrap.setup.companyName ?? "",
-    industryId: industryIdFromTemplate(templateId),
+    industryId: industryIdFromTemplate(templateId, bootstrap.setup.industryId),
     branchMode: bootstrap.setup.branchMode ?? "single",
     timezone: bootstrap.setup.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
     completedAt: bootstrap.setup.completedAt,

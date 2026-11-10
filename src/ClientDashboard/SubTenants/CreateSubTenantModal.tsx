@@ -10,6 +10,7 @@ import { getCitiesForCountry } from '../../services/locationCitiesAPI';
 import { defaultCountries } from '../../types/country';
 import { usePasswordValidation } from '../../hooks/useAuthValidation';
 import { AUTH_MESSAGES } from '../../constants/validation';
+import { industryLabelOptions } from '../../constants/agentIndustries';
 
 const COUNTRY_OPTIONS = defaultCountries
   .map((c) => ({ value: c.name, label: `${c.flag} ${c.name}` }))
@@ -25,18 +26,8 @@ const NAME_MAX_LEN = 80;
 const NOTES_MAX_LEN = 300;
 const PASSWORD_MIN_LEN = 8;
 
-const INDUSTRY_OPTIONS = [
-  'Healthcare',
-  'Real Estate',
-  'Legal Services',
-  'Automotive Services',
-  'Retail / E-commerce',
-  'Hospitality',
-  'Education',
-  'Finance & Insurance',
-  'Home Services',
-  'Other',
-].map((v) => ({ value: v, label: v }));
+// Same industries as AI agents (constants/agentIndustries.ts), stored by label.
+const INDUSTRY_OPTIONS = industryLabelOptions();
 
 const FieldLabel = ({ icon: Icon, children }: { icon: React.ElementType; children: React.ReactNode }) => (
   <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">

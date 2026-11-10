@@ -502,7 +502,7 @@ export default function CardBilling({
                     Business cards: <strong className="font-semibold text-slate-700 dark:text-slate-200">{usageText(planLimits.data.resources?.business_cards)}</strong>
                   </span>
                   <span>
-                    AI agents: <strong className="font-semibold text-slate-700 dark:text-slate-200">{usageText(planLimits.data.resources?.ai_agents)}</strong>
+                    Cards with AI: <strong className="font-semibold text-slate-700 dark:text-slate-200">{usageText(planLimits.data.resources?.ai_agents)}</strong>
                   </span>
                 </>
               )}

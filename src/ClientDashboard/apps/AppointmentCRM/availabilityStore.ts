@@ -3,6 +3,7 @@ import { getOfflineBlockAtMinute, removeOfflineBlocksForStaff, setOfflineBlocksQ
 import scheduleAPI from "./api/scheduleAPI";
 import { ScheduleApiError } from "./api/scheduleClient";
 import type { ApiSchedule } from "./api/scheduleTypes";
+import { readAccountOwner } from "./accountOwner";
 import {
   leaveToApiBody,
   mapScheduleLeave,
@@ -283,7 +284,16 @@ export async function fetchIntegratedSchedules(): Promise<ApiSchedule[]> {
     if (schedules.length < limit) break;
     page += 1;
   }
-  return all;
+  // The owner's schedule is keyed on their own user id, not a staff record —
+  // if the backend can't attach a staff summary for it, fill one in so they
+  // don't silently drop off every `.filter((s) => s.staff)` consumer.
+  const owner = readAccountOwner();
+  if (!owner) return all;
+  return all.map((s) =>
+    s.staff || s.staff_id !== owner.id
+      ? s
+      : { ...s, staff: { id: owner.id, fullName: owner.name, email: owner.email ?? "", profilePicture: null } },
+  );
 }
 
 /** Every staff id that has a real, live schedule — a thin projection of

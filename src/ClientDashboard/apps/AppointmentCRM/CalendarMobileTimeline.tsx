@@ -1,4 +1,5 @@
 import { Ban, Clock, Eye, Pencil, Plus } from "lucide-react";
+import { useAppointmentIndustry } from "./industryConfig";
 import type { StaffMember } from "./staffStore";
 import type { Booking } from "./mockData";
 import { bookingStatusMeta } from "./mockData";
@@ -172,6 +173,7 @@ const StaffColumn = ({
   onBookingClick: (booking: Booking) => void;
   onBlockClick: (block: StaffOfflineBlock) => void;
 }) => {
+  const { terms } = useAppointmentIndustry();
   const items: TimelineItem[] = [
     ...bookings.map((booking): TimelineItem => ({
       kind: "booking",
@@ -261,7 +263,7 @@ const StaffColumn = ({
                 </button>
               ) : (
                 <div className="h-5 flex items-center">
-                  <span className="text-[11px] text-slate-300 dark:text-slate-600">No bookings</span>
+                  <span className="text-[11px] text-slate-300 dark:text-slate-600">No {terms.appointments.toLowerCase()}</span>
                 </div>
               )
             )}
@@ -345,6 +347,7 @@ const MobileBlockCard = ({ block, onClick }: { block: StaffOfflineBlock; onClick
   const timeLabel = formatTimeRangeCompact(startMin, duration);
   const label = blockTypeLabel(block);
   const isManual = block.type === "manual_booking";
+  const { terms } = useAppointmentIndustry();
 
   return (
     <button
@@ -360,7 +363,7 @@ const MobileBlockCard = ({ block, onClick }: { block: StaffOfflineBlock; onClick
       <div className="px-3 py-2.5">
         <div className="flex items-center justify-between gap-2">
           <p className="text-[12px] font-semibold text-slate-700 dark:text-slate-200 leading-tight truncate">
-            {isManual ? block.patientName || "Manual booking" : label}
+            {isManual ? block.patientName || `Manual ${terms.appointment.toLowerCase()}` : label}
           </p>
           <Ban className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
         </div>

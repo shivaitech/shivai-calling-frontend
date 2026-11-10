@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { CalendarPlus, Loader2 } from "lucide-react";
 import ModalOverlay from "../../../components/ModalOverlay";
 import appToast from "../../../components/AppToast";
-import { useAppointmentIndustry } from "./industryConfig";
+import { useAppointmentIndustry, withArticle } from "./industryConfig";
 import { Branch } from "./branchesStore";
 import { addBooking } from "./bookingsStore";
 import { toIsoDate, useIntegratedSchedules } from "./availabilityStore";
@@ -46,6 +46,9 @@ function createEmptyForm(prefill?: Prefill) {
     fromTime,
     toTime: defaultToTime(fromTime),
     notes: "",
+    customFields: {} as Record<string, string>,
+    service: "",
+    appointmentType: "",
   };
 }
 
@@ -109,7 +112,7 @@ const LABEL = "text-xs font-medium text-slate-600 dark:text-slate-400";
  * Creates a real Booking row, so it shows up in both the Bookings table and
  * the Calendar. */
 const AddBookingModal = ({ open, onClose, branches, defaultBranchId, prefill }: Props) => {
-  const { terms } = useAppointmentIndustry();
+  const { terms, fields, services, appointmentTypes } = useAppointmentIndustry();
   const { schedules, loading: staffLoading } = useIntegratedSchedules();
   const { rows: directoryRows } = useCombinedStaffDirectory();
   const [form, setForm] = useState(() => createEmptyForm(prefill));
@@ -180,6 +183,7 @@ const AddBookingModal = ({ open, onClose, branches, defaultBranchId, prefill }: 
     Boolean(form.date) &&
     Boolean(form.fromTime) &&
     Boolean(form.toTime) &&
+    fields.every((f) => !f.required || form.customFields[f.key]?.trim()) &&
     !timeError;
 
   const handleClose = () => {
@@ -189,22 +193,25 @@ const AddBookingModal = ({ open, onClose, branches, defaultBranchId, prefill }: 
 
   const handleSubmit = async () => {
     if (!canSubmit || saving || !selected?.staff) {
-      if (!selected) setError(`Select a ${terms.staff.toLowerCase()} member`);
+      if (!selected) setError(`Select ${withArticle(terms.provider.toLowerCase())}`);
       return;
     }
     if (!primaryBranch) {
-      setError(`Set up a ${terms.branch.toLowerCase()} before adding bookings.`);
+      setError(`Set up ${withArticle(terms.branch.toLowerCase())} before adding ${terms.appointments.toLowerCase()}.`);
       return;
     }
 
     setError(null);
     setSaving(true);
-    const toastId = appToast.loading("Adding booking…");
+    const toastId = appToast.loading(`Adding ${terms.appointment.toLowerCase()}…`);
     try {
       await addBooking({
         customer: form.customer.trim(),
         phone: form.phone.trim() || undefined,
         branchName: primaryBranch.name,
+        branchId: primaryBranch.id,
+        service: form.service || undefined,
+        appointmentType: form.appointmentType || undefined,
         department: selectedDirectoryRow?.departmentName,
         designation: selectedDirectoryRow?.designation,
         staffId: selected.staff_id,
@@ -213,13 +220,18 @@ const AddBookingModal = ({ open, onClose, branches, defaultBranchId, prefill }: 
         time: form.fromTime,
         endTime: form.toTime,
         notes: form.notes.trim() || undefined,
+        customFields: Object.fromEntries(
+          Object.entries(form.customFields)
+            .map(([k, v]) => [k, v.trim()] as const)
+            .filter(([, v]) => v),
+        ),
       });
       appToast.dismiss(toastId);
-      appToast.success(`Booking added for ${form.customer.trim()}`);
+      appToast.success(`${terms.appointment} added for ${form.customer.trim()}`);
       onClose();
     } catch {
       appToast.dismiss(toastId);
-      appToast.error("Could not add booking. Please try again.");
+      appToast.error(`Could not add this ${terms.appointment.toLowerCase()}. Please try again.`);
     } finally {
       setSaving(false);
     }
@@ -233,11 +245,11 @@ const AddBookingModal = ({ open, onClose, branches, defaultBranchId, prefill }: 
             <CalendarPlus className="w-5 h-5 text-violet-600 dark:text-violet-400" />
           </div>
           <div className="min-w-0">
-            <h2 className="text-base font-semibold text-slate-900 dark:text-white">Add booking</h2>
+            <h2 className="text-base font-semibold text-slate-900 dark:text-white">Add {terms.appointment.toLowerCase()}</h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               {prefill
-                ? `Booking ${selected?.staff?.fullName ?? "this slot"} at ${form.fromTime} on ${form.date}`
-                : `Book any ${terms.staff.toLowerCase()} member manually`}
+                ? `With ${selected?.staff?.fullName ?? "this slot"} at ${form.fromTime} on ${form.date}`
+                : `Book any ${terms.provider.toLowerCase()} on the calendar`}
             </p>
           </div>
         </div>
@@ -266,7 +278,7 @@ const AddBookingModal = ({ open, onClose, branches, defaultBranchId, prefill }: 
           </div>
 
           <div>
-            <label className={LABEL}>{terms.staff} <span className="text-red-500">*</span></label>
+            <label className={LABEL}>{terms.provider} <span className="text-red-500">*</span></label>
             {prefill ? (
               <div className={`${INPUT} bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300 cursor-not-allowed`}>
                 {selected?.staff?.fullName ?? "…"}
@@ -282,8 +294,8 @@ const AddBookingModal = ({ open, onClose, branches, defaultBranchId, prefill }: 
                   {staffLoading
                     ? "Loading…"
                     : staffOptions.length === 0
-                      ? `No ${terms.staffPlural.toLowerCase()} on the calendar yet`
-                      : `Select ${terms.staff.toLowerCase()}…`}
+                      ? `No ${terms.providers.toLowerCase()} on the calendar yet`
+                      : `Select ${withArticle(terms.provider.toLowerCase())}…`}
                 </option>
                 {staffOptions.map((s) => (
                   <option key={s.staff_id} value={s.staff_id}>{s.staff!.fullName}</option>
@@ -338,6 +350,68 @@ const AddBookingModal = ({ open, onClose, branches, defaultBranchId, prefill }: 
           {pastError && <p className="text-[11px] text-red-600 dark:text-red-400">{pastError}</p>}
           {timeError && <p className="text-[11px] text-red-600 dark:text-red-400">{timeError}</p>}
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className={LABEL}>Service</label>
+              <select
+                value={form.service}
+                onChange={(e) => setForm((f) => ({ ...f, service: e.target.value }))}
+                className={INPUT}
+              >
+                <option value="">Optional</option>
+                {services.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={LABEL}>{terms.appointment} type</label>
+              <select
+                value={form.appointmentType}
+                onChange={(e) => setForm((f) => ({ ...f, appointmentType: e.target.value }))}
+                className={INPUT}
+              >
+                <option value="">Optional</option>
+                {appointmentTypes.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {fields.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {fields.map((field) => {
+                const value = form.customFields[field.key] ?? "";
+                const setValue = (next: string) =>
+                  setForm((f) => ({ ...f, customFields: { ...f.customFields, [field.key]: next } }));
+                return (
+                  <div key={field.key}>
+                    <label className={LABEL}>
+                      {field.label} {field.required && <span className="text-red-500">*</span>}
+                    </label>
+                    {field.type === "select" ? (
+                      <select value={value} onChange={(e) => setValue(e.target.value)} className={INPUT}>
+                        <option value="">Select…</option>
+                        {(field.options ?? []).map((o) => (
+                          <option key={o} value={o}>{o}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type={field.type === "phone" ? "tel" : field.type}
+                        value={value}
+                        onChange={(e) => setValue(e.target.value)}
+                        placeholder={field.required ? "" : "Optional"}
+                        className={INPUT}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           <div>
             <label className={LABEL}>Notes</label>
             <input
@@ -367,7 +441,7 @@ const AddBookingModal = ({ open, onClose, branches, defaultBranchId, prefill }: 
             className="flex-1 py-2.5 rounded-xl text-sm font-medium common-button-bg disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarPlus className="w-4 h-4" />}
-            {saving ? "Adding…" : "Add booking"}
+            {saving ? "Adding…" : `Add ${terms.appointment.toLowerCase()}`}
           </button>
         </div>
       </div>

@@ -138,7 +138,7 @@ export function readCustomSpecializations(): string[] {
     const raw = localStorage.getItem(CUSTOM_SPECIALIZATIONS_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.filter((s): s is string => typeof s === "string" && s.trim()) : [];
+    return Array.isArray(parsed) ? parsed.filter((s): s is string => typeof s === "string" && Boolean(s.trim())) : [];
   } catch {
     return [];
   }

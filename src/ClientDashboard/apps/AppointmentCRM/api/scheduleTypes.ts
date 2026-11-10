@@ -51,6 +51,8 @@ export interface ApiScheduleStaffSummary {
   fullName: string;
   email: string;
   profilePicture: string | null;
+  /** True when staff_id is the account owner's own user id (not a staff record). */
+  is_owner?: boolean;
 }
 
 export interface ApiSchedule {

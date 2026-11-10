@@ -11,6 +11,8 @@
 // others manage everything from the tenant-wide roster (a CEO/CTO with no
 // branch calendar). So the picker shows BOTH, clearly labeled, rather than
 // picking one.
+// On top of those, the account owner gets a row of their own (accountOwner.ts)
+// so they can put themselves on the calendar without a staff record.
 
 import { useEffect, useState } from "react";
 import { useAuth } from "../../../contexts/AuthContext";
@@ -20,6 +22,7 @@ import { departmentsAPI, designationsAPI, type Department as GlobalDepartment, t
 import { useStaff, staffDisplayName, type StaffMember as BranchStaffMember } from "./staffStore";
 import { useActiveBranch } from "./branchesStore";
 import { useDepartments } from "./departmentsStore";
+import { useAccountOwner } from "./accountOwner";
 
 export interface CombinedStaffRow {
   /** Prefixed so branch-staff and global-staff ids never collide in the assignment map. */
@@ -29,7 +32,9 @@ export interface CombinedStaffRow {
    * This is what other APIs keyed on that real id (e.g. the Schedule API)
    * must be called with — never the prefixed `id` above. */
   rawId: string;
-  source: "branch" | "tenant";
+  source: "branch" | "tenant" | "owner";
+  /** Owner row only — the signed-in user is the owner themselves. */
+  isSelf?: boolean;
   name: string;
   designation: string; // role/title shown to the user
   branchName?: string;
@@ -39,6 +44,7 @@ export interface CombinedStaffRow {
 
 const branchStaffRowId = (id: string) => `branch:${id}`;
 const tenantStaffRowId = (id: string) => `tenant:${id}`;
+const ownerRowId = (id: string) => `owner:${id}`;
 
 export function useCombinedStaffDirectory() {
   const { user } = useAuth();
@@ -47,6 +53,7 @@ export function useCombinedStaffDirectory() {
   const { branches } = useActiveBranch();
   const { departments } = useDepartments();
   const { staff: branchStaff } = useStaff();
+  const owner = useAccountOwner();
 
   const assignments = useStaffAssignments(tenantId);
   const [globalStaff, setGlobalStaff] = useState<GlobalStaffMember[]>([]);
@@ -81,6 +88,17 @@ export function useCombinedStaffDirectory() {
   const globalDesigName = (id: string | null) => (id ? globalDesignations.find((d) => d.id === id)?.name : undefined);
 
   const rows: CombinedStaffRow[] = [
+    ...(owner
+      ? [{
+          id: ownerRowId(owner.id),
+          rawId: owner.id,
+          source: "owner" as const,
+          isSelf: owner.isSelf,
+          name: owner.name,
+          designation: "Account owner",
+          hue: 262,
+        }]
+      : []),
     ...branchStaff
       .filter((s) => s.active)
       .map((s: BranchStaffMember): CombinedStaffRow => ({
@@ -94,7 +112,8 @@ export function useCombinedStaffDirectory() {
         hue: s.hue,
       })),
     ...globalStaff
-      .filter((s) => s.status !== "suspended")
+      // The owner row above already covers the owner — never list them twice.
+      .filter((s) => s.status !== "suspended" && s.id !== owner?.id)
       .map((s, i): CombinedStaffRow => {
         const a = assignments.assignmentFor(s.id);
         return {

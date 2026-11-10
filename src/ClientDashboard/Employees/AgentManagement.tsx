@@ -36,7 +36,6 @@ import realAgentDataSource from "./agents/realAgentDataSource";
 import { loadWorkflowChipsForAgents } from "./agents/agentWorkflowSummary";
 import type { AgentWorkflowChip } from "./agents/AgentCardWorkflows";
 import { openInNewBrowserTab } from "../../utils/openInBrowser";
-import { limitLabel, showLimitFor, usePlanLimits } from "../Billing/planLimit";
 import {
   Bot,
   Play,
@@ -103,16 +102,9 @@ const AgentManagement = () => {
   const isDeveloper = true; // Open to all users
 
   const canCreateAgent = usePermission("module:employees.page:list.action:create");
-  // Plan limit on AI agents (GET /billing/limits): when full, Create offers the upgrade instead.
-  const planLimits = usePlanLimits();
-  const agentLimit = planLimits.agents;
-  const openCreateAgent = () => {
-    if (agentLimit && !agentLimit.allowed) {
-      showLimitFor("ai_agents", agentLimit, planLimits.planName);
-      return;
-    }
-    setShowQuickCreateModal(true);
-  };
+  // No plan check here: the Digital Card plans' "AI agents" limit only counts
+  // agents connected to business cards inside that app, never the dashboard's.
+  const openCreateAgent = () => setShowQuickCreateModal(true);
   const canDeleteAgent = usePermission("module:employees.page:list.action:delete");
 
   const isTrain = location.pathname.includes("/train");
@@ -1837,8 +1829,6 @@ const AgentManagement = () => {
                 ? "Not included in your access"
                 : isCreatingAgent && isModalMinimized
                 ? 'Knowledge base training in progress…'
-                : agentLimit
-                ? `AI agents: ${limitLabel(agentLimit)}`
                 : undefined
             }
             className={`relative overflow-hidden flex items-center justify-center gap-2 px-4 lg:px-6 py-2.5 lg:py-3 rounded-xl transition-all duration-200 shadow-sm whitespace-nowrap ${

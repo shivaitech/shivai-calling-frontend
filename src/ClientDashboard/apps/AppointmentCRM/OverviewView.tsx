@@ -116,7 +116,10 @@ const OverviewView = () => {
   const integratedStaffCount = integratedSchedules.filter((s) => s.staff).length;
 
   const metrics = useMemo(() => {
-    const confirmedToday = todayBookings.filter((b) => b.status === "booked").length;
+    // Completed and no-show bookings were still booked for today — only a
+    // cancellation takes one out.
+    const confirmedToday = todayBookings.filter((b) => b.status !== "cancelled").length;
+    const noShowToday = todayBookings.filter((b) => b.status === "no_show").length;
     const cancelledToday = todayBookings.filter((b) => b.status === "cancelled").length;
     const utilizationPct = integratedStaffCount
       ? Math.min(100, Math.round((todayBookings.length / (integratedStaffCount * 8)) * 100))
@@ -134,6 +137,7 @@ const OverviewView = () => {
       bookingsToday: todayBookings.length,
       confirmedToday,
       cancelledToday,
+      noShowToday,
       utilizationPct,
       rescheduleRate: todayBookings.length
         ? Math.round((cancelledToday / todayBookings.length) * 100)
@@ -190,7 +194,7 @@ const OverviewView = () => {
                 </div>
                 <div>
                   <p className="text-lg font-bold text-slate-800 dark:text-white">{integratedStaffCount}</p>
-                  <p className="text-[10px] text-slate-500">{terms.staffPlural}</p>
+                  <p className="text-[10px] text-slate-500">{terms.providers}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2.5">
@@ -209,9 +213,9 @@ const OverviewView = () => {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard icon={CalendarCheck} color="purple" label={`${terms.appointments} Today`} value={metrics.bookingsToday} sub={`${metrics.confirmedToday} confirmed`} subTone="up" />
-        <StatCard icon={Clock} color="amber" label="Booked Today" value={metrics.confirmedToday} sub="Active bookings" subTone="up" />
-        <StatCard icon={CalendarX} color="red" label="Cancelled Today" value={metrics.cancelledToday} sub={`${metrics.rescheduleRate}% cancel rate`} subTone="muted" />
-        <StatCard icon={UserCheck} color="emerald" label="Calendar Utilization" value={`${metrics.utilizationPct}%`} sub="Of today's staff hours" subTone="up" />
+        <StatCard icon={Clock} color="amber" label="Booked Today" value={metrics.confirmedToday} sub={`Active ${terms.appointments.toLowerCase()}`} subTone="up" />
+        <StatCard icon={CalendarX} color="red" label="Cancelled Today" value={metrics.cancelledToday} sub={`${metrics.noShowToday} no-show · ${metrics.rescheduleRate}% cancel rate`} subTone="muted" />
+        <StatCard icon={UserCheck} color="emerald" label="Calendar Utilization" value={`${metrics.utilizationPct}%`} sub={`Of today's ${terms.provider.toLowerCase()} hours`} subTone="up" />
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
@@ -316,7 +320,7 @@ const BookingRow = ({ booking }: { booking: Booking }) => (
     </div>
     <div className="min-w-0 flex-1">
       <p className="text-sm font-medium text-slate-800 dark:text-white truncate">{booking.customer}</p>
-      <p className="text-[11px] text-slate-500 truncate">{booking.service} · {booking.provider}</p>
+      <p className="text-[11px] text-slate-500 truncate">{[booking.service, booking.provider].filter(Boolean).join(" · ")}</p>
     </div>
   </div>
 );

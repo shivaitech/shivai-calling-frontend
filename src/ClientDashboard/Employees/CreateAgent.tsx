@@ -6,7 +6,7 @@ import GlassCard from "../../components/GlassCard";
 import SearchableSelect from "../../components/SearchableSelect";
 import TTSVoiceSelector, { TTSVoiceSelectorValue, toTtsConfig } from "../../components/TTSVoiceSelector";
 import { useAgent } from "../../contexts/AgentContext";
-import { handlePlanLimit, refreshPlanLimits } from "../Billing/planLimit";
+import { AGENT_INDUSTRIES, AGENT_SUB_INDUSTRIES } from "../../constants/agentIndustries";
 import {
   ArrowLeft,
   Bot,
@@ -121,210 +121,9 @@ const CreateAgent = () => {
     { value: "onboarding", label: "Customer Onboarding", group: "Operations" },
   ];
 
-  const industries = [
-    { value: "real-estate", label: "Real Estate" },
-    { value: "healthcare", label: "Healthcare" },
-    { value: "dental", label: "Dental" },
-    { value: "fitness", label: "Fitness & Wellness" },
-    { value: "education", label: "Education" },
-    { value: "finance", label: "Finance & Banking" },
-    { value: "insurance", label: "Insurance" },
-    { value: "ecommerce", label: "E-commerce" },
-    { value: "retail", label: "Retail" },
-    { value: "technology", label: "Technology" },
-    { value: "saas", label: "SaaS" },
-    { value: "legal", label: "Legal Services" },
-    { value: "consulting", label: "Consulting" },
-    { value: "accounting", label: "Accounting" },
-    { value: "hospitality", label: "Hospitality" },
-    { value: "restaurants", label: "Restaurants" },
-    { value: "automotive", label: "Automotive" },
-    { value: "construction", label: "Construction" },
-    { value: "manufacturing", label: "Manufacturing" },
-    { value: "travel", label: "Travel & Tourism" },
-    { value: "beauty", label: "Beauty & Salon" },
-    { value: "home-services", label: "Home Services" },
-    { value: "nonprofit", label: "Non-Profit" },
-    { value: "government", label: "Government" },
-    { value: "entertainment", label: "Entertainment" },
-    { value: "other", label: "Other" },
-  ];
-
-  const subIndustries: Record<string, { value: string; label: string }[]> = {     
-    "real-estate": [
-      { value: "residential", label: "Residential" },
-      { value: "commercial", label: "Commercial" },
-      { value: "property-management", label: "Property Management" },
-      { value: "real-estate-investment", label: "Real Estate Investment" },    
-    ],
-    "healthcare": [
-      { value: "hospitals", label: "Hospitals" },
-      { value: "clinics", label: "Clinics" },
-      { value: "mental-health", label: "Mental Health" },
-      { value: "home-healthcare", label: "Home Healthcare" },
-      { value: "medical-devices", label: "Medical Devices" },
-      { value: "pharmaceuticals", label: "Pharmaceuticals" },
-    ],
-    "dental": [
-      { value: "general-dentistry", label: "General Dentistry" },
-      { value: "orthodontics", label: "Orthodontics" },
-      { value: "cosmetic-dentistry", label: "Cosmetic Dentistry" },      
-      { value: "pediatric-dentistry", label: "Pediatric Dentistry" },     
-    ],
-    "fitness": [
-      { value: "gyms", label: "Gyms & Fitness Centers" },
-      { value: "yoga-studios", label: "Yoga Studios" },
-      { value: "personal-training", label: "Personal Training" },      
-      { value: "wellness-spas", label: "Wellness Spas" },
-    ],
-    "education": [
-      { value: "k12", label: "K-12 Schools" },  
-      { value: "higher-education", label: "Higher Education" },        
-      { value: "online-learning", label: "Online Learning" },      
-      { value: "tutoring", label: "Tutoring Services" },           
-      { value: "vocational", label: "Vocational Training" },            
-    ],
-    "finance": [
-      { value: "banking", label: "Banking" },
-      { value: "investment", label: "Investment Services" },
-      { value: "wealth-management", label: "Wealth Management" },           
-      { value: "lending", label: "Lending & Mortgages" },
-      { value: "fintech", label: "Fintech" },
-    ],
-    "insurance": [
-      { value: "health-insurance", label: "Health Insurance" },        
-      { value: "life-insurance", label: "Life Insurance" },
-      { value: "auto-insurance", label: "Auto Insurance" },
-      { value: "property-insurance", label: "Property Insurance" },        
-      { value: "business-insurance", label: "Business Insurance" },     
-    ],
-    "ecommerce": [
-      { value: "fashion", label: "Fashion & Apparel" },
-      { value: "electronics", label: "Electronics" },
-      { value: "food-beverage", label: "Food & Beverage" },                
-      { value: "home-garden", label: "Home & Garden" },
-      { value: "marketplace", label: "Marketplace" },
-    ],
-    "retail": [
-      { value: "grocery", label: "Grocery" },
-      { value: "fashion-retail", label: "Fashion Retail" },
-      { value: "electronics-retail", label: "Electronics Retail" },            
-      { value: "pharmacy", label: "Pharmacy" },
-      { value: "department-stores", label: "Department Stores" },          
-    ],
-    "technology": [
-      { value: "software-development", label: "Software Development" },        
-      { value: "it-services", label: "IT Services" },
-      { value: "cybersecurity", label: "Cybersecurity" },
-      { value: "cloud-services", label: "Cloud Services" },
-      { value: "ai-ml", label: "AI & Machine Learning" },
-    ],
-    "saas": [
-      { value: "crm", label: "CRM" },
-      { value: "erp", label: "ERP" },
-      { value: "marketing-automation", label: "Marketing Automation" },
-      { value: "project-management", label: "Project Management" },
-      { value: "hr-software", label: "HR Software" },
-    ],
-    "legal": [
-      { value: "corporate-law", label: "Corporate Law" },
-      { value: "family-law", label: "Family Law" },
-      { value: "criminal-law", label: "Criminal Law" },
-      { value: "immigration-law", label: "Immigration Law" },
-      { value: "intellectual-property", label: "Intellectual Property" },
-    ],
-    "consulting": [
-      { value: "management-consulting", label: "Management Consulting" },
-      { value: "strategy-consulting", label: "Strategy Consulting" },
-      { value: "it-consulting", label: "IT Consulting" },
-      { value: "hr-consulting", label: "HR Consulting" },
-    ],
-    "accounting": [
-      { value: "tax-services", label: "Tax Services" },
-      { value: "audit", label: "Audit" },
-      { value: "bookkeeping", label: "Bookkeeping" },
-      { value: "payroll", label: "Payroll Services" },
-    ],
-    "hospitality": [
-      { value: "hotels", label: "Hotels" },
-      { value: "resorts", label: "Resorts" },
-      { value: "event-venues", label: "Event Venues" },
-      { value: "vacation-rentals", label: "Vacation Rentals" },
-    ],
-    "restaurants": [
-      { value: "fine-dining", label: "Fine Dining" },
-      { value: "casual-dining", label: "Casual Dining" },
-      { value: "fast-food", label: "Fast Food" },
-      { value: "cafes", label: "Cafes & Coffee Shops" },
-      { value: "catering", label: "Catering" },
-    ],
-    "automotive": [
-      { value: "dealerships", label: "Dealerships" },
-      { value: "auto-repair", label: "Auto Repair" },
-      { value: "car-rental", label: "Car Rental" },
-      { value: "auto-parts", label: "Auto Parts" },
-    ],
-    "construction": [
-      { value: "residential-construction", label: "Residential Construction" },
-      { value: "commercial-construction", label: "Commercial Construction" },
-      { value: "renovation", label: "Renovation" },
-      { value: "specialty-trades", label: "Specialty Trades" },
-    ],
-    "manufacturing": [
-      { value: "industrial", label: "Industrial Manufacturing" },
-      { value: "consumer-goods", label: "Consumer Goods" },
-      { value: "food-manufacturing", label: "Food Manufacturing" },
-      { value: "electronics-manufacturing", label: "Electronics Manufacturing" },
-    ],
-    "travel": [
-      { value: "travel-agencies", label: "Travel Agencies" },
-      { value: "airlines", label: "Airlines" },
-      { value: "tour-operators", label: "Tour Operators" },
-      { value: "cruise-lines", label: "Cruise Lines" },
-    ],
-    "beauty": [
-      { value: "hair-salons", label: "Hair Salons" },
-      { value: "nail-salons", label: "Nail Salons" },
-      { value: "med-spas", label: "Med Spas" },
-      { value: "barbershops", label: "Barbershops" },
-    ],
-    "home-services": [
-      { value: "plumbing", label: "Plumbing" },
-      { value: "electrical", label: "Electrical" },
-      { value: "hvac", label: "HVAC" },
-      { value: "cleaning", label: "Cleaning Services" },
-      { value: "landscaping", label: "Landscaping" },
-    ],
-    "nonprofit": [
-      { value: "charity", label: "Charity" },
-      { value: "foundations", label: "Foundations" },
-      { value: "religious", label: "Religious Organizations" },
-      { value: "advocacy", label: "Advocacy Groups" },
-    ],
-    "government": [
-      { value: "federal", label: "Federal" },
-      { value: "state", label: "State" },
-      { value: "local", label: "Local" },
-      { value: "public-services", label: "Public Services" },
-    ],
-    "entertainment": [
-      { value: "media", label: "Media & Broadcasting" },
-      { value: "gaming", label: "Gaming" },
-      { value: "events", label: "Events & Concerts" },
-      { value: "sports", label: "Sports" },
-      { value: "film-tv-production", label: "Film & TV Production" },
-      { value: "actors-talent", label: "Actors & Talent" },
-      { value: "directors-producers", label: "Directors & Producers" },
-      { value: "talent-management", label: "Talent Management Agency" },
-      { value: "music-artists", label: "Music & Artists" },
-      { value: "influencers-creators", label: "Influencers & Content Creators" },
-      { value: "modeling", label: "Modeling Agency" },
-    ],
-    "other": [
-      { value: "general", label: "General" },
-      { value: "custom", label: "Custom" },
-    ],
-  };
+  // Industry catalog: shared with the quick wizard, Create and Edit (constants/agentIndustries.ts).
+  const industries = AGENT_INDUSTRIES;
+  const subIndustries = AGENT_SUB_INDUSTRIES;
 
   const genders = [
     { value: "female", label: "Female" },
@@ -514,7 +313,6 @@ const CreateAgent = () => {
 
       // Refresh agents list from API
       await refreshAgents();
-      refreshPlanLimits(); // one more agent counted against the plan
 
       // Navigate to agents list
       setTimeout(() => {
@@ -522,9 +320,6 @@ const CreateAgent = () => {
       }, 500);
     } catch (error: any) {
       appToast.dismiss(loadingToast);
-
-      // Over the plan's AI agent limit (403 PLAN_LIMIT_REACHED): the upgrade dialog explains.
-      if (handlePlanLimit(error)) return;
 
       let errorMessage = "Failed to create AI agent. Please try again.";
 

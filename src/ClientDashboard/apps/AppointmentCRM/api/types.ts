@@ -9,7 +9,7 @@ export type CatalogType =
   | "booking-fields"
   | "offline-block-fields";
 
-export type BookingStatus = "booked" | "cancelled";
+export type BookingStatus = "booked" | "completed" | "no_show" | "cancelled";
 
 export type BookingChannel = "voice" | "web" | "whatsapp" | "walk-in";
 export type LeaveType = "leave" | "holiday" | "blocked";
@@ -23,7 +23,26 @@ export interface ApiEnvelope<T> {
   errors?: unknown[];
 }
 
-export interface ApiSetup {
+/** The "Other / Custom" business type's own words, as typed in setup. */
+export interface ApiCustomPreset {
+  customerLabel: string;
+  appointmentLabel: string;
+  providerLabel: string;
+  branchLabel: string;
+  services: string[];
+  appointmentTypes: string[];
+}
+
+/** Business type + resolved vocabulary, stored with the setup so every
+ * device (and the AI agent) speaks the tenant's language. `templateId` alone
+ * can't carry this — the backend has 3 templates, the UI has many types. */
+export interface ApiIndustrySelection {
+  industryId: string;
+  terms: Record<string, string>;
+  customPreset?: ApiCustomPreset | null;
+}
+
+export interface ApiSetup extends Partial<ApiIndustrySelection> {
   setupComplete: boolean;
   companyName?: string;
   timezone?: string;
@@ -212,13 +231,37 @@ export interface ApiBooking {
   phone?: string;
   department?: string;
   designation?: string;
+  /** What's being provided (from the services catalog), e.g. "Cardiology". */
+  service?: string;
+  /** Kind of booking (from the appointment-types catalog), e.g. "Follow-up". */
+  appointment_type?: string;
   date: string;
   time: string;
   end_time?: string;
   status: BookingStatus;
   note?: string;
+  /** Business-type booking fields, keyed by the preset field key. */
+  custom_fields?: Record<string, string>;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export type ReminderChannel = "sms" | "voice" | "email" | "whatsapp";
+
+/** When a reminder fires, relative to the appointment:
+ *   before_start   — offset_minutes before it starts (confirmations, reminders)
+ *   after_no_show  — offset_minutes after it's marked no-show (follow-ups)
+ *   after_complete — offset_minutes after it's marked completed (feedback) */
+export type ReminderTrigger = "before_start" | "after_no_show" | "after_complete";
+
+export interface ApiReminderRule {
+  id?: string;
+  _id?: string;
+  name: string;
+  channel: ReminderChannel;
+  trigger: ReminderTrigger;
+  offset_minutes: number;
+  active: boolean;
 }
 
 export interface ApiCustomer {

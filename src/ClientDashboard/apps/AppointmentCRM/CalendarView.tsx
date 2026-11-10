@@ -24,6 +24,7 @@ import type { Booking } from "./mockData";
 import BookingDetailModal from "./BookingDetailModal";
 import StaffScheduleModal from "./StaffScheduleModal";
 import IntegrateStaffModal from "./IntegrateStaffModal";
+import { useAccountOwner } from "./accountOwner";
 import AddBookingModal from "./AddBookingModal";
 import RemoveStaffModal from "./RemoveStaffModal";
 import { useNowWithinRange } from "./CalendarNowLine";
@@ -73,6 +74,12 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
   const [hiddenStaffIds, setHiddenStaffIds] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<ViewMode>(lockedStaffId ? "solo" : "multi");
   const [integrateStaffOpen, setIntegrateStaffOpen] = useState(false);
+  const [integrateAsOwner, setIntegrateAsOwner] = useState(false);
+  const openIntegrate = (asOwner = false) => {
+    setIntegrateAsOwner(asOwner);
+    setIntegrateStaffOpen(true);
+  };
+  const owner = useAccountOwner();
   const [addBookingOpen, setAddBookingOpen] = useState(false);
   const [bookingPrefill, setBookingPrefill] = useState<{ staffId: string; date: string; fromTime: string } | null>(null);
   const [removeStaffTarget, setRemoveStaffTarget] = useState<StaffMember | null>(null);
@@ -141,7 +148,7 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
       setRemoveStaffTarget(null);
     } catch {
       appToast.dismiss(toastId);
-      appToast.error("Could not remove this staff member. Please try again.");
+      appToast.error("Could not remove them from the calendar. Please try again.");
     } finally {
       setRemovingStaff(false);
     }
@@ -163,7 +170,7 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
         branchId,
         departmentId: "",
         name: s.staff!.fullName,
-        role: "Staff",
+        role: s.staff!.is_owner || s.staff_id === owner?.id ? "Account owner" : terms.provider,
         email: s.staff!.email || undefined,
         active: true,
         hue: hueFromSeed(s.staff_id),
@@ -171,7 +178,7 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
       }));
     if (lockedStaffId) return all.filter((s) => s.id === lockedStaffId);
     return all;
-  }, [integratedSchedules, integratedStaffLoading, branchId, defaultSlotDurationMin, lockedStaffId]);
+  }, [integratedSchedules, integratedStaffLoading, branchId, defaultSlotDurationMin, lockedStaffId, owner?.id, terms.provider]);
 
   const viewIsoForBookings = toIsoDate(viewDate);
   useEffect(() => {
@@ -182,7 +189,7 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
       dateIso: viewIsoForBookings,
       branchName,
     }).catch(() => {
-      appToast.error("Couldn't load bookings for this day.");
+      appToast.error(`Couldn't load ${terms.appointments.toLowerCase()} for this day.`);
     });
   }, [calendarStaff, integratedStaffLoading, viewIsoForBookings, branches, branchId]);
 
@@ -290,20 +297,40 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
   if (!calendarStaff.length) {
     return (
       <div className="space-y-5">
-        <SectionTitle title="Calendar" subtitle={`Add ${terms.staffPlural.toLowerCase()} in Staff & Departments to view calendars`} />
+        <SectionTitle title="Calendar" subtitle={`Put yourself or your team on the calendar to start taking ${terms.appointments.toLowerCase()}`} />
         <GlassCard>
           <div className="p-8 flex flex-col items-center text-center gap-3">
             <p className="text-sm text-slate-500">
-              No {terms.staffPlural.toLowerCase()} in this {terms.department.toLowerCase()} yet.
+              Nobody is taking bookings in this {terms.department.toLowerCase()} yet.
             </p>
             {!readOnly && !lockedStaffId && (
-              <button
-                type="button"
-                onClick={() => setIntegrateStaffOpen(true)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium common-button-bg"
-              >
-                <UserPlus className="w-4 h-4" /> Integrate Staff
-              </button>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                {owner?.isSelf && (
+                  <button
+                    type="button"
+                    onClick={() => openIntegrate(true)}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium common-button-bg"
+                  >
+                    <CalendarPlus className="w-4 h-4" /> Add my calendar
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => openIntegrate()}
+                  className={
+                    owner?.isSelf
+                      ? "inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/80"
+                      : "inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium common-button-bg"
+                  }
+                >
+                  <UserPlus className="w-4 h-4" /> Add your team
+                </button>
+              </div>
+            )}
+            {!readOnly && !lockedStaffId && owner?.isSelf && (
+              <p className="text-[11px] text-slate-400 max-w-sm">
+                Working solo? Add your own calendar — no staff account needed, and your AI agent can book straight into it.
+              </p>
             )}
           </div>
         </GlassCard>
@@ -315,6 +342,7 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
             branchId={branchId}
             branches={branches}
             onIntegrated={() => {}}
+            startWithOwner={integrateAsOwner}
           />
         )}
       </div>
@@ -336,7 +364,7 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
               <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
                 {lockedStaffId
                   ? `Your ${terms.appointments.toLowerCase()} · ${slotMinutes}-min slots`
-                  : `${activeDoctorCount} ${terms.staffPlural.toLowerCase()} active · ${consultationsToday} ${terms.appointments.toLowerCase()} today`}
+                  : `${activeDoctorCount} ${terms.providers.toLowerCase()} active · ${consultationsToday} ${terms.appointments.toLowerCase()} today`}
               </p>
             </div>
           </div>
@@ -367,7 +395,7 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
                 <div className="flex items-center gap-1.5 px-1 pb-0.5 min-w-min">
                   <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 shrink-0 mr-0.5 flex items-center gap-1">
                     <UserPlus className="w-3 h-3" />
-                    Visible Staff:
+                    Visible {terms.providers}:
                   </span>
                   {calendarStaff.map((s) => {
                     const visible = !hiddenStaffIds.has(s.id);
@@ -393,6 +421,9 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
                           style={{ background: visible ? `hsl(${s.hue}, 65%, 50%)` : "#cbd5e1" }}
                         />
                         {displayName(s)}
+                        {owner?.isSelf && s.id === owner.id && (
+                          <span className="px-1 rounded text-[9px] font-semibold uppercase tracking-wide bg-violet-600 text-white">You</span>
+                        )}
                         {visible && <X className="w-3 h-3 opacity-50" />}
                       </button>
                     );
@@ -400,11 +431,11 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
                   {!readOnly && (
                     <button
                       type="button"
-                      onClick={() => setIntegrateStaffOpen(true)}
+                      onClick={() => openIntegrate()}
                       className="shrink-0 inline-flex items-center gap-1 pl-1.5 pr-2 py-1 rounded-full text-xs font-medium border border-dashed border-slate-300 dark:border-slate-600 text-slate-500 dark:text-slate-400 hover:border-violet-300 hover:text-violet-600 dark:hover:text-violet-300 transition-colors whitespace-nowrap"
                     >
                       <UserPlus className="w-3 h-3" />
-                      Add Staff
+                      Add to calendar
                     </button>
                   )}
                 </div>
@@ -420,14 +451,14 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
                   onClick={() => setIntegrateStaffOpen(true)}
                   className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-violet-600 text-white shadow-sm shadow-violet-600/20 hover:bg-violet-700 transition-colors"
                 >
-                  <UserPlus className="w-3.5 h-3.5" /> Integrate Staff
+                  <UserPlus className="w-3.5 h-3.5" /> Add to calendar
                 </button>
                 <button
                   type="button"
                   onClick={() => setAddBookingOpen(true)}
                   className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-slate-800 text-white shadow-sm hover:bg-slate-900 transition-colors"
                 >
-                  <CalendarPlus className="w-3.5 h-3.5" /> Add Booking
+                  <CalendarPlus className="w-3.5 h-3.5" /> Add {terms.appointment}
                 </button>
               </div>
             )}
@@ -449,7 +480,7 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
               </div>
               <div className="min-w-0">
                 <p className="text-[10px] font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  Single {terms.staff.toLowerCase()} view
+                  Single {terms.provider.toLowerCase()} view
                 </p>
                 <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
                   {displayName(focusedStaff)}
@@ -546,14 +577,14 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
 
       {!lockedStaffId && (
         <p className="text-[10px] text-slate-400 sm:hidden">
-          Tap <strong>View</strong> for one {terms.staff.toLowerCase()} · <strong>Edit</strong> for hours & bookings
+          Tap <strong>View</strong> for one {terms.provider.toLowerCase()} · <strong>Edit</strong> for hours & {terms.appointments.toLowerCase()}
         </p>
       )}
 
       <BookingDetailModal
         open={Boolean(selectedBooking)}
         booking={selectedBooking}
-        staffLabel={terms.staff}
+        staffLabel={terms.provider}
         customerLabel={terms.customer}
         onClose={() => setSelectedBooking(null)}
       />
@@ -629,6 +660,7 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
           branchId={branchId}
           branches={branches}
           onIntegrated={() => {}}
+          startWithOwner={integrateAsOwner}
         />
       )}
 

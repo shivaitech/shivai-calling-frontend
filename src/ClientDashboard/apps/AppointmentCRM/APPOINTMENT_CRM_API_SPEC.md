@@ -1159,17 +1159,72 @@ Link bookings to customers via `customerId` (add field; frontend currently uses 
 
 ### Module L — AI scheduling agents & reminders
 
-**Frontend today:** Mock agents in `mockData.ts`; reminder rules UI only.
+**Frontend status:** Reminders page is wired to the endpoints below (`RemindersView.tsx`). A `404`/`501` shows "coming soon"; nothing is seeded on the client. An empty list offers "Add recommended reminders", which POSTs 3 real rules.
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/scheduling-agents` | Agents linked to this CRM |
-| `GET` | `/reminder-rules` | List automation rules |
-| `POST` | `/reminder-rules` | Create |
-| `PATCH` | `/reminder-rules/:id` | Enable/disable |
-| `POST` | `/bookings/:id/send-reminder` | Manual trigger |
+All under `/appointment-crm`, standard envelope, scoped to the tenant.
 
-Reminder channels: `sms`, `voice`, `email`, `whatsapp`.
+| Method | Endpoint | Body | Returns |
+|--------|----------|------|---------|
+| `GET` | `/reminder-rules` | — | `ReminderRule[]` |
+| `POST` | `/reminder-rules` | `ReminderRule` without `id` | `ReminderRule` |
+| `PATCH` | `/reminder-rules/:id` | any subset of the fields | `ReminderRule` |
+| `DELETE` | `/reminder-rules/:id` | — | `{}` |
+
+```json
+{
+  "id": "rr_123",
+  "name": "2-hour reminder",
+  "channel": "whatsapp",
+  "trigger": "before_start",
+  "offset_minutes": 120,
+  "active": true
+}
+```
+
+- `channel`: `sms` | `whatsapp` | `voice` | `email`.
+- `trigger`:
+  - `before_start` fires `offset_minutes` before the appointment's start.
+  - `after_no_show` fires `offset_minutes` after the status becomes `no_show`.
+  - `after_complete` fires `offset_minutes` after the status becomes `completed`.
+- **Scheduler (backend job):** for every `booked` appointment, fire each active `before_start` rule once at `start − offset`. Fire the status-based triggers from the status change. Skip `cancelled` appointments. Reschedule moves the pending sends. Record each send on the appointment (`reminders_sent[]`) so nothing goes out twice.
+- **`voice` channel:** the tenant's assigned AI agent places the call (confirm / reschedule / cancel). The other channels send a template message.
+- **Message text** uses `setup.terms` (Module O), the provider's name and the tenant's company name. Never hard-code "doctor" or "appointment".
+
+### Module L2 — Appointment lifecycle (`/appointments`)
+
+This is the live `/appointments` resource the app uses today (create, by-staff, `staff-bookings`, cancel). The following are needed on it:
+
+**1. New fields on the appointment** (accept on `POST`, return on every read: by id, `by-staff`, `staff-bookings`, customer bookings):
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `branchId` | string | Location of the booking. Filter lists by it. Old rows can be null. |
+| `service` | string | From the services catalog, e.g. "Cardiology". Optional. |
+| `appointment_type` | string | From the appointment-types catalog, e.g. "Follow-up". Optional. |
+| `custom_fields` | `{ [key]: string }` | Business-type fields (Module P). |
+
+Until these come back, the UI simply leaves those rows out. It no longer shows a fake "General · Consultation".
+
+**2. `PUT /appointments/:id/reschedule`**
+
+```json
+{ "date": "2026-11-14", "time": "10:30", "end_time": "11:00", "staff": "optional — move to another provider" }
+```
+
+- Only for `status = booked`. Otherwise `409`.
+- Re-validate like create: inside the provider's working hours, not on leave or a break, no overlap with another `booked` appointment. Return `409` with a human message ("That time is already booked") — the UI shows `message` as is.
+- Keep the same id. Return `{ appointment }`. Re-schedule pending reminders.
+
+**3. `PUT /appointments/:id/status`**
+
+```json
+{ "status": "completed" }
+```
+
+- `status`: `completed` | `no_show`. Allowed only from `booked`, and only once the start time has passed (else `409`).
+- Return `{ appointment }`. Fires `after_complete` / `after_no_show` reminder rules.
+
+**4. Status enum** is now `booked` | `completed` | `no_show` | `cancelled`. Calendar slots stay occupied for `completed`/`no_show`; only `cancelled` frees one. Analytics should count no-shows.
 
 ---
 
@@ -1259,6 +1314,136 @@ Response: `StaffCalendarShare` without password hash; include fresh `snapshot` o
 ```
 
 Response: `{ "sent": true }`
+
+---
+
+### Module N — Account owner as a bookable person
+
+**Problem.** Today only a Main Tenant Staff member (`/api/v1/staff`) can be put on the calendar. An owner who takes appointments themselves (solo doctor, consultant, founder) had to create a staff record for themselves — impossible with their own email (it's already their login), and wrong anyway: staff are delegated logins with grants, the owner already has full access.
+
+**Fix.** The owner is bookable **as themselves**. Every endpoint that takes a `staff_id` also accepts the **tenant owner's own user id**. No staff record is created.
+
+#### Who counts as the owner
+
+`ownerId` = the user id of the tenant the request is resolved to:
+- Owner's own session → `req.user.id`.
+- Staff session acting via `X-Acting-Tenant-Id` → that header's tenant id.
+- Sub-tenant session → the sub-tenant's own user id (a sub-tenant is the owner of its own calendar).
+
+#### Validation rule (apply everywhere a `staff_id` is accepted)
+
+```
+staff_id is valid  ⇔  staff_id == ownerId
+                   OR staff_id ∈ active staff of this tenant
+```
+
+Anything else → `404 STAFF_NOT_FOUND` (don't leak other tenants' ids).
+
+#### Endpoints that must apply it
+
+| Endpoint | Change |
+|----------|--------|
+| `POST /schedules` | Accept `staff_id = ownerId`. Still unique per `(tenant_id, staff_id)` → `409` if it already exists. |
+| `GET /schedules` | Include the owner's schedule. Populate `staff` from the **users** collection (not staff) and set `staff.is_owner = true`. |
+| `GET/PUT/DELETE /schedules/:staffId`, `/availability`, `/blocks`, `/leaves` | Accept `ownerId` as `:staffId`. |
+| `POST /appointments` (+ list/filter by `staff_id`) | Accept `staff_id = ownerId`; confirmation/reminder emails go to the owner's account email. |
+| AI agent tools (list bookable people, check availability, book) | Return the owner's schedule like any other, named by `fullName`. The agent must be able to book into it. |
+
+`staff` summary on a schedule — `is_owner` is new and optional:
+
+```json
+"staff": {
+  "id": "u_owner123",
+  "fullName": "Dr. Priya Sharma",
+  "email": "priya@clinic.example",
+  "profilePicture": null,
+  "is_owner": true
+}
+```
+
+If you can't populate `staff` for the owner, the frontend fills it from the logged-in user. Only the owner's own session has their name, though, so a staff session would see "Account owner". Populate it server-side.
+
+#### Staff API guard
+
+`POST /staff` with an email that belongs to the **tenant owner** (case-insensitive) → `409`:
+
+```json
+{ "success": false, "code": "OWNER_EMAIL", "message": "This is the account owner's email. The owner can take bookings directly from Appointments → Calendar → Add my calendar." }
+```
+
+The frontend blocks this too, but the backend must enforce it.
+
+#### Cleanup of the old workaround
+
+If a tenant already has a staff record that is really the owner (same email as the owner, or created only to put the owner on the calendar), migrate it: move its schedule and appointments to `staff_id = ownerId`, then delete the staff record. Optional, but otherwise the owner shows up twice.
+
+#### Frontend status (done)
+
+- `accountOwner.ts` works out the owner (`id`, `name`, `isSelf`).
+- Calendar → **Add to calendar** picker shows the owner pinned on top as **You**, above "Your team".
+- Empty calendar → **Add my calendar** (primary) goes straight to the owner's hours setup.
+- The owner's chip on the calendar is tagged **You**; their role reads "Account owner".
+- Staff editor rejects creating staff with your own login email.
+
+---
+
+### Module O — Business type & vocabulary (setup)
+
+**Problem.** The UI has 23 business types (hospital, school, gym, law firm, recruiter, government office…), but the backend has 3 templates (`template_healthcare`, `template_retail`, `generic`). Only `templateId` was saved, so on reload every non-medical tenant came back as `clinic` and the whole app said "Patients". Custom ("Other") words were kept only in the browser.
+
+**Fix.** `POST /setup` and `PATCH /setup` now also send the business type and its resolved words. **Store them as sent, and return them on `GET /setup` and `GET /org/bootstrap` → `setup`.**
+
+```json
+{
+  "templateId": "generic",
+  "industryId": "recruitment",
+  "terms": {
+    "customer": "Candidate", "customers": "Candidates",
+    "appointment": "Interview", "appointments": "Interviews",
+    "provider": "Interviewer", "providers": "Interviewers",
+    "branch": "Office", "branches": "Offices",
+    "agent": "Recruiting Coordinator",
+    "department": "Team", "departments": "Teams",
+    "staff": "Interviewer", "staffPlural": "Interviewers"
+  },
+  "customPreset": null
+}
+```
+
+- `industryId`: a free string. Don't validate it against your template list.
+- `customPreset`: set only when `industryId = "generic"` with the user's own words: `{ customerLabel, appointmentLabel, providerLabel, branchLabel, services[], appointmentTypes[] }`. Return it as is.
+- `PATCH /setup` with these fields comes from Settings → Setup & Industry when the user switches type. It is sent **before** `POST /config/apply-template`.
+- **AI agent:** use `setup.terms` in the agent's prompt and replies ("Your interview with Priya is confirmed"), never hard-coded "appointment"/"doctor".
+- Reminder/confirmation SMS, email and WhatsApp templates should use `setup.terms` too.
+
+**Naming convention (shared by frontend & backend):** `provider` = the person who takes bookings; `staff` = team management only; `customer` = the person who books; `appointment` = the thing booked; `branch` = a location.
+
+### Module P — Business-type booking fields
+
+Each business type defines extra booking fields (vet → Pet Name, garage → Vehicle Number, recruiter → Position Applied For, lab → Tests Requested). Add Booking now collects them and sends them as:
+
+```json
+POST /appointments
+{ "name": "…", "staff": "…", "date": "…", "time": "…", "custom_fields": { "pet_name": "Bruno", "pet_species": "Labrador" } }
+```
+
+Store `custom_fields` (string → string) on the appointment and return it on every appointment read (list, by staff, `/staff-bookings`, calendar day). The AI agent should collect the same fields when it books. The keys are in `industryConfig.ts` → `defaultFields`, and should come from `config.catalogs["booking-fields"]` later.
+
+### Module Q — AI agent awareness (backend only — no frontend change needed)
+
+The agent config screen renders whatever `/ai-config/defaults` and `/ai-config/resolved` return, so all of this is server-side:
+
+1. **Words:** build the agent's prompt from `setup.terms`, so it says "your interview with the hiring manager", not "your appointment with the doctor".
+2. **Who it can book:** list every schedule from `GET /schedules`, including the owner's (Module N). Use `staff.fullName`.
+3. **Booking flow fields:** in `/ai-config/defaults`, the "book appointment" scenario's `fields[]` should include the tenant's business-type fields (Module P keys + labels + `required`). It should also include `service` / `appointment_type` as select fields built from the catalogs. Send collected values as `custom_fields`, `service` and `appointment_type` on `POST /appointments`.
+4. **Branch:** send `branchId` when booking.
+5. **Actions:** the agent can reschedule (`PUT /:id/reschedule`) and cancel. It handles `voice` reminder calls (Module L).
+
+### Module R — Data migration for existing tenants
+
+1. **Business type:** for tenants set up before Module O, `setup.industryId` is empty. The UI now falls back to: healthcare → `clinic`, retail → `salon`, generic → `generic`. Backfill `industryId` where you know it (sales/onboarding records), plus `terms` from that preset.
+2. **Owner-as-staff records:** see Module N cleanup.
+3. **Appointments:** backfill `branchId` from the provider's branch where it's knowable. `service` / `appointment_type` can stay null.
 
 ---
 

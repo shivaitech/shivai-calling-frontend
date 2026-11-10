@@ -11,7 +11,7 @@ import AddBookingModal from "./AddBookingModal";
 import BookingDetailModal from "./BookingDetailModal";
 import appToast from "../../../components/AppToast";
 
-const FILTERS: (BookingStatus | "all")[] = ["all", "booked", "cancelled"];
+const FILTERS: (BookingStatus | "all")[] = ["all", "booked", "completed", "no_show", "cancelled"];
 const ALL = "all";
 const PAGE_SIZE = 10;
 
@@ -45,7 +45,7 @@ const BookingsView = () => {
       staff: staffWithNames,
       branchName: activeBranch?.name,
     }).catch(() => {
-      appToast.error("Couldn't load bookings.");
+      appToast.error(`Couldn't load ${terms.appointments.toLowerCase()}.`);
     });
   }, [integratedSchedules, staffLoading, activeBranch?.name]);
 
@@ -80,6 +80,8 @@ const BookingsView = () => {
     return bookings.filter((b) => {
       if (filter !== "all" && b.status !== filter) return false;
       if (staffFilter !== ALL && b.staffId !== staffFilter) return false;
+      // Bookings saved before branchId existed have none — keep them visible.
+      if (branches.length > 1 && activeBranchId && b.branchId && b.branchId !== activeBranchId) return false;
       if (dateFrom || dateTo) {
         const iso = bookingIsoDate(b, today);
         if (dateFrom && iso < dateFrom) return false;
@@ -88,12 +90,12 @@ const BookingsView = () => {
       const hay = `${b.customer} ${b.id} ${b.service} ${b.provider} ${b.branchName} ${b.departmentName ?? ""}`.toLowerCase();
       return hay.includes(q.toLowerCase());
     });
-  }, [bookings, filter, staffFilter, dateFrom, dateTo, today, q]);
+  }, [bookings, filter, staffFilter, dateFrom, dateTo, today, q, branches.length, activeBranchId]);
 
   // Reset to page 1 whenever the result set changes shape.
   useEffect(() => {
     setPage(1);
-  }, [filter, staffFilter, dateFrom, dateTo, q]);
+  }, [filter, staffFilter, dateFrom, dateTo, q, activeBranchId]);
 
   const totalPages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
   const pageList = list.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -104,8 +106,8 @@ const BookingsView = () => {
         title={terms.appointments}
         subtitle={
           activeBranch
-            ? `${terms.appointments} at ${activeBranch.name} — book, reschedule, cancel & track status`
-            : `All ${terms.appointments.toLowerCase()} — book, reschedule, cancel & track status`
+            ? `${terms.appointments} at ${activeBranch.name} — book, cancel & track status`
+            : `All ${terms.appointments.toLowerCase()} — book, cancel & track status`
         }
         right={
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
@@ -123,7 +125,7 @@ const BookingsView = () => {
               onClick={() => setAddOpen(true)}
               className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium common-button-bg flex-shrink-0"
             >
-              <CalendarPlus className="w-3.5 h-3.5" /> Add Booking
+              <CalendarPlus className="w-3.5 h-3.5" /> Add {terms.appointment}
             </button>
           </div>
         }
@@ -152,7 +154,6 @@ const BookingsView = () => {
             value={activeBranchId ?? ""}
             onChange={(e) => void setActiveBranch(e.target.value)}
             className={FILTER_SELECT}
-            title="Bookings don't carry a branch yet — this only switches which branch's name shows above."
           >
             {branches.map((b) => (
               <option key={b.id} value={b.id}>{b.name}</option>
@@ -160,7 +161,7 @@ const BookingsView = () => {
           </select>
         )}
         <select value={staffFilter} onChange={(e) => setStaffFilter(e.target.value)} className={FILTER_SELECT}>
-          <option value={ALL}>All {terms.staffPlural.toLowerCase()}</option>
+          <option value={ALL}>All {terms.providers.toLowerCase()}</option>
           {integratedStaff.map((s) => (
             <option key={s.id} value={s.id}>{s.name}</option>
           ))}
@@ -201,7 +202,7 @@ const BookingsView = () => {
                 <th className="px-4 py-3 text-xs font-semibold text-slate-500">ID</th>
                 <th className="px-4 py-3 text-xs font-semibold text-slate-500">{terms.customer}</th>
                 <th className="px-4 py-3 text-xs font-semibold text-slate-500 hidden md:table-cell">{terms.department}</th>
-                <th className="px-4 py-3 text-xs font-semibold text-slate-500">{terms.staff}</th>
+                <th className="px-4 py-3 text-xs font-semibold text-slate-500">{terms.provider}</th>
                 <th className="px-4 py-3 text-xs font-semibold text-slate-500">When</th>
                 <th className="px-4 py-3 text-xs font-semibold text-slate-500">Status</th>
               </tr>
@@ -284,7 +285,7 @@ const BookingsView = () => {
       <BookingDetailModal
         open={Boolean(selectedBooking)}
         booking={selectedBooking}
-        staffLabel={terms.staff}
+        staffLabel={terms.provider}
         customerLabel={terms.customer}
         onClose={() => setSelectedBookingId(null)}
       />

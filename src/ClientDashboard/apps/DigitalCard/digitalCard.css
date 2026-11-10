@@ -2102,3 +2102,9 @@
   .dc .card.tier-prestige .build-list .company.has-logo .company-sep{margin-right:12px}
   .dc .card.tier-prestige .build-list .company-go{margin-left:12px}
 }
+
+/* Featured-button note: buttons keep their own colours (the note's link colour made them black on black) */
+.dc .form .hl-note-action{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:10px}
+.dc .form .hl-note-action .btn{display:inline-flex;color:#fff;text-decoration:none}
+.dc .form .hl-note-action .text-btn{color:#5c4510;font-weight:600;text-decoration:underline}
+.dc .form .hl-agent{flex:1 1 220px;min-height:40px;padding:8px 12px;border:1px solid #e3d3a6;border-radius:10px;background:#fff;font:inherit;font-size:13.5px;color:#171717}
