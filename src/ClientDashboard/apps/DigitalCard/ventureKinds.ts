@@ -20,7 +20,7 @@ export const VENTURE_KINDS: VentureKind[] = [
   {
     id: "venture",
     descriptionPlaceholder: "What it does, e.g. AI employees for real business workflows (optional)",
-    label: "Venture",
+    label: "Project",
     Icon: Briefcase,
     namePlaceholder: "Company or project name *",
     urlPlaceholder: "Link (e.g. yourcompany.com)",
@@ -30,7 +30,7 @@ export const VENTURE_KINDS: VentureKind[] = [
   {
     id: "catalog",
     descriptionPlaceholder: "What is in it, e.g. New arrivals, prices and sizes (optional)",
-    label: "Shop catalog",
+    label: "Product catalog",
     Icon: ShoppingBag,
     namePlaceholder: "Catalog name, e.g. Summer collection *",
     urlPlaceholder: "Shop or catalog link (Shopify, WhatsApp catalog…)",
@@ -40,7 +40,7 @@ export const VENTURE_KINDS: VentureKind[] = [
   {
     id: "document",
     descriptionPlaceholder: "What is inside, e.g. Our services, team and case studies (optional)",
-    label: "Document",
+    label: "PDF",
     Icon: FileText,
     namePlaceholder: "Document title, e.g. Company profile *",
     urlPlaceholder: "Paste a link (Google Drive, Dropbox…) or upload a PDF",

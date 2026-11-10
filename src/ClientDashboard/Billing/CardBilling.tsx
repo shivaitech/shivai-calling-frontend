@@ -254,11 +254,11 @@ export default function CardBilling({
 
   useEffect(() => {
     if (loading || !pendingPlan) return;
-    if (hasPaidPlan || compKey) {
+    if (hasPaidPlan || compKey || founding) {
       clearPendingPlan();
       setPendingPlan(null);
     }
-  }, [loading, hasPaidPlan, compKey, pendingPlan]);
+  }, [loading, hasPaidPlan, compKey, founding, pendingPlan]);
 
   // Arriving to pay: bring the panel into view (it sits above the plans).
   useEffect(() => {
@@ -395,7 +395,7 @@ export default function CardBilling({
               <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">One step left</p>
               <h4 className="mt-1 text-lg font-semibold text-slate-900 dark:text-white">Complete your {finishCard.name} plan</h4>
               <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                Your card is created. Pay securely to unlock {finishCard.name}
+                Pay securely to unlock {finishCard.name}
                 {finishPrice && (
                   <>
                     {": "}
@@ -440,13 +440,16 @@ export default function CardBilling({
                 {error} Plans are shown below; buying opens once billing loads.
               </Notice>
             )}
+            {founding && (
+              <Notice tone="slate">You're a Founding Member: there's no billing, and no limits on business cards or AI agents.</Notice>
+            )}
             {compKey && (
               <Notice tone="slate">
                 {compName} is free on your account. No payment needed: your cards get the {compName} look
                 {compKey === "prestige" ? " (or Signature, if you prefer it in the card editor)" : ""}.
               </Notice>
             )}
-            {!compKey && !error && !paymentsOn && canPay && (
+            {!compKey && !founding && !error && !paymentsOn && canPay && (
               <Notice tone="amber">Card payments are being switched on. You're on Essential until then. Plans can be bought here as soon as it's live.</Notice>
             )}
             {!canPay && <Notice tone="slate">Admin and staff accounts can't buy plans. The plans below are shown for reference.</Notice>}

@@ -22,6 +22,7 @@ import { foundingOfferActive, isFoundingFree } from "./foundingOffer";
 import { complimentaryPlan, complimentarySavePlan } from "./complimentaryPlans";
 import { pendingPlanHref, savePendingPlan } from "../ClientDashboard/Billing/pendingPlan";
 import { handlePlanLimit } from "../ClientDashboard/Billing/planLimit";
+import { cardBillingAPI } from "../services/billingAPI";
 import { createWithUsername } from "../ClientDashboard/apps/DigitalCard/autoUsername";
 import { PLANS, type PlanId } from "./digitalCardPricing";
 import "../ClientDashboard/apps/DigitalCard/digitalCard.css";
@@ -157,7 +158,13 @@ export default function DigitalCardCreatePage() {
       toast.success("Your digital card is ready!", { duration: 5000 });
       // A paid plan chosen on the pricing page → straight on to pay for it. It's also remembered,
       // so if they leave before paying, Billing and the Digital Card app ask them to finish later.
-      if (needsPayment && chosenPlan) {
+      // A first card made during the Founding Member offer makes the account a founding member:
+      // no billing and everything included, so there's nothing to pay (checkout would refuse it).
+      const founding = needsPayment ? await cardBillingAPI.overview().then((o) => !!o?.founding_member).catch(() => false) : false;
+      if (founding) {
+        toast.success("You're a Founding Member: your plan is included, nothing to pay.", { duration: 6000 });
+        navigate("/app/digital-card?section=cards", { replace: true });
+      } else if (needsPayment && chosenPlan) {
         savePendingPlan(chosenPlan, chosenBilling);
         navigate(pendingPlanHref({ plan: chosenPlan as "signature" | "prestige", billing: chosenBilling }), { replace: true });
       } else {
@@ -266,6 +273,7 @@ export default function DigitalCardCreatePage() {
               <div className="form">
                 <CardForm
                   chooseUsername={chooseUsername}
+                  cardName={lookTier === "signature" || lookTier === "prestige"}
                   form={form}
                   set={set}
                   errors={errors}

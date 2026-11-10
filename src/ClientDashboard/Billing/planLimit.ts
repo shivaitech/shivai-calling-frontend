@@ -69,6 +69,18 @@ export function handlePlanLimit(err: unknown): boolean {
 export function showLimitFor(resource: LimitResource, r: ResourceLimit, planName?: string): void {
   const [one, many] = RESOURCE_NAMES[resource];
   const plan = planName ? `The ${planName} plan` : "Your plan";
+  const upgradeTo = /prestige/i.test(planName ?? "") ? "" : /signature/i.test(planName ?? "") ? "Prestige" : "Signature or Prestige";
+  if (resource === "business_cards" && r.limit && upgradeTo) {
+    // e.g. "Your Essential plan includes one card. Upgrade to Signature or Prestige to create more cards."
+    const count = r.limit === 1 ? "one card" : `${r.limit} cards`;
+    return showPlanLimit({
+      message: `Your ${planName ?? "current"} plan includes ${count}. Upgrade to ${upgradeTo} to create more cards.`,
+      resource,
+      limit: r.limit,
+      used: r.used,
+      plan: planName,
+    });
+  }
   const message =
     r.limit === 0
       ? `${plan} does not include ${many}. Upgrade your plan to add ${many}.`

@@ -6,7 +6,7 @@ import { DESCRIPTION_MAX, DOCUMENT_MAX_BYTES, LOGO_SIZES, VENTURE_KINDS, venture
 const patchAt = <T,>(arr: T[], i: number, patch: Partial<T>) => arr.map((x, j) => (j === i ? { ...x, ...patch } : x));
 
 /**
- * Ventures and things to browse — shop catalogs, documents (PDF), menus, portfolios.
+ * My Projects: companies and projects, plus things to browse (catalogs, PDFs, menus, portfolios).
  * Each entry: a type, a logo/cover (shown Small / Medium / Large on the card), a name,
  * and a link — or, for browsable types, an uploaded PDF.
  */
@@ -64,7 +64,7 @@ export default function VenturesEditor({
           <div className="ven-item" key={i}>
             <div className="ven-head">
               {basic ? (
-                <span className="ven-kind-plain">Venture {i + 1}</span>
+                <span className="ven-kind-plain">Project {i + 1}</span>
               ) : (
               <label className="ven-kind">
                 <kind.Icon size={14} aria-hidden="true" />
@@ -205,7 +205,7 @@ export default function VenturesEditor({
         {(basic ? VENTURE_KINDS.filter((k) => k.id === "venture") : VENTURE_KINDS).map((k) => (
           <button key={k.id} type="button" onClick={() => add(k.id)}>
             <Plus size={13} aria-hidden="true" />
-            {k.label}
+            {k.id === "catalog" ? "Add your catalog" : k.label}
           </button>
         ))}
       </div>

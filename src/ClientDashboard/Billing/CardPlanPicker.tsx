@@ -57,7 +57,7 @@ export default function CardPlanPicker({
   onChoose: (plan: PlanCard) => void;
   /** The account has this plan free (complimentary): it's marked current and nothing is for sale. */
   complimentaryKey?: string;
-  /** A founding member: no limits and no billing, so every plan is simply included. */
+  /** A founding member: no billing and no limits, so there's nothing to choose or switch. */
   foundingAccount?: boolean;
 }) {
   const annual = cycle === "annual";
@@ -139,7 +139,7 @@ export default function CardPlanPicker({
           let label = "";
           let disabled = false;
           if (foundingAccount) {
-            label = "Included";
+            label = "Founding member";
             disabled = true;
           } else if (complimentaryKey) {
             // Free on this account: nothing to buy.

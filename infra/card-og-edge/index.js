@@ -42,7 +42,11 @@ function page(card, slug, url = `${SITE}/card/${slug}`) {
   // e.g. "Athar Cee — Founder & CEO, Acme Studio | Digital Business Card"
   const title = `${[card.full_name, role].filter(Boolean).join(" — ") || "Digital business card"} | Digital Business Card`;
   const firstName = String(card.full_name || "").trim().split(/\s+/)[0] || "them";
-  const description = `${card.tagline ? card.tagline.replace(/[.\s]+$/, "") + ". " : ""}Tap to call, WhatsApp or email ${firstName}, or save the contact in one tap.`;
+  // The tagline, then the call to action. A tagline that already ends in a full stop, "!", "?" or an
+  // emoji ("…right here. 👇") gets just a space, never an extra "." after it.
+  const tagline = (card.tagline || "").trim().replace(/\s+$/, "");
+  const lead = !tagline ? "" : /[.!?…]$|\p{Extended_Pictographic}️?$/u.test(tagline) ? `${tagline} ` : `${tagline}. `;
+  const description = `${lead}Tap to call, WhatsApp or email ${firstName}, or save the contact in one tap.`;
   const image = /^https:\/\//i.test(card.image_url || "") ? card.image_url : DEFAULT_IMAGE;
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
@@ -68,7 +72,7 @@ function page(card, slug, url = `${SITE}/card/${slug}`) {
 function invitePage() {
   const url = `${SITE}/digital-card`;
   const title = "Create your free digital business card | ShivAI";
-  const description = "Build a professional profile in minutes. Share one link or QR code — people can call, WhatsApp, email and save your contact in one tap.";
+  const description = "Build a professional profile in minutes. Share one link or QR code, and people can call, WhatsApp, email and save your contact in one tap.";
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <title>${esc(title)}</title>

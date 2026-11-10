@@ -1912,3 +1912,26 @@
 /* Long words, links and numbers wrap instead of pushing the layout wider than the screen. */
 .dc .card,.dc .form{overflow-wrap:anywhere}
 .dc .card .phone-num,.dc .card .link-sub,.dc .card .slug{overflow-wrap:normal}
+
+/* ---------- Email signature sheet ---------- */
+.dc .sig-sheet{max-width:560px}
+.dc .sig-intro{margin:-6px 0 14px;font-size:13px;line-height:1.5;color:#666}
+.dc .sig-options{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.dc .sig-toggle{display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border:1px solid #e3e3e0;border-radius:999px;font-size:13px;font-weight:600;cursor:pointer;user-select:none}
+.dc .sig-toggle.is-off{opacity:.5;cursor:not-allowed}
+.dc .sig-preview{padding:18px 16px;border:1px solid #e8e8e8;border-radius:14px;background:#fff;overflow-x:auto}
+.dc .sig-preview table{max-width:none}
+.dc .sig-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.dc .sig-actions .btn{display:inline-flex;align-items:center;gap:7px;flex:1 1 auto;justify-content:center}
+.dc .sig-howto{margin-top:16px;padding:14px;border-radius:14px;background:#f7f7f6}
+.dc .sig-tabs{display:flex;gap:4px;padding:3px;border-radius:10px;background:#ececea;overflow-x:auto}
+.dc .sig-tabs button{flex:1 0 auto;border:0;background:transparent;padding:7px 12px;border-radius:8px;font:inherit;font-size:12.5px;font-weight:600;color:#666;cursor:pointer;white-space:nowrap}
+.dc .sig-tabs button.is-on{background:#fff;color:#171717;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.dc .sig-howto ol{margin:12px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:13px;line-height:1.5;color:#333}
+.dc .btns .btn{gap:6px}
+/* "+ New card" when the plan's card limit is reached: looks disabled, still tappable to explain. */
+.dc .cards-head .btn.is-limit{opacity:.55;cursor:not-allowed}
+.dc .cards-head .btn.is-limit:hover{opacity:.7}
+
+/* Owner-only card name (My cards, QR list) — never on the public card */
+.dc .card-label{display:block;font-size:10.5px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:#6b7280;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
