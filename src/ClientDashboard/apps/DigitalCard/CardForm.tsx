@@ -147,6 +147,8 @@ interface CardFormProps {
   usernameLocked?: boolean;
   /** New card: may the owner choose their link? (Prestige only; other plans get one made from the name.) */
   chooseUsername?: boolean;
+  /** Show the private "Card name" field (Signature and Prestige, where owners have more than one card). */
+  cardName?: boolean;
   /** Uploads a PDF for a document/catalog entry. Leave out before the visitor has an account (links only). */
   onDocumentFile?: (file: File) => Promise<{ url: string; file_name: string }>;
   onDocumentError?: (message: string) => void;
@@ -163,6 +165,7 @@ export default function CardForm({
   savedUsername,
   usernameLocked = false,
   chooseUsername = true,
+  cardName = false,
   onDocumentFile,
   onDocumentError = () => {},
 }: CardFormProps) {
@@ -219,8 +222,20 @@ export default function CardForm({
         icon={UserRound}
         title="Basics"
         subtitle="Your identity on the card"
-        hasError={errIn("image_url", "full_name", "username", "job_title", "company_name", "tagline", "color_code")}
+        hasError={errIn("card_name", "image_url", "full_name", "username", "job_title", "company_name", "tagline", "color_code")}
       >
+        {(cardName || !!form.card_name) && (
+          <Field label="Card name" error={err("card_name")}>
+            <input
+              value={form.card_name ?? ""}
+              maxLength={40}
+              placeholder="For example, Personal card or Official card"
+              onChange={(e) => set({ card_name: e.target.value })}
+            />
+            <small className="field-help">Only you can see this name. It helps you tell your cards apart.</small>
+          </Field>
+        )}
+
         {/* Profile photo: round preview, with Upload / Remove beside it. */}
         <div className="photo-row">
           <button
@@ -360,7 +375,7 @@ export default function CardForm({
       <FormSection
         icon={Phone}
         title="Contact"
-        subtitle="How people can reach you"
+        subtitle="These details show as your primary contact on your card."
         hasError={errIn("country_code", "phone_number", "additional_phones", "email", "additional_emails", "website")}
       >
         <div className="field">
@@ -580,8 +595,8 @@ export default function CardForm({
 
       <FormSection
         icon={Layers}
-        title={CARD_EXTRAS ? "Ventures & more" : "Ventures"}
-        subtitle={CARD_EXTRAS ? "Companies, shop catalogs, documents, menus and more" : "Companies or projects"}
+        title="My Projects"
+        subtitle={CARD_EXTRAS ? "Companies, catalogs, PDFs, menus and portfolios" : "Companies or projects"}
         hasError={errIn("ventures")}
       >
         <VenturesEditor

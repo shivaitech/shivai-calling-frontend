@@ -136,7 +136,7 @@ export const APPS: MarketplaceApp[] = [
     badge: "New",
     workspaceSections: [
       { key: "cards", label: "My Cards", icon: Contact },
-      { key: "card", label: "Create / Edit", icon: UserCog },
+      { key: "card", label: "Edit", icon: UserCog },
       { key: "share", label: "Share & QR", icon: Share2 },
       { key: "monitoring", label: "Monitoring", icon: BarChart3 },
       { key: "affiliate", label: "Affiliate", icon: Coins },

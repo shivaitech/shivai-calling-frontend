@@ -150,7 +150,7 @@ export default function CardAffiliate({ go }: { go: (s: string, id?: string | nu
               </button>
             </div>
           ) : (
-            <button type="button" className="btn small" onClick={() => go("card", null)}>
+            <button type="button" className="btn small" onClick={() => go("card", "new")}>
               Create your card to start earning
             </button>
           )}

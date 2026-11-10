@@ -140,7 +140,19 @@ export default function PlanLimitDialog() {
             );
           })}
         </div>
-        <p className="mt-4 text-xs text-slate-500 dark:text-slate-400">Nothing you've already created is ever removed. Upgrading only lets you add more.</p>
+        <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-slate-500 dark:text-slate-400">Nothing you've already created is ever removed. Upgrading only lets you add more.</p>
+          <button
+            type="button"
+            onClick={() => {
+              setHit(null);
+              navigate("/app/digital-card?section=plan");
+            }}
+            className="inline-flex flex-none items-center justify-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900"
+          >
+            Upgrade plan <ArrowRight className="h-4 w-4" />
+          </button>
+        </div>
       </div>
     </div>,
     document.body,

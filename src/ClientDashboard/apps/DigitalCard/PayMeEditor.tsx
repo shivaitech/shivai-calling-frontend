@@ -99,7 +99,7 @@ export default function PayMeEditor({
             <Wallet size={20} />
           </span>
           <div>
-            <strong>Let people pay you from your card</strong>
+            <strong>Add your payment details so people can pay you in one tap.</strong>
             <p>UPI, PayPal, card payment links, Wise, bank transfer or your payment QR. Visitors tap Pay Me, choose a method and pay with your provider.</p>
           </div>
         </div>

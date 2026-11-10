@@ -41,7 +41,7 @@ export default function CardMonitoring({ cardId, go }: { cardId: string | null; 
       <section className="panel empty">
         <h3>No cards to monitor yet</h3>
         <p className="muted">Create your digital card and its views, scans and saves will show up here.</p>
-        <button className="btn small" onClick={() => go("card", null)}>
+        <button className="btn small" onClick={() => go("card", "new")}>
           Create a card
         </button>
       </section>

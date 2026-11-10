@@ -113,6 +113,8 @@ export interface BusinessCardInput {
   agent_id: string;
   /** Chosen link name → https://<username>.callshivai.com. Required when creating a card; fixed after that. */
   username: string;
+  /** Private name the owner tells cards apart by ("Official card"). Shown in the dashboard only, never on the card. */
+  card_name?: string;
 }
 
 /** The card plans. */
@@ -293,6 +295,8 @@ export const toPayload = (
     const emails = (c.additional_emails ?? []).filter((m) => m.email.trim()).map((m) => ({ label: m.label, email: m.email.trim() }));
     return emails.length ? { additional_emails: emails } : {};
   })(),
+  // Owner-only label: sent once it's been set (an empty string clears it), so older cards save as before.
+  ...(c.card_name !== undefined ? { card_name: c.card_name.trim() } : {}),
   // The featured button — only sent once the owner picks one.
   ...(c.highlight ? { highlight: c.highlight } : {}),
   // Pay Me — only sent once the owner adds a method.

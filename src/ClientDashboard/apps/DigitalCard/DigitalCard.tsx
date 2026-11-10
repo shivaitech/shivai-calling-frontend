@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import QRCode from "react-qr-code";
 import toast from "react-hot-toast";
-import { Award, BarChart3, Bot, Clock, Copy, CreditCard, Crown, ExternalLink, Eye, Lock, Pencil, Plus, Share2, Sparkles } from "lucide-react";
+import { Award, BarChart3, Bot, Clock, Copy, CreditCard, Crown, ExternalLink, Eye, Lock, Mail, Pencil, Plus, Share2, Sparkles } from "lucide-react";
 import { cardInsightsAPI } from "../../../services/cardInsightsAPI";
 import CardView from "./CardView";
 import CardForm, { type CardPatch } from "./CardForm";
@@ -15,6 +15,7 @@ import { cardBillingAPI } from "../../../services/billingAPI";
 import { clearPendingPlan, loadPendingPlan, pendingPlanHref, type PendingPlan } from "../../Billing/pendingPlan";
 import { handlePlanLimit, limitLabel, refreshPlanLimits, showLimitFor, usePlanLimits } from "../../Billing/planLimit";
 import { createWithUsername } from "./autoUsername";
+import EmailSignatureSheet from "./EmailSignatureSheet";
 import QrPlayground from "./QrPlayground";
 import { loadQrDesign, saveQrDesign } from "./qrDesignStore";
 import { CardData, emptyCard, withSuggestedTagline } from "./types";
@@ -83,6 +84,7 @@ const fromCard = (c: BusinessCard): CardData => ({
     is_whatsapp_number: !!p.is_whatsapp_number,
   })),
   additional_emails: (c.additional_emails ?? []).map((m) => ({ label: m.label ?? "work", email: m.email ?? "" })),
+  ...(c.card_name != null ? { card_name: c.card_name } : {}),
   email: c.email ?? "",
   website: c.website ?? "",
   social_media: (c.social_media ?? []).map((s) => ({ type: s.type, url: s.url ?? "", username: s.username ?? "" })),
@@ -151,7 +153,8 @@ export default function DigitalCard({ section = "cards" }: { section?: string })
       ) : section === "affiliate" ? (
         <CardAffiliate go={go} />
       ) : section === "card" ? (
-        <CardEditor key={id ?? "new"} id={id || "new"} go={go} />
+        // "Edit" opens the owner's card; creating is only from My cards (id "new").
+        id ? <CardEditor key={id} id={id} go={go} /> : <EditLanding go={go} />
       ) : (
         <CardsList go={go} />
       )}
@@ -176,7 +179,8 @@ function PendingPlanBanner() {
       .overview()
       .then((o) => {
         if (!live) return;
-        if (o?.paid) {
+        // Paid, or a founding member (no billing, everything included): nothing left to finish.
+        if (o?.paid || o?.founding_member) {
           clearPendingPlan();
           setPending(null);
         }
@@ -254,6 +258,7 @@ function CardRow({
   onCopy: () => void;
 }) {
   const [week, setWeek] = useState<{ views: number; taps: number } | null>(null);
+  const [sigOpen, setSigOpen] = useState(false);
   useEffect(() => {
     let live = true;
     cardInsightsAPI
@@ -288,6 +293,7 @@ function CardRow({
           {c.image_url ? <img src={c.image_url} alt="" onError={(e) => (e.currentTarget.style.display = "none")} /> : initials(c.full_name)}
         </div>
         <div className="grow">
+          {c.card_name && <div className="card-label">{c.card_name}</div>}
           <div className="cardrow-title">
             <strong>{c.full_name}</strong>
             {look && (
@@ -352,6 +358,9 @@ function CardRow({
           <Share2 size={14} aria-hidden="true" /> Share
         </button>
         <span className="cardrow-icons">
+          <button type="button" className="icon-btn" onClick={() => setSigOpen(true)} aria-label="Add to email signature" title="Add to email signature">
+            <Mail size={16} aria-hidden="true" />
+          </button>
           <a className="icon-btn" href={cardUrl(c)} target="_blank" rel="noopener noreferrer" aria-label="Open card" title="Open card">
             <ExternalLink size={16} aria-hidden="true" />
           </a>
@@ -372,6 +381,7 @@ function CardRow({
           </Link>
         </div>
       )}
+      {sigOpen && <EmailSignatureSheet card={c} tier={plan ?? undefined} onClose={() => setSigOpen(false)} />}
     </section>
   );
 }
@@ -442,11 +452,11 @@ function CardsList({ go }: { go: (s: string, id?: string | null) => void }) {
         </div>
         {limits.cards && !limits.cards.allowed ? (
           // Full: say so, and offer the upgrade instead of opening an empty form.
-          <button className="btn is-limit" onClick={() => showLimitFor("business_cards", limits.cards!, limits.planName)}>
-            <Lock size={15} aria-hidden="true" /> {limits.cards.limit === 0 ? "Not in your plan" : `Limit reached (${limits.cards.used} of ${limits.cards.limit})`}
+          <button className="btn is-limit" aria-disabled="true" title="Upgrade to create more cards" onClick={() => showLimitFor("business_cards", limits.cards!, limits.planName)}>
+            <Lock size={14} aria-hidden="true" /> New card
           </button>
         ) : (
-          <button className="btn" onClick={() => go("card", null)}>
+          <button className="btn" onClick={() => go("card", "new")}>
             <Plus size={16} aria-hidden="true" /> New card
           </button>
         )}
@@ -471,7 +481,7 @@ function CardsList({ go }: { go: (s: string, id?: string | null) => void }) {
         <section className="panel empty">
           <h3>No cards yet</h3>
           <p className="muted">Create your first digital business card and share it in seconds.</p>
-          <button className="btn small" onClick={() => go("card", null)}>Create a card</button>
+          <button className="btn small" onClick={() => go("card", "new")}>Create a card</button>
         </section>
       )}
 
@@ -496,6 +506,48 @@ function CardsList({ go }: { go: (s: string, id?: string | null) => void }) {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * The Edit section opened without a card: open the owner's card straight away (their most
+ * recently updated one), replacing the URL so Back doesn't bounce here. No card yet → point to
+ * My cards, where cards are created.
+ */
+function EditLanding({ go }: { go: (s: string, id?: string | null) => void }) {
+  const [params, setParams] = useSearchParams();
+  const [state, setState] = useState<"loading" | "none" | "error">("loading");
+  useEffect(() => {
+    let live = true;
+    businessCardAPI
+      .list({ page: 1, limit: 1, sortBy: "updatedAt", sortOrder: "desc" })
+      .then(({ cards }) => {
+        if (!live) return;
+        const first = cards[0];
+        if (!first) return setState("none");
+        cardCache.set(first._id, first);
+        const next = new URLSearchParams(params);
+        next.set("section", "card");
+        next.set("id", first._id);
+        setParams(next, { replace: true });
+      })
+      .catch(() => live && setState("error"));
+    return () => {
+      live = false;
+    };
+    // Once, when the section opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (state === "loading") return <p className="muted">Opening your card…</p>;
+  return (
+    <section className="panel empty">
+      <h3>{state === "none" ? "No card to edit yet" : "Couldn’t open your card"}</h3>
+      <p className="muted">{state === "none" ? "Create your card in My cards, then edit it here any time." : "Please try again from My cards."}</p>
+      <button className="btn small" onClick={() => go("cards", null)}>
+        Go to My cards
+      </button>
+    </section>
   );
 }
 
@@ -690,6 +742,7 @@ function CardEditor({ id, go }: { id: string; go: (s: string, id?: string | null
           savedUsername={saved?.username || saved?.slug || undefined}
           usernameLocked={!isNew}
           chooseUsername={chooseUsername}
+          cardName={currentTier !== "essential"}
           onDocumentFile={(file) =>
             businessCardAPI.uploadDocument(file).then((r) => {
               toast.success("PDF uploaded");
@@ -744,6 +797,7 @@ function SharePanel({ id, go }: { id: string | null; go: (s: string, id?: string
   const [state, setState] = useState<"loading" | "ready" | "none" | "missing">(id ? "loading" : "none");
   const [copied, setCopied] = useState(false);
   const [qrImageBroken, setQrImageBroken] = useState(false);
+  const [sigOpen, setSigOpen] = useState(false);
   const qrRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -819,14 +873,20 @@ function SharePanel({ id, go }: { id: string | null; go: (s: string, id?: string
       </button>
       <div className="qr-studio">
         <section className="panel share">
-          <h3>Share {card.full_name}’s card</h3>
+          <h3>
+            Share {card.full_name}’s card{card.card_name && <span className="muted"> · {card.card_name}</span>}
+          </h3>
           <div className="linkbox"><input readOnly value={link} onFocus={(e) => e.currentTarget.select()} /></div>
           <div className="btns">
             <button className="btn" onClick={copy}>{copied ? "Copied ✓" : "Copy link"}</button>
             {"share" in navigator && <button className="btn ghost" onClick={share}>Share…</button>}
             <a className="btn ghost" href={`https://wa.me/?text=${encodeURIComponent(link)}`} target="_blank" rel="noopener noreferrer">WhatsApp</a>
             <a className="btn ghost" href={link} target="_blank" rel="noopener noreferrer">Open card ↗</a>
+            <button type="button" className="btn ghost" onClick={() => setSigOpen(true)}>
+              <Mail size={15} aria-hidden="true" /> Email signature
+            </button>
           </div>
+          {sigOpen && <EmailSignatureSheet card={card} onClose={() => setSigOpen(false)} />}
           <div className="qr">
             <div ref={qrRef} className="qrbox">
               {qrImage ? (
@@ -916,7 +976,7 @@ function QrListing({ go }: { go: (s: string, id?: string | null) => void }) {
         <section className="panel empty">
           <h3>No QR codes yet</h3>
           <p className="muted">Every card gets its own QR code. Create your card to get yours.</p>
-          <button className="btn small" onClick={() => go("card", null)}>Create a card</button>
+          <button className="btn small" onClick={() => go("card", "new")}>Create a card</button>
         </section>
       )}
       {cards && cards.length > 0 && (
@@ -929,6 +989,7 @@ function QrListing({ go }: { go: (s: string, id?: string | null) => void }) {
                   <QRCode value={cardUrl(c)} size={132} fgColor={design?.fg ?? "#161616"} />
                 </button>
                 <div className="qr-list-meta">
+                  {c.card_name && <span className="card-label">{c.card_name}</span>}
                   <strong>{c.full_name}</strong>
                   <span className="muted">{[c.job_title, c.company_name].filter(Boolean).join(" · ")}</span>
                   <span className="qr-list-link">{cardLabel(c)}</span>
