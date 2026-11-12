@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
-import { Eye } from "lucide-react";
+import { Eye, QrCode, UserRound } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { useAgent } from "../contexts/AgentContext";
 import { useInstalledApps } from "../marketplace/useInstalledApps";
@@ -22,10 +22,10 @@ import { foundingOfferActive, isFoundingFree } from "./foundingOffer";
 import { complimentaryPlan, complimentarySavePlan } from "./complimentaryPlans";
 import { pendingPlanHref, savePendingPlan } from "../ClientDashboard/Billing/pendingPlan";
 import { handlePlanLimit } from "../ClientDashboard/Billing/planLimit";
-import { cardBillingAPI } from "../services/billingAPI";
 import { createWithUsername } from "../ClientDashboard/apps/DigitalCard/autoUsername";
-import { PLANS, type PlanId } from "./digitalCardPricing";
+import { PLANS, money, usePlans, type PlanId } from "./digitalCardPricing";
 import "../ClientDashboard/apps/DigitalCard/digitalCard.css";
+import { USER_BASE_DBC } from "../permissions/dbcAccess";
 
 const CREATE_ROUTE = DIGITAL_CARD_CREATE;
 
@@ -44,6 +44,15 @@ const paidPlanQuery = (params: URLSearchParams): Record<string, string> => {
  *
  *   edit  ──Save & continue──▶ (sign in / sign up if needed) ──▶ review ──Save card──▶ /dashboard
  */
+const initialsOf = (name: string) =>
+  name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]!.toUpperCase())
+    .join("");
+
 export default function DigitalCardCreatePage() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
@@ -59,13 +68,12 @@ export default function DigitalCardCreatePage() {
   const chosen = paidPlanQuery(params);
   const chosenPlan = (chosen.plan as PlanId | undefined) ?? null;
   const chosenBilling = chosen.billing === "monthly" ? "monthly" : "annual";
-  const chosenPlanInfo = PLANS.find((p) => p.id === chosenPlan);
+  const livePlans = usePlans();
+  const chosenPlanInfo = livePlans.find((p) => p.id === chosenPlan);
   // Complimentary accounts: their plan (or Signature, if picked) with no payment step.
   const comp = complimentaryPlan(user?.email);
   const compPlan = complimentarySavePlan(comp, chosenPlan);
   const lookTier = compPlan ?? chosenPlan ?? undefined;
-  // Choosing the card's link is a Prestige option; other plans get one made from the name on save.
-  const chooseUsername = lookTier === "prestige";
   const needsPayment = !comp && !!chosenPlan && !isFoundingFree(chosenPlan);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -83,6 +91,7 @@ export default function DigitalCardCreatePage() {
   };
 
   const auth = useInlineAuth({
+    userBase: USER_BASE_DBC,
     // Keep the plan picked on the pricing page through the Google round trip.
     googleReturn: `${CREATE_ROUTE}?${new URLSearchParams({ ...paidPlanQuery(params), step: "review" })}`,
     onSuccess: () => {
@@ -109,7 +118,7 @@ export default function DigitalCardCreatePage() {
   // The review step needs a valid card and a session (e.g. after a Google round trip or a reload).
   useEffect(() => {
     if (step !== "review" || authLoading) return;
-    const v = validateCard(form, { skipUsername: !chooseUsername });
+    const v = validateCard(form);
     if (Object.keys(v).length) {
       setErrors(v);
       goStep("edit");
@@ -134,7 +143,7 @@ export default function DigitalCardCreatePage() {
   };
 
   const saveAndContinue = () => {
-    const v = validateCard(form, { skipUsername: !chooseUsername });
+    const v = validateCard(form);
     setErrors(v);
     if (Object.keys(v).length) return toast.error("Fix the highlighted fields");
     if (hasSession) {
@@ -149,7 +158,7 @@ export default function DigitalCardCreatePage() {
     setSaving(true);
     try {
       const ready = await resolveCardImages(form); // uploads a locally-picked photo/logos first
-      await createWithUsername(ready, chooseUsername, { plan: compPlan });
+      await createWithUsername(ready, { plan: compPlan });
       created.current = true;
       clearDraft();
       // Shows as installed immediately (the app page sends non-installers to the marketplace);
@@ -158,13 +167,8 @@ export default function DigitalCardCreatePage() {
       toast.success("Your digital card is ready!", { duration: 5000 });
       // A paid plan chosen on the pricing page → straight on to pay for it. It's also remembered,
       // so if they leave before paying, Billing and the Digital Card app ask them to finish later.
-      // A first card made during the Founding Member offer makes the account a founding member:
-      // no billing and everything included, so there's nothing to pay (checkout would refuse it).
-      const founding = needsPayment ? await cardBillingAPI.overview().then((o) => !!o?.founding_member).catch(() => false) : false;
-      if (founding) {
-        toast.success("You're a Founding Member: your plan is included, nothing to pay.", { duration: 6000 });
-        navigate("/app/digital-card?section=cards", { replace: true });
-      } else if (needsPayment && chosenPlan) {
+      // Founding Member is only a tag on free Essential: a paid plan is still paid for.
+      if (needsPayment && chosenPlan) {
         savePendingPlan(chosenPlan, chosenBilling);
         navigate(pendingPlanHref({ plan: chosenPlan as "signature" | "prestige", billing: chosenBilling }), { replace: true });
       } else {
@@ -226,12 +230,19 @@ export default function DigitalCardCreatePage() {
                 : "One link for everything: your profile, contact, payments and more. Your progress is saved on this device."}
             </p>
           </div>
-          {/* A tilted phone with a live miniature of the card being built (phones and tablets; desktop has the full preview beside the form). */}
+          {/* A mini card with the name and title being typed, in the plan's look (phones and tablets;
+              desktop has the full preview beside the form). */}
           {step === "edit" && (
             <div className="dc lg:hidden flex-none" aria-hidden="true">
-              <div className="create-hero-phone">
-                <div className="create-hero-stage">
-                  <CardView card={form} placeholders tier={lookTier} />
+              <div className={`create-chip${lookTier === "signature" || lookTier === "prestige" ? ` is-${lookTier}` : ""}`}>
+                <div className="create-chip-photo">
+                  {form.image_url ? <img src={form.image_url} alt="" /> : initialsOf(form.full_name) || <UserRound size={18} strokeWidth={1.8} />}
+                </div>
+                <p className="create-chip-name">{form.full_name.trim() || "Your name"}</p>
+                <p className="create-chip-role">{form.job_title.trim() || form.company_name.trim() || "Your title"}</p>
+                <div className="create-chip-foot">
+                  <span>{lookTier === "prestige" ? "Prestige" : lookTier === "signature" ? "Signature" : "Digital card"}</span>
+                  <QrCode size={13} strokeWidth={1.8} />
                 </div>
               </div>
             </div>
@@ -260,7 +271,7 @@ export default function DigitalCardCreatePage() {
               {isFoundingFree(chosenPlan)
                 ? "Free for life with the Founding Member offer. No payment needed."
                 : <>
-                    {chosenBilling === "annual" ? `${chosenPlanInfo?.yearly.toFixed(2)}/year` : `${chosenPlanInfo?.monthly.toFixed(2)}/month`}. You'll confirm payment right
+                    {chosenPlanInfo && (chosenBilling === "annual" ? `${money(chosenPlanInfo.yearly, chosenPlanInfo.currency)}/year` : `${money(chosenPlanInfo.monthly, chosenPlanInfo.currency)}/month`)}. You'll confirm payment right
                     after saving.
                   </>}
             </p>
@@ -272,7 +283,6 @@ export default function DigitalCardCreatePage() {
             <div className="grid">
               <div className="form">
                 <CardForm
-                  chooseUsername={chooseUsername}
                   cardName={lookTier === "signature" || lookTier === "prestige"}
                   form={form}
                   set={set}

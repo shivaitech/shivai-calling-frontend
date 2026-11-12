@@ -64,7 +64,7 @@ const FEATURES: Feature[] = [
   },
   {
     id: "ai",
-    tab: "Ask My AI",
+    tab: "AI Manager",
     Icon: Bot,
     glow: "rgba(99,102,241,.32)",
     eyebrow: "The digital card that does more",
@@ -73,7 +73,7 @@ const FEATURES: Feature[] = [
     items: [
       { Icon: MessageCircle, title: "Answers enquiries", text: "Give visitors useful answers without waiting for you to reply." },
       { Icon: CalendarCheck, title: "Helps book appointments", text: "Turn interest into a next step, right from your card." },
-      { Icon: Plug, title: "Connects to your ShivAI agent", text: "Link an agent you've already trained to activate the “Ask My AI” button on your card." },
+      { Icon: Plug, title: "Connects to your ShivAI agent", text: "Link an agent you've already trained to switch on the AI Manager button on your card." },
     ],
     view: { kind: "actions", focus: "myAi" },
   },
@@ -137,7 +137,7 @@ const DEMO = sampleCard();
 
 const ACTIONS: { key: ActionKey; label: React.ReactNode; light?: boolean; save?: boolean }[] = [
   { key: "call", label: <><Phone size={15} /> Call</> },
-  { key: "myAi", label: <><Sparkles size={15} /> Ask My AI</> },
+  { key: "myAi", label: <><Sparkles size={15} /> AI Manager</> },
   { key: "whatsapp", label: <><WhatsAppIcon /> WhatsApp</> },
   { key: "email", label: <><GmailIcon /> Email</>, light: true },
   { key: "linkedin", label: <><Linkedin size={15} /> LinkedIn</>, light: true },

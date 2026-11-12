@@ -96,7 +96,7 @@ function Dashboard({ a }: { a: CardAnalytics }) {
       { label: "Call", value: a.actions.call, Icon: Phone },
       { label: "Save Contact", value: a.actions.saveContact, Icon: UserPlus },
       { label: "Links", value: a.actions.links, Icon: Link2 },
-      { label: "Ask My AI", value: a.actions.askMyAi, Icon: Sparkles },
+      { label: "AI Manager", value: a.actions.askMyAi, Icon: Sparkles },
       { label: "Email", value: a.actions.email, Icon: Mail },
       { label: "LinkedIn", value: a.actions.linkedin, Icon: Linkedin },
     ].sort((x, y) => y.value - x.value),

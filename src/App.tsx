@@ -22,6 +22,7 @@ import PublicRoute from "./components/PublicRoute";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PermissionRoute from "./components/PermissionRoute";
 import HomeRedirect from "./components/HomeRedirect";
+import DbcGate from "./components/DbcGate";
 import GoogleCallback from "./components/GoogleCallback";
 import { saveLastRoute } from "./utils/homeRoute";
 import { DIGITAL_CARD_CREATE, DIGITAL_CARD_HOME } from "./pages/digitalCardRoutes";
@@ -62,6 +63,8 @@ const CommandCenter = lazy(() => import("./ClientDashboard/CommandCenter/Command
 const Staff = lazy(() => import("./ClientDashboard/Staff/Staff"));
 const Marketplace = lazy(() => import("./ClientDashboard/Marketplace/Marketplace"));
 const AppDetail = lazy(() => import("./ClientDashboard/Marketplace/AppDetail"));
+const CheckoutSuccess = lazy(() => import("./ClientDashboard/Billing/CheckoutSuccess"));
+const CheckoutFailed = lazy(() => import("./ClientDashboard/Billing/CheckoutFailed"));
 const WebsitePreview = lazy(() => import("./pages/WebsitePreview"));
 const AppWorkspace = lazy(() => import("./pages/AppWorkspace"));
 const CampaignDetail = lazy(() => import("./ClientDashboard/Workflows/CampaignDetail"));
@@ -295,6 +298,8 @@ function AppContent() {
                 >
                   <TopBar onMenuClick={() => setSidebarOpen(true)} />
                   <main className="px-4 sm:px-6 lg:px-6 py-2 lg:py-6 pt-16 sm:pt-[70px] lg:pt-[105px] pl-2 min-w-0 max-w-full overflow-hidden">
+                    {/* Digital Business Card accounts: card app only (see dbcAccess.ts). */}
+                    <DbcGate>
                     <Routes>
                       <Route path="/dashboard" element={<DashboardEntry />} />
                       <Route
@@ -325,6 +330,9 @@ function AppContent() {
                       <Route path="/analytics" element={<PermissionRoute requires="module:analytics"><Analytics /></PermissionRoute>} />
                       <Route path="/monitoring" element={<PermissionRoute requires="module:monitoring"><Monitoring /></PermissionRoute>} />
                       <Route path="/billing" element={<PermissionRoute requires="module:billing"><Billing /></PermissionRoute>} />
+                      {/* Stripe returns here (success_url / cancel_url, see checkoutFlow.ts). */}
+                      <Route path="/billing/success" element={<PermissionRoute requires="module:billing"><CheckoutSuccess /></PermissionRoute>} />
+                      <Route path="/billing/failed" element={<PermissionRoute requires="module:billing"><CheckoutFailed /></PermissionRoute>} />
                       <Route path="/settings" element={<Settings />} />
                       <Route path="/google-sheets" element={<GoogleSheetsManager />} />
                       <Route path="/google-sheets/:id/view" element={<GoogleSheetView />} />
@@ -355,6 +363,7 @@ function AppContent() {
                       {/* Catch all other routes and redirect to dashboard */}
                       <Route path="*" element={<Navigate to="/dashboard" replace />} />
                     </Routes>
+                    </DbcGate>
                   </main>
                 </div>
               </div>

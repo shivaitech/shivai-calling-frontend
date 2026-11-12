@@ -87,7 +87,7 @@ export interface CardVenture {
   description?: string;
   /** A PDF attached to a Project alongside its link (company profile, deck…). */
   document_url?: string;
-  /** That PDF's original file name. */
+  /** That PDF's original file name. Editor-only: it goes to and comes back from the server as file_name. */
   document_name?: string;
 }
 
@@ -335,7 +335,8 @@ export const toPayload = (
     ...(v.logo_size && v.logo_size !== "s" && v.logo_url.trim() ? { logo_size: v.logo_size } : {}),
     ...(v.file_name?.trim() ? { file_name: v.file_name.trim() } : {}),
     ...(v.description?.trim() ? { description: v.description.trim() } : {}),
-    ...(v.document_url?.trim() ? { document_url: v.document_url.trim(), document_name: (v.document_name ?? "").trim() } : {}),
+    // A Project's attached PDF: the server keeps its name in file_name (a Project has no file of its own).
+    ...(v.document_url?.trim() ? { document_url: v.document_url.trim(), file_name: (v.document_name ?? "").trim() } : {}),
   })),
   // The AI agent is optional: leave the key out entirely when none is chosen
   // (an empty string would fail the API's 24-char ObjectId check).

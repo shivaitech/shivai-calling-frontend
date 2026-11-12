@@ -31,7 +31,30 @@ interface User {
   tenantId?: string;
   tenantRole?: TenantRole;
   parentTenantId?: string | null;
+  /** Where the account came from. "DBC" = signed up from the Digital Business Card pages: card app only (see dbcAccess.ts). */
+  userBase?: string | null;
+  /** A DBC account the team has opened the whole ShivAI platform to. */
+  platformAccess?: boolean;
+  /** Their request for platform access, once sent. */
+  platformAccessStatus?: "pending" | "approved" | "rejected" | null;
 }
+
+/** sessionStorage: the userBase to send when a Google sign-up comes back (it leaves the page). */
+export const SIGNUP_USER_BASE_KEY = "signup_user_base";
+
+/** userBase / platform access from the account record (login, /auth/me), in either casing. */
+const accountOrigin = (u: any): Pick<User, "userBase" | "platformAccess" | "platformAccessStatus"> => {
+  if (!u || typeof u !== "object") return {};
+  const userBase = u.userBase ?? u.user_base;
+  const platformAccess = u.platformAccess ?? u.platform_access;
+  const request = u.platformAccessRequest ?? u.platform_access_request;
+  const status = u.platformAccessStatus ?? u.platform_access_status ?? request?.status;
+  return {
+    ...(userBase !== undefined ? { userBase } : {}),
+    ...(platformAccess !== undefined ? { platformAccess: !!platformAccess } : {}),
+    ...(status !== undefined ? { platformAccessStatus: status } : {}),
+  };
+};
 
 // localStorage key holding the signed-in user's resolved permission grant map
 // (from GET /users/profile). TenantPermissionsContext reads it so it doesn't
@@ -41,7 +64,8 @@ export const TENANT_GRANTS_STORAGE_KEY = "tenant_grants";
 // Enrich the login user with tenant context resolved from GET /users/profile:
 // sub-tenants get a SUBTENANT role + their parent's id as tenantId so
 // usePermission() gates them; everyone else stays a fail-open MAIN role.
-const enrichUserFromProfile = (baseUser: User, profile: Awaited<ReturnType<typeof getMyProfile>>): User => {
+const enrichUserFromProfile = (loginUser: User, profile: Awaited<ReturnType<typeof getMyProfile>>): User => {
+  const baseUser: User = { ...loginUser, ...accountOrigin(loginUser), ...accountOrigin(profile.user) };
   // Staff are delegated users — gated deny-by-default like sub-tenants, so they
   // only see the modules they were granted.
   if (profile.isStaff) {
@@ -93,7 +117,8 @@ interface AuthContextType {
     name: string,
     email: string,
     password: string,
-    confirmPassword: string
+    confirmPassword: string,
+    extra?: { userBase?: string }
   ) => Promise<void>;
   completeOnboarding: () => void;
   checkUserEmailPass: (email: string, password: string) => Promise<void>;
@@ -181,8 +206,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setIsLoading(true);
       setError(null);
 
+      // A Google sign-up started on the card pages: the server sets userBase on a NEW account only.
+      let userBase: string | null = null;
+      try {
+        userBase = sessionStorage.getItem(SIGNUP_USER_BASE_KEY);
+        sessionStorage.removeItem(SIGNUP_USER_BASE_KEY);
+      } catch {
+        /* storage blocked */
+      }
       const response = await authAPI.googleAuth({
         code,
+        ...(userBase ? { userBase } : {}),
       });
 
       setTokens(response.tokens);
@@ -293,7 +327,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     name: string,
     email: string,
     password: string,
-    confirmPassword: string
+    confirmPassword: string,
+    extra?: { userBase?: string }
   ): Promise<void> => {
     try {
       setIsLoading(true);
@@ -304,6 +339,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         email,
         password,
         confirmPassword,
+        ...(extra?.userBase ? { userBase: extra.userBase } : {}),
       };
 
       const response = await authAPI.register(registerData);
@@ -312,7 +348,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         "pending_auth_tokens",
         JSON.stringify(response.tokens)
       );
-      localStorage.setItem("pending_auth_user", JSON.stringify(response.user));
+      // Keep the origin even if the server doesn't echo it back yet.
+      const newUser = { ...response.user, ...(extra?.userBase ? { userBase: extra.userBase } : {}), ...accountOrigin(response.user) };
+      localStorage.setItem("pending_auth_user", JSON.stringify(newUser));
     } catch (err: any) {
       console.error("Registration error details:", err.response);
 

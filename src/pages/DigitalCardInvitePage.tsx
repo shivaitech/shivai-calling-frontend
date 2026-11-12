@@ -19,6 +19,7 @@ import DigitalCardReferral from "./digitalCardReferral";
 import FeatureCarousel from "./digitalCardFeatureCarousel";
 import { useAuth } from "../contexts/AuthContext";
 import "../ClientDashboard/apps/DigitalCard/digitalCard.css";
+import { USER_BASE_DBC } from "../permissions/dbcAccess";
 import { scrollToSection } from "../utils/scrollToSection";
 
 /** Where every "Create" CTA on this page leads (no account needed to start). */
@@ -154,7 +155,7 @@ const FAQS = [
     a: "Essential is free for life for Founding Members who create their card before 31 December 2026. Signature and Prestige add AI managers and premium features, from $14.99 a month billed annually. Every plan includes unlimited sharing. See Pricing above for what each plan adds.",
   },
   { q: "Do people need an app to view my card?", a: "No. Your card opens in any browser. Nothing to install to view, call, message or save your details." },
-  { q: "What's the “Ask My AI” button?", a: "Connect a trained ShivAI agent to your card in one click, and visitors can talk to it directly from your profile, day or night." },
+  { q: "What's the AI Manager button?", a: "Connect a trained ShivAI agent to your card in one click, and visitors can talk to it directly from your profile, day or night." },
   { q: "Can I change my card after sharing it?", a: "Yes. Edit it any time and the same link and QR code update instantly. There's nothing to reprint." },
   { q: "Will Apple/Google Wallet work?", a: "It's on the way, and the explainer above shows how it will work. The button goes live the moment it ships." },
 
@@ -267,7 +268,7 @@ function FloatingCreate({ onClick }: { onClick: () => void }) {
 
 export default function DigitalCardInvitePage() {
   const navigate = useNavigate();
-  const auth = useInlineAuth({ googleReturn: CREATE_ROUTE, onSuccess: () => navigate(CREATE_ROUTE) });
+  const auth = useInlineAuth({ userBase: USER_BASE_DBC, googleReturn: CREATE_ROUTE, onSuccess: () => navigate(CREATE_ROUTE) });
   // Every "create" button asks who the card is for first; plan/billing come along from the pricing cards.
   const [chooser, setChooser] = useState<{ query: string } | null>(null);
   const create = () => setChooser({ query: "" });

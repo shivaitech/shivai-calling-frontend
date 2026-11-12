@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
-import { AlertTriangle, ArrowRight, ArrowUpRight, CalendarClock, CreditCard, Download, ExternalLink, FileText, Info, Loader2, Lock, Tag } from "lucide-react";
+import { AlertTriangle, ArrowRight, ArrowUpRight, CalendarClock, CreditCard, Download, ExternalLink, FileText, Info, Loader2, Lock, X } from "lucide-react";
 import GlassCard from "../../components/GlassCard";
 import appToast from "../../components/AppToast";
 import { appWorkspacePath } from "../../marketplace/apps";
@@ -17,10 +18,11 @@ import {
   type SubStatus,
 } from "../../services/billingAPI";
 import CardPlanPicker, { toInterval } from "./CardPlanPicker";
+import CheckoutModal from "./CheckoutModal";
 import { useAuth } from "../../contexts/AuthContext";
 import { complimentaryPlan } from "../../pages/complimentaryPlans";
 import { clearPendingPlan, loadPendingPlan, type PendingPlan } from "./pendingPlan";
-import { usePlanLimits } from "./planLimit";
+import { refreshPlanLimits, usePlanLimits } from "./planLimit";
 import type { ResourceLimit } from "../../services/billingAPI";
 
 /** "1 of 2 used" · "Not included" · "Unlimited". */
@@ -93,7 +95,13 @@ export default function CardBilling({
   onCheckoutHandled,
   inApp = false,
   askToPay = false,
+  buy = false,
+  promoParam,
 }: {
+  /** ?buy=1: open checkout on the preselected plan as soon as billing loads. */
+  buy?: boolean;
+  /** ?promo=: a code to put on that checkout. */
+  promoParam?: string | null;
   /** Came from creating a card on a paid plan (?pay=1): ask to pay for the preselected plan first. */
   askToPay?: boolean;
   /** Plan picked on the pricing page / in the card creator, carried here to finish checkout. */
@@ -113,9 +121,6 @@ export default function CardBilling({
   /** Billing answered 503 (switched off) or isn't on this server (404). */
   const [unavailable, setUnavailable] = useState(false);
   const [cycle, setCycle] = useState<Cycle>(preselect?.billing ?? "annual");
-  const [pending, setPending] = useState<string | null>(null);
-  const [promoOpen, setPromoOpen] = useState(false);
-  const [promo, setPromo] = useState("");
   // A paid plan chosen when the card was created and not paid for yet (see pendingPlan.ts).
   const [pendingPlan, setPendingPlan] = useState<PendingPlan | null>(() => {
     const saved = loadPendingPlan();
@@ -123,8 +128,8 @@ export default function CardBilling({
     return saved;
   });
   const [finishLater, setFinishLater] = useState(false);
+  const [checkout, setCheckout] = useState<{ planKey: string; interval: Interval; promo?: string | null } | null>(null);
   const finishRef = useRef<HTMLDivElement>(null);
-  const [promoError, setPromoError] = useState("");
   const [change, setChange] = useState<{ plan: PlanCard; interval: Interval } | null>(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -197,6 +202,7 @@ export default function CardBilling({
       if (ov && (ov.status === "active" || ov.paid)) {
         setConfirming(false);
         await load();
+        refreshPlanLimits();
         appToast.success(`You're on ${ov.plan?.name ?? "your new plan"}.`);
         return;
       }
@@ -235,9 +241,10 @@ export default function CardBilling({
   };
 
   const status: SubStatus = overview?.status ?? "free";
-  // Founding members have no billing and no limits: a label, and no Choose / Switch / Cancel.
+  // Founding member is only a tag: Essential, free for accounts that joined before 31 Dec 2026.
+  // They keep Essential's limits and can still upgrade to Signature or Prestige like anyone else.
   const founding = !!overview?.founding_member;
-  const hasPaidPlan = !founding && !!overview?.plan && !overview.plan.is_free && !NOT_PAYING.includes(status);
+  const hasPaidPlan = !!overview?.plan && !overview.plan.is_free && !NOT_PAYING.includes(status);
   // Cards / AI agents used against the plan (GET /billing/limits).
   const planLimits = usePlanLimits();
   // A plan given free to this account (complimentaryPlans.ts) — unless it's actually paying.
@@ -254,11 +261,11 @@ export default function CardBilling({
 
   useEffect(() => {
     if (loading || !pendingPlan) return;
-    if (hasPaidPlan || compKey || founding) {
+    if (hasPaidPlan || compKey) {
       clearPendingPlan();
       setPendingPlan(null);
     }
-  }, [loading, hasPaidPlan, compKey, founding, pendingPlan]);
+  }, [loading, hasPaidPlan, compKey, pendingPlan]);
 
   // Arriving to pay: bring the panel into view (it sits above the plans).
   useEffect(() => {
@@ -269,41 +276,30 @@ export default function CardBilling({
   const finishCard = pendingPlan ? shownPlans.find((p) => p.key === pendingPlan.plan) ?? null : null;
   const finishInterval: Interval = pendingPlan?.billing === "monthly" ? "month" : "year";
   const finishPrice = finishCard?.prices[finishInterval] ?? null;
-  const showFinish = !!pendingPlan && !!finishCard && !hasPaidPlan && !compKey && !founding && canPay && !finishLater && !confirming;
+  const showFinish = !!pendingPlan && !!finishCard && !hasPaidPlan && !compKey && canPay && !finishLater && !confirming;
   const dropPendingPlan = () => {
     clearPendingPlan();
     setPendingPlan(null);
   };
 
-  const choose = async (plan: PlanCard, interval: Interval = toInterval(cycle)) => {
-    if (compKey || founding) return;
-    if (hasPaidPlan) {
-      setChange({ plan, interval });
-      return;
-    }
-    setPending(plan.key);
-    setPromoError("");
-    try {
-      window.location.assign(await cardBillingAPI.checkout(plan.key, interval, promo));
-    } catch (err) {
-      const e = err as BillingError;
-      setPending(null);
-      handleError(e, () => {
-        if (e.status === 409) {
-          // Already subscribed: switch to the change-plan flow.
-          appToast.info(e.message);
-          setChange({ plan, interval });
-          void load();
-        } else if (e.status === 400 && promo.trim()) {
-          setPromoOpen(true);
-          setPromoError(e.message);
-        } else if (e.status === 404) {
-          appToast.error(e.message);
-          void load();
-        } else appToast.error(e.message);
-      });
-    }
+  // Not paying yet: the checkout modal (the full bill, promo codes) and then Stripe.
+  // Already paying: a plan change, confirmed in SwitchPlanModal.
+  const choose = (plan: PlanCard, interval: Interval = toInterval(cycle), promo?: string | null) => {
+    if (compKey) return;
+    if (hasPaidPlan) setChange({ plan, interval });
+    else setCheckout({ planKey: plan.key, interval, promo });
   };
+
+  // Opened with ?buy=1 (the failed page's "Try again", links from the pricing page): straight to checkout.
+  const buyOpened = useRef(false);
+  useEffect(() => {
+    if (!buy || loading || buyOpened.current || !preselect || preselect.plan === "essential") return;
+    buyOpened.current = true;
+    const plan = shownPlans.find((p) => p.key === preselect.plan);
+    if (plan && paymentsOn && canPay) choose(plan, toInterval(preselect.billing), promoParam);
+    onCheckoutHandled(); // drop ?buy= so a reload doesn't reopen it
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buy, loading]);
 
   const confirmChange = async () => {
     if (!change) return;
@@ -311,6 +307,7 @@ export default function CardBilling({
     try {
       await cardBillingAPI.changePlan(change.plan.key, change.interval);
       setChange(null);
+      refreshPlanLimits();
       appToast.success(`You're now on ${change.plan.name}.`);
       await load();
     } catch (err) {
@@ -345,9 +342,7 @@ export default function CardBilling({
     }
   };
 
-  const pill = founding
-    ? { label: "Founding member", cls: STATUS.active.cls }
-    : compKey
+  const pill = compKey
     ? { label: "Complimentary", cls: STATUS.active.cls }
     : overview?.cancel_at_period_end && hasPaidPlan
       ? { label: "Ends soon", cls: STATUS.canceled.cls }
@@ -365,6 +360,7 @@ export default function CardBilling({
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <h3 className="text-lg font-semibold text-slate-800 dark:text-white">Digital Business Card</h3>
             {!loading && <Pill {...pill} />}
+            {!loading && founding && <Pill label="Founding member" cls={STATUS.active.cls} />}
             {confirming && (
               <span className="inline-flex items-center gap-1 text-xs text-slate-500">
                 <Loader2 className="w-3.5 h-3.5 animate-spin" /> Confirming your payment…
@@ -410,12 +406,12 @@ export default function CardBilling({
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  disabled={!paymentsOn || !finishCard.purchasable || !finishPrice || pending !== null}
-                  onClick={() => void choose(finishCard, finishInterval)}
+                  disabled={!paymentsOn || !finishCard.purchasable || !finishPrice}
+                  onClick={() => choose(finishCard, finishInterval)}
                   className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {pending === finishCard.key ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
-                  Continue to secure payment
+                  <Lock className="h-4 w-4" />
+                  Review and pay
                   <ArrowRight className="h-4 w-4" />
                 </button>
                 <button type="button" onClick={() => setFinishLater(true)} className="rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-700">
@@ -427,7 +423,7 @@ export default function CardBilling({
               </div>
               <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
                 {paymentsOn && finishCard.purchasable
-                  ? "Payment is handled by Stripe. Have a promo code? Add it below the plans before you continue."
+                  ? "You'll see the full bill and can add a promo code before paying on Stripe."
                   : "Card payments are opening soon. We'll keep your choice and ask you again here."}
               </p>
             </div>
@@ -440,8 +436,16 @@ export default function CardBilling({
                 {error} Plans are shown below; buying opens once billing loads.
               </Notice>
             )}
-            {founding && (
-              <Notice tone="slate">You're a Founding Member: there's no billing, and no limits on business cards or AI agents.</Notice>
+            {/* Cancelled = no renewal: the plan is paid up to the period end and stays until then. */}
+            {hasPaidPlan && overview?.cancel_at_period_end && (
+              <Notice tone="amber" action={canPay ? { label: "Resume plan", onClick: () => void run("resume"), busy } : undefined}>
+                Your {overview.plan?.name} plan is cancelled and won't renew. You've paid for it, so you keep everything in {overview.plan?.name} until{" "}
+                <strong className="font-semibold">{fmtDate(overview.current_period_end ?? undefined)}</strong>. After that your cards move to Essential
+                {founding ? " (free for you as a Founding Member)" : ""} and you won't be charged again.
+              </Notice>
+            )}
+            {founding && !hasPaidPlan && (
+              <Notice tone="slate">You're a Founding Member, so Essential is free for you. Upgrade to Signature or Prestige any time for more cards and AI.</Notice>
             )}
             {compKey && (
               <Notice tone="slate">
@@ -449,7 +453,7 @@ export default function CardBilling({
                 {compKey === "prestige" ? " (or Signature, if you prefer it in the card editor)" : ""}.
               </Notice>
             )}
-            {!compKey && !founding && !error && !paymentsOn && canPay && (
+            {!compKey && !error && !paymentsOn && canPay && (
               <Notice tone="amber">Card payments are being switched on. You're on Essential until then. Plans can be bought here as soon as it's live.</Notice>
             )}
             {!canPay && <Notice tone="slate">Admin and staff accounts can't buy plans. The plans below are shown for reference.</Notice>}
@@ -466,7 +470,7 @@ export default function CardBilling({
 
           {/* Current plan */}
           <dl className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <SummaryTile label="Current plan" value={founding ? "Founding member" : hasPaidPlan ? overview!.plan!.name : compKey ? compName : "Essential"} strong />
+            <SummaryTile label="Current plan" value={hasPaidPlan ? overview!.plan!.name : compKey ? compName : "Essential"} strong />
             <SummaryTile
               label="Price"
               value={
@@ -494,7 +498,7 @@ export default function CardBilling({
           </dl>
           {planLimits.loaded && planLimits.data && (
             <p className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
-              {founding || !planLimits.data.enforced ? (
+              {!planLimits.data.enforced ? (
                 <span>No limits on business cards or AI agents.</span>
               ) : (
                 <>
@@ -551,28 +555,29 @@ export default function CardBilling({
 
           {/* Plans */}
           <div ref={pickerRef} className="mt-7 scroll-mt-24">
-            {change && (
-              <div className="mb-4 rounded-xl border border-slate-900/15 dark:border-white/15 bg-slate-50 dark:bg-slate-800/60 p-4">
-                <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                  Switch to {change.plan.name} ({change.interval === "year" ? "annual" : "monthly"})?
-                </p>
-                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                  Moving to a higher plan charges the difference now. Moving to a lower plan gives a credit on your next invoice.
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void confirmChange()}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-2 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 disabled:opacity-60"
-                  >
-                    {busy && <Loader2 className="h-4 w-4 animate-spin" />} Confirm switch
-                  </button>
-                  <button type="button" onClick={() => setChange(null)} className="rounded-lg px-3.5 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-700">
-                    Keep current plan
-                  </button>
-                </div>
-              </div>
+            {change && overview?.plan && (
+              <SwitchPlanModal
+                from={{ key: overview.plan.key, name: overview.plan.name, amount: overview.price.amount, interval: overview.price.interval }}
+                to={change}
+                currency={currency}
+                busy={busy}
+                onConfirm={() => void confirmChange()}
+                onClose={() => !busy && setChange(null)}
+              />
+            )}
+
+            {checkout && (
+              <CheckoutModal
+                plans={shownPlans}
+                initial={checkout}
+                onClose={() => setCheckout(null)}
+                onAlreadySubscribed={(plan, interval, message) => {
+                  setCheckout(null);
+                  appToast.info(message);
+                  setChange({ plan, interval });
+                  void load();
+                }}
+              />
             )}
 
             {shownPlans.length ? (
@@ -586,8 +591,8 @@ export default function CardBilling({
                 canPay={canPay}
                 paymentsOn={paymentsOn}
                 preselectedKey={preselect?.plan}
-                pending={pending}
-                onChoose={(p) => void choose(p)}
+                pending={null}
+                onChoose={(p) => choose(p)}
                 complimentaryKey={compKey ?? undefined}
                 foundingAccount={founding}
               />
@@ -597,41 +602,6 @@ export default function CardBilling({
               </p>
             )}
 
-            {/* Promo code — first payment only */}
-            {!hasPaidPlan && !compKey && paymentsOn && canPay && livePlans && (
-              <div className="mt-4">
-                {promoOpen ? (
-                  <div className="max-w-sm">
-                    <label htmlFor="promo-code" className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
-                      <Tag className="h-3.5 w-3.5" /> Promo code
-                    </label>
-                    <input
-                      id="promo-code"
-                      value={promo}
-                      onChange={(e) => {
-                        setPromo(e.target.value);
-                        setPromoError("");
-                      }}
-                      placeholder="Enter code"
-                      autoCapitalize="characters"
-                      spellCheck={false}
-                      aria-invalid={!!promoError}
-                      aria-describedby="promo-help"
-                      className={`mt-1.5 w-full rounded-lg border px-3 py-2 text-sm uppercase tracking-wide bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 ${
-                        promoError ? "border-rose-300 focus:ring-rose-500/20" : "border-slate-200 dark:border-slate-700 focus:ring-slate-900/15"
-                      }`}
-                    />
-                    <p id="promo-help" className={`mt-1 text-xs ${promoError ? "text-rose-600" : "text-slate-500 dark:text-slate-400"}`}>
-                      {promoError || "Applied when you choose a plan. The discount covers your first payment only."}
-                    </p>
-                  </div>
-                ) : (
-                  <button type="button" onClick={() => setPromoOpen(true)} className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white">
-                    <Tag className="h-4 w-4" /> Have a promo code?
-                  </button>
-                )}
-              </div>
-            )}
           </div>
 
           {/* Purchase history */}
@@ -741,6 +711,102 @@ function SummaryTile({ label, value, icon, strong }: { label: string; value: Rea
       </dt>
       <dd className={`mt-1 truncate text-slate-800 dark:text-white tabular-nums ${strong ? "text-base sm:text-lg font-bold" : "text-sm sm:text-base font-semibold"}`}>{value}</dd>
     </div>
+  );
+}
+
+const TIER_ORDER = ["essential", "signature", "prestige"];
+const perInterval = (i: Interval | null) => (i === "year" ? "/ year" : i === "month" ? "/ month" : "");
+
+/** Confirms a plan change for someone already paying (POST /billing/change-plan). */
+function SwitchPlanModal({
+  from,
+  to,
+  currency,
+  busy,
+  onConfirm,
+  onClose,
+}: {
+  from: { key: string; name: string; amount: number; interval: Interval | null };
+  to: { plan: PlanCard; interval: Interval };
+  currency: string;
+  busy: boolean;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const price = to.plan.prices[to.interval];
+  const sameTier = from.key === to.plan.key;
+  const upgrade = TIER_ORDER.indexOf(to.plan.key) > TIER_ORDER.indexOf(from.key);
+  const what = sameTier
+    ? `Your ${to.plan.name} plan moves to ${to.interval === "year" ? "annual" : "monthly"} billing.`
+    : upgrade
+      ? `You get ${to.plan.name} right away. You pay only the difference for the rest of this billing period, charged to your card on file now.`
+      : `You move to ${to.plan.name} right away. What you've already paid for ${from.name} becomes a credit on your next invoice.`;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-4" role="dialog" aria-modal="true" aria-labelledby="switch-plan-title">
+      <div className="absolute inset-0 bg-slate-950/50 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="relative w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl p-5 sm:p-6">
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={busy}
+          aria-label="Close"
+          className="absolute right-3 top-3 rounded-lg p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-white"
+        >
+          <X className="h-4 w-4" />
+        </button>
+        <h4 id="switch-plan-title" className="pr-8 text-lg font-semibold text-slate-900 dark:text-white">
+          {sameTier ? `Switch to ${to.interval === "year" ? "annual" : "monthly"} billing?` : `Switch to ${to.plan.name}?`}
+        </h4>
+
+        <div className="mt-4 flex items-stretch gap-2">
+          <div className="flex-1 min-w-0 rounded-xl border border-slate-200 dark:border-slate-700 p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Now</p>
+            <p className="mt-0.5 truncate text-sm font-semibold text-slate-800 dark:text-white">{from.name}</p>
+            <p className="text-xs tabular-nums text-slate-500 dark:text-slate-400">
+              {formatCents(from.amount, currency)} {perInterval(from.interval)}
+            </p>
+          </div>
+          <ArrowRight className="h-4 w-4 flex-none self-center text-slate-400" aria-hidden="true" />
+          <div className="flex-1 min-w-0 rounded-xl border-2 border-slate-900 dark:border-white p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">New</p>
+            <p className="mt-0.5 truncate text-sm font-semibold text-slate-900 dark:text-white">{to.plan.name}</p>
+            <p className="text-xs tabular-nums text-slate-600 dark:text-slate-300">
+              {price ? `${formatCents(price.amount, to.plan.currency || currency)} ${perInterval(to.interval)}` : "—"}
+            </p>
+          </div>
+        </div>
+
+        <p className="mt-4 text-sm text-slate-600 dark:text-slate-300">{what}</p>
+
+        <div className="mt-5 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+            className="rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+          >
+            Keep {from.name}
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={busy}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 disabled:opacity-60"
+          >
+            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+            {sameTier ? "Confirm switch" : `Switch to ${to.plan.name}`}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 

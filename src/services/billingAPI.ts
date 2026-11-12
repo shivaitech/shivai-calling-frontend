@@ -7,10 +7,13 @@
 //
 // Every call names the app by app_id (the catalog id; the old app=Business_Card still works).
 //
-//   GET  /billing/plans?app_id=…                   → PlansData   (Essential is the free plan; no "free" key)
+//   GET  /billing/plans?app_id=…&currency=usd      → PlansData   (public, no token; Essential is the free plan)
 //   GET  /billing/overview?app_id=…                → Overview    (founding_member, limits)
 //   GET  /billing/limits?app_id=…                  → LimitsData  (cards / AI agents: limit, used, allowed)
-//   POST /billing/checkout      { app_id, plan_key, interval, promo_code? } → { url, session_id }
+//   POST /billing/checkout      { app_id, plan_key, interval, promo_code?, success_url?, cancel_url? } → { url, session_id }
+//   GET  /billing/checkout/session?app_id=…&session_id=… → CheckoutSession (the success / failed pages)
+//   GET  /billing/promo-codes?app_id=…             → { promo_codes }   (codes this account can use)
+//   POST /billing/promo-codes/validate { app_id, promo_code, plan_key, interval } → PromoPreview
 //   POST /billing/change-plan   { app_id, plan_key, interval }
 //   POST /billing/cancel        { app_id }         (keeps the plan until current_period_end)
 //   POST /billing/resume        { app_id }
@@ -19,7 +22,8 @@
 //   GET  /billing/entitlements?app_id=…            → { entitlements, paid }
 //
 // Plan limits: creating a card or an AI agent past the plan's limit is refused with 403 and
-// errors[0].code === "PLAN_LIMIT_REACHED" (see planLimit.ts). Founding members and admins are unlimited.
+// errors[0].code === "PLAN_LIMIT_REACHED" (see planLimit.ts). Admins are unlimited; founding
+// members get Essential's limits (they are tagged, not upgraded).
 //
 // Status codes the UI acts on: 400 promo / declined card, 401 signed out, 403 account type
 // can't pay (admin, staff), 404 plan not sold / nothing to change, 409 already subscribed or
@@ -87,7 +91,7 @@ export interface Overview {
   cancel_at_period_end: boolean;
   payment_method: { brand: string; last4: string; exp_month: number; exp_year: number } | null;
   entitlements: Record<string, string | number | boolean>;
-  /** Founding members have no billing and no limits: show a label, hide Choose / Switch / Cancel. */
+  /** A tag only: Essential is free for this account (joined before 31 Dec 2026). Limits and upgrades work as for anyone. */
   founding_member?: boolean;
   limits?: PlanLimits;
 }
@@ -128,6 +132,63 @@ export interface Invoice {
   hosted_invoice_url?: string | null;
   invoice_pdf?: string | null;
   description?: string | null;
+}
+
+export interface PromoCode {
+  /** What the customer types, upper case ("LAUNCH20"). */
+  code: string;
+  /** Short title shown on the code ("Launch offer"). */
+  name?: string | null;
+  description?: string | null;
+  /** One of the two is set: a percentage (20 = 20%) or a fixed amount in cents. */
+  percent_off: number | null;
+  amount_off: number | null;
+  /** Currency of amount_off. */
+  currency?: string | null;
+  /** Plans it works on; empty or omitted = every paid plan. */
+  plan_keys?: string[];
+  /** Billing periods it works on; empty or omitted = both. */
+  intervals?: Interval[];
+  /** Stripe coupon duration: once = first payment only. */
+  duration: "once" | "repeating" | "forever";
+  duration_in_months?: number | null;
+  /** ISO date, or null when it doesn't expire. */
+  expires_at: string | null;
+  /** false when this account can't use it now (already used, limit reached…); reason says why. */
+  available?: boolean;
+  reason?: string | null;
+}
+
+/** POST /billing/promo-codes/validate — the first payment with the code applied. All cents. */
+export interface PromoPreview {
+  valid: boolean;
+  message?: string | null;
+  promo_code: PromoCode;
+  subtotal: number;
+  discount: number;
+  total: number;
+  currency: string;
+}
+
+/** GET /billing/checkout/session — read from Stripe by the server. */
+export interface CheckoutSession {
+  /** Stripe Checkout Session status. */
+  status: "open" | "complete" | "expired";
+  payment_status: "paid" | "unpaid" | "no_payment_required";
+  plan?: { key: string; name: string } | null;
+  interval?: Interval | null;
+  /** Cents. */
+  amount_subtotal?: number | null;
+  amount_discount?: number | null;
+  amount_total?: number | null;
+  currency?: string | null;
+  promo_code?: string | null;
+  customer_email?: string | null;
+  /** Hosted invoice / receipt, once Stripe has made it. */
+  invoice_url?: string | null;
+  invoice_pdf?: string | null;
+  /** Why it didn't go through, when Stripe says (card declined…). */
+  failure_message?: string | null;
 }
 
 export class BillingError extends Error {
@@ -196,20 +257,41 @@ const APP_Q = `app_id=${encodeURIComponent(BILLING_APP_ID)}`;
 
 export const cardBillingAPI = {
   plans: () => get<PlansData>(`/billing/plans?${APP_Q}`),
+  /** Same plans with no sign-in (the public pricing page): no token is sent. */
+  publicPlans: (currency = "usd") =>
+    axios
+      .get(`${API}/billing/plans?${APP_Q}&currency=${encodeURIComponent(currency)}`)
+      .then((r) => r.data?.data as PlansData)
+      .catch((e) => {
+        throw toError(e);
+      }),
   overview: () => get<Overview>(`/billing/overview?${APP_Q}`),
   /** Cards / AI agents this account may still create. */
   limits: () => get<LimitsData>(`/billing/limits?${APP_Q}`),
   entitlements: () => get<{ entitlements: Record<string, string | number | boolean>; paid: boolean }>(`/billing/entitlements?${APP_Q}`),
   invoices: (limit = 12) => get<{ invoices: Invoice[] }>(`/billing/invoices?limit=${limit}`).then((d) => d?.invoices ?? []),
 
-  /** Returns Stripe's checkout page. */
-  checkout: (plan_key: string, interval: Interval, promo_code?: string) =>
+  /**
+   * Returns Stripe's checkout page. Stripe sends the customer back to `return_to.success`
+   * ({CHECKOUT_SESSION_ID} filled in by Stripe) or `return_to.cancel`; a server that ignores
+   * them still returns to /billing?checkout=…, which Billing also handles.
+   */
+  checkout: (plan_key: string, interval: Interval, promo_code?: string, return_to?: { success: string; cancel: string }) =>
     post<{ url: string; session_id: string }>("/billing/checkout", {
       app_id: BILLING_APP_ID,
       plan_key,
       interval,
-      ...(promo_code?.trim() ? { promo_code: promo_code.trim() } : {}),
+      ...(promo_code?.trim() ? { promo_code: promo_code.trim().toUpperCase() } : {}),
+      ...(return_to ? { success_url: return_to.success, cancel_url: return_to.cancel } : {}),
     }).then((d) => httpsOnly(d?.url)),
+
+  /** Promo codes this account can use (assigned to it, or public and still open). */
+  promoCodes: () => get<{ promo_codes: PromoCode[] }>(`/billing/promo-codes?${APP_Q}`).then((d) => d?.promo_codes ?? []),
+  /** Checks a code against a plan and period and prices it. 400 = not valid (message says why). */
+  previewPromo: (promo_code: string, plan_key: string, interval: Interval) =>
+    post<PromoPreview>("/billing/promo-codes/validate", { app_id: BILLING_APP_ID, promo_code: promo_code.trim().toUpperCase(), plan_key, interval }),
+  /** What happened to a checkout, for the page Stripe returns to. */
+  checkoutSession: (session_id: string) => get<CheckoutSession>(`/billing/checkout/session?${APP_Q}&session_id=${encodeURIComponent(session_id)}`),
 
   changePlan: (plan_key: string, interval: Interval) => post("/billing/change-plan", { app_id: BILLING_APP_ID, plan_key, interval }),
   cancel: () => post("/billing/cancel", { app_id: BILLING_APP_ID }),

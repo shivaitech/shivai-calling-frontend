@@ -15,6 +15,8 @@ import { useHasAnyAgentAssignedSkill } from "../marketplace/useAgentSkills";
 import { useHasAssignedAgentCrmConfig } from "../marketplace/useAgentCrmConfig";
 import { useAuth } from "../contexts/AuthContext";
 import AssignSkillModal from "../ClientDashboard/Marketplace/AssignSkillModal";
+import DbcLockedPage from "../components/DbcLockedPage";
+import { isDbcUser } from "../permissions/dbcAccess";
 
 // Lazily load each app's main surface. Add a case here when an app goes live.
 const appComponents: Record<string, React.LazyExoticComponent<React.ComponentType<any>>> = {
@@ -99,6 +101,10 @@ const AppWorkspace: React.FC = () => {
   }, [app?.defaultSection, app?.id, searchParams, setSearchParams]);
 
   // ── Guards ────────────────────────────────────────────────────────────────
+  // Digital Business Card accounts have the card app only.
+  if (app && app.id !== "digital-card" && isDbcUser(user)) {
+    return <DbcLockedPage lock="platform" moduleName={app.name} standalone />;
+  }
   if (!app) {
     return (
       <WorkspaceEmpty

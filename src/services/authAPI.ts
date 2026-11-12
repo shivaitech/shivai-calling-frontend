@@ -31,10 +31,14 @@ interface RegisterRequest {
   email: string;
   password: string;
   confirmPassword: string;
+  /** "DBC" when signing up from the Digital Business Card pages. */
+  userBase?: string;
 }
 
 interface GoogleAuthRequest {
   code: string;
+  /** Applied only when this Google sign-in creates the account. */
+  userBase?: string;
 }
 
 interface AuthResponse {
@@ -341,6 +345,10 @@ export const authAPI = {
 
   googleAuth: (data: GoogleAuthRequest): Promise<AuthResponse> =>
     apiClient.post("/auth/google", data).then((res) => res.data.data),
+
+  /** A DBC (card-only) account asks for the whole ShivAI platform. The team approves it in admin. */
+  requestPlatformAccess: (data: { module?: string; message?: string }): Promise<{ status: "pending" | "approved" | "rejected"; requestedAt?: string }> =>
+    apiClient.post("/auth/platform-access/request", data).then((res) => res.data.data ?? { status: "pending" }),
 
   getGoogleAuthUrl: (): Promise<{ authUrl: string }> =>
     apiClient.get("/auth/google/url").then((res) => res.data.data),

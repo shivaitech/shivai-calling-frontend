@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
-import { useAuth } from "../contexts/AuthContext";
+import { SIGNUP_USER_BASE_KEY, useAuth } from "../contexts/AuthContext";
 
 /** Read by GoogleCallback so OAuth sign-in returns to the page that started it. */
 export const POST_AUTH_RETURN_KEY = "post_auth_return";
@@ -11,7 +11,12 @@ export const POST_AUTH_RETURN_KEY = "post_auth_return";
  *   const auth = useInlineAuth({ googleReturn: "/some/path", onSuccess: () => ... });
  *   <AuthModel {...auth.modalProps} />   when auth.showAuthModal
  */
-export function useInlineAuth(opts: { onSuccess: () => void; googleReturn: string }) {
+export function useInlineAuth(opts: {
+  onSuccess: () => void;
+  googleReturn: string;
+  /** Tags new accounts made here, e.g. "DBC" for the card pages (card app only, see dbcAccess.ts). */
+  userBase?: string;
+}) {
   const { login, register, completeOnboarding, getGoogleAuthUrl, isLoading, error, clearError } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<"signin" | "signup">("signup");
@@ -49,7 +54,7 @@ export function useInlineAuth(opts: { onSuccess: () => void; googleReturn: strin
     setFieldErrors({});
     try {
       if (authMode === "signup") {
-        await register(formData.name, formData.email, formData.password, formData.confirmPassword);
+        await register(formData.name, formData.email, formData.password, formData.confirmPassword, { userBase: opts.userBase });
         completeOnboarding();
         toast.success("Account created successfully! Welcome aboard.");
       } else {
@@ -76,6 +81,7 @@ export function useInlineAuth(opts: { onSuccess: () => void; googleReturn: strin
     try {
       // Google sends the user away and back through /auth/google/callback.
       sessionStorage.setItem(POST_AUTH_RETURN_KEY, opts.googleReturn);
+      if (opts.userBase) sessionStorage.setItem(SIGNUP_USER_BASE_KEY, opts.userBase);
       window.location.href = await getGoogleAuthUrl();
     } catch {
       sessionStorage.removeItem(POST_AUTH_RETURN_KEY);

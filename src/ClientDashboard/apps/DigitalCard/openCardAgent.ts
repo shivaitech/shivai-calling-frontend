@@ -1,7 +1,7 @@
 import { isStagingEnv } from "../../../lib/widgetConfig";
 
 /**
- * "Ask My AI" on a public card: load the ShivAI chat widget (widget5.js, the client
+ * The AI Manager button on a public card: load the ShivAI chat widget (widget5.js, the client
  * embed) for the card's own agent and open it right on the card — instead of sending
  * the visitor to the /MyAIEmployee page.
  *

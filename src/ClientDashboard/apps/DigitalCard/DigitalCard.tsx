@@ -95,9 +95,10 @@ const fromCard = (c: BusinessCard): CardData => ({
     url: v.url ?? "",
     type: v.type ?? "venture",
     logo_size: v.logo_size ?? "s",
-    file_name: v.file_name ?? "",
+    // A Project with an attached PDF gets that PDF's name back in file_name; keep it as document_name.
+    file_name: v.document_url ? "" : v.file_name ?? "",
     description: v.description ?? "",
-    ...(v.document_url ? { document_url: v.document_url, document_name: v.document_name ?? "" } : {}),
+    ...(v.document_url ? { document_url: v.document_url, document_name: v.document_name || v.file_name || "" } : {}),
   })),
   agent_id: c.agent_id ?? "",
   username: c.username ?? "",
@@ -192,8 +193,8 @@ function PendingPlanBanner() {
       .overview()
       .then((o) => {
         if (!live) return;
-        // Paid, or a founding member (no billing, everything included): nothing left to finish.
-        if (o?.paid || o?.founding_member) {
+        // Paid: nothing left to finish. (A founding member who chose a paid plan still pays for it.)
+        if (o?.paid) {
           clearPendingPlan();
           setPending(null);
         }
@@ -452,6 +453,9 @@ function CardsList({ go }: { go: (s: string, id?: string | null) => void }) {
 
   return (
     <div className="stackv">
+      <Link to="/marketplace" className="link-back">
+        ← Back to Marketplace
+      </Link>
       <div className="head cards-head">
         <div>
           <h2 className="title">
@@ -595,8 +599,6 @@ function CardEditor({
   const [params, setParams] = useSearchParams();
   // "Preview as": the card in each plan's look. Starts on the account's own plan.
   const [currentTier, setCurrentTier] = useState<PlanTier>("essential");
-  // Choosing the card's link is a Prestige option; other plans get one made from the name.
-  const chooseUsername = currentTier === "prestige";
   const [sigOpen, setSigOpen] = useState(false);
   const [previewTier, setPreviewTier] = useState<PlanTier>("essential");
   // Complimentary accounts: their plan without billing; the card's saved look (Signature) wins.
@@ -685,7 +687,7 @@ function CardEditor({
   };
 
   const submit = async () => {
-    const v = validateCard(form, { skipUsername: !isNew || !chooseUsername });
+    const v = validateCard(form, { skipUsername: !isNew });
     setErrors(v);
     if (Object.keys(v).length) {
       toast.error("Fix the highlighted fields");
@@ -701,7 +703,7 @@ function CardEditor({
     const plan = complimentarySavePlan(comp, previewTier);
     try {
       if (isNew) {
-        const card = await createWithUsername(form, chooseUsername, { plan });
+        const card = await createWithUsername(form, { plan });
         cardCache.set(card._id, card);
         refreshPlanLimits();
         created.current = true;
@@ -797,7 +799,6 @@ function CardEditor({
           agentsLoading={agentsLoading}
           savedUsername={saved?.username || saved?.slug || undefined}
           usernameLocked={!isNew}
-          chooseUsername={chooseUsername}
           cardName={currentTier !== "essential"}
           onDocumentFile={(file) =>
             businessCardAPI.uploadDocument(file).then((r) => {

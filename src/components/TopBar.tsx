@@ -35,6 +35,8 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
     if (path === "/staff") return "Departments & Staff";
     if (path === "/workflows") return "Workflows";
     if (path === "/monitoring") return "Monitoring";
+    if (path === "/billing/success") return "Payment successful";
+    if (path === "/billing/failed") return "Payment not completed";
     if (path === "/billing") return "Billing";
     if (path === "/settings") return "Settings";
 
@@ -88,6 +90,7 @@ const TopBar: React.FC<TopBarProps> = ({ onMenuClick }) => {
                   if (path === "/staff") return "Organise your team into departments and roles, and manage their access.";
                   if (path === "/workflows") return "Design and automate your business processes.";
                   if (path === "/monitoring") return "Track performance and analyze AI agent metrics.";
+                  if (path === "/billing/success" || path === "/billing/failed") return "Digital Business Card checkout.";
                   if (path === "/billing") return "Manage your subscription and usage costs.";
                   if (path === "/settings") return "Configure your account and system preferences.";
                   

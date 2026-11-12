@@ -23,6 +23,7 @@ import toast from "react-hot-toast";
 import { useAuth } from "../../contexts/AuthContext";
 import AssignSkillModal from "./AssignSkillModal";
 import { agentRequirementProblem, usePublishedAgents } from "../../marketplace/usePublishedAgents";
+import { DBC_APP_ID, isDbcUser } from "../../permissions/dbcAccess";
 
 const pricingStyles: Record<MarketplaceApp["pricing"], string> = {
   Free: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200/70 dark:border-emerald-800/60",
@@ -43,7 +44,13 @@ const Marketplace = () => {
   const [activeCat, setActiveCat] = useState<AppCategory | "all">("all");
   const [assignApp, setAssignApp] = useState<MarketplaceApp | null>(null);
 
-  const visibleApps = useMemo(() => getVisibleApps(user?.email), [user?.email]);
+  // Card-only accounts can install the Digital Card app only; it comes first, the rest show locked.
+  const isDbc = isDbcUser(user);
+  const isLocked = (app: MarketplaceApp) => isDbc && app.id !== DBC_APP_ID;
+  const visibleApps = useMemo(() => {
+    const apps = getVisibleApps(user?.email);
+    return isDbc ? [...apps].sort((a, b) => Number(b.id === DBC_APP_ID) - Number(a.id === DBC_APP_ID)) : apps;
+  }, [user?.email, isDbc]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -63,6 +70,8 @@ const Marketplace = () => {
   const handlePrimary = (app: MarketplaceApp, e: React.MouseEvent) => {
     e.stopPropagation();
     if (app.status === "coming-soon") return;
+    // The app's page shows the "Request ShivAI Platform access" screen.
+    if (isLocked(app)) return navigate(`/marketplace/${app.id}`);
     if (isInstalled(app.id)) {
       openAppWorkspace(app.id, undefined, navigate);
     } else {
@@ -113,6 +122,20 @@ const Marketplace = () => {
         </div>
       </div>
 
+      {isDbc && (
+        <div className="flex items-start gap-3 rounded-2xl border border-slate-200/80 dark:border-slate-700/70 bg-white dark:bg-slate-800/80 px-4 py-3.5">
+          <span className="grid h-9 w-9 flex-none place-items-center rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900">
+            <Lock className="h-4 w-4" />
+          </span>
+          <div className="min-w-0 text-sm">
+            <p className="font-semibold text-slate-900 dark:text-white">Your account includes the Digital Business Card app</p>
+            <p className="mt-0.5 text-slate-500 dark:text-slate-400 leading-relaxed">
+              The other apps come with ShivAI Platform access. Open any locked app to request it — your cards stay exactly as they are.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ── Search + category filters ── */}
       <div className="flex flex-col gap-3">
         <div className="relative max-w-md">
@@ -162,6 +185,7 @@ const Marketplace = () => {
             const installed = isInstalled(app.id);
             const Icon = app.icon;
             const comingSoon = app.status === "coming-soon";
+            const locked = isLocked(app) && !comingSoon;
             return (
               <motion.div
                 key={app.id}
@@ -174,7 +198,7 @@ const Marketplace = () => {
                 {/* Top row: icon + badges */}
                 <div className="flex items-start justify-between gap-3">
                   <div
-                    className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${app.gradient} flex items-center justify-center shadow-lg shadow-slate-300/30 dark:shadow-black/30 flex-shrink-0`}
+                    className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${app.gradient} flex items-center justify-center shadow-lg shadow-slate-300/30 dark:shadow-black/30 flex-shrink-0 ${locked ? "opacity-60 saturate-50" : ""}`}
                   >
                     <Icon className="w-6 h-6 text-white" />
                   </div>
@@ -207,7 +231,7 @@ const Marketplace = () => {
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 leading-relaxed line-clamp-2">
                     {app.tagline}
                   </p>
-                  {app.requiresPublishedAgent && !installed && !comingSoon && agentCheck.ready && agentCheck.published === 0 && (
+                  {app.requiresPublishedAgent && !installed && !comingSoon && !locked && agentCheck.ready && agentCheck.published === 0 && (
                     <p className="mt-2 text-[11px] font-medium text-amber-700 dark:text-amber-400">
                       Needs a published AI employee.{" "}
                       <button
@@ -238,6 +262,8 @@ const Marketplace = () => {
                     className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all active:scale-[0.97] ${
                       comingSoon
                         ? "bg-slate-100 dark:bg-slate-700 text-slate-400 dark:text-slate-500 cursor-not-allowed"
+                        : locked
+                        ? "border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
                         : installed
                         ? "bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-600"
                         : "bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:opacity-90 shadow-md shadow-indigo-500/20"
@@ -246,6 +272,10 @@ const Marketplace = () => {
                     {comingSoon ? (
                       <>
                         <Lock className="w-3.5 h-3.5" /> Soon
+                      </>
+                    ) : locked ? (
+                      <>
+                        <Lock className="w-3.5 h-3.5" /> Platform access
                       </>
                     ) : installed ? (
                       <>
