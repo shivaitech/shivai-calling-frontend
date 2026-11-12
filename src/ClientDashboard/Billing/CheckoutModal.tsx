@@ -445,17 +445,17 @@ export default function CheckoutModal({
   );
 }
 
-const Label = ({ children }: { children: React.ReactNode }) => (
+export const Label = ({ children }: { children: React.ReactNode }) => (
   <h3 className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500 dark:text-slate-400">{children}</h3>
 );
 
-const Radio = ({ on }: { on: boolean }) => (
+export const Radio = ({ on }: { on: boolean }) => (
   <span className={`grid h-[18px] w-[18px] flex-none place-items-center rounded-full border-2 ${on ? "border-slate-900 dark:border-white" : "border-slate-300 dark:border-slate-600"}`}>
     {on && <span className="h-2 w-2 rounded-full bg-slate-900 dark:bg-white" />}
   </span>
 );
 
-function Row({ label, value, tone, muted }: { label: React.ReactNode; value: React.ReactNode; tone?: "good"; muted?: boolean }) {
+export function Row({ label, value, tone, muted }: { label: React.ReactNode; value: React.ReactNode; tone?: "good"; muted?: boolean }) {
   return (
     <div className="flex items-start justify-between gap-3">
       <dt className={muted ? "text-slate-500 dark:text-slate-400" : "text-slate-600 dark:text-slate-300"}>{label}</dt>

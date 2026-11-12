@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { Link } from "react-router-dom";
-import { AlertTriangle, ArrowRight, ArrowUpRight, CalendarClock, CreditCard, Download, ExternalLink, FileText, Info, Loader2, Lock, X } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { AlertTriangle, ArrowRight, ArrowUpRight, CalendarClock, CreditCard, Download, ExternalLink, FileText, Info, Loader2, Lock } from "lucide-react";
 import GlassCard from "../../components/GlassCard";
 import appToast from "../../components/AppToast";
 import { appWorkspacePath } from "../../marketplace/apps";
@@ -19,6 +18,8 @@ import {
 } from "../../services/billingAPI";
 import CardPlanPicker, { toInterval } from "./CardPlanPicker";
 import CheckoutModal from "./CheckoutModal";
+import PlanDecisionModal from "./PlanDecisionModal";
+import ChangePlanModal from "./ChangePlanModal";
 import { useAuth } from "../../contexts/AuthContext";
 import { complimentaryPlan } from "../../pages/complimentaryPlans";
 import { clearPendingPlan, loadPendingPlan, type PendingPlan } from "./pendingPlan";
@@ -127,7 +128,6 @@ export default function CardBilling({
     if (askToPay && preselect && preselect.plan !== "essential") return { plan: preselect.plan, billing: preselect.billing, at: Date.now() };
     return saved;
   });
-  const [finishLater, setFinishLater] = useState(false);
   const [checkout, setCheckout] = useState<{ planKey: string; interval: Interval; promo?: string | null } | null>(null);
   const finishRef = useRef<HTMLDivElement>(null);
   const [change, setChange] = useState<{ plan: PlanCard; interval: Interval } | null>(null);
@@ -276,10 +276,20 @@ export default function CardBilling({
   const finishCard = pendingPlan ? shownPlans.find((p) => p.key === pendingPlan.plan) ?? null : null;
   const finishInterval: Interval = pendingPlan?.billing === "monthly" ? "month" : "year";
   const finishPrice = finishCard?.prices[finishInterval] ?? null;
-  const showFinish = !!pendingPlan && !!finishCard && !hasPaidPlan && !compKey && canPay && !finishLater && !confirming;
+  const showFinish = !!pendingPlan && !!finishCard && !hasPaidPlan && !compKey && canPay && !confirming;
   const dropPendingPlan = () => {
     clearPendingPlan();
     setPendingPlan(null);
+  };
+  // The card's paid plan isn't paid for: closing checkout asks them to pay or move to Essential.
+  const unpaidPlan = !!pendingPlan && !hasPaidPlan && !compKey && canPay;
+  const [decide, setDecide] = useState(false);
+  const navigate = useNavigate();
+  const continueOnEssential = () => {
+    dropPendingPlan();
+    setDecide(false);
+    appToast.success("You're on Essential. Your card now uses the Essential look.");
+    navigate("/app/digital-card?section=cards");
   };
 
   // Not paying yet: the checkout modal (the full bill, promo codes) and then Stripe.
@@ -290,25 +300,26 @@ export default function CardBilling({
     else setCheckout({ planKey: plan.key, interval, promo });
   };
 
-  // Opened with ?buy=1 (the failed page's "Try again", links from the pricing page): straight to checkout.
+  // Opened with ?buy=1 (the failed page's "Try again", links from the pricing page) or ?pay=1
+  // (a card just made on a paid plan): straight to checkout.
   const buyOpened = useRef(false);
   useEffect(() => {
-    if (!buy || loading || buyOpened.current || !preselect || preselect.plan === "essential") return;
+    if (!(buy || askToPay) || loading || buyOpened.current || !preselect || preselect.plan === "essential") return;
     buyOpened.current = true;
+    if (askToPay && (hasPaidPlan || compKey)) return;
     const plan = shownPlans.find((p) => p.key === preselect.plan);
     if (plan && paymentsOn && canPay) choose(plan, toInterval(preselect.billing), promoParam);
     onCheckoutHandled(); // drop ?buy= so a reload doesn't reopen it
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buy, loading]);
 
-  const confirmChange = async () => {
-    if (!change) return;
+  const confirmChange = async (plan: PlanCard, interval: Interval) => {
     setBusy(true);
     try {
-      await cardBillingAPI.changePlan(change.plan.key, change.interval);
+      await cardBillingAPI.changePlan(plan.key, interval);
       setChange(null);
       refreshPlanLimits();
-      appToast.success(`You're now on ${change.plan.name}.`);
+      appToast.success(`You're now on ${plan.name}.`);
       await load();
     } catch (err) {
       handleError(err as BillingError);
@@ -414,11 +425,8 @@ export default function CardBilling({
                   Review and pay
                   <ArrowRight className="h-4 w-4" />
                 </button>
-                <button type="button" onClick={() => setFinishLater(true)} className="rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-700">
-                  Not now
-                </button>
-                <button type="button" onClick={dropPendingPlan} className="ml-auto text-xs font-medium text-slate-500 hover:text-slate-800 dark:hover:text-white underline-offset-2 hover:underline">
-                  Stay on Essential
+                <button type="button" onClick={continueOnEssential} className="rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-700">
+                  Continue with Essential
                 </button>
               </div>
               <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
@@ -556,13 +564,29 @@ export default function CardBilling({
           {/* Plans */}
           <div ref={pickerRef} className="mt-7 scroll-mt-24">
             {change && overview?.plan && (
-              <SwitchPlanModal
-                from={{ key: overview.plan.key, name: overview.plan.name, amount: overview.price.amount, interval: overview.price.interval }}
-                to={change}
-                currency={currency}
+              <ChangePlanModal
+                overview={overview}
+                plans={shownPlans}
+                initial={change}
+                usage={planLimits.data?.resources}
                 busy={busy}
-                onConfirm={() => void confirmChange()}
+                onConfirm={(plan, interval) => void confirmChange(plan, interval)}
                 onClose={() => !busy && setChange(null)}
+              />
+            )}
+
+            {decide && unpaidPlan && pendingPlan && !checkout && (
+              <PlanDecisionModal
+                chosen={pendingPlan.plan}
+                billing={pendingPlan.billing}
+                founding={founding}
+                onPick={(planKey, billing) => {
+                  const plan = shownPlans.find((p) => p.key === planKey);
+                  if (!plan) return;
+                  setDecide(false);
+                  setCheckout({ planKey, interval: toInterval(billing) });
+                }}
+                onEssential={continueOnEssential}
               />
             )}
 
@@ -570,7 +594,10 @@ export default function CardBilling({
               <CheckoutModal
                 plans={shownPlans}
                 initial={checkout}
-                onClose={() => setCheckout(null)}
+                onClose={() => {
+                  setCheckout(null);
+                  if (unpaidPlan) setDecide(true);
+                }}
                 onAlreadySubscribed={(plan, interval, message) => {
                   setCheckout(null);
                   appToast.info(message);
@@ -711,102 +738,6 @@ function SummaryTile({ label, value, icon, strong }: { label: string; value: Rea
       </dt>
       <dd className={`mt-1 truncate text-slate-800 dark:text-white tabular-nums ${strong ? "text-base sm:text-lg font-bold" : "text-sm sm:text-base font-semibold"}`}>{value}</dd>
     </div>
-  );
-}
-
-const TIER_ORDER = ["essential", "signature", "prestige"];
-const perInterval = (i: Interval | null) => (i === "year" ? "/ year" : i === "month" ? "/ month" : "");
-
-/** Confirms a plan change for someone already paying (POST /billing/change-plan). */
-function SwitchPlanModal({
-  from,
-  to,
-  currency,
-  busy,
-  onConfirm,
-  onClose,
-}: {
-  from: { key: string; name: string; amount: number; interval: Interval | null };
-  to: { plan: PlanCard; interval: Interval };
-  currency: string;
-  busy: boolean;
-  onConfirm: () => void;
-  onClose: () => void;
-}) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  const price = to.plan.prices[to.interval];
-  const sameTier = from.key === to.plan.key;
-  const upgrade = TIER_ORDER.indexOf(to.plan.key) > TIER_ORDER.indexOf(from.key);
-  const what = sameTier
-    ? `Your ${to.plan.name} plan moves to ${to.interval === "year" ? "annual" : "monthly"} billing.`
-    : upgrade
-      ? `You get ${to.plan.name} right away. You pay only the difference for the rest of this billing period, charged to your card on file now.`
-      : `You move to ${to.plan.name} right away. What you've already paid for ${from.name} becomes a credit on your next invoice.`;
-
-  return createPortal(
-    <div className="fixed inset-0 z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-4" role="dialog" aria-modal="true" aria-labelledby="switch-plan-title">
-      <div className="absolute inset-0 bg-slate-950/50 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xl p-5 sm:p-6">
-        <button
-          type="button"
-          onClick={onClose}
-          disabled={busy}
-          aria-label="Close"
-          className="absolute right-3 top-3 rounded-lg p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-white"
-        >
-          <X className="h-4 w-4" />
-        </button>
-        <h4 id="switch-plan-title" className="pr-8 text-lg font-semibold text-slate-900 dark:text-white">
-          {sameTier ? `Switch to ${to.interval === "year" ? "annual" : "monthly"} billing?` : `Switch to ${to.plan.name}?`}
-        </h4>
-
-        <div className="mt-4 flex items-stretch gap-2">
-          <div className="flex-1 min-w-0 rounded-xl border border-slate-200 dark:border-slate-700 p-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Now</p>
-            <p className="mt-0.5 truncate text-sm font-semibold text-slate-800 dark:text-white">{from.name}</p>
-            <p className="text-xs tabular-nums text-slate-500 dark:text-slate-400">
-              {formatCents(from.amount, currency)} {perInterval(from.interval)}
-            </p>
-          </div>
-          <ArrowRight className="h-4 w-4 flex-none self-center text-slate-400" aria-hidden="true" />
-          <div className="flex-1 min-w-0 rounded-xl border-2 border-slate-900 dark:border-white p-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">New</p>
-            <p className="mt-0.5 truncate text-sm font-semibold text-slate-900 dark:text-white">{to.plan.name}</p>
-            <p className="text-xs tabular-nums text-slate-600 dark:text-slate-300">
-              {price ? `${formatCents(price.amount, to.plan.currency || currency)} ${perInterval(to.interval)}` : "—"}
-            </p>
-          </div>
-        </div>
-
-        <p className="mt-4 text-sm text-slate-600 dark:text-slate-300">{what}</p>
-
-        <div className="mt-5 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={busy}
-            className="rounded-xl px-4 py-2.5 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-          >
-            Keep {from.name}
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={busy}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-900 disabled:opacity-60"
-          >
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            {sameTier ? "Confirm switch" : `Switch to ${to.plan.name}`}
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body,
   );
 }
 

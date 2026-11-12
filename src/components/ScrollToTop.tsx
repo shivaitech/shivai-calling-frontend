@@ -1,28 +1,24 @@
-import { useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLayoutEffect } from 'react';
+import { useLocation, useNavigationType } from 'react-router-dom';
 
-interface ScrollToTopProps {
-  smooth?: boolean;
-}
+/**
+ * Every new page opens at the top. The jump is instant and happens before paint: a smooth
+ * scroll was cut short when a lazily loaded page swapped in, leaving it half-way down.
+ * Back / forward keep the browser's own scroll position, and a #hash link goes to its section.
+ */
+const ScrollToTop = () => {
+  const { pathname, hash } = useLocation();
+  const navType = useNavigationType();
 
-const ScrollToTop: React.FC<ScrollToTopProps> = ({ smooth = true }) => {
-  const { pathname } = useLocation();
+  useLayoutEffect(() => {
+    if (navType === 'POP') return;
+    const target = hash ? document.getElementById(decodeURIComponent(hash.slice(1))) : null;
+    if (target) target.scrollIntoView();
+    else window.scrollTo(0, 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
-  useEffect(() => {
-    // Scroll to top when pathname changes
-    try {
-      window.scrollTo({
-        top: 0,
-        left: 0,
-        behavior: smooth ? 'smooth' : 'auto'
-      });
-    } catch (error) {
-      // Fallback for older browsers that don't support smooth scrolling
-      window.scrollTo(0, 0);
-    }
-  }, [pathname, smooth]);
-
-  return null; // This component doesn't render anything
+  return null;
 };
 
 export default ScrollToTop;
