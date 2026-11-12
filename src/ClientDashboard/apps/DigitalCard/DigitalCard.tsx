@@ -11,7 +11,7 @@ import CardAffiliate from "./CardAffiliate";
 import CardBilling from "../../Billing/CardBilling";
 import PlanLookSwitcher from "./PlanLookSwitcher";
 import type { PlanTier } from "./PlanCardPreview";
-import { cardBillingAPI } from "../../../services/billingAPI";
+import { cardBillingAPI, isPaying } from "../../../services/billingAPI";
 import { clearPendingPlan, loadPendingPlan, type PendingPlan } from "../../Billing/pendingPlan";
 import PlanDecisionModal from "../../Billing/PlanDecisionModal";
 import { checkoutHref } from "../../Billing/checkoutFlow";
@@ -198,7 +198,7 @@ function PendingPlanGate() {
       .then((o) => {
         if (!live) return;
         // Paid: nothing left to finish. (A founding member who chose a paid plan still pays for it.)
-        if (o?.paid) {
+        if (isPaying(o)) {
           clearPendingPlan();
           setPending(null);
         }
@@ -413,7 +413,7 @@ function CardsList({ go }: { go: (s: string, id?: string | null) => void }) {
     cardBillingAPI
       .overview()
       .then((o) => {
-        const key = o?.paid ? o.plan?.key : null;
+        const key = isPaying(o) ? o.plan?.key : null;
         if (live) setTier(key === "signature" || key === "prestige" ? key : "essential");
       })
       .catch(() => live && setTier("essential"));
@@ -611,7 +611,7 @@ function CardEditor({
     cardBillingAPI
       .overview()
       .then((o) => {
-        const key = o?.paid ? o.plan?.key : null;
+        const key = isPaying(o) ? o.plan?.key : null;
         const tier: PlanTier = key === "signature" || key === "prestige" ? key : "essential";
         if (!live) return;
         setCurrentTier(tier);
@@ -693,11 +693,10 @@ function CardEditor({
       return;
     }
     setSaving(true);
-    // Complimentary accounts save the look they're previewing (Prestige, or Signature).
-    const plan = complimentarySavePlan(comp, previewTier);
     try {
       if (isNew) {
-        const card = await createWithUsername(form, { plan });
+        // No plan is sent with a card: the account's plan comes from billing only.
+        const card = await createWithUsername(form);
         cardCache.set(card._id, card);
         refreshPlanLimits();
         created.current = true;
@@ -707,9 +706,8 @@ function CardEditor({
       } else {
         // The username is set once, at creation: never send it on update.
         const { username: _username, ...changes } = toPayload(form);
-        const card = await businessCardAPI.update(id, changes, { plan });
+        const card = await businessCardAPI.update(id, changes);
         cardCache.set(card._id, card);
-        if (plan) setCurrentTier(plan);
         if (saved && card.slug !== saved.slug) setOldLink(cardLabel(saved));
         setSaved(card);
         setErrors({});

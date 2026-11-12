@@ -373,51 +373,25 @@ export interface UsernameAvailability {
   suggestions?: string[];
 }
 
-/**
- * Sends `plan` with the card (complimentary accounts only — see complimentaryPlans.ts). A server
- * that doesn't take the field rejects it ('"plan" is not allowed'); the card then saves without it.
- */
-async function sendWithPlan(send: (body: object) => Promise<BusinessCard>, body: object, plan?: CardPlan): Promise<BusinessCard> {
-  if (!plan) return send(body);
-  try {
-    return await send({ ...body, plan });
-  } catch (e) {
-    const be = e as BusinessCardError;
-    const aboutPlan = "plan" in be.fieldErrors || /["']?\bplan\b["']?\s+is not allowed/i.test(be.message);
-    if ((be.status === 400 || be.status === 422) && aboutPlan) return send(body);
-    throw e;
-  }
-}
-
 // ── API ──────────────────────────────────────────────────────────────────────
+// A card never carries a plan: the plan is the account's, and it only ever comes from billing
+// (a real Stripe payment). A plan picked before paying stays in the browser (pendingPlan.ts).
 export const businessCardAPI = {
-  async create(input: BusinessCardInput, opts: { plan?: CardPlan } = {}): Promise<BusinessCard> {
-    return sendWithPlan(
-      async (body) => {
-        try {
-          return normalizeCard((await axios.post(BASE, body, authHeaders())).data.data);
-        } catch (e) {
-          throw toError(e);
-        }
-      },
-      toPayload(input),
-      opts.plan,
-    );
+  async create(input: BusinessCardInput): Promise<BusinessCard> {
+    try {
+      return normalizeCard((await axios.post(BASE, toPayload(input), authHeaders())).data.data);
+    } catch (e) {
+      throw toError(e);
+    }
   },
 
   /** PUT /:id — `id` is data._id (24-char ObjectId), not the slug. */
-  async update(id: string, input: Partial<BusinessCardInput>, opts: { plan?: CardPlan } = {}): Promise<BusinessCard> {
-    return sendWithPlan(
-      async (body) => {
-        try {
-          return normalizeCard((await axios.put(`${BASE}/${id}`, body, authHeaders())).data.data);
-        } catch (e) {
-          throw toError(e);
-        }
-      },
-      input,
-      opts.plan,
-    );
+  async update(id: string, input: Partial<BusinessCardInput>): Promise<BusinessCard> {
+    try {
+      return normalizeCard((await axios.put(`${BASE}/${id}`, input, authHeaders())).data.data);
+    } catch (e) {
+      throw toError(e);
+    }
   },
 
   async list(params: ListParams = {}): Promise<{ cards: BusinessCard[]; pagination: Pagination }> {

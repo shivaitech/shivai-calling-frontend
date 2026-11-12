@@ -158,7 +158,7 @@ export default function DigitalCardCreatePage() {
     setSaving(true);
     try {
       const ready = await resolveCardImages(form); // uploads a locally-picked photo/logos first
-      await createWithUsername(ready, { plan: compPlan });
+      await createWithUsername(ready); // no plan with the card: it comes from billing only
       created.current = true;
       clearDraft();
       // Shows as installed immediately (the app page sends non-installers to the marketplace);
