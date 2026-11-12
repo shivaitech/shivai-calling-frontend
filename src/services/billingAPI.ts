@@ -15,6 +15,7 @@
 //   GET  /billing/promo-codes?app_id=…             → { promo_codes }   (codes this account can use)
 //   POST /billing/promo-codes/validate { app_id, promo_code, plan_key, interval } → PromoPreview
 //   POST /billing/change-plan   { app_id, plan_key, interval }
+//   POST /billing/change-plan/preview { app_id, plan_key, interval } → ChangePreview (Stripe's proration)
 //   POST /billing/cancel        { app_id }         (keeps the plan until current_period_end)
 //   POST /billing/resume        { app_id }
 //   POST /billing/portal        {}                 → { url }   (404 = never bought a plan)
@@ -191,6 +192,21 @@ export interface CheckoutSession {
   failure_message?: string | null;
 }
 
+/** POST /billing/change-plan/preview — what a plan change costs today (Stripe's upcoming invoice). All cents. */
+export interface ChangePreview {
+  /** The new plan's price for the time it covers now. */
+  new_plan_charge: number;
+  /** Unused time on the current plan, given back. */
+  credit: number;
+  /** Charged to the card now (0 when the credit covers it). */
+  amount_due: number;
+  /** Left over credit, used on the next invoices. */
+  credit_balance?: number;
+  currency: string;
+  next_payment_date: string | null;
+  next_payment_amount: number | null;
+}
+
 export class BillingError extends Error {
   status: number;
   /** 422 only: field → message. */
@@ -294,6 +310,8 @@ export const cardBillingAPI = {
   checkoutSession: (session_id: string) => get<CheckoutSession>(`/billing/checkout/session?${APP_Q}&session_id=${encodeURIComponent(session_id)}`),
 
   changePlan: (plan_key: string, interval: Interval) => post("/billing/change-plan", { app_id: BILLING_APP_ID, plan_key, interval }),
+  /** The bill for a plan change, before it's made. 404 = not on this server yet (the UI estimates it). */
+  previewChange: (plan_key: string, interval: Interval) => post<ChangePreview>("/billing/change-plan/preview", { app_id: BILLING_APP_ID, plan_key, interval }),
   cancel: () => post("/billing/cancel", { app_id: BILLING_APP_ID }),
   resume: () => post("/billing/resume", { app_id: BILLING_APP_ID }),
 

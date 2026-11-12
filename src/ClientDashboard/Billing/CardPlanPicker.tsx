@@ -325,7 +325,11 @@ export default function CardPlanPicker({
           );
         })}
       </div>
-      <p className="mt-3 text-xs text-slate-400">You'll pay on Stripe's secure checkout page. Card details never pass through ShivAI.</p>
+      <p className="mt-3 text-xs text-slate-400">
+        {hasPaidPlan
+          ? "Plan changes use the card on file. You'll see the full amount before anything is charged."
+          : "You'll pay on Stripe's secure checkout page. Card details never pass through ShivAI."}
+      </p>
     </div>
   );
 }

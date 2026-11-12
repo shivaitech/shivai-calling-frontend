@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import QRCode from "react-qr-code";
 import toast from "react-hot-toast";
 import { Award, BarChart3, Bot, Clock, Copy, CreditCard, Crown, ExternalLink, Eye, Lock, Mail, Pencil, Plus, Share2, Sparkles } from "lucide-react";
@@ -12,7 +12,9 @@ import CardBilling from "../../Billing/CardBilling";
 import PlanLookSwitcher from "./PlanLookSwitcher";
 import type { PlanTier } from "./PlanCardPreview";
 import { cardBillingAPI } from "../../../services/billingAPI";
-import { clearPendingPlan, loadPendingPlan, pendingPlanHref, type PendingPlan } from "../../Billing/pendingPlan";
+import { clearPendingPlan, loadPendingPlan, type PendingPlan } from "../../Billing/pendingPlan";
+import PlanDecisionModal from "../../Billing/PlanDecisionModal";
+import { checkoutHref } from "../../Billing/checkoutFlow";
 import { handlePlanLimit, limitLabel, refreshPlanLimits, showLimitFor, usePlanLimits } from "../../Billing/planLimit";
 import { createWithUsername } from "./autoUsername";
 import EmailSignatureSheet from "./EmailSignatureSheet";
@@ -179,12 +181,14 @@ export default function DigitalCard({ section = "cards" }: { section?: string })
 // ── My Cards ─────────────────────────────────────────────────────────────────
 /**
  * A paid plan chosen when the card was created but not paid for yet (closed Stripe, came back
- * later, logged in again…): ask to finish it. Checks billing first, so it never asks someone who
- * has already paid; and it clears itself then.
+ * later, logged in again…): they must pay for a plan or continue on Essential before using the
+ * app. Checks billing first, so it never asks someone who has already paid; it clears itself then.
  */
-function PendingPlanBanner() {
+function PendingPlanGate() {
+  const navigate = useNavigate();
   const [pending, setPending] = useState<PendingPlan | null>(() => loadPendingPlan());
   const [checked, setChecked] = useState(false);
+  const [founding, setFounding] = useState(false);
 
   useEffect(() => {
     if (!pending) return;
@@ -198,6 +202,7 @@ function PendingPlanBanner() {
           clearPendingPlan();
           setPending(null);
         }
+        setFounding(!!o?.founding_member);
         setChecked(true);
       })
       .catch(() => live && setChecked(true));
@@ -209,29 +214,18 @@ function PendingPlanBanner() {
   }, []);
 
   if (!pending || !checked) return null;
-  const name = pending.plan === "prestige" ? "Prestige" : "Signature";
   return (
-    <section className={`panel pend-plan is-${pending.plan}`} role="status">
-      <div className="grow">
-        <strong>Complete your {name} plan</strong>
-        <p className="muted">Your card is ready. Finish payment to unlock {name}. Until then your card stays on Essential.</p>
-      </div>
-      <div className="btns">
-        <Link className="btn small" to={pendingPlanHref(pending)}>
-          Continue to payment
-        </Link>
-        <button
-          type="button"
-          className="btn small ghost"
-          onClick={() => {
-            clearPendingPlan();
-            setPending(null);
-          }}
-        >
-          Stay on Essential
-        </button>
-      </div>
-    </section>
+    <PlanDecisionModal
+      chosen={pending.plan}
+      billing={pending.billing}
+      founding={founding}
+      onPick={(plan, billing) => navigate(checkoutHref({ plan, billing }))}
+      onEssential={() => {
+        clearPendingPlan();
+        setPending(null);
+        toast.success("You're on Essential. Your card now uses the Essential look.");
+      }}
+    />
   );
 }
 
@@ -479,7 +473,7 @@ function CardsList({ go }: { go: (s: string, id?: string | null) => void }) {
         )}
       </div>
 
-      <PendingPlanBanner />
+      <PendingPlanGate />
 
       {state === "loading" && <p className="muted">Loading cards…</p>}
 
