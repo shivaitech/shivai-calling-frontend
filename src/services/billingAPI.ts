@@ -319,6 +319,16 @@ export const cardBillingAPI = {
   portal: () => post<{ url: string }>("/billing/portal", {}).then((d) => httpsOnly(d?.url)),
 };
 
+const NO_PLAN: SubStatus[] = ["free", "canceled", "incomplete_expired"];
+
+/**
+ * Is this account really paying for a plan? A paid plan comes from a Stripe subscription, so it
+ * has a price and a billing period. A plan without them (e.g. Prestige, $0, no renewal date —
+ * set before or without payment) is not treated as bought: the account stays on Essential.
+ */
+export const isPaying = (o: Overview | null | undefined): boolean =>
+  !!o?.plan && !o.plan.is_free && !NO_PLAN.includes(o.status) && (o.price?.amount ?? 0) > 0 && !!o.current_period_end;
+
 /** Cents → "$9.99". */
 export const formatCents = (cents: number, currency = "usd") =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: (currency || "usd").toUpperCase() }).format((cents || 0) / 100);

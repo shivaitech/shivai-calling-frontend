@@ -8,6 +8,7 @@ import { PLANS, type Billing as Cycle, type PlanId } from "../../pages/digitalCa
 import {
   BillingError,
   cardBillingAPI,
+  isPaying,
   formatCents,
   type Interval,
   type Invoice,
@@ -86,8 +87,6 @@ const FALLBACK_PLANS: PlanCard[] = [
 ];
 
 const BRAND: Record<string, string> = { visa: "Visa", mastercard: "Mastercard", amex: "American Express", rupay: "RuPay", discover: "Discover", jcb: "JCB", unionpay: "UnionPay" };
-/** No paid plan in these states — show the free view. */
-const NOT_PAYING: SubStatus[] = ["free", "canceled", "incomplete_expired"];
 const invoiceIso = (c: number | string) => (typeof c === "number" ? new Date(c < 1e12 ? c * 1000 : c).toISOString() : c);
 
 export default function CardBilling({
@@ -199,7 +198,7 @@ export default function CardBilling({
         /* keep polling */
       }
       if (!mounted.current) return;
-      if (ov && (ov.status === "active" || ov.paid)) {
+      if (ov && isPaying(ov)) {
         setConfirming(false);
         await load();
         refreshPlanLimits();
@@ -244,7 +243,7 @@ export default function CardBilling({
   // Founding member is only a tag: Essential, free for accounts that joined before 31 Dec 2026.
   // They keep Essential's limits and can still upgrade to Signature or Prestige like anyone else.
   const founding = !!overview?.founding_member;
-  const hasPaidPlan = !!overview?.plan && !overview.plan.is_free && !NOT_PAYING.includes(status);
+  const hasPaidPlan = isPaying(overview);
   // Cards / AI agents used against the plan (GET /billing/limits).
   const planLimits = usePlanLimits();
   // A plan given free to this account (complimentaryPlans.ts) — unless it's actually paying.
@@ -357,7 +356,9 @@ export default function CardBilling({
     ? { label: "Complimentary", cls: STATUS.active.cls }
     : overview?.cancel_at_period_end && hasPaidPlan
       ? { label: "Ends soon", cls: STATUS.canceled.cls }
-      : STATUS[status] ?? STATUS.free;
+      : !hasPaidPlan && (status === "active" || status === "trialing")
+        ? STATUS.free
+        : STATUS[status] ?? STATUS.free;
   const pm = overview?.payment_method;
   const history = [...invoices].sort((a, b) => invoiceIso(b.created).localeCompare(invoiceIso(a.created)));
   const totalPaid = history.filter((i) => i.status === "paid").reduce((s, i) => s + (i.amount_paid || 0), 0);

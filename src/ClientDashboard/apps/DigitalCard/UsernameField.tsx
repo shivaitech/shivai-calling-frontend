@@ -104,6 +104,12 @@ export default function UsernameField({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ideas, locked]);
 
+  // A draft from before letters-and-numbers-only ("athar-ahmad"): tidy it once.
+  useEffect(() => {
+    if (!locked && value && normalizeUsername(value) !== value) onChange(normalizeUsername(value));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const pick = (u: string) => {
     autoFilled.current = null;
     onChange(normalizeUsername(u));
@@ -147,9 +153,7 @@ export default function UsernameField({
           spellCheck={false}
           maxLength={30}
           aria-describedby="card-username-status"
-          // Strip only an edge hyphen on blur, so typing "athar-" mid-word isn't fought.
           onChange={(e) => pick(e.target.value)}
-          onBlur={() => value !== value.replace(/^-+|-+$/g, "") && onChange(value.replace(/^-+|-+$/g, ""))}
         />
         {status.kind === "ok" && !shownError && <Check size={16} className="un-ok-ico" aria-hidden="true" />}
         <span className="un-suffix">.callshivai.com</span>
@@ -199,7 +203,7 @@ export default function UsernameField({
             Your link: <strong>{cardLabel({ slug: value })}</strong>. Choose carefully: you can’t change it after the card is created.
           </>
         ) : (
-          "Pick the name for your card’s link. It’s required, and you can’t change it after the card is created."
+          "Pick the name for your card’s link: letters and numbers only. It’s required, and you can’t change it after the card is created."
         )}
       </small>
     </div>

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, Check, Clock, Download, ExternalLink, Loader2, RefreshCw } from "lucide-react";
 import { appWorkspacePath } from "../../marketplace/apps";
-import { cardBillingAPI, formatCents, type CheckoutSession, type Overview, type PlanCard } from "../../services/billingAPI";
+import { cardBillingAPI, formatCents, isPaying, type CheckoutSession, type Overview, type PlanCard } from "../../services/billingAPI";
 import { ResultShell, fmtDate } from "./billingUi";
 import { BILLING_HOME, isPaidPlan } from "./checkoutFlow";
 import { clearPendingPlan } from "./pendingPlan";
@@ -80,7 +80,7 @@ export default function CheckoutSuccess() {
       }
       if (!mounted.current) return;
       if (ov) setOverview(ov);
-      if (ov && (ov.paid || ov.status === "active" || ov.status === "trialing") && ov.plan && !ov.plan.is_free) {
+      if (ov && isPaying(ov)) {
         clearPendingPlan();
         refreshPlanLimits();
         setPhase("active");

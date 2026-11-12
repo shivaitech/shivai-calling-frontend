@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { cardBillingAPI, type LimitResource, type LimitsData, type ResourceLimit } from "../../services/billingAPI";
+import { cardBillingAPI, isPaying, type LimitResource, type LimitsData, type ResourceLimit } from "../../services/billingAPI";
 
 /**
  * Digital Card plan limits — how many business cards an account may create, and on how many of
@@ -131,6 +131,49 @@ export function limitLabel(r: ResourceLimit | null): string {
   if (!r || r.limit === null) return "";
   if (r.limit === 0) return "Not in your plan";
   return `${r.used} of ${r.limit} used`;
+}
+
+// The plan the account has really paid for (a Stripe subscription), cached like the limits.
+let paidCached: Promise<string | null> | null = null;
+let paidFor: string | null = null;
+function fetchPaidPlan(): Promise<string | null> {
+  const who = localStorage.getItem("auth_tokens");
+  if (who !== paidFor) {
+    paidCached = null;
+    paidFor = who;
+  }
+  if (!paidCached) paidCached = cardBillingAPI.overview().then((o) => (isPaying(o) ? o.plan!.key : null), () => null);
+  return paidCached;
+}
+
+/**
+ * "signature" / "prestige" once paid for, otherwise null (= Essential). Never a plan picked but
+ * not paid for, whatever the server's plan field says. Re-read with refreshPlanLimits().
+ */
+export function usePaidPlan(enabled = true) {
+  const [plan, setPlan] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    if (!enabled) return;
+    let live = true;
+    const load = () =>
+      void fetchPaidPlan().then((p) => {
+        if (!live) return;
+        setPlan(p);
+        setLoaded(true);
+      });
+    load();
+    const reload = () => {
+      paidCached = null;
+      load();
+    };
+    window.addEventListener(LIMITS_EVENT, reload);
+    return () => {
+      live = false;
+      window.removeEventListener(LIMITS_EVENT, reload);
+    };
+  }, [enabled]);
+  return { plan, loaded };
 }
 
 /** `enabled` false: no request (for hooks that only need limits for some accounts). */

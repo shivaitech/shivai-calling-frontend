@@ -1,5 +1,5 @@
 import { useAuth } from "../contexts/AuthContext";
-import { usePlanLimits } from "../ClientDashboard/Billing/planLimit";
+import { usePaidPlan } from "../ClientDashboard/Billing/planLimit";
 import { complimentaryPlan } from "../pages/complimentaryPlans";
 import { APPS } from "../marketplace/apps";
 
@@ -69,14 +69,15 @@ export const dbcModuleName = (path: string) => {
 export function useDbcAccess() {
   const { user } = useAuth();
   const isDbc = isDbcUser(user);
-  const limits = usePlanLimits(isDbc);
+  // Only a plan really paid for opens the Signature / Prestige pages; picked but unpaid = Essential.
+  const paid = usePaidPlan(isDbc);
   const comp = complimentaryPlan(user?.email);
-  const planKey = limits.data?.plan?.key ?? null;
+  const planKey = paid.plan;
   const paidPlan = comp === "signature" || comp === "prestige" || planKey === "signature" || planKey === "prestige";
   return {
     isDbc,
     /** The plan is known (only matters for the Signature / Prestige pages). */
-    ready: !isDbc || limits.loaded || !!comp,
+    ready: !isDbc || paid.loaded || !!comp,
     paidPlan,
     lockFor: (path: string): DbcLock => (isDbc ? dbcLockFor(path, paidPlan) : null),
   };

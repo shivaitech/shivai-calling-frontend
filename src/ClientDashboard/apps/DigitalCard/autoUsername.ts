@@ -1,5 +1,5 @@
-import { businessCardAPI, BusinessCardError, hasSession, type BusinessCard, type CardPlan, type BusinessCardInput } from "../../../services/businessCardAPI";
-import { USERNAME_MAX, suggestUsername, usernameProblem } from "./username";
+import { businessCardAPI, BusinessCardError, hasSession, type BusinessCard, type BusinessCardInput } from "../../../services/businessCardAPI";
+import { USERNAME_MAX, nameWords, suggestUsername, usernameProblem } from "./username";
 
 /**
  * Card links (usernames). Everyone picks theirs when creating a card (UsernameField), helped by
@@ -14,7 +14,7 @@ function candidates(card: Pick<BusinessCardInput, "full_name" | "company_name">,
   const name = suggestUsername(card.full_name);
   const withCompany = suggestUsername(`${card.full_name} ${card.company_name}`);
   const base = name || withCompany || "card";
-  const suffixed = Array.from({ length: 3 }, () => `${base.slice(0, USERNAME_MAX - 5).replace(/-+$/, "")}-${digits()}`);
+  const suffixed = Array.from({ length: 3 }, () => `${base.slice(0, USERNAME_MAX - 4)}${digits()}`);
   return [...new Set([...(suffixOnly ? [] : [name, withCompany]), ...suffixed])].filter(Boolean);
 }
 
@@ -48,29 +48,28 @@ export async function pickUsername(card: Pick<BusinessCardInput, "full_name" | "
 }
 
 /**
- * Link ideas from a name and company, best first: "athar-ahmad", "atharahmad", "athar-shivai",
- * "athar-ahmad-shivai", "athar-a", "ahmad-athar"… Only well-formed ones.
+ * Link ideas from a name and company, best first: "atharahmad", "athar", "atharshivai",
+ * "atharahmadshivai", "athara", "ahmadathar"… Letters and numbers only; only well-formed ones.
  */
 export function usernameIdeas(card: Pick<BusinessCardInput, "full_name" | "company_name">): string[] {
-  const words = (s: string) => suggestUsername(s).split("-").filter(Boolean);
-  const name = words(card.full_name);
-  const company = words(card.company_name).slice(0, 2).join("-");
+  const name = nameWords(card.full_name);
+  const company = nameWords(card.company_name).slice(0, 2).join("");
   const [first = "", ...rest] = name;
   const last = rest[rest.length - 1] ?? "";
-  const full = name.join("-");
+  const full = name.join("");
   const ideas = [
     full,
-    name.join(""),
-    first && company ? `${first}-${company}` : "",
-    full && company ? `${full}-${company}` : "",
-    first && last ? `${first}-${last[0]}` : "",
-    first && last ? `${last}-${first}` : "",
+    first,
+    first && company ? `${first}${company}` : "",
+    full && company ? `${full}${company}` : "",
+    first && last ? `${first}${last[0]}` : "",
+    first && last ? `${last}${first}` : "",
     company,
-    first && company ? `${first}-at-${company}` : "",
-    full ? `hello-${full}` : "",
-    full ? `${full}-${digits()}` : "",
+    first && company ? `${first}at${company}` : "",
+    full ? `hello${full}` : "",
+    full ? `${full}${digits()}` : "",
   ];
-  return [...new Set(ideas.map((u) => u.slice(0, USERNAME_MAX).replace(/-+$/, "")))].filter((u) => u && !usernameProblem(u));
+  return [...new Set(ideas.map((u) => u.slice(0, USERNAME_MAX)))].filter((u) => u && !usernameProblem(u));
 }
 
 /**
@@ -92,6 +91,6 @@ export async function availableUsernames(
  * Creates a card with the link the owner chose (a taken one comes back as a username field
  * error). A card with no link yet gets one made from the name.
  */
-export async function createWithUsername(card: BusinessCardInput, opts: { plan?: CardPlan } = {}): Promise<BusinessCard> {
-  return businessCardAPI.create({ ...card, username: card.username || (await pickUsername(card)) }, opts);
+export async function createWithUsername(card: BusinessCardInput): Promise<BusinessCard> {
+  return businessCardAPI.create({ ...card, username: card.username || (await pickUsername(card)) });
 }
