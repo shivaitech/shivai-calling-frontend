@@ -37,7 +37,10 @@ import {
   Building2,
   Headset,
   UsersRound,
+  Lock,
+  Crown,
 } from "lucide-react";
+import { useDbcAccess } from "../permissions/dbcAccess";
 
 // Static shortcut list — each opens its dedicated connection page directly
 // (both handle the not-connected state too), same spirit as My Apps.
@@ -86,6 +89,8 @@ interface NavItem {
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMode }) => {
   const { user, logout } = useAuth();
+  // Digital Business Card accounts: locked modules show a lock (or Upgrade) mark.
+  const dbc = useDbcAccess();
   const location = useLocation();
   const navigate = useNavigate();
   const { installedIds } = useInstalledApps();
@@ -456,12 +461,18 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMod
                   >
                     {item.label}
                   </motion.span>
-                  {item.highlight && !isCollapsed && (
+                  {!isCollapsed && dbc.lockFor(item.path) === "upgrade" ? (
+                    <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
+                      <Crown className="h-2.5 w-2.5" /> Upgrade
+                    </span>
+                  ) : !isCollapsed && dbc.lockFor(item.path) === "platform" ? (
+                    <Lock className="ml-auto h-3.5 w-3.5 flex-none text-slate-400" aria-label="Locked" />
+                  ) : item.highlight && !isCollapsed && (
                     <span className="ml-auto text-[9px] font-bold uppercase tracking-wide text-indigo-600 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-500/20 px-1.5 py-0.5 rounded-full">New</span>
                   )}
                 </NavLink>
                 {/* Expand/Collapse Toggle — chevron only */}
-                {item.children && !isCollapsed && (
+                {item.children && !isCollapsed && !dbc.lockFor(item.path) && (
                   <button
                     onClick={() => toggleExpanded(item.path)}
                     className="px-2 py-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
@@ -476,7 +487,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, setCollapsed, appMod
               </div>
 
               {/* Child Items */}
-              {item.children && expandedItems[item.path] && !isCollapsed && (
+              {item.children && expandedItems[item.path] && !isCollapsed && !dbc.lockFor(item.path) && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}

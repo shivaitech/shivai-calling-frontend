@@ -25,3 +25,36 @@ export function ItemIcon({ appId, size = "md" }: { appId?: string; size?: "sm" |
     </span>
   );
 }
+
+const RESULT_TONES = {
+  good: "bg-emerald-500 text-white shadow-emerald-500/30",
+  bad: "bg-rose-500 text-white shadow-rose-500/30",
+  amber: "bg-amber-500 text-white shadow-amber-500/30",
+  slate: "bg-slate-900 text-white shadow-slate-900/20 dark:bg-white dark:text-slate-900",
+};
+
+/** The page Stripe returns to (/billing/success, /billing/failed): one centred card. */
+export function ResultShell({
+  tone,
+  icon,
+  eyebrow,
+  title,
+  children,
+}: {
+  tone: keyof typeof RESULT_TONES;
+  icon: React.ReactNode;
+  eyebrow: string;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="mx-auto w-full max-w-xl py-4 sm:py-10">
+      <section className="rounded-3xl border border-slate-200/80 bg-white/95 p-6 text-center shadow-[0_24px_60px_-36px_rgba(15,23,42,0.35)] dark:border-slate-700/70 dark:bg-slate-900/85 sm:p-10">
+        <span className={`mx-auto grid h-16 w-16 place-items-center rounded-full shadow-lg ${RESULT_TONES[tone]}`}>{icon}</span>
+        <p className="mt-5 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">{eyebrow}</p>
+        <h1 className="mt-1.5 text-2xl font-semibold tracking-tight text-slate-900 text-balance dark:text-white sm:text-[28px]">{title}</h1>
+        <div className="mx-auto mt-3 max-w-md text-[15px] leading-relaxed text-slate-600 dark:text-slate-300">{children}</div>
+      </section>
+    </div>
+  );
+}

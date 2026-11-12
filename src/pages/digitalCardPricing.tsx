@@ -1,9 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowRight, BadgePercent, CheckCircle2, Crown, Infinity as InfinityIcon, Sparkles } from "lucide-react";
 import PlanCardPreview from "../ClientDashboard/apps/DigitalCard/PlanCardPreview";
+import { cardBillingAPI, type PlansData } from "../services/billingAPI";
 import { FOUNDING_OFFER_LABEL, isFoundingFree } from "./foundingOffer";
 
-/** Digital card plans for the marketing page. Prices are the business's figures; savings are computed, not rounded up. */
+/**
+ * Digital card plans for the marketing page. The copy lives here; prices come live from the public
+ * GET /billing/plans (usePlans), with the figures below as the fallback. Savings are computed, not rounded up.
+ */
 
 export type PlanId = "essential" | "signature" | "prestige";
 
@@ -29,6 +33,8 @@ export interface Plan {
   cta: string;
   footnote: string;
   premium?: boolean;
+  /** Currency of the prices (live prices say which; the built-in ones are USD). */
+  currency?: string;
 }
 
 export const PLANS: Plan[] = [
@@ -114,11 +120,47 @@ const NOTES: Record<number, string> = {
 };
 
 const GOLD = "#a8822f";
-const money = (n: number) => `$${n.toFixed(2)}`;
+export const money = (n: number, currency = "usd") =>
+  new Intl.NumberFormat("en-US", { style: "currency", currency: currency.toUpperCase() }).format(n);
 const yearlySaving = (p: Plan) => p.monthlyWas * 12 - p.yearly;
-const percentOff = (p: Plan) => Math.round((1 - p.yearly / (p.monthlyWas * 12)) * 100);
-const MAX_SAVING = Math.max(...PLANS.map(yearlySaving));
-const MAX_PERCENT = Math.max(...PLANS.map(percentOff));
+const percentOff = (p: Plan) => (p.monthlyWas > 0 ? Math.round((1 - p.yearly / (p.monthlyWas * 12)) * 100) : 0);
+/** The biggest annual discount across the plans ("−40%" on the Annual toggle). */
+export const maxPercentOff = (plans: Plan[]) => Math.max(...plans.map(percentOff));
+
+// One request per page load, shared by every component that shows prices.
+let livePlans: Promise<PlansData | null> | null = null;
+const fetchLivePlans = () => (livePlans ??= cardBillingAPI.publicPlans().catch(() => null));
+
+/** The plans with the live prices from the server; a plan the server doesn't price keeps the built-in figures. */
+const withLivePrices = (data: PlansData | null): Plan[] =>
+  PLANS.map((p) => {
+    const live = data?.plans?.find((l) => l.key === p.id);
+    const m = live?.prices.month;
+    const y = live?.prices.year;
+    if (!live || !m || !y) return p;
+    const monthly = m.amount / 100;
+    return {
+      ...p,
+      currency: live.currency || data!.currency || "usd",
+      monthly,
+      monthlyWas: monthly,
+      yearly: y.amount / 100,
+      yearlyPerMonth: y.monthly_equivalent / 100,
+    };
+  });
+
+/** PLANS with live prices once GET /billing/plans answers (public, no sign-in needed). */
+export function usePlans(): Plan[] {
+  const [plans, setPlans] = useState<Plan[]>(PLANS);
+  useEffect(() => {
+    let on = true;
+    void fetchLivePlans().then((d) => on && d && setPlans(withLivePrices(d)));
+    return () => {
+      on = false;
+    };
+  }, []);
+  return plans;
+}
 
 /** The Prestige mark: the same gold crown the Prestige card shows in its PRESTIGE title. */
 function PrestigeEmblem({ size = 28 }: { size?: number }) {
@@ -186,7 +228,7 @@ function PlanCard({
             <p className="text-[34px] leading-none font-extrabold uppercase tracking-tight text-slate-900">Free for life</p>
             <p className="mt-2.5 text-[17px] text-slate-500">
               {/* Larger, with a thin line, so the struck-through 99 still reads as 99. */}
-              <s className="tabular-nums decoration-1 decoration-slate-400">Regularly {money(plan.monthlyWas)}/month</s>
+              <s className="tabular-nums decoration-1 decoration-slate-400">Regularly {money(plan.monthlyWas, plan.currency)}/month</s>
             </p>
             <p className="mt-2 text-[13px] font-medium leading-snug text-slate-600">
               Create your card by {FOUNDING_OFFER_LABEL} and keep Essential free for life.
@@ -195,23 +237,23 @@ function PlanCard({
         ) : annual ? (
           <>
             <p className="flex items-center gap-2 text-sm">
-              <s className="tabular-nums text-[15px] text-slate-400 decoration-1">{money(plan.monthlyWas)}/mo</s>
+              <s className="tabular-nums text-[15px] text-slate-400 decoration-1">{money(plan.monthlyWas, plan.currency)}/mo</s>
               <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-[11px] font-bold text-emerald-700">−{percentOff(plan)}%</span>
             </p>
             <p className="mt-0.5 flex items-baseline gap-1">
-              <span className="text-[40px] leading-none font-bold tracking-tight tabular-nums text-slate-900">{money(plan.yearlyPerMonth)}</span>
+              <span className="text-[40px] leading-none font-bold tracking-tight tabular-nums text-slate-900">{money(plan.yearlyPerMonth, plan.currency)}</span>
               <span className="text-sm text-slate-500">/month</span>
             </p>
-            <p className="mt-1.5 text-xs text-slate-500">{money(plan.yearly)} billed yearly</p>
+            <p className="mt-1.5 text-xs text-slate-500">{money(plan.yearly, plan.currency)} billed yearly</p>
             <p className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
-              <BadgePercent className="h-3.5 w-3.5" /> You save {money(saving)} a year
+              <BadgePercent className="h-3.5 w-3.5" /> You save {money(saving, plan.currency)} a year
             </p>
           </>
         ) : (
           <>
             <p className="text-sm text-slate-400">Monthly price</p>
             <p className="mt-0.5 flex items-baseline gap-1">
-              <span className="text-[40px] leading-none font-bold tracking-tight tabular-nums text-slate-900">{money(plan.monthly)}</span>
+              <span className="text-[40px] leading-none font-bold tracking-tight tabular-nums text-slate-900">{money(plan.monthly, plan.currency)}</span>
               <span className="text-sm text-slate-500">/month</span>
             </p>
             <p className="mt-1.5 text-xs text-slate-500">Billed monthly · cancel anytime</p>
@@ -220,7 +262,7 @@ function PlanCard({
               onClick={() => onBilling("annual")}
               className="mt-2 inline-flex items-center gap-1 rounded-lg border border-dashed border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
             >
-              Annual: {money(plan.yearlyPerMonth)}/mo · save {money(saving)}/yr
+              Annual: {money(plan.yearlyPerMonth, plan.currency)}/mo · save {money(saving, plan.currency)}/yr
             </button>
           </>
         )}
@@ -283,6 +325,9 @@ export default function DigitalCardPricing({
   onChoose: (plan: PlanId, billing: Billing) => void;
 }) {
   const [billing, setBilling] = useState<Billing>("annual");
+  const plans = usePlans();
+  const maxPercent = maxPercentOff(plans);
+  const biggestSaver = plans.reduce((a, b) => (yearlySaving(b) > yearlySaving(a) ? b : a));
 
   return (
     <section id="pricing" className="scroll-mt-16 sm:scroll-mt-20 bg-[#F0F0F0] text-slate-900">
@@ -321,7 +366,7 @@ export default function DigitalCardPricing({
                   {b === "annual" ? "Annual" : "Monthly"}
                   {b === "annual" && (
                     <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold leading-none ${on ? "bg-emerald-400 text-slate-900" : "bg-emerald-100 text-emerald-700"}`}>
-                      −{MAX_PERCENT}%
+                      −{maxPercent}%
                     </span>
                   )}
                 </button>
@@ -341,9 +386,9 @@ export default function DigitalCardPricing({
               <BadgePercent className="h-5 w-5" />
             </span>
             <span className="min-w-0 flex-1 text-sm">
-              <strong className="font-semibold text-slate-900">Switch to annual and save up to {money(MAX_SAVING)} a year.</strong>
+              <strong className="font-semibold text-slate-900">Switch to annual and save up to {money(yearlySaving(biggestSaver), biggestSaver.currency)} a year.</strong>
               <span className="block text-slate-600">
-                Same plans, <span className="font-semibold text-emerald-700">{MAX_PERCENT}% less</span> than paying monthly.
+                Same plans, <span className="font-semibold text-emerald-700">{maxPercent}% less</span> than paying monthly.
               </span>
             </span>
             <ArrowRight className="hidden sm:block h-4 w-4 flex-none text-slate-500 transition-transform group-hover:translate-x-0.5" />
@@ -351,7 +396,7 @@ export default function DigitalCardPricing({
         )}
 
         <div className="mt-10 grid gap-6 lg:grid-cols-3 items-stretch">
-          {PLANS.map((p) => (
+          {plans.map((p) => (
             <PlanCard key={p.id} plan={p} billing={billing} onBilling={setBilling} onChoose={onChoose} />
           ))}
         </div>

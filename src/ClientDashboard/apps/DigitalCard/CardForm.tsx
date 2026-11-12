@@ -31,7 +31,6 @@ import { CARD_EXTRAS } from "./features";
 import { visiblePayMethods } from "./payMe";
 import WhatsAppIcon from "./WhatsAppIcon";
 import UsernameField from "./UsernameField";
-import AutoLinkNote from "./AutoLinkNote";
 import TaglineIdeas from "./TaglineIdeas";
 import { TAGLINE_MAX } from "./taglineTemplates";
 import { editImage, type EditImageOptions } from "./ImageEditor";
@@ -55,7 +54,7 @@ const ACCENTS = ["#161616", "#1f4f9b", "#2a8c7b", "#7c4bab", "#b4702e"];
 const WaIcon = ({ size = 16 }: { size?: number }) => <WhatsAppIcon mono size={size} />;
 /** Actions that can be the card’s big featured button (what each needs is in setupNote below). */
 const HIGHLIGHTS: { id: CardHighlight; label: string; Icon: LucideIcon | typeof WaIcon }[] = [
-  { id: "ai", label: "Ask My AI", Icon: Sparkles },
+  { id: "ai", label: "AI Manager", Icon: Sparkles },
   { id: "whatsapp", label: "WhatsApp", Icon: WaIcon },
   { id: "email", label: "Email", Icon: Mail },
   { id: "pay", label: "Pay Me", Icon: Wallet },
@@ -140,15 +139,13 @@ interface CardFormProps {
   errors: Record<string, string>;
   /** Turns a picked file into a URL the card can use (uploaded now, or a local data URL until save). null = failed (caller reports it). */
   onImageFile: (file: File, kind: ImageKind) => Promise<string | null>;
-  /** null = hide the "Ask My AI" section (e.g. before the visitor has an account). */
+  /** null = hide the "AI Manager" section (e.g. before the visitor has an account). */
   agents: AgentOption[] | null;
   agentsLoading?: boolean;
   /** The card's username as last saved (editing), so it isn't reported as taken by itself. */
   savedUsername?: string;
   /** The card already exists: its username (link) is permanent and shown read-only. */
   usernameLocked?: boolean;
-  /** New card: may the owner choose their link? (Prestige only; other plans get one made from the name.) */
-  chooseUsername?: boolean;
   /** Show the private "Card name" field (Signature and Prestige, where owners have more than one card). */
   cardName?: boolean;
   /** Uploads a PDF for a document/catalog entry. Leave out before the visitor has an account (links only). */
@@ -174,7 +171,6 @@ export default function CardForm({
   agentsLoading = false,
   savedUsername,
   usernameLocked = false,
-  chooseUsername = true,
   cardName = false,
   onDocumentFile,
   onVideoFile,
@@ -218,7 +214,7 @@ export default function CardForm({
     save: true,
   };
   // Featured button: any option can be chosen. One that isn't set up yet gets the steps to finish
-  // it; until then the card falls back the way CardView does (Ask My AI if set, else none).
+  // it; until then the card falls back the way CardView does (AI Manager if set, else none).
   const chosenHighlight: CardHighlight | null = form.highlight ?? (highlightAvailable.ai ? "ai" : null);
   const featuredOnCard: CardHighlight | null =
     form.highlight && highlightAvailable[form.highlight] ? form.highlight : highlightAvailable.ai ? "ai" : null;
@@ -227,7 +223,7 @@ export default function CardForm({
     if (!chosenHighlight || highlightAvailable[chosenHighlight]) return null;
     switch (chosenHighlight) {
       case "ai":
-        if (agents === null) return { text: "Ask My AI needs an AI agent. Create your card first, then create an AI agent and pick it in your card editor." };
+        if (agents === null) return { text: "Your AI Manager needs an AI agent. Create your card first, then create an AI agent and pick it in your card editor." };
         if (agents.length === 0 && agentsLoading) return { text: "Loading your AI agents…" };
         if (agents.length === 0)
           return { text: "You don’t have an AI agent yet. Create one (it opens in a new tab), then come back here and pick it.", agent: "create" };
@@ -340,24 +336,16 @@ export default function CardForm({
         <Field label="Full name" required error={err("full_name")}>
           <input value={form.full_name} placeholder="Enter your full name" onChange={(e) => set({ full_name: e.target.value })} />
         </Field>
-        {usernameLocked || chooseUsername ? (
-          <UsernameField
-            locked={usernameLocked}
-            value={usernameLocked ? form.username || savedUsername || "" : form.username}
-            onChange={(username) => set({ username })}
-            fullName={form.full_name}
-            savedUsername={savedUsername}
-            error={err("username")}
-          />
-        ) : (
-          // Choosing the link is a Prestige option; other plans get one made from the name, checked live.
-          <AutoLinkNote
-            fullName={form.full_name}
-            companyName={form.company_name}
-            onUsername={(username) => set({ username })}
-            error={err("username")}
-          />
-        )}
+        {/* Every plan picks its link when the card is created; it's read-only after that. */}
+        <UsernameField
+          locked={usernameLocked}
+          value={usernameLocked ? form.username || savedUsername || "" : form.username}
+          onChange={(username) => set({ username })}
+          fullName={form.full_name}
+          companyName={form.company_name}
+          savedUsername={savedUsername}
+          error={err("username")}
+        />
         <div className="row two">
           <Field label="Job title" required error={err("job_title")}>
             <input value={form.job_title} placeholder="Your job title" onChange={(e) => set({ job_title: e.target.value })} />
@@ -577,7 +565,7 @@ export default function CardForm({
       )}
 
       {agents !== null && (
-        <FormSection id="card-ai" icon={Sparkles} title="Ask My AI" subtitle="Optional. You can add it later" hasError={errIn("agent_id")}>
+        <FormSection id="card-ai" icon={Sparkles} title="AI Manager" subtitle="Optional. You can add it later" hasError={errIn("agent_id")}>
           <Field label="AI agent" error={err("agent_id")}>
             <select value={form.agent_id} onChange={(e) => set({ agent_id: e.target.value })}>
               <option value="">{agentsLoading && agents.length === 0 ? "Loading agents…" : "No agent, add later"}</option>
@@ -611,8 +599,11 @@ export default function CardForm({
                   onClick={() => set({ highlight: h.id })}
                 >
                   <h.Icon size={17} aria-hidden="true" />
-                  <span>{h.label}</span>
-                  {!ok && !on && <span className="hl-setup">Set up</span>}
+                  {/* Name over a "Set up" hint, so narrow tiles never squeeze or break the name. */}
+                  <span className="hl-txt">
+                    <span className="hl-name">{h.label}</span>
+                    {!ok && !on && <span className="hl-setup">Set up</span>}
+                  </span>
                   {on && (
                     <span className="hl-check" aria-hidden="true">
                       <Check size={13} strokeWidth={3} />
@@ -627,7 +618,7 @@ export default function CardForm({
               <Info size={15} aria-hidden="true" />
               <span>
                 <b>One more step.</b> {setupNote.text}{" "}
-                {!setupNote.agent && (featuredOnCard === "ai" ? "Until then, your card features Ask My AI." : "Until then, your card shows no featured button.")}
+                {!setupNote.agent && (featuredOnCard === "ai" ? "Until then, your card features your AI Manager." : "Until then, your card shows no featured button.")}
                 {setupNote.agent === "pick" && agents && (
                   <span className="hl-note-action">
                     <select className="hl-agent" aria-label="AI agent" value={form.agent_id} onChange={(e) => set({ agent_id: e.target.value })}>

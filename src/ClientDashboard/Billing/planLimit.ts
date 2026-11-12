@@ -87,7 +87,7 @@ export function showLimitFor(resource: LimitResource, r: ResourceLimit, planName
     // Digital Card only: the limit is how many cards may have an AI agent connected.
     const message =
       r.limit === 0
-        ? `${plan} doesn't include Ask My AI on business cards. Upgrade${upgradeTo ? ` to ${upgradeTo}` : ""} to connect an AI agent to your card.`
+        ? `${plan} doesn't include an AI Manager on business cards. Upgrade${upgradeTo ? ` to ${upgradeTo}` : ""} to connect an AI agent to your card.`
         : `${plan} lets you connect an AI agent to ${r.limit} ${r.limit === 1 ? "card" : "cards"}, and ${r.used} already ${r.used === 1 ? "has" : "have"} one.${upgradeTo ? ` Upgrade to ${upgradeTo} to add AI to more cards.` : ""}`;
     return showPlanLimit({ message, resource, limit: r.limit, used: r.used, plan: planName });
   }
@@ -100,8 +100,15 @@ export function showLimitFor(resource: LimitResource, r: ResourceLimit, planName
 
 // ── GET /billing/limits, shared and refreshed after creates ────────────────────
 let cached: Promise<LimitsData | null> | null = null;
+// The account the cache belongs to: signing in as someone else must not reuse their limits.
+let cachedFor: string | null = null;
 
 function fetchLimits(): Promise<LimitsData | null> {
+  const who = localStorage.getItem("auth_tokens");
+  if (who !== cachedFor) {
+    cached = null;
+    cachedFor = who;
+  }
   if (!cached) cached = cardBillingAPI.limits().catch(() => null); // 403 "No tenant", offline… → don't gate
   return cached;
 }
@@ -126,10 +133,12 @@ export function limitLabel(r: ResourceLimit | null): string {
   return `${r.used} of ${r.limit} used`;
 }
 
-export function usePlanLimits() {
+/** `enabled` false: no request (for hooks that only need limits for some accounts). */
+export function usePlanLimits(enabled = true) {
   const [data, setData] = useState<LimitsData | null>(null);
   const [loaded, setLoaded] = useState(false);
   useEffect(() => {
+    if (!enabled) return;
     let live = true;
     const load = () =>
       void fetchLimits().then((d) => {
@@ -143,7 +152,7 @@ export function usePlanLimits() {
       live = false;
       window.removeEventListener(LIMITS_EVENT, load);
     };
-  }, []);
+  }, [enabled]);
   return {
     loaded,
     data,

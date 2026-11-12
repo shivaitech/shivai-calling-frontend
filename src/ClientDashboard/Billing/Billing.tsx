@@ -177,6 +177,8 @@ export default function Billing() {
         <CardBilling
           preselect={preselect}
           askToPay={params.get("pay") === "1"}
+          buy={params.get("buy") === "1"}
+          promoParam={params.get("promo")}
           checkoutResult={checkoutResult}
           onCheckoutHandled={() =>
             update((p) => {
@@ -185,6 +187,8 @@ export default function Billing() {
               p.delete("plan");
               p.delete("billing");
               p.delete("pay");
+              p.delete("buy");
+              p.delete("promo");
             })
           }
         />

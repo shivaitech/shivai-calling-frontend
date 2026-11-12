@@ -1,9 +1,8 @@
 import { Award, Check, Crown, Sparkles } from "lucide-react";
-import { PLANS, type Billing, type PlanId } from "./digitalCardPricing";
+import { maxPercentOff, money, usePlans, type Billing, type PlanId } from "./digitalCardPricing";
 import { isFoundingFree } from "./foundingOffer";
 
 const ICONS: Record<PlanId, typeof Crown> = { essential: Sparkles, signature: Award, prestige: Crown };
-const money = (n: number) => `$${n.toFixed(2)}`;
 
 /**
  * Plan choice inside the card creator. The live preview takes this plan's look (standard,
@@ -18,6 +17,7 @@ export default function CreatePlanPicker({
   billing: Billing;
   onChange: (plan: PlanId, billing: Billing) => void;
 }) {
+  const plans = usePlans();
   return (
     <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm" aria-labelledby="create-plan-h">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -40,14 +40,14 @@ export default function CreatePlanPicker({
               }`}
             >
               {b === "annual" ? "Annual" : "Monthly"}
-              {b === "annual" && <span className="rounded bg-emerald-100 px-1 py-px text-[10px] font-bold text-emerald-700">−40%</span>}
+              {b === "annual" && <span className="rounded bg-emerald-100 px-1 py-px text-[10px] font-bold text-emerald-700">−{maxPercentOff(plans)}%</span>}
             </button>
           ))}
         </div>
       </div>
 
       <div role="radiogroup" aria-label="Plan" className="mt-4 grid gap-2.5 sm:grid-cols-3">
-        {PLANS.map((p) => {
+        {plans.map((p) => {
           const on = plan === p.id;
           const Icon = ICONS[p.id];
           const gold = !!p.premium;
@@ -83,7 +83,7 @@ export default function CreatePlanPicker({
                     <span className="font-semibold text-emerald-700">Free for life · Founding Member</span>
                   ) : (
                     <>
-                      {money(perMonth)}/mo{billing === "annual" ? " · billed yearly" : ""}
+                      {money(perMonth, p.currency)}/mo{billing === "annual" ? " · billed yearly" : ""}
                     </>
                   )}
                 </span>

@@ -117,7 +117,7 @@ function VentureItem({ v, onOpen }: { v: CardData["ventures"][number]; onOpen?: 
           <a className="company-act" href={site} target="_blank" rel="noopener noreferrer" aria-label={`${v.name} website (opens in a new tab)`} onClick={onOpen}>
             <ExternalLink size={15} strokeWidth={1.7} aria-hidden="true" />
           </a>
-          <a className="company-act" href={doc} target="_blank" rel="noopener noreferrer" aria-label={`${v.document_name || `${v.name} PDF`} (opens in a new tab)`} onClick={onOpen}>
+          <a className="company-act" href={doc} target="_blank" rel="noopener noreferrer" aria-label={`${v.document_name || v.file_name || `${v.name} PDF`} (opens in a new tab)`} onClick={onOpen}>
             <PdfIcon />
           </a>
           <a className="company-go" href={site} target="_blank" rel="noopener noreferrer" tabIndex={-1} aria-hidden="true" onClick={onOpen}>
@@ -132,7 +132,7 @@ function VentureItem({ v, onOpen }: { v: CardData["ventures"][number]; onOpen?: 
     <article className={articleClass}>
       {cover && <div className="company-cover">{img}</div>}
       {!v.url?.trim() && doc ? (
-        <a className="company-row" href={doc} target="_blank" rel="noopener noreferrer" aria-label={`${v.document_name || `${v.name} PDF`} (opens in a new tab)`} onClick={onOpen}>
+        <a className="company-row" href={doc} target="_blank" rel="noopener noreferrer" aria-label={`${v.document_name || v.file_name || `${v.name} PDF`} (opens in a new tab)`} onClick={onOpen}>
           {body}
         </a>
       ) : v.url ? (
@@ -297,7 +297,7 @@ export default function CardView({
   poweredBy?: boolean;
   /** Public page: a "Create your own digital card" button above the Powered-by line. */
   createCardHref?: string;
-  /** "Ask My AI" opens the chat widget on the page (default) instead of the agent page. */
+  /** The AI Manager button opens the chat widget on the page (default) instead of the agent page. */
   inlineAgent?: boolean;
   /** Plan look: "signature" adds a silver mark, "prestige" the gold premium design. */
   tier?: "essential" | "signature" | "prestige";
@@ -568,7 +568,7 @@ export default function CardView({
         {available.ai && featured !== "ai" && (
           <a className="quick-btn" href={agentHref} target="_blank" rel="noopener noreferrer" aria-busy={aiLoading} onClick={openAgent}>
             <Sparkles size={20} strokeWidth={1.7} />
-            {aiLoading ? "Connecting…" : "My AI"}
+            {aiLoading ? "Connecting…" : "AI Manager"}
           </a>
         )}
         {available.whatsapp && featured !== "whatsapp" && (

@@ -80,5 +80,5 @@ export const sampleCard = (): BusinessCardInput => ({
     { type: "youtube", url: "https://www.youtube.com/@alexmorgan", username: "alexmorgan" },
   ],
   ventures: [{ name: "Morgan Consulting", logo_url: "", url: "https://alexmorgan.co" }],
-  agent_id: "demo", // shows the “✦ Ask My AI” button in the marketing sample
+  agent_id: "demo", // shows the AI Manager button in the marketing sample
 });
