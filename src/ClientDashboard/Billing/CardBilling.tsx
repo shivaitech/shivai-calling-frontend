@@ -21,8 +21,6 @@ import CardPlanPicker, { toInterval } from "./CardPlanPicker";
 import CheckoutModal from "./CheckoutModal";
 import PlanDecisionModal from "./PlanDecisionModal";
 import ChangePlanModal from "./ChangePlanModal";
-import { useAuth } from "../../contexts/AuthContext";
-import { complimentaryPlan } from "../../pages/complimentaryPlans";
 import { clearPendingPlan, loadPendingPlan, type PendingPlan } from "./pendingPlan";
 import { refreshPlanLimits, usePlanLimits } from "./planLimit";
 import type { ResourceLimit } from "../../services/billingAPI";
@@ -246,11 +244,8 @@ export default function CardBilling({
   const hasPaidPlan = isPaying(overview);
   // Cards / AI agents used against the plan (GET /billing/limits).
   const planLimits = usePlanLimits();
-  // A plan given free to this account (complimentaryPlans.ts) — unless it's actually paying.
-  const { user } = useAuth();
-  const compKey = hasPaidPlan ? null : complimentaryPlan(user?.email);
-  const compName = compKey ? PLANS.find((p) => p.id === compKey)?.name ?? compKey : "";
-  const currentKey = hasPaidPlan ? overview!.plan!.key : compKey ?? "essential";
+  // Only a real payment counts; anything else is Essential.
+  const currentKey = hasPaidPlan ? overview!.plan!.key : "essential";
   // Live plans when the API answers; otherwise the built-in ones (view only).
   const livePlans = !!plans?.plans?.length;
   // Essential is the free plan everyone starts on; the old "free" plan is retired, so it is hidden if it ever appears.
@@ -260,11 +255,11 @@ export default function CardBilling({
 
   useEffect(() => {
     if (loading || !pendingPlan) return;
-    if (hasPaidPlan || compKey) {
+    if (hasPaidPlan) {
       clearPendingPlan();
       setPendingPlan(null);
     }
-  }, [loading, hasPaidPlan, compKey, pendingPlan]);
+  }, [loading, hasPaidPlan, pendingPlan]);
 
   // Arriving to pay: bring the panel into view (it sits above the plans).
   useEffect(() => {
@@ -275,13 +270,13 @@ export default function CardBilling({
   const finishCard = pendingPlan ? shownPlans.find((p) => p.key === pendingPlan.plan) ?? null : null;
   const finishInterval: Interval = pendingPlan?.billing === "monthly" ? "month" : "year";
   const finishPrice = finishCard?.prices[finishInterval] ?? null;
-  const showFinish = !!pendingPlan && !!finishCard && !hasPaidPlan && !compKey && canPay && !confirming;
+  const showFinish = !!pendingPlan && !!finishCard && !hasPaidPlan && canPay && !confirming;
   const dropPendingPlan = () => {
     clearPendingPlan();
     setPendingPlan(null);
   };
   // The card's paid plan isn't paid for: closing checkout asks them to pay or move to Essential.
-  const unpaidPlan = !!pendingPlan && !hasPaidPlan && !compKey && canPay;
+  const unpaidPlan = !!pendingPlan && !hasPaidPlan && canPay;
   const [decide, setDecide] = useState(false);
   const navigate = useNavigate();
   const continueOnEssential = () => {
@@ -294,7 +289,6 @@ export default function CardBilling({
   // Not paying yet: the checkout modal (the full bill, promo codes) and then Stripe.
   // Already paying: a plan change, confirmed in SwitchPlanModal.
   const choose = (plan: PlanCard, interval: Interval = toInterval(cycle), promo?: string | null) => {
-    if (compKey) return;
     if (hasPaidPlan) setChange({ plan, interval });
     else setCheckout({ planKey: plan.key, interval, promo });
   };
@@ -305,7 +299,7 @@ export default function CardBilling({
   useEffect(() => {
     if (!(buy || askToPay) || loading || buyOpened.current || !preselect || preselect.plan === "essential") return;
     buyOpened.current = true;
-    if (askToPay && (hasPaidPlan || compKey)) return;
+    if (askToPay && hasPaidPlan) return;
     const plan = shownPlans.find((p) => p.key === preselect.plan);
     if (plan && paymentsOn && canPay) choose(plan, toInterval(preselect.billing), promoParam);
     onCheckoutHandled(); // drop ?buy= so a reload doesn't reopen it
@@ -352,9 +346,7 @@ export default function CardBilling({
     }
   };
 
-  const pill = compKey
-    ? { label: "Complimentary", cls: STATUS.active.cls }
-    : overview?.cancel_at_period_end && hasPaidPlan
+  const pill = overview?.cancel_at_period_end && hasPaidPlan
       ? { label: "Ends soon", cls: STATUS.canceled.cls }
       : !hasPaidPlan && (status === "active" || status === "trialing")
         ? STATUS.free
@@ -456,13 +448,7 @@ export default function CardBilling({
             {founding && !hasPaidPlan && (
               <Notice tone="slate">You're a Founding Member, so Essential is free for you. Upgrade to Signature or Prestige any time for more cards and AI.</Notice>
             )}
-            {compKey && (
-              <Notice tone="slate">
-                {compName} is free on your account. No payment needed: your cards get the {compName} look
-                {compKey === "prestige" ? " (or Signature, if you prefer it in the card editor)" : ""}.
-              </Notice>
-            )}
-            {!compKey && !error && !paymentsOn && canPay && (
+            {!error && !paymentsOn && canPay && (
               <Notice tone="amber">Card payments are being switched on. You're on Essential until then. Plans can be bought here as soon as it's live.</Notice>
             )}
             {!canPay && <Notice tone="slate">Admin and staff accounts can't buy plans. The plans below are shown for reference.</Notice>}
@@ -479,7 +465,7 @@ export default function CardBilling({
 
           {/* Current plan */}
           <dl className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <SummaryTile label="Current plan" value={hasPaidPlan ? overview!.plan!.name : compKey ? compName : "Essential"} strong />
+            <SummaryTile label="Current plan" value={hasPaidPlan ? overview!.plan!.name : "Essential"} strong />
             <SummaryTile
               label="Price"
               value={
@@ -621,7 +607,6 @@ export default function CardBilling({
                 preselectedKey={preselect?.plan}
                 pending={null}
                 onChoose={(p) => choose(p)}
-                complimentaryKey={compKey ?? undefined}
                 foundingAccount={founding}
               />
             ) : (

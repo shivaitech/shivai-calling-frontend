@@ -4,6 +4,9 @@ import ShivAi from "../../resources/images/ShivaiLogo.svg";
 import instaIcon from "../../resources/Icon/insta.svg";
 import linkedinIcon from "../../resources/Icon/linkin.svg";
 import QuoteModal from "../../components/QuoteModal";
+import { Link } from "react-router-dom";
+import { LEGAL_ENTITY, LEGAL_PATHS } from "../../legal/company";
+import { openCookieSettings } from "../../legal/consent";
 
 const Footer = () => {
   const [showQuoteModal, setShowQuoteModal] = useState(false);
@@ -217,6 +220,16 @@ const Footer = () => {
                     Contact
                   </button>
                 </li>
+                <li>
+                  <Link to={LEGAL_PATHS.grievance} className="hover:text-white transition-colors">
+                    Privacy requests
+                  </Link>
+                </li>
+                <li>
+                  <Link to={LEGAL_PATHS.aup} className="hover:text-white transition-colors">
+                    Calling rules
+                  </Link>
+                </li>
               </ul>
             </div>
           </div>
@@ -226,8 +239,15 @@ const Footer = () => {
         {/* Bottom Section */}
         <div className="flex flex-col md:flex-row justify-between items-center pt-2 mb-0 lg:mb-10 mt-2 lg:mt-8 border-t border-gray-800">
           <p className="text-gray-400 text-sm mb-2 md:mb-0">
-            © 2025 ShivAI. All rights reserved.
+            © {new Date().getFullYear()} {LEGAL_ENTITY}. All rights reserved.
           </p>
+          <nav aria-label="Legal" className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-sm text-gray-400 mb-2 md:mb-0">
+            <Link to={LEGAL_PATHS.privacy} className="hover:text-white transition-colors">Privacy</Link>
+            <Link to={LEGAL_PATHS.terms} className="hover:text-white transition-colors">Terms</Link>
+            <Link to={LEGAL_PATHS.cookies} className="hover:text-white transition-colors">Cookies</Link>
+            <button type="button" onClick={openCookieSettings} className="hover:text-white transition-colors">Cookie settings</button>
+            <Link to={LEGAL_PATHS.grievance} className="hover:text-white transition-colors">Grievances</Link>
+          </nav>
           <div className="flex items-center">
             <a
               href="#"

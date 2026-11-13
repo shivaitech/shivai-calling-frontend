@@ -38,7 +38,6 @@ export default function CardPlanPicker({
   preselectedKey,
   pending,
   onChoose,
-  complimentaryKey,
   foundingAccount = false,
 }: {
   plans: PlanCard[];
@@ -55,8 +54,6 @@ export default function CardPlanPicker({
   preselectedKey?: string;
   pending: string | null;
   onChoose: (plan: PlanCard) => void;
-  /** The account has this plan free (complimentary): it's marked current and nothing is for sale. */
-  complimentaryKey?: string;
   /** A founding member: Essential stays free for them (even after the offer ends). Other plans can still be bought. */
   foundingAccount?: boolean;
 }) {
@@ -126,9 +123,8 @@ export default function CardPlanPicker({
           // A founding account keeps it free after the offer ends.
           const founding = isFoundingFree(p.key) || (foundingAccount && p.key === "essential");
           // Paid plans are "current" for their own period; switching period is a plan change.
-          const isCurrent = complimentaryKey
-            ? p.key === complimentaryKey
-            : (onThisPlan && (p.is_free || !hasPaidPlan || currentInterval === interval)) || (founding && !hasPaidPlan);
+          const isCurrent =
+            (onThisPlan && (p.is_free || !hasPaidPlan || currentInterval === interval)) || (founding && !hasPaidPlan);
           const popular = p.key === "signature";
           const gold = p.key === "prestige";
           const picked = preselectedKey === p.key && !isCurrent;
@@ -137,12 +133,7 @@ export default function CardPlanPicker({
 
           let label = "";
           let disabled = false;
-          if (complimentaryKey) {
-            // Free on this account: nothing to buy.
-            const tiers = ["essential", "signature", "prestige"];
-            label = p.key === complimentaryKey ? "Your plan · Free" : tiers.indexOf(p.key) < tiers.indexOf(complimentaryKey) ? "Included free" : "Not included";
-            disabled = true;
-          } else if (founding) {
+          if (founding) {
             label = "Free for Founding Members";
             disabled = true;
           } else if (p.is_free) {
