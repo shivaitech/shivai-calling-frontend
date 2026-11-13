@@ -35,8 +35,11 @@
 .dc .company-logo{display:block;flex:none;object-fit:contain;max-width:112px;max-height:34px}
 .dc .company-logo.size-m{max-width:180px;max-height:64px}
 .dc .company.has-cover{overflow:hidden}
-.dc .company-cover{margin:-17px -17px 14px;background:#f4f4f1;border-bottom:1px solid var(--line)}
-.dc .company-cover .company-logo{width:100%;max-width:100%;height:auto;max-height:240px;margin:0 auto}
+.dc .company-cover{position:relative;margin:-17px -17px 14px;aspect-ratio:16/9;overflow:hidden;background:#efeee9;border-bottom:1px solid var(--line);isolation:isolate}
+.dc .company-cover .company-logo{position:relative;z-index:1;display:block;width:100%;height:100%;max-width:none;max-height:none;margin:0;object-fit:cover}
+/* Not banner-shaped: the whole image, centred over a soft, darkened blur of itself. */
+.dc .company-cover.is-fit .company-logo{object-fit:contain;filter:drop-shadow(0 6px 18px rgba(0,0,0,.18))}
+.dc .company-cover-bg{position:absolute;inset:0;z-index:0;width:100%;height:100%;object-fit:cover;transform:scale(1.25);filter:blur(22px) saturate(1.15) brightness(.82)}
 .dc .company-title{display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:0}
 .dc .company-kind{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);background:#f2f2ee;border-radius:999px;padding:3px 8px}
 .dc .company p{font-size:13px;color:#565656;line-height:1.6;margin:0 0 13px}
@@ -49,7 +52,7 @@
 .dc .center{min-height:60vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:0 16px}
 .dc .shell{max-width:1180px;margin:0 auto;padding:0 16px 48px}
 .dc .appbar{display:flex;align-items:center;justify-content:space-between;padding:18px 0}
-.dc .tabs{display:none;gap:4px;background:#ececE8;padding:3px;border-radius:9px}
+.dc .tabs{display:none;gap:4px;background:#ecece8;padding:3px;border-radius:9px}
 .dc .tabs button{border:0;background:transparent;padding:7px 14px;border-radius:7px;font:600 13px inherit;font-family:inherit;cursor:pointer;color:var(--muted)}
 .dc .tabs button.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
 .dc .grid{display:grid;gap:24px;grid-template-columns:minmax(0,1fr)}
@@ -405,7 +408,7 @@
 .dc .avatar-picker-btn:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
 /* The gradient ring with a white gap, like an Instagram profile picture. */
 .dc .avatar-picker-ring{display:block;width:100%;height:100%;border-radius:50%;padding:3px;background:linear-gradient(45deg,#f9ce34,#ee2a7b,#6228d7)}
-.dc .avatar-picker-ring img,.dc .avatar-picker-ph{display:block;width:100%;height:100%;border-radius:50%;border:3px solid #fff;object-fit:cover;object-position:50% 26%;background:#ececE8}
+.dc .avatar-picker-ring img,.dc .avatar-picker-ph{display:block;width:100%;height:100%;border-radius:50%;border:3px solid #fff;object-fit:cover;object-position:50% 26%;background:#ecece8}
 .dc .avatar-picker-ph{display:grid;place-items:center;color:#9a9a94}
 .dc .avatar-picker-cam{position:absolute;right:2px;bottom:2px;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--ink);color:#fff;border:3px solid #fff;transition:transform .15s}
 .dc .avatar-picker-btn:hover .avatar-picker-cam{transform:scale(1.08)}
@@ -427,7 +430,8 @@
 .dc .logo-picker-tile{width:44px;height:44px;border-radius:12px;border:1px dashed #c9c9c3;background:#fafaf8;display:grid;place-items:center;color:#8a8a85;cursor:pointer;overflow:hidden;transition:border-color .15s,background .15s}
 .dc .logo-picker-tile:hover{border-color:var(--ink);color:var(--ink)}
 .dc .logo-picker-tile:focus-within{outline:2px solid #16161633;border-color:var(--ink)}
-.dc .logo-picker-tile:has(img){border-style:solid;background:#fff}
+.dc .logo-picker-tile:has(img){border-style:solid;background:#fff conic-gradient(#ecece8 25%,#fff 0 50%,#ecece8 0 75%,#fff 0) 0 0/10px 10px}
+.dc .logo-picker-tile.is-broken{border-style:solid;border-color:#e7b4b4;background:#fdf2f2;color:#b4232c}
 .dc .logo-picker-tile img{width:100%;height:100%;object-fit:contain;padding:4px}
 .dc .logo-picker-tile.is-busy{position:relative;pointer-events:none}
 .dc .logo-picker-tile.is-busy::after{content:"";position:absolute;inset:0;margin:auto;width:20px;height:20px;border-radius:50%;border:2.5px solid #c9c9c3;border-top-color:var(--ink);animation:avatar-spin .8s linear infinite;background:rgba(255,255,255,.7)}
@@ -436,7 +440,7 @@
 /* ---------- Monitoring + Affiliate dashboards ---------- */
 .dc .ins-sample{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:12px;background:#fff8e6;border:1px solid #f3dfa5;color:#7a5a12;font-size:13px;line-height:1.45}
 .dc .ins-sample svg{flex:none;margin-top:1px}
-.dc .ins-range{display:inline-flex;gap:2px;padding:3px;border-radius:10px;background:#ececE8}
+.dc .ins-range{display:inline-flex;gap:2px;padding:3px;border-radius:10px;background:#ecece8}
 .dc .ins-range button{border:0;background:transparent;padding:6px 11px;border-radius:8px;font:600 12px inherit;font-family:inherit;color:var(--muted);cursor:pointer;white-space:nowrap}
 .dc .ins-range button.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
 .dc .ins-select{max-width:240px;padding:7px 10px;font-size:13px}
@@ -598,7 +602,7 @@
 .dc .soc-connect{display:flex;flex-direction:column;gap:12px;padding:14px;border:1px solid var(--line);border-radius:14px;background:#fafaf8}
 .dc .soc-connect-head{display:flex;align-items:center;gap:10px}
 .dc .soc-connect-head strong{flex:1;font-size:14px}
-.dc .soc-close{width:28px;height:28px;border-radius:50%;border:0;background:#ececE8;color:#555;display:grid;place-items:center;cursor:pointer}
+.dc .soc-close{width:28px;height:28px;border-radius:50%;border:0;background:#ecece8;color:#555;display:grid;place-items:center;cursor:pointer}
 .dc .soc-steps{list-style:none;margin:0;padding:0;display:grid;gap:10px;counter-reset:soc}
 .dc .soc-steps li{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:10px;font-size:12.5px;line-height:1.45}
 .dc .soc-steps .btn{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;justify-self:start;text-decoration:none}
@@ -716,6 +720,12 @@
 .dc .ven-seg{display:inline-flex;background:#f0f0ec;border-radius:9px;padding:3px;gap:2px}
 .dc .ven-seg button{border:0;background:transparent;padding:5px 11px;border-radius:7px;font:600 12px inherit;font-family:inherit;color:#666;cursor:pointer}
 .dc .ven-seg button.is-on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.dc .ven-size > span:first-child{flex:1}
+.dc .ven-crop{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:9px;padding:5px 10px;font:600 12px inherit;font-family:inherit;cursor:pointer;transition:background .15s,border-color .15s}
+.dc .ven-crop:hover{background:#f6f6f2;border-color:#d6d6cf}
+.dc .ven-crop:disabled{opacity:.5;cursor:not-allowed}
+.dc .ven-crop:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.dc .ven-hint{flex-basis:100%;margin:0;font-size:12px;line-height:1.45;color:#8a6a1f;background:#fbf5e6;border:1px solid #efe1bd;border-radius:9px;padding:7px 10px}
 .dc .ven-file{display:flex;align-items:center;gap:8px;padding:9px 12px;border:1px solid #d3d3cd;border-radius:9px;background:#fff;font-size:13px}
 .dc .ven-file a{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink);text-decoration:none;font-weight:600}
 .dc .ven-file button{border:0;background:transparent;cursor:pointer;color:#888;display:grid;place-items:center;padding:2px}
@@ -2125,3 +2135,10 @@
 .dc .form .hl-note-action .btn{display:inline-flex;color:#fff;text-decoration:none}
 .dc .form .hl-note-action .text-btn{color:#5c4510;font-weight:600;text-decoration:underline}
 .dc .form .hl-agent{flex:1 1 220px;min-height:40px;padding:8px 12px;border:1px solid #e3d3a6;border-radius:10px;background:#fff;font:inherit;font-size:13.5px;color:#171717}
+
+/* ---------- Light logos (white on transparency): a dark backdrop so they stay visible. Set by lightImage.ts. ---------- */
+.dc .company-thumb.is-light .company-logo{background:#1d1d1b !important;border-radius:8px !important;padding:5px 8px !important;mix-blend-mode:normal !important;filter:none !important}
+.dc .company-cover.is-light{background:#1d1d1b}
+.dc .company-cover.is-light .company-cover-bg{display:none}
+.dc .company-cover.is-light .company-logo{object-fit:contain;padding:8%;filter:none}
+.dc .logo-picker-tile.is-light{background:#1d1d1b;border-color:#1d1d1b}

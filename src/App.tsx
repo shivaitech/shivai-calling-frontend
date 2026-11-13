@@ -26,6 +26,9 @@ import DbcGate from "./components/DbcGate";
 import GoogleCallback from "./components/GoogleCallback";
 import { saveLastRoute } from "./utils/homeRoute";
 import { DIGITAL_CARD_CREATE, DIGITAL_CARD_HOME } from "./pages/digitalCardRoutes";
+import { LEGAL_PATHS } from "./legal/company";
+
+const LEGAL_ALIASES = ["/privacy", "/privacy-policy", "/terms", "/cookies", "/grievance"];
 
 // Lazy-load orb so it is NOT in the main bundle critical path
 const OrbFallback = lazy(() =>
@@ -49,6 +52,8 @@ const Landing = lazy(() => import("./pages/Website/Landing"));
 const Pricing = lazy(() => import("./pages/Website/PricingPage"));
 const FAQPage = lazy(() => import("./pages/Website/FAQPage"));
 const SolutionsPage = lazy(() => import("./pages/Website/SolutionsPage"));
+const LegalPage = lazy(() => import("./pages/Legal/LegalPage"));
+const CookieConsent = lazy(() => import("./components/CookieConsent"));
 const Sidebar = lazy(() => import("./components/Sidebar"));
 const TopBar = lazy(() => import("./components/TopBar"));
 const Overview = lazy(() => import("./ClientDashboard/Dashboard/Overview"));
@@ -149,7 +154,10 @@ function AppContent() {
   const isMarketingPage =
     location.pathname === "/pricing" ||
     location.pathname === "/faq" ||
-    location.pathname === "/solutions";
+    location.pathname === "/solutions" ||
+    // Legal pages (DPDP Act notices) — public, readable signed in or out.
+    location.pathname.startsWith("/legal") ||
+    LEGAL_ALIASES.includes(location.pathname);
   // Sub-tenant invite-accept — public, pre-auth (spec §9).
   const isInviteAcceptPage = location.pathname.startsWith("/invite/");
   const [collapsed, setCollapsed] = useState(false);
@@ -239,6 +247,15 @@ function AppContent() {
             <Route path="/pricing" element={<Pricing />} />
             <Route path="/faq" element={<FAQPage />} />
             <Route path="/solutions" element={<SolutionsPage />} />
+
+            {/* Legal: Privacy Notice, Terms, Cookies, DPA, Calling rules, Grievance Redressal */}
+            <Route path="/legal" element={<Navigate to={LEGAL_PATHS.privacy} replace />} />
+            <Route path="/legal/:doc" element={<LegalPage />} />
+            <Route path="/privacy" element={<Navigate to={LEGAL_PATHS.privacy} replace />} />
+            <Route path="/privacy-policy" element={<Navigate to={LEGAL_PATHS.privacy} replace />} />
+            <Route path="/terms" element={<Navigate to={LEGAL_PATHS.terms} replace />} />
+            <Route path="/cookies" element={<Navigate to={LEGAL_PATHS.cookies} replace />} />
+            <Route path="/grievance" element={<Navigate to={LEGAL_PATHS.grievance} replace />} />
 
             {/* Sub-tenant invite-accept — public, pre-auth (spec §9) */}
             <Route path="/invite/:slug/:token" element={<InviteAcceptPage />} />
@@ -445,6 +462,10 @@ function App() {
                 <AgentProvider>
                   <ScrollToTop />
                   <AppContent />
+                  {/* Cookie choice + consent-gated analytics (DPDP Act s.6). */}
+                  <Suspense fallback={null}>
+                    <CookieConsent />
+                  </Suspense>
                   {/* Upgrade dialog for plan limits (cards, AI agents), opened from any screen. */}
                   <PlanLimitDialog />
                   <Toaster

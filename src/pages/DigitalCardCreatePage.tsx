@@ -19,11 +19,10 @@ import { BusinessCardError, businessCardAPI, cardErrorMessage } from "../service
 import { DIGITAL_CARD_CREATE } from "./digitalCardRoutes";
 import CreatePlanPicker from "./digitalCardCreatePlan";
 import { foundingOfferActive, isFoundingFree } from "./foundingOffer";
-import { complimentaryPlan, complimentarySavePlan } from "./complimentaryPlans";
 import { pendingPlanHref, savePendingPlan } from "../ClientDashboard/Billing/pendingPlan";
 import { handlePlanLimit } from "../ClientDashboard/Billing/planLimit";
 import { createWithUsername } from "../ClientDashboard/apps/DigitalCard/autoUsername";
-import { PLANS, money, usePlans, type PlanId } from "./digitalCardPricing";
+import { money, usePlans, type PlanId } from "./digitalCardPricing";
 import "../ClientDashboard/apps/DigitalCard/digitalCard.css";
 import { USER_BASE_DBC } from "../permissions/dbcAccess";
 
@@ -56,7 +55,7 @@ const initialsOf = (name: string) =>
 export default function DigitalCardCreatePage() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
   const { agents, isLoading: agentsLoading, refreshAgents } = useAgent();
   const { install } = useInstalledApps();
 
@@ -70,11 +69,8 @@ export default function DigitalCardCreatePage() {
   const chosenBilling = chosen.billing === "monthly" ? "monthly" : "annual";
   const livePlans = usePlans();
   const chosenPlanInfo = livePlans.find((p) => p.id === chosenPlan);
-  // Complimentary accounts: their plan (or Signature, if picked) with no payment step.
-  const comp = complimentaryPlan(user?.email);
-  const compPlan = complimentarySavePlan(comp, chosenPlan);
-  const lookTier = compPlan ?? chosenPlan ?? undefined;
-  const needsPayment = !comp && !!chosenPlan && !isFoundingFree(chosenPlan);
+  const lookTier = chosenPlan ?? undefined;
+  const needsPayment = !!chosenPlan && !isFoundingFree(chosenPlan);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const step: "edit" | "review" = params.get("step") === "review" ? "review" : "edit";
@@ -260,10 +256,6 @@ export default function DigitalCardCreatePage() {
               setParams(next, { replace: true });
             }}
           />
-        ) : compPlan ? (
-          <p className="mb-6 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-            Plan: <strong className="text-slate-900">{PLANS.find((p) => p.id === compPlan)?.name}</strong> · Free on your account. No payment needed.
-          </p>
         ) : (
           chosenPlan && (
             <p className="mb-6 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
@@ -313,7 +305,7 @@ export default function DigitalCardCreatePage() {
                     <small>Updates as you type</small>
                   </span>
                 </div>
-                <div className="phone-frame"><CardView card={form} placeholders tier={lookTier} foundingMember={foundingOfferActive() && !comp && (!chosenPlan || chosenPlan === "essential")} /></div>
+                <div className="phone-frame"><CardView card={form} placeholders tier={lookTier} foundingMember={foundingOfferActive() && (!chosenPlan || chosenPlan === "essential")} /></div>
               </aside>
             </div>
           ) : (

@@ -26,7 +26,6 @@ import { validateCard } from "./validate";
 import { type ImageKind, uploadPhoto } from "./photo";
 import { useAgent } from "../../../contexts/AgentContext";
 import { useAuth } from "../../../contexts/AuthContext";
-import { complimentaryPlan, complimentarySavePlan } from "../../../pages/complimentaryPlans";
 import {
   BusinessCard,
   BusinessCardError,
@@ -254,14 +253,12 @@ function updatedAgo(iso?: string): string {
 function CardRow({
   card: c,
   plan,
-  complimentary,
   go,
   onCopy,
 }: {
   card: BusinessCard;
   /** null while the plan is still being checked: plan bits wait, so nothing flickers. */
   plan: PlanTier | null;
-  complimentary: boolean;
   go: (s: string, id?: string | null) => void;
   onCopy: () => void;
 }) {
@@ -285,7 +282,7 @@ function CardRow({
   const look = plan ? PLAN_LOOK[plan] : null;
   const planButton = !plan
     ? null
-    : complimentary || plan === "prestige"
+    : plan === "prestige"
       ? { label: "Manage plan", href: "/app/digital-card?section=plan", upgrade: false }
       : plan === "signature"
         ? { label: "Upgrade to Prestige", href: "/app/digital-card?section=plan&plan=prestige&billing=annual", upgrade: true }
@@ -382,7 +379,7 @@ function CardRow({
       {planButton && look && (
         <div className={`cardrow-plan is-${plan}`}>
           <span>
-            <look.Icon size={13} aria-hidden="true" /> {look.label} plan{complimentary ? " · Complimentary" : ""}
+            <look.Icon size={13} aria-hidden="true" /> {look.label} plan
           </span>
           <Link className={planButton.upgrade ? "cardrow-plan-cta is-upgrade" : "cardrow-plan-cta"} to={planButton.href}>
             {planButton.upgrade ? <Crown size={13} aria-hidden="true" /> : <CreditCard size={13} aria-hidden="true" />} {planButton.label} ›
@@ -405,10 +402,8 @@ function CardsList({ go }: { go: (s: string, id?: string | null) => void }) {
 
   // The account's card plan (plans are per account): shown on each card, and picks its plan button.
   const { user } = useAuth();
-  const comp = complimentaryPlan(user?.email);
   const [tier, setTier] = useState<PlanTier | null>(null);
   useEffect(() => {
-    if (comp) return setTier(comp);
     let live = true;
     cardBillingAPI
       .overview()
@@ -420,7 +415,7 @@ function CardsList({ go }: { go: (s: string, id?: string | null) => void }) {
     return () => {
       live = false;
     };
-  }, [comp]);
+  }, [user?.id]);
 
   const load = useCallback(() => {
     setState("loading");
@@ -501,9 +496,7 @@ function CardsList({ go }: { go: (s: string, id?: string | null) => void }) {
           <CardRow
             key={c._id}
             card={c}
-            // Complimentary accounts may keep a card on Signature (saved on the card).
-            plan={tier && comp ? complimentarySavePlan(comp, c.plan) ?? comp : tier}
-            complimentary={!!comp}
+            plan={tier}
             go={go}
             onCopy={() => copy(c)}
           />
@@ -595,18 +588,9 @@ function CardEditor({
   const [currentTier, setCurrentTier] = useState<PlanTier>("essential");
   const [sigOpen, setSigOpen] = useState(false);
   const [previewTier, setPreviewTier] = useState<PlanTier>("essential");
-  // Complimentary accounts: their plan without billing; the card's saved look (Signature) wins.
+  // The account's plan comes only from a real payment (billing API); otherwise Essential.
   const { user } = useAuth();
-  const comp = complimentaryPlan(user?.email);
-  const savedPlan = saved?.plan;
   useEffect(() => {
-    if (!comp) return;
-    const tier = complimentarySavePlan(comp, savedPlan) ?? comp;
-    setCurrentTier(tier);
-    setPreviewTier(tier);
-  }, [comp, savedPlan]);
-  useEffect(() => {
-    if (comp) return;
     let live = true;
     cardBillingAPI
       .overview()
@@ -623,7 +607,7 @@ function CardEditor({
     return () => {
       live = false;
     };
-  }, [comp]);
+  }, [user?.id]);
   const set = (patch: CardPatch) => setForm((f) => ({ ...f, ...(typeof patch === "function" ? patch(f) : patch) }));
 
   // The plan's "AI agents" limit counts cards with an AI agent connected (Essential: none,
@@ -672,7 +656,7 @@ function CardEditor({
   const onImageFile = async (file: File, kind: ImageKind) => {
     try {
       const url = await uploadPhoto(file, kind);
-      toast.success(kind === "logo" ? "Logo uploaded" : "Photo uploaded");
+      toast.success(kind === "photo" ? "Photo uploaded" : kind === "banner" ? "Banner uploaded" : "Logo uploaded");
       return url;
     } catch (e: any) {
       toast.error(e?.message || "Couldn’t upload the image");
@@ -832,7 +816,6 @@ function CardEditor({
         <PlanLookSwitcher
           value={previewTier}
           current={currentTier}
-          included={comp ?? undefined}
           onChange={setPreviewTier}
           onUpgrade={(tier) => {
             const next = new URLSearchParams(params);

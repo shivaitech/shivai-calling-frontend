@@ -656,6 +656,8 @@ const CallSetup: React.FC<CallSetupProps> = ({ subTenantId }) => {
   // ── Create-campaign wizard state ──
   const [showCreateCampaign, setShowCreateCampaign] = useState(false);
   const [campaignStep, setCampaignStep] = useState<1 | 2 | 3>(1);
+  // DPDP Act + TRAI TCCCPR: the business (Data Fiduciary) confirms consent, DND scrubbing and AI/recording disclosure before launch.
+  const [complianceOk, setComplianceOk] = useState(false);
   const [contactMode, setContactMode] = useState<'single' | 'bulk' | 'file' | 'previous'>('single');
   const [bulkInput, setBulkInput] = useState('');
   const [singleContact, setSingleContact] = useState({ phone: '', name: '', context: '' });
@@ -1508,6 +1510,10 @@ const CallSetup: React.FC<CallSetupProps> = ({ subTenantId }) => {
   // Create / update → upload contacts → start now or schedule via dedicated APIs.
   const handleLaunchCampaign = async () => {
     if (!step1Valid || (!editingCampaignId && !step2Valid)) return;
+    if (!editingCampaignId && !complianceOk) {
+      setWizardError('Confirm the calling compliance checklist to launch');
+      return;
+    }
     if (!schedule.startNow) {
       if (!schedule.scheduledAt) {
         setWizardError('Pick a date and time to schedule this campaign');
@@ -1643,6 +1649,7 @@ const CallSetup: React.FC<CallSetupProps> = ({ subTenantId }) => {
 
   const resetCampaignForm = () => {
     setCampaignStep(1);
+    setComplianceOk(false);
     setCampaignContacts([]);
     setContactFile(null);
     setBulkInput('');
@@ -5973,6 +5980,43 @@ objective = the Objective bullet list (use \\n between bullets).`;
                         </div>
                       </div>
 
+                      {/* Calling compliance: DPDP Act 2023 (consent, notice) + TRAI TCCCPR (NCPR/DND, hours). */}
+                      {!editingCampaignId && (
+                        <div className="p-4 rounded-2xl border border-amber-200 dark:border-amber-500/30 bg-amber-50/60 dark:bg-amber-500/5">
+                          <h4 className="text-sm font-semibold text-slate-800 dark:text-white mb-2">Calling compliance</h4>
+                          {(schedule.windowStart < '09:00' || schedule.windowEnd > '21:00') && (
+                            <p className="flex items-start gap-2 text-xs text-amber-800 dark:text-amber-300 mb-2">
+                              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                              Your calling window is outside 9:00 AM – 9:00 PM. Promotional calls in India must stay within those hours.
+                            </p>
+                          )}
+                          <ul className="text-xs text-slate-600 dark:text-slate-400 space-y-1 list-disc pl-4 mb-3">
+                            <li>Every contact agreed to be called by us, or has an existing relationship that allows it.</li>
+                            <li>Promotional lists are scrubbed against the NCPR (DND) registry.</li>
+                            <li>The agent says it's an AI, names our business, and says the call may be recorded.</li>
+                            <li>We stop calling anyone who asks, and erase their data on request.</li>
+                          </ul>
+                          <label className="flex items-start gap-2.5 cursor-pointer text-sm text-slate-800 dark:text-slate-200">
+                            <input
+                              type="checkbox"
+                              checked={complianceOk}
+                              onChange={(e) => {
+                                setComplianceOk(e.target.checked);
+                                if (e.target.checked) setWizardError(null);
+                              }}
+                              className="mt-0.5 w-4 h-4 accent-slate-900 flex-shrink-0"
+                            />
+                            <span>
+                              I confirm this campaign follows the above and ShivAI's{' '}
+                              <a href="/legal/acceptable-use" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+                                Calling rules
+                              </a>
+                              . Our business is responsible for the consent of these contacts.
+                            </span>
+                          </label>
+                        </div>
+                      )}
+
                       {wizardError && (
                         <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
                           <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
@@ -6012,7 +6056,7 @@ objective = the Objective bullet list (use \\n between bullets).`;
                       !step1Valid ||
                       !step2Valid ||
                       (!schedule.startNow && !schedule.scheduledAt) ||
-                      (!editingCampaignId && !canLaunchCampaign)
+                      (!editingCampaignId && (!canLaunchCampaign || !complianceOk))
                     }
                     title={!editingCampaignId && !canLaunchCampaign ? 'Not included in your access' : undefined}
                     className="common-button-bg px-6 py-2.5 rounded-xl text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"

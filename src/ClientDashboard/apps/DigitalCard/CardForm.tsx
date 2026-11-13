@@ -34,6 +34,7 @@ import UsernameField from "./UsernameField";
 import TaglineIdeas from "./TaglineIdeas";
 import { TAGLINE_MAX } from "./taglineTemplates";
 import { editImage, type EditImageOptions } from "./ImageEditor";
+import { BANNER_ASPECT } from "./ventureKinds";
 
 // The card shows the photo in a 4:5 portrait frame with rounded corners.
 const PHOTO_EDIT: EditImageOptions = { title: "Edit profile photo", aspects: [{ label: "Portrait", value: 4 / 5 }], rounded: true, maxSide: 1600 };
@@ -46,6 +47,21 @@ const LOGO_EDIT: EditImageOptions = {
   ],
   keepTransparency: true,
   maxSide: 1024,
+};
+/** A project shown Large: a 16:9 banner across the card. */
+const BANNER_EDIT: EditImageOptions = {
+  title: "Crop banner",
+  aspects: [
+    { label: "Banner 16:9", value: BANNER_ASPECT },
+    { label: "Original", value: null },
+  ],
+  maxSide: 2000,
+};
+/** A project at Small / Medium: a logo or cover, with the banner shape on offer for later. */
+const VENTURE_IMAGE_EDIT: EditImageOptions = {
+  ...LOGO_EDIT,
+  title: "Edit image",
+  aspects: [...(LOGO_EDIT.aspects ?? []), { label: "Banner 16:9", value: BANNER_ASPECT }],
 };
 
 /** Accent colours offered as swatches; any other colour comes from the "+" picker. */
@@ -187,10 +203,10 @@ export default function CardForm({
   const [busy, setBusy] = useState<string | null>(null);
   const uploading = busy === "photo";
 
-  const pickImage = async (file: File | undefined, kind: ImageKind, key: string, apply: (url: string) => void) => {
+  const pickImage = async (file: File | undefined, kind: ImageKind, key: string, apply: (url: string) => void, edit?: EditImageOptions) => {
     if (!file) return;
     // Crop & adjust first; cancelling the editor cancels the upload.
-    const edited = await editImage(file, kind === "logo" ? LOGO_EDIT : PHOTO_EDIT);
+    const edited = await editImage(file, edit ?? (kind === "photo" ? PHOTO_EDIT : LOGO_EDIT));
     if (!edited) return;
     setBusy(key);
     try {
@@ -689,9 +705,37 @@ export default function CardForm({
           value={form.ventures}
           update={(fn) => set((f) => ({ ventures: fn(f.ventures) }))}
           busyKey={busy}
-          onPickLogo={(i, file) =>
-            void pickImage(file, "logo", `logo-${i}`, (url) => set((f) => ({ ventures: patchAt(f.ventures, i, { logo_url: url }) })))
-          }
+          onPickLogo={(i, file) => {
+            // Large opens straight on the banner crop; Small / Medium on the logo crops.
+            const large = form.ventures[i]?.logo_size === "l";
+            void pickImage(
+              file,
+              large ? "banner" : "logo",
+              `logo-${i}`,
+              (url) => set((f) => ({ ventures: patchAt(f.ventures, i, { logo_url: url }) })),
+              large ? BANNER_EDIT : VENTURE_IMAGE_EDIT,
+            );
+          }}
+          onCropImage={async (i, size) => {
+            // Re-crop the image already on the card (e.g. to fit the Large banner).
+            const src = form.ventures[i]?.logo_url;
+            if (!src) return;
+            try {
+              const blob = await (await fetch(src, { mode: "cors", cache: "no-store" })).blob();
+              if (!blob.type.startsWith("image/")) throw new Error("not an image");
+              const file = new File([blob], `project-${i + 1}.${blob.type === "image/png" ? "png" : "jpg"}`, { type: blob.type });
+              const large = size === "l";
+              await pickImage(
+                file,
+                large ? "banner" : "logo",
+                `logo-${i}`,
+                (url) => set((f) => ({ ventures: patchAt(f.ventures, i, { logo_url: url }) })),
+                large ? BANNER_EDIT : VENTURE_IMAGE_EDIT,
+              );
+            } catch {
+              onDocumentError("Couldn’t open this image to crop it. Upload it again and crop it in the editor.");
+            }
+          }}
           onDocumentFile={onDocumentFile}
           onDocumentError={onDocumentError}
           errorFor={(i) =>

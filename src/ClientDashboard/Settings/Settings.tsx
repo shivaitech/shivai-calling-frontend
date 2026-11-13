@@ -43,6 +43,8 @@ import {
   Building2
 } from 'lucide-react';
 import BrandingTab from './BrandingTab';
+import PrivacyTab from './PrivacyTab';
+import { ShieldCheck } from 'lucide-react';
 
 // Shared input styling for the Business Profile fields (matches the page's look).
 const SETTINGS_INPUT =
@@ -189,6 +191,8 @@ const Settings = () => {
     { id: 'team', label: 'Team', icon: Users },
     { id: 'branding', label: 'Branding', icon: Palette },
     { id: 'accounts', label: 'Accounts', icon: Link2 },
+    // DPDP Act rights: consents, access, correction, erasure, nominee, complaints.
+    { id: 'privacy', label: 'Privacy & data', icon: ShieldCheck },
   ];
 
   const timezones = [
@@ -218,7 +222,7 @@ const Settings = () => {
   // Detect hash fragment and set active tab
   useEffect(() => {
     const hash = location.hash.slice(1);
-    if (hash && ['profile', 'notifications', 'security', 'api', 'team', 'branding', 'accounts'].includes(hash)) {
+    if (hash && ['profile', 'notifications', 'security', 'api', 'team', 'branding', 'accounts', 'privacy'].includes(hash)) {
       setActiveTab(hash);
     }
   }, [location.hash]);
@@ -1374,6 +1378,8 @@ const Settings = () => {
           )}
 
           {activeTab === 'branding' && <BrandingTab />}
+
+          {activeTab === 'privacy' && <PrivacyTab onEditProfile={() => setActiveTab('profile')} />}
 
           {activeTab === 'accounts' && (
             <div className="space-y-4">

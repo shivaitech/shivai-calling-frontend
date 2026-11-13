@@ -1,7 +1,8 @@
-import { useState } from "react";
-import { FileText, ImagePlus, Loader2, Plus, Upload, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Crop, FileText, ImageOff, ImagePlus, Loader2, Plus, Upload, X } from "lucide-react";
 import type { CardVenture, LogoSize, VentureType } from "../../../services/businessCardAPI";
-import { DESCRIPTION_MAX, DOCUMENT_MAX_BYTES, LOGO_SIZES, VENTURE_KINDS, ventureKind } from "./ventureKinds";
+import { DESCRIPTION_MAX, DOCUMENT_MAX_BYTES, LOGO_SIZES, VENTURE_KINDS, isBannerShaped, ventureKind } from "./ventureKinds";
+import { isLightImage } from "./lightImage";
 
 const patchAt = <T,>(arr: T[], i: number, patch: Partial<T>) => arr.map((x, j) => (j === i ? { ...x, ...patch } : x));
 
@@ -15,6 +16,7 @@ export default function VenturesEditor({
   update,
   busyKey,
   onPickLogo,
+  onCropImage,
   onDocumentFile,
   onDocumentError,
   errorFor,
@@ -28,12 +30,36 @@ export default function VenturesEditor({
   /** "logo-<i>" while that logo is processing. */
   busyKey: string | null;
   onPickLogo: (index: number, file: File | undefined) => void;
+  /** Re-open the crop editor on the image already chosen (preset for the given size). */
+  onCropImage?: (index: number, size: LogoSize) => void;
   /** Uploads a PDF; undefined = no account yet (link only). */
   onDocumentFile?: (file: File) => Promise<{ url: string; file_name: string }>;
   onDocumentError: (message: string) => void;
   errorFor: (index: number) => string | undefined;
 }) {
   const [uploadingAt, setUploadingAt] = useState<number | null>(null);
+  // Each image's shape (width / height), to tell whether it already fits the Large banner.
+  const [ratios, setRatios] = useState<Record<string, number>>({});
+  // Image links that failed to load: shown as a clear "couldn't load" tile, never a blank square.
+  const [broken, setBroken] = useState<Record<string, true>>({});
+  // White logos on transparency: shown on a dark tile so they can be seen.
+  const [light, setLight] = useState<Record<string, boolean>>({});
+  const urls = value.map((v) => v.logo_url).filter(Boolean).join(" ");
+  useEffect(() => {
+    let live = true;
+    for (const url of urls.split(" ").filter(Boolean)) {
+      void isLightImage(url).then((isLight) => live && setLight((m) => (m[url] === isLight ? m : { ...m, [url]: isLight })));
+    }
+    return () => {
+      live = false;
+    };
+  }, [urls]);
+  const pickSize = (i: number, v: CardVenture, size: LogoSize) => {
+    set(i, { logo_size: size });
+    const r = ratios[v.logo_url];
+    // Large is a 16:9 banner: an image of another shape opens straight in the crop editor.
+    if (size === "l" && onCropImage && r != null && !isBannerShaped(r)) onCropImage(i, "l");
+  };
   const set = (i: number, patch: Partial<CardVenture>) => update((list) => patchAt(list, i, patch));
   const add = (type: VentureType) =>
     update((list) => [...list, { name: "", logo_url: "", url: "", type, logo_size: type === "venture" ? "s" : "m", file_name: "", description: "" }]);
@@ -89,8 +115,25 @@ export default function VenturesEditor({
 
             <div className="ven-main">
               <div className="logo-picker">
-                <label className={`logo-picker-tile${busy ? " is-busy" : ""}`} title={v.logo_url ? `Change ${imageWord}` : `Add ${imageWord}`}>
-                  {v.logo_url ? <img src={v.logo_url} alt="" /> : <ImagePlus size={18} />}
+                <label
+                  className={`logo-picker-tile${busy ? " is-busy" : ""}${v.logo_url && broken[v.logo_url] ? " is-broken" : ""}${v.logo_url && light[v.logo_url] ? " is-light" : ""}`}
+                  title={v.logo_url && broken[v.logo_url] ? `This ${imageWord} couldn't be loaded. Upload it again.` : v.logo_url ? `Change ${imageWord}` : `Add ${imageWord}`}
+                >
+                  {v.logo_url && broken[v.logo_url] ? (
+                    <ImageOff size={18} aria-hidden="true" />
+                  ) : v.logo_url ? (
+                    <img
+                      src={v.logo_url}
+                      alt=""
+                      onError={() => setBroken((m) => ({ ...m, [v.logo_url]: true }))}
+                      onLoad={(e) => {
+                        const { naturalWidth: w, naturalHeight: h } = e.currentTarget;
+                        if (h) setRatios((m) => (m[v.logo_url] === w / h ? m : { ...m, [v.logo_url]: w / h }));
+                      }}
+                    />
+                  ) : (
+                    <ImagePlus size={18} />
+                  )}
                   <input
                     type="file"
                     accept="image/*"
@@ -155,12 +198,22 @@ export default function VenturesEditor({
                       role="radio"
                       aria-checked={(v.logo_size ?? "s") === s.id}
                       className={(v.logo_size ?? "s") === s.id ? "is-on" : ""}
-                      onClick={() => set(i, { logo_size: s.id as LogoSize })}
+                      onClick={() => pickSize(i, v, s.id as LogoSize)}
                     >
                       {s.label}
                     </button>
                   ))}
                 </div>
+                {onCropImage && (
+                  <button type="button" className="ven-crop" disabled={busyKey !== null} onClick={() => onCropImage(i, v.logo_size ?? "s")}>
+                    <Crop size={13} aria-hidden="true" /> Crop
+                  </button>
+                )}
+                {(v.logo_size ?? "s") === "l" && ratios[v.logo_url] != null && !isBannerShaped(ratios[v.logo_url]) && (
+                  <p className="ven-hint">
+                    Shown whole on a blurred banner. Crop it to 16:9 to fill the banner edge to edge.
+                  </p>
+                )}
               </div>
             )}
 

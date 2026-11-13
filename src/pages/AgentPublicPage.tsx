@@ -256,6 +256,14 @@ export default function AgentPublicPage() {
           <p className="text-white/40 text-xs">The future of work — human + AI employees.</p>
         </motion.div>
       </main>
+
+      {/* Tell people up front they're talking to an AI and the conversation is processed (DPDP Act s.5). */}
+      <p className="relative z-10 px-6 pb-5 text-center text-[11px] leading-relaxed text-white/50">
+        You're talking to an AI. Your voice and messages are processed and may be recorded to run this conversation.{" "}
+        <a href="/legal/privacy" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 hover:text-white/80">
+          Privacy Notice
+        </a>
+      </p>
     </div>
   );
 }

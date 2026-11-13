@@ -8,6 +8,9 @@ import { debounce } from "lodash";
 import { AUTH_MESSAGES } from "../constants/validation";
 import ForgotPassword from "./ForgotPassword";
 import "./AuthModel.css";
+import { Link } from "react-router-dom";
+import { recordSignupConsent } from "../legal/consent";
+import { LEGAL_PATHS, MIN_AGE } from "../legal/company";
 
 interface FormData {
   email: string;
@@ -58,6 +61,9 @@ const AuthModel: React.FC<AuthModelProps> = ({
   >(null);
   const [isValidatingEmail, setIsValidatingEmail] = useState(false);
   const [shake, setShake] = useState(false);
+  // DPDP Act s.6: a clear, unticked opt-in to the notice; marketing is a separate, optional choice.
+  const [agreed, setAgreed] = useState(false);
+  const [marketingOk, setMarketingOk] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
   // Validate full name - only letters and spaces
@@ -88,6 +94,10 @@ const AuthModel: React.FC<AuthModelProps> = ({
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (authMode === "signup") {
+      if (!agreed) return;
+      recordSignupConsent(marketingOk);
+    }
     await handleAuth(e);
   };
 
@@ -522,6 +532,35 @@ const AuthModel: React.FC<AuthModelProps> = ({
               </div>
             )}
 
+            {authMode === "signup" && (
+              <div className="mt-4 space-y-2.5 rounded-xl border border-gray-200 bg-gray-50/70 p-3.5 text-left">
+                <label className="flex cursor-pointer items-start gap-2.5 text-[12.5px] leading-relaxed text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={agreed}
+                    onChange={(e) => setAgreed(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-gray-900"
+                    required
+                  />
+                  <span>
+                    I am {MIN_AGE} or older and agree to the{" "}
+                    <Link to={LEGAL_PATHS.terms} target="_blank" className="font-medium text-gray-900 underline underline-offset-2">Terms of Service</Link>{" "}
+                    and the{" "}
+                    <Link to={LEGAL_PATHS.privacy} target="_blank" className="font-medium text-gray-900 underline underline-offset-2">Privacy Notice</Link>, including processing my data to run my account.
+                  </span>
+                </label>
+                <label className="flex cursor-pointer items-start gap-2.5 text-[12.5px] leading-relaxed text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={marketingOk}
+                    onChange={(e) => setMarketingOk(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-gray-900"
+                  />
+                  <span>Send me product news and offers (optional, you can stop any time).</span>
+                </label>
+              </div>
+            )}
+
             {/* Submit Button */}
             <button
               type="submit"
@@ -530,7 +569,8 @@ const AuthModel: React.FC<AuthModelProps> = ({
                 !emailValidation.isValid ||
                 !passwordValidation.isValid ||
                 (authMode === "signup" &&
-                  (!!confirmPasswordError ||
+                  (!agreed ||
+                    !!confirmPasswordError ||
                     !formData.confirmPassword ||
                     !!nameError ||
                     !formData.name))
@@ -592,6 +632,13 @@ const AuthModel: React.FC<AuthModelProps> = ({
               </svg>
               Continue with Google
             </button>
+          )}
+          {authMode === "signin" && (
+            <p className="-mt-3 mb-2 text-center text-[11.5px] leading-relaxed text-gray-500">
+              By continuing, you agree to our{" "}
+              <Link to={LEGAL_PATHS.terms} target="_blank" className="underline underline-offset-2">Terms</Link> and{" "}
+              <Link to={LEGAL_PATHS.privacy} target="_blank" className="underline underline-offset-2">Privacy Notice</Link>.
+            </p>
           )}
 
           {/* Switch Mode */}

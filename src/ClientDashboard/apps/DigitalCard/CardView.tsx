@@ -11,7 +11,8 @@ import { visiblePayMethods } from "./payMe";
 import { openCardAgent } from "./openCardAgent";
 import { trackCardEvent, type CardEventType } from "./cardEvents";
 import { CardData, EMAIL_LABELS, PHONE_LABELS, SOCIAL_TYPES, SocialType } from "./types";
-import { ventureKind } from "./ventureKinds";
+import { isBannerShaped, ventureKind } from "./ventureKinds";
+import { useLightImage } from "./lightImage";
 import { parseVideo, type CardVideo } from "./cardVideo";
 import prestigeBadge from "../../../resources/images/prestige-badge.webp";
 import { foundingOfferActive } from "../../../pages/foundingOffer";
@@ -50,20 +51,35 @@ function PdfIcon() {
 function VentureItem({ v, onOpen }: { v: CardData["ventures"][number]; onOpen?: () => void }) {
   const kind = ventureKind(v.type);
   const size = v.logo_size ?? "s";
-  const [broken, setBroken] = useState(false);
+  // The image that failed to load: a new upload (a new URL) is tried again, never stuck as broken.
+  const [brokenUrl, setBrokenUrl] = useState<string | null>(null);
+  const broken = !!v.logo_url && brokenUrl === v.logo_url;
   // Sized by the image's shape: wordmarks sit bare, photos fill a square tile, the rest get a padded tile.
   const [shape, setShape] = useState<"wide" | "photo" | "tile">("wide");
+  const [ratio, setRatio] = useState<number | null>(null);
+  // A white logo on transparency gets a dark backdrop, or it would vanish on the white tile.
+  const light = useLightImage(v.logo_url && !broken ? v.logo_url : null);
   const img =
     v.logo_url && !broken ? (
-      <img className={`company-logo size-${size}`} src={v.logo_url} alt={`${v.name} ${kind.id === "venture" ? "logo" : "cover"}`} onError={() => setBroken(true)}
+      <img className={`company-logo size-${size}`} src={v.logo_url} alt={`${v.name} ${kind.id === "venture" ? "logo" : "cover"}`} onError={() => setBrokenUrl(v.logo_url)}
         onLoad={(e) => {
           const { naturalWidth: w, naturalHeight: h } = e.currentTarget;
           const r = h ? w / h : 1;
+          setRatio(r);
           setShape(r >= 1.6 ? "wide" : r >= 0.8 && r <= 1.25 ? "photo" : "tile");
         }}
       />
     ) : null;
   const cover = size === "l" && img;
+  // Large = a 16:9 banner. A banner-shaped image fills it; any other shape is shown whole over a
+  // soft blur of itself, so nothing important (a face, a headline) is ever cut off.
+  const fills = ratio == null || isBannerShaped(ratio);
+  const coverBlock = cover ? (
+    <div className={`company-cover${fills ? "" : " is-fit"}${light ? " is-light" : ""}`}>
+      {!fills && <img className="company-cover-bg" src={v.logo_url} alt="" aria-hidden="true" />}
+      {img}
+    </div>
+  ) : null;
   // A Project can carry a PDF beside its link (document_url): the row then shows a link icon and a
   // PDF icon, each opening its own target, while the row itself opens the link.
   const doc = v.document_url?.trim() ?? "";
@@ -74,7 +90,7 @@ function VentureItem({ v, onOpen }: { v: CardData["ventures"][number]; onOpen?: 
     <>
       {!cover && img && (
         <>
-          <span className={`company-thumb size-${size} shape-${shape}`}>{img}</span>
+          <span className={`company-thumb size-${size} shape-${shape}${light ? " is-light" : ""}`}>{img}</span>
           <span className="company-sep" aria-hidden="true" />
         </>
       )}
@@ -109,7 +125,7 @@ function VentureItem({ v, onOpen }: { v: CardData["ventures"][number]; onOpen?: 
     const site = href(v.url);
     return (
       <article className={articleClass}>
-        {cover && <div className="company-cover">{img}</div>}
+        {coverBlock}
         <div className="company-row has-actions">
           <a className="company-main" href={site} target="_blank" rel="noopener noreferrer" aria-label={`${kind.cta(v.name)} (opens in a new tab)`} onClick={onOpen}>
             {lead}
@@ -130,7 +146,7 @@ function VentureItem({ v, onOpen }: { v: CardData["ventures"][number]; onOpen?: 
   // One compact row (the same pattern as the Connect list); the whole row opens the link (or the PDF).
   return (
     <article className={articleClass}>
-      {cover && <div className="company-cover">{img}</div>}
+      {coverBlock}
       {!v.url?.trim() && doc ? (
         <a className="company-row" href={doc} target="_blank" rel="noopener noreferrer" aria-label={`${v.document_name || v.file_name || `${v.name} PDF`} (opens in a new tab)`} onClick={onOpen}>
           {body}
@@ -306,7 +322,7 @@ export default function CardView({
   /** The saved card's slug — lets "Save Contact" offer wallet passes (public page only). */
   slug?: string;
 }) {
-  const [imgBroken, setImgBroken] = useState(false);
+  const [brokenPhoto, setBrokenPhoto] = useState<string | null>(null);
   // The Prestige look uses the client's fonts (Playfair Display, Inter, Cinzel); load them once, only when needed.
   useEffect(() => {
     if (tier !== "prestige" || document.getElementById("prestige-font")) return;
@@ -427,7 +443,7 @@ export default function CardView({
   const companies = ventures.filter((v) => ventureKind(v.type).id === "venture");
   const resources = ventures.filter((v) => ventureKind(v.type).id !== "venture");
   const initials = c.full_name.split(/\s+/).map((s) => s[0]).join("").slice(0, 2).toUpperCase();
-  const showPhoto = c.image_url && !imgBroken;
+  const showPhoto = c.image_url && brokenPhoto !== c.image_url;
   const video = parseVideo(c.video_url);
   const hasRight = connect.length > 0 || !!c.website || ventures.length > 0 || !!video;
 
@@ -452,7 +468,7 @@ export default function CardView({
         <div className="portrait-box">
           <div className="portrait-wrap">
             {showPhoto ? (
-              <img className="portrait" src={c.image_url} alt={`Portrait of ${c.full_name}`} onError={() => setImgBroken(true)} />
+              <img className="portrait" src={c.image_url} alt={`Portrait of ${c.full_name}`} onError={() => setBrokenPhoto(c.image_url)} />
             ) : (
               <div className="portrait ph">{initials || "＋"}</div>
             )}
@@ -590,9 +606,9 @@ export default function CardView({
           </button>
         )}
         {featured !== "save" && (
-          <button className="quick-btn" type="button" disabled={!c.full_name} onClick={() => setSaveOpen(true)}>
+          <button className="quick-btn" type="button" disabled={!c.full_name} onClick={() => setSaveOpen(true)} aria-label="Save contact">
             <UserPlus size={20} strokeWidth={1.7} />
-            Save Contact
+            Save
           </button>
         )}
         {shareLink && (

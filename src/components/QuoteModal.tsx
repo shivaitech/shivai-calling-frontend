@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { X, ArrowRight, CheckCircle } from "lucide-react";
+import { LEGAL_PATHS } from "../legal/company";
 
 const SALES_WHATSAPP_NUMBER = "919211490707";
 
@@ -146,6 +147,13 @@ const QuoteModal: React.FC<QuoteModalProps> = ({ isOpen, onClose, context }) => 
               >
                 Send on WhatsApp →
               </button>
+              <p className="text-[11.5px] leading-relaxed text-gray-500 text-center">
+                We use these details only to reply to your quote request. See our{" "}
+                <a href={LEGAL_PATHS.privacy} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+                  Privacy Notice
+                </a>
+                .
+              </p>
             </form>
           ) : (
             <div className="text-center py-6 space-y-4">
