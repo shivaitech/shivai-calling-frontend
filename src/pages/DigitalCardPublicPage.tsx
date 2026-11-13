@@ -1,13 +1,10 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import CardView from "../ClientDashboard/apps/DigitalCard/CardView";
-import { BusinessCardError, businessCardAPI, PUBLIC_APP_URL, PublicBusinessCard, cardUrl } from "../services/businessCardAPI";
+import { BusinessCardError, businessCardAPI, PUBLIC_APP_URL, PublicBusinessCard, cardUrl, publicPlanLook } from "../services/businessCardAPI";
 import { DIGITAL_CARD_HOME } from "./digitalCardRoutes";
 import { trackCardView } from "../ClientDashboard/apps/DigitalCard/cardEvents";
 import "../ClientDashboard/apps/DigitalCard/digitalCard.css";
-
-/** The plans with their own look (Essential uses the standard one). */
-const lookOf = (plan?: string | null) => (plan === "signature" || plan === "prestige" ? plan : undefined);
 
 type State =
   | { kind: "loading" }
@@ -79,7 +76,7 @@ export default function DigitalCardPublicPage({ slug: slugProp }: { slug?: strin
             // The public API sometimes returns tenant_id as an object; only pass a real id.
             agentUserId={typeof state.card.tenant_id === "string" ? state.card.tenant_id : undefined}
             // The owner's plan look (gold for Prestige), from the API only.
-            tier={lookOf(state.card.plan)}
+            tier={publicPlanLook(state.card.plan)}
             foundingMember={!!state.card.founding_member}
             trackSlug={state.card.slug}
           />

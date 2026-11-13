@@ -143,13 +143,35 @@ export interface BusinessCard extends BusinessCardInput {
   updatedAt: string;
 }
 
+/** The plan object the public route sends: { name: "Prestige", entitlements: { badge: "gold" }, … }. */
+export interface PublicCardPlan {
+  key?: string;
+  name?: string;
+  is_free?: boolean;
+  entitlements?: { badge?: string; ai_manager?: string; [k: string]: unknown };
+  features?: string[];
+}
+
+/** "signature" | "prestige" from either shape of `plan` (key string or object); anything else → undefined. */
+export function publicPlanLook(plan: PublicBusinessCard["plan"]): "signature" | "prestige" | undefined {
+  if (!plan) return undefined;
+  const pick = (s?: string) => {
+    const k = (s ?? "").trim().toLowerCase();
+    return k === "signature" || k === "prestige" ? k : undefined;
+  };
+  if (typeof plan === "string") return pick(plan);
+  if (plan.is_free) return undefined;
+  return pick(plan.key) ?? pick(plan.name) ?? (plan.entitlements?.badge === "gold" ? "prestige" : undefined);
+}
+
 /** Card as returned by the public route (no _id anywhere). */
 export interface PublicBusinessCard extends BusinessCardInput {
   tenant_id: string;
   slug: string;
   share_url?: string;
-  /** The owner's card plan — picks the card's look (Prestige = gold). Omitted = standard. */
-  plan?: "free" | "essential" | "signature" | "prestige";
+  /** The owner's card plan — picks the card's look (Prestige = gold). Omitted = standard.
+   *  Older responses send the key ("prestige"); current ones send the plan object. */
+  plan?: "free" | "essential" | "signature" | "prestige" | PublicCardPlan | null;
   /** Created under the Founding Member offer (before 31 Dec 2026): shows a small badge. */
   founding_member?: boolean;
 }
