@@ -77,6 +77,11 @@ export const LOGO_SIZES: { id: LogoSize; label: string }[] = [
   { id: "l", label: "Large" },
 ];
 
+/** "Large" shows the image as a banner in this shape (width / height). */
+export const BANNER_ASPECT = 16 / 9;
+/** Close enough to the banner to fill it edge to edge (a little trimmed at most). */
+export const isBannerShaped = (ratio: number) => ratio >= 1.55 && ratio <= 2.05;
+
 /** Description length limit: short enough to show in full on the card (3 lines on the narrowest card), never cut off. */
 export const DESCRIPTION_MAX = 80;
 

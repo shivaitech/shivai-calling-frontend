@@ -43,17 +43,19 @@ export async function optimizePhoto(file: File): Promise<File> {
   }
 }
 
-/** "photo" = the profile picture (JPEG, sized for link previews); "logo" = a venture logo (keeps transparency). */
-export type ImageKind = "photo" | "logo";
+/** "photo" = the profile picture (JPEG, sized for link previews); "logo" = a venture logo (keeps transparency);
+ *  "banner" = a project shown Large: full card width, so it keeps more pixels. */
+export type ImageKind = "photo" | "logo" | "banner";
 
 const LOGO_MAX_SIDE = 512;
+const BANNER_MAX_SIDE = 1600;
 
 /** Logos are often transparent PNGs — shrink them but keep PNG/WebP (and their alpha) instead of flattening to JPEG. */
-export async function optimizeLogo(file: File): Promise<File> {
+export async function optimizeLogo(file: File, maxSide = LOGO_MAX_SIDE): Promise<File> {
   if (!file.type.startsWith("image/") || file.type === "image/gif" || file.type === "image/svg+xml") return file;
   try {
     const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, LOGO_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
     if (scale === 1 && file.size <= MAX_BYTES) {
       bitmap.close?.();
       return file;
@@ -75,14 +77,27 @@ export async function optimizeLogo(file: File): Promise<File> {
   }
 }
 
-const optimize = (file: File, kind: ImageKind) => (kind === "logo" ? optimizeLogo(file) : optimizePhoto(file));
+const optimize = (file: File, kind: ImageKind) =>
+  kind === "banner" ? optimizeLogo(file, BANNER_MAX_SIDE) : kind === "logo" ? optimizeLogo(file) : optimizePhoto(file);
+
+/** A path like "/uploads/x.png" from the API would load from this site and break: point it at the API's host. */
+function absoluteUrl(url: string): string {
+  if (/^(https?:|data:|blob:)/i.test(url)) return url;
+  if (url.startsWith("//")) return `https:${url}`;
+  try {
+    const base = import.meta.env.VITE_API_BASE_URL || window.location.origin;
+    return new URL(url, base).href;
+  } catch {
+    return url;
+  }
+}
 
 /** Uploads an image (after optimizing it) and returns its public URL. Needs a logged-in session. */
 export async function uploadPhoto(file: File, kind: ImageKind = "photo"): Promise<string> {
   const res = await agentAPI.uploadLogo(await optimize(file, kind));
   const url = res?.logo_url || res?.url || res?.data?.logo_url || res?.data?.url || res?.data?.data?.logo_url;
   if (!url) throw new Error("Upload succeeded but no URL was returned.");
-  return url;
+  return absoluteUrl(String(url));
 }
 
 /** Optimized image as a data URL — lets a visitor pick images before they have an account. */
@@ -106,7 +121,7 @@ export async function uploadDataUrl(dataUrl: string, kind: ImageKind): Promise<s
 export async function resolveCardImages(card: CardData): Promise<CardData> {
   const image_url = card.image_url.startsWith("data:") ? await uploadDataUrl(card.image_url, "photo") : card.image_url;
   const ventures = await Promise.all(
-    card.ventures.map(async (v) => (v.logo_url.startsWith("data:") ? { ...v, logo_url: await uploadDataUrl(v.logo_url, "logo") } : v)),
+    card.ventures.map(async (v) => (v.logo_url.startsWith("data:") ? { ...v, logo_url: await uploadDataUrl(v.logo_url, v.logo_size === "l" ? "banner" : "logo") } : v)),
   );
   const payment_methods = card.payment_methods
     ? await Promise.all(

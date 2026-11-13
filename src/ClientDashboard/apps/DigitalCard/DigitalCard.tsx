@@ -656,7 +656,7 @@ function CardEditor({
   const onImageFile = async (file: File, kind: ImageKind) => {
     try {
       const url = await uploadPhoto(file, kind);
-      toast.success(kind === "logo" ? "Logo uploaded" : "Photo uploaded");
+      toast.success(kind === "photo" ? "Photo uploaded" : kind === "banner" ? "Banner uploaded" : "Logo uploaded");
       return url;
     } catch (e: any) {
       toast.error(e?.message || "Couldn’t upload the image");
