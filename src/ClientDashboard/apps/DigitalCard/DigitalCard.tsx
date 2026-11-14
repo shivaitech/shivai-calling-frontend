@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import QRCode from "react-qr-code";
 import toast from "react-hot-toast";
-import { Award, BarChart3, Bot, Clock, Copy, CreditCard, Crown, ExternalLink, Eye, Lock, Mail, Pencil, Plus, Share2, Sparkles } from "lucide-react";
+import { Award, BarChart3, Bot, ChevronRight, Clock, Copy, CreditCard, Crown, ExternalLink, Eye, Lock, Mail, Pencil, Plus, Share2, Sparkles } from "lucide-react";
 import { cardInsightsAPI } from "../../../services/cardInsightsAPI";
 import CardView from "./CardView";
 import CardForm, { type CardPatch } from "./CardForm";
@@ -18,6 +18,7 @@ import { checkoutHref } from "../../Billing/checkoutFlow";
 import { handlePlanLimit, limitLabel, refreshPlanLimits, showLimitFor, usePlanLimits } from "../../Billing/planLimit";
 import { createWithUsername } from "./autoUsername";
 import EmailSignatureSheet from "./EmailSignatureSheet";
+import CardStatsSheet, { type StatsTab, totalTaps } from "./CardStatsSheet";
 import QrPlayground from "./QrPlayground";
 import { loadQrDesign, saveQrDesign } from "./qrDesignStore";
 import { CardData, emptyCard, withSuggestedTagline } from "./types";
@@ -265,14 +266,14 @@ function CardRow({
 }) {
   const [week, setWeek] = useState<{ views: number; taps: number } | null>(null);
   const [sigOpen, setSigOpen] = useState(false);
+  const [statsTab, setStatsTab] = useState<StatsTab | null>(null);
   useEffect(() => {
     let live = true;
     cardInsightsAPI
       .analytics(c._id, "7d")
       .then((r) => {
         if (!live || !r.live) return; // sample data (stats not served yet) is never shown here
-        const taps = Object.values(r.data.actions ?? {}).reduce((s, n) => s + (Number(n) || 0), 0);
-        setWeek({ views: r.data.totals?.views ?? 0, taps });
+        setWeek({ views: r.data.totals?.views ?? 0, taps: totalTaps(r.data) });
       })
       .catch(() => {});
     return () => {
@@ -330,22 +331,32 @@ function CardRow({
         )}
       </div>
 
-      {/* At a glance: this week's views and taps (real numbers only), and the AI Manager */}
+      {/* At a glance: this week's views and taps (real numbers only), and the AI Manager.
+          Views and Taps open the full breakdown for this card. */}
       <dl className="cardrow-stats">
-        <div>
-          <dt>
-            <Eye size={13} aria-hidden="true" /> Views
-          </dt>
-          <dd>{week ? week.views : "—"}</dd>
-          <small>this week</small>
-        </div>
-        <div>
-          <dt>
-            <BarChart3 size={13} aria-hidden="true" /> Taps
-          </dt>
-          <dd>{week ? week.taps : "—"}</dd>
-          <small>this week</small>
-        </div>
+        {(["views", "taps"] as const).map((k) => (
+          <div
+            key={k}
+            className="is-link"
+            role="button"
+            tabIndex={0}
+            aria-label={`${k === "views" ? "Views" : "Taps"} this week: ${week ? week[k] : "not available"}. Show details`}
+            onClick={() => setStatsTab(k)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setStatsTab(k);
+              }
+            }}
+          >
+            <dt>
+              {k === "views" ? <Eye size={13} aria-hidden="true" /> : <BarChart3 size={13} aria-hidden="true" />} {k === "views" ? "Views" : "Taps"}
+              <ChevronRight size={13} className="cardrow-stat-go" aria-hidden="true" />
+            </dt>
+            <dd>{week ? week[k] : "—"}</dd>
+            <small>this week · details</small>
+          </div>
+        ))}
         <div className={c.agent_id ? "is-on" : undefined}>
           <dt>
             <Bot size={13} aria-hidden="true" /> AI Manager
@@ -388,6 +399,18 @@ function CardRow({
         </div>
       )}
       {sigOpen && <EmailSignatureSheet card={c} tier={plan ?? undefined} onClose={() => setSigOpen(false)} />}
+      {statsTab && (
+        <CardStatsSheet
+          cardId={c._id}
+          cardName={c.card_name || c.full_name}
+          initialTab={statsTab}
+          onClose={() => setStatsTab(null)}
+          onOpenInsights={() => {
+            setStatsTab(null);
+            go("monitoring", c._id);
+          }}
+        />
+      )}
     </section>
   );
 }
