@@ -55,3 +55,35 @@ export function clearDraft(): void {
     }
   }
 }
+
+/** A card someone started (it has a name) but never saved, or null. */
+export function startedDraft(scope: DraftScope): CardData | null {
+  try {
+    if (!localStorage.getItem(KEYS[scope])) return null;
+  } catch {
+    return null;
+  }
+  const d = loadDraft(scope);
+  return d.full_name.trim() ? d : null;
+}
+
+/** Carry a card started on the public page into the dashboard's "new card" editor. */
+export function adoptPublicDraft(): void {
+  try {
+    const s = localStorage.getItem(KEYS.public);
+    if (!s) return;
+    localStorage.setItem(KEYS.dashboard, s);
+    localStorage.removeItem(KEYS.public);
+  } catch {
+    /* storage blocked */
+  }
+}
+
+/** Forget only the public page's draft (the person chose to discard it). */
+export function discardPublicDraft(): void {
+  try {
+    localStorage.removeItem(KEYS.public);
+  } catch {
+    /* ignore */
+  }
+}

@@ -448,7 +448,7 @@ export default function CardView({
   const hasRight = connect.length > 0 || !!c.website || ventures.length > 0 || !!video;
 
   return (
-    <main className={"card" + (wide ? " wide" : "") + (tier && tier !== "essential" ? ` tier-${tier}` : "")} style={accentVars(c.color_code)}>
+    <main className={"card" + (wide ? " wide" : "") + (tier && tier !== "essential" ? ` tier-${tier}` : " tier-essential")} style={accentVars(c.color_code)}>
       <div className="topline">
         <span className={"wordmark" + (!c.full_name ? " ph-text" : "")}>{c.full_name || "Your name"}</span>
         <span className="toplabel">

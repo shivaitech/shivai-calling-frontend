@@ -21,7 +21,8 @@ import EmailSignatureSheet from "./EmailSignatureSheet";
 import QrPlayground from "./QrPlayground";
 import { loadQrDesign, saveQrDesign } from "./qrDesignStore";
 import { CardData, emptyCard, withSuggestedTagline } from "./types";
-import { clearDraft, loadDraft, saveDraft } from "./draft";
+import { adoptPublicDraft, clearDraft, discardPublicDraft, loadDraft, saveDraft, startedDraft } from "./draft";
+import UnsavedCardRescue from "./UnsavedCardRescue";
 import { validateCard } from "./validate";
 import { type ImageKind, uploadPhoto } from "./photo";
 import { useAgent } from "../../../contexts/AgentContext";
@@ -435,6 +436,10 @@ function CardsList({ go }: { go: (s: string, id?: string | null) => void }) {
 
   useEffect(load, [load]);
 
+  // A card typed on the public creator but never saved (e.g. they left after signing up): offered
+  // here so it isn't lost. Only shown while the account has no cards at all.
+  const [unsaved, setUnsaved] = useState<CardData | null>(() => startedDraft("public"));
+
   const copy = async (c: BusinessCard) => {
     await navigator.clipboard.writeText(cardUrl(c));
     toast.success("Link copied");
@@ -483,7 +488,27 @@ function CardsList({ go }: { go: (s: string, id?: string | null) => void }) {
         </section>
       )}
 
-      {state === "ok" && cards.length === 0 && (
+      {state === "ok" && cards.length === 0 && unsaved && (
+        <UnsavedCardRescue
+          draft={unsaved}
+          onSaved={() => {
+            setUnsaved(null);
+            refreshPlanLimits();
+            load();
+          }}
+          onEdit={() => {
+            adoptPublicDraft();
+            setUnsaved(null);
+            go("card", "new");
+          }}
+          onDiscard={() => {
+            discardPublicDraft();
+            setUnsaved(null);
+          }}
+        />
+      )}
+
+      {state === "ok" && cards.length === 0 && !unsaved && (
         <section className="panel empty">
           <h3>No cards yet</h3>
           <p className="muted">Create your first digital business card and share it in seconds.</p>

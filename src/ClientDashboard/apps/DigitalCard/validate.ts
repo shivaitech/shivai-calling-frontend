@@ -4,6 +4,14 @@ import { usernameProblem } from "./username";
 import { DESCRIPTION_MAX, ventureKind } from "./ventureKinds";
 import { payMethodProblem } from "./payMe";
 
+/** The line under the name ("Job title, Company") fits 3 lines on the narrowest card at this length. */
+export const ROLE_MAX = 80;
+export const JOB_TITLE_MAX = 50;
+export const COMPANY_MAX = 70;
+/** Length of that line as the card shows it. */
+export const roleLength = (f: Pick<CardData, "job_title" | "company_name">) =>
+  [f.job_title.trim(), f.company_name.trim()].filter(Boolean).join(", ").length;
+
 /** Mirrors the API's Joi rules so most mistakes are caught before the request. */
 export function validateCard(f: CardData, opts: { skipUsername?: boolean } = {}): Record<string, string> {
   const e: Record<string, string> = {};
@@ -12,9 +20,13 @@ export function validateCard(f: CardData, opts: { skipUsername?: boolean } = {})
   else if (name.length < 2) e.full_name = "Full name must be at least 2 characters";
   else if (name.length > 100) e.full_name = "Full name must be at most 100 characters";
   if (!f.job_title.trim()) e.job_title = "Job title is required";
-  else if (f.job_title.trim().length > 150) e.job_title = "Job title must be at most 150 characters";
+  else if (f.job_title.trim().length > JOB_TITLE_MAX) e.job_title = `Keep your job title to ${JOB_TITLE_MAX} characters or less`;
   if (!f.company_name.trim()) e.company_name = "Company name is required";
-  else if (f.company_name.trim().length > 150) e.company_name = "Company name must be at most 150 characters";
+  else if (f.company_name.trim().length > COMPANY_MAX) e.company_name = `Keep the company name to ${COMPANY_MAX} characters or less`;
+  // Together they're the line under the name, shown in full on up to 3 lines.
+  const over = roleLength(f) - ROLE_MAX;
+  if (over > 0 && !e.job_title && !e.company_name)
+    e.company_name = `Job title and company are too long to show in full. Shorten them by ${over} character${over === 1 ? "" : "s"}.`;
   // Existing cards can't change their username, so it isn't re-checked when editing.
   const usernameIssue = opts.skipUsername
     ? ""

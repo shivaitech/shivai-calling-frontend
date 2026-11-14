@@ -44,6 +44,9 @@ interface Store {
 }
 
 let store: Store = { userKey: "", ids: [], docs: {}, ready: false, source: "server" };
+// Installs sent to the server but not answered yet. A list that was requested before the install
+// landed would otherwise drop them, and the app would bounce its user to the Marketplace.
+const installing = new Set<string>();
 let loading: Promise<void> | null = null;
 
 // ── local copy ───────────────────────────────────────────────────────────────
@@ -120,7 +123,7 @@ async function refresh(userKey = store.userKey) {
   const docs = byApp(await skillAppsAPI.list());
   if (store.userKey !== userKey) return;
   const pending = readPending(userKey).filter((id) => !docs[id]);
-  setStore({ docs, ids: [...new Set([...Object.keys(docs), ...pending])], ready: true, source: "server" });
+  setStore({ docs, ids: [...new Set([...Object.keys(docs), ...pending, ...installing])], ready: true, source: "server" });
 }
 
 /** Loads the server list for this user; installs made before the API existed are uploaded once. */
@@ -175,10 +178,16 @@ async function installApp(appId: string, email?: string): Promise<void> {
     writePending(store.userKey, [...readPending(store.userKey), appId]);
     return;
   }
+  installing.add(appId);
   try {
     const created = await skillAppsAPI.install(catalogId);
-    setStore({ docs: { ...store.docs, [appId]: [...(store.docs[appId] ?? []), created._id] } });
+    installing.delete(appId);
+    setStore({
+      ids: store.ids.includes(appId) ? store.ids : [...store.ids, appId],
+      docs: { ...store.docs, [appId]: [...(store.docs[appId] ?? []), created._id] },
+    });
   } catch (e) {
+    installing.delete(appId);
     const status = (e as SkillAppsError).status;
     if (status === 409) return void refresh().catch(() => {}); // already installed
     // 404 = this catalog app (or the endpoint) wasn't found: keep the install here and retry later.

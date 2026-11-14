@@ -54,7 +54,19 @@ const AppWorkspace: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { isInstalled, ready: installsReady } = useInstalledApps();
+  const { isInstalled, ready: installsReady, install } = useInstalledApps();
+
+  // Digital Card is free and needs no setup: opening it installs it, instead of a detour to the
+  // Marketplace's Install button (where new card owners thought their card had been lost).
+  const [autoInstall, setAutoInstall] = useState<"idle" | "busy" | "done" | "failed">("idle");
+  const cardAppMissing = appId === "digital-card" && installsReady && !isInstalled("digital-card");
+  useEffect(() => {
+    if (!cardAppMissing || autoInstall !== "idle") return;
+    setAutoInstall("busy");
+    install("digital-card")
+      .then(() => setAutoInstall("done")) // tried once: if it still isn't installed, the guard below sends them to the install page
+      .catch(() => setAutoInstall("failed"));
+  }, [cardAppMissing, autoInstall, install]);
 
   // Same shell state as the main dashboard (App.tsx AppContent).
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -132,8 +144,15 @@ const AppWorkspace: React.FC = () => {
       </div>
     );
   }
-  // Digital Card: a signed-in visitor who hasn't installed it yet goes straight to its install page.
+  // Digital Card installs itself (above); only if that fails does the visitor see its install page.
   if (!isInstalled(app.id) && app.id === "digital-card") {
+    if (autoInstall === "idle" || autoInstall === "busy") {
+      return (
+        <div className="min-h-screen flex">
+          <Spinner />
+        </div>
+      );
+    }
     return <Navigate to={`/marketplace/${app.id}`} replace />;
   }
   if (!isInstalled(app.id)) {
