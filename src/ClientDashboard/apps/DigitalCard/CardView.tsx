@@ -15,6 +15,7 @@ import { isBannerShaped, ventureKind } from "./ventureKinds";
 import { useLightImage } from "./lightImage";
 import { parseVideo, type CardVideo } from "./cardVideo";
 import prestigeBadge from "../../../resources/images/prestige-badge.webp";
+import shivaiLogo from "../../../resources/images/ShivaiLogo.svg";
 import { foundingOfferActive } from "../../../pages/foundingOffer";
 
 const FOUNDING_SHORT = "31 Dec 2026";
@@ -683,7 +684,8 @@ export default function CardView({
           <span className="footer-powered">
             Powered by{" "}
             <a href="https://www.callshivai.com" target="_blank" rel="noopener noreferrer">
-              <strong>ShivAI</strong>
+              {/* The website's wordmark; the <strong> keeps each tier's brand font size, which sizes the logo. */}
+              <strong className="footer-brand"><img src={shivaiLogo} alt="ShivAI" className="footer-logo" /></strong>
             </a>
           </span>
         )}

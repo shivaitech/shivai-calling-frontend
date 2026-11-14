@@ -1096,6 +1096,10 @@
 .dc .footer-powered{flex:none;font-size:11px;color:#858585;white-space:nowrap}
 .dc .footer-powered a{color:var(--ink);text-decoration:none}
 .dc .footer-powered a:hover{text-decoration:underline}
+/* ShivAI wordmark in place of bold text: the letters span the whole SVG, so 0.82em of the
+   brand's font size matches the cap height of the text it replaces; it sits on the baseline. */
+.dc .footer-powered .footer-brand{display:inline-flex;align-items:flex-end;line-height:1}
+.dc .footer-powered .footer-logo{display:block;height:.82em;width:auto;max-width:none}
 
 /* ---------- Signature: silver ---------- */
 .dc .card.tier-signature .phone-tile{border-color:#dfe3e9}
@@ -1723,6 +1727,33 @@
 .dc .cardrow-stats dd{margin:3px 0 0;font-size:18px;font-weight:700;color:#171717;line-height:1.1;font-variant-numeric:tabular-nums}
 .dc .cardrow-stats small{display:block;margin-top:1px;font-size:11px;color:#9a9a96;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dc .cardrow-stats>div.is-on dd{color:#269c63}
+/* Views and Taps open their details */
+.dc .cardrow-stats>div.is-link{cursor:pointer;transition:background .15s}
+.dc .cardrow-stats>div.is-link:hover{background:#f2f2ef}
+.dc .cardrow-stats>div.is-link:focus-visible{outline:2px solid var(--ink);outline-offset:-2px}
+.dc .cardrow-stats .cardrow-stat-go{margin-left:auto;color:#b3b3ae;transition:transform .15s,color .15s}
+.dc .cardrow-stats>div.is-link:hover .cardrow-stat-go{color:#171717;transform:translateX(2px)}
+
+/* Views / Taps details sheet */
+.dc .sheet.stats-sheet{max-width:560px;display:flex;flex-direction:column;gap:14px}
+.dc .stats-sheet .sheet-head{margin-bottom:0}
+.dc .stats-sub{margin:2px 0 0;font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dc .stats-bar{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center}
+.dc .stats-bar [role="tablist"] button{display:inline-flex;align-items:center;gap:5px}
+.dc .stats-body{display:flex;flex-direction:column;gap:14px}
+.dc .stats-tiles,.dc .stats-tiles.three{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (min-width:520px){.dc .stats-tiles{grid-template-columns:repeat(4,minmax(0,1fr))}.dc .stats-tiles.three{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.dc .stats-tiles .ins-tile{padding:11px 12px}
+.dc .stats-tiles .ins-tile-value{font-size:20px}
+.dc .stats-tiles .ins-tile-value.stats-top{font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dc .stats-block{border:1px solid var(--line);border-radius:14px;padding:14px}
+.dc .stats-block-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:10px}
+.dc .stats-block-head h3{margin:0;font-size:13.5px;font-weight:650;color:var(--ink);text-transform:none;letter-spacing:0}
+.dc .stats-block-head span{font-size:12px;color:var(--muted);white-space:nowrap}
+.dc .stats-chart{height:130px}
+.dc .stats-block .ins-barlist li{grid-template-columns:110px 1fr auto}
+.dc .stats-empty,.dc .stats-loading{margin:0;font-size:13px;color:var(--muted)}
+.dc .stats-more{justify-content:space-between}
 
 /* Actions */
 .dc .cardrow-actions{display:flex;align-items:center;gap:8px;padding:12px 16px}

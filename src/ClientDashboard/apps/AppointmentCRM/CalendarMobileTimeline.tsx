@@ -1,4 +1,4 @@
-import { Ban, Clock, Eye, Pencil, Plus } from "lucide-react";
+import { Ban, CalendarPlus, Clock, Eye, Pencil, Plus } from "lucide-react";
 import { useAppointmentIndustry } from "./industryConfig";
 import type { StaffMember } from "./staffStore";
 import type { Booking } from "./mockData";
@@ -37,6 +37,11 @@ interface Props {
   onViewStaff?: (staff: StaffMember) => void;
   onBookingClick: (booking: Booking) => void;
   onBlockClick: (block: StaffOfflineBlock) => void;
+  /** The signed-in account owner's column: marked "You". */
+  youId?: string;
+  /** A column with no working hours yet (the owner before setting up): shows a set-up prompt. */
+  pendingSetupId?: string;
+  onSetUpStaff?: (staff: StaffMember) => void;
 }
 
 const REASON_LABEL: Record<"leave" | "unavailable", string> = {
@@ -76,6 +81,9 @@ const CalendarMobileTimeline = ({
   onViewStaff,
   onBookingClick,
   onBlockClick,
+  youId,
+  pendingSetupId,
+  onSetUpStaff,
 }: Props) => {
   if (hourLabels.length === 0) {
     return (
@@ -136,6 +144,9 @@ const CalendarMobileTimeline = ({
               onViewStaff={onViewStaff}
               onBookingClick={onBookingClick}
               onBlockClick={onBlockClick}
+              isYou={s.id === youId}
+              pending={s.id === pendingSetupId}
+              onSetUp={onSetUpStaff}
             />
           ))}
         </div>
@@ -157,6 +168,9 @@ const StaffColumn = ({
   onViewStaff,
   onBookingClick,
   onBlockClick,
+  isYou = false,
+  pending = false,
+  onSetUp,
 }: {
   staff: StaffMember;
   /** CSS width value (e.g. "max(240px, 50%)") — full width for one staff,
@@ -172,6 +186,9 @@ const StaffColumn = ({
   onViewStaff?: (staff: StaffMember) => void;
   onBookingClick: (booking: Booking) => void;
   onBlockClick: (block: StaffOfflineBlock) => void;
+  isYou?: boolean;
+  pending?: boolean;
+  onSetUp?: (staff: StaffMember) => void;
 }) => {
   const { terms } = useAppointmentIndustry();
   const items: TimelineItem[] = [
@@ -191,7 +208,7 @@ const StaffColumn = ({
 
   return (
     <div
-      className="flex-shrink-0 snap-start border-r-2 border-slate-200 dark:border-slate-700 last:border-r-0"
+      className="relative flex-shrink-0 snap-start border-r-2 border-slate-200 dark:border-slate-700 last:border-r-0"
       style={{ width: colBasis }}
     >
       <div
@@ -205,8 +222,11 @@ const StaffColumn = ({
           {staff.name.charAt(0)}
         </div>
         <p className="text-[13px] font-semibold text-slate-800 dark:text-white truncate min-w-0">{staff.name}</p>
-        <span className="ml-auto text-[10px] text-slate-400 shrink-0">{bookings.length} Pts</span>
-        {onViewStaff && (
+        {isYou && (
+          <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide bg-violet-600 text-white">You</span>
+        )}
+        <span className="ml-auto text-[10px] text-slate-400 shrink-0">{pending ? "Not set up" : `${bookings.length} Pts`}</span>
+        {onViewStaff && !pending && (
           <button
             type="button"
             onClick={() => onViewStaff(staff)}
@@ -217,7 +237,7 @@ const StaffColumn = ({
             <Eye className="w-3.5 h-3.5" />
           </button>
         )}
-        {onEditStaff && (
+        {onEditStaff && !pending && (
           <button
             type="button"
             onClick={() => onEditStaff(staff)}
@@ -229,6 +249,30 @@ const StaffColumn = ({
           </button>
         )}
       </div>
+
+      {pending && (
+        // No hours yet: the rows stay (so the hour axis lines up) and this card sits over them.
+        <div className="absolute inset-x-2 z-[5] flex justify-center pointer-events-none" style={{ top: 61 }}>
+          <div className="pointer-events-auto w-full max-w-[260px] rounded-2xl border border-violet-200 dark:border-violet-800/60 bg-white/95 dark:bg-slate-900/95 backdrop-blur shadow-lg shadow-violet-500/10 p-4 text-center">
+            <span className="mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-xl bg-violet-50 dark:bg-violet-950/40 text-violet-600 dark:text-violet-300">
+              <CalendarPlus className="w-4 h-4" />
+            </span>
+            <p className="text-[13px] font-semibold text-slate-800 dark:text-white">Your calendar</p>
+            <p className="mt-1 text-[11.5px] leading-relaxed text-slate-500 dark:text-slate-400">
+              Add your working hours to take {terms.appointments.toLowerCase()} yourself. Your AI agent can book into it too.
+            </p>
+            {onSetUp && (
+              <button
+                type="button"
+                onClick={() => onSetUp(staff)}
+                className="mt-3 inline-flex items-center justify-center gap-1.5 w-full px-3 py-2 rounded-xl text-xs font-semibold bg-violet-600 text-white hover:bg-violet-700 transition-colors"
+              >
+                <CalendarPlus className="w-3.5 h-3.5" /> Set up my hours
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {hourLabels.map((hourMin, idx) => {
         const hourItems = items.filter((it) => it.startMin >= hourMin && it.startMin < hourMin + 60);
@@ -249,7 +293,9 @@ const StaffColumn = ({
             }`}
           >
             {hourItems.length === 0 && !reason && (
-              isPastHour ? (
+              pending ? (
+                <div className="h-9 rounded-lg bg-slate-100/50 dark:bg-slate-800/30" />
+              ) : isPastHour ? (
                 <div className="h-9 flex items-center justify-center rounded-lg bg-slate-100/60 dark:bg-slate-800/40">
                   <span className="text-[11px] text-slate-300 dark:text-slate-600">Time passed</span>
                 </div>

@@ -163,22 +163,52 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
   const defaultSlotDurationMin = getActivePreset().slotDurationMin;
   const calendarStaff = useMemo<StaffMember[]>(() => {
     if (integratedStaffLoading) return [];
+    const isOwnerId = (id: string) => !!owner && id === owner.id;
     const all = integratedSchedules
-      .filter((s) => s.staff)
+      // The owner's schedule may come back with no `staff` summary (they aren't a staff record):
+      // keep it and name it from the signed-in account.
+      .filter((s) => s.staff || isOwnerId(s.staff_id))
       .map((s): StaffMember => ({
         id: s.staff_id,
         branchId,
         departmentId: "",
-        name: s.staff!.fullName,
-        role: s.staff!.is_owner || s.staff_id === owner?.id ? "Account owner" : terms.provider,
-        email: s.staff!.email || undefined,
+        name: s.staff?.fullName || owner?.name || "You",
+        role: s.staff?.is_owner || isOwnerId(s.staff_id) ? "Account owner" : terms.provider,
+        email: s.staff?.email || owner?.email || undefined,
         active: true,
         hue: hueFromSeed(s.staff_id),
         slotDurationMin: defaultSlotDurationMin,
-      }));
+      }))
+      // The owner's own calendar always comes first.
+      .sort((a, b) => Number(isOwnerId(b.id)) - Number(isOwnerId(a.id)));
     if (lockedStaffId) return all.filter((s) => s.id === lockedStaffId);
     return all;
-  }, [integratedSchedules, integratedStaffLoading, branchId, defaultSlotDurationMin, lockedStaffId, owner?.id, terms.provider]);
+  }, [integratedSchedules, integratedStaffLoading, branchId, defaultSlotDurationMin, lockedStaffId, owner, terms.provider]);
+
+  // The owner's own column is always on the calendar (main tenant = "You"). Before they've set
+  // their hours it's a placeholder that offers to set them up, instead of being missing.
+  const ownerPending =
+    !!owner?.isSelf && !lockedStaffId && !readOnly && !calendarStaff.some((s) => s.id === owner.id);
+  const columnStaff = useMemo<StaffMember[]>(
+    () =>
+      ownerPending && owner
+        ? [
+            {
+              id: owner.id,
+              branchId,
+              departmentId: "",
+              name: owner.name,
+              role: "Account owner",
+              email: owner.email,
+              active: true,
+              hue: hueFromSeed(owner.id),
+              slotDurationMin: defaultSlotDurationMin,
+            },
+            ...calendarStaff,
+          ]
+        : calendarStaff,
+    [ownerPending, owner, branchId, defaultSlotDurationMin, calendarStaff],
+  );
 
   const viewIsoForBookings = toIsoDate(viewDate);
   useEffect(() => {
@@ -208,8 +238,8 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
       const one = calendarStaff.find((s) => s.id === targetId);
       return one ? [one] : calendarStaff.slice(0, 1);
     }
-    return calendarStaff.filter((s) => !hiddenStaffIds.has(s.id));
-  }, [calendarStaff, focusedStaffId, viewMode, hiddenStaffIds]);
+    return columnStaff.filter((s) => !hiddenStaffIds.has(s.id));
+  }, [calendarStaff, columnStaff, focusedStaffId, viewMode, hiddenStaffIds]);
 
   const focusedStaff = focusedStaffId
     ? calendarStaff.find((s) => s.id === focusedStaffId)
@@ -294,7 +324,7 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
     );
   }
 
-  if (!calendarStaff.length) {
+  if (!columnStaff.length) {
     return (
       <div className="space-y-5">
         <SectionTitle title="Calendar" subtitle={`Put yourself or your team on the calendar to start taking ${terms.appointments.toLowerCase()}`} />
@@ -390,14 +420,14 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
         {/* Row 2: visible-staff chips (left) / action buttons (right), same row */}
         {!lockedStaffId && (
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
-            {viewMode === "multi" && calendarStaff.length > 0 ? (
+            {viewMode === "multi" && columnStaff.length > 0 ? (
               <div className="min-w-0 flex-1 -mx-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <div className="flex items-center gap-1.5 px-1 pb-0.5 min-w-min">
                   <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400 shrink-0 mr-0.5 flex items-center gap-1">
                     <UserPlus className="w-3 h-3" />
                     Visible {terms.providers}:
                   </span>
-                  {calendarStaff.map((s) => {
+                  {columnStaff.map((s) => {
                     const visible = !hiddenStaffIds.has(s.id);
                     return (
                       <button
@@ -570,6 +600,9 @@ const CalendarView = ({ lockedStaffId, readOnly = false }: CalendarViewProps) =>
                   setViewMode("solo");
                 }
           }
+          youId={owner?.isSelf ? owner.id : undefined}
+          pendingSetupId={ownerPending && owner ? owner.id : undefined}
+          onSetUpStaff={() => openIntegrate(true)}
           onBookingClick={setSelectedBooking}
           onBlockClick={setSelectedOfflineBlock}
         />
