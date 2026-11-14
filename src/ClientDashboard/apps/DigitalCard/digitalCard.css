@@ -1292,7 +1292,7 @@
 .dc .card .toplabel{flex:none}
 .dc .card h1,.dc .card .role,.dc .card .tagline,.dc .card .company-body .company-name,.dc .card .ai-sub,.dc .card .footer-id span{display:-webkit-box;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
 .dc .card h1{-webkit-line-clamp:2}
-.dc .card .role{-webkit-line-clamp:2}
+.dc .card .role{-webkit-line-clamp:3}
 .dc .card .tagline{-webkit-line-clamp:4}
 .dc .card .company-body .company-name{-webkit-line-clamp:2}
 .dc .card .ai-sub{-webkit-line-clamp:2}
@@ -2142,3 +2142,63 @@
 .dc .company-cover.is-light .company-cover-bg{display:none}
 .dc .company-cover.is-light .company-logo{object-fit:contain;padding:8%;filter:none}
 .dc .logo-picker-tile.is-light{background:#1d1d1b;border-color:#1d1d1b}
+
+/* ---------- My cards: a card started on the public page but never saved (UnsavedCardRescue) ---------- */
+.dc .panel.rescue{border-color:#e9d6a6;background:linear-gradient(180deg,#fffaf0,#fff)}
+.dc .rescue-head{display:flex;gap:12px;align-items:flex-start}
+.dc .rescue-head h3{margin:0 0 3px;font-size:16px;letter-spacing:-.2px}
+.dc .rescue-head p{margin:0}
+.dc .rescue-ico{flex:none;width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:#f6ead0;color:#8a6a1f}
+.dc .rescue-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding-left:46px}
+.dc .rescue-actions .btn{display:inline-flex;align-items:center;gap:6px}
+.dc .rescue-discard{margin-left:auto;border:0;background:none;padding:6px 4px;font:inherit;font-size:13px;color:var(--muted);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.dc .rescue-discard:hover{color:var(--ink)}
+@media(max-width:520px){.dc .rescue-actions{padding-left:0}.dc .rescue-discard{margin-left:0}}
+
+/* ---------- Essential: the same framed card as Signature and Prestige, in clean paper and ink ----------
+   Same structure (frame, photo-left profile, white section panels, list-style buttons, bare glyphs),
+   no metal: the owner's own colour is the only accent, so the paid looks still stand apart. */
+.dc .card.tier-essential{
+  --line:#e8e8e3;
+  width:min(100% - 24px,480px);
+  padding:22px 18px 24px;
+  background:linear-gradient(180deg,#ffffff 0%,#f7f7f4 100%);
+  border:1px solid #e3e3de;border-radius:22px;
+  box-shadow:0 1px 0 #fff inset,0 18px 40px -24px rgba(24,24,20,.28)
+}
+.dc .card.tier-essential .topline{border-bottom-color:#e6e6e1}
+.dc .card.tier-essential .portrait-wrap{border:3px solid #fff;box-shadow:0 0 0 1px #e3e3de,0 12px 26px -12px rgba(24,24,20,.4)}
+.dc .card.tier-essential .portrait.ph{background:linear-gradient(135deg,#f6f6f3,#d9d9d3);color:#55554f}
+.dc .card.tier-essential h1{color:#161614;letter-spacing:-.8px}
+.dc .card.tier-essential .role{color:#4a4a45}
+.dc .card.tier-essential .tagline{color:#5e5e58}
+/* Buttons: the first in the owner's colour, the rest crisp white rows with a chevron */
+.dc .card.tier-essential .action{background:#fff;color:#161614;border-color:#e3e3de;justify-content:flex-start;padding:12px 14px;box-shadow:0 1px 2px rgba(24,24,20,.05)}
+.dc .card.tier-essential .action::after{content:"\203A";margin-left:auto;font-size:18px;line-height:1;color:#a6a6a0}
+.dc .card.tier-essential .action:first-child{background:var(--accent);border-color:var(--accent-border,var(--accent));color:var(--accent-ink,#fff)}
+.dc .card.tier-essential .action:first-child::after{color:currentColor;opacity:.6}
+.dc .card.tier-essential .action.pay{background:#fff;border-color:#cfe9db;color:#0f7b46}
+.dc .card.tier-essential .section-head h2{color:#6b6b65}
+.dc .card.tier-essential .link-list,.dc .card.tier-essential .xphones,.dc .card.tier-essential .company{background:#fff;border-color:#e6e6e1}
+.dc .card.tier-essential .link-list,.dc .card.tier-essential .build-list{box-shadow:0 1px 2px rgba(24,24,20,.05)}
+.dc .card.tier-essential .link-list a:hover,.dc .card.tier-essential a.company-row:hover{background:#fafaf8}
+.dc .card.tier-essential .link-ico,.dc .card.tier-essential .link-ico.plain{background:none!important;border:0;width:22px;height:22px;color:var(--accent)}
+.dc .card.tier-essential .link-ico svg{width:17px;height:17px}
+.dc .card.tier-essential .phone-tile{border-color:#e3e3de}
+.dc .card.tier-essential .phone-ico{border-color:#d4d4ce;color:#4a4a45}
+.dc .card.tier-essential .quick-btn + .quick-btn{border-left-color:#e6e6e1}
+.dc .card.tier-essential .company-sep{background:#e3e3de}
+.dc .card.tier-essential .footer{border-top:1px solid #e3e3de}
+/* Featured button: the owner's colour, with a soft lift */
+.dc .card.tier-essential .ai-banner{box-shadow:0 12px 26px -16px rgba(24,24,20,.5)}
+/* Very light owner colours (white, cream): keep the link glyphs readable */
+.dc .card.tier-essential[style*="--accent: #fff"] .link-ico,.dc .card.tier-essential[style*="--accent: #ffffff"] .link-ico{color:#4a4a45}
+/* Inside the editor preview, plan previews and the full-size preview the frame is the card. */
+.dc .phone-frame .card.tier-essential,.dc .pp-stage .card.tier-essential,.dc .pp-sheet-body .card.tier-essential{width:100%;margin:0;border:0;border-radius:0;box-shadow:none}
+.dc .pp-sheet-body:has(.card.tier-essential){padding:0}
+@media(min-width:900px){.dc .card.wide.tier-essential{width:min(100% - 80px,1080px);padding:40px 44px 48px}}
+.dc-public .card.tier-essential{margin-top:20px}
+@media(min-width:600px){.dc-public .card.tier-essential{margin-top:28px}}
+@media(min-width:900px){.dc-public .card.tier-essential{margin-top:44px}}
+/* Job title + company counter under those two fields (CardForm) */
+.dc .role-count{margin-top:-4px}

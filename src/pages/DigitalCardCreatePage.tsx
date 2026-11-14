@@ -75,6 +75,10 @@ export default function DigitalCardCreatePage() {
   const [saving, setSaving] = useState(false);
   const step: "edit" | "review" = params.get("step") === "review" ? "review" : "edit";
   const wantsReview = useRef(false); // the visitor pressed "Save & continue" before signing in
+  // They pressed "Save & continue" and then made an account: that IS the save. Without this the
+  // card waited on the preview for a second "Save card" press, and people who took sign-up as the
+  // save left with nothing saved.
+  const saveAfterAuth = useRef(false);
 
   const set = (patch: CardPatch) => setForm((f) => ({ ...f, ...(typeof patch === "function" ? patch(f) : patch) }));
 
@@ -89,10 +93,13 @@ export default function DigitalCardCreatePage() {
   const auth = useInlineAuth({
     userBase: USER_BASE_DBC,
     // Keep the plan picked on the pricing page through the Google round trip.
-    googleReturn: `${CREATE_ROUTE}?${new URLSearchParams({ ...paidPlanQuery(params), step: "review" })}`,
+    // save=1: coming back from Google after "Save & continue" saves the card straight away.
+    googleReturn: `${CREATE_ROUTE}?${new URLSearchParams({ ...paidPlanQuery(params), step: "review", save: "1" })}`,
     onSuccess: () => {
       if (wantsReview.current) {
         wantsReview.current = false;
+        saveAfterAuth.current = true;
+        autoSaved.current = false; // e.g. signing in again after an expired session
         goStep("review");
       }
     },
@@ -197,6 +204,24 @@ export default function DigitalCardCreatePage() {
       setSaving(false);
     }
   };
+
+  // Signed up (or back from Google) after "Save & continue": save now, once the session is ready.
+  const autoSaved = useRef(false);
+  useEffect(() => {
+    const fromGoogle = params.get("save") === "1";
+    if (!(saveAfterAuth.current || fromGoogle) || autoSaved.current) return;
+    if (step !== "review" || authLoading || !hasSession || saving) return;
+    if (Object.keys(validateCard(form)).length) return; // the review guard sends them back to fix it
+    autoSaved.current = true;
+    saveAfterAuth.current = false;
+    if (fromGoogle) {
+      const p = new URLSearchParams(params);
+      p.delete("save");
+      setParams(p, { replace: true });
+    }
+    void saveCard();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, authLoading, hasSession, params]);
 
   return (
     <div className="min-h-screen bg-[#F0F0F0] text-slate-900">

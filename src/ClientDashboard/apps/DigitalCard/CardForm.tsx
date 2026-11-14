@@ -35,6 +35,7 @@ import TaglineIdeas from "./TaglineIdeas";
 import { TAGLINE_MAX } from "./taglineTemplates";
 import { editImage, type EditImageOptions } from "./ImageEditor";
 import { BANNER_ASPECT } from "./ventureKinds";
+import { COMPANY_MAX, JOB_TITLE_MAX, ROLE_MAX, roleLength } from "./validate";
 
 // The card shows the photo in a 4:5 portrait frame with rounded corners.
 const PHOTO_EDIT: EditImageOptions = { title: "Edit profile photo", aspects: [{ label: "Portrait", value: 4 / 5 }], rounded: true, maxSide: 1600 };
@@ -364,12 +365,42 @@ export default function CardForm({
         />
         <div className="row two">
           <Field label="Job title" required error={err("job_title")}>
-            <input value={form.job_title} placeholder="Your job title" onChange={(e) => set({ job_title: e.target.value })} />
+            <input
+              value={form.job_title}
+              placeholder="Your job title"
+              // An older, longer title stays editable so it can be shortened.
+              maxLength={form.job_title.length > JOB_TITLE_MAX ? undefined : JOB_TITLE_MAX}
+              aria-describedby="role-count"
+              onChange={(e) => set({ job_title: e.target.value })}
+            />
           </Field>
           <Field label="Company" required error={err("company_name")}>
-            <input value={form.company_name} placeholder="Your company" onChange={(e) => set({ company_name: e.target.value })} />
+            <input
+              value={form.company_name}
+              placeholder="Your company"
+              maxLength={form.company_name.length > COMPANY_MAX ? undefined : COMPANY_MAX}
+              aria-describedby="role-count"
+              onChange={(e) => set({ company_name: e.target.value })}
+            />
           </Field>
         </div>
+        {(() => {
+          // Job title + company make the line under the name: shown in full up to ROLE_MAX.
+          const len = roleLength(form);
+          const over = len > ROLE_MAX;
+          return (
+            <div id="role-count" className={`ven-count role-count${over ? " is-over" : len >= ROLE_MAX - 10 ? " is-near" : ""}`}>
+              <span>
+                {over
+                  ? `Too long to show in full under your name. Shorten it by ${len - ROLE_MAX}.`
+                  : "Job title and company together, shown in full under your name."}
+              </span>
+              <span className="ven-count-num">
+                {len}/{ROLE_MAX}
+              </span>
+            </div>
+          );
+        })()}
         <Field label="Tagline" error={err("tagline")}>
           <span className="textarea-wrap">
             <textarea
