@@ -148,8 +148,8 @@ html{scroll-behavior:smooth}body{font-family:Poppins,sans-serif}[hidden]{display
 @media(min-width:1280px){.site-header-logo img{height:40px}.site-header-links{gap:32px}}
 
 /* Hero and navigation styling based on the visual reference. */
-.site-header{background:rgba(242,242,248,.94)}
-.site-header.is-scrolled{background:rgba(242,242,248,.9)}
+.site-header{background:rgba(240,240,240,.94)}
+.site-header.is-scrolled{background:rgba(240,240,240,.9)}
 .site-header-bar{max-width:1440px;margin:0 auto}
 .site-header-links a{color:#16171c;font-size:15px;font-weight:500}
 .site-actions{display:none;align-items:center;gap:28px}
@@ -157,7 +157,7 @@ html{scroll-behavior:smooth}body{font-family:Poppins,sans-serif}[hidden]{display
 .site-account:hover{border:0}
 .site-mobile-account{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .site-mobile-account .mobile-start{background:#eee;color:#15161b}
-.hero{position:relative;overflow:hidden;background:#f2f2f8}
+.hero{position:relative;overflow:hidden;background:#f0f0f0}
 .hero-wrap{max-width:1440px;min-height:610px;margin:0 auto;position:relative;display:flex;align-items:center}
 .hero-rail{position:absolute;left:3.4%;top:26px;bottom:100px;display:flex;flex-direction:column;align-items:center;gap:12px;color:#24262d;font-size:11px;z-index:2}
 .hero-rail span{writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap}
@@ -195,7 +195,7 @@ html{scroll-behavior:smooth}body{font-family:Poppins,sans-serif}[hidden]{display
 .hero-highlights strong,.hero-highlights small{display:block;color:#17191e;line-height:1.4}
 .hero-highlights strong{font-size:10px;font-weight:600}
 .hero-highlights small{font-size:9px}
-.hero-img{position:absolute;z-index:1;right:0;bottom:0;width:66%;display:block}
+.hero-img{position:absolute;z-index:1;right:-5%;bottom:0;width:66%;display:block}
 .hero-img img{display:block;width:100%;height:auto;max-width:none}
 .hero-scroll{position:absolute;z-index:3;left:6.7%;bottom:27px;display:inline-flex;align-items:center;gap:8px;color:#25262b;font-size:11px}
 .hero-scroll:hover{color:#111}
