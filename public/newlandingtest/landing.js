@@ -31,6 +31,7 @@
   let featureFocusPaused = false;
   let featureDragging = false;
   let featureAnimating = false;
+  let featureManualScroll = false;
   let featureHighlightTimer, featureAdvanceTimer, featureScrollTimer, featureFrame;
   const visibleSlides = track => [...track.querySelectorAll('[data-slide]')].filter(el => !el.hidden);
   const step = track => {
@@ -55,6 +56,7 @@
     const target = Math.max(0, Math.min(max,
       slide.offsetLeft - (featureTrack.clientWidth - slide.clientWidth) / 2));
     cancelAnimationFrame(featureFrame);
+    featureManualScroll = false;
     if (reduceMotion.matches) {
       featureTrack.scrollTo({ left: target, behavior: 'instant' });
       return;
@@ -167,6 +169,7 @@
   featureTrack.addEventListener('pointerdown', event => {
     if (event.target.closest('button')) return;
     featureDragging = true;
+    featureManualScroll = true;
     clearFeatureAdvance();
     cancelAnimationFrame(featureFrame);
     featureTrack.style.scrollSnapType = '';
@@ -177,8 +180,9 @@
     featureDragging = false;
     scheduleFeatureAdvance();
   });
+  featureTrack.addEventListener('wheel', () => { featureManualScroll = true; }, { passive: true });
   featureTrack.addEventListener('scroll', () => {
-    if (featureAnimating) return;
+    if (featureAnimating || !featureManualScroll) return;
     clearTimeout(featureScrollTimer);
     featureScrollTimer = setTimeout(() => {
       const middle = featureTrack.getBoundingClientRect().left + featureTrack.clientWidth / 2;
@@ -189,6 +193,7 @@
           : best;
       }, { index: feature, distance: Infinity }).index;
       if (nearest !== feature) showFeature(nearest, false);
+      if (!featureDragging) featureManualScroll = false;
     }, 150);
   }, { passive: true });
   if ('IntersectionObserver' in window) {
