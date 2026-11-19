@@ -23,44 +23,26 @@
 <nav class="site-header-bar" aria-label="Main navigation">
 <a class="site-header-logo" href="/" aria-label="ShivAI home"><img src="/newlandingtest/assets/header-logo.svg" alt="ShivAI"></a>
 <div class="site-header-links"><a href="#demo">Demo</a><a href="#features">Features</a><a href="/pricing">Pricing</a><a href="#contact">Contact Us</a></div>
-<a class="site-account" data-account href="/landing?auth=signin"><span>Sign In</span><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M7 7h10v10"/></svg></a>
+<div class="site-actions"><a class="site-account" data-account href="/landing?auth=signin"><span>Sign In</span><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M7 7h10v10"/></svg></a>
+<a class="hero-button hero-button-dark nav-start" href="/landing?auth=signup" data-workspace>Get Started Free <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div>
 <button class="site-menu-toggle" type="button" aria-label="Open mobile menu" aria-expanded="false" aria-controls="site-mobile-menu"><img class="site-menu-icon" src="/newlandingtest/assets/header-menu.svg" alt=""><svg class="site-menu-close" aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
 </nav>
-<nav id="site-mobile-menu" class="site-mobile-menu" aria-label="Mobile navigation" hidden><a href="#demo">Demo</a><a href="#features">Features</a><a href="/pricing">Pricing</a><a href="#contact">Contact Us</a><div class="site-mobile-account"><a data-account href="/landing?auth=signin"><span>Sign In</span><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 17 17 7M7 7h10v10"/></svg></a></div></nav>
+<nav id="site-mobile-menu" class="site-mobile-menu" aria-label="Mobile navigation" hidden><a href="#demo">Demo</a><a href="#features">Features</a><a href="/pricing">Pricing</a><a href="#contact">Contact Us</a><div class="site-mobile-account"><a data-account href="/landing?auth=signin"><span>Sign In</span><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M7 17 17 7M7 7h10v10"/></svg></a><a class="mobile-start" href="/landing?auth=signup" data-workspace>Get Started Free <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a></div></nav>
 </header><main id="content">
 
-<!-- 1. HERO (unchanged copy and visual direction) -->
-<section aria-label="Hero" style="position: relative; padding: 0 clamp(16px, 4vw, 56px)">
-<div class="hero-wrap" style="max-width: 1320px; margin: 0 auto; position: relative; min-height: 720px; display: flex; flex-wrap: wrap; align-items: center">
-<div class="hide-sm" aria-hidden="true" style="position: absolute; left: 0; top: 48px; bottom: 48px; width: 24px; display: flex; flex-direction: column; align-items: center; justify-content: space-between">
-<span style="writing-mode: vertical-rl; transform: rotate(180deg); font-size: 12px; font-weight: 300; letter-spacing: .15em; color: #828282">The New Frontline</span>
-<span style="flex: 1; width: 1.3px; background: #D1D1D1; margin: 20px 0"></span>
-<span style="writing-mode: vertical-rl; transform: rotate(180deg); font-size: 12px; font-weight: 300; letter-spacing: .15em; color: #828282">2025</span>
-</div>
-<div class="hero-left" style="flex: 1 1 520px; min-width: 0; padding: 48px 0 48px clamp(0px, 6vw, 72px); display: flex; flex-direction: column; gap: 40px; position: relative; z-index: 2">
-<dl class="hero-stats" style="margin: 0; display: flex; gap: 40px">
-<div style="display: flex; flex-direction: column-reverse"><dt style="font-size: 14px; letter-spacing: .025em; color: #828282">Conversations Powered</dt><dd style="margin: 0 0 6px; font-size: 36px; font-weight: 400; color: #333333; line-height: 1.1">+1M</dd></div>
-<div style="display: flex; flex-direction: column-reverse"><dt style="font-size: 14px; letter-spacing: .025em; color: #828282">Industries Usable</dt><dd style="margin: 0 0 6px; font-size: 36px; font-weight: 400; color: #333333; line-height: 1.1">+100</dd></div>
-</dl>
-<div>
-<h1 style="margin: 0; font-weight: 300; font-size: clamp(5rem, 10vw, 10rem); line-height: 1.15; color: #333333; height: 1.15em; overflow: hidden" aria-label="Hello">
-<span class="hello-roll" aria-hidden="true" style="display: flex; flex-direction: column">
-<span style="height: 1.15em">Hello</span><span style="height: 1.15em">Ciao</span><span style="height: 1.15em">नमस्ते</span><span style="height: 1.15em">Olá</span><span style="height: 1.15em">مرحبا</span><span style="height: 1.15em">Hallo</span><span style="height: 1.15em">Hola</span><span style="height: 1.15em">你好</span><span style="height: 1.15em">Hello</span>
+<!-- 1. HERO -->
+<section class="hero" aria-label="Hero"><div class="hero-wrap">
+<div class="hero-rail" aria-hidden="true"><span>The New Frontline</span><i></i><span>2025</span></div><div class="hero-left">
+<dl class="hero-stats"><div class="hero-stat"><span class="hero-icon"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 10v4M7 7v10M11 4v16M15 7v10M19 9v6M22 11v2"/></svg></span><div><dd>+1M</dd><dt>Conversations Powered</dt></div></div><div class="hero-stat"><span class="hero-icon"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 5-9 5-9-5 9-5ZM3 12l9 5 9-5M3 16l9 5 9-5"/></svg></span><div><dd>+100</dd><dt>Industries Usable</dt></div></div></dl>
+<div class="hero-headline"><div class="hero-greeting-row"><h1 class="hero-greeting" aria-label="Hello">
+<span class="hello-roll" aria-hidden="true">
+<span>Hello</span><span>Ciao</span><span>नमस्ते</span><span>Olá</span><span>مرحبا</span><span>Hallo</span><span>Hola</span><span>你好</span><span>Hello</span>
 </span>
-</h1>
-<p style="margin: 16px 0 0; font-size: 18px; font-weight: 600; color: #828282">— ShivAI: your first AI employee Sell, Support, Book, 24/7.</p>
-</div>
-<div class="hero-cta" style="align-self: flex-start; background: rgba(255,255,255,.98); border-radius: 999px; padding: 8px; display: flex; gap: 8px; box-shadow: 0 25px 50px -12px rgba(0,0,0,.25)">
-<a style="display: inline-flex; align-items: center; gap: 10px; background: #FFFFFF; color: #333333; border: 0; border-radius: 999px; padding: 0 32px; min-height: 44px; font-size: 15px; font-weight: 500; cursor: pointer; box-shadow: 0 10px 15px -3px rgba(0,0,0,.1)" href="#demo">Try it now </a>
-<a style="background: #FFFFFF; color: #333333; border: 0; border-radius: 999px; padding: 0 24px; min-height: 44px; font-size: 15px; font-weight: 500; cursor: pointer" href="/landing?auth=signup" data-workspace>Get Started</a>
-</div>
-</div>
-<div class="hero-img" style="flex: 1 1 460px; min-width: 0; align-self: flex-end; display: flex; justify-content: flex-end">
-<img src="/newlandingtest/assets/ai-workspace-hero.webp" alt="ShivAI employee with AI agents, business apps and workflows" width="1600" height="745" style="width: 100%; height: auto; display: block" fetchpriority="high">
-</div>
-</div>
-</section>
-
+</h1><span class="hero-wave"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 10v4M7 7v10M11 4v16M15 7v10M19 9v6M22 11v2"/></svg></span></div><p>&mdash; ShivAI: your first AI employee Sell, Support, Book, 24/7.</p></div>
+<div class="hero-buttons"><a class="hero-button hero-button-dark" href="#demo">Try it Now <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a><a class="hero-button hero-button-glass" href="#demo"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m10 8 6 4-6 4z"/></svg> Watch Demo</a></div>
+<div class="hero-highlights"><div><span class="hero-highlight-icon"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14v-2a8 8 0 0 1 16 0v2M4 14h2v6H4a2 2 0 0 1-2-2v-2a2 2 0 0 1 2-2ZM20 14h-2v6h2a2 2 0 0 0 2-2v-2a2 2 0 0 0-2-2ZM18 20c0 1.1-1.3 2-3 2h-2"/></svg></span><span><strong>AI Employees</strong><small>Like a real team</small></span></div><div><span class="hero-highlight-icon"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 5-9 5-9-5 9-5ZM3 12l9 5 9-5M3 16l9 5 9-5"/></svg></span><span><strong>Multi-Agent Flows</strong><small>Work together</small></span></div><div><span class="hero-highlight-icon"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg></span><span><strong>Business Apps</strong><small>Ready to use</small></span></div></div></div>
+<div class="hero-img"><img src="/newlandingtest/assets/ai-workspace-hero.webp" alt="ShivAI employee with AI agents, business apps and workflows" width="1600" height="745" fetchpriority="high"></div>
+<a class="hero-scroll" href="#features">Scroll Down <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></a></div></section>
 <!-- 2. WHAT SHIVAI CAN DO — spotlight carousel -->
 <section id="features" aria-labelledby="s2" aria-roledescription="carousel" style="padding: clamp(64px, 8vw, 104px) clamp(16px, 4vw, 56px) 0">
 <div style="max-width: 1320px; margin: 0 auto">
