@@ -24,7 +24,7 @@ button{font:inherit}
 .dot.is-on{width:28px;background:#333333}
 .dot-hit{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:44px;background:transparent;border:0;padding:0 2px;cursor:pointer}
 .lift{transition:transform .2s ease,box-shadow .2s ease}.lift:hover{transform:translateY(-3px)}
-@keyframes helloRoll{0%,10%{transform:translateY(0)}12.5%,22.5%{transform:translateY(-1.15em)}25%,35%{transform:translateY(-2.3em)}37.5%,47.5%{transform:translateY(-3.45em)}50%,60%{transform:translateY(-4.6em)}62.5%,72.5%{transform:translateY(-5.75em)}75%,85%{transform:translateY(-6.9em)}87.5%,97.5%{transform:translateY(-8.05em)}100%{transform:translateY(-9.2em)}}
+@keyframes helloRoll{0%,10%{transform:translateY(0)}12.5%,22.5%{transform:translateY(-1.35em)}25%,35%{transform:translateY(-2.7em)}37.5%,47.5%{transform:translateY(-4.05em)}50%,60%{transform:translateY(-5.4em)}62.5%,72.5%{transform:translateY(-6.75em)}75%,85%{transform:translateY(-8.1em)}87.5%,97.5%{transform:translateY(-9.45em)}100%{transform:translateY(-10.8em)}}
 @keyframes bar{0%,100%{transform:scaleY(.35)}50%{transform:scaleY(1)}}
 @keyframes pulse{0%{transform:scale(1);opacity:.5}100%{transform:scale(1.9);opacity:0}}
 @keyframes flow{to{background-position:0 24px}}
@@ -171,11 +171,11 @@ html{scroll-behavior:smooth}body{font-family:Poppins,sans-serif}[hidden]{display
 .hero-icon,.hero-highlight-icon{display:grid;place-items:center;flex:none;color:#1c2029;background:linear-gradient(140deg,rgba(255,255,255,.96),rgba(229,231,240,.7));border:1px solid rgba(255,255,255,.95);box-shadow:0 3px 10px rgba(67,72,89,.13),inset 0 1px 4px #fff}
 .hero-icon{width:46px;height:46px;border-radius:50%}
 .hero-icon svg{width:25px;height:25px}
-.hero-headline{width:100%}
+.hero-headline{width:100%;margin-top:16px}
 .hero-greeting-row{display:flex;align-items:center;gap:24px}
-.hero-greeting{margin:0;font-size:clamp(5rem,8vw,8.75rem);font-weight:400;line-height:1.15;height:1.15em;overflow:hidden;color:#1d1f24}
+.hero-greeting{margin:0;font-size:clamp(5rem,8vw,8.75rem);font-weight:400;line-height:1.35;height:1.35em;overflow:hidden;color:#1d1f24}
 .hello-roll{display:flex;flex-direction:column}
-.hello-roll span{height:1.15em;flex:0 0 1.15em;line-height:1.15}
+.hello-roll span{height:1.35em;flex:0 0 1.35em;line-height:1.35}
 .hero-wave{display:flex;color:#989aa7}
 .hero-wave svg{width:60px;height:60px;stroke-width:2.4}
 .hero-headline p{font-size:15px;color:#202127;font-weight:400;margin:14px 0 0;white-space:nowrap}
