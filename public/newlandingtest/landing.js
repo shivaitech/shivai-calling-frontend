@@ -23,22 +23,75 @@
   const featureTrack = $('[data-track="setFeatTrack"]');
   const employeeTrack = $('[data-track="setEmpTrack"]');
   const appTrack = $('[data-track="setAppsTrack"]');
-  let feature = 2, manuallyPaused = false;
+  const featureCards = [...featureTrack.querySelectorAll('.feat')];
+  const featureSection = featureTrack.closest('section');
+  let feature = 0;
+  let featureVisible = !('IntersectionObserver' in window);
+  let featureHovered = false;
+  let featureFocusPaused = false;
+  let featureDragging = false;
+  let featureAnimating = false;
+  let featureHighlightTimer, featureAdvanceTimer, featureScrollTimer, featureFrame;
   const visibleSlides = track => [...track.querySelectorAll('[data-slide]')].filter(el => !el.hidden);
   const step = track => {
     const slides = visibleSlides(track);
     return slides.length > 1 ? slides[1].offsetLeft - slides[0].offsetLeft : track.clientWidth;
   };
+  function clearFeatureAdvance() {
+    clearTimeout(featureAdvanceTimer);
+    featureAdvanceTimer = undefined;
+  }
+  function scheduleFeatureAdvance() {
+    clearFeatureAdvance();
+    if (reduceMotion.matches || document.hidden || !featureVisible ||
+        featureHovered || featureFocusPaused || featureDragging ||
+        !featureCards[feature].classList.contains('is-on')) return;
+    featureAdvanceTimer = setTimeout(() => showFeature(feature + 1), 2000);
+  }
+  function centerFeature(index) {
+    const slide = featureCards[index];
+    const max = featureTrack.scrollWidth - featureTrack.clientWidth;
+    if (!slide || max <= 2) return;
+    const target = Math.max(0, Math.min(max,
+      slide.offsetLeft - (featureTrack.clientWidth - slide.clientWidth) / 2));
+    cancelAnimationFrame(featureFrame);
+    if (reduceMotion.matches) {
+      featureTrack.scrollTo({ left: target, behavior: 'instant' });
+      return;
+    }
+    const start = featureTrack.scrollLeft;
+    const distance = target - start;
+    const started = performance.now();
+    featureAnimating = true;
+    featureTrack.style.scrollSnapType = 'none';
+    const frame = now => {
+      const progress = Math.min((now - started) / 300, 1);
+      featureTrack.scrollLeft = start + distance * (1 - Math.pow(1 - progress, 3));
+      if (progress < 1) featureFrame = requestAnimationFrame(frame);
+      else {
+        featureTrack.style.scrollSnapType = '';
+        featureAnimating = false;
+      }
+    };
+    featureFrame = requestAnimationFrame(frame);
+  }
   function showFeature(index, center = true) {
-    feature = (index + 5) % 5;
-    $$('.feat').forEach((el, i) => el.classList.toggle('is-on', i === feature));
+    feature = (index + featureCards.length) % featureCards.length;
+    clearTimeout(featureHighlightTimer);
+    clearFeatureAdvance();
+    featureCards.forEach(el => el.classList.remove('is-on'));
     $$('[data-click^="featDots."]').forEach((el, i) => {
       el.setAttribute('aria-current', String(i === feature));
       el.firstElementChild.classList.toggle('is-on', i === feature);
     });
-    const slide = featureTrack.children[feature];
-    if (center && featureTrack.scrollWidth > featureTrack.clientWidth + 2) {
-      featureTrack.scrollTo({ left: slide.offsetLeft - (featureTrack.clientWidth - slide.clientWidth) / 2, behavior: behavior() });
+    if (center) centerFeature(feature);
+    if (reduceMotion.matches) {
+      featureCards[feature].classList.add('is-on');
+    } else {
+      featureHighlightTimer = setTimeout(() => {
+        featureCards[feature].classList.add('is-on');
+        scheduleFeatureAdvance();
+      }, 500);
     }
   }
   function updateProgress() {
@@ -78,9 +131,9 @@
     const el = event.target.closest('[data-click]');
     if (!el || el.tagName === 'A') return;
     const action = el.dataset.click;
-    if (/^sel[0-4]$/.test(action)) { manuallyPaused = true; showFeature(Number(action.slice(-1))); }
-    else if (action.startsWith('featDots.')) { manuallyPaused = true; showFeature(Number(action.split('.')[1])); }
-    else if (action === 'featPrev' || action === 'featNext') { manuallyPaused = true; showFeature(feature + (action === 'featNext' ? 1 : -1)); }
+    if (/^sel[0-4]$/.test(action)) showFeature(Number(action.slice(-1)));
+    else if (action.startsWith('featDots.')) showFeature(Number(action.split('.')[1]));
+    else if (action === 'featPrev' || action === 'featNext') showFeature(feature + (action === 'featNext' ? 1 : -1));
     else if (action.startsWith('empDots.')) employeeTrack.scrollTo({ left: Number(action.split('.')[1]) * step(employeeTrack), behavior: behavior() });
     else if (action === 'empPrev' || action === 'empNext') employeeTrack.scrollBy({ left: step(employeeTrack) * (action === 'empNext' ? 1 : -1), behavior: behavior() });
     else if (action === 'appsPrev' || action === 'appsNext') appTrack.scrollBy({ left: step(appTrack) * 2 * (action === 'appsNext' ? 1 : -1), behavior: behavior() });
@@ -97,15 +150,64 @@
     });
   }, { passive: true });
   appTrack.addEventListener('scroll', updateProgress, { passive: true });
-  let hovering = false;
-  featureTrack.addEventListener('mouseenter', () => hovering = true);
-  featureTrack.addEventListener('mouseleave', () => hovering = false);
-  featureTrack.addEventListener('focusin', () => manuallyPaused = true);
-  featureTrack.addEventListener('pointerdown', () => manuallyPaused = true);
-  const timer = setInterval(() => {
-    if (!reduceMotion.matches && !document.hidden && !hovering && !manuallyPaused) showFeature(feature + 1, false);
-  }, 3800);
-  addEventListener('pagehide', () => clearInterval(timer), { once: true });
+  if (matchMedia('(hover: hover)').matches) {
+    featureSection.addEventListener('mouseenter', () => { featureHovered = true; clearFeatureAdvance(); });
+    featureSection.addEventListener('mouseleave', () => { featureHovered = false; scheduleFeatureAdvance(); });
+  }
+  featureSection.addEventListener('focusin', event => {
+    if (event.target.matches(':focus-visible')) { featureFocusPaused = true; clearFeatureAdvance(); }
+  });
+  featureSection.addEventListener('focusout', () => {
+    setTimeout(() => {
+      featureFocusPaused = featureSection.contains(document.activeElement) &&
+        document.activeElement.matches(':focus-visible');
+      scheduleFeatureAdvance();
+    }, 0);
+  });
+  featureTrack.addEventListener('pointerdown', event => {
+    if (event.target.closest('button')) return;
+    featureDragging = true;
+    clearFeatureAdvance();
+    cancelAnimationFrame(featureFrame);
+    featureTrack.style.scrollSnapType = '';
+    featureAnimating = false;
+  });
+  addEventListener('pointerup', () => {
+    if (!featureDragging) return;
+    featureDragging = false;
+    scheduleFeatureAdvance();
+  });
+  featureTrack.addEventListener('scroll', () => {
+    if (featureAnimating) return;
+    clearTimeout(featureScrollTimer);
+    featureScrollTimer = setTimeout(() => {
+      const middle = featureTrack.getBoundingClientRect().left + featureTrack.clientWidth / 2;
+      const nearest = featureCards.reduce((best, card, index) => {
+        const rect = card.getBoundingClientRect();
+        return Math.abs(rect.left + rect.width / 2 - middle) < best.distance
+          ? { index, distance: Math.abs(rect.left + rect.width / 2 - middle) }
+          : best;
+      }, { index: feature, distance: Infinity }).index;
+      if (nearest !== feature) showFeature(nearest, false);
+    }, 150);
+  }, { passive: true });
+  if ('IntersectionObserver' in window) {
+    const observer = new IntersectionObserver(entries => {
+      featureVisible = entries[0].isIntersecting;
+      scheduleFeatureAdvance();
+    }, { threshold: 0.15 });
+    observer.observe(featureSection);
+  }
+  document.addEventListener('visibilitychange', scheduleFeatureAdvance);
+  reduceMotion.addEventListener('change', () => showFeature(feature, false));
+  addEventListener('pagehide', () => {
+    clearFeatureAdvance();
+    clearTimeout(featureHighlightTimer);
+    clearTimeout(featureScrollTimer);
+    cancelAnimationFrame(featureFrame);
+  });
+  addEventListener('pageshow', event => { if (event.persisted) showFeature(feature, false); });
+  showFeature(0, false);
   try {
     if (localStorage.getItem('auth_tokens')) $$('[data-workspace]').forEach(el => el.href = '/marketplace');
   } catch {}
