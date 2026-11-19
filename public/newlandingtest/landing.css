@@ -244,3 +244,25 @@ html{scroll-behavior:smooth}body{font-family:Poppins,sans-serif}[hidden]{display
   .hero-industries-list li:first-child{padding-left:4px}
   .hero-industries-scroll{width:100%}
 }
+
+/* Full-width, continuously moving industry strip. */
+.hero-industries{width:100%;max-width:none;margin:-24px 0 22px;padding:10px clamp(16px,3vw,40px);border-left:0;border-right:0;border-radius:0}
+.hero-industries-label{padding:0 24px 0 0}
+.hero-industries-scroll{width:auto;overflow-x:auto;scrollbar-width:none}
+.hero-industries-scroll::-webkit-scrollbar{display:none}
+.hero-industries-track{display:flex;width:max-content;animation:industry-scroll 28s linear infinite}
+.hero-industries-list{flex:none;min-width:max(780px,calc(100vw - 120px));justify-content:space-around}
+.hero-industries-list li:first-child{border-left:1px solid #dedfe5}
+.hero-industries:focus-within .hero-industries-track{animation-play-state:paused}
+@media(hover:hover){.hero-industries:hover .hero-industries-track{animation-play-state:paused}}
+@keyframes industry-scroll{to{transform:translateX(-50%)}}
+@media(max-width:640px){
+  .hero-industries{width:100%;margin:-20px 0 16px;padding:10px 16px;align-items:center;flex-direction:row;gap:0;border-radius:0}
+  .hero-industries-label{padding:0 12px 0 0;font-size:11px}
+  .hero-industries-label br{display:block}
+  .hero-industries-list li:first-child{padding-left:14px}
+}
+@media(prefers-reduced-motion:reduce){
+  .hero-industries-track{animation:none}
+  .hero-industries-list[aria-hidden="true"]{display:none}
+}
