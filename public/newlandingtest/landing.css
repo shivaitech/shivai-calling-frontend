@@ -203,7 +203,7 @@ html{scroll-behavior:smooth}body{font-family:Poppins,sans-serif}[hidden]{display
 
 /* Give the hero room to breathe on phones while keeping the artwork in frame. */
 @media(max-width:640px){
-  .hero-left{max-width:560px;margin:0 auto;padding:30px clamp(20px,5vw,28px) 22px!important;gap:24px!important}
+  .hero-left{max-width:560px;margin:0 auto;padding:30px clamp(20px,5vw,28px) clamp(28px,4vh,36px)!important;gap:clamp(28px,4vh,36px)!important}
   .hero-stats{display:grid;grid-template-columns:1fr 1fr;width:100%;gap:12px!important}
   .hero-stat{min-width:0;white-space:normal}
   .hero-stat dt{font-size:clamp(10px,2.65vw,12px);line-height:1.3}
