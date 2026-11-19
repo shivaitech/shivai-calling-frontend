@@ -179,8 +179,8 @@ html{scroll-behavior:smooth}body{font-family:Poppins,sans-serif}[hidden]{display
 .hero-wave{display:flex;color:#989aa7}
 .hero-wave svg{width:60px;height:60px;stroke-width:2.4}
 .hero-headline p{font-size:15px;color:#202127;font-weight:400;margin:14px 0 0;white-space:nowrap}
-.hero-value{margin-top:20px;max-width:520px}
-.hero-value h2{margin:0;color:#202127;font-size:clamp(18px,1.55vw,22px);font-weight:600;line-height:1.3;letter-spacing:-.01em;text-wrap:balance}
+.hero-value{margin-top:14px;max-width:520px}
+.hero-value h2{margin:0;color:#202127;font-size:15px;font-weight:400;line-height:1.5;text-wrap:balance}
 .hero-headline .hero-value p{margin:8px 0 0;color:#5a5a59;font-size:14px;line-height:1.5;white-space:normal;text-wrap:pretty}
 .hero-buttons{display:flex;align-items:center;gap:18px}
 .hero-button{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:46px;padding:0 28px;border-radius:999px;font-size:14px;font-weight:500;white-space:nowrap;transition:transform .2s,box-shadow .2s}
@@ -212,6 +212,7 @@ html{scroll-behavior:smooth}body{font-family:Poppins,sans-serif}[hidden]{display
   .hero-stat dt{font-size:clamp(10px,2.65vw,12px);line-height:1.3}
   .hero-stat dd{font-size:22px!important}
   .hero-headline p{font-size:16px;line-height:1.55;max-width:32rem;margin-top:12px}
+  .hero-value h2{font-size:16px}
   .hero-greeting-row{gap:12px;min-width:0}
   .hero-greeting{min-width:0;max-width:calc(100% - 54px);font-size:clamp(3.5rem,14vw,5.5rem)}
   .hero-wave{flex:none}
