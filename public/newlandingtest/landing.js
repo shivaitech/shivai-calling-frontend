@@ -3,6 +3,21 @@
 (() => {
   const $ = selector => document.querySelector(selector);
   const $$ = selector => [...document.querySelectorAll(selector)];
+  const header = $('.site-header');
+  const menuButton = $('.site-menu-toggle');
+  const mobileMenu = $('#site-mobile-menu');
+  function setMenu(open) {
+    menuButton.setAttribute('aria-expanded', String(open));
+    menuButton.setAttribute('aria-label', open ? 'Close mobile menu' : 'Open mobile menu');
+    mobileMenu.hidden = !open;
+  }
+  menuButton.addEventListener('click', () => setMenu(menuButton.getAttribute('aria-expanded') !== 'true'));
+  mobileMenu.addEventListener('click', event => { if (event.target.closest('a')) setMenu(false); });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape' && !mobileMenu.hidden) { setMenu(false); menuButton.focus(); } });
+  document.addEventListener('click', event => { if (!header.contains(event.target) && !mobileMenu.hidden) setMenu(false); });
+  addEventListener('scroll', () => header.classList.toggle('is-scrolled', scrollY > 10), { passive: true });
+  header.classList.toggle('is-scrolled', scrollY > 10);
+  try { if (localStorage.getItem('auth_tokens')) $$('[data-account]').forEach(el => { el.href = '/dashboard'; el.querySelector('span').textContent = 'Dashboard'; }); } catch {}
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
   const behavior = () => reduceMotion.matches ? 'instant' : 'smooth';
   const featureTrack = $('[data-track="setFeatTrack"]');
