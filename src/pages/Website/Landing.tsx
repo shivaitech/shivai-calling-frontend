@@ -71,6 +71,15 @@ const Landing: React.FC = () => {
     }
   }, [token, navigate]);
 
+  // Standalone marketing pages can link directly to the existing auth flow.
+  useEffect(() => {
+    const mode = searchParams.get("auth");
+    if (mode === "signup" || mode === "signin") {
+      setAuthMode(mode);
+      setShowAuthModal(true);
+    }
+  }, [searchParams]);
+
   // Show error from URL params (OAuth failures)
   useEffect(() => {
     const error = searchParams.get("error");

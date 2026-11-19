@@ -1,5 +1,7 @@
 {
   "rewrites": [
+    { "source": "/newlandingtest", "destination": "/newlandingtest/index.html" },
+    { "source": "/newlandingtest/", "destination": "/newlandingtest/index.html" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
