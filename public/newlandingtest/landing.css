@@ -228,3 +228,21 @@ html{scroll-behavior:smooth}body{font-family:Poppins,sans-serif}[hidden]{display
   .hero-highlights strong,.hero-highlights small{overflow-wrap:normal;line-height:1.35}
   .hero-highlight-icon{width:36px;height:36px}
 }
+
+/* Industry strip overlaps and softens the bottom edge of the hero artwork. */
+.hero-wrap::after{content:"";position:absolute;z-index:2;left:0;right:0;bottom:0;height:32px;background:linear-gradient(to bottom,transparent,#f0f0f0);pointer-events:none}
+.hero-industries{position:relative;z-index:5;display:flex;align-items:center;width:calc(100% - 64px);max-width:1240px;margin:-24px auto 22px;padding:10px 20px;border:1px solid rgba(255,255,255,.95);border-radius:999px;background:rgba(248,248,251,.86);box-shadow:inset 0 1px 4px rgba(255,255,255,.9),0 6px 18px rgba(40,45,58,.07);backdrop-filter:blur(12px)}
+.hero-industries-label{flex:none;padding:0 20px 0 8px;color:#4b4d55;font-size:12px;line-height:1.3}
+.hero-industries-scroll{min-width:0;flex:1;overflow-x:auto;overscroll-behavior-inline:contain;scrollbar-width:thin}
+.hero-industries-list{display:flex;align-items:center;justify-content:space-between;width:max-content;min-width:100%;margin:0;padding:0;list-style:none}
+.hero-industries-list li{display:flex;align-items:center;gap:10px;flex:none;padding:2px clamp(14px,1.5vw,24px);color:#24262b;font-size:12px;font-weight:500;white-space:nowrap}
+.hero-industries-list li+li{border-left:1px solid #dedfe5}
+.hero-industries-list svg{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+@media(max-width:640px){
+  .hero-industries{width:calc(100% - 32px);margin:-20px auto 16px;padding:10px 12px;border-radius:22px;align-items:flex-start;flex-direction:column;gap:9px}
+  .hero-industries-label{padding:0 4px;font-size:12px}
+  .hero-industries-label br{display:none}
+  .hero-industries-list li{padding:2px 14px;font-size:12px}
+  .hero-industries-list li:first-child{padding-left:4px}
+  .hero-industries-scroll{width:100%}
+}
