@@ -15,7 +15,7 @@ let started = false;
  * as easy and as visible as "Accept", the choice can be changed any time (footer → Cookie settings,
  * Privacy Center), and every change goes into the consent ledger.
  */
-export default function CookieConsent() {
+export default function CookieConsent({ portalContainer = document.body }: { portalContainer?: Element | DocumentFragment } = {}) {
   const { pathname } = useLocation();
   const { isAuthenticated } = useAuth();
   const [open, setOpen] = useState(false);
@@ -155,6 +155,6 @@ export default function CookieConsent() {
         )}
       </div>
     </div>,
-    document.body,
+    portalContainer,
   );
 }

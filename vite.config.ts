@@ -21,6 +21,37 @@ function landingPreviewRoute(): Plugin {
   };
 }
 
+// Build a separate entry for the shared React sections used by the static
+// landing preview, and replace its development loader with the bundled entry.
+function landingPreviewSections(): Plugin {
+  let outputDir = "";
+  let entryFile = "";
+  return {
+    name: "landing-preview-sections",
+    apply: "build",
+    configResolved(config) {
+      outputDir = path.resolve(config.root, config.build.outDir);
+    },
+    generateBundle(_options, bundle) {
+      const entry = Object.values(bundle).find(
+        (item) =>
+          item.type === "chunk" &&
+          item.isEntry &&
+          item.facadeModuleId?.replace(/\\/g, "/").endsWith("/src/pages/Website/LandingPreviewSections.tsx"),
+      );
+      if (!entry || entry.type !== "chunk") throw new Error("Landing preview sections entry not found");
+      entryFile = entry.fileName;
+    },
+    writeBundle() {
+      if (!entryFile) throw new Error("Landing preview sections entry was not built");
+      fs.writeFileSync(
+        path.join(outputDir, "newlandingtest", "sections-loader.js"),
+        `import "/${entryFile}";\n`,
+      );
+    },
+  };
+}
+
 // Writes dist/version.json after every build.
 // The client polls this file to detect new deployments and auto-reloads.
 function versionFilePlugin(): Plugin {
@@ -88,7 +119,7 @@ function digitalCardSharePagePlugin(): Plugin {
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react(), landingPreviewRoute(), versionFilePlugin(), digitalCardSharePagePlugin()],
+  plugins: [react(), landingPreviewRoute(), landingPreviewSections(), versionFilePlugin(), digitalCardSharePagePlugin()],
   optimizeDeps: {
     include: ["lucide-react"],
   },
@@ -109,6 +140,10 @@ export default defineConfig({
       },
     },
     rollupOptions: {
+      input: {
+        app: path.resolve(__dirname, "index.html"),
+        landingPreviewSections: path.resolve(__dirname, "src/pages/Website/LandingPreviewSections.tsx"),
+      },
       output: {
         manualChunks: {
           // Core React — always needed
