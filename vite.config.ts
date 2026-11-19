@@ -1,8 +1,25 @@
-import { defineConfig, type Plugin } from "vite";
+import { defineConfig, type Connect, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import fs from "fs";
 import path from "path";
 import { DIGITAL_CARD_HOME } from "./src/pages/digitalCardRoutes";
+
+// Serve the standalone landing preview at its public URL during local development.
+function landingPreviewRoute(): Plugin {
+  const rewrite: Connect.NextHandleFunction = (req, _res, next) => {
+    const request = req as { url?: string };
+    const [pathname, query] = (request.url || "").split("?", 2);
+    if (pathname === "/newlandingtest" || pathname === "/newlandingtest/") {
+      request.url = "/newlandingtest/index.html" + (query ? `?${query}` : "");
+    }
+    next();
+  };
+  return {
+    name: "landing-preview-route",
+    configureServer(server) { server.middlewares.use(rewrite); },
+    configurePreviewServer(server) { server.middlewares.use(rewrite); },
+  };
+}
 
 // Writes dist/version.json after every build.
 // The client polls this file to detect new deployments and auto-reloads.
@@ -71,7 +88,7 @@ function digitalCardSharePagePlugin(): Plugin {
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react(), versionFilePlugin(), digitalCardSharePagePlugin()],
+  plugins: [react(), landingPreviewRoute(), versionFilePlugin(), digitalCardSharePagePlugin()],
   optimizeDeps: {
     include: ["lucide-react"],
   },
